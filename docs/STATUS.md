@@ -123,14 +123,27 @@ BEFORE the fix as well as after. What proved the defect was **element inspection
 (x=24 → x=417) and the **before/after screenshots**. The Workshop does not judge
 visual correctness, and does not claim to.
 
-### Cowork / Bot — exactly what Astra has built
+### Cowork / Bot — shared productivity backend (2026-09-12)
 
-Astra's contract today (`src/cowork/sessionstate.js`) is a SOURCE BINDING and
-nothing else: which transport a session came from. There is no task, artifact,
-approval or job surface behind it. So the application lists Cowork sessions,
-names their source, and reports
-`{sessions: true, tasks: false, artifacts: false, approvals: false, jobs: false}`
-with a sentence saying so. Nothing is faked.
+Cowork now projects the existing Session, Harness task/activity, approval events,
+background jobs and persisted task artifacts. Harness and messaging inputs become
+opaque, exact-session-owned artifacts before tools use them. The conditional
+Cowork vocabulary is added by the one existing tool registry and supplies
+deterministic spreadsheet, image and document operations. A messaging model turn
+can return a generated artifact through its originating delivery queue.
+
+| Capability | Tier | Label |
+|---|---|---|
+| Stable source binding, staged attachment promotion, cross-session artifact denial and exact resume | unit | **UNIT-VERIFIED** |
+| Cowork state projects task, activity, approvals, jobs, artifacts and capability states without host paths | unit | **UNIT-VERIFIED** |
+| CSV cleanup; XLSX create/cleanup with formulas, first-occurrence de-duplication, formatting and chart | integration | **INTEGRATION-VERIFIED** |
+| Image measurement and deterministic resize; DOCX create/read; PDF creation | integration | **INTEGRATION-VERIFIED** |
+| Local BiRefNet background removal through the owned Cowork wrapper: 256×256 RGBA, measured alpha 0–255, 4,301-byte output | real local operation | **REAL LOCAL VERIFIED** |
+| Telegram Cowork turn creates an XLSX through the shared model/tool/Harness path and delivers exact owned bytes | integration fixture | **INTEGRATION-VERIFIED** |
+| Live Telegram, Discord and WhatsApp account delivery | not run | **NOT LIVE-VERIFIED** |
+| Email, calendar, contacts, reminders and personal notes | unavailable | **UNCONFIGURED** |
+
+The complete operator and failure-state contract is in `docs/COWORK.md`.
 
 ### Parked work that could not be recovered
 

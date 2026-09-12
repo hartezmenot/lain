@@ -111,6 +111,9 @@ class Session {
     this.actors = [];
     // WHO ANSWERS A CHAT TURN, and which website thread is this one's.
     require('./modelsource/sessionstate').attach(this);
+    // Cowork uploads wait here only until the next active Harness task adopts
+    // them. Metadata is persisted; bytes remain in this session's scratch.
+    this.coworkInputs = [];
     this.goal = null;    // the standing goal, changed only by /goal — goal.js   // its own module: see there
   }
 
@@ -489,6 +492,7 @@ class Session {
       // THE CHAT SOURCE SURVIVES A RESUME. See modelsource/sessionstate.js.
       ...require('./modelsource/sessionstate').toJSON(this),
       cowork: require('./cowork/sessionstate').from(this.cowork),
+      coworkInputs: require('./cowork/attachments').pending(this),
       goal: require('./goal').toJSON(this),
     };
   }
@@ -548,6 +552,7 @@ class Session {
     s.external = require('./externalstate').ExternalLedger.from(data.external);
     require('./modelsource/sessionstate').restore(s, data);
     s.cowork = require('./cowork/sessionstate').from(data.cowork);
+    s.coworkInputs = Array.isArray(data.coworkInputs) ? data.coworkInputs.slice(0, 8) : [];
     s.goal = require('./goal').from(data.goal);
     return s;
   }

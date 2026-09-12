@@ -325,21 +325,9 @@ async function read(app) {
         steps: s.plan.steps.slice(0, 40).map((x) => ({ text: x.text, status: x.status, origin: x.origin || 'llm' })),
       }
       : null,
-    // ---- COWORK, AND EXACTLY WHAT ASTRA HAS BUILT ----------------------
-    //
-    // Their contract today (src/cowork/sessionstate.js) is a SOURCE BINDING and
-    // nothing more: which transport a session came from. There is no task,
-    // artifact, approval or job surface behind it yet.
-    //
-    // So the application lists Cowork sessions and names their source, and says
-    // plainly that the rest is not available. Rendering an approvals panel over
-    // a backend that has none would be inventing a capability, which is the one
-    // thing this projection must never do.
-    cowork: {
-      contract: 'source-binding-v1',
-      capabilities: { sessions: true, tasks: false, artifacts: false, approvals: false, jobs: false },
-      why: 'Astra has bound Cowork sessions to a source; the task and artifact surface is not implemented yet.',
-    },
+    // The neutral Cowork projection reads the same Session, Harness, approval,
+    // artifact and background-job owners as every other surface.
+    cowork: require('../cowork/runtime').project(app),
   };
 }
 

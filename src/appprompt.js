@@ -66,6 +66,8 @@ function build(app) {
     try { app._projectBrief = require('./project').brief(app.session.cwd); } catch { app._projectBrief = ''; }
   }
   if (app._projectBrief) sys += `\n\n# This project\n${app._projectBrief}`;
+  const cowork = require('./cowork/prompt').forSession(app.session);
+  if (cowork) sys += `\n\n${cowork}`;
   // ---- THE STANDING GOAL, BEFORE THE PLAN -------------------------------
   //
   // ORDER IS THE ARGUMENT: a goal is what the user is trying to achieve and a

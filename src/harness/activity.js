@@ -11,6 +11,11 @@ function project(task, events) {
     const base = { target: String(ev.target || ev.name || '').slice(0, 160), timestamp: ev.at };
     if (ev.type === EVENT.TOOL_STARTED) {
       const tool = String(ev.tool || '');
+      if (/^cowork_spreadsheet_(?:transform|create)$/.test(tool)) return { state: 'WRITING', action: 'Cleaning spreadsheet', ...base };
+      if (tool === 'cowork_image_transform') return { state: 'WRITING', action: 'Editing image', ...base };
+      if (/^cowork_document_(?:transform|create)$/.test(tool)) return { state: 'WRITING', action: 'Creating document', ...base };
+      if (tool === 'cowork_deliver_artifact') return { state: 'WRITING', action: 'Sending file', ...base };
+      if (/^cowork_(?:spreadsheet|image|document)_inspect$|^cowork_artifacts$/.test(tool)) return { state: 'READING', action: 'Reading file', ...base };
       const state = /^(read|list|search|find)_/.test(tool) ? 'READING'
         : /^(write|edit|replace|insert|rename|delete|patch)_/.test(tool) ? 'WRITING'
           : /^(verify|run_tests)/.test(tool) ? 'VERIFYING'

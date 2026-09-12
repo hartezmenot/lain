@@ -26,13 +26,13 @@ function registry(sent, platforms = ['telegram', 'discord', 'whatsapp']) {
 const settings = (maxConcurrent = 2) => ({ bot: { maxConcurrent, platforms: Object.fromEntries(['telegram', 'discord', 'whatsapp'].map(p => [p, { enabled: true, allowUsers: ['alice', 'bob'] }])) } });
 module.exports = async () => {
   await test('BOT RELEASE: signed WhatsApp retries dedupe through real listener and persisted gateway restart', async () => {
-    const dir = temporary(), sent = [], runs = [];
+    const dir = temporary(), sent = [], handledEvents = [];
     const vars = ['LAIN_WHATSAPP_TOKEN', 'LAIN_WHATSAPP_APP_SECRET', 'LAIN_WHATSAPP_VERIFY_TOKEN'];
     const prior = Object.fromEntries(vars.map(k => [k, process.env[k]])); for (const k of vars) process.env[k] = `fixture-release-${k}`;
-    let adapter, gateway;
+    let adapter, gatewayInstance;
     const r = new Registry().register(whatsappCaps, cfg => (adapter = new WhatsApp(cfg, { http: { request: async (route, opts) => { sent.push({ route, opts }); return { messages: [{ id: `outbound-${sent.length}` }] }; } } })));
     const cfg = { bot: { platforms: { whatsapp: { enabled: true, allowUsers: ['6731234567'], phoneNumberId: '123456', businessAccountId: '987654', apiVersion: 'v25.0', port: 0 } } } };
-    const opts = { dir, registry: r, cfg, runtimeFactory: ({ sessionId }) => ({ id: sessionId || 'stable-wa-session', run: async e => { runs.push(e); return 'reply'; }, stop() {}, close: async () => {} }) };
+    const opts = { dir, registry: r, cfg, runtimeFactory: ({ sessionId }) => ({ id: sessionId || 'stable-wa-session', run: async e => { handledEvents.push(e); return 'reply'; }, stop() {}, close: async () => {} }) };
     const payload = (changes = {}) => ({ object: 'whatsapp_business_account', entry: [{ id: changes.account || '987654', changes: [{ field: 'messages', value: { metadata: { phone_number_id: changes.phone || '123456' }, messages: [{ id: changes.id || 'wamid.one', from: '6731234567', type: 'text', timestamp: String(Math.floor(Date.now() / 1000)), text: { body: 'hello' } }] } }] }] });
     const post = async (value, bad = false) => {
       const body = JSON.stringify(value), signature = crypto.createHmac('sha256', process.env.LAIN_WHATSAPP_APP_SECRET).update(body).digest('hex');
@@ -40,31 +40,31 @@ module.exports = async () => {
       await response.text(); return response.status;
     };
     try {
-      gateway = new Gateway(opts); await gateway.start();
+      gatewayInstance = new Gateway(opts); await gatewayInstance.start();
       assert.equal(await post(payload(), true), 403);
-      assert.equal(await post(payload({ account: '000000' })), 200); assert.equal(await post(payload({ phone: '000000' })), 200); assert.equal(runs.length, 0);
+      assert.equal(await post(payload({ account: '000000' })), 200); assert.equal(await post(payload({ phone: '000000' })), 200); assert.equal(handledEvents.length, 0);
       assert.ok((await Promise.all(Array.from({ length: 12 }, () => post(payload())))).every(status => status === 200));
-      await drain(gateway); assert.equal(runs.length, 1); assert.equal(sent.length, 1);
-      const originalId = gateway.store.data.sessions[sessionKey(runs[0])];
+      await drain(gatewayInstance); assert.equal(handledEvents.length, 1); assert.equal(sent.length, 1);
+      const originalId = gatewayInstance.store.data.sessions[sessionKey(handledEvents[0])];
       assert.deepEqual(adapter.diagnostics(), { localListener: true, publicWebhookVerified: false });
       // A fresh signed message keeps this sender's response window open for an older job.
-      await adapter.action({ type: 'send', target: { ...runs[0], timestamp: 1 }, text: 'older job completed' }); assert.equal(sent.length, 2);
-      await gateway.stop(); gateway = new Gateway(opts); await gateway.start();
-      assert.equal(await post(payload()), 200); await drain(gateway); assert.equal(runs.length, 1); assert.equal(sent.length, 2);
-      await post(payload({ id: 'wamid.two' })); await drain(gateway);
-      assert.equal(runs.length, 2); assert.equal(gateway.store.data.sessions[sessionKey(runs[1])], originalId);
+      await adapter.action({ type: 'send', target: { ...handledEvents[0], timestamp: 1 }, text: 'older job completed' }); assert.equal(sent.length, 2);
+      await gatewayInstance.stop(); gatewayInstance = new Gateway(opts); await gatewayInstance.start();
+      assert.equal(await post(payload()), 200); await drain(gatewayInstance); assert.equal(handledEvents.length, 1); assert.equal(sent.length, 2);
+      await post(payload({ id: 'wamid.two' })); await drain(gatewayInstance);
+      assert.equal(handledEvents.length, 2); assert.equal(gatewayInstance.store.data.sessions[sessionKey(handledEvents[1])], originalId);
       assert.equal(adapter.diagnostics().publicWebhookVerified, false);
-    } finally { await gateway?.stop(); for (const [k, v] of Object.entries(prior)) if (v === undefined) delete process.env[k]; else process.env[k] = v; fs.rmSync(dir, { recursive: true, force: true }); }
+    } finally { await gatewayInstance?.stop(); for (const [k, v] of Object.entries(prior)) if (v === undefined) delete process.env[k]; else process.env[k] = v; fs.rmSync(dir, { recursive: true, force: true }); }
   });
   await test('BOT RELEASE: independent platforms and same-platform chats isolate prompts, steer, stop and queued turns', async () => {
-    const dir = temporary(), sent = [], started = [], steered = [], stopped = [], release = new Map(), asks = new Map(); let nextId = 0;
+    const dir = temporary(), sent = [], started = [], steered = [], stopped = [], release = new Map(), promptAnswers = new Map(); let nextId = 0;
     const g = new Gateway({ dir, registry: registry(sent), cfg: settings(4), runtimeFactory: ({ ask }) => {
       const id = `runtime-${++nextId}`; let owner;
       return { id, stop() { if (owner) { stopped.push(sessionKey(owner)); release.get(sessionKey(owner))?.resolve(); } }, close: async () => {},
         steer(text) { steered.push({ owner: sessionKey(owner), text }); },
         async run(e, notify) {
           owner = e; started.push(e); const key = sessionKey(e);
-          if (e.text === 'ask') { const answer = await ask(e, { question: 'Guarded action?', options: ['Allow once', 'Deny'] }); asks.set(key, answer); return String(answer); }
+          if (e.text === 'ask') { const answer = await ask(e, { question: 'Guarded action?', options: ['Allow once', 'Deny'] }); promptAnswers.set(key, answer); return String(answer); }
           const wait = defer(); release.set(key, wait); await wait.promise;
           await notify(`Background ${key}`, `background-${key}`); return `Finished ${key}`;
         },
@@ -84,11 +84,11 @@ module.exports = async () => {
       for (const e of askEvents) {
         const prompt = sent.find(a => a.type === 'prompt' && sessionKey(a.target) === sessionKey(e)); assert.ok(prompt);
         await g.receive({ ...e, chatId: 'wrong-chat', messageId: 'wrong-response', text: '', promptResponse: { id: prompt.prompt.id, value: '1' } });
-        assert.ok(!asks.has(sessionKey(e)));
+        assert.ok(!promptAnswers.has(sessionKey(e)));
         await g.receive({ ...e, messageId: 'response', text: '', promptResponse: { id: prompt.prompt.id, value: e.platform === 'discord' ? '2' : '1' } });
         await g.receive({ ...e, messageId: 'replay', text: '', promptResponse: { id: prompt.prompt.id, value: '1' } });
       }
-      await drain(g); assert.equal(asks.get(sessionKey(askEvents[1])), 'Deny'); assert.equal(asks.get(sessionKey(askEvents[0])), 'Allow once'); assert.equal(asks.size, 3);
+      await drain(g); assert.equal(promptAnswers.get(sessionKey(askEvents[1])), 'Deny'); assert.equal(promptAnswers.get(sessionKey(askEvents[0])), 'Allow once'); assert.equal(promptAnswers.size, 3);
     } finally { for (const wait of release.values()) wait.resolve(); await g.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
   await test('BOT RELEASE: per-chat and total overload stay bounded while stop remains reachable and retry is admitted', async () => {
@@ -106,9 +106,9 @@ module.exports = async () => {
     } finally { blocking.resolve(); held = false; await g.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
   await test('BOT RELEASE: repeated service lifecycle owns one socket and preserves dedupe, receipts and stale-prompt rejection', async () => {
-    const dir = temporary(), sent = []; let running, creates = 0, stops = 0;
+    const dir = temporary(), sent = []; let running, creates = 0, stopCount = 0;
     const r = new Registry().register({ version: 1, platform: 'discord', maxLength: 2000 }, () => ({
-      state: 'listening', identity: 'fixture-identity', start: async () => { creates++; }, stop: async () => { stops++; }, action: async a => { sent.push(a); return { messageId: String(sent.length) }; },
+      state: 'listening', identity: 'fixture-identity', start: async () => { creates++; }, stop: async () => { stopCount++; }, action: async a => { sent.push(a); return { messageId: String(sent.length) }; },
     }));
     const opts = { dir, registry: r, cfg: { bot: { platforms: { discord: { enabled: true, allowUsers: ['alice'] } } } }, runtimeFactory: ({ sessionId }) => ({ id: sessionId || 'persisted-session', run: async () => 'one response', stop() {}, close: async () => {} }) };
     try {
@@ -119,7 +119,7 @@ module.exports = async () => {
         await running.gateway.receive(source({ messageId: `old-callback-${n}`, text: '', promptResponse: { id: '0123456789abcdef01234567', value: '1' } }));
         await service.control('stop', dir); await running.done; assert.equal(fs.existsSync(service.location(dir).file), false);
       }
-      assert.equal(sent.length, 1); assert.equal(creates, 5); assert.equal(stops, 5); assert.equal((await service.control('status', dir)).state, 'stopped');
+      assert.equal(sent.length, 1); assert.equal(creates, 5); assert.equal(stopCount, 5); assert.equal((await service.control('status', dir)).state, 'stopped');
     } finally { await running?.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
   await test('BOT RELEASE: real runtime background completion and cancellation preserve origin while remote ps stays session-scoped', async () => {

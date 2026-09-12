@@ -117,8 +117,8 @@ module.exports = async () => {
       assert.equal(evidence.read(root, 'discord', settings, fingerprint, now + evidence.MAX_AGE + 1).state, 'stale');
       assert.equal(evidence.read(root, 'discord', { ...settings, allowUsers: [] }, fingerprint, now).state, 'stale');
       assert.equal(evidence.read(root, 'discord', settings, 'f'.repeat(24), now).state, 'stale');
-      const file = path.join(root, 'bot', 'certification', 'discord.json'), record = JSON.parse(fs.readFileSync(file, 'utf8'));
-      record.adapterVersion = 'old'; fs.writeFileSync(file, JSON.stringify(record));
+      const file = path.join(root, 'bot', 'certification', 'discord.json'), certificate = JSON.parse(fs.readFileSync(file, 'utf8'));
+      certificate.adapterVersion = 'old'; fs.writeFileSync(file, JSON.stringify(certificate));
       assert.equal(evidence.read(root, 'discord', settings, fingerprint, now).state, 'stale');
       fs.writeFileSync(file, '{'); assert.equal(evidence.read(root, 'discord', settings, fingerprint, now).state, 'invalid');
     } finally { fs.rmSync(root, { recursive: true, force: true }); }

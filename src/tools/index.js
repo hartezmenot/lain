@@ -111,6 +111,7 @@ const TOOLS = {
  * the architecture guard checks.
  */
 function active(ctxApp) {
+  const app = typeof ctxApp === 'function' ? ctxApp() : ctxApp;
   let mcpConfigured = false;
   try { mcpConfigured = require('../mcp').configured(require('../config').load()); } catch { mcpConfigured = false; }
   let out = TOOLS;
@@ -130,6 +131,7 @@ function active(ctxApp) {
   // (LAIN's browser ownership — the `browser` tool and the Chromium-driving
   // `web_search` — was removed in 2026-09; the plain fetch survives.)
   out = { ...out, ...require('./web').fetchTools };
+  if (app?.session?.cowork) out = { ...out, ...require('./cowork').tools };
   return out;
 }
 

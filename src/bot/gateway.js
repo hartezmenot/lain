@@ -116,7 +116,7 @@ class Gateway {
         runtime = this.runtimeFactory({ cfg: this.cfg, cwd: this.cwd, sessionId, cowork, ask: (target, q, signal) => this.prompts.ask(target, q, signal),
           prepareInput: (app, target) => require('./media').ingress(adapter, app, target),
           deliveryStatus: target => this.delivery.review(target), retryDelivery: target => this.delivery.retryLatest(target, eventKey(target)),
-          sendArtifact: (app, target, artifactId) => require('./media').sendArtifact(adapter, this.delivery, app, target, artifactId, `artifact:${eventKey(target)}`) });
+          sendArtifact: (app, target, artifactId, deliveryId = null) => require('./media').sendArtifact(adapter, this.delivery, app, target, artifactId, deliveryId || `artifact:${eventKey(target)}:${artifactId}`) });
         this.store.bind(key, () => runtime.id); this.runtimes.set(key, runtime);
       }
       if (adapter.caps.typing) {

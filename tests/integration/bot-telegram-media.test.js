@@ -81,16 +81,16 @@ module.exports = async () => {
     await adapter.stop(); assert.equal((await rpc('fetch', args)).ok, false);
   }));
   await test('BOT TELEGRAM MEDIA: Rust uploads bytes with topic/reply mapping, bounded 429 retry and lost ACK remains uncertain', async () => fixture(async ({ root, adapter, state, uploads, start, token }) => {
-    await start(); const store = new Store(path.join(root, 'delivery')), delivery = new Delivery(store, () => adapter, { sleep: async () => {} });
+    await start(); const store = new Store(path.join(root, 'delivery')), deliveryQueue = new Delivery(store, () => adapter, { sleep: async () => {} });
     const target = { platform: 'telegram', accountId: 'default', chatId: '-100', senderId: '555', threadId: '9', replyTo: '7' };
     const file = { name: '../../private\r\nfile.txt', mime: 'text/plain', bytes: Buffer.from('evidence\0binary') };
-    state.mediaReply = '429'; const sent = await delivery.sendFile(target, file, { id: 'safe-file', artifactId: 'a', turnId: 't' }); assert.equal(sent[0].state, 'delivered'); assert.equal(uploads.length, 2);
+    state.mediaReply = '429'; const sent = await deliveryQueue.sendFile(target, file, { id: 'safe-file', artifactId: 'a', turnId: 't' }); assert.equal(sent[0].state, 'delivered'); assert.equal(uploads.length, 2);
     const body = uploads[1].body; assert.ok(body.includes(file.bytes)); assert.ok(body.includes(Buffer.from('name="message_thread_id"\r\n\r\n9'))); assert.ok(body.includes(Buffer.from('"message_id":7')));
     assert.ok(!body.includes(Buffer.from(token))); assert.ok(!body.includes(Buffer.from('../../'))); assert.ok(!body.includes(Buffer.from(root)));
     const count = uploads.length; await assert.rejects(() => adapter.action({ type: 'media', target, file: { path: root } }));
     await assert.rejects(() => adapter.action({ type: 'media', target, file: { ...file, bytes: Buffer.alloc(MAX_BYTES + 1) } })); assert.equal(uploads.length, count);
-    state.mediaReply = 'lost-ack'; const unknown = await delivery.sendFile(target, file, { id: 'unknown-file', artifactId: 'a', turnId: 't' }); assert.equal(unknown[0].state, 'uncertain');
-    await delivery.sendFile(target, file, { id: 'unknown-file', artifactId: 'a', turnId: 't' }); assert.equal(uploads.length, count + 1, 'unknown delivery must never auto-resend');
+    state.mediaReply = 'lost-ack'; const unknown = await deliveryQueue.sendFile(target, file, { id: 'unknown-file', artifactId: 'a', turnId: 't' }); assert.equal(unknown[0].state, 'uncertain');
+    await deliveryQueue.sendFile(target, file, { id: 'unknown-file', artifactId: 'a', turnId: 't' }); assert.equal(uploads.length, count + 1, 'unknown delivery must never auto-resend');
     assert.ok(!fs.readFileSync(path.join(root, 'delivery', 'transport.json'), 'utf8').includes(file.bytes.toString()));
   }));
 };

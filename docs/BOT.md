@@ -208,6 +208,13 @@ export another session's artifact. The model receives only the opaque reference
 and public metadata. Media handling continues to use the shared Harness artifact
 authority; there is no transport-specific file store.
 
+A messaging Cowork turn has the same deterministic spreadsheet, image and
+document tools as local Harness Cowork. The model can create or transform a task
+artifact and call `cowork_deliver_artifact`; that call returns the bytes through
+the initiating conversation's existing idempotent delivery queue. This is shared
+Cowork behavior rather than adapter-specific spreadsheet or image logic. See
+[the Cowork capability contract](COWORK.md).
+
 ## Extension contract and limits
 
 `src/bot/contract.js` exports version 1 events, descriptor validation, action

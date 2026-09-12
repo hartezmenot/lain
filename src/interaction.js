@@ -12,5 +12,9 @@ function ask(app, question, signal) {
   return app.ui.ask(require('./ui/panel').askAdapter(question));
 }
 function run(app, interaction, fn) { return scope.run({ app, port: interaction }, fn); }
-async function prepareInput(app, text) { return port(app)?.prepareInput ? port(app).prepareInput(text) : text; }
+async function prepareInput(app, text) {
+  let prepared = text;
+  if (app?.session?.cowork) prepared += require('./cowork/attachments').promote(app);
+  return port(app)?.prepareInput ? port(app).prepareInput(prepared) : prepared;
+}
 module.exports = { available, ask, port, run, prepareInput };

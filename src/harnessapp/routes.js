@@ -63,6 +63,52 @@ const ROUTES = {
 
   'GET /api/state': async (app) => ok({ state: await state.read(app) }),
 
+  // --------------------------------------------------------------- Cowork --
+
+  'POST /api/cowork/bind': async (app) => {
+    if (!app.session.cowork && ((app.session.messages || []).length || (app.session.turns || []).length)) {
+      return bad('start an empty session before binding it to Cowork; existing engineering history is not reclassified');
+    }
+    const binding = require('../cowork/sessionstate');
+    try {
+      binding.bind(app.session, 'harness', binding.sourceBinding('harness', [app.session.id, app.session.cwd]));
+      app.session.save();
+    } catch (error) { return bad(error.message); }
+    return ok({ cowork: require('../cowork/runtime').project(app) });
+  },
+
+  'POST /api/cowork/attachment': async (app, body = {}) => {
+    const result = require('../cowork/attachments').stage(app, body);
+    return result.ok ? ok(result) : bad(result.why, result.class === 'PERMISSION_REQUIRED' ? 403 : 400);
+  },
+
+  'POST /api/cowork/artifact': async (app, body = {}) => {
+    const owned = require('../cowork/artifacts'), rec = owned.find(app, body.ref), bytes = rec && owned.bytes(app, body.ref);
+    if (!rec || !bytes) return bad('artifact is unavailable or does not belong to this Cowork session', 404);
+    return ok({ artifact: { ...owned.publicRecord(rec), data: bytes.toString('base64') } });
+  },
+
+  'POST /api/cowork/background': async (app, body = {}) => {
+    if (!app.session.cowork) return bad('bind this session to Cowork first', 403);
+    const text = String(body.text || '').trim();
+    if (!text) return bad('background work needs an instruction');
+    if (app.jobs.running().filter((job) => !job.primary).length >= 2) return bad('two background tasks are already running', 409);
+    const job = app.startBackground(text);
+    return job ? ok({ job: require('../cowork/runtime').jobs(app).find((row) => row.id === job.id) }) : bad('background work could not start', 409);
+  },
+
+  'POST /api/cowork/cancel': async (app, body = {}) => {
+    const job = app.jobs.get(String(body.id || ''));
+    if (!job || job.primary) return bad('no such Cowork background task', 404);
+    return ok({ cancelled: job.cancel('cancelled from Cowork') });
+  },
+
+  'POST /api/cowork/answer': async (app, body = {}) => {
+    const job = app.jobs.get(String(body.id || ''));
+    if (!job || !job.needsInput) return bad('that Cowork task is not waiting for an answer', 409);
+    return ok({ answered: job.reply(String(body.answer || '')) });
+  },
+
   // ------------------------------------------------ the chat model source --
 
   /**

@@ -45,12 +45,12 @@ function record(dir, platform, settings, identityFingerprint, checks, now = Date
   const value = { schema: 1, platform, timestamp: new Date(now).toISOString(), adapterVersion: adapterVersion(platform),
     accountFingerprint: identityFingerprint, configurationFingerprint: configurationFingerprint(platform, settings),
     checks: Object.fromEntries(CHECKS.map(k => [k, ['passed', 'failed'].includes(checks[k]) ? checks[k] : 'not_verified'])) };
-  const target = file(dir, platform), parent = path.dirname(target);
+  const target = file(dir, platform), certificateDir = path.dirname(target);
   // Resolve the existing bot directory before writing, so evidence cannot be
   // redirected into another project through a symlink or junction.
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const root = fs.realpathSync(dir);
-  for (const part of [path.join(dir, 'bot'), parent]) {
+  for (const part of [path.join(dir, 'bot'), certificateDir]) {
     if (fs.existsSync(part)) {
       const relative = path.relative(root, fs.realpathSync(part));
       if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('certification directory escapes config home');

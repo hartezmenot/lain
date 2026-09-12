@@ -67,16 +67,22 @@ module.exports = async function () {
       'work about a spreadsheet is not a Cowork session');
   });
 
-  await test('APP: Cowork reports EXACTLY what Astra has built, and no more', async () => {
-    // The brief's hard rule: do not fake capabilities the backend does not have.
-    // Astra's contract today is a source binding; there is no task, artifact,
-    // approval or job surface behind it.
-    const s = await state.read(appAt(tmpdir('app-')));
-    assert.strictEqual(s.cowork.capabilities.sessions, true);
-    for (const gone of ['tasks', 'artifacts', 'approvals', 'jobs']) {
-      assert.strictEqual(s.cowork.capabilities[gone], false, `${gone} is not implemented and must not be claimed`);
+  await test('APP: Cowork projects shared authorities and keeps unconfigured accounts honest', async () => {
+    const app = appAt(tmpdir('app-'));
+    let s = await state.read(app);
+    assert.strictEqual(s.cowork.active, false);
+    for (const ready of ['files', 'artifacts', 'background', 'approvals', 'research']) {
+      assert.strictEqual(s.cowork.capabilities[ready].state, 'AVAILABLE');
     }
-    assert.match(s.cowork.why, /not implemented/i, 'and it says so in words');
+    for (const absent of ['email', 'calendar', 'contacts', 'reminders', 'notes']) {
+      assert.strictEqual(s.cowork.capabilities[absent].state, 'UNCONFIGURED', `${absent} must not be invented`);
+    }
+    const bound = await routes.dispatch(app, 'POST', '/api/cowork/bind', {});
+    assert.strictEqual(bound.code, 200);
+    s = await state.read(app);
+    assert.strictEqual(s.cowork.active, true);
+    assert.strictEqual(s.current.lane, 'cowork');
+    assert.strictEqual(s.cowork.session.source, 'harness');
   });
 
   await test('APP: tool results never travel to the application', async () => {

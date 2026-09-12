@@ -25,6 +25,9 @@ runtime, local or hosted: a provider is configured, not built in.
 Messaging access through Telegram, Discord and WhatsApp is available as an
 optional surface of the same runtime. See [LAIN Bot setup and limits](docs/BOT.md)
 for `lain --bot`, `/bot`, authorization, credentials and tested capabilities.
+General file work in the Harness application or those messaging conversations
+uses the same Cowork backend. See [LAIN Cowork capabilities and limits](docs/COWORK.md)
+for attachments, spreadsheets, images, documents, artifacts and background work.
 
 **One product, one install, one command.** Installing LAIN Harness gives you the
 `lain` executable with the harness inside it. There is no separate LAIN CLI to

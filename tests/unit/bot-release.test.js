@@ -70,12 +70,12 @@ module.exports = async () => {
   });
   await test('BOT RELEASE: duplicate component dispatch acknowledges once and survives lost callback ACK', async () => {
     for (const lostAck of [false, true]) {
-      let acknowledgements = 0, receives = 0;
+      let acknowledgements = 0, receivedCount = 0;
       await discord(async a => {
-        await a.start(async () => { receives++; return { accepted: true, duplicate: receives > 1 }; });
+        await a.start(async () => { receivedCount++; return { accepted: true, duplicate: receivedCount > 1 }; });
         const packet = { op: 0, t: 'INTERACTION_CREATE', s: 2, d: { type: 3, id: 'callback', token: 'secret-callback-token', channel_id: 'chat', user: { id: 'alice' }, data: { custom_id: 'lain:0123456789abcdef01234567:1' } } };
         await a.packet(packet); await a.packet({ ...packet, s: 3 });
-        assert.equal(acknowledgements, 1); assert.equal(receives, 2); assert.equal(a.committedSeq, 3);
+        assert.equal(acknowledgements, 1); assert.equal(receivedCount, 2); assert.equal(a.committedSeq, 3);
       }, async () => { acknowledgements++; if (lostAck) throw { status: 400, code: 40060 }; return {}; });
     }
   });
@@ -115,11 +115,11 @@ module.exports = async () => {
     try {
       const http = new Http({ base: 'https://fixture.invalid', fetch: async () => { requests++; return new Response('{"retry_after":0.001}', { status: 429 }); } });
       const adapter = { caps: require('../../src/bot/discord').caps, action: () => http.request('/messages') };
-      const store = new Store(dir), delivery = new Delivery(store, () => adapter);
-      let rows = await delivery.sendMessage(source(), 'rate limited', { id: 'limited' });
+      const store = new Store(dir), deliveryQueue = new Delivery(store, () => adapter);
+      let rows = await deliveryQueue.sendMessage(source(), 'rate limited', { id: 'limited' });
       assert.equal(requests, 3); assert.equal(rows[0].state, 'failed');
       adapter.action = async () => { requests++; throw new Error('timeout after remote accept'); };
-      rows = await delivery.sendMessage(source(), 'maybe accepted', { id: 'uncertain' }); assert.equal(rows[0].state, 'uncertain');
+      rows = await deliveryQueue.sendMessage(source(), 'maybe accepted', { id: 'uncertain' }); assert.equal(rows[0].state, 'uncertain');
       const restarted = new Delivery(new Store(dir), () => adapter); await restarted.recover(() => true);
       await restarted.sendMessage(source(), 'maybe accepted', { id: 'uncertain' }); assert.equal(requests, 4);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }

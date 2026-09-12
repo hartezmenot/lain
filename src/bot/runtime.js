@@ -22,7 +22,11 @@ class Runtime {
   cancelJob(id) { const job = this.app.jobs.get(Number(id)); if (!job) return false; job.cancel('cancelled from messaging'); return true; }
   async run(e, notify) {
     const app = this.app;
-    const p = { ask: (q, signal) => this.ask(e, q, signal), prepareInput: async text => text + (await this.prepareInput?.(app, e) || '') };
+    const p = {
+      ask: (q, signal) => this.ask(e, q, signal),
+      prepareInput: async text => text + (await this.prepareInput?.(app, e) || ''),
+      deliverArtifact: ref => this.sendArtifact(app, e, ref, `artifact:${e.messageId}:${ref}`),
+    };
     return interaction.run(app, p, async () => {
       if (e.text.trim() === '/ps') return require('../pscommand').rows(app).map(r => `${r.type} ${r.pid || '-'} ${r.state} ${r.name}`).join('\n') || 'This conversation owns no processes.';
       if (e.text.trim() === '/delivery') return this.deliveryStatus(e);

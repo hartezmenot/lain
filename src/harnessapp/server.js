@@ -50,8 +50,8 @@ const routes = require('./routes');
 
 /** The port the application prefers. One above the dashboard's neighbourhood. */
 const DEFAULT_PORT = 4478;
-/** Bodies are commands and prompts, never uploads. */
-const MAX_BODY = 256 * 1024;
+/** Cowork attachments are capped at 2 MiB; Base64 plus JSON needs under 3 MiB. */
+const MAX_BODY = 3 * 1024 * 1024;
 
 /** Module-scope, like dash.js: at most one application server per process. */
 let state = null;

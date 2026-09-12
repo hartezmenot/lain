@@ -76,11 +76,11 @@ function bytes(app, ref) {
 
 function keep(app, { name, mime = '', body, note = 'Cowork output' } = {}) {
   if (!Buffer.isBuffer(body) || body.length > MAX_BODY) return null;
-  const h = require('../harnesslink').existing(app), taskId = h?.runtime.activeId;
-  if (!taskId) return null;
-  const rec = h.runtime.keep(taskId, { kind: 'report', name: safeName(name), body, note: String(note).slice(0, 200) });
+  const h = require('../harnesslink').existing(app), activeTaskId = h?.runtime.activeId;
+  if (!activeTaskId) return null;
+  const rec = h.runtime.keep(activeTaskId, { kind: 'report', name: safeName(name), body, note: String(note).slice(0, 200) });
   if (!rec) return null;
-  return publicRecord({ ...rec, taskState: h.runtime.get(taskId)?.state || 'RUNNING', ref: refFor(app.session.id, rec), mime });
+  return publicRecord({ ...rec, taskState: h.runtime.get(activeTaskId)?.state || 'RUNNING', ref: refFor(app.session.id, rec), mime });
 }
 
 module.exports = { safeName, mimeFor, refFor, taskRecords, records, publicRecord, list, find, bytes, keep, MAX_BODY };
