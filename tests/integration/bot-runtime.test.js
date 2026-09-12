@@ -71,9 +71,9 @@ module.exports = async () => {
       await g.receive(source({ senderId: 'bob', messageId: '9', text: '/send ' + attachment.ref })); await Promise.all([...g.tasks]);
       assert.equal(sent.filter(a => a.type === 'media').length, count, 'another user must not export the artifact');
     } finally {
-      await g?.stop(); await new Promise(r => setTimeout(r, 250)); await supervisor.cleanupOwned().catch(() => {});
+      await g?.stop(); await supervisor.cleanupOwned().catch(() => {}); await require('../../src/harness/processes').cleanupOwned().catch(() => {}); await new Promise(r => setTimeout(r, 300));
       for (const [k, v] of Object.entries(previous)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   });
 };
