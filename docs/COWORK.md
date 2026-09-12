@@ -83,6 +83,9 @@ an owned draft reference. Send, archive and delete are marked `EXTERNAL` in the
 shared capability registry, pause at the existing interaction approval gate on
 every call, and keep a task-owned receipt after the provider acknowledges the
 action. Dismissing or denying the prompt invokes no account service.
+A draft can bind `reply_to` to the provider message ID returned by search/read;
+the connector then receives `replyTo`, and the durable send receipt records the
+same source binding.
 
 LAIN supplies a narrow connector protocol rather than storing account secrets.
 Configure `cowork.services.email.command` as an argv array for a program that
@@ -141,7 +144,9 @@ Unit tests cover binding, attachment promotion, ownership, resume, projection,
 Harness routes, conditional tool exposure, external approval and remote delivery. Integration tests
 run real CSV, XLSX, image, DOCX and PDF bytes and drive a Telegram Cowork turn
 through the existing App, model loop, Harness task, spreadsheet tool, artifact
-store and delivery queue. A process-backed email fixture verifies credential
+store and delivery queue. A Telegram media fixture also uploads CSV and PNG
+inputs, transforms both through the shared deterministic tools, and verifies
+the exact resulting bytes return as native files to the originating chat. A process-backed email fixture verifies credential
 isolation and durable receipts, and a Telegram fixture verifies an in-conversation
 approval followed by exactly one send. These are local and fixture-backed checks. They are not
 live Telegram/Discord/WhatsApp certification or live account-provider proof.

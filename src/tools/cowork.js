@@ -132,7 +132,7 @@ const tools = {
     mutates: false, effect: 'WRITE',
     schema: { name: 'cowork_email_draft', description: 'Create a reviewable, task-owned email draft artifact. This does not send email.', parameters: { type: 'object', properties: {
       name: { type: 'string' }, to: { type: 'array', maxItems: 50, items: { type: 'string' } }, cc: { type: 'array', maxItems: 50, items: { type: 'string' } },
-      bcc: { type: 'array', maxItems: 50, items: { type: 'string' } }, subject: { type: 'string' }, body: { type: 'string' },
+      bcc: { type: 'array', maxItems: 50, items: { type: 'string' } }, subject: { type: 'string' }, body: { type: 'string' }, reply_to: { type: 'string', description: 'provider message ID being replied to, when this is a reply' },
       attachment_refs: { type: 'array', maxItems: 8, items: { type: 'string' } },
     }, required: ['to', 'subject', 'body'] } },
     async run(input, ctx) { return email.rendered(email.createDraft(ctx.app, input)); },

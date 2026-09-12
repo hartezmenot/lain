@@ -142,6 +142,7 @@ can return a generated artifact through its originating delivery queue.
 | Image retouch (brightness/contrast/saturation/autocontrast) plus configured generation and inpainting with strict byte validation | real deterministic integration + configured fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
 | Live image generation/inpainting provider | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |
 | Telegram Cowork turn creates an XLSX through the shared model/tool/Harness path and delivers exact owned bytes | integration fixture | **INTEGRATION-VERIFIED** |
+| Telegram uploads CSV and PNG, shared Cowork tools transform them, and native delivery returns exact owned output bytes to the originating chat | integration fixture | **INTEGRATION-VERIFIED** |
 | Live Telegram, Discord and WhatsApp account delivery | not run | **NOT LIVE-VERIFIED** |
 | Email draft plus configured search/read/send/archive/delete connector; sends and mutations use per-action approval and durable receipts | unit + process/Telegram integration fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
 | Live email provider/account | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |

@@ -15,7 +15,8 @@ function addresses(value) {
 }
 function draftInput(input = {}) {
   const draft = { version: 1, kind: 'email-draft', to: addresses(input.to), cc: addresses(input.cc), bcc: addresses(input.bcc),
-    subject: text(input.subject, 500), body: bodyText(input.body), attachmentRefs: [...new Set((input.attachment_refs || []).map(String))].slice(0, 8) };
+    subject: text(input.subject, 500), body: bodyText(input.body), replyTo: text(input.reply_to || input.replyTo, 200),
+    attachmentRefs: [...new Set((input.attachment_refs || []).map(String))].slice(0, 8) };
   if (!draft.to.length) return { ok: false, class: contract.FAILURE.FAILED, why: 'at least one valid recipient is required' };
   if (!draft.subject && !draft.body) return { ok: false, class: contract.FAILURE.FAILED, why: 'the draft needs a subject or body' };
   return { ok: true, draft };
@@ -83,9 +84,9 @@ async function send(app, input, signal) {
   const loaded = loadDraft(app, input.draft_ref); if (!loaded.ok) return loaded;
   const material = materializeAttachments(app, loaded.draft.attachmentRefs); if (!material.ok) return material;
   const d = loaded.draft;
-  const r = await services.invoke(app, 'email', 'send', { to: d.to, cc: d.cc, bcc: d.bcc, subject: d.subject, body: d.body, attachments: material.attachments }, { signal });
+  const r = await services.invoke(app, 'email', 'send', { to: d.to, cc: d.cc, bcc: d.bcc, subject: d.subject, body: d.body, ...(d.replyTo ? { replyTo: d.replyTo } : {}), attachments: material.attachments }, { signal });
   if (!r.ok) return r;
-  const receipt = { version: 1, kind: 'email-send-receipt', messageId: text(r.data?.messageId || r.data?.id, 200), sentAt: text(r.data?.sentAt, 100) || new Date().toISOString(), to: d.to, cc: d.cc, bcc: d.bcc, subject: d.subject };
+  const receipt = { version: 1, kind: 'email-send-receipt', messageId: text(r.data?.messageId || r.data?.id, 200), sentAt: text(r.data?.sentAt, 100) || new Date().toISOString(), to: d.to, cc: d.cc, bcc: d.bcc, subject: d.subject, replyTo: d.replyTo };
   const artifact = artifacts.keep(app, { name: 'email-send-receipt.json', mime: 'application/json', body: Buffer.from(JSON.stringify(receipt, null, 2)), note: 'External email send receipt' });
   return artifact ? { ok: true, artifact, output: `Email sent to ${d.to.join(', ')}\nReceipt ${artifact.ref} · ${artifact.name}` }
     : { ok: false, class: contract.FAILURE.INCONCLUSIVE, why: 'the provider reported success but the local receipt could not be stored' };

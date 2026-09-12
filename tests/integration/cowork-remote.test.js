@@ -116,4 +116,48 @@ module.exports = async function () {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   });
+
+  await test('COWORK REMOTE: Telegram uploads spreadsheet and image inputs, transforms them, and receives native files', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-cowork-media-remote-'));
+    const previous = Object.fromEntries(['LAIN_HOME', 'LAIN_PROVIDER', 'LAIN_MOCK_SCRIPT'].map(k => [k, process.env[k]]));
+    process.env.LAIN_HOME = path.join(dir, 'supervisor'); process.env.LAIN_PROVIDER = 'mock'; process.env.LAIN_MOCK_SCRIPT = path.join(dir, 'script.json');
+    const script = steps => { fs.writeFileSync(process.env.LAIN_MOCK_SCRIPT, JSON.stringify(steps)); require('../../src/mockprovider')._reset(); };
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const sent = []; let gateway;
+    const registry = new Registry().register({ version: 1, platform: 'telegram', maxLength: 4000, buttons: true, mediaIn: true, mediaOut: true }, () => ({
+      identity: 'fixture-bot', state: 'listening', start: async () => {}, stop: async () => {},
+      download: async (_event, attachment) => attachment.id === 'sheet' ? Buffer.from('name,date\n Alice ,2026-01-01\n Alice ,2026-01-01\n') : png,
+      action: async action => { sent.push(action); return { messageId: String(sent.length) }; },
+    }));
+    const cfg = { model: 'mock-model', trustedPaths: [], bot: { platforms: { telegram: { enabled: true, allowUsers: ['owner'] } } } };
+    try {
+      gateway = new Gateway({ cfg, cwd: dir, dir: path.join(dir, 'bot'), registry }); await gateway.start();
+      script([{ text: 'Spreadsheet received.' }]);
+      await gateway.receive(source({ messageId: 'media-1', text: 'Clean this spreadsheet.', attachments: [{ id: 'sheet', name: 'sales.csv', mime: 'text/csv', size: 60 }] })); await Promise.all([...gateway.tasks]);
+      const runtime = gateway.runtimes.get(sessionKey(source())), sheet = artifacts.list(runtime.app).find(row => row.name === 'sales.csv'); assert.ok(sheet);
+      // The second tool needs the ref produced by the first. Drive delivery as a
+      // fresh turn after observing the owned result, just as /send recovery does.
+      script([{ tool_calls: [{ name: 'cowork_spreadsheet_transform', input: { input_ref: sheet.ref, operations: [{ op: 'trim_text' }, { op: 'deduplicate' }] } }] }, { text: 'Spreadsheet cleaned.' }]);
+      await gateway.receive(source({ messageId: 'media-2', text: 'Finish the cleanup.' })); await Promise.all([...gateway.tasks]);
+      const cleaned = artifacts.list(runtime.app).find(row => row.name === 'sales-cleaned.csv'); assert.ok(cleaned);
+      script([{ tool_calls: [{ name: 'cowork_deliver_artifact', input: { input_ref: cleaned.ref } }] }, { text: 'Clean spreadsheet returned.' }]);
+      await gateway.receive(source({ messageId: 'media-3', text: 'Return the finished sheet.' })); await Promise.all([...gateway.tasks]);
+
+      script([{ text: 'Image received.' }]);
+      await gateway.receive(source({ messageId: 'media-4', text: 'Resize this image.', attachments: [{ id: 'photo', name: 'product.png', mime: 'image/png', size: png.length }] })); await Promise.all([...gateway.tasks]);
+      const image = artifacts.list(runtime.app).find(row => row.name === 'product.png'); assert.ok(image);
+      script([{ tool_calls: [{ name: 'cowork_image_transform', input: { input_ref: image.ref, operations: [{ op: 'resize', width: 4, height: 3 }], format: 'png' } }] }, { text: 'Image edited.' }]);
+      await gateway.receive(source({ messageId: 'media-5', text: 'Finish the resize.' })); await Promise.all([...gateway.tasks]);
+      const edited = artifacts.list(runtime.app).find(row => row.name === 'product-edited.png'); assert.ok(edited, 'Telegram image transform must produce an owned artifact');
+      script([{ tool_calls: [{ name: 'cowork_deliver_artifact', input: { input_ref: edited.ref } }] }, { text: 'Edited image returned.' }]);
+      await gateway.receive(source({ messageId: 'media-6', text: 'Return the edited image.' })); await Promise.all([...gateway.tasks]); await Promise.all([...gateway.delivery.chains.values()]);
+      const media = sent.filter(action => action.type === 'media'); assert.ok(media.some(action => action.file.name === cleaned.name && action.file.bytes.equals(artifacts.bytes(runtime.app, cleaned.ref))));
+      assert.ok(media.some(action => action.file.name === edited.name && action.file.bytes.equals(artifacts.bytes(runtime.app, edited.ref))));
+      assert.ok(sent.filter(action => action.type === 'media').every(action => action.target.chatId === 'private-chat'));
+    } finally {
+      await gateway?.stop(); await supervisor.cleanupOwned().catch(() => {}); await require('../../src/harness/processes').cleanupOwned().catch(() => {}); await new Promise(resolve => setTimeout(resolve, 300));
+      for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
+    }
+  });
 };

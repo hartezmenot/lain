@@ -142,14 +142,14 @@ module.exports = async function () {
 
   await test('COWORK: email send is denied before invocation and approved once with a durable receipt', async () => {
     const app = appAt(tmpdir('cowork-')); start(app); let calls = 0;
-    app.coworkServices = { email: { invoke: async (operation, input) => { calls++; assert.strictEqual(operation, 'send'); assert.deepStrictEqual(input.to, ['friend@example.com']); return { ok: true, data: { messageId: 'provider-1', sentAt: '2026-09-12T09:00:00Z' } }; } } };
-    const draft = await tools.execute('cowork_email_draft', { to: ['friend@example.com'], subject: 'Review', body: 'Line one\nLine two' }, { app, cwd: app.session.cwd });
+    app.coworkServices = { email: { invoke: async (operation, input) => { calls++; assert.strictEqual(operation, 'send'); assert.deepStrictEqual(input.to, ['friend@example.com']); assert.strictEqual(input.replyTo, 'source-message-7'); return { ok: true, data: { messageId: 'provider-1', sentAt: '2026-09-12T09:00:00Z' } }; } } };
+    const draft = await tools.execute('cowork_email_draft', { to: ['friend@example.com'], subject: 'Review', body: 'Line one\nLine two', reply_to: 'source-message-7' }, { app, cwd: app.session.cwd });
     assert.match(draft.artifact.ref, /^cwa_/); assert.match(artifacts.bytes(app, draft.artifact.ref).toString(), /Line one\\nLine two/);
     const denied = await interaction.run(app, { ask: async () => 'Deny' }, () => tools.execute('cowork_email_send', { draft_ref: draft.artifact.ref }, { app, cwd: app.session.cwd }));
     assert.strictEqual(denied.isError, true); assert.match(denied.output, /PERMISSION_REQUIRED/); assert.strictEqual(calls, 0);
     const approved = await interaction.run(app, { ask: async q => { assert.match(q.question, /friend@example\.com/); assert.match(q.question, /Subject: Review/); return 'Approve once'; } },
       () => tools.execute('cowork_email_send', { draft_ref: draft.artifact.ref }, { app, cwd: app.session.cwd }));
-    assert.strictEqual(calls, 1); assert.match(approved.output, /Email sent/); assert.strictEqual(JSON.parse(artifacts.bytes(app, approved.artifact.ref)).messageId, 'provider-1');
+    assert.strictEqual(calls, 1); assert.match(approved.output, /Email sent/); assert.strictEqual(JSON.parse(artifacts.bytes(app, approved.artifact.ref)).messageId, 'provider-1'); assert.strictEqual(JSON.parse(artifacts.bytes(app, approved.artifact.ref)).replyTo, 'source-message-7');
     const events = app.events.recent(); assert.ok(events.some(e => e.type === 'approval.required' && e.kind === 'external')); assert.ok(events.some(e => e.type === 'approval.resolved' && e.granted));
     assert.strictEqual(require('../../src/harness/registry').describe('cowork_email_send', { effect: tools.effect('cowork_email_send', app) }).approval, 'REQUIRED');
     assert.strictEqual(runtime.project(app).capabilities.email.state, 'CONFIGURED');
