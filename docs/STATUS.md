@@ -141,7 +141,9 @@ can return a generated artifact through its originating delivery queue.
 | Local BiRefNet background removal through the owned Cowork wrapper: 256×256 RGBA, measured alpha 0–255, 4,301-byte output | real local operation | **REAL LOCAL VERIFIED** |
 | Telegram Cowork turn creates an XLSX through the shared model/tool/Harness path and delivers exact owned bytes | integration fixture | **INTEGRATION-VERIFIED** |
 | Live Telegram, Discord and WhatsApp account delivery | not run | **NOT LIVE-VERIFIED** |
-| Email, calendar, contacts, reminders and personal notes | unavailable | **UNCONFIGURED** |
+| Email draft plus configured search/read/send/archive/delete connector; sends and mutations use per-action approval and durable receipts | unit + process/Telegram integration fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
+| Live email provider/account | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |
+| Calendar, contacts, reminders and personal notes | unavailable | **UNCONFIGURED** |
 
 The complete operator and failure-state contract is in `docs/COWORK.md`.
 

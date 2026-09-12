@@ -215,6 +215,13 @@ the initiating conversation's existing idempotent delivery queue. This is shared
 Cowork behavior rather than adapter-specific spreadsheet or image logic. See
 [the Cowork capability contract](COWORK.md).
 
+When a Cowork email service is configured, messaging sessions use the same
+email search, read, draft, send, archive and delete tools as local Harness.
+External account changes produce an in-conversation approval prompt. The
+provider is invoked only after the authorized conversation answers “Approve
+once,” and successful changes keep a receipt in that conversation's owned
+artifacts.
+
 ## Extension contract and limits
 
 `src/bot/contract.js` exports version 1 events, descriptor validation, action

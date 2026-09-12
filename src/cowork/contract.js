@@ -26,6 +26,7 @@ function localBackgroundProvider(cfg = {}) {
 
 function capabilities(app) {
   const py = require('../tools/exec').findPython(app?.cfg || {}), background = localBackgroundProvider(app?.cfg || {});
+  const services = require('./services');
   let desktop = false;
   try { desktop = require('../mcp').configured(app?.cfg || {}); } catch { desktop = false; }
   return {
@@ -42,7 +43,9 @@ function capabilities(app) {
     pdf: observed(app, 'pdf', py.ok ? { state: 'CONFIGURED' } : { state: 'UNSUPPORTED', why: py.why }),
     research: { state: 'AVAILABLE', authority: 'existing-web-fetch' },
     desktop: { state: desktop ? 'CONFIGURED' : 'UNCONFIGURED' },
-    email: { state: 'UNCONFIGURED', why: 'no Cowork email account authority is connected' },
+    email: services.configured(app, 'email')
+      ? { state: 'CONFIGURED', operations: ['search', 'read', 'draft', 'send', 'archive', 'delete'], approval: 'per-external-action' }
+      : { state: 'UNCONFIGURED', why: 'no Cowork email account service is configured' },
     calendar: { state: 'UNCONFIGURED', why: 'no Cowork calendar account authority is connected' },
     contacts: { state: 'UNCONFIGURED', why: 'no Cowork contacts account authority is connected' },
     reminders: { state: 'UNCONFIGURED', why: 'no Cowork reminder service is connected' },

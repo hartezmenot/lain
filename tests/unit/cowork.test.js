@@ -42,6 +42,7 @@ module.exports = async function () {
       assert.strictEqual(tools.has(name, app), true, name);
       assert.strictEqual(tools.isMutating(name, app), false, `${name} writes only the task-owned artifact store`);
     }
+    for (const name of ['cowork_email_search', 'cowork_email_read', 'cowork_email_draft', 'cowork_email_send', 'cowork_email_archive', 'cowork_email_delete']) assert.strictEqual(tools.has(name, app), true, name);
   });
 
   await test('COWORK: staged bytes become opaque task-owned inputs without leaking a path', () => {
@@ -126,5 +127,30 @@ module.exports = async function () {
     assert.strictEqual(worker.cleanOperations('document', []), null);
     assert.strictEqual(worker.cleanSheetsData([{ name: 'x', rows: [[1, '=A1']] }])[0].rows[0][1], '=A1');
     assert.strictEqual(worker.outputName('spreadsheet', 'sales.xlsx', '', 'create'), 'sales-created.xlsx');
+  });
+
+  await test('COWORK: account service configuration maps only named credential environment variables', () => {
+    const services = require('../../src/cowork/services');
+    process.env.COWORK_TEST_SECRET = 'fixture-secret'; process.env.COWORK_UNRELATED_SECRET = 'must-not-pass';
+    try {
+      const env = services.processEnvironment({ envFrom: { EMAIL_TOKEN: 'COWORK_TEST_SECRET', 'BAD-NAME': 'COWORK_UNRELATED_SECRET' } });
+      assert.strictEqual(env.EMAIL_TOKEN, 'fixture-secret'); assert.strictEqual(env.COWORK_TEST_SECRET, undefined); assert.strictEqual(env.COWORK_UNRELATED_SECRET, undefined);
+      assert.strictEqual(services.configured({ cfg: { cowork: { services: { email: { command: [process.execPath, 'bridge.js'] } } } } }, 'email'), true);
+    } finally { delete process.env.COWORK_TEST_SECRET; delete process.env.COWORK_UNRELATED_SECRET; }
+  });
+
+  await test('COWORK: email send is denied before invocation and approved once with a durable receipt', async () => {
+    const app = appAt(tmpdir('cowork-')); start(app); let calls = 0;
+    app.coworkServices = { email: { invoke: async (operation, input) => { calls++; assert.strictEqual(operation, 'send'); assert.deepStrictEqual(input.to, ['friend@example.com']); return { ok: true, data: { messageId: 'provider-1', sentAt: '2026-09-12T09:00:00Z' } }; } } };
+    const draft = await tools.execute('cowork_email_draft', { to: ['friend@example.com'], subject: 'Review', body: 'Line one\nLine two' }, { app, cwd: app.session.cwd });
+    assert.match(draft.artifact.ref, /^cwa_/); assert.match(artifacts.bytes(app, draft.artifact.ref).toString(), /Line one\\nLine two/);
+    const denied = await interaction.run(app, { ask: async () => 'Deny' }, () => tools.execute('cowork_email_send', { draft_ref: draft.artifact.ref }, { app, cwd: app.session.cwd }));
+    assert.strictEqual(denied.isError, true); assert.match(denied.output, /PERMISSION_REQUIRED/); assert.strictEqual(calls, 0);
+    const approved = await interaction.run(app, { ask: async q => { assert.match(q.question, /friend@example\.com/); assert.match(q.question, /Subject: Review/); return 'Approve once'; } },
+      () => tools.execute('cowork_email_send', { draft_ref: draft.artifact.ref }, { app, cwd: app.session.cwd }));
+    assert.strictEqual(calls, 1); assert.match(approved.output, /Email sent/); assert.strictEqual(JSON.parse(artifacts.bytes(app, approved.artifact.ref)).messageId, 'provider-1');
+    const events = app.events.recent(); assert.ok(events.some(e => e.type === 'approval.required' && e.kind === 'external')); assert.ok(events.some(e => e.type === 'approval.resolved' && e.granted));
+    assert.strictEqual(require('../../src/harness/registry').describe('cowork_email_send', { effect: tools.effect('cowork_email_send', app) }).approval, 'REQUIRED');
+    assert.strictEqual(runtime.project(app).capabilities.email.state, 'CONFIGURED');
   });
 };

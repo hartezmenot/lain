@@ -151,8 +151,8 @@ function effectFor(name, { mutates = false } = {}) {
 /**
  * DESCRIBE ONE CAPABILITY. The six facts, always the same six.
  */
-function describe(name, { mutates = false, description = '', provider = PROVIDER.TOOL, trust = TRUST.BUILT_IN, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const sideEffect = effectFor(name, { mutates });
+function describe(name, { mutates = false, effect = null, description = '', provider = PROVIDER.TOOL, trust = TRUST.BUILT_IN, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  const sideEffect = effect || effectFor(name, { mutates });
   return {
     name: String(name),
     description: String(description || '').slice(0, 400),
@@ -193,6 +193,7 @@ function all(app = null) {
       const schema = byName.get(name);
       out.push(describe(name, {
         mutates: tools.isMutating(name, app),
+        effect: tools.effect(name, app),
         description: (schema && schema.description) || '',
         provider: name === 'computer' ? PROVIDER.BRIDGE : PROVIDER.TOOL,
         trust: name === 'computer' ? TRUST.CONFIGURED : TRUST.BUILT_IN,
@@ -230,6 +231,13 @@ function all(app = null) {
       capability.availability = python.ok ? 'AVAILABLE' : 'OPTIONAL_UNAVAILABLE';
       capability.requirements = ['Python interpreter on PATH or configured in python.exe'];
       capability.limitations = ['interpreter presence does not prove project dependencies are installed'];
+    }
+    if (/^cowork_email_(?:search|read|send|archive|delete)$/.test(capability.name)) {
+      const configured = require('../cowork/services').configured(app, 'email');
+      capability.category = 'Account'; capability.trust = TRUST.CONFIGURED; capability.configured = configured;
+      capability.availability = configured ? 'AVAILABLE' : 'OPTIONAL_UNAVAILABLE';
+      capability.requirements = ['configured Cowork email service'];
+      capability.limitations = ['configuration alone does not prove provider availability'];
     }
   }
   return out;

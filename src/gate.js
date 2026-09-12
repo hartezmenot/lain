@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE ONE FILESYSTEM GATE — may this call touch that path?
+ * THE ONE TOOL GATE — may this call touch that path or change an account?
  *
  * Called from `tools/index.js:execute`, which is the single door every tool
  * call goes through. Putting it there rather than at each `resolve()` is the
@@ -22,15 +22,43 @@
  *     redirected somewhere safer, because a model that is lied to about where
  *     its file went writes the next one to the same wrong place.
  *
- *   NOTHING WHEN THERE IS NO APP. A turn run headless — a unit test, a piped
- *     one-shot — has no `app` to ask and no config to read, and gating it would
- *     make the whole tool surface untestable. That is not a hole: the gate is
- *     about asking a PERSON, and in that situation there is nobody there.
+ *   FILESYSTEM TRUST DOES NOTHING WHEN THERE IS NO APP. A turn run headless —
+ *     a unit test, a piped one-shot — has no project trust decision to read.
+ *     External effects remain refused when nobody can approve them.
  */
 
 const path = require('path');
 
 const trust = require('./trust');
+
+/** Ask once immediately before a call that changes an external account. */
+async function externalApproval(name, input, ctx, approval) {
+  const app = ctx && ctx.app;
+  const interaction = require('./interaction');
+  const registry = require('./harness/registry');
+  if (!app || !interaction.available(app)) {
+    return { ok: false, output: 'PERMISSION_REQUIRED: an interactive approval is required before this external action; nothing was sent or changed' };
+  }
+  let preview = {};
+  try { preview = typeof approval === 'function' ? await approval(input || {}, ctx || {}) : {}; } catch { preview = {}; }
+  if (preview && preview.ok === false) {
+    const cls = String(preview.class || 'FAILED');
+    return { ok: false, output: `${cls}: ${require('./redact').text(String(preview.why || 'the external action is not ready')).slice(0, 240)}` };
+  }
+  const safe = require('./redact').text;
+  const what = safe(String(preview.what || name).replace(/\s+/g, ' ').trim()).slice(0, 160);
+  const reason = safe(String(preview.reason || 'This action will change a connected account.').replace(/\s+/g, ' ').trim()).slice(0, 240);
+  const details = safe(String(preview.details || '').trim()).slice(0, 2000);
+  try { app.events?.emit?.(require('./events').EVENT.APPROVAL_REQUIRED, { what, reason, kind: 'external' }); } catch { /* approval still stands */ }
+  let answer = null;
+  try {
+    answer = await interaction.ask(app, { title: 'Approve external action?', question: [what, reason, details].filter(Boolean).join('\n\n'), options: ['Approve once', 'Deny'] }, ctx && ctx.signal);
+  } catch { answer = null; }
+  const granted = answer === 'Approve once';
+  try { app.events?.emit?.(require('./events').EVENT.APPROVAL_RESOLVED, { what, granted, kind: 'external' }); } catch { /* result still stands */ }
+  if (!granted) return { ok: false, output: 'PERMISSION_REQUIRED: external action was not approved; nothing was sent or changed' };
+  return { ok: true, sideEffect: registry.SIDE_EFFECT.EXTERNAL };
+}
 
 /** The argument names a tool uses for "a path on disk". */
 const PATH_KEYS = ['path', 'file', 'dest', 'to', 'from', 'src'];
@@ -51,10 +79,16 @@ function pathsIn(input, cwd) {
  *
  * @returns {Promise<{ok:boolean, output?:string}>}
  */
-async function check(name, input, ctx, { mutates = false } = {}) {
+async function check(name, input, ctx, { mutates = false, effect = null, approval = null } = {}) {
   const app = ctx && ctx.app;
   const cwd = (ctx && ctx.cwd) || process.cwd();
-  // NO APP, NO GATE. See the header — there is nobody to ask.
+  const registry = require('./harness/registry');
+  const sideEffect = effect || registry.effectFor(name, { mutates });
+  if (registry.POLICY[sideEffect] === registry.APPROVAL.REQUIRED && sideEffect === registry.SIDE_EFFECT.EXTERNAL) {
+    const verdict = await externalApproval(name, input, ctx, approval);
+    if (!verdict.ok) return verdict;
+  }
+  // No App means no filesystem trust state. External effects were refused above.
   if (!app || !app.cfg) return { ok: true };
   // ---- AND NO GATE WITHOUT A UI, WHICH IS THE SAME RULE -------------------
   //
@@ -116,4 +150,4 @@ async function check(name, input, ctx, { mutates = false } = {}) {
   return { ok: true };
 }
 
-module.exports = { check, pathsIn, PATH_KEYS };
+module.exports = { check, externalApproval, pathsIn, PATH_KEYS };

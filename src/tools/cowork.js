@@ -2,6 +2,7 @@
 
 const worker = require('../cowork/worker');
 const artifacts = require('../cowork/artifacts');
+const email = require('../cowork/email');
 
 function rendered(result) {
   if (!result?.ok) return { output: `${result?.class || 'FAILED'}: ${result?.why || 'the operation did not finish'}`, isError: true,
@@ -96,6 +97,50 @@ const tools = {
         return rendered({ ok: false, class: 'INCONCLUSIVE', why: 'delivery status is unknown; the file may have been sent' });
       } catch { return rendered({ ok: false, class: 'FAILED', why: 'the originating transport could not deliver the artifact' }); }
     },
+  },
+  cowork_email_search: {
+    mutates: false, effect: 'NETWORK',
+    schema: { name: 'cowork_email_search', description: 'Search the connected email account. This reads account data and does not change messages.', parameters: { type: 'object', properties: {
+      query: { type: 'string' }, limit: { type: 'number' },
+    }, required: ['query'] } },
+    async run(input, ctx) { return email.rendered(await email.search(ctx.app, input, ctx.signal)); },
+  },
+  cowork_email_read: {
+    mutates: false, effect: 'NETWORK',
+    schema: { name: 'cowork_email_read', description: 'Read one message from the connected email account by its provider message ID.', parameters: { type: 'object', properties: {
+      message_id: { type: 'string' },
+    }, required: ['message_id'] } },
+    async run(input, ctx) { return email.rendered(await email.read(ctx.app, input, ctx.signal)); },
+  },
+  cowork_email_draft: {
+    mutates: false, effect: 'WRITE',
+    schema: { name: 'cowork_email_draft', description: 'Create a reviewable, task-owned email draft artifact. This does not send email.', parameters: { type: 'object', properties: {
+      name: { type: 'string' }, to: { type: 'array', maxItems: 50, items: { type: 'string' } }, cc: { type: 'array', maxItems: 50, items: { type: 'string' } },
+      bcc: { type: 'array', maxItems: 50, items: { type: 'string' } }, subject: { type: 'string' }, body: { type: 'string' },
+      attachment_refs: { type: 'array', maxItems: 8, items: { type: 'string' } },
+    }, required: ['to', 'subject', 'body'] } },
+    async run(input, ctx) { return email.rendered(email.createDraft(ctx.app, input)); },
+  },
+  cowork_email_send: {
+    mutates: false, effect: 'EXTERNAL', approval: email.previewDraft,
+    schema: { name: 'cowork_email_send', description: 'Send a task-owned email draft through the connected account after per-action approval. Returns a durable receipt artifact.', parameters: { type: 'object', properties: {
+      draft_ref: { type: 'string' },
+    }, required: ['draft_ref'] } },
+    async run(input, ctx) { return email.rendered(await email.send(ctx.app, input, ctx.signal)); },
+  },
+  cowork_email_archive: {
+    mutates: false, effect: 'EXTERNAL', approval: email.previewMessage('Archive'),
+    schema: { name: 'cowork_email_archive', description: 'Archive one message in the connected email account after per-action approval.', parameters: { type: 'object', properties: {
+      message_id: { type: 'string' },
+    }, required: ['message_id'] } },
+    async run(input, ctx) { return email.rendered(await email.mutate(ctx.app, 'archive', input, ctx.signal)); },
+  },
+  cowork_email_delete: {
+    mutates: false, effect: 'EXTERNAL', approval: email.previewMessage('Delete'),
+    schema: { name: 'cowork_email_delete', description: 'Delete one message in the connected email account after per-action approval.', parameters: { type: 'object', properties: {
+      message_id: { type: 'string' },
+    }, required: ['message_id'] } },
+    async run(input, ctx) { return email.rendered(await email.mutate(ctx.app, 'delete', input, ctx.signal)); },
   },
 };
 

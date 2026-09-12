@@ -94,7 +94,7 @@ function onPath(name) {
  * script's traceback is on stderr and its answer is on stdout — merging them is
  * how a model comes to parse an exception as a result.
  */
-function execute(file, args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, input = null } = {}) {
+function execute(file, args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, input = null, env = process.env } = {}) {
   return new Promise((resolve) => {
     if (signal && signal.aborted) {
       resolve({ ok: false, interrupted: true, error: 'interrupted before it started' });
@@ -102,7 +102,7 @@ function execute(file, args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, inpu
     }
     let child;
     try {
-      child = require('../harness/processes').spawnOwned({ command: file, args, cwd });
+      child = require('../harness/processes').spawnOwned({ command: file, args, cwd, env });
     } catch (e) {
       resolve({ ok: false, error: `could not start ${file}: ${e.message}`, startFailed: true });
       return;

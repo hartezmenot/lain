@@ -1187,7 +1187,7 @@ Status legend:
 | Bot native photo editing | **NOT IMPLEMENTED IN HARNESS** | Must use shared Image capability; local `E:\AI` stack may be used during transition. |
 | Cowork spreadsheets | **IMPLEMENTED / INTEGRATION VERIFIED** | CSV/XLSX/XLSM inspection and bounded create/transform tools use the shared artifact authority; legacy XLS conversion remains external. |
 | Cowork images/documents | **IMPLEMENTED / INTEGRATION VERIFIED** | Deterministic image and DOCX/PDF work produces shared owned artifacts; background-removal provider availability is reported separately. |
-| Cowork email | **NOT IMPLEMENTED IN FINAL COWORK** | Tool concept defined. |
+| Cowork email | **IMPLEMENTED / INTEGRATION VERIFIED** | Shared draft/search/read/send/archive/delete tools use a configured service process; external mutations require existing interaction approval and keep durable receipts. Live provider proof remains. |
 | Add Account / Account Manager | **DESIGN** | Replaces old `/oauth` as a user-facing account abstraction; OAuth/device flow is only one authentication mechanism. |
 | Context Cost Observatory | **DESIGN** | Required to explain per-turn input composition and distinguish LAIN context cost from router/provider overhead. |
 | Provider-independent Context Builder | **DESIGN / PARTIAL CONCEPT** | One normalized LAIN context packet should feed direct providers, routers, web-model sources, and local models rather than provider-specific context stuffing. |
@@ -1215,7 +1215,7 @@ Status legend:
 8. Computer MCP does not yet exist.
 9. VMware clean proof cannot be REAL LOCAL VERIFIED until a Harness-owned VMware environment is actually available.
 10. WebModel ChatGPT/Gemini remain fixture-verified rather than live-account certified.
-11. Cowork file/artifact/background work is active and integration verified; account-backed email/calendar/personal work and live platform certification remain.
+11. Cowork file/artifact/background work and configured email workflows are integration verified; calendar/personal work, Add Account UI and live provider/platform certification remain.
 12. Shared native photo/image editor has not yet been promoted into a first-class Harness capability usable by Chat/Coding, Cowork, and Bot.
 13. Android, Blender/3D, 2D/game-asset, and richer native-desktop workshops are future work.
 14. Add Account / account management and context-cost observability are designed but not implemented.

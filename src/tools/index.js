@@ -149,6 +149,7 @@ function schemas(app) {
 
 function has(name, app) { return Object.prototype.hasOwnProperty.call(active(() => app), name); }
 function isMutating(name, app) { const t = active(() => app)[name]; return Boolean(t && t.mutates); }
+function effect(name, app) { const t = active(() => app)[name]; return t && t.effect ? t.effect : null; }
 function names(app) { return Object.keys(active(() => app)); }
 
 /**
@@ -168,14 +169,16 @@ async function execute(name, input, ctx) {
   // to forget. A tool added tomorrow is covered without its author knowing the
   // gate exists.
   //
-  // It answers only about the FILESYSTEM. Whether the screen may be seen is
-  // permissions.js's question and is asked elsewhere; whether a directory is
-  // ours to work in is trust.js's, and is asked here.
+  // It answers whether a directory is ours to work in and asks immediately
+  // before an explicit EXTERNAL effect. Screen access remains permissions.js's
+  // question and is asked elsewhere.
   // (The PROBE-environment tool gate that sat beside this one was removed with
   // the Probe integration in 2026-09 — there is no longer a second execution
   // environment to enforce a boundary for.)
 
-  const verdict = await require('../gate').check(name, input, ctx, { mutates: Boolean(tool.mutates) });
+  const verdict = await require('../gate').check(name, input, ctx, {
+    mutates: Boolean(tool.mutates), effect: tool.effect || null, approval: tool.approval || null,
+  });
   if (!verdict.ok) return { output: verdict.output, isError: true };
   let r;
   try {
@@ -230,4 +233,4 @@ async function execute(name, input, ctx) {
   return r;
 }
 
-module.exports = { TOOLS, active, schemas, execute, has, isMutating, names };
+module.exports = { TOOLS, active, schemas, execute, has, isMutating, effect, names };

@@ -65,6 +65,45 @@ jobs. State reports current activity, terminal result, outstanding approval and
 job settlement without returning prompts, credentials, raw tool output or
 paths.
 
+## Connected email
+
+Email search, read, draft, send, archive and delete use the same Cowork tools in
+local Harness and messaging sessions. Drafting creates a reviewable
+`*.email-draft.json` artifact and does not contact an account. Send accepts only
+an owned draft reference. Send, archive and delete are marked `EXTERNAL` in the
+shared capability registry, pause at the existing interaction approval gate on
+every call, and keep a task-owned receipt after the provider acknowledges the
+action. Dismissing or denying the prompt invokes no account service.
+
+LAIN supplies a narrow connector protocol rather than storing account secrets.
+Configure `cowork.services.email.command` as an argv array for a program that
+reads one JSON request from stdin and writes one JSON response to stdout. The
+request is `{version, domain, operation, input}`. A success response is
+`{"ok":true,"data":{...}}`; a failure uses one of the public failure classes.
+`envFrom` maps a connector environment variable to the name of an existing
+process environment variable. Only that mapping and a minimal operating-system
+environment reach the connector; credential values never enter the request,
+model context, transcript, artifacts or public errors.
+
+```json
+{
+  "cowork": {
+    "services": {
+      "email": {
+        "command": ["C:/Program Files/My Connector/email-bridge.exe"],
+        "envFrom": { "EMAIL_TOKEN": "MY_EMAIL_TOKEN" },
+        "timeoutMs": 30000
+      }
+    }
+  }
+}
+```
+
+The connector operations are `search`, `read`, `send`, `archive` and `delete`.
+Search/read results and provider errors are normalized and bounded before they
+return to the model. Attachments are materialized only from exact artifacts
+owned by the current Cowork session, with a 2 MiB combined connector limit.
+
 ## Capability and failure states
 
 The Cowork projection reports each capability as `AVAILABLE`, `CONFIGURED`,
@@ -73,19 +112,22 @@ capability to `AVAILABLE`. Ordinary failures are returned to the model as one of
 `AUTH_REQUIRED`, `PERMISSION_REQUIRED`, `UNSUPPORTED`, `RATE_LIMITED`, `FAILED`,
 `CANCELLED` or `INCONCLUSIVE`; raw worker exceptions are not public output.
 
-Email, calendar, contacts, reminders and personal notes currently report
-`UNCONFIGURED`. No account authority or secret store has been invented for this
-slice, and LAIN does not claim those actions until the shared Add Account layer
-exists. Computer control likewise remains dependent on the existing configured
-desktop bridge.
+Email reports `CONFIGURED` when an injected or configured Cowork email service
+is present and otherwise reports `UNCONFIGURED`. Calendar, contacts, reminders
+and personal notes remain `UNCONFIGURED`. The user-facing Add Account manager is
+still future work; this connector seam does not claim to be an account store.
+Computer control likewise remains dependent on the existing configured desktop
+bridge.
 
 ## Verification boundary
 
 Unit tests cover binding, attachment promotion, ownership, resume, projection,
-Harness routes, conditional tool exposure and remote delivery. Integration tests
+Harness routes, conditional tool exposure, external approval and remote delivery. Integration tests
 run real CSV, XLSX, image, DOCX and PDF bytes and drive a Telegram Cowork turn
 through the existing App, model loop, Harness task, spreadsheet tool, artifact
-store and delivery queue. These are local and fixture-backed checks. They are not
+store and delivery queue. A process-backed email fixture verifies credential
+isolation and durable receipts, and a Telegram fixture verifies an in-conversation
+approval followed by exactly one send. These are local and fixture-backed checks. They are not
 live Telegram/Discord/WhatsApp certification or live account-provider proof.
 
 On the measured development machine, the detected local BiRefNet provider also
