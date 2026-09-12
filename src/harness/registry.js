@@ -239,6 +239,14 @@ function all(app = null) {
       capability.requirements = ['configured Cowork email service'];
       capability.limitations = ['configuration alone does not prove provider availability'];
     }
+    const personal = /^cowork_(calendar|contacts|reminders|notes)_(?:list|change)$/.exec(capability.name);
+    if (personal) {
+      const configured = require('../cowork/services').configured(app, personal[1]);
+      capability.category = 'Account'; capability.trust = TRUST.CONFIGURED; capability.configured = configured;
+      capability.availability = configured ? 'AVAILABLE' : 'OPTIONAL_UNAVAILABLE';
+      capability.requirements = [`configured Cowork ${personal[1]} service`];
+      capability.limitations = ['configuration alone does not prove provider availability'];
+    }
   }
   return out;
 }

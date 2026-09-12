@@ -6,7 +6,10 @@ const contract = require('./contract');
 const DOMAINS = new Set(['email', 'calendar', 'contacts', 'reminders', 'notes']);
 const OPS = Object.freeze({
   email: new Set(['search', 'read', 'send', 'archive', 'delete']),
-  calendar: new Set(), contacts: new Set(), reminders: new Set(), notes: new Set(),
+  calendar: new Set(['list', 'create', 'update', 'delete']),
+  contacts: new Set(['list', 'create', 'update', 'delete']),
+  reminders: new Set(['list', 'create', 'update', 'complete', 'delete']),
+  notes: new Set(['list', 'create', 'update', 'delete']),
 });
 
 function configured(app, domain) {

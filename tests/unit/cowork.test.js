@@ -43,6 +43,7 @@ module.exports = async function () {
       assert.strictEqual(tools.isMutating(name, app), false, `${name} writes only the task-owned artifact store`);
     }
     for (const name of ['cowork_email_search', 'cowork_email_read', 'cowork_email_draft', 'cowork_email_send', 'cowork_email_archive', 'cowork_email_delete']) assert.strictEqual(tools.has(name, app), true, name);
+    for (const domain of ['calendar', 'contacts', 'reminders', 'notes']) for (const action of ['list', 'change']) assert.strictEqual(tools.has(`cowork_${domain}_${action}`, app), true);
   });
 
   await test('COWORK: staged bytes become opaque task-owned inputs without leaking a path', () => {
@@ -152,5 +153,18 @@ module.exports = async function () {
     const events = app.events.recent(); assert.ok(events.some(e => e.type === 'approval.required' && e.kind === 'external')); assert.ok(events.some(e => e.type === 'approval.resolved' && e.granted));
     assert.strictEqual(require('../../src/harness/registry').describe('cowork_email_send', { effect: tools.effect('cowork_email_send', app) }).approval, 'REQUIRED');
     assert.strictEqual(runtime.project(app).capabilities.email.state, 'CONFIGURED');
+  });
+
+  await test('COWORK: personal-service changes validate before asking and list normalization is bounded', async () => {
+    const personal = require('../../src/cowork/personal');
+    assert.strictEqual(personal.cleanChange('calendar', { action: 'update' }).ok, false);
+    assert.strictEqual(personal.cleanChange('reminders', { action: 'complete', id: 'r1' }).ok, true);
+    assert.strictEqual(personal.normalize('notes', { items: [{ id: 'n1', title: 'One', secret: 'drop' }] })[0].secret, undefined);
+    const app = appAt(tmpdir('cowork-')); start(app); let calls = 0;
+    app.coworkServices = { notes: { invoke: async () => { calls++; return { ok: true, data: { id: 'n1' } }; } } };
+    const invalid = await interaction.run(app, { ask: async () => { throw new Error('must not ask'); } }, () => tools.execute('cowork_notes_change', { action: 'update' }, { app, cwd: app.session.cwd }));
+    assert.strictEqual(invalid.isError, true); assert.strictEqual(calls, 0);
+    const denied = await interaction.run(app, { ask: async () => 'Deny' }, () => tools.execute('cowork_notes_change', { action: 'create', title: 'Private note', body: 'Remember this' }, { app, cwd: app.session.cwd }));
+    assert.strictEqual(denied.isError, true); assert.strictEqual(calls, 0);
   });
 };

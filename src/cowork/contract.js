@@ -46,10 +46,10 @@ function capabilities(app) {
     email: services.configured(app, 'email')
       ? { state: 'CONFIGURED', operations: ['search', 'read', 'draft', 'send', 'archive', 'delete'], approval: 'per-external-action' }
       : { state: 'UNCONFIGURED', why: 'no Cowork email account service is configured' },
-    calendar: { state: 'UNCONFIGURED', why: 'no Cowork calendar account authority is connected' },
-    contacts: { state: 'UNCONFIGURED', why: 'no Cowork contacts account authority is connected' },
-    reminders: { state: 'UNCONFIGURED', why: 'no Cowork reminder service is connected' },
-    notes: { state: 'UNCONFIGURED', why: 'no Cowork personal notes service is connected' },
+    calendar: services.configured(app, 'calendar') ? { state: 'CONFIGURED', operations: ['list', 'create', 'update', 'delete'], approval: 'per-external-action' } : { state: 'UNCONFIGURED', why: 'no Cowork calendar service is configured' },
+    contacts: services.configured(app, 'contacts') ? { state: 'CONFIGURED', operations: ['list', 'create', 'update', 'delete'], approval: 'per-external-action' } : { state: 'UNCONFIGURED', why: 'no Cowork contacts service is configured' },
+    reminders: services.configured(app, 'reminders') ? { state: 'CONFIGURED', operations: ['list', 'create', 'update', 'complete', 'delete'], approval: 'per-external-action' } : { state: 'UNCONFIGURED', why: 'no Cowork reminder service is configured' },
+    notes: services.configured(app, 'notes') ? { state: 'CONFIGURED', operations: ['list', 'create', 'update', 'delete'], approval: 'per-external-action' } : { state: 'UNCONFIGURED', why: 'no Cowork personal notes service is configured' },
   };
 }
 

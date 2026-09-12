@@ -222,6 +222,11 @@ provider is invoked only after the authorized conversation answers “Approve
 once,” and successful changes keep a receipt in that conversation's owned
 artifacts.
 
+Configured calendar, contact, reminder and note services follow the same rule:
+reads run directly, changes pause for approval, and the shared Cowork artifact
+store keeps the receipt. No messaging adapter implements a private copy of
+these workflows.
+
 ## Extension contract and limits
 
 `src/bot/contract.js` exports version 1 events, descriptor validation, action

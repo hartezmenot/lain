@@ -3,6 +3,7 @@
 const worker = require('../cowork/worker');
 const artifacts = require('../cowork/artifacts');
 const email = require('../cowork/email');
+const personal = require('../cowork/personal');
 
 function rendered(result) {
   if (!result?.ok) return { output: `${result?.class || 'FAILED'}: ${result?.why || 'the operation did not finish'}`, isError: true,
@@ -143,5 +144,29 @@ const tools = {
     async run(input, ctx) { return email.rendered(await email.mutate(ctx.app, 'delete', input, ctx.signal)); },
   },
 };
+
+const personalFields = {
+  id: { type: 'string' }, title: { type: 'string' }, start: { type: 'string' }, end: { type: 'string' }, location: { type: 'string' },
+  description: { type: 'string' }, attendees: { type: 'array', maxItems: 50, items: { type: 'string' } }, name: { type: 'string' },
+  emails: { type: 'array', maxItems: 50, items: { type: 'string' } }, phones: { type: 'array', maxItems: 50, items: { type: 'string' } },
+  organization: { type: 'string' }, notes: { type: 'string' }, due: { type: 'string' }, completed: { type: 'boolean' }, body: { type: 'string' },
+  tags: { type: 'array', maxItems: 50, items: { type: 'string' } },
+};
+for (const domain of personal.DOMAINS) {
+  tools[`cowork_${domain}_list`] = {
+    mutates: false, effect: 'NETWORK',
+    schema: { name: `cowork_${domain}_list`, description: `List or search bounded items in the connected ${domain} account without changing them.`, parameters: {
+      type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' } },
+    } },
+    async run(input, ctx) { return personal.rendered(await personal.list(ctx.app, domain, input, ctx.signal)); },
+  };
+  tools[`cowork_${domain}_change`] = {
+    mutates: false, effect: 'EXTERNAL', approval: personal.preview(domain),
+    schema: { name: `cowork_${domain}_change`, description: `Create, update or delete an item in the connected ${domain} account after per-action approval; reminders can also be completed.`, parameters: {
+      type: 'object', properties: { action: { type: 'string', enum: [...personal.ACTIONS[domain]] }, ...personalFields }, required: ['action'],
+    } },
+    async run(input, ctx) { return personal.rendered(await personal.change(ctx.app, domain, input, ctx.signal)); },
+  };
+}
 
 module.exports = { tools, rendered, operation };

@@ -1215,7 +1215,7 @@ Status legend:
 8. Computer MCP does not yet exist.
 9. VMware clean proof cannot be REAL LOCAL VERIFIED until a Harness-owned VMware environment is actually available.
 10. WebModel ChatGPT/Gemini remain fixture-verified rather than live-account certified.
-11. Cowork file/artifact/background work and configured email workflows are integration verified; calendar/personal work, Add Account UI and live provider/platform certification remain.
+11. Cowork file/artifact/background work plus configured email/calendar/contact/reminder/note workflows are integration verified; Add Account UI and live provider/platform certification remain.
 12. Shared native photo/image editor has not yet been promoted into a first-class Harness capability usable by Chat/Coding, Cowork, and Bot.
 13. Android, Blender/3D, 2D/game-asset, and richer native-desktop workshops are future work.
 14. Add Account / account management and context-cost observability are designed but not implemented.

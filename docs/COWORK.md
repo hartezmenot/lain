@@ -104,6 +104,13 @@ Search/read results and provider errors are normalized and bounded before they
 return to the model. Attachments are materialized only from exact artifacts
 owned by the current Cowork session, with a 2 MiB combined connector limit.
 
+Calendar, contacts, reminders and notes use the same connector configuration
+shape under their respective `cowork.services` key. Each exposes a bounded
+list/search tool and a change tool. Calendar, contacts and notes support create,
+update and delete; reminders also support complete. Every change has a concrete
+preview, requires “Approve once,” and creates a receipt artifact. Reads return
+only the documented item fields rather than forwarding a provider payload.
+
 ## Capability and failure states
 
 The Cowork projection reports each capability as `AVAILABLE`, `CONFIGURED`,
@@ -112,10 +119,10 @@ capability to `AVAILABLE`. Ordinary failures are returned to the model as one of
 `AUTH_REQUIRED`, `PERMISSION_REQUIRED`, `UNSUPPORTED`, `RATE_LIMITED`, `FAILED`,
 `CANCELLED` or `INCONCLUSIVE`; raw worker exceptions are not public output.
 
-Email reports `CONFIGURED` when an injected or configured Cowork email service
-is present and otherwise reports `UNCONFIGURED`. Calendar, contacts, reminders
-and personal notes remain `UNCONFIGURED`. The user-facing Add Account manager is
-still future work; this connector seam does not claim to be an account store.
+Email, calendar, contacts, reminders and notes each report `CONFIGURED` when
+their injected or configured Cowork service is present and otherwise report
+`UNCONFIGURED`. The user-facing Add Account manager is still future work; this
+connector seam does not claim to be an account store.
 Computer control likewise remains dependent on the existing configured desktop
 bridge.
 
@@ -129,6 +136,8 @@ store and delivery queue. A process-backed email fixture verifies credential
 isolation and durable receipts, and a Telegram fixture verifies an in-conversation
 approval followed by exactly one send. These are local and fixture-backed checks. They are not
 live Telegram/Discord/WhatsApp certification or live account-provider proof.
+Calendar, contact, reminder and note fixtures also exercise their shared list,
+approval, provider invocation, receipt and capability contracts.
 
 On the measured development machine, the detected local BiRefNet provider also
 completed a real owned-artifact removal: its reopened 256×256 RGBA output had an

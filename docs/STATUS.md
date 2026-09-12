@@ -143,7 +143,8 @@ can return a generated artifact through its originating delivery queue.
 | Live Telegram, Discord and WhatsApp account delivery | not run | **NOT LIVE-VERIFIED** |
 | Email draft plus configured search/read/send/archive/delete connector; sends and mutations use per-action approval and durable receipts | unit + process/Telegram integration fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
 | Live email provider/account | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |
-| Calendar, contacts, reminders and personal notes | unavailable | **UNCONFIGURED** |
+| Configured calendar, contacts, reminders and personal notes list/change tools with per-action approval and receipts | unit + integration fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
+| Live calendar/contact/reminder/note accounts | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |
 
 The complete operator and failure-state contract is in `docs/COWORK.md`.
 
