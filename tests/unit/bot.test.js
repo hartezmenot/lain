@@ -91,6 +91,20 @@ module.exports = async () => {
       assert.equal(Object.keys(gateway.store.data.sessions).length, 2);
     } finally { await gateway.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
   });
+  await test('BOT: supported transports bind their App to one opaque Cowork source identity', async () => {
+    const dir = temp(); let options = null;
+    const descriptor = { ...caps, platform: 'telegram' };
+    const registry = new Registry().register(descriptor, () => ({ state: 'listening', start: async () => {}, stop: async () => {}, action: async () => ({ messageId: 'sent' }) }));
+    const gateway = new Gateway({ dir, registry, cfg: { bot: { platforms: { telegram: { enabled: true, allowUsers: ['alice'] } } } }, runtimeFactory: value => {
+      options = value; return { id: 'session', run: async () => '', stop() {}, close: async () => {} };
+    } });
+    try {
+      await gateway.start(); await gateway.receive(source({ platform: 'telegram' })); await Promise.all([...gateway.tasks]);
+      assert.strictEqual(options.cowork.source, 'telegram');
+      assert.match(options.cowork.binding, /^[a-f0-9]{64}$/);
+      assert.ok(!options.cowork.binding.includes('alice'));
+    } finally { await gateway.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+  });
   await test('BOT: restart preserves exact binding and marks interrupted turns without replay', () => {
     const dir = temp(); try {
       const s = new Store(dir), e = event(source()); s.bind(sessionKey(e), () => 'exact-session'); s.admit(eventKey(e), e); s.settle(eventKey(e), 'running');

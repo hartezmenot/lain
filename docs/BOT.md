@@ -165,7 +165,7 @@ settlement promise and retain the initiating message's destination. They do not
 start a second model turn or poll job state. Child transcripts are not broadcast.
 
 Messaging intentionally exposes only these controls plus `/artifacts` and
-`/send <artifact-id>`. It cannot select arbitrary CLI sessions or issue local
+`/send <cwa-reference>`. It cannot select arbitrary CLI sessions or issue local
 configuration commands. Internal callers use Delivery.sendMessage with an
 explicit destination and idempotency key; no model is required for a notification.
 
@@ -193,20 +193,20 @@ can send never-started text fragments only after a known predecessor ACK and
 current configured authorization. Expired prompt and file operations are not
 automatically replayed. Pending/uncertain receipts are retained for review.
 
-Discord and WhatsApp can download images/documents/audio/video as untrusted file
+Telegram, Discord and WhatsApp can download images/documents/audio/video as untrusted file
 artifacts. Downloads follow opaque platform references, validate exact platform
 hosts, refuse redirects and cap bytes at the existing 2 MiB Harness artifact
 limit. URLs and authentication headers stay inside adapters. No automatic OCR,
 audio transcription or execution is claimed. A task must own the artifact before
-staging. Expired Discord download references after restart are reported unavailable.
+staging. Expired platform download references after restart are reported unavailable.
 
-`/artifacts` lists artifacts from this conversation's latest in-memory Harness
-task. `/send <artifact-id>` checks that ownership and the existing artifact index,
-then uploads actual file bytes through Discord or WhatsApp. It never accepts an
-arbitrary host path. It does not export another session's artifacts. Telegram
-currently normalizes attachment descriptions but advertises no media download or
-upload support. File retrieval from previous process lifetimes is not exposed by
-this messaging command; the existing local Harness artifact store retains them.
+`/artifacts` lists artifacts owned by the exact Cowork session, including files
+persisted by earlier process lifetimes. `/send <cwa-reference>` checks the Session,
+workspace and Harness-task ownership, then uploads the actual stored bytes through
+Telegram, Discord or WhatsApp. It never accepts an arbitrary host path and cannot
+export another session's artifact. The model receives only the opaque reference
+and public metadata. Media handling continues to use the shared Harness artifact
+authority; there is no transport-specific file store.
 
 ## Extension contract and limits
 

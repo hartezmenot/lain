@@ -17,6 +17,7 @@ function snapshot(dir) {
   return Object.fromEntries(fs.readdirSync(dir, { recursive: true }).map(p => {
     const full = path.join(dir, p); return [p, fs.statSync(full).isFile() ? fs.readFileSync(full, 'utf8') : '<dir>'];
   }));
+}
 function fixtureInspect(changes = {}) {
   return async () => ({ platforms: [{ platform: 'discord', configured: true, accountFingerprint: fingerprint,
     currentFingerprint: fingerprint, connected: true, diagnostics: { activeSession: true, heartbeatHealthy: true }, ...changes }], shared: [] });

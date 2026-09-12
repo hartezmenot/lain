@@ -111,7 +111,9 @@ class Gateway {
       if (!runtime) {
         if (this.runtimes.size >= 128) throw new Error('active conversation capacity reached');
         const sessionId = this.store.data.sessions[key];
-        runtime = this.runtimeFactory({ cfg: this.cfg, cwd: this.cwd, sessionId, ask: (target, q, signal) => this.prompts.ask(target, q, signal),
+        const coworkState = require('../cowork/sessionstate');
+        const cowork = coworkState.SOURCES.has(e.platform) ? { source: e.platform, binding: coworkState.sourceBinding(e.platform, key) } : null;
+        runtime = this.runtimeFactory({ cfg: this.cfg, cwd: this.cwd, sessionId, cowork, ask: (target, q, signal) => this.prompts.ask(target, q, signal),
           prepareInput: (app, target) => require('./media').ingress(adapter, app, target),
           deliveryStatus: target => this.delivery.review(target), retryDelivery: target => this.delivery.retryLatest(target, eventKey(target)),
           sendArtifact: (app, target, artifactId) => require('./media').sendArtifact(adapter, this.delivery, app, target, artifactId, `artifact:${eventKey(target)}`) });

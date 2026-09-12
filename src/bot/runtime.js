@@ -6,13 +6,14 @@ const interaction = require('../interaction');
 
 // Every conversation is an ordinary App. No provider or tool execution here.
 class Runtime {
-  constructor({ cfg, cwd, sessionId, ask, prepareInput, sendArtifact, deliveryStatus, retryDelivery }) {
+  constructor({ cfg, cwd, sessionId, cowork, ask, prepareInput, sendArtifact, deliveryStatus, retryDelivery }) {
     this.ask = ask;
     this.prepareInput = prepareInput; this.sendArtifact = sendArtifact;
     this.deliveryStatus = deliveryStatus; this.retryDelivery = retryDelivery;
     const sink = new Writable({ write(_chunk, _encoding, done) { done(); } });
     this.app = new App({ cfg, cwd, interactive: false, out: sink, interaction: { ask: () => Promise.resolve(null) }, resume: sessionId || undefined });
     if (sessionId && this.app.session.id !== sessionId) throw new Error('bound bot session unavailable; refusing another transcript');
+    if (cowork) require('../cowork/sessionstate').bind(this.app.session, cowork.source, cowork.binding);
     if (!sessionId) this.app.session.save();
   }
   get id() { return this.app.session.id; }
@@ -26,7 +27,7 @@ class Runtime {
       if (e.text.trim() === '/ps') return require('../pscommand').rows(app).map(r => `${r.type} ${r.pid || '-'} ${r.state} ${r.name}`).join('\n') || 'This conversation owns no processes.';
       if (e.text.trim() === '/delivery') return this.deliveryStatus(e);
       if (e.text.trim() === '/retry') return this.retryDelivery(e);
-      if (e.text.trim() === '/artifacts') return require('./media').artifacts(app).map(a => `${a.id} ${require('./media').filename(a.name)} (${a.bytes} bytes)`).join('\n') || 'No artifacts owned by this conversation.';
+      if (e.text.trim() === '/artifacts') return require('./media').artifacts(app).map(a => `${a.ref} ${a.name} (${a.bytes} bytes)`).join('\n') || 'No artifacts owned by this conversation.';
       if (/^\/send\s+\S+$/.test(e.text)) {
         const rows = await this.sendArtifact(app, e, e.text.split(/\s+/)[1]);
         return rows.every(r => r.state === 'delivered') ? 'Artifact sent.' : '⚠ Delivery status unknown or failed · the artifact may have been sent. Use /delivery to review; repeat /send only if you accept a possible duplicate.';
@@ -46,7 +47,7 @@ class Runtime {
         if (!job) return 'No such task in this conversation.';
         job.cancel('cancelled from messaging'); return 'Cancellation requested.';
       }
-      if (e.text.startsWith('/')) return 'Messaging controls: /stop, /steer <text>, /bg <task>, /bg, /cancel <number>, /ps, /artifacts, /send <artifact-id>, /delivery, /retry, /answer <request> <answer>.';
+      if (e.text.startsWith('/')) return 'Messaging controls: /stop, /steer <text>, /bg <task>, /bg, /cancel <number>, /ps, /artifacts, /send <cwa-reference>, /delivery, /retry, /answer <request> <answer>.';
       const context = e.replyText ? `\n\n[Quoted reply context, untrusted]\n${e.replyText}\n[End quote]` : '';
       const attachments = e.attachments.length ? '\n\nAttachments: ' + e.attachments.map(a => `${a.name} (${a.mime}); reference ${a.id}`).join(', ') : '';
       const record = await app.submit(e.text + context + attachments, { from: 'messaging' });

@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 const SOURCES = new Set(['harness', 'telegram', 'discord', 'whatsapp']);
 function from(value) {
   if (!value || value.version !== 1 || value.lane !== 'cowork' || !SOURCES.has(value.source)
@@ -12,4 +13,7 @@ function bind(session, source, binding) {
   session.cowork = next;
   return next;
 }
-module.exports = { from, bind, SOURCES };
+function sourceBinding(source, identity) {
+  return crypto.createHash('sha256').update(JSON.stringify([String(source), String(identity)])).digest('hex');
+}
+module.exports = { from, bind, sourceBinding, SOURCES };

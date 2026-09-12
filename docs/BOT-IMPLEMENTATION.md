@@ -134,15 +134,16 @@ sources, with one lead writer per source and at most two background jobs per App
 
 ## 14. Media/artifact design
 
-Discord and WhatsApp fetch opaque attachment references at the adapter boundary.
+Telegram, Discord and WhatsApp fetch opaque attachment references at the adapter boundary.
 Exact HTTPS hosts, redirect refusal, timeouts, cancellation and the existing
 2 MiB artifact limit constrain downloads. Files become untrusted artifacts owned
 by an active Harness task; automatic OCR, transcription or execution is not added.
 
-`/artifacts` and `/send <artifact-id>` use the conversation's latest task and the
-existing artifact index. Export uploads actual bytes, never arbitrary host paths
-or Base64 chat text. Another conversation's artifacts are denied. Telegram
-currently supplies attachment descriptions only and advertises media unsupported.
+`/artifacts` and `/send <cwa-reference>` use the exact Cowork Session and the
+existing artifact index across process lifetimes. Export uploads actual bytes,
+never arbitrary host paths or Base64 chat text. Another conversation's artifacts
+are denied. Telegram uses the supervisor mailbox/file RPC and the same artifact
+contract as Discord and WhatsApp.
 
 ## 15. Lifecycle/reconnect
 
@@ -167,25 +168,16 @@ used. Fixture success is not live-platform certification.
 
 | Check | Result | Scope |
 | --- | --- | --- |
-| Full JavaScript unit run | 2,375 passed, 1 failed | Shared `turn.js` exceeds the architecture test's line limit (745 lines); this pass did not edit it. |
-| Bot unit checks within that run | 18 passed, 0 failed | Contracts, all three adapters, authorization, prompts, concurrency, permissions, recovery, media and receipt retention. |
-| Full integration run | 175 passed, 0 failed | Includes the real Core and four bot integration tests. |
-| Focused bot integration after final restart fix | 5 passed, 0 failed | Includes the added external-service restart timing regression. The full suite was not repeated after this addition. |
-| Bot CLI smoke after final restart fix | 2 passed, 0 failed | Actual foreground process, authenticated shutdown, help and platform listing. |
-| Rust supervisor tests | 98 passed, 0 failed | Includes mailbox latch, capacity/deduplication and private identity/secret handling. |
-| Earlier broader CLI smoke selection | 70 passed, 2 failed | Click-to-open navigation and research activity display expectations remain unresolved; this was not a full smoke run. |
-| Packaging preview | Passed | Gateway modules, interaction seam and setup/architecture documentation included; nothing published. |
+| Bot unit selection | 41 passed, 0 failed | Contracts, doctor/certification, all three adapters, authorization, prompts, concurrency, permissions, recovery, media, receipts and Cowork source binding. |
+| Bot integration selection | 13 passed, 0 failed | Real App/Session/Harness wiring, lifecycle/restart, WhatsApp listener, Rust Telegram mailbox/poller/media and previous-process artifact export. |
+| Bot-focused CLI smoke selection | 9 passed, 0 failed | Foreground service, authenticated shutdown, help/platform listing, read-only certification flags and bot observation lifecycle. |
+| Rust supervisor tests | 100 passed, 0 failed | Mailbox latch, capacity/deduplication, media bounds and private identity/secret handling. |
+| Packaging preview | Passed | `npm pack --dry-run --json`; bot modules and `src/cowork/artifacts.js` are included, nothing was published. |
+| Full repository tiers | Not rerun in this release close | No claim that unrelated CLI/frontend tests are green. |
 
-The earlier legacy remote integration failure was a fixture that did not capture
-the current renderer's operational output. Its output sink was corrected, and the
-final full integration run above passed. No legacy routing change was made to
-obtain that result. The architecture size failure and the earlier CLI display
-failures are not covered by a claim that the bot-specific tests pass.
-
-Logs are retained in the host temporary directory as
-`lain-bot-handoff-all-unit.log`, `lain-bot-final-all-integration.log`,
-`lain-bot-handoff-integration.log`, `lain-bot-handoff-cli.log`,
-`lain-bot-rust-test.log`, `lain-bot-smoke.log` and `lain-bot-pack.json`.
+The workspace release supervisor had to be rebuilt before the Telegram-media
+integration could pass; the earlier executable predated the committed media RPC.
+The user's running supervisor was observed separately and left untouched.
 
 ## 17. Remaining limitations
 
@@ -196,8 +188,9 @@ Logs are retained in the host temporary directory as
   RPCs require restarting that daemon after its existing work can safely stop.
 - One account per platform per configuration; no Discord sharding, WhatsApp
   templates, cross-platform identity linking or external relay process.
-- Telegram media transfer is not implemented. Messaging artifact listing/export
-  covers the latest in-memory task, not previous process lifetimes.
+- Telegram media transfer is implemented through the supervisor mailbox/file
+  RPC. Messaging artifact listing/export covers the exact Cowork session across
+  process lifetimes, including artifacts from interrupted tasks.
 - Text output is capped at 128,000 characters with an explicit shortening notice.
   Routing has bounded session/App/receipt capacity; deduplication is limited by
   retention and is not an eternal exactly-once guarantee.

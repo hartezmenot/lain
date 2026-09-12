@@ -58,11 +58,17 @@ module.exports = async () => {
       const owner = g.runtimes.get(sessionKey(source()));
       const artifacts = require('../../src/bot/media').artifacts(owner.app);
       const attachment = artifacts.find(a => a.name === 'report.txt'); assert.ok(attachment, 'inbound file must be owned by a real Harness task');
-      assert.equal(fs.readFileSync(attachment.path, 'utf8'), 'untrusted report bytes');
-      await g.receive(source({ messageId: '7', text: '/send ' + attachment.id })); await Promise.all([...g.tasks]);
+      assert.match(attachment.ref, /^cwa_[a-f0-9]{28}$/);
+      assert.ok(!Object.prototype.hasOwnProperty.call(attachment, 'path'), 'host paths never cross the Cowork boundary');
+      assert.equal(require('../../src/cowork/artifacts').bytes(owner.app, attachment.ref).toString('utf8'), 'untrusted report bytes');
+      await g.stop();
+      g = new Gateway(settings); await g.start();
+      await g.receive(source({ messageId: '7', text: '/artifacts' })); await Promise.all([...g.tasks]);
+      assert.ok(sent.some(a => a.text?.includes(attachment.ref)), 'the exact resumed session must list its previous-process artifact');
+      await g.receive(source({ messageId: '8', text: '/send ' + attachment.ref })); await Promise.all([...g.tasks]);
       assert.ok(sent.some(a => a.type === 'media' && a.file.bytes.toString() === 'untrusted report bytes'));
       const count = sent.filter(a => a.type === 'media').length;
-      await g.receive(source({ senderId: 'bob', messageId: '8', text: '/send ' + attachment.id })); await Promise.all([...g.tasks]);
+      await g.receive(source({ senderId: 'bob', messageId: '9', text: '/send ' + attachment.ref })); await Promise.all([...g.tasks]);
       assert.equal(sent.filter(a => a.type === 'media').length, count, 'another user must not export the artifact');
     } finally {
       await g?.stop(); await new Promise(r => setTimeout(r, 250)); await supervisor.cleanupOwned().catch(() => {});
