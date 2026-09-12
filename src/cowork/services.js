@@ -3,13 +3,14 @@
 const path = require('path');
 const contract = require('./contract');
 
-const DOMAINS = new Set(['email', 'calendar', 'contacts', 'reminders', 'notes']);
+const DOMAINS = new Set(['email', 'calendar', 'contacts', 'reminders', 'notes', 'image']);
 const OPS = Object.freeze({
   email: new Set(['search', 'read', 'send', 'archive', 'delete']),
   calendar: new Set(['list', 'create', 'update', 'delete']),
   contacts: new Set(['list', 'create', 'update', 'delete']),
   reminders: new Set(['list', 'create', 'update', 'complete', 'delete']),
   notes: new Set(['list', 'create', 'update', 'delete']),
+  image: new Set(['generate', 'inpaint']),
 });
 
 function configured(app, domain) {

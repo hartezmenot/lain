@@ -1186,7 +1186,7 @@ Status legend:
 | Bot → Computer MCP | **NOT IMPLEMENTED** | Requires Computer MCP. |
 | Bot native photo editing | **NOT IMPLEMENTED IN HARNESS** | Must use shared Image capability; local `E:\AI` stack may be used during transition. |
 | Cowork spreadsheets | **IMPLEMENTED / INTEGRATION VERIFIED** | CSV/XLSX/XLSM inspection and bounded create/transform tools use the shared artifact authority; legacy XLS conversion remains external. |
-| Cowork images/documents | **IMPLEMENTED / INTEGRATION VERIFIED** | Deterministic image and DOCX/PDF work produces shared owned artifacts; background-removal provider availability is reported separately. |
+| Cowork images/documents | **IMPLEMENTED / INTEGRATION VERIFIED** | Deterministic retouch and DOCX/PDF work produces shared owned artifacts; background removal has real local proof, while configured generation/inpainting has fixture proof and reports provider availability separately. |
 | Cowork email | **IMPLEMENTED / INTEGRATION VERIFIED** | Shared draft/search/read/send/archive/delete tools use a configured service process; external mutations require existing interaction approval and keep durable receipts. Live provider proof remains. |
 | Add Account / Account Manager | **DESIGN** | Replaces old `/oauth` as a user-facing account abstraction; OAuth/device flow is only one authentication mechanism. |
 | Context Cost Observatory | **DESIGN** | Required to explain per-turn input composition and distinguish LAIN context cost from router/provider overhead. |

@@ -247,6 +247,13 @@ function all(app = null) {
       capability.requirements = [`configured Cowork ${personal[1]} service`];
       capability.limitations = ['configuration alone does not prove provider availability'];
     }
+    if (/^cowork_image_(?:generate|inpaint)$/.test(capability.name)) {
+      const configured = require('../cowork/services').configured(app, 'image');
+      capability.category = 'Media'; capability.trust = TRUST.CONFIGURED; capability.configured = configured;
+      capability.availability = configured ? 'AVAILABLE' : 'OPTIONAL_UNAVAILABLE';
+      capability.requirements = ['configured Cowork image service'];
+      capability.limitations = ['configuration alone does not prove provider availability'];
+    }
   }
   return out;
 }

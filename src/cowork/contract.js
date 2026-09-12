@@ -39,6 +39,9 @@ function capabilities(app) {
     imageBackgroundRemoval: observed(app, 'imageBackgroundRemoval', background
       ? { state: 'CONFIGURED', provider: background.provider }
       : { state: 'UNCONFIGURED', why: 'no rembg or BiRefNet provider is configured' }),
+    imageGeneration: services.configured(app, 'image')
+      ? { state: 'CONFIGURED', operations: ['generate', 'inpaint'] }
+      : { state: 'UNCONFIGURED', why: 'no Cowork image generation service is configured' },
     document: observed(app, 'document', py.ok ? { state: 'CONFIGURED' } : { state: 'UNSUPPORTED', why: py.why }),
     pdf: observed(app, 'pdf', py.ok ? { state: 'CONFIGURED' } : { state: 'UNSUPPORTED', why: py.why }),
     research: { state: 'AVAILABLE', authority: 'existing-web-fetch' },

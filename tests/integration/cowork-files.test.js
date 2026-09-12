@@ -8,6 +8,7 @@ const { test, tmpdir } = require('../helpers');
 const binding = require('../../src/cowork/sessionstate');
 const artifacts = require('../../src/cowork/artifacts');
 const worker = require('../../src/cowork/worker');
+const tools = require('../../src/tools');
 
 function appAt(cwd) {
   const { App } = require('../../src/app');
@@ -53,6 +54,24 @@ module.exports = async function () {
     const result = await worker.run(app, { kind: 'image', inputRef: input.ref, action: 'transform', operations: [{ op: 'resize', width: 4, height: 3 }], format: 'png' });
     if (!result.ok) { assert.strictEqual(result.class, 'UNSUPPORTED'); return; }
     assert.strictEqual(result.facts.width, 4); assert.strictEqual(result.facts.height, 3); assert.ok(artifacts.bytes(app, result.artifact.ref).length);
+  });
+
+  await test('COWORK FILES: deterministic retouch changes a copy and keeps measured output', async () => {
+    const app = appAt(tmpdir('cowork-files-'));
+    const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const input = artifacts.keep(app, { name: 'retouch.png', body: bytes });
+    const result = await worker.run(app, { kind: 'image', inputRef: input.ref, action: 'transform', operations: [{ op: 'brightness', factor: 1.1 }, { op: 'contrast', factor: 1.2 }, { op: 'saturation', factor: 0.9 }, { op: 'autocontrast' }], format: 'png' });
+    if (!result.ok) { assert.strictEqual(result.class, 'UNSUPPORTED'); return; }
+    assert.strictEqual(result.facts.width, 1); assert.strictEqual(result.facts.height, 1); assert.deepStrictEqual(artifacts.bytes(app, input.ref), bytes);
+  });
+
+  await test('COWORK FILES: configured generation and inpainting return only valid owned image bytes', async () => {
+    const app = appAt(tmpdir('cowork-files-')), png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const calls = []; app.coworkServices = { image: { invoke: async (operation, input) => { calls.push({ operation, input }); return { ok: true, data: { name: `${operation}.png`, data: png.toString('base64') } }; } } };
+    const generated = await tools.execute('cowork_image_generate', { prompt: 'a blue square', width: 512, height: 512 }, { app, cwd: app.session.cwd });
+    assert.match(generated.artifact.ref, /^cwa_/); assert.deepStrictEqual(artifacts.bytes(app, generated.artifact.ref), png);
+    const inpainted = await tools.execute('cowork_image_inpaint', { input_ref: generated.artifact.ref, prompt: 'replace the center with white' }, { app, cwd: app.session.cwd });
+    assert.deepStrictEqual(artifacts.bytes(app, inpainted.artifact.ref), png); assert.strictEqual(calls.length, 2); assert.strictEqual(calls[1].operation, 'inpaint'); assert.ok(calls[1].input.image.data);
   });
 
   await test('COWORK FILES: DOCX creation is readable and PDF creation is a valid owned result', async () => {

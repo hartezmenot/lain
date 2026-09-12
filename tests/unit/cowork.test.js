@@ -38,7 +38,7 @@ module.exports = async function () {
     assert.strictEqual(tools.has('cowork_artifacts', app), false);
     start(app);
     for (const name of ['cowork_artifacts', 'cowork_spreadsheet_inspect', 'cowork_spreadsheet_transform', 'cowork_spreadsheet_create',
-      'cowork_image_inspect', 'cowork_image_transform', 'cowork_document_inspect', 'cowork_document_transform', 'cowork_document_create', 'cowork_deliver_artifact']) {
+      'cowork_image_inspect', 'cowork_image_transform', 'cowork_image_generate', 'cowork_image_inpaint', 'cowork_document_inspect', 'cowork_document_transform', 'cowork_document_create', 'cowork_deliver_artifact']) {
       assert.strictEqual(tools.has(name, app), true, name);
       assert.strictEqual(tools.isMutating(name, app), false, `${name} writes only the task-owned artifact store`);
     }

@@ -329,6 +329,14 @@ def image_work(payload):
         elif op == "denoise":
             radius = max(1, min(5, int(operation.get("radius") or 1)))
             current = current.filter(ImageFilter.MedianFilter(size=radius * 2 + 1))
+        elif op == "brightness":
+            current = ImageEnhance.Brightness(current).enhance(max(0.0, min(5.0, float(operation.get("factor") or 1.0))))
+        elif op == "contrast":
+            current = ImageEnhance.Contrast(current).enhance(max(0.0, min(5.0, float(operation.get("factor") or 1.0))))
+        elif op == "saturation":
+            current = ImageEnhance.Color(current).enhance(max(0.0, min(5.0, float(operation.get("factor") or 1.0))))
+        elif op == "autocontrast":
+            current = ImageOps.autocontrast(current.convert("RGB"))
         elif op == "grayscale":
             current = ImageOps.grayscale(current)
         elif op == "flatten_background":

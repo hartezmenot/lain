@@ -4,6 +4,7 @@ const worker = require('../cowork/worker');
 const artifacts = require('../cowork/artifacts');
 const email = require('../cowork/email');
 const personal = require('../cowork/personal');
+const imageprovider = require('../cowork/imageprovider');
 
 function rendered(result) {
   if (!result?.ok) return { output: `${result?.class || 'FAILED'}: ${result?.why || 'the operation did not finish'}`, isError: true,
@@ -64,6 +65,20 @@ const tools = {
       input_ref: { type: 'string' }, operations: { type: 'array', items: operation, minItems: 1, maxItems: 12 }, format: { type: 'string', enum: ['png', 'jpg', 'webp', 'gif'] }, quality: { type: 'number' },
     }, required: ['input_ref', 'operations'] } },
     async run(input, ctx) { return rendered(await worker.run(ctx.app, { kind: 'image', inputRef: input.input_ref, action: 'transform', operations: input.operations, format: input.format, quality: input.quality, signal: ctx.signal })); },
+  },
+  cowork_image_generate: {
+    mutates: false, effect: 'NETWORK',
+    schema: { name: 'cowork_image_generate', description: 'Generate a new task-owned PNG or JPG with a configured image service; returns measured dimensions and never claims success without valid image bytes.', parameters: { type: 'object', properties: {
+      prompt: { type: 'string' }, width: { type: 'number' }, height: { type: 'number' }, format: { type: 'string', enum: ['png', 'jpg'] },
+    }, required: ['prompt'] } },
+    async run(input, ctx) { return rendered(await imageprovider.run(ctx.app, 'generate', input, ctx.signal)); },
+  },
+  cowork_image_inpaint: {
+    mutates: false, effect: 'NETWORK',
+    schema: { name: 'cowork_image_inpaint', description: 'Inpaint an owned image, optionally using an owned mask, through a configured image service. Creates a new measured artifact and keeps inputs unchanged.', parameters: { type: 'object', properties: {
+      input_ref: { type: 'string' }, mask_ref: { type: 'string' }, prompt: { type: 'string' }, width: { type: 'number' }, height: { type: 'number' }, format: { type: 'string', enum: ['png', 'jpg'] },
+    }, required: ['input_ref', 'prompt'] } },
+    async run(input, ctx) { return rendered(await imageprovider.run(ctx.app, 'inpaint', input, ctx.signal)); },
   },
   cowork_document_inspect: {
     mutates: false,

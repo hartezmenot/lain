@@ -139,6 +139,8 @@ can return a generated artifact through its originating delivery queue.
 | CSV cleanup; XLSX create/cleanup with formulas, first-occurrence de-duplication, formatting and chart | integration | **INTEGRATION-VERIFIED** |
 | Image measurement and deterministic resize; DOCX create/read; PDF creation | integration | **INTEGRATION-VERIFIED** |
 | Local BiRefNet background removal through the owned Cowork wrapper: 256×256 RGBA, measured alpha 0–255, 4,301-byte output | real local operation | **REAL LOCAL VERIFIED** |
+| Image retouch (brightness/contrast/saturation/autocontrast) plus configured generation and inpainting with strict byte validation | real deterministic integration + configured fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |
+| Live image generation/inpainting provider | unavailable | **UNCONFIGURED / NOT LIVE-CERTIFIED** |
 | Telegram Cowork turn creates an XLSX through the shared model/tool/Harness path and delivers exact owned bytes | integration fixture | **INTEGRATION-VERIFIED** |
 | Live Telegram, Discord and WhatsApp account delivery | not run | **NOT LIVE-VERIFIED** |
 | Email draft plus configured search/read/send/archive/delete connector; sends and mutations use per-action approval and durable receipts | unit + process/Telegram integration fixture | **IMPLEMENTED / INTEGRATION-VERIFIED** |

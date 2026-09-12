@@ -34,10 +34,19 @@ required package rather than assuming the first Python can do the work.
 
 Image tools inspect measured format, dimensions and color mode. Transformations
 include resize, deterministic Lanczos upscale, crop, rotate, sharpen, median
-denoise, grayscale and background flattening. Background removal uses a
+denoise, brightness, contrast, saturation, automatic contrast, grayscale and
+background flattening. Background removal uses a
 configured provider, the detected local BiRefNet runner, or `rembg` when
 available. Images are bounded to 40 megapixels and the finished file is reopened
 and measured before it is registered.
+
+Generation and inpainting use an optional `cowork.services.image` connector
+with the same one-request JSON protocol and isolated `envFrom` credential
+mapping described below. The service receives a bounded prompt and, for
+inpainting, exact owned image/mask bytes. LAIN accepts only canonical base64
+that parses as a supported image within the 2 MiB artifact and 40 megapixel
+limits, then stores a new artifact and reports measured dimensions. When no
+service is configured, capability state is `UNCONFIGURED`; no edit is claimed.
 
 Document tools inspect TXT, Markdown, CSV, DOCX and PDF; create DOCX or PDF; and
 reflow an owned document with deterministic replacement or appended text. PDF
@@ -138,6 +147,9 @@ approval followed by exactly one send. These are local and fixture-backed checks
 live Telegram/Discord/WhatsApp certification or live account-provider proof.
 Calendar, contact, reminder and note fixtures also exercise their shared list,
 approval, provider invocation, receipt and capability contracts.
+Configured generation and inpainting fixtures verify exact image-byte
+promotion and measured outputs; they do not constitute live image-provider
+certification.
 
 On the measured development machine, the detected local BiRefNet provider also
 completed a real owned-artifact removal: its reopened 256×256 RGBA output had an

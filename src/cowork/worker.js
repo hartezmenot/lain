@@ -7,7 +7,7 @@ const artifacts = require('./artifacts');
 
 const OPS = Object.freeze({
   spreadsheet: new Set(['trim_text', 'remove_blank_rows', 'deduplicate', 'normalize_dates', 'sort_rows', 'format_table', 'autofit', 'chart']),
-  image: new Set(['resize', 'upscale', 'crop', 'rotate', 'sharpen', 'denoise', 'grayscale', 'flatten_background', 'remove_background']),
+  image: new Set(['resize', 'upscale', 'crop', 'rotate', 'sharpen', 'denoise', 'brightness', 'contrast', 'saturation', 'autocontrast', 'grayscale', 'flatten_background', 'remove_background']),
   document: new Set(['replace_text', 'append_text']),
 });
 
