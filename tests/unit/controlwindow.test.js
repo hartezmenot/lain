@@ -142,6 +142,33 @@ module.exports = async function () {
     assert.ok(!/grant\(/.test(src), 'the window must never be able to grant anything');
   });
 
+  await test('CTLWIN: the viewer exits when its directory is gone, and when LAIN is gone', async () => {
+    const run = (dir, ms) => new Promise((resolve) => {
+      const child = execFile(process.execPath, [VIEWER, dir],
+        { env: { ...process.env, NO_COLOR: '1', LAIN_CONTROL_EXIT_GRACE_MS: '300' } });
+      const t = setTimeout(() => { child.kill(); resolve('alive'); }, ms);
+      child.on('exit', () => { clearTimeout(t); resolve('exited'); });
+      return child;
+    });
+    // The directory is removed under it: nothing left to watch.
+    const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'ctlview-'));
+    const first = run(gone, 4000);
+    setTimeout(() => fs.rmSync(gone, { recursive: true, force: true }), 300);
+    assert.strictEqual(await first, 'exited', 'a viewer outlived its control directory');
+
+    // The writer is a pid that no longer exists: control ended, then it closes.
+    const dead = await new Promise((resolve) => {
+      const c = execFile(process.execPath, ['-e', '0']);
+      c.on('exit', () => resolve(c.pid));
+    });
+    const owned = fs.mkdtempSync(path.join(os.tmpdir(), 'ctlview-'));
+    fs.writeFileSync(path.join(owned, 'state.json'), JSON.stringify({
+      pid: dead, project: 'p', bridge: { state: 'CONNECTED' }, active: true, capabilities: {}, activity: [],
+    }));
+    assert.strictEqual(await run(owned, 5000), 'exited', 'a viewer outlived the LAIN that fed it');
+    fs.rmSync(owned, { recursive: true, force: true });
+  });
+
   await test('CTLWIN: the window opens on a GRANT, not at launch', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'permissions.js'), 'utf8');
     assert.match(src, /perms\.grant\(spec\.caps[\s\S]{0,400}controlwindow'\)\.open\(app\)/,

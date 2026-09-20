@@ -181,86 +181,50 @@ module.exports = async function () {
   });
   const patchFrames = framesOf(patch.out);
 
-  await test('FRAMES: the diff window OPENS progressively — no box appearing whole', () => {
+  // ---- NO PERFORMANCE: THE EDIT IS SHOWN AS IT IS -------------------------
+  //
+  // These four tests used to require the edit to be PERFORMED — a window
+  // opening row by row, old code struck by a travelling pen, the new code typed
+  // in behind a scramble band, counters climbing. That was presentation time a
+  // person waited through after the file had already changed, and the brief
+  // removed it. They now assert the opposite on the same real frames.
+
+  await test('FRAMES: an edit lands in its final state — no window grows into place', () => {
     const heights = patchFrames.filter(windowFile).map(windowHeight);
-    assert.ok(heights.length > 2, `the window was drawn across several frames: ${heights.length}`);
-    const max = Math.max.apply(null, heights);
-    assert.ok(heights[0] < max,
-      `it grows into place rather than arriving at full size: ${heights.slice(0, 12).join(',')} max ${max}`);
+    assert.ok(heights.length === 0 || new Set(heights).size === 1,
+      `no box is drawn growing across frames: ${heights.slice(0, 12).join(',')}`);
   });
 
-  await test('FRAMES: old code is struck PROGRESSIVELY, then the new code materialises', () => {
-    // ---- THE SEQUENCE, NOT A SINGLE FRAME ---------------------------------
-    //
-    // The strike used to advance a whole line at a time, so a one-line
-    // replacement went from ordinary code to fully red between two frames — a
-    // state change, not a deletion being performed — while the new line under
-    // it was visibly typed. Half the edit was performed and half of it blinked.
+  await test('FRAMES: no strike pen travels and no replacement is typed in', () => {
     const widths = [];
     for (const rows of patchFrames) {
       for (const r of rows) {
-        // The struck span is what sits inside SGR 9 … SGR 29 on a removed row.
         const m = new RegExp(`${ESC}\\[9m(.*?)${ESC}\\[29m`).exec(r);
         if (!m) continue;
         const n = plain(m[1]).length;
         if (widths[widths.length - 1] !== n) widths.push(n);
       }
     }
-    assert.ok(widths.length >= 3,
-      `the pen is seen at several positions across the line: ${widths.join(',')}`);
-    assert.ok(widths[0] < widths[widths.length - 1],
-      `and it travels from the start of the line towards its end: ${widths.join(',')}`);
-
-    // AND THE REPLACEMENT ARRIVES AFTER IT, character by character, carrying
-    // the unsettled glyphs that say it is materialising rather than pasted.
-    const writing = patchFrames.findIndex((rows) => rows.some(
-      (r) => r.indexOf('▌') >= 0 && /[░▒▓#%&$@*+=<>/\\|~^]/.test(plain(r))));
-    const firstStrike = patchFrames.findIndex((rows) => rows.some(
-      (r) => new RegExp(`${ESC}\\[9m`).test(r)));
-    assert.ok(firstStrike >= 0, 'the old code really was struck');
-    assert.ok(writing > firstStrike,
-      `the new code is written after the old is struck: ${firstStrike} then ${writing}`);
+    assert.ok(widths.length <= 1, `the strike is never seen at several positions: ${widths.join(',')}`);
+    const typing = patchFrames.findIndex((rows) => rows.some(
+      (r) => r.indexOf('▌') >= 0 && /[░▒▓]/.test(plain(r))));
+    assert.strictEqual(typing, -1, 'no frame shows code materialising behind a scramble band');
   });
 
-  await test('FRAMES: the counters climb and land on the real patch', () => {
-    // ---- THE WINDOW'S OWN TALLY, NOT EVERY `+n -m` ON THE SCREEN ---------
-    //
-    // The settled feed row carries the FINAL counts from the moment the edit
-    // lands — it is the record, and it is right to be complete. Scraping the
-    // whole frame therefore mixes a finished number in with a climbing one and
-    // reports a sequence that goes backwards. The counters under test are the
-    // ones on the window's own title rule, which is where the performance
-    // reports how far it has got.
-    const seq = [];
+  await test('FRAMES: the edit reports its real counts, never a climbing tally', () => {
+    const seen = new Set();
     for (const rows of patchFrames) {
       for (const r of rows.map(plain)) {
-        if (!/┌─ \S+\.[a-z]+ /.test(r)) continue;
         const m = /\+(\d+) -(\d+)/.exec(r);
-        if (!m) continue;
-        const v = `${m[1]}/${m[2]}`;
-        if (seq[seq.length - 1] !== v) seq.push(v);
+        if (m) seen.add(`${m[1]}/${m[2]}`);
       }
     }
-    const nums = seq.map((s) => s.split('/').map(Number));
-    assert.ok(nums.every((n, i) => i === 0 || (n[0] >= nums[i - 1][0] && n[1] >= nums[i - 1][1])),
-      `counters only ever climb: ${seq.join(' -> ')}`);
-    assert.ok(seq.includes('1/1'), `and land on the real change: ${seq.join(' -> ')}`);
+    assert.ok(seen.has('1/1'), `the real change is on screen: ${[...seen].join(' ')}`);
+    assert.ok(!seen.has('0/0') && !seen.has('0/1') && !seen.has('1/0'), `no intermediate tally was drawn: ${[...seen].join(' ')}`);
   });
 
-  await test('FRAMES: the card and the window under it never name different files', () => {
-    // Unreachable by construction now — one playhead, and the window is a
-    // property of the event (ui/playback.js). Walked anyway, because a
-    // structural guarantee nothing checks is a comment.
-    let both = 0;
-    for (const rows of patchFrames) {
-      const lp = livePos(rows);
-      const w = windowFile(rows);
-      if (!lp || !w) continue;
-      both += 1;
-      assert.strictEqual(w.split(/[\\/]/).pop(), lp.target.split(/[\\/]/).pop(),
-        `card "${lp.target}" over window "${w}"`);
-    }
-    assert.ok(both > 0, 'a window really was drawn under a card during the run');
+  await test('FRAMES: the file really changed under the frames', () => {
+    assert.match(fs.readFileSync(path.join(patch.cwd, 'python.js'), 'utf8'), /newFunctionName/);
   });
 
   // ---- READS, AND THE PROSE BETWEEN THEM -----------------------------------
@@ -315,28 +279,21 @@ module.exports = async function () {
     }
   });
 
-  await test('FRAMES: prose converges on its text without ever jumping to it', () => {
-    // ---- THE MAGICIAN EFFECT, MEASURED ------------------------------------
-    //
-    // "a tiny animation begins, then the rest instantly appears." Stated as a
-    // measurement: track the SETTLED prefix of the sentence across frames and
-    // look at the largest single-frame gain. A teleport is one frame that
-    // delivers most of the line.
+  await test('FRAMES: prose arrives as written — no scramble band, no reveal', () => {
+    // It used to RESOLVE through unsettled glyphs for up to 1.5 s after the
+    // model had already said it. Now a frame shows the sentence or does not.
     const want = 'The runtime never dispatches to connect().';
-    const lens = [];
+    let full = 0;
     for (const rows of readFrames) {
       for (const r of rows.map(plain)) {
         const t = r.trim();
-        if (!t || !want.startsWith(t[0])) continue;
-        let n = 0;
-        while (n < t.length && n < want.length && t[n] === want[n]) n += 1;
-        if (n >= 4) { if (lens[lens.length - 1] !== n) lens.push(n); break; }
+        if (t.startsWith('The runtime') && t !== want && /[░▒▓#%&$@*+=<>|~^]/.test(t)) {
+          assert.fail(`a half-resolved sentence was drawn: "${t}"`);
+        }
+        if (t === want) full += 1;
       }
     }
-    assert.ok(lens.length >= 2, `the sentence was seen arriving: ${lens.join(',')}`);
-    const grew = lens.filter((n, i) => i === 0 || n > lens[i - 1]);
-    assert.ok(grew[grew.length - 1] >= want.length - 2,
-      `and it arrives in full: ${grew.join(',')}`);
+    assert.ok(full > 0, 'the sentence is on screen, exactly as the model wrote it');
   });
 
   await test('FRAMES: structured prose keeps its structure on screen', () => {
@@ -404,7 +361,10 @@ module.exports = async function () {
     for (const p of providers.KNOWN) {
       assert.ok(all.includes(p.label), `${p.label} is offered`);
     }
-    assert.ok(/Other…/.test(all), 'and so is the row that asks rather than guesses');
+    // RENAMED 2026-09-15: one custom category, called `Customs…`. The picker
+    // used to carry an `Other…` escape AND a row named `custom` from the user's
+    // V1 configuration — two spellings of one idea.
+    assert.ok(/Customs…/.test(all), 'and so is the row that asks rather than guesses');
   });
 
   await test('FRAMES: the credential never leaves the line it was typed on', () => {

@@ -38,6 +38,9 @@ const NAMED = Object.freeze({
   '\x1b[F': 'end',
   '\x1b[5~': 'pageup',
   '\x1b[6~': 'pagedown',
+  // CTRL+PAGE DOWN — jump the conversation to the newest output. `;5` is Ctrl
+  // (xterm, Windows Terminal, VS Code); rxvt spells it `ESC[6^`, see decodeEscape.
+  '\x1b[6;5~': 'ctrl-pagedown',
   '\x1b[Z': 'shift-tab',
 
   // ---- KEYS THAT WERE BEING SWALLOWED -------------------------------------
@@ -149,6 +152,7 @@ function decodeEscape(buf) {
   const alt = /^\x1b([1-9])/.exec(s);
   if (alt) return { take: 2, key: `alt-${alt[1]}` };
 
+  if (s.startsWith('\x1b[6^')) return { take: 4, key: 'ctrl-pagedown' };   // rxvt's Ctrl+PgDn
   const csi = /^\x1b\[[0-9;]*[A-Za-z~]/.exec(s);
   if (!csi) {
     if (PARTIAL.test(s)) return { wait: true };

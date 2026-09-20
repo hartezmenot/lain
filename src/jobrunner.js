@@ -53,21 +53,34 @@ const { STATE } = require('./jobs');
  * Everything session-shaped is taken FROM THE SESSION PASSED IN, never from
  * `app.session` — that is what makes a forked job actually forked.
  */
-function turnOptions(app, { session, signal, from = null, ask = null, onStatus = null, steer = null }) {
+function turnOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null }) {
   return {
-    cfg: { ...app.cfg, _evidence: app.connectionEvidence },
+    // THE VIEW'S MODEL, overlaid on a copy — Chat and Coding choose apart, and
+    // the shared process config is never written. See sessionviews.turnCfg.
+    cfg: require('./sessionviews').turnCfg(app, session),
+    // The CURRENT selection, read at each step boundary — a model chosen
+    // mid-turn serves the next step (turnswitch.js).
+    cfgNow: () => require('./sessionviews').turnCfg(app, session),
     // ---- TWO HALVES, NOT ONE STRING --------------------------------------
     //
     // The stable half becomes messages[0] and must not move; the changing half
     // rides at the tail of the wire. See promptparts.js for why, and for the
     // measurement. `app.systemPrompt` still exists and still returns the whole
     // thing for anything that wants it in one piece.
-    ...(() => { const p = require('./promptparts').of(app); return { systemPrompt: p.stable, live: p.live }; })(),
+    // `liveContinuing` is the same tail without the once-per-turn opening, for
+    // every step after the first. See prompt.workingContext `opened`.
+    ...(() => {
+      const parts = require('./promptparts');
+      // FROM THE SESSION BEING RUN — a /bg fork has its own work order and plan.
+      const p = parts.of(app, { session });
+      return { systemPrompt: p.stable, live: p.live, liveContinuing: parts.of(app, { opened: true, session }).live };
+    })(),
     // CARRIED, not merely consumed. `from` shaped the system prompt and stopped
     // there, so the turn record had no idea who asked for it — and the feed,
     // which has to tell a person's request from LAIN continuing its own work,
     // had nothing to read. See turn.js `record.from`.
     from,
+    typed,
     signal,
     evidence: session.evidence,
     lifecycle: session.lifecycle,
@@ -80,6 +93,15 @@ function turnOptions(app, { session, signal, from = null, ask = null, onStatus =
     ask,
     onStatus,
     steer,
+    // BACKGROUND RESULTS REJOIN HERE, on the framed tail — see bgdetach.js.
+    sideContext: () => require('./bgdetach').takeContext(session),
+    taskClass: (session.taskClassVerdict && session.taskClassVerdict.cls) || null,
+    // WHETHER AN IDLE REPLY GETS ONE HIDDEN WAKE-UP — see wakeup.js.
+    requiresExecution: require('./wakeup').requiresExecution({
+      taskClass: session.taskClassVerdict && session.taskClassVerdict.cls,
+      execMode: require('./execmode').of(session),
+      readOnly: require('./sessionviews').current(session) === 'chat',
+    }),
   };
 }
 
@@ -230,11 +252,59 @@ function announce(app, job) {
 function forkSession(app) {
   const s = new Session({ cwd: app.session.cwd });
   s.messages = (app.session.messages || []).map((m) => ({ ...m }));
-  // The task identity is inherited so the fork orients itself in the same work,
-  // and nothing else is: the plan, the lifecycle and the actor log all belong
-  // to the conversation that owns them.
-  s.task = app.session.task ? { ...app.session.task } : null;
-  s.mode = app.session.mode || null;
+  // ---- WHAT THE FORK INHERITS: THE AUTHORITY CHAIN, NOT A PILE OF FIELDS ---
+  //
+  // THE DEFECT THIS REPLACES, found by audit rather than by a failure, which is
+  // why it survived. This function used to name the fields it wanted:
+  //
+  //     s.task = { ...app.session.task };
+  //     s.mode = app.session.mode;
+  //
+  // and the list was incomplete. `session.goal` was not on it, so EVERY
+  // background job — `/bg`, a Bot `/bg`, a Harness-app job — ran without the
+  // user's standing direction. Nothing reported it: the worker had a task and
+  // produced work, and the only symptom was work that served the sentence and
+  // not the project.
+  //
+  // A hand-maintained field list cannot be made correct, because the next rung
+  // added to the chain will not be added here either. So the fork is built from
+  // the canonical projection (src/authority.js) and the rungs are inherited BY
+  // NAME OF WHAT THEY ARE.
+  //
+  // TWO KINDS OF INHERITANCE, AND THEY ARE NOT THE SAME:
+  //
+  //   THE GOAL IS SHARED IDENTITY. The fork serves the same direction, with the
+  //     same goal id, because that is what makes a work order traceable to the
+  //     thing it was for. It is re-created through `goal.from` rather than
+  //     aliased, so the fork cannot write into the parent's goal object.
+  //
+  //   THE TASK IS A REAL TASK, not a spread of one. `{ ...task }` produced a
+  //     plain object with no methods, so a forked session's task could not be
+  //     asked whether it was live, could not record a provider block, and shared
+  //     its `steers` and `handovers` ARRAYS with the parent by reference — a
+  //     steer in the fork would have appeared in the conversation's own task.
+  //     `Task.from(task.toJSON())` is a genuine copy of a genuine Task.
+  //
+  // WHAT IS STILL NOT INHERITED, and deliberately: the plan, the lifecycle, the
+  // evidence ledger and the actor log. Those belong to the conversation that
+  // owns them, and a worker is given its assignment through its WORK ORDER
+  // rather than by being handed the parent's strategy. See authority.brief.
+  const parent = app.session;
+  const goalMod = require('./goal');
+  const { Task } = require('./task');
+  const inherited = goalMod.toJSON(parent);
+  if (inherited) s.goal = goalMod.from(inherited);
+  if (parent.task) {
+    s.task = typeof parent.task.toJSON === 'function'
+      ? Task.from(parent.task.toJSON())
+      // A SESSION ASSEMBLED BY A TEST DOUBLE may carry a plain object here.
+      // `Task.from` reads the same shape `toJSON` writes, so it handles both and
+      // the fork still gets a real Task either way.
+      : Task.from(parent.task);
+  } else {
+    s.task = null;
+  }
+  s.mode = parent.mode || null;
   return s;
 }
 
@@ -285,6 +355,35 @@ function startBackground(app, text) {
     const h = require('./harnesslink').existing(app);
     job.taskId = (h && h.runtime.activeId) || null;
   } catch { job.taskId = null; }
+
+  // ---- THIS WORKER'S EXACT ASSIGNMENT -------------------------------------
+  //
+  // ONE WORK ORDER, ISSUED HERE, FOR EVERY BACKGROUND EXECUTOR. `/bg`, a Bot
+  // `/bg` and a Harness-app job all reach this function, so this is the single
+  // place a background worker's assignment is defined — which is the whole point
+  // of doing it before there are parallel workers. Three orchestrations with
+  // three notions of "what is this worker for" cannot be reconciled afterwards.
+  //
+  // IT HANGS FROM THE CHAIN BY ID, never by copy: the goal id and the task id
+  // come off the projection, so the row, the order and the parent's task all
+  // name the same work. See src/authority.js.
+  //
+  // ITS ID IS THE JOB NUMBER, so a person reading `#7` in `/bg` and a record
+  // naming work order `7` are looking at the same thing rather than at two
+  // handles for it.
+  try {
+    job.workOrder = require('./authority').issue(app.session, {
+      id: String(job.id),
+      objective: text,
+    });
+    // AND THE WORKER IS TOLD WHICH ORDER IT IS EXECUTING. Held on the session
+    // because that is what the prompt builder is given — a worker that cannot
+    // name its own assignment is back to inferring it from the conversation it
+    // inherited, which is the problem the order exists to solve. It is the SAME
+    // object as `job.workOrder`, deliberately: two copies of one contract is how
+    // a claim recorded against the job fails to appear against the order.
+    session.workOrder = job.workOrder;
+  } catch { job.workOrder = null; }
 
   // A PER-JOB STEER QUEUE. `/steer <n>` puts words here and the turn takes them
   // at its next step boundary — the same mechanism the primary conversation
@@ -342,6 +441,11 @@ function startBackground(app, text) {
   launch().then(
     (record) => {
       if (job.state === STATE.CANCELLED) return;
+      // THE ORDER IS SETTLED FROM LAIN'S OWN RECEIPTS, never from the worker's
+      // closing prose — see proposal.settle.
+      try {
+        if (job.workOrder) job.settlement = require('./proposal').settle(job.workOrder, session, { claim: record && record.text });
+      } catch { /* the job's result stands without a settlement */ }
       job._finish(STATE.SUCCEEDED, { result: record || null });
     },
     (e) => {

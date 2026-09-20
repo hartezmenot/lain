@@ -37,6 +37,7 @@
 
 const providerLimits = require('./providerlimits');
 const tokenaudit = require('./tokenaudit');
+const contextprovenance = require('./contextprovenance');
 
 /**
  * BUILD THE EXACT ARRAY THAT WILL BE TRANSMITTED.
@@ -56,10 +57,31 @@ function buildWire(session, systemPrompt, live = '') {
   // protocols already accept, and provider.js merges it into a preceding
   // tool-result turn so no two user messages ever arrive in a row.
   //
-  // `_live` marks it for the accounting in tokenaudit.js and for compaction,
-  // which must never fold the one message describing the current state.
-  const tail = live ? [{ role: 'user', content: live, _live: true }] : [];
-  return [...head, ...session.messages, ...tail];
+  // ---- FRAMED, NOT RAW — THE P0 FIX -------------------------------------
+  //
+  // `role: 'user'` is not a cosmetic label. A model handed LAIN's own mode
+  // guidance under that role, positioned after the person's real request
+  // (Anthropic concatenates consecutive same-role turns into one logical
+  // turn), reads generated prose as the newer, more authoritative
+  // instruction — reproduced exactly with `MODE_GUIDANCE.CHAT`'s "Answer the
+  // user. This does not need the project inspected or any files changed.",
+  // which overrode an actual diagnostic request. See contextprovenance.js.
+  //
+  // `contextprovenance.frame` wraps the text in `<lain-context>` tags whose
+  // meaning is taught once, in the stable half of the prompt (prompt.js
+  // BASE) — a structural boundary the model is told about explicitly, not a
+  // prose prefix competing for the same authority the old "Already
+  // established:" heading had.
+  //
+  // `_live` still marks it for the accounting in tokenaudit.js and for
+  // compaction, which must never fold the one message describing the
+  // current state.
+  const framed = contextprovenance.frame(live);
+  const tail = framed ? [{ role: 'user', content: framed, _live: true }] : [];
+  // THIS TURN'S THREAD ONLY. A Coding turn is not handed the Chat transcript,
+  // and a terminal-only session is returned untouched. See sessionviews.js.
+  // A request the person repeated later is sent once (intent.foldRepeats).
+  return [...head, ...require('./intent').foldRepeats(require('./sessionviews').wireMessages(session)), ...tail];
 }
 
 /**

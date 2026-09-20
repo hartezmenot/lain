@@ -150,8 +150,51 @@ function statusRows(app, { dim = (s) => s } = {}) {
     ['credential', pc.apiKey ? 'present' : dim('missing')],
     ['tokens', `↑${u.inputTokens} ↓${u.outputTokens} · ${u.requests} requests${cacheSuffix(u)}`],
     ['tools', String(require('./tools').names().length)],
+    // WHAT LAIN KNOWS ABOUT THIS PROJECT WITHOUT READING IT AGAIN.
+    //
+    // One line, because it is the line that would have made a silent failure
+    // obvious: a whole TypeScript project once indexed to 47 files and ZERO
+    // declarations, and every question about it fell back to grep and whole-file
+    // reads on every turn. A count says that in one glance. It reads the index
+    // that is already on disk and never builds one — asking for status must not
+    // start a scan. See projectindex.coverage.
+    ['project', projectRow(app.session.cwd, dim)],
+    // WHICH SURFACE IS ACTUALLY UP. The application is a window now, not a URL,
+    // so "is the Harness open" is answered by the window and its channel.
+    ['app', appRow(dim)],
     ['config', config.configDir()],
   ];
+}
+
+function appRow(dim) {
+  try {
+    const win = require('./desktopwindow').status();
+    const chan = require('./harnessapp/ipc').status();
+    if (win.open) return `LAIN Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
+    // AND WHETHER THIS PROCESS IS THE ONE A LAUNCH WOULD FIND. The window is
+    // opened by launching LAIN, not by a command here, so the useful fact is
+    // whether a launch would reach THIS session or start its own. The browser
+    // surface that used to be reported on this row went with `/app`
+    // (2026-09-15). See src/corelock.js.
+    const lock = require('./corelock').status();
+    return dim(lock.holding
+      ? 'closed — launching LAIN Desktop opens this session'
+      : 'closed — another LAIN would answer a Desktop launch');
+  } catch (e) {
+    return dim(`unavailable (${(e && e.message) || e})`);
+  }
+}
+
+function projectRow(cwd, dim) {
+  try {
+    const c = require('./projectindex').coverage(cwd);
+    if (c.state === 'UNKNOWN') return dim('not indexed yet');
+    const bits = [`${c.scanned}/${c.code} scanned`, `${c.symbols} declarations`];
+    if (c.unscanned) bits.push(`${c.unscanned} not scanned`);
+    return `${bits.join(' · ')} — ${c.state}`;
+  } catch (e) {
+    return dim(`unavailable (${(e && e.message) || e})`);
+  }
 }
 
 module.exports = { checks, statusRows };

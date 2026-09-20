@@ -124,12 +124,32 @@ if (process.stdin.isTTY) {
 // somewhere between Node, cmd and start; OSC and process.title do not.
 process.title = 'LAIN DESKTOP CONTROL';
 if (process.stdout.isTTY) process.stdout.write('\x1b]0;LAIN DESKTOP CONTROL\x07');
+/**
+ * IT DOES NOT OUTLIVE WHAT IT WATCHES. The keep-alive below held this window
+ * open forever — after LAIN exited and after its control directory was deleted
+ * — so every grant left a console process behind (found as orphans of test
+ * homes, 2026-09-18). With the directory gone there is nothing to show; with
+ * the writer gone control has ended, which is said, and then the window closes.
+ */
+const EXIT_GRACE_MS = Number(process.env.LAIN_CONTROL_EXIT_GRACE_MS) || 10000;
+let ownerGoneAt = 0;
+function ownerAlive(s) {
+  if (!s || !s.pid) return true;
+  try { process.kill(s.pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
 pinOnTop();
 draw(read());
 setInterval(() => {
+  if (!fs.existsSync(dir)) process.exit(0);
   const s = read();
   // LAIN stopped writing, or dropped every grant: control is over either way.
   if (s && !s.active && !stopped) stopped = true;
+  if (!ownerAlive(s)) {
+    stopped = true;
+    ownerGoneAt = ownerGoneAt || Date.now();
+    if (Date.now() - ownerGoneAt >= EXIT_GRACE_MS) process.exit(0);
+  }
   draw(s);
 }, 500).unref?.();
 // Keep the process alive even with the interval unref'd on some platforms.

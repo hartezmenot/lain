@@ -232,6 +232,9 @@ function setFailed(ui, on) {
   // renders both and only a boolean carries nothing. Anything else coerces, so
   // the truthiness every downstream reader tests is unchanged.
   ui.failed = on && (typeof on === 'object' || typeof on === 'string') ? on : Boolean(on);
+  // WHICH SELECTION FAILED. A provider warning belongs to the model/route it was
+  // observed on; choosing another one ends it (§48). See projection.activeFailure.
+  ui.failedFor = ui.failed ? require('./projection').selectionKey(ui.app) : null;
   if (ui.failed) { ui.interrupting = false; ui.interrupted = false; }
   ui._syncTicker();
   ui.refresh();

@@ -83,7 +83,7 @@ module.exports = async function () {
     // INSTRUMENTS that LAIN drives, and the application window is not one —
     // nothing drives it, a person does. Each of the three would have been wrong
     // for it in a different way, which is the test that it deserved its own.
-    assert.deepStrictEqual([...purpose.ALL].sort(), ['harnessapp', 'verify', 'webmodel', 'workshop']);
+    assert.deepStrictEqual([...purpose.ALL].sort(), ['verify', 'webmodel', 'workshop']);
     for (const p of purpose.ALL) assert.ok(purpose.traits(p).why, `${p} states why it is separate`);
 
     // THE RULE THAT MUST NOT ERODE, whatever the count: there is no purpose
@@ -95,12 +95,13 @@ module.exports = async function () {
       assert.ok(!/personal|user|chrome|edge/i.test(p), `${p} reads like the person browser`);
     }
 
-    // AND THE APPLICATION WINDOW IS NEVER HEADLESS OR DISPOSABLE — a window
-    // nobody can see is not an application, and one that forgets where it was
-    // is not one either.
-    const appTraits = purpose.traits(purpose.PURPOSE.HARNESSAPP);
-    assert.strictEqual(appTraits.headless, false);
-    assert.strictEqual(appTraits.disposable, false);
+    // AND THERE IS NO BROWSER ROLE FOR THE APPLICATION ITSELF. `HARNESSAPP` was
+    // the Chromium `--app` window the Harness ran in before LAIN had a window of
+    // its own; LAIN Desktop is native (native/host.cs), so a browser purpose for
+    // it would name a role nothing can be launched into. Removed 2026-09-15.
+    assert.strictEqual(purpose.PURPOSE.HARNESSAPP, undefined, 'the application is not a browser role');
+    assert.deepStrictEqual([...purpose.ALL].sort(), ['verify', 'webmodel', 'workshop'],
+      'three browser roles: verification, the Workshop preview, and a website model login');
   });
 
   await test('ENV: the three profile roots are provably disjoint', () => {

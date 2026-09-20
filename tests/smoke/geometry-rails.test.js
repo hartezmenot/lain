@@ -47,7 +47,8 @@ function lastFramePainted(raw, T) {
   const clean = String(raw).replace(OSC, '');
   const frames = clean.split(ESC + '[?25l');
   const frame = frames[frames.length - 1] || '';
-  const re = new RegExp(ESC + '\\[(\\d+);(\\d+)H([^' + ESC + ']*)', 'g');
+  // A frame row erases its whole line right after its address (src/ui/frameout.js).
+  const re = new RegExp(ESC + '\\[(\\d+);(\\d+)H(?:' + ESC + '\\[2K)?([^' + ESC + ']*)', 'g');
   const rows = new Map();
   let m;
   while ((m = re.exec(frame))) {

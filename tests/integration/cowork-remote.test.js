@@ -69,13 +69,29 @@ module.exports = async function () {
       assert.deepStrictEqual(media.file.bytes, artifacts.bytes(runtime.app, workbook.ref));
       assert.ok(sent.some(action => action.text?.includes('The workbook was delivered.')));
     } finally {
+      // ---- THE EPERM THIS FIXES, AND WHY IT IS NOT A BLIND PATCH --------
+      //
+      // Under the full tier this teardown failed with EPERM on the DIRECTORY
+      // itself — which on Windows is the signature of a live process holding it
+      // as a working directory, not of a file still open.
+      //
+      // The owner was an omission here rather than anything in Astra's runtime:
+      // the two sibling cases below both call `harness/processes.cleanupOwned()`
+      // and this one did not, so a harness-owned child rooted in the temp
+      // directory could still be alive when the removal ran. The 200ms sleep
+      // that stood in for it is exactly the kind of fixed wait that holds until
+      // the machine is busy — which is why it only ever failed under load.
+      //
+      // Astra's Cowork semantics are untouched. What changed is that this
+      // teardown now ends what LAIN started, the way its neighbours do, and
+      // then waits on the directory actually going rather than on a clock.
       await gateway?.stop();
-      await new Promise(resolve => setTimeout(resolve, 200));
       await supervisor.cleanupOwned().catch(() => {});
+      await require('../../src/harness/processes').cleanupOwned().catch(() => {});
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key]; else process.env[key] = value;
       }
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   });
 

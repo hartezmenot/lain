@@ -343,7 +343,8 @@ function fold(text, { last = true } = {}) {
 
   const sentences = [];
   for (const line of lines) {
-    if (!line.trim()) continue;
+    // A markdown heading ("## Fix") labels a section; it is not a sentence to keep.
+    if (!line.trim() || /^\s*#{1,6}\s/.test(line)) continue;
     for (const part of line.split(SENTENCE_SPLIT)) if (part.trim()) sentences.push(part.trim());
   }
   if (sentences.length < 2) return plain;
@@ -360,7 +361,11 @@ function fold(text, { last = true } = {}) {
     (x) => classify.renderPolicy(classify.classifySentence(x).class) === classify.DECISION.PRESERVE);
   const carrying = sentences.filter((x) => CARRIES_RESULT.test(x) && !preserved.includes(x));
   const chosen = [...preserved, ...carrying].slice(0, FOLD_KEEP);
-  const kept = (chosen.length ? chosen : [sentences[0]]).join(' ');
+  // EACH KEPT SENTENCE ENDS AS ONE. Two picked from a report's sections — the
+  // first ending in code — ran together as "…`amount - pct` Changed to…" (live
+  // ECO run, 2026-09-19): the join supplied the space and nothing supplied the stop.
+  const stop = (x) => (/[.!?:;…]["')\]]?$/.test(x) ? x : `${x}.`);
+  const kept = (chosen.length ? chosen : [sentences[0]]).map(stop).join(' ');
   // NOT WORTH FOLDING. If what survives is most of what went in, the fold has
   // bought a pointer and nothing else, and the pointer is then pure noise.
   if (kept.length >= src.length * 0.7) return plain;

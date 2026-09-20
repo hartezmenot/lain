@@ -18,6 +18,8 @@
  */
 
 const { P } = require('./paint');
+/** The one ruler for terminal cells — CJK is two, an escape is zero. See ui/text.js. */
+const T = require('./text');
 
 const MODE = Object.freeze({ HIDDEN: 'hidden', COMPACT: 'compact', EXPANDED: 'expanded' });
 
@@ -71,6 +73,18 @@ const KIND = Object.freeze({
    * stale warnings is one you stop reading.
    */
   ADVISORY: 'ADVISORY',
+  /**
+   * SOMETHING THE PERSON IS INSPECTING — `/diff`.
+   *
+   * Not passive: command output, an advisory or a notice may not replace it, and
+   * no timer, stream, patch, resize or finished task closes it. Not awaited: no
+   * caller is waiting on a value, so the header does not say WAITING FOR YOU.
+   * It owns its navigation keys through the frame's `onKey`, and it closes on an
+   * explicit user action — Esc, an interrupt, leaving.
+   */
+  INSPECTOR: 'INSPECTOR',
+  /** A command's follow-up actions — `/goal`, `/plan`, `/resume`. See ui/shelf.js. */
+  SHELF: 'SHELF',
 });
 
 /** Completion kinds follow the input; everything else owns the keyboard. */
@@ -87,6 +101,20 @@ const COMPLETION_KINDS = new Set([KIND.COMMAND_PALETTE, KIND.FILE_COMPLETION]);
 const PASSIVE_KINDS = new Set([KIND.OUTPUT, KIND.ADVISORY]);
 
 /** An adapter is `{ title, mode, kind, items, footer?, onSelect?, onBack? }`. */
+/**
+ * LAND ON SOMETHING CHOOSABLE — every way a level opens (open, replace, push).
+ * A question, heading or info row is often row 0; parking the cursor there
+ * draws no marker and makes Enter a silent no-op. `push` once skipped this rule
+ * and the /model route view (EFFORT under five info rows) did exactly that
+ * (live, 2026-09-18).
+ */
+function landOn(items, cursor) {
+  const list = items || [];
+  if (!list[cursor] || list[cursor].selectable !== false) return cursor;
+  const i = list.findIndex((x) => x && x.selectable !== false);
+  return i < 0 ? 0 : i;
+}
+
 class InteractionPanel {
   constructor() {
     this.stack = [];      // adapter frames; supports drill-down + back
@@ -170,6 +198,9 @@ class InteractionPanel {
    */
   get isAdvisory() { return this.kind === KIND.ADVISORY; }
 
+  /** True for a persistent inspector — see KIND.INSPECTOR. */
+  get isInspector() { return this.kind === KIND.INSPECTOR; }
+
   /**
    * Swap the CONTENT of the open panel without closing it — what a completion
    * menu does on every keystroke. The awaiting promise is untouched, so a filter
@@ -185,12 +216,7 @@ class InteractionPanel {
     // a filter scrolled you to the bottom of your own search.
     if (Number(adapter.cursor) >= 0) this.cursor = Number(adapter.cursor);
     if (this.cursor >= n) this.cursor = Math.max(0, n - 1);
-    // Land on something selectable rather than on a heading.
-    const items = adapter.items || [];
-    if (items[this.cursor] && items[this.cursor].selectable === false) {
-      const i = items.findIndex((x) => x.selectable !== false);
-      this.cursor = i < 0 ? 0 : i;
-    }
+    this.cursor = landOn(adapter.items, this.cursor);
     this.scroll = 0;
     return undefined;
   }
@@ -208,14 +234,7 @@ class InteractionPanel {
     // An adapter may say where the cursor belongs — a list of 1,151 models is
     // far more useful opened ON the current one than at the alphabetical top.
     this.cursor = Number(adapter && adapter.cursor) > 0 ? Number(adapter.cursor) : 0;
-    // Land on something CHOOSABLE. A question, a heading or a blank spacer is
-    // often row 0, and opening with the marker parked on it makes the panel
-    // look like nothing is selected.
-    const items = (adapter && adapter.items) || [];
-    if (items[this.cursor] && items[this.cursor].selectable === false) {
-      const i = items.findIndex((x) => x && x.selectable !== false);
-      this.cursor = i < 0 ? 0 : i;
-    }
+    this.cursor = landOn(adapter && adapter.items, this.cursor);
     this.scroll = 0;
     this.result = null;
     return new Promise((resolve) => { this._resolve = resolve; });
@@ -232,6 +251,7 @@ class InteractionPanel {
     if (from) from._cursor = this.cursor;
     this.stack.push(adapter);
     this.cursor = Number(adapter && adapter.cursor) > 0 ? Number(adapter.cursor) : 0;
+    this.cursor = landOn(adapter && adapter.items, this.cursor);
     this.scroll = 0;
   }
 
@@ -437,7 +457,8 @@ class InteractionPanel {
     if (title) {
       // SENTENCE CASE. `COMMANDS` in capitals inside a box was the loudest thing
       // on a screen whose subject is a conversation.
-      out.push(P.meta(INDENT + title.charAt(0) + title.slice(1).toLowerCase()));
+      // A PATH KEEPS ITS CASE: `src/Provider.js` lowercased is a different file.
+      out.push(P.meta(INDENT + (f.keepCase ? clip(title, inner) : title.charAt(0) + title.slice(1).toLowerCase())));
       out.push('');
     }
 
@@ -480,6 +501,14 @@ class InteractionPanel {
       // the palette stays in one place and a route that is rate limited looks
       // the same here as it does in the live row.
       const body = pad(clip(text, inner), inner);
+      // A ROW MAY PAINT ITSELF when one tone cannot say it — a diff overview
+      // row carries a state dot and separately coloured counts. Still painted
+      // AFTER padding, for the same reason as a tone.
+      if (typeof item.paint === 'function') {
+        const painted = item.paint(body, { selected: sel });
+        out.push(INDENT + (sel ? P.surface(painted) : painted));
+        continue;
+      }
       const tint = item.tone && P[item.tone] ? P[item.tone] : null;
       // ---- THE ROW ENTER WILL CHOOSE, UNMISTAKABLY -------------------------
       //
@@ -536,9 +565,12 @@ class InteractionPanel {
    */
   menuWidth(width) {
     const frame = Math.max(10, Math.floor(Number(width) || 80) - 2);
+    // AN INSPECTOR READS CODE, and code needs the width it has. A diff clipped
+    // to a menu's eighty-four columns is a diff with its right half missing.
+    if (this.frame && this.frame.fullWidth) return frame;
     let longest = 0;
     for (const it of this.items) {
-      const n = String((it && it.label) || '').length;
+      const n = T.width(String((it && it.label) || ''));
       if (n > longest) longest = n;
     }
     const footer = String((this.frame && this.frame.footer) || defaultFooter(this.stack.length)).length + 18;
@@ -582,9 +614,13 @@ function defaultFooter(depth) {
     : '↑↓ select · Enter confirm · Esc cancel';
 }
 
+/**
+ * EXACTLY `width` CELLS. Measured with the one ruler (ui/text.js): a panel
+ * padded by `.length` drew every CJK row past its right edge by half its width.
+ */
 function pad(s, width) {
   const t = String(s == null ? '' : s);
-  return t.length >= width ? t.slice(0, width) : t + ' '.repeat(width - t.length);
+  return T.pad(T.width(t) > width ? T.hardSlice(t, width) : t, width);
 }
 
 /**
@@ -626,14 +662,15 @@ function wrapItems(items, inner) {
       // A SINGLE WORD LONGER THAN THE PANEL still has to go somewhere — a long
       // path, a token, a URL. It is hard-split rather than dropped or allowed
       // to run through the border.
-      while (w.length > limit()) {
+      // CELLS, NOT CHARACTERS: a CJK word is twice as wide as its length.
+      while (T.width(w) > limit()) {
         if (line) flush();
-        line = w.slice(0, limit());
-        w = w.slice(limit());
+        line = T.hardSlice(w, limit());
+        w = w.slice(line.length);
         flush();
       }
       if (!w) continue;
-      if (line && (line.length + 1 + w.length) > limit()) flush();
+      if (line && (T.width(line) + 1 + T.width(w)) > limit()) flush();
       line = line ? `${line} ${w}` : w;
     }
     if (line) flush();
@@ -642,8 +679,7 @@ function wrapItems(items, inner) {
 }
 
 function clip(s, width) {
-  const t = String(s == null ? '' : s);
-  return t.length <= width ? t : t.slice(0, Math.max(0, width - 1)) + '…';
+  return T.clip(String(s == null ? '' : s), width);
 }
 
 module.exports = {

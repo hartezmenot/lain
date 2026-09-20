@@ -22,7 +22,7 @@ const { test, tmpdir, runCli, assertIncludes, assertNotIncludes } = require('../
 const CONFIG = {
   connections: {
     anthropic: { provider: 'anthropic', via: 'native', auth: 'api_key', envKey: 'DEMO_KEY', models: ['claude-opus-5', 'claude-sonnet-5'] },
-    omniroute: { provider: 'anthropic', via: 'bridge', baseUrl: 'http://localhost:20128/v1', models: ['claude-opus-5-low', 'claude-opus-5-medium', 'claude-opus-5-high', 'gemini-3.5-flash', 'kimi-k3'] },
+    gateway: { provider: 'anthropic', via: 'bridge', baseUrl: 'http://localhost:20128/v1', models: ['claude-opus-5-low', 'claude-opus-5-medium', 'claude-opus-5-high', 'gemini-3.5-flash', 'kimi-k3'] },
     ninerouter: { provider: 'bridge9', via: 'bridge', baseUrl: 'http://127.0.0.1:9/v1', models: ['claude-opus-5-low', 'claude-opus-5-high', 'gpt-5.5-low', 'gpt-5.5-medium', 'gpt-5.5-extra-high', 'qwen-max'] },
   },
 };
@@ -88,7 +88,7 @@ module.exports = async function () {
 
   await test('PROD 10: /effort works', async () => {
     const { cwd, configDir } = ws();
-    const r = await runCli([], { cwd, configDir, stdin: '/model claude-opus-5 omniroute\n/effort medium\n/effort\n/exit\n', script: [] });
+    const r = await runCli([], { cwd, configDir, stdin: '/model claude-opus-5 gateway\n/effort medium\n/effort\n/exit\n', script: [] });
     assertIncludes(r.stdout, 'effort medium');
     assertIncludes(r.stdout, 'available here: low, medium, high');
   });
@@ -97,19 +97,19 @@ module.exports = async function () {
     const { cwd, configDir } = ws();
     const r = await runCli([], { cwd, configDir, stdin: '/provider status\n/exit\n', script: [] });
     assertIncludes(r.stdout, 'Connections');
-    assertIncludes(r.stdout, 'omniroute');
+    assertIncludes(r.stdout, 'gateway');
   });
 
   await test('PROD 12-13: /provider maintenance then /provider retry, no request sent', async () => {
     const { cwd, configDir } = ws();
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/provider maintenance omniroute\n/provider status\n/provider retry omniroute\n/exit\n',
+      stdin: '/provider maintenance gateway\n/provider status\n/provider retry gateway\n/exit\n',
       script: [],
     });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'omniroute → MAINTENANCE');
-    assertIncludes(r.stdout, 'omniroute → UNKNOWN');
+    assertIncludes(r.stdout, 'gateway → MAINTENANCE');
+    assertIncludes(r.stdout, 'gateway → UNKNOWN');
     assert.strictEqual((r.stdout.match(/no request was sent/g) || []).length, 2);
   });
 
@@ -232,7 +232,7 @@ module.exports = async function () {
     const { cwd, configDir } = ws();
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/model claude-opus-5 omniroute\n/effort high\n/effort auto\n/effort\n/exit\n',
+      stdin: '/model claude-opus-5 gateway\n/effort high\n/effort auto\n/effort\n/exit\n',
       script: [],
     });
     assert.strictEqual(r.code, 0);
@@ -544,7 +544,7 @@ module.exports = async function () {
     const { cwd, configDir } = ws();
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/provider maintenance omniroute\n/status\n/models\n/provider status\n/oauth anthropic\n/effort\n/help\n/plan\n/task\n/tools\n/changes\n/sessions\n/exit\n',
+      stdin: '/provider maintenance gateway\n/status\n/models\n/provider status\n/oauth anthropic\n/effort\n/help\n/plan\n/task\n/tools\n/changes\n/sessions\n/exit\n',
       script: [],
       timeoutMs: 45000,
     });

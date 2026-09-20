@@ -394,7 +394,24 @@ class ContextAuthority {
       beforeMessages: (result && result.beforeMessages) || 0,
       afterMessages: (result && result.afterMessages) || 0,
     });
-    this.note(EVENT.CONTEXT_REBUILT, { compactionId: id, after, messages: this.session.messages.length });
+    // ---- STILL OVER, ACROSS EPOCHS -----------------------------------------
+    // A compaction that ends over budget means the NEXT step compacts again
+    // and stubs whatever was just read — the reread loop, which the per-epoch
+    // bound cannot see because every step starts a new epoch. The streak and
+    // the floor make it visible on the timeline, with the work it happened in.
+    const afterPressure = this.pressure(pc, cfg);
+    this.overStreak = afterPressure.over ? (this.overStreak || 0) + 1 : 0;
+    const task = this.session.task;
+    const plan = this.session.plan;
+    const step = plan && Array.isArray(plan.steps) ? plan.steps.findIndex((s) => s && !require('./plan').stepDone(s)) : -1;
+    this.note(EVENT.CONTEXT_REBUILT, {
+      compactionId: id, after, messages: this.session.messages.length,
+      overAfter: afterPressure.over,
+      floorChars: afterPressure.over ? afterPressure.chars : 0,
+      overStreak: this.overStreak,
+      taskId: (task && task.id) || '',
+      planStep: step >= 0 ? step + 1 : null,
+    });
     this.normalize();
 
     // ---- STILL OVER?  DIAGNOSE, DO NOT RECURSE -----------------------------
@@ -404,7 +421,6 @@ class ContextAuthority {
     // state — the epoch ends UNSATISFIABLE now, without spending a second
     // attempt on identical state. A productive attempt leaves one more, and
     // only if the budget still has room for it.
-    const afterPressure = this.pressure(pc, cfg);
     if (afterPressure.over) {
       const productive = Boolean(result && result.compacted);
       if (!productive || this.attempts >= MAX_ATTEMPTS_PER_EPOCH) {
@@ -461,6 +477,10 @@ class ContextAuthority {
     // is on the record as the operation the clear retired.
     this.note(EVENT.CONTEXT_CLEARED, { removed, chars });
     if (this.session) this.session.messages = [];
+    // THE BODIES WENT WITH THE MESSAGES. The ledger keeps what was read, but it
+    // must stop claiming the model still holds it — see toolstep.bodyOnWire.
+    const ev = this.session && this.session.evidence;
+    if (ev && ev.byPath) for (const e of ev.byPath.values()) e.bodyPresent = false;
     this.touch({ reason: 'explicit-context-clear' });
     return { removed, chars };
   }

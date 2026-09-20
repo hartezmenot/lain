@@ -220,7 +220,10 @@ module.exports = async function () {
       ],
       timeoutMs: 45000,
     });
-    const f = frames(r.out).map(plain).find((x) => /RUNNING\s+sleep 3/i.test(x) && /searching/.test(x));
+    // The finished search in its SETTLED form (`searched`), one row above the
+    // running command. It used to be the present-tense card held on screen
+    // after the search had ended — the pacing the activity surface no longer does.
+    const f = frames(r.out).map(plain).find((x) => /RUNNING\s+sleep 3/i.test(x) && /search(?:ed|ing)|found/i.test(x));
     assert.ok(f, 'the completed call must still be readable beside the running one');
   });
 
@@ -372,7 +375,8 @@ module.exports = async function () {
       // is removed from the raw stream before anything measures a row.
       const drawn = r.stdout.split('\x1b[?1049l')[0]
         .replace(/\x1b\][0-9]+;[^\x07]*\x07/g, '')
-        .replace(/\x1b\[K/g, '');
+        // Both erases carry zero width: `[K` to the right, `[2K` the whole line (src/ui/frameout.js).
+        .replace(/\x1b\[2?K/g, '');
       let coloured = 0;
       for (const seg of drawn.split(/\x1b\[[0-9]+;[0-9]+H/).slice(1)) {
         for (const line of seg.split('\n')) {

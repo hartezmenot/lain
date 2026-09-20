@@ -23,7 +23,7 @@ const connectionsMod = require('./connections');
  * @param {object} api  { define, REGISTRY, C } — the registry's own vocabulary,
  *                      passed in rather than imported back.
  */
-function register({ define, REGISTRY, C }) {
+function register({ define, REGISTRY, C, FLASH_MS }) {
   /** Re-read what the routes serve. The implementation lives in catalog.js. */
   const refreshCatalog = (app, opts) => catalogMod.refreshAndReport(app, opts, { C });
   /**
@@ -80,6 +80,7 @@ function register({ define, REGISTRY, C }) {
    * The graphical picker is the Harness application's; this is the terminal's.
    */
   define('/model', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[name|refresh]',
@@ -88,6 +89,7 @@ function register({ define, REGISTRY, C }) {
   });
 
   define('/models', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     surface: true,
     // HIDDEN: runs when typed, offered nowhere. One name is advertised.
     hidden: true,
@@ -98,6 +100,7 @@ function register({ define, REGISTRY, C }) {
 
   // ONE effort command. V1 shipped /effort AND /efforts; there is no alias here.
   define('/effort', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[level]',
@@ -143,6 +146,9 @@ function register({ define, REGISTRY, C }) {
 
 
   define('/api', {
+    // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve,
+    // which is the last thing that should vanish on a timer. STAY is the default
+    // and this comment is here so it is not "tidied" into a receipt later.
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[<credential>|<connection>|refresh [id]|status]  — bare /api asks for a key',
@@ -206,6 +212,9 @@ function register({ define, REGISTRY, C }) {
   });
 
   define('/provider', {
+    // AN INSPECTOR, despite also performing actions: `/provider` defaults to a status listing, read exactly when a route is dead,
+    // which is the last thing that should vanish on a timer. STAY is the default
+    // and this comment is here so it is not "tidied" into a receipt later.
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[status|refresh [id]|disable <id>|enable <id>|maintenance <id>|retry <id>]',
@@ -282,6 +291,8 @@ function register({ define, REGISTRY, C }) {
           const from = app.availability.hydrated && app.availability.hydrated.has(c.id)
             ? ' (from an earlier session)' : '';
           w('    ' + C.dim(`rate limited · ${when}${from}`) + '\n');
+        } else if (a.historicalLimit && a.historicalLimit.resumeAt > Date.now()) {
+          w('    ' + C.dim(`earlier session: rate limited until ${require('./ratelimit').at(a.historicalLimit.resumeAt)} · not assumed now`) + '\n');
         }
         // WHERE the model list came from. "declared" and "discovered" fail in
         // different ways and are fixed in different places, so they are never
@@ -297,6 +308,7 @@ function register({ define, REGISTRY, C }) {
   });
 
   define('/oauth', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[provider]',

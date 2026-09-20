@@ -87,14 +87,15 @@ module.exports = async function () {
       s.messages.push({ role: 'assistant', content: `answer ${i}` });
       s.turns.push({ turnId: `t${i}`, userInput: `ask ${i}`, text: `answer ${i}`, actions: [], narration: [] });
     }
-    const pc = { provider: 'omniroute', connectionId: 'omniroute', ctx: 128000, maxTokens: 4096 };
-    assert.strictEqual(providerLimits.limitsFor(pc, {}).messages, 800, 'this route really does cap messages');
+    const pc = { provider: 'someroute', connectionId: 'someroute', ctx: 128000, maxTokens: 4096 };
+    const capped = { providerLimits: { someroute: { messages: 800 } } };
+    assert.strictEqual(providerLimits.limitsFor(pc, capped).messages, 800, 'this route really does cap messages');
 
     const turnsRef = s.turns;
     const firstTurn = s.turns[0];
     const beforeMessages = s.messages.length;
 
-    const out = contextfit.fit(s, pc, { systemPrompt: 'SYS', cfg: {} });
+    const out = contextfit.fit(s, pc, { systemPrompt: 'SYS', cfg: capped });
 
     // THE PAYLOAD SHRANK — that is the point of the operation.
     assert.ok(s.messages.length < beforeMessages,

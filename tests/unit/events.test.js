@@ -33,7 +33,6 @@ module.exports = async function () {
       'question.presented', 'question.resolved',
       'task.completed', 'task.failed', 'task.progress', 'task.started',
       'tool.completed', 'tool.started',
-      'visual.judged', 'visual.presented',
       'waiting_for_user',
       // ---- THE HARNESS VOCABULARY, ADDED TO THE SAME BUS -----------------
       //

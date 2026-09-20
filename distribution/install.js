@@ -56,6 +56,10 @@ function blank() {
     needsNewShell: false,
     verified: false,
     version: null,
+    // THE DESKTOP IS OPTIONAL AND SEPARATELY REPORTED — null means "not
+    // installed", and the reason is in `warnings`, never folded into `ok`.
+    desktop: null,
+    shortcut: null,
     warnings: [],
     manual: '',
   };
@@ -73,6 +77,9 @@ function step(out, ok, text) { out.steps.push({ ok, text }); return out; }
  *   skipPath  write launchers, leave PATH alone (CI, or a caller managing PATH)
  *   verify    run `lain --version` afterwards. Default true; only a test that
  *             installed into a directory it never put on PATH turns it off.
+ *   desktop   build LAIN.exe and put LAIN in the Start Menu. Default true on
+ *             Windows; a test that does not want to touch the real Start Menu
+ *             passes false.
  */
 function install(opts = {}) {
   const out = blank();
@@ -179,7 +186,47 @@ function install(opts = {}) {
     }
   }
 
-  // ---- 6. IS SOMETHING ELSE ANSWERING TO `lain`? -------------------------
+  // ---- 6. THE DESKTOP, FOR SOMEBODY NOT IN A TERMINAL --------------------
+  //
+  // `lain` on PATH is the CLI's story. The native Harness needs its own: a
+  // Windows application you can only start by typing a path is one you start by
+  // opening a terminal first, which is the thing it exists to make optional.
+  //
+  // NEITHER STEP CAN FAIL THE INSTALL. A machine with no C# compiler, or a
+  // locked-down Start Menu, is a machine where LAIN works completely from the
+  // CLI — so the reason is reported and the install carries on. This is the
+  // same rule as "no browser is downloaded": optional capabilities are reported
+  // honestly, never required.
+  if (process.platform === 'win32' && opts.desktop !== false) {
+    const desk = require('../src/desktop');
+    const shortcut = require('./shortcut');
+    const built = desk.build();
+    if (!built.ok) {
+      out.warnings.push(`LAIN Desktop was not installed: ${built.why}`);
+      step(out, true, `desktop: not built — ${built.why} (the CLI is unaffected)`);
+    } else {
+      const launcher = desk.installLauncher(built);
+      if (!launcher.ok) {
+        out.warnings.push(`LAIN Desktop was not installed: ${launcher.why}`);
+        step(out, true, `desktop: ${launcher.why} (the CLI is unaffected)`);
+      } else {
+        out.desktop = launcher.launcher;
+        const link = shortcut.install({ target: launcher.launcher });
+        if (link.ok) {
+          out.shortcut = link.link;
+          step(out, true, 'desktop: LAIN.exe installed, and LAIN is in the Start Menu');
+        } else {
+          out.warnings.push(`no Start Menu entry: ${link.why}`);
+          step(out, true, `desktop: LAIN.exe installed at ${launcher.launcher} — no Start Menu entry (${link.why})`);
+        }
+        // A LAUNCHER THAT CANNOT FIND NODE IS WORTH SAYING OUT LOUD, because it
+        // will fail at the moment somebody double-clicks it rather than now.
+        if (!launcher.node) out.warnings.push(`LAIN Desktop could not record a Node to run: ${launcher.why}`);
+      }
+    }
+  }
+
+  // ---- 7. IS SOMETHING ELSE ANSWERING TO `lain`? -------------------------
   const probe = detect.probe({ dir });
   if (probe.shadowed) {
     out.warnings.push(
@@ -218,6 +265,11 @@ function render(result) {
   } else {
     lines.push('  NOT installed. Nothing above was claimed that was not measured.');
   }
+  // THE OTHER WAY IN, said plainly. Somebody who installed LAIN to use the
+  // application should not have to find out from a source file that there is
+  // one in their Start Menu.
+  if (result.shortcut) lines.push('  Or open LAIN from the Start Menu — the window, without a terminal.');
+  else if (result.desktop) lines.push(`  LAIN Desktop: ${result.desktop}`);
   if (result.manual) {
     lines.push('');
     lines.push('  To put it on PATH yourself:');
@@ -240,8 +292,9 @@ if (require.main === module) {
     if (argv[i] === '--dir') opts.dir = argv[++i];
     else if (argv[i] === '--no-path') opts.skipPath = true;
     else if (argv[i] === '--no-verify') opts.verify = false;
+    else if (argv[i] === '--no-desktop') opts.desktop = false;
     else if (argv[i] === '--help' || argv[i] === '-h') {
-      process.stdout.write('Usage: node distribution/install.js [--dir <bin>] [--no-path] [--no-verify]\n');
+      process.stdout.write('Usage: node distribution/install.js [--dir <bin>] [--no-path] [--no-verify] [--no-desktop]\n');
       process.exit(0);
     }
   }

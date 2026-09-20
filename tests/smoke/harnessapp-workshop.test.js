@@ -104,7 +104,7 @@ module.exports = async function () {
 
     const proj = fixture();
     const { App } = require(path.join(ROOT, 'src', 'app'));
-    const server = require(path.join(ROOT, 'src', 'harnessapp', 'server'));
+    const routes = require(path.join(ROOT, 'src', 'harnessapp', 'routes'));
     const app = new App({
       out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false },
       interactive: false, cwd: proj,
@@ -114,26 +114,34 @@ module.exports = async function () {
     const H = require(path.join(ROOT, 'src', 'harnesslink')).harnessFor(app);
     H.begin({ title: 'centre the pay button', objective: 'centre the pay button and verify mobile' });
 
-    const s = await server.start(app, { port: 0 });
-    assert.ok(s.ok, `the application did not start: ${s.why}`);
-    const P = s.port;
+    // ---- EVERY CALL IS ONE THE WINDOW MAKES ---------------------------
+    //
+    // This used to start the loopback Harness server and exchange a launch
+    // token for a session, because that was how the application reached Core.
+    // The browser Harness and its HTTP transport were removed (2026-09-15), so
+    // the calls go through `routes.dispatch` — the single entry the native
+    // channel uses for every request the window sends (harnessapp/ipc.js).
+    // Nothing else about the test changes: the dev server, the browser, the
+    // screenshots and the verification are all still real.
+    const call = async (method, p2, body) => {
+      const r = await routes.dispatch(app, method, p2, body || {});
+      return { code: r.code, json: r.body, raw: JSON.stringify(r.body) };
+    };
     try {
-      const tok = (await req(P, 'POST', '/api/login', { password: s.startupPassword })).json.session;
-      assert.ok(tok, 'the startup password must grant a session');
 
       // ---- OPEN: dev server + project-bound preview browser ---------------
-      const open = await req(P, 'POST', '/api/workshop/open', {}, tok);
+      const open = await call('POST', '/api/workshop/open', {});
       assert.ok(open.json && open.json.ok, `workshop open failed: ${open.json && open.json.why}`);
       assert.match(String(open.json.url), /^http:\/\/127\.0\.0\.1:\d+/, 'it previews the local dev server');
 
       // ---- BEFORE, filed as a Harness artifact ---------------------------
-      const before = await req(P, 'POST', '/api/workshop/capture', { as: 'before' }, tok);
+      const before = await call('POST', '/api/workshop/capture', { as: 'before' });
       assert.ok(before.json.ok && before.json.shot.bytes > 0, 'a before screenshot was captured');
       assert.ok(before.json.shot.path, 'and filed as an artifact on disk');
       assert.ok(fs.existsSync(before.json.shot.path), 'the artifact really exists');
 
       // ---- DOM AND ACCESSIBILITY -----------------------------------------
-      const el1 = await req(P, 'POST', '/api/workshop/element', { selector: '#pay' }, tok);
+      const el1 = await call('POST', '/api/workshop/element', { selector: '#pay' });
       assert.ok(el1.json.ok, `element inspection failed: ${el1.json && el1.json.why}`);
       const e1 = el1.json.element;
       assert.strictEqual(e1.tag, 'button');
@@ -141,7 +149,7 @@ module.exports = async function () {
       assert.ok(e1.rect.w > 0 && e1.rect.h > 0, 'it has a real box');
       const xBefore = e1.rect.x;
 
-      const ax = await req(P, 'POST', '/api/workshop/ax', { selector: '#pay' }, tok);
+      const ax = await call('POST', '/api/workshop/ax', { selector: '#pay' });
       assert.ok(ax.json.ok, 'the accessibility tree is readable');
       assert.ok((ax.json.nodes || []).some((n) => n.role === 'button' && /Pay now/.test(n.name || '')),
         'and it reports the control a person would actually be told about');
@@ -151,23 +159,23 @@ module.exports = async function () {
       fs.writeFileSync(css, fs.readFileSync(css, 'utf8')
         .replace('.row{display:block;margin-top:20px}',
           '.row{display:flex;justify-content:center;align-items:center;margin-top:20px}'));
-      const reload = await req(P, 'POST', '/api/workshop/reload', {}, tok);
+      const reload = await call('POST', '/api/workshop/reload', {});
       assert.ok(reload.json.ok, 'the preview reloads the changed source');
 
       // ---- THE PROOF IS A NUMBER, not a screenshot somebody looked at -----
-      const el2 = await req(P, 'POST', '/api/workshop/element', { selector: '#pay' }, tok);
+      const el2 = await call('POST', '/api/workshop/element', { selector: '#pay' });
       const e2 = el2.json.element;
       assert.ok(e2.rect.x > xBefore + 50,
         `the button did not move: x was ${xBefore}, is ${e2.rect.x}`);
       assert.strictEqual(e2.parent.justify, 'center', 'and its parent now centres it');
 
       // ---- AFTER, paired with the before ---------------------------------
-      const after = await req(P, 'POST', '/api/workshop/capture', { as: 'after' }, tok);
+      const after = await call('POST', '/api/workshop/capture', { as: 'after' });
       assert.ok(after.json.ok && after.json.before, 'the after is paired with the before');
 
       // ---- RESPONSIVE VERIFICATION, three viewports ----------------------
-      const v = await req(P, 'POST', '/api/workshop/verify', { viewports: ['desktop', 'tablet', 'mobile'] }, tok);
-      assert.ok(v.json.ok, `verification did not pass: ${JSON.stringify(v.json.results || v.json.why)}`);
+      const v = await call('POST', '/api/workshop/verify', { viewports: ['desktop', 'tablet', 'mobile'] });
+      assert.ok(v.json.ok && v.json.passed, `verification did not pass: ${JSON.stringify(v.json.results || v.json.why)}`);
       const seen = (v.json.results || []).map((r) => r.viewport);
       assert.deepStrictEqual(seen, ['desktop', 'tablet', 'mobile'], 'every viewport was actually visited');
       for (const r of v.json.results) {
@@ -182,16 +190,15 @@ module.exports = async function () {
       assert.match(String(v.json.note || ''), /settled by the harness, not here/i);
 
       // ---- THE APPLICATION'S OWN VIEW OF ALL THIS ------------------------
-      const st = await req(P, 'GET', '/api/state', undefined, tok);
+      const st = await call('GET', '/api/state', undefined);
       const W = st.json.state.workshop;
       assert.strictEqual(W.open, true);
       assert.ok(W.observations && W.observations.console, 'console is reported as a summary');
       assert.strictEqual(W.observations.console.errors, 0, 'the fixture page is clean');
       assert.ok(W.observations.network.total > 0, 'and its requests were observed');
 
-      await req(P, 'POST', '/api/workshop/close', {}, tok);
+      await call('POST', '/api/workshop/close', {});
     } finally {
-      server.stop();
       await require(path.join(ROOT, 'src', 'harnesslink')).shutdown(app);
     }
   });

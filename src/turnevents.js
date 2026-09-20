@@ -64,22 +64,28 @@ const READ_TOOLS = new Set(['read_file', 'read_symbol']);
  * swallowed by the caller, because a drawing problem must never end a turn.
  */
 function noteEdit(app, changedPath) {
-  if (!app.ui || !app.ui.enabled || !app.ui.showDiff) return;
+  if (!app.ui || !app.ui.enabled || !app.ui.showDiff) return null;
   const panes = require('./ui/panes');
   const path = require('path');
   const files = panes.changedFiles({ checkpoints: app.checkpoints, cwd: app.session.cwd });
-  if (!files.length) return;
+  if (!files.length) return null;
   const want = path.resolve(app.session.cwd, String(changedPath));
   const f = files.find((x) => path.resolve(x.path || '') === want) || null;
-  if (!f) return;
+  if (!f) return null;
   app.ui.noteEditCounts(f.added, f.removed);
   // THE TWO TEXTS, NOT A RENDERED DIFF. The window performs the change as a
   // sequence of edits, and where those edits ARE is exactly what a list of
   // rendered rows has already thrown away — see ui/diffscript.js.
   app.ui.showDiff(f.rel, f.before, f.after);
+  return f;
 }
 
 function apply(app, ev, ctx) {
+
+  // THE WINDOW LOOKS AGAIN, NOW. Every turn event is a change a person is
+  // watching for; waiting for the next poll made the application look slower
+  // than the work. It carries no state — see harnessapp/ipc.js wake().
+  try { require('./harnessapp/ipc').wake(); } catch { /* no window is connected */ }
   switch (ev.type) {
     case 'text':
       app.render.text(ev.chunk);
@@ -201,6 +207,14 @@ function apply(app, ev, ctx) {
       // itself when the turn ends and the two swap over.
       if (ctx.liveText.trim()) { app.ui.noteNarration(ctx.liveText.trim()); ctx.liveText = ''; }
       const out = String(ev.output == null ? '' : ev.output);
+      // THE LIVE ROW CARRIES ITS FILE AND ITS SIZE, so the turn in flight draws
+      // the same CHANGE row and [Diff] the finished turn will (ui/turnsections.js)
+      // — the Diff no longer lives only as long as the reel animation. The gate
+      // below (only a MUTATING call shows a change) is unchanged.
+      let edit = null;
+      if (!ev.isError && require('./tools').isMutating(ev.name) && ev.input && ev.input.path) {
+        try { edit = noteEdit(app, ev.input.path); } catch { /* the turn is unaffected */ }
+      }
       app.ui.noteAction({
         name: ev.name,
         target: describeTarget(ev.name, ev.input),
@@ -225,6 +239,11 @@ function apply(app, ev, ctx) {
         // (This used to test the retired `desktop` name and the removed `probe`
         // one; `computer` replaced both, and this is the line that missed it.)
         actor: ev.name === 'computer' ? 'MCP' : 'TOOL',
+        path: (ev.input && ev.input.path) || null,
+        // THE SAME PER-CALL SIZE the turn record keeps (describe.js editSize), so the
+        // row does not change its numbers at settlement; the reel's file total is a fallback.
+        ...(edit ? { added: edit.added, removed: edit.removed } : {}),
+        ...(ev.size && ev.size.name === ev.name && ev.size.path === ((ev.input && ev.input.path) || null) && (ev.size.added || ev.size.removed) ? { added: ev.size.added, removed: ev.size.removed } : {}),
       });
       // ---- AN EDIT SHOWS ITS CHANGE, ONCE -----------------------------------
       //
@@ -252,10 +271,7 @@ function apply(app, ev, ctx) {
       // `isMutating` is the registry's own answer, and the same authority
       // turn.js uses to decide whether to take a checkpoint at all — so what
       // may be drawn as a change is exactly what may have caused one.
-      const mutating = require('./tools').isMutating(ev.name);
-      if (!ev.isError && mutating && ev.input && ev.input.path) {
-        try { noteEdit(app, ev.input.path); } catch { /* the turn is unaffected */ }
-      }
+      // (Now called just above, before the row, so the row can carry the size.)
       // ---- A READ SHOWS THE FILE, AND ONLY LOOKS AT IT ---------------------
       //
       // Same surface as an edit, none of the performance. The code was already
@@ -354,6 +370,7 @@ function apply(app, ev, ctx) {
         require('./ui/operation').say(app, ev.message, ev.level || 'info');
         break;
       }
+      if (app.ui.enabled && require('./compacttip').onNotice(app, ev)) break;
       if (ev.surface && app.ui.enabled) {
         app.render.openSurface(ev.surface, { busy: Boolean(ev.working) });
         app.render.write(`${ev.message}\n`);
@@ -486,6 +503,7 @@ const WHO = {
   'no-credential': 'NOT AUTHENTICATED',
   blocked: 'TASK BLOCKED',
   'max-steps': 'STEP LIMIT',
+  'no-progress': 'TASK PENDING',
 };
 
 const WHY = {
@@ -495,6 +513,7 @@ const WHY = {
   provider: 'the provider stopped answering',
   blocked: 'it was blocked for producing no new evidence',
   'no-credential': 'there is no usable credential',
+  'no-progress': 'no file was changed and no passing check showed none was needed, even after one wake-up',
 };
 /**
  * ENDINGS THAT ARE NOT NEWS, AND MUST NOT BECOME DURABLE GLUE.
@@ -519,7 +538,9 @@ const WHY = {
  * that must survive the turn and `/resume`, and none of them is something the
  * person already knows because they did it.
  */
-const NOT_NEWS = new Set(['aborted']);
+// `rate-limited` too: the live row and the wait/change question already say it, and the
+// state must CLEAR on recovery — a durable note outlived it under every later turn (2026-09-19).
+const NOT_NEWS = new Set(['aborted', 'rate-limited']);
 
 function noteInterruption(app, record) {
   if (!app.ui.enabled || !record) return;
@@ -530,6 +551,11 @@ function noteInterruption(app, record) {
   // answering" names the wrong one twice over: the model did not interrupt
   // anything and nobody interrupted it. — a provider failure must not read
   // as a model failure.
+  // A NETWORK FAILURE ALREADY HAS ITS ROW (the turn's error, ui/failure.js) — and
+  // it is not a refusal. A second NOTE calling it "PROVIDER REFUSED" told one
+  // event twice under two different names (reported 2026-09-19).
+  const pf = record.providerFailure;
+  if (why === 'provider' && pf && (pf.kind === 'TIMEOUT' || pf.kind === 'UNAVAILABLE')) return;
   const who = WHO[why] || 'MODEL INTERRUPTED';
   app.ui.noteActor('note', `${who} — ${WHY[why] || why}`);
 }

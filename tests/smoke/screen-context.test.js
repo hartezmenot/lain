@@ -29,7 +29,9 @@ const frames = (out) => String(out).split('\x1b[?25l').slice(1).map(plain);
 /** A task that plans, talks, and calls tools — so the feed has both kinds. */
 const workScript = [
   { text: 'Looking at the settings owner.', tool_calls: [{ name: 'plan_write', input: { steps: ['find the owner', 'fix the key', 'verify'] } }] },
-  { text: 'The toggle writes the wrong key.', tool_calls: [{ name: 'list_dir', input: { path: '.' } }] },
+  // A FIX CHANGES SOMETHING: a "fix it" turn that only lists and says "Done."
+  // is (correctly) woken and then ends no-progress — see wakeup.js.
+  { text: 'The toggle writes the wrong key.', tool_calls: [{ name: 'write_file', input: { path: 'settings-fix.txt', content: 'key=enabled\n' } }] },
   { text: 'Done.' },
 ];
 
@@ -76,13 +78,28 @@ module.exports = async function () {
   });
 
   await test('SCREEN: what the MODEL said and what LAIN DID are labelled apart', async () => {
+    // CALLS THAT LEAVE A ROW. A successful read is live state only and leaves
+    // nothing behind (ui/durable.js), so `list_dir` / `plan_write` can never be
+    // what an ordering assertion about the settled account is made of.
     const r = await runCli([], {
       cwd: tmpdir('scr-'), env: tui(),
       stdin: 'fix the telegram toggle\n/exit\n',
-      script: workScript, timeoutMs: 40000,
+      script: [
+        { text: 'Looking at the settings owner.', tool_calls: [{ name: 'write_file', input: { path: 'owner.txt', content: 'owner' } }] },
+        { text: 'The toggle writes the wrong key.', tool_calls: [{ name: 'write_file', input: { path: 'key.txt', content: 'key' } }] },
+        { text: 'Done.' },
+      ],
+      timeoutMs: 40000,
     });
-    const f = frames(r.out).reverse().find((x) => /Listed/.test(plain(x)));
+    // WHILE THE TURN RUNS the account interleaves prose and calls; once it has
+    // finished it is drawn CHANGE / RESULT (ui/turnsections.js) — asserted below.
+    const all = frames(r.out).reverse();
+    // A frame is one string once its cursor escapes are stripped, so rows are
+    // matched by their content rather than by line anchors.
+    const f = all.find((x) => /│ ✓ \S+ · key\.txt/.test(plain(x)) && /The toggle writes/.test(plain(x)));
     assert.ok(f, 'the feed never drew');
+    const done = all.find((x) => /CHANGE\s*│ ✓ owner\.txt[\s\S]*│ ✓ key\.txt/.test(plain(x)));
+    assert.ok(done, 'the finished turn lists its changes behind the gutter');
     // The account reads: what was said, then what was done about it, then what
     // was said next. Both labels present, in that order, around the real rows.
     // ---- THE LABELS ARE GONE; THE DISTINCTION IS NOT ---------------------
@@ -102,8 +119,8 @@ module.exports = async function () {
       /Looking at the settings owner\.[\s\S]*│ ✓ [\s\S]*The toggle writes the wrong key\.[\s\S]*│ ✓ /,
       `prose and calls are not grouped in order:\n${plain(f)}`
     );
-    assertIncludes(plain(f), '✓ Listed', 'a tool call keeps its marker');
-    assert.ok(/│\s*✓ Listed/.test(plain(f)),
+    assert.match(plain(f), /✓ \S+ · key\.txt/, 'a tool call keeps its marker');
+    assert.ok(/│\s*✓ \S+ · key\.txt/.test(plain(f)),
       'and its quoted gutter, which is what tells it from prose');
   });
 

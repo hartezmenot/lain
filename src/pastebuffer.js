@@ -86,7 +86,7 @@ function absorb(r) {
   // Newlines inside it are content, not Enter: only the bracketed markers, not
   // the bytes between them, say what the user did. A single trailing newline is
   // dropped — terminals add one when the copied region ended with a line break.
-  const text = r.pasteBuf.replace(/\r\n/g, '\n').replace(/\n$/, '');
+  const text = lf(r.pasteBuf).replace(/\n$/, '');
   r.pasteBuf = '';
 
   // ONE UNDO STEP for the whole paste, and A SELECTION UNDER IT IS REPLACED
@@ -120,6 +120,20 @@ function absorb(r) {
   r.emit('edit', r.line, { pasted: true });
   return true;
 }
+
+/**
+ * THE EDITOR BUFFER HOLDS LF ONLY — every line ending becomes `\n`.
+ *
+ * Normalising only `\r\n` left a LONE `\r` in the buffer, and a lone `\r` is
+ * exactly what Windows Terminal / ConPTY send between the lines of a bracketed
+ * paste. The composer then wrote it verbatim: each one returned the terminal's
+ * cursor to column 1 in the middle of a row, so pasted text painted into the
+ * left gutter the frame never repaints, the grey fill was measured one column
+ * per `\r` too long, and deleting the paste left those cells standing
+ * (reproduced in a real pseudo-console; with `\n` separators the same paste
+ * drew and cleared correctly). copy.js already assumed this invariant.
+ */
+function lf(s) { return String(s).replace(/\r\n?/g, '\n'); }
 
 /**
  * NOT IN A PASTE: open one if the start marker is here.
@@ -161,4 +175,4 @@ function open(r) {
   return true;
 }
 
-module.exports = { PASTE_START, PASTE_END, partialSuffix, absorb, open };
+module.exports = { PASTE_START, PASTE_END, partialSuffix, absorb, open, lf };

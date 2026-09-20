@@ -228,7 +228,7 @@ const center = T.center;
  * only field with colour, because it is the one a person checks before sending
  * anything; everything else is dim.
  */
-function header({ cwd, model, provider, connection, output = null, width = 80 }) {
+function header({ cwd, model, provider, connection, output = null, width = 80, run = null }) {
   const w = Math.max(20, width);
 
   // THE MODEL, WITHOUT ITS ROUTE. `routeOf` splits the downstream out of the
@@ -254,17 +254,28 @@ function header({ cwd, model, provider, connection, output = null, width = 80 })
   // Nothing here is at equal weight, which is the whole of §12.
   const left = [P.head('LAIN'), P.plain(name), P.info(id.model || 'no model')];
   const plainLeft = ['LAIN', name, id.model || 'no model'];
-  let leftText = plainLeft.join('   ');
-  let leftPaint = left.join(P.meta('   '));
-  if (T.width(leftText) > w - (usage ? usage.length + 3 : 0)) {
+  const SEP = ' · ';
+  let leftText = plainLeft.join(SEP);
+  let leftPaint = left.join(P.meta(SEP));
+  // THE RUN STATE (§4, §13): mode, RUNNING, elapsed, real step progress — see
+  // ui/headerstate.js. It sheds before the model name does.
+  const runParts = run && Array.isArray(run.parts) ? run.parts : [];
+  let runText = runParts.join(SEP);
+  const room = () => w - T.width(leftText) - (usage ? usage.length + 3 : 0) - (runText ? T.width(runText) + 3 : 0);
+  if (room() < 1 && runText) runText = runParts.slice(0, 2).join(SEP);
+  if (room() < 1) {
     // The project name goes before the model does: you can be in the wrong
     // directory and recover, but sending a paragraph to the wrong model costs
     // money and a turn.
-    leftText = [plainLeft[0], plainLeft[2]].join('   ');
-    leftPaint = [left[0], left[2]].join(P.meta('   '));
+    leftText = [plainLeft[0], plainLeft[2]].join(SEP);
+    leftPaint = [left[0], left[2]].join(P.meta(SEP));
   }
-  const gap = Math.max(1, w - T.width(leftText) - (usage ? usage.length : 0));
-  return [clip(leftPaint + ' '.repeat(gap) + (usage ? P.meta(usage) : ''), w)];
+  if (room() < 1) runText = '';
+  const paintRun = runText ? ((run.tone === 'warn' ? P.warn : run.tone === 'info' ? P.info : P.meta) || P.meta)(runText) : '';
+  const rightText = [runText, usage].filter(Boolean).join('   ');
+  const rightPaint = [paintRun, usage ? P.meta(usage) : ''].filter(Boolean).join('   ');
+  const gap = Math.max(1, w - T.width(leftText) - T.width(rightText));
+  return [clip(leftPaint + ' '.repeat(gap) + rightPaint, w)];
 }
 
 /**
@@ -305,7 +316,11 @@ const { contentBounds, proseWidth, GUTTER_MAX, PROSE_SOFT } = require('./frame')
 function outputLabel(output) {
   if (!output) return '0';
   const n = Math.max(0, Math.round(Number(output.tokens) || 0));
-  return output.measured ? String(n) : `~${n}`;
+  // THREE SIGNIFICANT FIGURES — `847`, `1.0K`, `12.4K`, `999K`, `1.0M` — through
+  // the one formatter (ui/telemetry.js `tok`). This printed `String(n)`, so a
+  // real terminal showed `12400`; the carry to `1.0M` was tested and never drawn.
+  const shown = require('./telemetry').tok(n);
+  return output.measured ? shown : `~${shown}`;
 }
 
 // --------------------------------------------------------------- workspace --

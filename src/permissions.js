@@ -40,6 +40,7 @@ const CAPABILITY = Object.freeze({
   keyboard: 'send keystrokes',
   mouse: 'move and click the mouse',
   window: 'list and focus windows',
+  clipboard: 'read and write the clipboard',
 });
 
 /** How long a grant lives. Deliberately short. */
@@ -48,10 +49,12 @@ const SESSION_MS = 10 * 60_000;
 const MAX_LOG = 200;
 
 /**
- * THE TWO SCOPES. Both are WALL-CLOCK grants: they expire after a fixed number
- * of minutes whatever is happening. That is exactly right for a bridge that was
- * configured once and may act at any moment — the whole argument for a short
- * expiry is that a grant nobody is watching should lapse.
+ * THE SCOPES. `once` and `session` are WALL-CLOCK grants: they expire after a
+ * fixed number of minutes whatever is happening. That is exactly right for a
+ * bridge that was configured once and may act at any moment — the whole
+ * argument for a short expiry is that a grant nobody is watching should lapse.
+ * `computer` is the exception and is scoped to the LAIN SESSION instead: a
+ * person authorised a piece of work, not sixty seconds of it. See `grant`.
  * (A third, `probe` — a grant bound to the session identity of a live Probe
  * connection rather than to a clock — was removed with the Probe integration
  * in 2026-09. Both surviving scopes keep their timers.)
@@ -59,6 +62,8 @@ const MAX_LOG = 200;
 const SCOPE = Object.freeze({
   ONCE: 'once',
   SESSION: 'session',
+  /** Computer MCP, authorized once for the LAIN session. See `grant`. */
+  COMPUTER: 'computer',
 });
 
 class Permissions {
@@ -116,7 +121,13 @@ class Permissions {
    * Apply an answered request. `scope` is 'once' or 'session'.
    */
   grant(caps, { scope = SCOPE.ONCE, target = null } = {}) {
-    const ms = scope === SCOPE.SESSION ? SESSION_MS : ONCE_MS;
+    // COMPUTER: the Computer MCP session authorization (src/computermcp.js). It
+    // does not expire on a clock, because the thing it is scoped to is the LAIN
+    // SESSION — a person answered "for this session", and a grant that quietly
+    // lapsed after ten minutes would put the question back in front of them in
+    // the middle of the work they authorised. It ends with `revoke`: disconnect,
+    // a session change, `/mcp revoke`, and the end of the process.
+    const ms = scope === SCOPE.COMPUTER ? Infinity : scope === SCOPE.SESSION ? SESSION_MS : ONCE_MS;
     const expiresAt = this._now() + ms;
     const given = [];
     for (const cap of caps) {

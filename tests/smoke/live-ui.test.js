@@ -254,7 +254,10 @@ module.exports = async function () {
     const out = plain(r.out);
     assert.match(out, /VERIFYING/i, 'the task is not done: nothing was run to check the change');
     assert.ok(!/TASK COMPLETE/.test(out), 'and it must not be reported as finished');
-    assert.ok(!/\bDONE\b/.test(out.split('VERIFYING').pop() || ''),
-      'nor described as done after it');
+    // NEVER DONE AT ALL, not merely "not after": the settle frame used to draw
+    // `✓ DONE` for one frame before `Verifying` replaced it (the split was also
+    // case-sensitive against a live row drawn in sentence case). The resting
+    // word is decided before that frame now — see completion.preview.
+    assert.ok(!/✓ DONE/.test(out), 'nor described as done, even for a frame');
   });
 };

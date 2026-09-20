@@ -118,11 +118,11 @@ function status(opts, phase, detail = {}) {
  */
 
 async function* runTurn(session, userInput, opts = {}) {
-  const cfg = opts.cfg || {};
-  const pc = provider.resolve(cfg);
+  let cfg = opts.cfg || {};
+  let pc = provider.resolve(cfg);
   const record = newRecord(session.id, userInput, pc.model);
   // See `from` in turnrecord.js for why a turn has to know who asked for it.
-  record.from = opts.from || null;
+  record.from = opts.from || null; record.typed = Boolean(opts.typed);
   const signal = opts.signal;
   // 0 = UNBOUNDED, and it is the default. A number here came from the caller or
   // from the user's config — see DEFAULT_MAX_STEPS for why LAIN no longer picks
@@ -162,12 +162,18 @@ async function* runTurn(session, userInput, opts = {}) {
   // to ask the user before anything touches the screen, the mouse or the
   // keyboard. No other tool reads it, and a turn run without an app simply has
   // no reach into the machine at all.
-  const toolCtx = { cwd: session.cwd, signal, session, ask: opts.ask || null, app: opts.app || null };
+  // `checkpoints` and `turnId` ride here because the mutation transaction
+  // (mutation.js) owns the checkpoint now; `workOrder` binds a bounded worker.
+  const toolCtx = {
+    cwd: session.cwd, signal, session, ask: opts.ask || null, app: opts.app || null,
+    checkpoints: opts.checkpoints || null, turnId: record.turnId, workOrder: opts.workOrder || null,
+  };
   const life = opts.lifecycle || null;
   const avail = opts.availability || null;
-  const connId = pc.connectionId || pc.provider || 'unknown';
+  let connId = pc.connectionId || pc.provider || 'unknown', availModel = pc.canonicalModel || pc.model || '';   // both move with turnswitch
   let retries = 0;
   let foldedOnce = false;
+  let emptyRetried = false;
   session.contextAuthority.touch({ reason: 'turn-started' });
   // THE RUNTIME LEARNS THE TURN EXISTS — owner_pid is how guardian.rs detects a dead owner. turnclose ends it.
   require('./guardian').turnBegin(session.id, { turnId: record.turnId, model: pc.model, provider: pc.provider, connectionId: connId });
@@ -176,7 +182,7 @@ async function* runTurn(session, userInput, opts = {}) {
   // down — or that the user disabled or put in maintenance — is skipped
   // instantly, costing zero requests and zero waiting.
   if (avail) {
-    const gate = avail.shouldAttempt(connId);
+    const gate = avail.shouldAttemptFor(connId, availModel);
     if (!gate.allow) {
       const secs = Math.ceil((gate.retryAfterMs || 0) / 1000);
       // Skipped for a limit is still a limit, and it has a way out — see turnclose.skipped.
@@ -204,6 +210,7 @@ async function* runTurn(session, userInput, opts = {}) {
   // flicker; never clearing it would leave a warning about a solved problem on
   // screen. See looping.js.
   let toldAbout = null;
+  let wakeNote = '';   // the one hidden wake-up note, consumed by the next answered request
   // UNBOUNDED UNLESS THE USER ASKED FOR A BOUND. The turn ends when the model
   // stops asking for tools, when the user stops it, or when the provider or the
   // transport makes it impossible — see DEFAULT_MAX_STEPS. A step count is not
@@ -211,6 +218,9 @@ async function* runTurn(session, userInput, opts = {}) {
   for (let step = 0; !maxSteps || step < maxSteps; step++) {
     if (signal && signal.aborted) { record.stopReason = 'aborted'; break; }
     record.steps = step + 1;
+
+    const sw = step > 0 ? require('./turnswitch').next(opts, cfg, pc) : null;   // a model chosen mid-turn serves the next step
+    if (sw) { ({ cfg, pc, connId, availModel } = sw); record.model = pc.model; yield { type: 'notice', level: 'info', message: sw.message }; }
 
     // A STEER IS DELIVERED HERE — between steps, immediately before the next
     // request is built. That is the "next safe model interaction": the previous
@@ -248,7 +258,8 @@ async function* runTurn(session, userInput, opts = {}) {
       // THE HALF THAT CHANGES EVERY TURN, kept out of the cached prefix. See
       // promptparts.js; absent for a caller that does not split, which then
       // behaves exactly as before.
-      live: opts.live || '',
+      live: [(step > 0 && typeof opts.liveContinuing === 'string' ? opts.liveContinuing : opts.live) || '', wakeNote,
+        typeof opts.sideContext === 'function' ? opts.sideContext() : ''].filter(Boolean).join('\n\n'),
       cfg,
       surface: COMPACT_SURFACE,
       // The schemas are part of the payload and a tenth of it; accounting that
@@ -271,6 +282,7 @@ async function* runTurn(session, userInput, opts = {}) {
     let calls = [];
     let usage = null;
     let failure = null;
+    let thought = false; let finish = null;
 
     // ANNOUNCED BEFORE THE AWAIT, not after it. The request below can take a
     // minute; saying "waiting" once it returns would be a report, not a status.
@@ -310,11 +322,12 @@ async function* runTurn(session, userInput, opts = {}) {
           // was said. See ui/conversation.js.
           if (!text) status(opts, PHASE.RECEIVING, { step: step + 1 });
           const think = String(ev.chunk || '');
+          if (think.trim()) thought = true;
           record.reasoningChars = (record.reasoningChars || 0) + think.length;
           if ((record.reasoning || '').length < MAX_REASONING) record.reasoning = (record.reasoning || '') + think;
           yield { type: 'reasoning', chunk: think };
         } else if (ev.type === 'tool_calls') calls = Array.isArray(ev.calls) ? ev.calls : [];
-        else if (ev.type === 'usage') usage = ev;
+        else if (ev.type === 'usage') usage = ev; else if (ev.type === 'finish') finish = ev.reason;
         // ---- WHAT THE OPEN REQUEST HAS COST SO FAR --------------------------
         //
         // PASSED THROUGH, NOT ACCUMULATED: `usage` is the receipt and is ADDED
@@ -326,7 +339,8 @@ async function* runTurn(session, userInput, opts = {}) {
       }
       }
     } catch (e) {
-      if (!errors.isProviderFailure(e) && !(signal && signal.aborted)) throw e; // a real bug keeps its stack
+      if (signal && signal.aborted) { record.stopReason = 'aborted'; break; } // the person stopped it: no provider failure, no availability strike
+      if (!errors.isProviderFailure(e)) throw e; // a real bug keeps its stack
       // `explain` carries the SENTENCE naming the layer, so no screen downstream
       // can show a provider's 429 as though LAIN had malfunctioned.
       failure = errors.explain(e);
@@ -336,10 +350,17 @@ async function* runTurn(session, userInput, opts = {}) {
       if (gate && gate.request_id) require('./guardian').requestEnd(session.id, gate.request_id, { usage });
     }
 
-    // LAZY HEALTH: availability is learned from requests that were happening
-    // anyway. There is no ping loop, so /provider status never generates traffic.
-    if (avail) { if (failure) avail.noteFailure(connId, failure); else avail.noteSuccess(connId); }
-
+    // AN EMPTY REPLY IS NOT AN ANSWER: it settled as DONE, so every next prompt
+    // got another instant DONE and read as swallowed. One retry, then a provider failure.
+    if (!failure && !(signal && signal.aborted) && !text.trim() && !calls.length && !thought) {
+      failure = { kind: errors.KIND.UNAVAILABLE, layer: 'provider', empty: true, retriable: !emptyRetried,
+        message: 'the provider returned an empty response — no text, no tool calls, no reasoning' };
+      emptyRetried = true;
+    }
+    // An empty body proves the route ANSWERED; counted, it opened the breaker and later prompts went unsent.
+    if (avail && !(failure && failure.empty)) { avail.noteOutcome(connId, availModel, failure || null); }
+    // A STALL AFTER THE REPLY STARTED: the text is kept and the step resumed (finish.js), not the turn ended.
+    if (require('./finish').resumable(failure, text, calls, record)) { finish = 'stalled'; failure = null; yield { type: 'notice', level: 'warn', transient: true, message: 'STREAM STALLED · the provider went silent mid-reply · resuming from what it said' }; }
     if (failure) {
       // ---- TOO MANY MESSAGES IS A DIFFERENT REFUSAL, AND HAS A FIX -------
       //
@@ -442,7 +463,7 @@ async function* runTurn(session, userInput, opts = {}) {
       if (rl.worthAsking(failure) && !text.trim()) {
         record.stopReason = 'rate-limited';
         record.providerFailure = {
-          provider: pc.provider,
+          provider: pc.provider, model: pc.canonicalModel || cfg.model || pc.model,
           connectionId: connId,
           kind: failure.kind,
           message: failure.message,
@@ -514,6 +535,7 @@ async function* runTurn(session, userInput, opts = {}) {
       break;
     }
 
+    wakeNote = '';
     if (usage) {
       for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']) record.usage[k] += usage[k] || 0;
     }
@@ -543,18 +565,7 @@ async function* runTurn(session, userInput, opts = {}) {
       }
     }
 
-    // Normalize ids BEFORE persisting: an empty or duplicate id leaves a
-    // tool_result nothing can be matched to, which every provider rejects.
-    const seen = new Set();
-    const normalized = calls.filter(Boolean).map((c, i) => {
-      let id = String(c.id || '');
-      if (!id || seen.has(id)) id = `call_${step}_${i}`;
-      seen.add(id);
-      let input = c.input;
-      if (typeof input === 'string') { try { input = input.trim() ? JSON.parse(input) : {}; } catch { input = {}; } }
-      if (!input || typeof input !== 'object') input = {};
-      return { id, name: String(c.name || ''), input };
-    }).filter((c) => c.name);
+    const normalized = require('./toolcalls').normalize(calls, step);
 
     if (text.trim() || normalized.length) {
       const asst = { role: 'assistant', content: text.trim(), ts: new Date().toISOString() };
@@ -572,10 +583,15 @@ async function* runTurn(session, userInput, opts = {}) {
       break;
     }
 
-    // No tool calls this step: the model is finished with this turn. This is a
-    // normal ending, NOT evidence about whether the turn was productive —
-    // record.toolCalls already holds the turn-wide truth.
+    // No tool calls: the GENERATION ended (RESPONSE_ENDED). Whether the TURN ends, and the TASK, is decided below and elsewhere.
     if (!normalized.length) {
+      const cut = require('./finish').onCut(record, finish);   // a length cut or refusal is not a natural end (finish.js)
+      if (cut === 'continue') { wakeNote = require('./finish').continueNote(finish); continue; } else if (cut) { record.stopReason = cut; break; }
+      // AN EXECUTION TURN THAT WENT IDLE gets ONE hidden wake-up on the
+      // framed tail, never a user message. See wakeup.js.
+      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution), wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd) });
+      if (idle === 'wake') { record.wakeups = (record.wakeups || 0) + 1; wakeNote = require('./wakeup').noteFor(record); continue; }
+      if (idle === 'no-progress') record.stopReason = 'no-progress';
       record.stopReason = record.stopReason || 'end';
       // A TURN THAT SAID NOTHING MUST NOT LOOK LIKE ONE THAT DID — see
       // describe.EMPTY_ANSWER. Only when all three are empty: a model that
@@ -587,6 +603,7 @@ async function* runTurn(session, userInput, opts = {}) {
     }
 
     const gated = askgate.cut(normalized);   // a question ends the step — askgate.js
+    const pre = require('./toolstep').prefetch(gated.run, { session, evidence: opts.evidence || null, toolCtx }, require('./profile').concurrency(require('./profile').of(session, cfg)));   // FAST/NORMAL: independent reads start together
     for (const c of gated.run) {
       if (signal && signal.aborted) {
         session.messages.push({ role: 'tool', tool_call_id: c.id, content: 'interrupted by the user before this ran', isError: true });
@@ -595,26 +612,10 @@ async function* runTurn(session, userInput, opts = {}) {
       yield { type: 'tool_start', id: c.id, name: c.name, input: c.input };
       status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input) });
 
-      // The evidence ledger may serve a compact note INSTEAD of re-reading an
-      // unchanged large file. It never blocks: a targeted read is always run,
-      // and a changed file is always re-read. See evidence.js.
-      // REVERSIBILITY: capture prior bytes BEFORE a mutating call. This gates
-      // nothing and asks nothing — the model edits freely; LAIN keeps the way back.
-      let checkpoint = null;
-      if (opts.checkpoints && toolRegistry.isMutating(c.name) && c.input && c.input.path) {
-        const abs = require('path').isAbsolute(c.input.path)
-          ? c.input.path : require('path').resolve(session.cwd, c.input.path);
-        checkpoint = opts.checkpoints.capture(record.turnId, [abs]);
-      }
-
-      const ledger = opts.evidence || null;
-      const substitute = ledger ? ledger.check(c.name, c.input) : null;
+      // EVIDENCE, RECEIPTS AND THE TRANSACTION live in toolstep.js: an unchanged read may be served without re-running,
+      // and a source write goes through the mutation lifecycle, which captures and settles its own checkpoint.
       const startedMs = Date.now();
-      const result = substitute || await toolRegistry.execute(c.name, c.input, toolCtx);
-      // Fingerprint what the call LEFT behind, so a later undo can tell "still
-      // as LAIN wrote it" from "changed by something else since".
-      if (checkpoint) opts.checkpoints.settle(checkpoint);
-      if (ledger) ledger.observe(c.name, c.input, result);
+      const { result, substitute, checkpoint } = await (pre.get(c.id) || require('./toolstep').run(c, { session, evidence: opts.evidence || null, toolCtx }));
       if (substitute) record.evidenceReuse += 1;
 
       // One bounded line per call, for the ACTIVITY view — see describe.js.
@@ -633,11 +634,11 @@ async function* runTurn(session, userInput, opts = {}) {
       let advise = null;
       if (life) {
         const v = life.observeTool({
-          name: c.name, input: c.input, output: result.output,
+          name: c.name, input: c.input, output: result.observedOutput != null ? result.observedOutput : result.output,
           isError: Boolean(result.isError), mutated: result.mutated || [],
-          // The exit code is what turns "a command ran" into "the check passed
-          // or failed" — completion consults it.
           exitCode: result.exitCode == null ? null : result.exitCode,
+          // Set by toolstep.js — keeps a masked chain from reading as a pass; see evidencekind.js.
+          noMatch: Boolean(result.noMatch), searchLike: Boolean(result.searchLike), denied: Boolean(result.denied), finalSmoke: Boolean(result.finalSmoke), detached: Boolean(result.detached),
         });
         const say = require('./looping').verdict(v, life.quiet, v.key);
         if (say.show && toldAbout !== v.key) {
@@ -666,7 +667,7 @@ async function* runTurn(session, userInput, opts = {}) {
 
       // `input` travels with the result so a consumer can label it without
       // having to remember what it saw at tool_start.
-      yield { type: 'tool_result', id: c.id, name: c.name, input: c.input, output: result.output, isError: Boolean(result.isError), exitCode: result.exitCode == null ? null : result.exitCode, meta: result.meta || null };
+      yield { type: 'tool_result', id: c.id, name: c.name, input: c.input, output: result.output, isError: Boolean(result.isError), exitCode: result.exitCode == null ? null : result.exitCode, meta: result.meta || null, size: record.actions.length ? record.actions[record.actions.length - 1] : null };
 
       // AFTER the result, so the advisory is about a call that has finished —
       // and NOTHING is awaited here: the next step runs whether or not anybody

@@ -206,18 +206,38 @@ module.exports = async function () {
       process.stdout.write('      (no PowerShell on this machine — NOT VERIFIED here)\n');
       return;
     }
+    // ---- A WRITE THAT HAS NOT LANDED YET IS NOT A MANGLED ONE -----------
+    //
+    // `clip.exe` exits 0 when it has ASKED for the clipboard, and the read that
+    // follows can still see what was there before. This failed exactly once, in
+    // a FULL smoke tier under load, reporting the PREVIOUS clipboard contents
+    // verbatim — which is not evidence about encoding at all, it is a failure to
+    // observe. Measured afterwards: 0 stale reads in 80 write/read round trips,
+    // idle and under a concurrent unit tier, and one read costs ~210 ms. That
+    // is too rare and too expensive to make every `/copy` verify itself, so the
+    // race is tolerated in the product and waited out here.
+    //
+    // THE DISTINCTION IS THE POINT. Only "we still see the OLD contents" is
+    // retried. Anything else that is not the sample is a real answer — the
+    // arrow came back as three console-codepage letters — and fails at once.
     const before = copy.fromClipboard();
+    const prior = (before && before.ok) ? before.text : null;
     try {
+      let last = prior;
       for (const sample of ['npm test → café ✓', '日本語のテキスト']) {
         const put = copy.toClipboard(sample);
         if (!put.ok) return;
-        const back = copy.fromClipboard();
+        let back = copy.fromClipboard();
+        for (let i = 0; i < 20 && back.ok && back.text === last && back.text !== sample; i++) {
+          back = copy.fromClipboard();
+        }
         assert.ok(back.ok, back.error);
         assert.strictEqual(back.text, sample,
           `mangled on the way to the clipboard: ${JSON.stringify(back.text)}`);
+        last = sample;
       }
     } finally {
-      if (before && before.ok && before.text) copy.toClipboard(before.text);
+      if (prior) copy.toClipboard(prior);
     }
   });
 

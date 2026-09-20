@@ -126,6 +126,9 @@ const STOPPED_WORD = {
   blocked: 'BLOCKED',
   provider: 'FAILED',
   'no-credential': 'NOT AUTHENTICATED',
+  'no-progress': 'BLOCKED',
+  length: 'CUT OFF',
+  refused: 'MODEL REFUSED',
 };
 
 const STOPPED_BECAUSE = {
@@ -133,8 +136,11 @@ const STOPPED_BECAUSE = {
   'max-steps': 'the step limit you configured was reached',
   aborted: 'you stopped it',
   provider: 'the provider stopped answering',
+  'no-progress': 'no change and no passing check, even after one wake-up — the task is still pending',
   blocked: 'no new evidence',
   'no-credential': 'no usable credential',
+  length: 'the reply hit the model output limit, even after one resume — not a finished task',
+  refused: 'the model stopped with a safety/refusal finish — not a finished task',
 };
 
 /**
@@ -148,7 +154,7 @@ function liveState(s = {}, now = Date.now()) {
   const {
     phase, phaseSince = 0, interrupting, interrupted, failed, retryCancelled,
     steerQueued, lastTurn, pendingCompletion, awaitingUser, lastCheckFailed,
-    waitingUntil, waitingLabel,
+    waitingUntil, waitingLabel, finalSmoke,
   } = s;
   const age = phaseSince ? now - phaseSince : 0;
   const secs = age >= 1500 ? `${Math.round(age / 1000)}s` : '';
@@ -298,7 +304,7 @@ function liveState(s = {}, now = Date.now()) {
     // NETWORK IS NOT LAIN. Attributing a gateway timeout to LAIN puts the
     // blame — and the debugging — in the wrong place.
     const f = failureRow(failed);
-    const net = f.word === 'NETWORK' || f.word === 'RATE LIMITED';
+    const net = ['NETWORK', 'RATE LIMITED', 'DAILY LIMIT', 'WEEKLY LIMIT', 'STREAM STALLED'].includes(f.word);
     return { actor: net ? 'NET' : 'LAIN', word: f.word, detail: f.detail, colour: 'bad' };
   }
   if (steerQueued) return { actor: 'USER', word: 'STEERING', detail: 'queued for the next model turn', colour: 'warn' };
@@ -355,6 +361,14 @@ function liveState(s = {}, now = Date.now()) {
         detail: [why, ...bits].join(' · '),
         colour: 'warn',
       };
+    }
+    // A TURN THAT CLOSED ON A STATED BLOCKER is not a finished task (wakeup.statesBlocker).
+    if (lastTurn.blocker) return { actor: 'LAIN', word: 'BLOCKED', detail: ['the model reported a blocker', ...bits].join(' · '), colour: 'warn' };
+    // ✓ DONE MEANS THE TASK IS VERIFIED, not that the model stopped: a changed
+    // tree whose final smoke has not passed since the change is not done (finalsmoke.js).
+    if (finalSmoke && finalSmoke.state && finalSmoke.state !== 'NOT_REQUIRED' && finalSmoke.state !== 'PASSED') {
+      const running = finalSmoke.state === 'RUNNING';
+      return { actor: 'LAIN', word: running ? 'VERIFYING' : 'NOT VERIFIED', detail: [finalSmoke.why, ...bits].join(' · '), colour: 'warn' };
     }
     return { actor: 'LAIN', word: 'DONE', detail: bits.join(' · '), colour: 'ok', tick: true };
   }

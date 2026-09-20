@@ -404,4 +404,14 @@ module.exports = async function () {
       } finally { s.leave(); }
     }
   });
+
+  await test('TRANSCRIPT: the startup "unfinished turn(s)" line is an operation, never a transcript write', () => {
+    // Live, 2026-09-18: repl.js wrote it with render.write AFTER ui.enable(),
+    // so it sat in the trailing transcript under every later turn's RESULT.
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'src', 'repl.js'), 'utf8');
+    const line = src.split(/\r?\n/).find((l) => l.includes('unfinished turn(s) left findings behind'));
+    assert.ok(line, 'the line still exists');
+    assert.match(line, /operation'\)\.say\(app/, 'routed through ui/operation.say');
+    assert.doesNotMatch(line, /render\.write/);
+  });
 };

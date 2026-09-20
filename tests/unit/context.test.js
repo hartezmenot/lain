@@ -272,9 +272,15 @@ module.exports = async function () {
       s.messages.push({ role: 'assistant', content: 'x', tool_calls: [{ id: `c${i}`, name: 'grep', arguments: '{}' }] });
       s.messages.push({ role: 'tool', tool_call_id: `c${i}`, content: 'ok' });
     }
+    const before = s.contextChars();
     s.compact({ budgetChars: 100, force: true });
-    const shortOnes = s.messages.filter((m) => m.role === 'tool' && m.content === 'ok');
-    assert.strictEqual(shortOnes.length, 30, `a ${TOOL_STUB_MIN}-char floor exists so compaction never makes the payload bigger`);
+    // Old exchanges may be FOLDED away under a budget this small; what must never
+    // happen is a small result that remains being swapped for a longer stub.
+    const tools = s.messages.filter((m) => m.role === 'tool');
+    assert.ok(tools.length > 0, 'the recent working set is never folded');
+    assert.ok(tools.every((m) => m.content === 'ok'),
+      `a ${TOOL_STUB_MIN}-char floor exists so compaction never makes the payload bigger`);
+    assert.ok(s.contextChars() <= before, 'and the payload did not grow');
   });
 
   await test('CTX: compaction is IDEMPOTENT — running it twice changes nothing further', () => {

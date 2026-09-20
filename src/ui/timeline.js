@@ -133,7 +133,10 @@ function activeRows(active, width) {
   // IT IS TRANSIENT, and that is what keeps it from being a second copy of the
   // history the feed already carries: it exists only during ENTER, and only for
   // the immediately preceding operation.
-  if (active.phase === PHASE.ENTER && active.leaving) {
+  // WITH NO PACING (`still`) there is no ENTER phase to carry it through, so the
+  // call that just finished stays one row up for as long as the next one runs —
+  // what the turn just did, readable beside what it is doing.
+  if ((active.phase === PHASE.ENTER || active.still) && active.leaving) {
     // Already dim in its own right — `historyRow` paints the compact form, and
     // wrapping it in another dim would only be closed by its first inner reset.
     rows.push(historyRow(active.leaving, width));

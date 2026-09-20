@@ -72,6 +72,8 @@ const STATUS = Object.freeze({
 const USER_SET = new Set([STATUS.MAINTENANCE, STATUS.DISABLED]);
 
 const DEFAULTS = { failureThreshold: 2, cooldownMs: 60_000 };
+/** How long a 429 that stated no reset keeps a route marked limited. */
+const UNKNOWN_RESET_MS = 60_000;
 
 class Availability {
   constructor(cfg = {}) {
@@ -164,15 +166,13 @@ class Availability {
       const resetAt = Number(row && row.reset_at) || 0;
       if (row && row.rate_limited && resetAt > now) {
         const e = this._entry(id);
-        e.rateLimited = true;
-        e.resumeAt = resetAt;
+        // HISTORICAL, NOT LIVE (§48, 2026-09-18). A limit observed by an earlier
+        // process is kept for `/provider` diagnostics only: it no longer shuts
+        // the door or paints the primary UI, because a restarted runtime showing
+        // a red warning nobody in this process observed was the reported defect.
+        // The next real request re-establishes the live state either way.
+        e.historicalLimit = { resumeAt: resetAt, reason: String(row.reason || 'rate limited') };
         e.reason = String(row.reason || 'rate limited');
-        // DEGRADED, NOT UNAVAILABLE, and the distinction is load-bearing: the
-        // renderer paints a rate limit yellow ("wait, it clears at a time we
-        // can show you") and an unreachable route red ("something has to be
-        // done"). Hydrating a limit as UNAVAILABLE would send a person off to
-        // check credentials that were never the problem.
-        e.status = STATUS.DEGRADED;
         this.hydrated.add(id);
         out.adopted += 1;
         out.limited += 1;
@@ -189,7 +189,22 @@ class Availability {
     return this.state.get(key);
   }
 
-  get(id) { return { ...this._entry(id) }; }
+  /** Expire a limit whose time has passed — shared by every reader, so displays agree with the gate. */
+  _expire(e, now = Date.now()) {
+    if (e.rateLimited && e.resumeAt && e.resumeAt <= now) { e.rateLimited = false; e.resumeAt = 0; }
+    if (e.rateLimited && !e.resumeAt && now - (e.limitedAt || 0) >= UNKNOWN_RESET_MS) e.rateLimited = false;
+    return e;
+  }
+
+  get(id) { return { ...this._expire(this._entry(id)) }; }
+
+  /** THE one answer to "is this route rate limited right now?" — expiry included. */
+  limitActive(id, now = Date.now()) {
+    const e = this._entry(id);
+    if (!e.rateLimited) return false;
+    if (e.resumeAt) return e.resumeAt > now;
+    return now - (e.limitedAt || 0) < UNKNOWN_RESET_MS;
+  }
   all() { return [...this.state.values()].map((e) => ({ ...e })); }
 
   /** Learned from a request that already happened. Zero extra traffic. */
@@ -248,6 +263,7 @@ class Availability {
     // "which of these can I actually use right now" was not answerable there.
     if (classified && classified.kind === 'RATE_LIMITED') {
       e.rateLimited = true;
+      e.limitedAt = Date.now();
       e.resumeAt = Number(classified.retryAfterMs) > 0 ? Date.now() + Number(classified.retryAfterMs) : 0;
     }
     if (e.consecutiveFailures >= this.failureThreshold) {
@@ -293,6 +309,12 @@ class Availability {
     // The limit has expired: it is over until something says otherwise, so the
     // flag is dropped rather than left to make every future check look blocked.
     if (e.rateLimited && e.resumeAt && e.resumeAt <= now) { e.rateLimited = false; e.resumeAt = 0; }
+    // AN UNSTATED RESET IS NOT FOREVER (2026-09-18). One 429 with no Retry-After
+    // used to leave `rateLimited` set until a success on that route — and
+    // failover never routes to a limited route, so the success never came:
+    // three providers read "rate limited · unknown reset" at once and switching
+    // models could not escape it. It now expires after a bounded window.
+    if (e.rateLimited && !e.resumeAt && now - (e.limitedAt || 0) >= UNKNOWN_RESET_MS) { e.rateLimited = false; }
 
     if (e.status !== STATUS.UNAVAILABLE) return { allow: true, status: e.status, reason: '' };
     const elapsed = now - (e.openedAt || 0);
@@ -349,8 +371,56 @@ class Availability {
     // had already explicitly dismissed.
     this.hydrated.delete(id);
     this._push(id, { decision: 'CLEAR' });
+    // "Try this route again" covers every model behind it.
+    if (!String(id).includes('#')) {
+      for (const k of [...this.state.keys()]) if (k.startsWith(`${id}#`)) this._clear(k);
+    }
     return this.get(id);
+  }
+
+  // ---- ROUTE + MODEL ------------------------------------------------------
+  //
+  // ONE CONNECTION CAN SERVE HUNDREDS OF MODELS (a router: 9router's
+  // `lain:localhost` carries 939). Keyed by connection alone, one model's
+  // upstream refusal — codex's `[429] usage limit`, a revoked codex token —
+  // opened the breaker for EVERY model on the router: switching to
+  // kr/claude-sonnet-4.5 showed `availability UNAVAILABLE` and its turn was
+  // skipped with zero requests (live, 2026-09-18).
+  //
+  // So a failure the SERVER ANSWERED (it has an HTTP status) is about the
+  // model/account behind the route and is recorded under `conn#model`; a
+  // failure with no answer (refused, reset, timed out) is the route itself and
+  // stays on the connection. Every reader below consults both, worst wins.
+
+  noteOutcome(connId, model, failure) {
+    const scoped = scopeKey(connId, model);
+    if (failure) {
+      const answered = Number(failure.status) > 0;
+      return this.noteFailure(model && answered ? scoped : connId, failure);
+    }
+    if (model && this.state.has(scoped)) this.noteSuccess(scoped);
+    return this.noteSuccess(connId);
+  }
+
+  shouldAttemptFor(connId, model, now = Date.now()) {
+    const route = this.shouldAttempt(connId, now);
+    if (!route.allow || !model || !this.state.has(scopeKey(connId, model))) return route;
+    return this.shouldAttempt(scopeKey(connId, model), now);
+  }
+
+  getFor(connId, model) {
+    const route = this.get(connId);
+    if (!model || !this.state.has(scopeKey(connId, model))) return route;
+    const m = this.get(scopeKey(connId, model));
+    return SEVERITY[m.status] > SEVERITY[route.status] || (m.rateLimited && !route.rateLimited) ? { ...m, id: route.id, scope: 'model' } : route;
+  }
+
+  limitActiveFor(connId, model, now = Date.now()) {
+    return this.limitActive(connId, now) || Boolean(model && this.state.has(scopeKey(connId, model)) && this.limitActive(scopeKey(connId, model), now));
   }
 }
 
-module.exports = { Availability, STATUS, USER_SET, DEFAULTS };
+const SEVERITY = { UNKNOWN: 0, AVAILABLE: 0, DEGRADED: 1, UNAVAILABLE: 2, MAINTENANCE: 3, DISABLED: 3 };
+function scopeKey(connId, model) { return model ? `${connId || 'unknown'}#${model}` : String(connId || 'unknown'); }
+
+module.exports = { Availability, STATUS, USER_SET, DEFAULTS, UNKNOWN_RESET_MS, scopeKey };

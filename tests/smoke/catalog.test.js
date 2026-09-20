@@ -10,7 +10,7 @@ const { test, tmpdir, runCli, assertIncludes, assertNotIncludes } = require('../
 const CONFIG = {
   connections: {
     anthropic: { provider: 'anthropic', via: 'native', auth: 'api_key', envKey: 'DEMO_KEY', models: ['claude-opus-5', 'claude-sonnet-5'] },
-    omniroute: { provider: 'anthropic', via: 'bridge', baseUrl: 'http://localhost:20128/v1', models: ['claude-opus-5-low', 'claude-opus-5-medium', 'claude-opus-5-high', 'gemini-3.5-flash', 'kimi-k3'] },
+    gateway: { provider: 'anthropic', via: 'bridge', baseUrl: 'http://localhost:20128/v1', models: ['claude-opus-5-low', 'claude-opus-5-medium', 'claude-opus-5-high', 'gemini-3.5-flash', 'kimi-k3'] },
     ninerouter: { provider: 'bridge9', via: 'bridge', baseUrl: 'http://localhost:9999/v1', models: ['claude-opus-5-low', 'claude-opus-5-high', 'gpt-5.5-low', 'gpt-5.5-medium', 'gpt-5.5-extra-high', 'qwen-max'] },
   },
 };
@@ -51,7 +51,7 @@ module.exports = async function () {
     // three would hide the choice it made.
     const r = await runCli([], { cwd, configDir, stdin: '/models claude-opus-5\n/exit\n', script: [] });
     assertIncludes(r.stdout, '3 routes serve this model');
-    for (const c of ['omniroute', 'ninerouter', 'anthropic']) assertIncludes(r.stdout, c);
+    for (const c of ['gateway', 'ninerouter', 'anthropic']) assertIncludes(r.stdout, c);
     // A route that does NOT serve it must not appear under it.
     const r2 = await runCli([], { cwd, configDir, stdin: '/models gemini-3.5-flash\n/exit\n', script: [] });
     assertNotIncludes(r2.stdout, 'ninerouter');
@@ -59,21 +59,21 @@ module.exports = async function () {
 
   await test('SMOKE: /model selects a model AND its route', async () => {
     const { cwd, configDir } = withConfig();
-    const r = await runCli([], { cwd, configDir, stdin: '/model claude-opus-5 omniroute\n/status\n/exit\n', script: [] });
+    const r = await runCli([], { cwd, configDir, stdin: '/model claude-opus-5 gateway\n/status\n/exit\n', script: [] });
     assertIncludes(r.stdout, 'Claude Opus 5');
-    assertIncludes(r.stdout, 'omniroute');
+    assertIncludes(r.stdout, 'gateway');
   });
 
   await test('SMOKE: /effort exists, validates against the route, and /efforts does NOT exist', async () => {
     const { cwd, configDir } = withConfig();
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/model claude-opus-5 omniroute\n/effort high\n/effort\n/effort banana\n/exit\n',
+      stdin: '/model claude-opus-5 gateway\n/effort high\n/effort\n/effort banana\n/exit\n',
       script: [{ text: 'ack' }],
     });
     assertIncludes(r.stdout, 'effort high');
     assertIncludes(r.stdout, 'available here: low, medium, high');
-    assertIncludes(r.stdout, 'is not offered by omniroute', 'an unavailable effort is refused, not silently accepted');
+    assertIncludes(r.stdout, 'is not offered by gateway', 'an unavailable effort is refused, not silently accepted');
     // /efforts is not registered, so it is CONTENT and goes to the model.
     const r2 = await runCli([], { cwd, configDir, stdin: '/efforts\n/exit\n', script: [{ text: 'not a command' }] });
     assertIncludes(r2.stdout, 'not a command');
@@ -99,13 +99,13 @@ module.exports = async function () {
     const { cwd, configDir } = withConfig();
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/provider disable omniroute\n/provider maintenance ninerouter\n/provider enable omniroute\n/exit\n',
+      stdin: '/provider disable gateway\n/provider maintenance ninerouter\n/provider enable gateway\n/exit\n',
       script: [],
     });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'omniroute → DISABLED');
+    assertIncludes(r.stdout, 'gateway → DISABLED');
     assertIncludes(r.stdout, 'ninerouter → MAINTENANCE');
-    assertIncludes(r.stdout, 'omniroute → UNKNOWN');
+    assertIncludes(r.stdout, 'gateway → UNKNOWN');
     // Nothing here may contact anything.
     assert.strictEqual((r.stdout.match(/no request was sent/g) || []).length, 3);
   });
@@ -117,7 +117,7 @@ module.exports = async function () {
     assertIncludes(r.stdout, 'not faked');
     assertIncludes(r.stdout, 'the bridge authenticates upstream itself');
     assertIncludes(r.stdout, 'keyless route is already authenticated');
-    const bridgeAt = r.stdout.indexOf('via omniroute');
+    const bridgeAt = r.stdout.indexOf('via gateway');
     const keyAt = r.stdout.indexOf('API key');
     assert.ok(bridgeAt >= 0 && bridgeAt < keyAt, 'a real authenticated route is offered before an API key');
   });

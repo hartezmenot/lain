@@ -296,7 +296,8 @@ module.exports = async function () {
   });
 
   await test('CONNECTIONS: a bridge route needs no LAIN credential and is not called api_key', () => {
-    const cfg = { connections: { omniroute: { provider: 'anthropic', via: 'bridge', models: ['claude-opus-5'] } } };
+    // A neutral bridge name: `omniroute` is a retired system and is pruned (retired.js).
+    const cfg = { connections: { gateway: { provider: 'anthropic', via: 'bridge', models: ['claude-opus-5'] } } };
     const c = connections.fromConfig(cfg, {})[0];
     assert.strictEqual(c.auth, connections.AUTH.NONE);
     assert.strictEqual(c.readiness, connections.READINESS.AUTHENTICATED);

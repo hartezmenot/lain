@@ -199,4 +199,16 @@ module.exports = async function () {
       assert.strictEqual(mode.classify(text, { projectEmpty: false }).mode, want, text);
     }
   });
+
+  await test('MODE: a plain question is EXPLAIN, not the IMPLEMENT default; defects and change requests keep their modes', () => {
+    // Live, 2026-09-18: framed to the model as "This is an implementation request".
+    const cases = [
+      ['Which function in src/pricing.js applies the tier discount? Answer in one line.', 'EXPLAIN'],
+      ['Does the parser handle unicode?', 'EXPLAIN'],
+      ['why is the cart total wrong?', 'BUGFIX'],
+      ['Is the login broken?', 'BUGFIX'],
+      ['Can you add a free-shipping rule?', 'IMPLEMENT'],
+    ];
+    for (const [text, want] of cases) assert.strictEqual(mode.classify(text).mode, want, text);
+  });
 };

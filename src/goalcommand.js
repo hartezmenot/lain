@@ -52,8 +52,9 @@ function register({ define, C }) {
       }
 
       // ---- `/goal <text>` — the direct form ------------------------------
+      // A NEW goal: the active one, if different, is paused rather than lost.
       if (rest && rest.trim()) {
-        goal.set(app.session, rest.trim());
+        goal.create(app.session, rest.trim());
         try { app.session.save(); } catch { /* the change still holds for this run */ }
         w(C.green('  ✓ goal  ') + C.bold(goal.text(app.session)) + '\n');
         return;
@@ -74,12 +75,92 @@ function register({ define, C }) {
         else w(C.dim('  No goal set. /goal <what you are trying to achieve>\n'));
         return;
       }
-      compose.open(app, compose.KIND.GOAL, { prefill: current });
-      w(current
-        ? C.dim('  Editing the goal — Enter commits, Esc cancels.\n')
-        : C.dim('  What are you trying to achieve? Enter commits, Esc cancels.\n'));
+      // ---- NO GOAL AT ALL: straight into the composer ---------------------
+      //
+      // `GOAL › _` is the whole interface: the composer's label says what the
+      // line is for, so nothing is written into the conversation.
+      const goals = goal.list(app.session);
+      if (!goals.length) {
+        compose.open(app, compose.KIND.GOAL, { prefill: '', intent: 'new' });
+        return;
+      }
+      return shelfFor(app, goals);
     },
   });
 }
 
-module.exports = { register };
+/**
+ * THE GOAL SHELF — Continue · Edit · New · Delete, on the goal(s) that exist.
+ *
+ * One goal: it is the context line. Several: they are choices (the active one
+ * first, marked), and the action applies to the one selected. No narration is
+ * printed either way; the shelf closes and the composer or the prompt is back.
+ */
+async function shelfFor(app, goals) {
+  const { shelf } = require('./ui/shelf');
+  const single = goals.length === 1;
+  const picked = await app.ui.ask(shelf({
+    title: 'Goal',
+    context: single ? [goals[0].text] : [],
+    choices: single ? [] : goals.map((g) => ({
+      label: g.text.replace(/\s+/g, ' ').slice(0, 72) + (g.text.length > 72 ? '…' : ''),
+      value: g.id,
+      detail: g.state === goal.STATE.ACTIVE ? '· active' : '',
+    })),
+    actions: [
+      { label: 'Continue', value: 'continue' },
+      { label: 'Edit', value: 'edit' },
+      { label: 'New', value: 'new' },
+      { label: 'Delete', value: 'delete', confirm: 'Delete this goal? It cannot be brought back.', yes: 'Delete' },
+    ],
+  }));
+  if (!picked) return;
+  const targetId = picked.choice || goals[0].id;
+  const target = goals.find((g) => g.id === targetId) || goals[0];
+  const save = () => { try { app.session.save(); } catch { /* the change still holds for this run */ } };
+  switch (picked.action) {
+    // ---- CONTINUE MEANS CONTINUE THE WORK -------------------------------
+    //
+    // It used to mean `goal.activate` and nothing else: the goal became the
+    // active one and LAIN sat there until the person typed "continue" at it.
+    // The button says Continue, so it continues — resolving the plan, the
+    // step in hand and what has already landed, and starting the turn. See
+    // src/continueactions.js, and note the three Continue buttons in this
+    // product are three NAMED actions rather than one generic one.
+    case 'continue': {
+      const cont = require('./continueactions');
+      const r = await cont.goalContinue(app, target.id);
+      if (r.outcome === cont.OUTCOME.COMPLETED) {
+        // A FINISHED GOAL IS NOT SILENTLY RE-RUN, and the evidence that it
+        // finished is not overwritten. The person decides.
+        const again = await app.ui.ask(shelf({
+          title: 'Goal already completed',
+          context: [target.text],
+          actions: [
+            { label: 'Reopen', value: 'reopen' },
+            { label: 'Cancel', value: 'cancel' },
+          ],
+        }));
+        if (!again || again.action !== 'reopen') return;
+        await cont.goalContinue(app, target.id, { reopen: true });
+        save();
+        return;
+      }
+      save();
+      return;
+    }
+    case 'edit':
+      compose.open(app, compose.KIND.GOAL, { prefill: target.text, intent: 'edit', target: target.id });
+      return;
+    case 'new':
+      compose.open(app, compose.KIND.GOAL, { prefill: '', intent: 'new' });
+      return;
+    case 'delete':
+      goal.remove(app.session, target.id);
+      save();
+      return;
+    default:
+  }
+}
+
+module.exports = { register, shelfFor };

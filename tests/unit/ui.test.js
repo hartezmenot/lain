@@ -333,7 +333,7 @@ module.exports = async function () {
     const wall = Array.from({ length: 9000 }, (_, i) => `line ${i}`).join('\n');
     s.state = {
       cwd: process.cwd(),
-      session: { cwd: process.cwd(), task: null, turns: [{ userInput: wall, text: 'read', actions: [], errors: [] }] },
+      session: { cwd: process.cwd(), task: null, turns: [{ userInput: 'show the log', text: wall, narration: [{ step: 0, text: wall }], actions: [], errors: [] }] },
       transcript: [], liveActions: [], liveNarration: [], extras: [],
     };
     const total = s.workspaceLines(80, 28).length;

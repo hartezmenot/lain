@@ -105,6 +105,29 @@ module.exports = async function () {
     assert.deepStrictEqual(r.mutated, [path.join(dir, 'api.js')], 'so /undo can capture it');
   });
 
+  await test('REPLACE_SYMBOL: a replacement that brings its own doc comment replaces the old one — never a duplicate', async () => {
+    // Live, 2026-09-19: the model included the JSDoc read_file had shown it; the range began at
+    // `function`, so the file ended with two copies of "/** Apply a percentage discount… */".
+    const src = "'use strict';\n\n/** Bulk tiers. */\nfunction tier(q) { return q > 50 ? 10 : 0; }\n\n"
+      + '/**\n * Apply a percentage discount to an amount.\n */\nfunction applyDiscount(amount, pct) {\n  return amount - pct;\n}\n\n'
+      + '// a line comment\n// on two lines\nfunction other() { return 1; }\n\nmodule.exports = { tier, applyDiscount, other };\n';
+    const dir = project({ 'p.js': src });
+    const r = await T.replace_symbol.run({ path: 'p.js', name: 'applyDiscount',
+      replacement: '/** Apply a percentage discount to an amount. */\nfunction applyDiscount(amount, pct) {\n  return amount * (1 - pct / 100);\n}' }, { cwd: dir });
+    assert.ok(!r.isError, r.output);
+    let after = fs.readFileSync(path.join(dir, 'p.js'), 'utf8');
+    assert.strictEqual(after.split('Apply a percentage discount').length - 1, 1, after);
+    assert.ok(after.includes('/** Bulk tiers. */\nfunction tier'), 'the neighbour keeps its comment');
+    // `//` runs are a doc comment too.
+    await T.replace_symbol.run({ path: 'p.js', name: 'other', replacement: '// a line comment\nfunction other() { return 2; }' }, { cwd: dir });
+    after = fs.readFileSync(path.join(dir, 'p.js'), 'utf8');
+    assert.ok(!after.includes('// on two lines'), after);
+    assert.strictEqual(after.split('// a line comment').length - 1, 1);
+    // A replacement WITHOUT a comment keeps the existing one.
+    await T.replace_symbol.run({ path: 'p.js', name: 'tier', replacement: 'function tier(q) { return q >= 50 ? 10 : 0; }' }, { cwd: dir });
+    assert.ok(fs.readFileSync(path.join(dir, 'p.js'), 'utf8').includes('/** Bulk tiers. */\nfunction tier(q) { return q >= 50'));
+  });
+
   await test('REPLACE_SYMBOL: an edit that breaks the file is ROLLED BACK, not reported as done', async () => {
     // The whole contract. Without it, a broken write reports success and the
     // breakage is discovered by whatever expensive thing runs next.

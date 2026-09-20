@@ -44,6 +44,7 @@ const wprofile = require('./profile');
 const devserver = require('./devserver');
 const inspect = require('./inspect');
 const viewport = require('./viewport');
+const { DevServers } = require('./devstate');
 const { EVENT } = require('../events');
 
 /** A preview that has not loaded by now has a problem worth naming. */
@@ -64,6 +65,8 @@ class Workshop {
     /** Screenshots taken as BEFORE, by project. See `capture`. */
     this._before = new Map();
     this.lastWhy = '';
+    /** The first-class dev-server records, one per project. See devstate.js. */
+    this.devServers = new DevServers({ processes: () => this.processes });
   }
 
   /**
@@ -159,8 +162,16 @@ class Workshop {
 
     // ---- 1. A URL TO PREVIEW, through the existing process authority ----
     this._emit(EVENT.BROWSER_STARTED, { taskId: String(taskId || ''), what: 'workshop' });
-    const serve = await devserver.ensure(key, { processes: this.processes, taskId });
-    if (!serve.ok) { this.lastWhy = serve.why; return { ok: false, why: serve.why }; }
+    const started = await this.devServers.start(key, { taskId });
+    if (!started.ok) { this.lastWhy = started.why; return { ok: false, why: started.why, devServer: started.devServer }; }
+    const ds = started.devServer;
+    const serve = { url: ds.url, port: ds.port, processId: ds.processId, adopted: ds.adopted, why: started.why || '' };
+    // ---- ASK THE PAGE ONCE BEFORE SHOWING IT -----------------------------
+    // A 500 here is structured evidence for the window (devstate.probe), and it
+    // does not stop the preview opening — the page and its console are how a
+    // person finds out what is behind the 500. Nothing restarts because of it.
+    const probed = await this.devServers.probe(key);
+    const preview = probed.ok ? probed.preview : null;
 
     // ---- 2. A BROWSER, on this PROJECT'S OWN profile --------------------
     let profile;
@@ -200,10 +211,10 @@ class Workshop {
       // A PREVIEW THAT WILL NOT LOAD IS STILL AN OPEN WORKSHOP. The browser and
       // the server are up; saying so lets a person retry or read the console
       // rather than starting the whole thing again.
-      return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: false, why: nav.why };
+      return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: false, why: nav.why, preview, devServer: this.devServers.get(key) };
     }
     this._emit(EVENT.BROWSER_OBSERVED, { taskId: String(taskId || ''), what: 'preview', url: serve.url });
-    return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: true, why: serve.why };
+    return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: true, why: serve.why, preview, devServer: this.devServers.get(key) };
   }
 
   /**
@@ -261,6 +272,12 @@ class Workshop {
   async pick(projectPath) {
     const p = this._page(projectPath);
     return p.ok ? inspect.pick(p.session) : p;
+  }
+
+  /** The element at a page coordinate — a click on the preview image. */
+  async pickAt(projectPath, x, y) {
+    const p = this._page(projectPath);
+    return p.ok ? inspect.pickAt(p.session, x, y) : p;
   }
 
   async picked(projectPath) {
@@ -321,11 +338,15 @@ class Workshop {
   async reload(projectPath) {
     const p = this._page(projectPath);
     if (!p.ok) return p;
-    try { await p.session.conn.send('Page.reload', { ignoreCache: false }); } catch (e) {
-      return { ok: false, why: String((e && e.message) || e) };
-    }
-    await new Promise((r) => setTimeout(r, 400));
-    return { ok: true, why: 'reloaded' };
+    // RELOADED FROM THE SERVER, AND FINISHED LOADING. A cached stylesheet made a
+    // reload after an edit show the page as it was, and a fixed 400ms guess could
+    // read the element before the new CSS applied. `navigate` waits for the load
+    // event, and the cache is bypassed for this one request.
+    const url = p.session.url || p.held.url;
+    try { await p.session.conn.send('Network.setCacheDisabled', { cacheDisabled: true }); } catch { /* best effort */ }
+    const r = await p.session.navigate(url);
+    try { await p.session.conn.send('Network.setCacheDisabled', { cacheDisabled: false }); } catch { /* best effort */ }
+    return r.ok ? { ok: true, why: 'reloaded' } : { ok: false, why: r.why };
   }
 
   async viewport(projectPath, name, opts = {}) {
@@ -483,7 +504,7 @@ class Workshop {
       port: held ? held.port : null,
       adopted: held ? Boolean(held.adopted) : false,
       viewport: held && held.session ? (held.session.viewport || 'desktop') : null,
-      devServer: { ok: detected.ok, why: detected.why },
+      devServer: { ok: detected.ok, why: detected.why, ...this.devServers.get(key) },
       available: this.availability(),
       profile: wprofile.describe(key),
     };
@@ -508,8 +529,8 @@ class Workshop {
     // THE DEV SERVER IS NOT KILLED HERE when it was ADOPTED — it was already
     // running and belongs to whoever started it. One LAIN started goes down
     // with its task through the ProcessManager, which owns that decision.
-    if (!held.adopted && held.processId && this.processes) {
-      try { await this.processes.stop(held.processId); } catch { /* the manager reports its own failures */ }
+    if (!held.adopted && held.processId) {
+      try { await this.devServers.stop(key); } catch { /* the manager reports its own failures */ }
     }
     this._emit(EVENT.BROWSER_CLOSED, { taskId: '', what: 'workshop' });
     return { ok: true };

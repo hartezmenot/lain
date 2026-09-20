@@ -96,8 +96,9 @@ module.exports = async function () {
     r.p.complete({});                      // the tool finished immediately
 
     assert.strictEqual(r.at().active.phase, PHASE.ENTER, 'it enters first');
-    assert.strictEqual(r.tick(ENTER_MS + 10).active.phase, PHASE.ACTIVE, 'then holds');
-    assert.strictEqual(r.tick(HOLD_MS).active.phase, PHASE.SETTLE, 'then settles');
+    // NO MINIMUM CARD LIFETIME (§50): an instant tool holds for no time at all.
+    assert.strictEqual(HOLD_MS, 0);
+    assert.strictEqual(r.tick(ENTER_MS + 10).active.phase, PHASE.SETTLE, 'then settles — nothing holds it past reality');
     assert.strictEqual(r.tick(SETTLE_MS).active.phase, PHASE.EXIT, 'then leaves');
     const done = r.tick(EXIT_MS + 10);
     assert.strictEqual(done.active, null, 'and is gone from the active position');
@@ -183,10 +184,10 @@ module.exports = async function () {
     for (let i = 0; i < 40; i++) r.p.complete({});
     const speed = r.p.speed();
     assert.ok(speed > 1, `the queue really is catching up: x${speed.toFixed(1)}`);
-    const active = HOLD_MS / speed;
+    // §50: no floor is manufactured on the ACTIVE phase; the enter/settle/exit
+    // TRANSITIONS still make every card a glance rather than a flicker.
     const whole = (ENTER_MS + HOLD_MS + SETTLE_MS + EXIT_MS) / speed;
-    assert.ok(active >= 150, `the subject is readable at full catch-up: ${Math.round(active)}ms`);
-    assert.ok(whole >= 280, `and the whole card is a glance, not a flicker: ${Math.round(whole)}ms`);
+    assert.ok(whole >= 120, `the whole card is a glance, not a flicker: ${Math.round(whole)}ms`);
   });
 
   await test('PLAYBACK: a SLOW tool still gets its SETTLE — the counters have to land somewhere', () => {
@@ -236,19 +237,15 @@ module.exports = async function () {
     r.p.enqueue(read('quick.js'));
     r.p.complete({});
     const s = r.tick(ENTER_MS + 10);
-    assert.strictEqual(s.active.target, 'quick.js', 'it occupies the active position');
-    assert.strictEqual(s.active.phase, PHASE.ACTIVE);
+    assert.strictEqual(s.active.target, 'quick.js', 'it occupies the active position — through its transition, with no held floor');
   });
 
   await test('PLAYBACK: edit counters climb and LAND on the real numbers', () => {
     const r = rig();
     r.p.enqueue(patch('python.js', 72, 40));
     r.p.complete({ added: 72, removed: 40 });
-    const start = r.tick(ENTER_MS + 1).active;
-    assert.ok(start.added < 72, `counters start below the total, saw +${start.added}`);
-    const mid = r.tick(HOLD_MS / 2).active;
-    assert.ok(mid.added > start.added, 'and climb');
-    const settled = r.tick(HOLD_MS).active;
+    // An instant edit is not given a manufactured climb (§50): it lands at once.
+    const settled = r.tick(ENTER_MS + 1).active;
     assert.strictEqual(settled.added, 72, 'landing exactly on the real addition count');
     assert.strictEqual(settled.removed, 40, 'and the real removal count');
   });

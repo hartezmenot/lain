@@ -52,7 +52,7 @@ async function externalApproval(name, input, ctx, approval) {
   try { app.events?.emit?.(require('./events').EVENT.APPROVAL_REQUIRED, { what, reason, kind: 'external' }); } catch { /* approval still stands */ }
   let answer = null;
   try {
-    answer = await interaction.ask(app, { title: 'Approve external action?', question: [what, reason, details].filter(Boolean).join('\n\n'), options: ['Approve once', 'Deny'] }, ctx && ctx.signal);
+    answer = await require('./decisions').ask(app, { type: 'PERMISSION_REQUEST', title: 'Approve external action?', question: [what, reason, details].filter(Boolean).join('\n\n'), options: ['Approve once', 'Deny'] }, ctx && ctx.signal);
   } catch { answer = null; }
   const granted = answer === 'Approve once';
   try { app.events?.emit?.(require('./events').EVENT.APPROVAL_RESOLVED, { what, granted, kind: 'external' }); } catch { /* result still stands */ }

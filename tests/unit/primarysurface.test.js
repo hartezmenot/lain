@@ -65,7 +65,7 @@ module.exports = async function () {
     const out = draw();
     assert.match(out, /lain-v2/, 'the project must be named');
     assert.match(out, /claude-opus-4/, 'the active model must be named');
-    assert.match(out, /1200/, 'the live output count must be readable');
+    assert.match(out, /1\.2K/, 'the live output count must be readable, at three significant figures');
     assert.match(out, /Ask LAIN/, 'and the input region must be present and say what it is for');
   });
 

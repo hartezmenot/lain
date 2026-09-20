@@ -199,7 +199,7 @@ function workState(app) {
   if (s.task && s.task.objective) out.objective = s.task.objective;
   if (s.plan && typeof s.plan.digest === 'function') {
     const steps = s.plan.steps || [];
-    out.plan = { done: steps.filter((x) => x.done).length, total: steps.length };
+    out.plan = { done: steps.filter((x) => require('./plan').stepDone(x)).length, total: steps.length };
   }
   const life = s.lifecycle;
   if (life && life.evidence) {

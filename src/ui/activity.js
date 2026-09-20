@@ -547,7 +547,9 @@ function syncTicker(ui) {
   const revealing = ui.enabled && ui.activity && ui.story
     && (ui.activity.revealing(ui.story.narration)
       || ui.activity.revealing(lastNarrationOf(ui)));
-  const animating = ui.enabled && ui.activity && (ui.activity.busy() || revealing);
+  // AND AN EDIT'S DIFF ARRIVING IN THE FEED — ui/turnsections.js `arriving`.
+  const landing = ui.enabled && ui.story && require('./turnsections').arriving(ui.story.actions || []);
+  const animating = ui.enabled && ui.activity && (ui.activity.busy() || revealing || landing);
   const working = Boolean(ui.phase || ui.interrupting || ui.waitingUntil);
   const wanted = ui.enabled && (working || animating);
   const want = animating ? FRAME_MS : TICK_MS;

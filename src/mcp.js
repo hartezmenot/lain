@@ -41,15 +41,43 @@
 
 const { spawn } = require('child_process');
 
-/** Operation → the permission it requires. An op not in here is not callable. */
+/**
+ * Operation → the permission it requires. An op not in here is not callable.
+ *
+ * THE STRUCTURED HALF IS COMPUTER MCP'S (src/computermcp.js): UI Automation
+ * reads (`uia.*`, `wait.*`, `displays`) and the actions they aim. They are in
+ * THIS table because there is one gate for everything that reaches the desktop
+ * — a second table would be a second answer to "may this happen".
+ */
 const OPS = Object.freeze({
   'screen.capture': 'screen',
   'mouse.move': 'mouse',
   'mouse.click': 'mouse',
+  'mouse.drag': 'mouse',
+  'mouse.scroll': 'mouse',
   'keyboard.type': 'keyboard',
   'keyboard.key': 'keyboard',
   'window.list': 'window',
   'window.focus': 'window',
+  'window.active': 'window',
+  'window.close': 'window',
+  displays: 'window',
+  'cursor.get': 'screen',
+  // READS of the accessibility tree. `screen` is the capability they need: they
+  // see what is on this machine, they change nothing.
+  'uia.tree': 'screen',
+  'uia.find': 'screen',
+  'uia.getValue': 'screen',
+  'wait.window': 'screen',
+  'wait.control': 'screen',
+  'wait.gone': 'screen',
+  // ACTIONS AIMED BY THE TREE. `uia.invoke` presses a control the way a person
+  // does; `uia.setValue` puts text into one; `uia.focus` moves the caret.
+  'uia.invoke': 'mouse',
+  'uia.setValue': 'keyboard',
+  'uia.focus': 'window',
+  'clipboard.read': 'clipboard',
+  'clipboard.write': 'clipboard',
 });
 
 const STATE = Object.freeze({
@@ -61,6 +89,26 @@ const STATE = Object.freeze({
 
 const HELLO_TIMEOUT_MS = 5000;
 const CALL_TIMEOUT_MS = 15_000;
+/**
+ * AN OPERATION THAT IS *SUPPOSED* TO BLOCK MUST NOT BE CUT OFF BY THE PIPE.
+ *
+ * `wait.window`, `wait.control` and `wait.gone` carry their own `timeoutMs`:
+ * the caller has said how long the screen is allowed to take. The transport had
+ * a flat 15s deadline underneath them, so every wait longer than that reported
+ * "no answer within 15s" — a transport failure wearing the costume of a screen
+ * that never changed. Observed: a 20s wait for a file dialog that HAD opened.
+ *
+ * So a call's deadline is the wait the caller asked for plus room to answer,
+ * never shorter than the ordinary one, and never unbounded.
+ */
+const CALL_GRACE_MS = 5_000;
+const MAX_CALL_TIMEOUT_MS = 120_000;
+
+function callDeadline(params) {
+  const asked = Number(params && params.timeoutMs);
+  if (!Number.isFinite(asked) || asked <= 0) return CALL_TIMEOUT_MS;
+  return Math.min(MAX_CALL_TIMEOUT_MS, Math.max(CALL_TIMEOUT_MS, asked + CALL_GRACE_MS));
+}
 const MAX_LINE = 4_000_000;      // a screenshot arrives as one line
 
 /**
@@ -220,6 +268,9 @@ class Bridge {
     }
   }
 
+  /** How long this one call may take, from what the caller asked the screen for. */
+  static deadlineFor(params) { return callDeadline(params); }
+
   _send(payload, timeoutMs = CALL_TIMEOUT_MS) {
     return new Promise((resolve) => {
       if (!this.child || this.child.killed) { resolve({ ok: false, error: 'the bridge is not running' }); return; }
@@ -258,7 +309,7 @@ class Bridge {
       // and must go and ask the user for it.
       return { ok: false, denied: true, capability: cap, error: `permission to ${cap} is ${allowed.why}` };
     }
-    const r = await this._send({ op, params });
+    const r = await this._send({ op, params }, callDeadline(params));
     if (this.permissions) this.permissions.used(cap, op);
     this._note(`${op} — ${r.ok ? 'ok' : `failed: ${r.error}`}`, Boolean(r.ok));
     // The control window shows each action as it happens, not a summary after.
@@ -295,4 +346,5 @@ class Bridge {
 }
 
 module.exports = {
-  servers, Bridge, OPS, STATE, settings, configured, HELLO_TIMEOUT_MS, CALL_TIMEOUT_MS };
+  servers, Bridge, OPS, STATE, settings, configured, HELLO_TIMEOUT_MS, CALL_TIMEOUT_MS,
+  callDeadline, CALL_GRACE_MS, MAX_CALL_TIMEOUT_MS };

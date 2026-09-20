@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LAIN for Chrome</title>
+<style>
+  body { font: 13px system-ui, sans-serif; width: 320px; padding: 12px; color: #1a1a1a; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  .row { margin: 8px 0; }
+  input[type=text] { width: 100%; box-sizing: border-box; padding: 4px; }
+  button { padding: 4px 10px; margin-top: 4px; }
+  .status { padding: 6px 8px; border-radius: 4px; background: #f0f0f0; margin-bottom: 8px; }
+  .status.connected { background: #e6f6e6; }
+  .tab-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #eee; }
+  .warn { color: #a33; font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>LAIN for Chrome</h1>
+  <div id="status" class="status">checking…</div>
+
+  <div id="connectForm" class="row" style="display:none">
+    <div>Paste the token from <code>/chrome connect</code>:</div>
+    <input type="text" id="token" placeholder="token">
+    <button id="connectBtn">Connect</button>
+  </div>
+
+  <div id="connectedPanel" style="display:none">
+    <div class="row">
+      <button id="authorizeBtn">Authorize this tab</button>
+      <div class="warn">Only tabs you authorize here are reachable. LAIN cannot see or list anything else.</div>
+    </div>
+    <div class="row" id="authorizedList"></div>
+    <div class="row"><button id="disconnectBtn">Disconnect</button></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

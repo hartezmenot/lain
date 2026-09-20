@@ -81,9 +81,12 @@ module.exports = async function () {
       'thirty calls do not become thirty rows: ' + callRows.length + NL + rows.join(NL));
     // THE COUNT IS STILL TRUE — a folded run says how many it stands for.
     assert.ok(rows.some((r) => /✓ edited ×\d+/.test(r)), 'a folded run states its count');
-    // AND THE CURRENT RUN IS NOT FOLDED WITH THE REST.
-    for (const f of ['f4_0.js', 'f4_1.js', 'f4_2.js', 'f4_3.js', 'f4_4.js', 'f4_5.js']) {
-      assert.ok(rows.some((r) => r.includes(f)), 'the current run keeps ' + f);
+    // A TURN THAT CHANGED THINGS IS DRAWN AS CHANGE / RESULT (ui/turnsections.js):
+    // one row per file, a long list folded with its true count, the most recent
+    // files kept whole.
+    assert.ok(rows.includes('CHANGE'), 'the changes are one section');
+    for (const f of ['f4_4.js', 'f4_5.js']) {
+      assert.ok(rows.some((r) => r.includes(f) && /\[(?:× )?Diff\]/.test(r)), 'the most recent change keeps its row: ' + f);
     }
     // AND EVERY FINDING SURVIVES. Compaction is about calls, never about prose.
     for (let g = 0; g < 5; g++) {
@@ -131,9 +134,10 @@ module.exports = async function () {
       ],
     }] };
     const rows = views.activity({ session, width: 96 }).map(strip);
-    assert.ok(rows.some((r) => /edited · python\.js\s+\+75 -40/.test(r)),
+    // Drawn in the CHANGE section, one row per file, with its [Diff] control.
+    assert.ok(rows.some((r) => /python\.js\s+\+75 -40\s+\[(?:× )?Diff\]/.test(r)),
       `the edit keeps its size:${NL}${rows.join(NL)}`);
-    assert.ok(rows.some((r) => /edited · config\.js\s+\+4 -1/.test(r)), 'and so does the next one');
+    assert.ok(rows.some((r) => /config\.js\s+\+4 -1\s+\[(?:× )?Diff\]/.test(r)), 'and so does the next one');
     // A READ CHANGED NOTHING, and must not wear a `+0 -0` that says it did.
     //
     // IT IS NOT DRAWN AT ALL NOW, which is the stronger form of the same
@@ -271,7 +275,9 @@ module.exports = async function () {
     });
     const body = lines.join('\n');
     const noteAt = body.indexOf('identical output 3 times');
-    const lastCall = body.indexOf('edited · a.js');
+    // The live edit is drawn in the turn's CHANGE section, as it will be at
+    // settlement (ui/turnsections.js pushChanges) — still below the notice.
+    const lastCall = body.search(/a\.js\s+\[(?:× )?Diff\]/);
     assert.ok(noteAt > 0, 'the notice must be on screen');
     assert.ok(noteAt < lastCall, 'and above the call that came after it, not below everything');
     // Labelled as the PROGRAM speaking, which is a different voice from the
@@ -609,5 +615,21 @@ module.exports = async function () {
     const text = feed.renderFeed(out, 90).join('\n');
     assert.match(text, /│ ✓ read · a\.js/, 'the call keeps its quoted gutter');
     assert.match(text, /^One\.$/m, 'and the prose sits at the margin');
+  });
+
+  await test('FEED: a contradicted success claim is drawn in ITS turn, not under the next turn\'s DONE', () => {
+    // Live acceptance, 2026-09-18: turn A ended NOT VERIFIED with "The last check
+    // was still failing…"; turn B passed everything and showed ✓ DONE — with
+    // A's warning still directly under B's result.
+    const warn = 'The last check was still failing when that was written: npm test (exit 1). Run it again before treating this as done.';
+    const session = { turns: [
+      { userInput: 'fix the line total', text: 'Fixed.', narration: [{ step: 1, text: 'Fixed.' }], actions: [], contradiction: warn },
+      { userInput: 'fix the tax tests too', text: 'All 8 pass.', narration: [{ step: 1, text: 'All 8 pass.' }], actions: [] },
+    ] };
+    const rows = views.activity({ session, width: 110 }).map(strip);
+    const at = rows.findIndex((r) => /still failing when that was written/.test(r));
+    const b = rows.findIndex((r) => /fix the tax tests too/.test(r));
+    assert.ok(at >= 0, rows.join(NL));
+    assert.ok(b > at, `the warning belongs above turn B:${NL}${rows.join(NL)}`);
   });
 };

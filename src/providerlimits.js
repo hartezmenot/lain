@@ -51,9 +51,12 @@
  * because a limit is a fact with a date on it.
  */
 const KNOWN = Object.freeze({
-  // Observed 2026-08-22: `code: "chat_history_too_large", reason:
-  // "message_limit"`, stated as 800 in the refusal text.
-  omniroute: { messages: 800 },
+  // EMPTY, AND STILL LOAD-BEARING. The one row here was `omniroute: 800`,
+  // observed 2026-08-22 as `code: "chat_history_too_large", reason:
+  // "message_limit"`. That provider was retired from the product on 2026-09-15
+  // (see providers.js RETIRED), so the row went with it — but the MECHANISM
+  // stays: the next provider to refuse on a message count is one row, and the
+  // fallback below already handles a provider that states a cap in its refusal.
 });
 
 /**

@@ -30,6 +30,23 @@ const DIGEST_DONE = 6;
 
 class Plan {
   constructor(objective = '') {
+    /**
+     * A DISPLAY LABEL. NOT AN AUTHORITY. See tools/plan.js, which is the only
+     * thing that fills it, and src/authority.js, which is what it is checked
+     * against.
+     *
+     * It reads like a third objective and used to behave like one: `plan_write`
+     * took the MODEL's `objective` in preference to the task's, so a plan could
+     * be filed under a direction that argued with the task it served and nothing
+     * compared them. The field stays — session files carry it and `describe()`
+     * prints it — but it is derived from the task unless the model's version is
+     * checked and found compatible.
+     *
+     * NOTHING SHOULD READ THIS TO LEARN WHAT THE WORK IS. `authority.project()`
+     * deliberately omits it from the plan rung for exactly that reason: two
+     * objective-shaped strings in one projection is a choice a consumer should
+     * never be asked to make.
+     */
     this.objective = String(objective);
     this.createdAt = new Date().toISOString();
     this.steps = [];       // [{ n, text, status, note, completedAt }]
@@ -179,7 +196,7 @@ class Plan {
   }
 
   /** Compact digest for the system prompt. Stable within a step. */
-  digest(maxChars = 700) {
+  digest(maxChars = 700, { session = null } = {}) {
     if (!this.steps.length) return '';
     const done = this.completed.length;
     const lines = [`Plan: ${this.objective} (${done}/${this.steps.length} done)`];
@@ -202,6 +219,22 @@ class Plan {
       lines.push('Decisions:');
       for (const d of this.decisions.slice(-4)) lines.push(`- ${d.text}`.slice(0, 160));
     }
+    // ---- WHAT THE STEP IN HAND HAS ALREADY ESTABLISHED --------------------
+    //
+    // Only the ACTIVE step, and only what it recorded. This is the half that
+    // survives a compaction, a rate-limit resume and a `/resume` — see
+    // src/planfindings.js for why those facts cannot live in the conversation.
+    const activeStep = this.steps.find((s) => s.status === STATUS.ACTIVE);
+    // DERIVED FIRST, so what Core already knows is there whether or not the
+    // model remembered to write it down. The SESSION is passed in rather than
+    // held on the plan: a plan with a back-reference to its session is a second
+    // way for the two to disagree about which session it belongs to.
+    // See planfindings.derive.
+    if (activeStep && session) {
+      try { require('./planfindings').derive(session, activeStep); } catch { /* the model's own record still stands */ }
+    }
+    const found = require('./planfindings').lines(activeStep);
+    if (found) lines.push(found);
     const out = lines.join('\n');
     return out.length > maxChars ? out.slice(0, maxChars) + '…' : out;
   }
@@ -236,6 +269,17 @@ async function runCommand(app, { args = [], rest = '' } = {}, { C } = {}) {
     const sub = (args[0] || '').toLowerCase();
     const tail = rest.slice(sub.length).trim();
     const w = (s) => app.render.write(s);
+
+    // ---- /plan IS FOR DISCUSSING THE PLAN (§12) -----------------------------
+    // Bare `/plan` enters PLAN mode: discussion only, no execution progress.
+    // `/plan accept` leaves it and execution begins. See modecommands.js.
+    if (sub === 'accept' || sub === 'go') return require('./modecommands').acceptPlan(app, { C });
+    if (!sub && require('./execmode').of(app.session) !== 'PLAN') {
+      require('./execmode').set(app.session, 'PLAN');
+      // Machinery, not the work: the operation row on a TUI, one dim line on a pipe.
+      if (app.ui && app.ui.enabled) require('./ui/operation').say(app, 'PLAN · discussing — /plan accept or Shift+Tab to execute', 'info');
+      else w(C.dim('  PLAN · discussing — nothing is changed until you accept (/plan accept) or Shift+Tab to AUTO\n'));
+    }
 
     // ---- BARE `/plan` IS AN EDITOR, NOT A DUMP --------------------------
     //
@@ -275,36 +319,62 @@ async function runCommand(app, { args = [], rest = '' } = {}, { C } = {}) {
       const compose = require('./composemode');
       const plancompose = require('./plancompose');
       if (!live) {
+        // `PLAN › _` — the composer's label is the whole interface.
         compose.open(app, compose.KIND.PLAN_REPLACE, { prefill: '' });
-        w(C.dim('  Steps, separated by → — Enter commits, Esc cancels.\n'));
         return;
       }
-      // THE CHOICE, in the ONE panel LAIN asks anything through. A person with
-      // no panel never reaches here (see above), so there is no second path.
-      const REPLACE = 'Replace plan';
-      const ADD = 'Add to plan';
-      const CANCEL = 'Cancel';
+      // THE PLAN SHELF (ui/shelf.js) — Continue · Edit · Add · New · Delete. A
+      // person with no panel never reaches here (see above), so there is no
+      // second path. Escape and EOF arrive as null and change nothing.
+      const { shelf } = require('./ui/shelf');
+      const mark = (s) => (s.status === STATUS.DONE ? '✓' : s.status === STATUS.ACTIVE ? '◐' : s.status === STATUS.DROPPED ? '–' : '○');
+      const shown = live.steps.slice(0, 8).map((s, i) => `${mark(s)} ${i + 1}. ${s.text}`);
+      if (live.steps.length > 8) shown.push(`  … ${live.steps.length - 8} more`);
       let picked = null;
       try {
-        const { askAdapter } = require('./ui/panel');
-        picked = await app.ui.ask(askAdapter({
-          title: 'PLAN ALREADY IN PROGRESS',
-          question: `${live.completed.length}/${live.steps.length} steps done.`,
-          options: [REPLACE, ADD, CANCEL],
+        picked = await app.ui.ask(shelf({
+          title: `Plan · ${live.completed.length}/${live.steps.length} done`,
+          context: shown,
+          actions: [
+            { label: 'Continue', value: 'continue' },
+            { label: 'Edit', value: 'edit' },
+            { label: 'Add', value: 'add' },
+            { label: 'New', value: 'new' },
+            { label: 'Delete', value: 'delete', confirm: 'Delete this plan? Its steps stop steering the work.', yes: 'Delete' },
+          ],
         }));
       } catch { picked = null; }
-      // Escape, a dismissed panel and EOF all arrive as null, and none of them
-      // is a choice — the same rule every other panel in the tree follows.
-      if (picked === REPLACE) {
-        // THE REMAINING WORK IS WHAT IS EDITED. Completed steps are evidence and
-        // are never offered for rewriting — see plancompose.asLine.
-        compose.open(app, compose.KIND.PLAN_REPLACE, { prefill: plancompose.asLine(live) });
-        w(C.dim('  Editing the remaining steps — Enter commits, Esc cancels.\n'));
-      } else if (picked === ADD) {
-        compose.open(app, compose.KIND.PLAN_ADD, { prefill: '' });
-        w(C.dim('  Steps to add, separated by → — Enter commits, Esc cancels.\n'));
-      } else {
-        w(C.dim('  Plan unchanged.\n'));
+      const action = picked && picked.action;
+      // ---- CONTINUE MEANS CONTINUE THE PLAN -----------------------------
+      //
+      // This fell through to nothing: every other action was handled and
+      // `continue` simply closed the shelf, so the button did what Escape did.
+      // It now resumes execution at the first step that is not finished — never
+      // at step 1 — through the named PLAN_CONTINUE action. See
+      // src/continueactions.js for why there are three named actions rather than
+      // one `continue()` whose meaning depends on the menu that called it.
+      if (action === 'continue') {
+        // CONTINUING THE PLAN IS ACCEPTING IT: execution leaves PLAN mode (§12),
+        // exactly as `/plan accept` does.
+        require('./execmode').set(app.session, 'AUTO');
+        if (live) { live.acceptedAt = live.acceptedAt || Date.now(); }
+        const cont = require('./continueactions');
+        const r = await cont.planContinue(app);
+        if (r.outcome === cont.OUTCOME.NOTHING_TO_DO) w(C.dim(`  ${r.why}\n`));
+        else if (r.outcome === cont.OUTCOME.QUEUED) w(C.dim(`  QUEUED — ${r.why}\n`));
+        return;
+      }
+      // THE REMAINING WORK IS WHAT IS EDITED. Completed steps are evidence and
+      // are never offered for rewriting — see plancompose.asLine.
+      if (action === 'edit') compose.open(app, compose.KIND.PLAN_REPLACE, { prefill: plancompose.asLine(live) });
+      else if (action === 'add') compose.open(app, compose.KIND.PLAN_ADD, { prefill: '' });
+      else if (action === 'new') compose.open(app, compose.KIND.PLAN_NEW, { prefill: '' });
+      else if (action === 'delete') {
+        // DEPENDENT STATE GOES WITH IT: an outstanding "plan finished but not
+        // verified" is a statement about this plan and must not outlive it.
+        app.session.plan = null;
+        app.pendingCompletion = null;
+        try { app.session.save(); } catch { /* the change still holds for this run */ }
       }
       return;
     }
@@ -360,4 +430,7 @@ async function runCommand(app, { args = [], rest = '' } = {}, { C } = {}) {
     })) w(line + '\n');
 }
 
-module.exports = { runCommand, Plan, STATUS };
+/** A step is finished when its STATUS says so — steps carry `status`, never a `done` boolean. */
+function stepDone(s) { return Boolean(s) && (s.status === STATUS.DONE || s.status === STATUS.DROPPED || s.done === true); }
+
+module.exports = { runCommand, Plan, STATUS, stepDone };

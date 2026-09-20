@@ -42,38 +42,22 @@
 
 const path = require('path');
 
-/** The four, and each says why it is not one of the others. */
+/**
+ * The three, and each says why it is not one of the others.
+ *
+ * THERE WERE FOUR. `HARNESSAPP` was the Chromium `--app` window the Harness ran
+ * in before LAIN had a window of its own — a step toward a native shell, taken
+ * and then superseded. LAIN Desktop is that shell (native/host.cs), it is not a
+ * browser at all, and a browser PURPOSE for it would be a role nothing can ever
+ * be launched into. Removed 2026-09-15 with the browser Harness.
+ */
 const PURPOSE = {
   VERIFY: 'verify',
   WORKSHOP: 'workshop',
   WEBMODEL: 'webmodel',
-  /**
-   * THE HARNESS APPLICATION'S OWN WINDOW — a fourth purpose, added on purpose.
-   *
-   * The three above are INSTRUMENTS: browsers LAIN drives, on profiles LAIN
-   * owns, pointed at something under test. This one is not an instrument. It is
-   * the shell LAIN's own graphical surface runs in, and nothing drives it — a
-   * person does.
-   *
-   * IT IS NOT ANY OF THE OTHER THREE, and each would be wrong differently:
-   * VERIFY is headless and thrown away, so the window would vanish with a task;
-   * WORKSHOP is bound to the project under development, and the Harness is not
-   * one project's tool; WEBMODEL holds a person's ChatGPT login, which has no
-   * business in the application chrome.
-   *
-   * IT IS STILL NOT THE PERSON'S BROWSER. The window runs on a Harness profile
-   * with no personal cookies. What it gets from Chromium is a WINDOW — no tab
-   * strip, no address bar, its own taskbar entry — which is the difference
-   * between "a page in a browser" and "an application", and the reason a person
-   * can alt-tab to it rather than hunting for a tab.
-   *
-   * THIS IS A STEP TOWARD THE NATIVE SHELL, NOT THE NATIVE SHELL. See
-   * harnessapp/desktop.js for what it does and does not buy.
-   */
-  HARNESSAPP: 'harnessapp',
 };
 
-const ALL = [PURPOSE.VERIFY, PURPOSE.WORKSHOP, PURPOSE.WEBMODEL, PURPOSE.HARNESSAPP];
+const ALL = [PURPOSE.VERIFY, PURPOSE.WORKSHOP, PURPOSE.WEBMODEL];
 
 /**
  * HOW EACH PURPOSE BEHAVES. Read by the runtime instead of by `if` chains
@@ -99,13 +83,6 @@ const TRAITS = {
   [PURPOSE.WEBMODEL]: {
     lifetime: 'session', headless: false, extensions: true, disposable: false,
     why: 'it holds a person login and must outlive every task',
-  },
-  [PURPOSE.HARNESSAPP]: {
-    // NEVER HEADLESS: a window nobody can see is not an application. And never
-    // disposable — window position, zoom and scroll are the small things that
-    // make a tool feel like one you have used before.
-    lifetime: 'session', headless: false, extensions: false, disposable: false,
-    why: 'it is the application window, and a person is looking at it',
   },
 };
 

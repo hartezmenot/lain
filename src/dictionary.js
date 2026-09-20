@@ -121,6 +121,16 @@ function load(root) {
 
 function save(root, dict) {
   dict.updatedAt = Date.now();
+  // PROOF: a definition (re)written now is established against the disk now.
+  // An untouched one keeps the proof it was made with, so it can go STALE.
+  const freshness = require('./freshness');
+  for (const e of Object.values(dict.terms)) {
+    if (!e || (Array.isArray(e.proof) && e.proofAt === e.at)) continue;
+    const loc = String(e.location || '').split('::')[0];
+    e.proof = loc ? freshness.stamp(root, [loc]).evidence : [];
+    e.proofAt = e.at;
+    delete e.proofOrigin;
+  }
   return lainstore.write(root, 'concepts', { terms: dict.terms, updatedAt: dict.updatedAt });
 }
 

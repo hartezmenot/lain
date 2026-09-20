@@ -134,9 +134,23 @@ function resting(ui, now = Date.now()) {
  */
 function attemptFor(ui, verdict, now = Date.now()) {
   if (!verdict || !verdict.sameTask) return ATTEMPT.FRESH;
+  // ONLY A PAUSED OR BLOCKED ATTEMPT CARRIES ON. With nothing resting, the
+  // previous turn SETTLED — DONE is the end of that attempt — so a follow-up in
+  // the same task is a new turn and its clock starts at 00:00:00. This returned
+  // CONTINUE for every same-task prompt, so a turn that took 60 ms showed the
+  // eight seconds of the answer before it.
+  //
+  // A WAIT OR A BLOCK carries on whatever is typed: the clock paused for the
+  // limit, and the work did not end. AN INTERRUPTION carries on only when the
+  // task classifier says so (`continue`) — a different
+  // instruction after Ctrl+C is a new turn, and folding the stopped turn's
+  // seconds into it would over-report the work.
+  const paused = Boolean(ui && ui.clock && ui.clock.state === 'PAUSED');
   const r = resting(ui, now);
-  if (r.terminal) return ATTEMPT.RESTART;
-  return ATTEMPT.CONTINUE;
+  const held = r.word === 'WAITING FOR LIMIT RESET' || r.word === 'BLOCKED';
+  if (paused || held) return ATTEMPT.CONTINUE;
+  if (r.resumable && verdict.kind === require('../task').KIND.CONTINUATION) return ATTEMPT.CONTINUE;
+  return ATTEMPT.RESTART;
 }
 
 /**

@@ -97,7 +97,10 @@ function facts(app) {
  * message that carried tool calls contributes its PROSE and not its calls.
  */
 function recent(session, { limit = RECENT_TURNS } = {}) {
-  const msgs = Array.isArray(session && session.messages) ? session.messages : [];
+  // THE CHAT THREAD'S OWN HISTORY when views are in use — never the Coding
+  // transcript. See sessionviews.js.
+  const msgs = session && session.thread ? require('../sessionviews').wireMessages(session)
+    : (Array.isArray(session && session.messages) ? session.messages : []);
   const kept = [];
   for (let i = msgs.length - 1; i >= 0 && kept.length < limit; i--) {
     const m = msgs[i];

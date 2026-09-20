@@ -7,13 +7,18 @@
  * ------------------------------------------------------------------------
  * THE RULE THIS FILE OBEYS ABOVE ALL OTHERS.
  *
- *     NO TEST HERE MAY TOUCH THE DEVELOPER'S REAL PATH.
+ *     NO TEST HERE MAY TOUCH THE DEVELOPER'S REAL PATH — OR THEIR START MENU.
  *
  * `distribution/pathenv.js` takes an adapter for exactly this reason, and every
  * case below passes one. A test that persisted a PATH entry would be damage
  * outside the tree that no assertion sees — the same class of failure as a test
  * writing the user's real config home, which `tests/run.js` argues at length and
  * refuses to allow.
+ *
+ * The Start Menu half obeys the same rule by the same means: `install` takes
+ * `desktop: false` everywhere below, and the one case that DOES write a
+ * shortcut redirects `%APPDATA%` to a temporary directory first — which is how
+ * Windows itself resolves the Start Menu, so nothing is being pretended.
  *
  * The one exception is DETECTION, which only ever READS. `where lain` /
  * `command -v lain` change nothing.
@@ -123,7 +128,7 @@ module.exports = async function () {
   await test('INSTALL: a fresh install writes launchers that ACTUALLY RUN', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    const r = install.install({ dir, env });
+    const r = install.install({ dir, env, desktop: false });
     assert.ok(r.launchers.length >= 1, 'no launcher was written');
     for (const f of r.launchers) assert.ok(fs.existsSync(f), `${f} is missing`);
     // THE CONTRACT: not "files copied" but "it ran".
@@ -137,7 +142,7 @@ module.exports = async function () {
     // drifts, and the first symptom is a bug fixed in the repo and still live
     // on PATH.
     const dir = tmpBin();
-    const r = install.install({ dir, env: fakeEnv() });
+    const r = install.install({ dir, env: fakeEnv(), desktop: false });
     const body = fs.readFileSync(r.launchers[0], 'utf8');
     const entry = detect.entrypoint();
     const normalised = body.replace(/\\/g, '/');
@@ -153,7 +158,7 @@ module.exports = async function () {
     // interpolated into the shim, and both can contain one.
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'lain dist '));
     const dir = path.join(base, 'my bin');
-    const r = install.install({ dir, env: fakeEnv() });
+    const r = install.install({ dir, env: fakeEnv(), desktop: false });
     assert.strictEqual(r.verified, true, `a launcher in "${dir}" did not run: ${JSON.stringify(r.steps)}`);
     assert.match(String(r.version), /^lain\s/);
   });
@@ -161,9 +166,9 @@ module.exports = async function () {
   await test('INSTALL: it is idempotent — twice is the same as once', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    install.install({ dir, env });
+    install.install({ dir, env, desktop: false });
     const writes = env.state.writes;
-    const second = install.install({ dir, env });
+    const second = install.install({ dir, env, desktop: false });
     assert.strictEqual(second.ok, true);
     assert.strictEqual(env.state.writes, writes, 'the second install must not write PATH again');
     assert.strictEqual(pathenv.entries(env.get(), ':').filter((e) => pathenv.samePath(e, dir)).length, 1,
@@ -176,7 +181,7 @@ module.exports = async function () {
     const dir = tmpBin();
     const env = fakeEnv();
     env.state.denied = true;
-    const r = install.install({ dir, env });
+    const r = install.install({ dir, env, desktop: false });
     assert.strictEqual(r.launchers.length >= 1, true, 'the launcher must still be written');
     assert.strictEqual(r.verified, true, 'and it must still run');
     assert.ok(r.warnings.some((w) => /PATH was not changed/.test(w)), 'the limitation must be stated');
@@ -189,7 +194,7 @@ module.exports = async function () {
   await test('INSTALL: --no-path leaves PATH completely alone', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    const r = install.install({ dir, env, skipPath: true });
+    const r = install.install({ dir, env, skipPath: true, desktop: false });
     assert.strictEqual(env.state.writes, 0);
     assert.strictEqual(r.ok, true, 'and it still installs and verifies');
   });
@@ -199,7 +204,7 @@ module.exports = async function () {
     const real = detect.entrypoint;
     detect.entrypoint = () => path.join(os.tmpdir(), 'definitely-not-here-9f3a', 'lain.js');
     try {
-      const r = install.install({ dir, env: fakeEnv() });
+      const r = install.install({ dir, env: fakeEnv(), desktop: false });
       assert.strictEqual(r.ok, false);
       assert.ok(r.steps.some((s) => !s.ok && /entrypoint is missing/.test(s.text)));
       assert.strictEqual(r.launchers.length, 0, 'nothing may be written when the runtime is absent');
@@ -208,7 +213,7 @@ module.exports = async function () {
 
   await test('INSTALL: the report never says Ready when a new shell is needed', () => {
     const dir = tmpBin();
-    const r = install.install({ dir, env: fakeEnv() });
+    const r = install.install({ dir, env: fakeEnv(), desktop: false });
     const text = install.render(r);
     if (r.needsNewShell) {
       assert.match(text, /Open a NEW terminal/);
@@ -223,7 +228,7 @@ module.exports = async function () {
   await test('UNINSTALL: it removes what it wrote and the PATH entry', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    install.install({ dir, env });
+    install.install({ dir, env, desktop: false });
     assert.ok(fs.readdirSync(dir).length > 0);
     const r = uninstall.uninstall({ dir, env });
     assert.strictEqual(r.ok, true);
@@ -234,7 +239,7 @@ module.exports = async function () {
   await test('UNINSTALL: it never touches a file it did not write', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    install.install({ dir, env });
+    install.install({ dir, env, desktop: false });
     const mine = path.join(dir, 'my-own-script.sh');
     fs.writeFileSync(mine, 'echo hello');
     uninstall.uninstall({ dir, env });
@@ -254,10 +259,86 @@ module.exports = async function () {
   await test('UNINSTALL: running it twice is not an error', () => {
     const dir = tmpBin();
     const env = fakeEnv();
-    install.install({ dir, env });
+    install.install({ dir, env, desktop: false });
     uninstall.uninstall({ dir, env });
     const again = uninstall.uninstall({ dir, env });
     assert.strictEqual(again.ok, true);
+  });
+
+  // ------------------------------------------------- the desktop entry ------
+  //
+  // WHY THIS EXISTS AT ALL. `lain` on PATH is the CLI's story and it was the
+  // only one: LAIN.exe was written into LAIN's own directory, where nothing
+  // points at it. A Windows application you can only start by typing a path
+  // into a terminal is one you start by opening a terminal first, which is the
+  // thing the native Harness exists to make optional.
+
+  await test('DESKTOP: the Start Menu entry is written, points at LAIN.exe, and uninstall takes it away', async () => {
+    if (process.platform !== 'win32') return;
+    const shortcut = require('../../distribution/shortcut');
+    // %APPDATA% IS THE REDIRECTION. Windows resolves the per-user Start Menu
+    // through it, so pointing it at a temporary directory is the real lookup
+    // aimed somewhere harmless — not a stub of one.
+    const fake = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-appdata-'));
+    const realAppData = process.env.APPDATA;
+    process.env.APPDATA = fake;
+    try {
+      assert.ok(shortcut.shortcutPath().startsWith(fake), 'the entry is being written inside the temporary profile');
+      assert.strictEqual(shortcut.status().exists, false, 'and there is none there yet');
+
+      // A REAL .lnk, pointing at a real file — but not LAIN.exe, because
+      // building the desktop host is desktop.js's job and this case is about
+      // the shortcut. `install` refuses a target that is not there, which is
+      // the half worth proving.
+      const missing = shortcut.install({ target: path.join(fake, 'not-here.exe') });
+      assert.strictEqual(missing.ok, false, 'it will not point at something absent');
+      assert.match(missing.why, /not at/);
+
+      const target = path.join(fake, 'LAIN.exe');
+      fs.writeFileSync(target, 'MZ');
+      const made = shortcut.install({ target });
+      assert.strictEqual(made.ok, true, `the shortcut was written: ${made.why}`);
+      assert.ok(fs.existsSync(made.link), 'and it is on disk');
+      assert.strictEqual(shortcut.status().exists, true);
+
+      // IT POINTS WHERE IT SAYS. Read back through the same COM object that
+      // wrote it, because a .lnk is a binary shell structure and asserting on
+      // its bytes would be asserting on a format nobody here controls.
+      const { execFileSync } = require('child_process');
+      const read = execFileSync('powershell', ['-NoProfile', '-Command',
+        `(New-Object -ComObject WScript.Shell).CreateShortcut(${JSON.stringify(made.link)}).TargetPath`],
+      { encoding: 'utf8' }).trim();
+      // REAL PATHS ON BOTH SIDES. `os.tmpdir()` hands back the 8.3 form
+      // (HARTEZ~1) and the shell stores the long one — the same file, spelled
+      // two ways, which is a difference about Windows and not about the
+      // shortcut.
+      const real = (p) => { try { return fs.realpathSync.native(p).toLowerCase(); } catch { return p.toLowerCase(); } };
+      assert.strictEqual(real(read), real(target), 'the shortcut points at LAIN.exe');
+
+      // WRITING IT AGAIN IS NOT AN ERROR, and does not make a second one.
+      assert.strictEqual(shortcut.install({ target }).ok, true);
+      assert.strictEqual(fs.readdirSync(shortcut.menuDir()).filter((f) => f === shortcut.NAME).length, 1);
+
+      // AND UNINSTALL TAKES IT AWAY — twice, because doing it twice is not an
+      // error either.
+      const gone = uninstall.uninstall({ dir: tmpBin(), env: fakeEnv() });
+      assert.strictEqual(shortcut.status().exists, false, 'the entry is gone');
+      assert.ok(gone.steps.some((s) => /Start Menu/.test(s.text)), 'and the uninstall said so');
+      assert.strictEqual(uninstall.uninstall({ dir: tmpBin(), env: fakeEnv() }).ok, true);
+    } finally {
+      if (realAppData === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = realAppData;
+      try { fs.rmSync(fake, { recursive: true, force: true }); } catch { /* temp */ }
+    }
+  });
+
+  await test('DESKTOP: an install can decline it, and never fails because of it', () => {
+    const dir = tmpBin();
+    const env = fakeEnv();
+    const r = install.install({ dir, env, desktop: false });
+    assert.strictEqual(r.desktop, null, 'no desktop was installed');
+    assert.strictEqual(r.shortcut, null);
+    assert.strictEqual(r.ok, true, 'and the install is still a success — the CLI is the product here');
   });
 
   // ------------------------------------------------- the unix profile half --
@@ -493,6 +574,21 @@ module.exports = async function () {
     }
     for (const banned of ['tests/', 'bench/', 'rust/', 'v1-backup/', '.lain-probe/']) {
       assert.ok(!pkg.files.includes(banned), `${banned} must not be published`);
+    }
+
+    // ---- LAIN DESKTOP SHIPS ITS SOURCE, NOT ITS BINARIES --------------
+    //
+    // The native host is compiled on the machine that runs it, by the compiler
+    // Windows already has — the same arrangement the Computer MCP bridge uses.
+    // So the package must carry `native/host.cs`, or an installed LAIN can
+    // never build the application; and it must NOT carry `native/vendor/`,
+    // which is fetched, pinned and hashed per machine. Publishing those DLLs
+    // would put a third party's binaries inside LAIN's own package.
+    for (const needed of ['native/host.cs', 'native/vendor.js']) {
+      assert.ok(pkg.files.includes(needed), `the package must ship ${needed} — LAIN Desktop is built from it`);
+    }
+    for (const banned of ['native/', 'native/vendor/', 'native/vendor']) {
+      assert.ok(!pkg.files.includes(banned), `${banned} would publish vendored binaries`);
     }
   });
 

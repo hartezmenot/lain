@@ -59,14 +59,11 @@ const CLEAR = '\x1b[2J';
 
 function at(row, col) { return `\x1b[${row};${col}H`; }
 
-const EOL = '\x1b[K';   // erase-to-end-of-line
-
-// A DRAWN ROW, ERASED TO ITS RIGHT instead of the whole screen being cleared
-// first, which is what made every keystroke or streamed token blank the
-// terminal for a moment — the reported flicker. Unneeded: `geometry()` fixes
-// every region's row count, summing to `this.rows`, so every row repaints
-// every frame regardless of content. A real RESIZE still clears — `_onResize`.
-function L(s) { return s + EOL; }
+// A DRAWN ROW, repainted in place rather than the whole screen being cleared
+// first (the reported flicker): `geometry()` fixes every region's row count,
+// summing to `this.rows`, so every row repaints every frame. Each row owns its
+// WHOLE terminal line, gutter included — see ui/frameout.js for the defect.
+const L = require('./frameout').row;
 
 /**
  * THE ONE RULE ON THE SCREEN — the line under the header.
@@ -414,6 +411,7 @@ class Screen {
       connection: this.state.connection,
       output: this.state.output,
       width: box.width,
+      run: this.state.run || null,
     });
     let row = 1;
     buf.push(L(at(row++, col0) + views.clip(head[0] || '', box.width)));
@@ -460,6 +458,7 @@ class Screen {
     // FOLLOWING ALSO MEANS NOTHING IS UNREAD: the anchor moves with the view
     // while the view is at the bottom, so `↓ N new` counts from the moment the
     // user scrolled away rather than from whenever they last pressed End.
+    require('./difftoggle').landing(this, lines, feedRows);   // a diff just opened lands on its hunk
     const maxScroll = Math.max(0, lines.length - feedRows);
     if (this.stickToBottom) {
       this.workspaceScroll = maxScroll;
@@ -541,7 +540,8 @@ class Screen {
       const jlines = require('./jobsview').draw(this.statusState(), box.width, g.jobRows);
       for (let i = 0; i < g.jobRows; i++) buf.push(L(at(row++, col0) + views.clip(jlines[i] || '', box.width)));
     }
-
+    this.rowMap.activityRows = g.activityRows || 0;   // the transient ACTIVITY box — ui/activitybox.js
+    for (const l of require('./activitybox').draw(this.statusState(), box.width, g.activityRows || 0)) buf.push(L(at(row++, col0) + views.clip(l, box.width)));
     // ---- INTERACTION PANEL (hidden / compact / expanded) ----
     //
     // ABOVE THE INPUT, AND THIS ORDER IS THE POINT.
@@ -685,7 +685,8 @@ class Screen {
     //
     // BEFORE the identical-frame comparison, so the cache holds what was
     // actually written and a redaction can never be skipped by it.
-    const frame = redact.text(buf.join(''));
+    // No control byte reaches the terminal as a control — ui/frameout.js.
+    const frame = require('./frameout').sanitize(redact.text(buf.join('')));
     if (frame === this._lastFrame) { this.out.write(park); return; }
     this._lastFrame = frame;
     this.out.write(HIDE_CUR + frame + park);

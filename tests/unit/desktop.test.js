@@ -219,11 +219,25 @@ module.exports = async function () {
       const r = await b.call('process.inject', { pid: 1 });
       assert.strictEqual(r.ok, false);
       assert.match(r.error, /unknown desktop operation/);
-      // The seam is SCREEN / MOUSE / KEYBOARD / WINDOW. Nothing else is callable.
+      // THE SEAM IS SCREEN / MOUSE / KEYBOARD / WINDOW / CLIPBOARD, AND THE
+      // ACCESSIBILITY TREE. Nothing else is callable — and in particular the
+      // things Computer MCP V1 is defined NOT to do stay uncallable, which is
+      // what `process.inject` above stands for.
       assert.deepStrictEqual(Object.keys(mcp.OPS).sort(), [
-        'keyboard.key', 'keyboard.type', 'mouse.click', 'mouse.move',
-        'screen.capture', 'window.focus', 'window.list',
+        'clipboard.read', 'clipboard.write', 'cursor.get', 'displays',
+        'keyboard.key', 'keyboard.type',
+        'mouse.click', 'mouse.drag', 'mouse.move', 'mouse.scroll',
+        'screen.capture',
+        'uia.find', 'uia.focus', 'uia.getValue', 'uia.invoke', 'uia.setValue', 'uia.tree',
+        'wait.control', 'wait.gone', 'wait.window',
+        'window.active', 'window.close', 'window.focus', 'window.list',
       ]);
+      // NO MEMORY, NO PROCESS INTERNALS, NO INJECTION. V1 draws this line on
+      // purpose; an operation added here that crosses it fails this assertion.
+      for (const op of Object.keys(mcp.OPS)) {
+        assert.ok(!/(memory|inject|pointer|scan|dll|process\.)/i.test(op),
+          `${op} is outside what this seam is allowed to be`);
+      }
     } finally { b.close(); }
   });
 

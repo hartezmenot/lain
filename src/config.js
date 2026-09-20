@@ -107,8 +107,11 @@ function load() {
   let saved = {};
   try { saved = JSON.parse(fs.readFileSync(configFile(), 'utf8')); } catch { saved = {}; }
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) saved = {};
-  return { ...DEFAULTS, ...retireLegacyStepLimit(saved) };
+  const retired = require('./retired');
+  if (!purgedCaches) { purgedCaches = true; retired.purgeCaches(path.join(configDir(), 'catalog')); }
+  return retired.prune({ ...DEFAULTS, ...retireLegacyStepLimit(saved) });
 }
+let purgedCaches = false;
 
 function save(cfg) {
   const dir = configDir();

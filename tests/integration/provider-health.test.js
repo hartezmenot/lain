@@ -94,9 +94,11 @@ module.exports = async function () {
       const took = fresh.hydrate(rows.providers);
 
       assert.strictEqual(took.limited, 1, 'the limit was still there to be read');
-      const gate = fresh.shouldAttempt('omniroute-main');
-      assert.strictEqual(gate.allow, false, 'and the new process knows the door is shut');
-      assert.ok(gate.retryAfterMs > 3.9 * HOUR, `with the real time left, got ${gate.retryAfterMs}`);
+      // §48 (2026-09-18): KNOWN, as history — never a live limit in a restarted
+      // runtime. The next real request re-establishes the live state.
+      const e = fresh.get('omniroute-main');
+      assert.ok(e.historicalLimit && e.historicalLimit.resumeAt - Date.now() > 3.9 * HOUR, 'the real time left is kept for /provider');
+      assert.strictEqual(fresh.shouldAttempt('omniroute-main').allow, true, 'but the restarted runtime does not shut the door on it');
 
       await supervisor.shutdown();
     });
@@ -278,7 +280,10 @@ module.exports = async function () {
         turns: [{ model: 'model-a', stopReason: 'provider', steps: 4, actions: [] }],
       }, { toModel: 'model-b', providers: rows });
 
-      assert.ok(/taking over this task from a different model/.test(packet));
+      assert.ok(/continuing this task from a different model/.test(packet),
+        'model B must be told whose work it is continuing');
+      assert.match(packet, /provenance, not ownership/i,
+        'and that earlier work is provenance, not property — Regression #3');
       assert.ok(/Routes that are closed right now/.test(packet), 'the section is present');
       assert.ok(/omniroute-main/.test(packet), 'and names the route');
       assert.ok(/clears in (2h|3h)/.test(packet), `with a real clock: ${packet}`);

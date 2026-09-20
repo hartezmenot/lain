@@ -178,16 +178,15 @@ module.exports = async function () {
     assert.strictEqual(buf, `check this ${big}`);
   });
 
-  await test('PASTE: the CONVERSATION shows the wall, because it is the record', () => {
+  await test('PASTE: the conversation anchors a pasted request in ONE row; the record keeps the wall', () => {
     feedcache.reset();
     const big = Array.from({ length: 40 }, (_, i) => `pasted line ${i + 1} with enough content to wrap`).join(NL);
     const rows = views.activity({
       session: { turns: [{ userInput: big, text: 'Read it.', narration: [{ step: 0, text: 'Read it.' }], actions: [] }] },
       width: 90,
     }).map(strip);
-    assert.ok(rows.some((r) => /USER REQUEST/.test(r)), 'named as a request rather than a message');
-    assert.ok(!rows.some((r) => /pasted text/.test(r)), 'the record is not collapsed');
-    assert.ok(rows.filter((r) => /pasted line \d+ with enough content/.test(r)).length > 1,
-      'the payload the user actually sent is what the transcript shows');
+    assert.strictEqual(rows.filter((r) => /USER REQUEST/.test(r)).length, 1, 'named as a request, in one anchor row');
+    assert.ok(rows.filter((r) => /pasted line \d+ with enough content/.test(r)).length <= 1,
+      'the wall is not re-drawn into the conversation (it stays on the turn record)');
   });
 };

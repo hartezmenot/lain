@@ -100,9 +100,22 @@ module.exports = async function () {
     assert.strictEqual(same, '', 'same model, finished turn: there is nothing to hand over');
 
     const other = handover.build(s, { cwd: root, checkpoints: cp, toModel: 'model-B' });
-    assert.ok(/taking over this task from a different model \(model-A\)/.test(other),
-      'a different model must be told it is taking over');
+    assert.ok(/continuing this task from a different model \(model-A\)/.test(other),
+      'a different model must be told whose work it is continuing');
     assert.ok(/fix the loader/.test(other), 'and the task continues — it is not a new session');
+    // ---- REGRESSION #3: PROVENANCE IS NOT OWNERSHIP ---------------------
+    //
+    // The packet used to say only that a different model had been here, and
+    // that is exactly the sentence a receiving model reads as SOMEBODY
+    // ELSE'S PROPERTY — observed as a model declining to repair a bug
+    // because the code it ran through had been written by its predecessor.
+    // The authority has to be stated, not implied.
+    assert.match(other, /provenance, not ownership/i,
+      'the packet must say outright that previous work is not owned');
+    assert.match(other, /TASK is unchanged and is still active/,
+      'and that the task survived the executor change');
+    assert.match(other, /Continue from the state below rather than restarting/,
+      'a handover that invites a restart is the failure, not the fix');
   });
 
   await test('HANDOVER-5: session state carries no model or provider, so a switch cannot reset it', () => {

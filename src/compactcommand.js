@@ -1,8 +1,9 @@
 'use strict';
 
 /** `/compact`: manual use of the ONE context authority that may compact. */
-function register({ define, DURING_TURN, C }) {
+function register({ define, DURING_TURN, C, FLASH_MS }) {
   define('/compact', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     surface: true,
     duringTurn: DURING_TURN.BLOCKED,
     desc: 'Shrink the conversation to fit the window (local, costs no tokens)',

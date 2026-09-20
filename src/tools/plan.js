@@ -1,5 +1,11 @@
 'use strict';
 
+/** Implementation work ends on the FINAL SMOKE step (finalsmoke.js). */
+function terminalSmoke(session) {
+  const cls = session && session.taskClassVerdict && session.taskClassVerdict.cls;
+  if (cls === 'PROJECT_IMPLEMENTATION') require('../finalsmoke').ensureTerminal(session.plan, session.cwd);
+}
+
 /**
  * THE PLAN, REACHABLE BY THE MODEL.
  *
@@ -66,7 +72,28 @@ const tools = {
             items: { type: 'string' },
             description: 'the remaining steps, in order, each one short and concrete',
           },
-          objective: { type: 'string', description: 'optional one-line restatement of the goal' },
+          /**
+           * KEPT IN THE SCHEMA, DEMOTED IN MEANING.
+           *
+           * It used to read "optional one-line restatement of the goal", which
+           * invited the model to write a THIRD objective-shaped field beside the
+           * user's goal and the task — and nothing compared them, so this could
+           * silently coexist:
+           *
+           *     GOAL   stabilise provider continuation
+           *     TASK   repair handover
+           *     PLAN   redesign frontend
+           *
+           * The description now says what the field is for, and the run() below
+           * refuses to let it become authority. Removing the parameter outright
+           * would break every model that has learned to send it; accepting it
+           * and not trusting it costs nothing and keeps the wire compatible.
+           */
+          objective: {
+            type: 'string',
+            description: 'optional short LABEL for this plan, for display. It is not the goal and not '
+              + 'the task: LAIN owns those, and a label that contradicts them is ignored.',
+          },
         },
         required: ['steps'],
       },
@@ -81,14 +108,39 @@ const tools = {
         .slice(0, MAX_STEPS);
       if (!steps.length) return { output: 'plan_write needs at least one non-empty step', isError: true };
 
-      const objective = String(input.objective || (session.task && session.task.objective) || '').trim();
+      // ---- THE PLAN'S LABEL IS NOT AN AUTHORITY -----------------------------
+      //
+      // This line used to be `input.objective || session.task.objective` — the
+      // model's word FIRST, the task's only as a fallback. So a plan could be
+      // filed under an objective that contradicted the task it was supposed to
+      // serve, and nothing in the tree compared the two.
+      //
+      // The order is now inverted and the model's version is CHECKED rather than
+      // preferred. A label that shares no content with the task or the goal is
+      // reported back and dropped; the plan is still written, because the STEPS
+      // are the useful part and refusing them over a label would lose real work
+      // for a display string. See src/authority.js `contradictions`.
+      const authority = require('../authority');
+      const stated = String(input.objective || '').trim();
+      const derived = String((session.task && session.task.objective) || '').trim();
+      const clash = stated ? authority.contradictions(session, { planObjective: stated }) : [];
+      const objective = (stated && !clash.length) ? stated : derived;
+      // WHAT THE MODEL IS TOLD when its label was dropped. Not an error: the
+      // plan landed. It is a correction, and it names the authority it lost to,
+      // so the next call does not repeat it.
+      const note = clash.length
+        ? ` — the objective you gave ("${clash[0].stated}") was not kept: it contradicts the `
+          + `${clash[0].contradicts} ("${clash[0].authority}"), which LAIN owns. The plan is filed `
+          + 'under that instead. Use plan steps to say HOW; the goal and the task belong to the user.'
+        : '';
 
       if (!session.plan) {
         session.plan = new Plan(objective);
         session.plan.addSteps(steps);
+        terminalSmoke(session);
         return {
-          output: `plan recorded — ${steps.length} step(s). Step 1: ${steps[0]}`,
-          meta: { steps: steps.length, completed: 0 },
+          output: `plan recorded — ${steps.length} step(s). Step 1: ${steps[0]}${note}`,
+          meta: { steps: steps.length, completed: 0, objectiveRejected: clash.length > 0 },
         };
       }
 
@@ -109,11 +161,68 @@ const tools = {
       }
       const openBefore = plan.remaining.map((s) => s.n);
       plan.steer('plan revised by the model', { drop: openBefore, append: steps });
+      terminalSmoke(session);
       const cur = plan.current();
       return {
         output: `plan revised — ${plan.completed.length} step(s) already done are unchanged, `
           + `${steps.length} step(s) now ahead.${cur ? ` Next: ${cur.text}` : ''}`,
         meta: { steps: plan.steps.length, completed: plan.completed.length },
+      };
+    },
+  },
+
+  /**
+   * WHAT THIS STEP HAS ALREADY ESTABLISHED.
+   *
+   * ------------------------------------------------------------------------
+   * IT EXISTS SO A LONG STEP STOPS RE-DERIVING ITS OWN CONCLUSIONS.
+   *
+   * Facts settled early in a step live in the conversation, and the
+   * conversation is the thing that gets shortened — by compaction, by a
+   * rate-limit resume, by a continuation across a context boundary. What comes
+   * back is a model that reads the same four files to rediscover the same four
+   * facts, busily, without moving. See src/planfindings.js.
+   *
+   * WRITING HERE IS CHEAP AND BOUNDED: one short line per fact, capped, kept on
+   * the step and persisted with the plan. It is not a scratchpad — a finding
+   * that does not fit on a line was not a finding.
+   */
+  plan_findings: {
+    mutates: false,
+    schema: {
+      name: 'plan_findings',
+      description:
+        'Record what the CURRENT plan step has already established, so it is not re-derived after a '
+        + 'compaction or a resume. Use short factual lines. `settled` = decisions that no '
+        + 'longer need working out; `landed` = what is already written to disk; `remaining` = what this step '
+        + 'still owes (this one REPLACES what was there, so it can shrink); `evidence` = pointers such as a '
+        + 'file, a symbol or a command. Call it when you settle something worth not losing.',
+      parameters: {
+        type: 'object',
+        properties: {
+          settled: { type: 'array', items: { type: 'string' }, description: 'decisions that are now fixed' },
+          landed: { type: 'array', items: { type: 'string' }, description: 'changes already on disk' },
+          remaining: { type: 'array', items: { type: 'string' }, description: 'what this step still owes — replaces the previous list' },
+          evidence: { type: 'array', items: { type: 'string' }, description: 'pointers: file, symbol, command' },
+        },
+      },
+    },
+    async run(input, ctx) {
+      const session = sessionOf(ctx);
+      if (!session) return { output: 'no session is active', isError: true };
+      const plan = session.plan;
+      if (!plan || !plan.steps.length) {
+        return { output: 'there is no plan — plan_findings records what a STEP established, so write a plan first', isError: true };
+      }
+      const step = plan.current();
+      if (!step) return { output: 'every step in the plan is already done', isError: true };
+      const findings = require('../planfindings');
+      const rec = findings.record(step, input || {});
+      try { session.save(); } catch { /* the record survives in memory either way */ }
+      const counts = findings.FIELDS.map((f) => `${f} ${rec[f].length}`).join(' · ');
+      return {
+        output: `recorded against step ${step.n} (${counts}). This survives compaction and resume — do not re-derive it.`,
+        meta: { step: step.n, ...Object.fromEntries(findings.FIELDS.map((f) => [f, rec[f].length])) },
       };
     },
   },

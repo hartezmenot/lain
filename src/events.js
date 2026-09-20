@@ -46,8 +46,6 @@ const EVENT = Object.freeze({
   QUESTION_RESOLVED: 'question.resolved',
   JOB_STARTED: 'job.started',
   JOB_COMPLETED: 'job.completed',
-  VISUAL_PRESENTED: 'visual.presented',
-  VISUAL_JUDGED: 'visual.judged',
   WAITING_FOR_USER: 'waiting_for_user',
   TASK_COMPLETED: 'task.completed',
   TASK_FAILED: 'task.failed',

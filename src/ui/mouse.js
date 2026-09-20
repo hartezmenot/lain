@@ -85,6 +85,24 @@ function recallAt(screen, y) {
  * the row is drawn (ui/feed.js) and rebased where the pane is assembled
  * (ui/conversation.js).
  */
+/**
+ * The [Diff] control on row `y` — only when the click lands ON the control.
+ * The file name on the same row still opens the file (§15, §17).
+ */
+function diffAt(screen, y, x = null) {
+  const lines = screen.lastFeedLines;
+  if (!lines || !lines.diffAt) return null;
+  const at = require('./textselect').lineForRow(screen.rowMap, screen.rowMap.feedScroll || 0, y);
+  const d = at == null ? null : lines.diffAt[at];
+  if (!d) return null;
+  if (x != null && d.col != null && d.col >= 0) {
+    const within = x - (screen.rowMap.contentCol || 1);
+    if (within < d.col - 1) return null;
+  }
+  // `full` marks the `[Show all]` row of a bounded diff — ui/difftoggle.js.
+  return { turn: d.turn, path: d.path, ...(d.full ? { full: true } : {}), ...(d.shown != null ? { shown: d.shown } : {}) };
+}
+
 function fileAt(screen, y) {
   const lines = screen.lastFeedLines;
   if (!lines || !lines.fileAt) return null;
@@ -102,11 +120,11 @@ function fileAt(screen, y) {
  * what LAIN did was inert: a list of filenames that looked like an index and
  * behaved like a paragraph.
  *
- * WHAT IT OPENS INTO IS NOT NEW. `ui.showRead` is the same temporary window the
- * read tool already opens when LAIN reads a file for itself — it animates in,
- * it dismisses itself, and it is already the established way this program shows
- * a file. Inventing a second viewer for the same content would be two things to
- * keep in step.
+ * WHAT IT OPENS INTO IS THE ONE PANEL. It used to be `ui.showRead`, the
+ * temporary read window — an animation attached to the activity timeline. With
+ * the timeline showing real state and no performance, that window is never
+ * drawn, so the file opens in the same OUTPUT panel `/status` uses: it stays
+ * until Esc, and it scrolls.
  *
  * BOUNDED, because a click is not a reason to load a hundred megabytes into a
  * pane, and SILENT ON FAILURE for a file that has since been deleted or moved:
@@ -116,10 +134,17 @@ function fileAt(screen, y) {
 const MAX_PEEK_BYTES = 400_000;
 
 function openFile(ui, rel) {
-  if (!rel || !ui.app || typeof ui.showRead !== 'function') return false;
+  const panel = ui.screen && ui.screen.panel;
+  if (!rel || !ui.app || !panel) return false;
+  // A QUESTION WITH A CALLER BEHIND IT IS NEVER COVERED by a file somebody clicked.
+  if (panel.visible && !panel.isPassive) return false;
   const path = require('path');
   const fs = require('fs');
   const base = (ui.app.session && ui.app.session.cwd) || ui.app.cwd || process.cwd();
+  // `src/foo.ts:84` OPENS AT LINE 84 (§17) — the same temporary view.
+  const ref = /^(.*?):(\d{1,6})$/.exec(String(rel));
+  const line = ref ? Number(ref[2]) : 0;
+  if (ref) rel = ref[1];
   const abs = path.isAbsolute(rel) ? rel : path.resolve(base, rel);
   try {
     const st = fs.statSync(abs);
@@ -127,7 +152,16 @@ function openFile(ui, rel) {
     const text = st.size > MAX_PEEK_BYTES
       ? fs.readFileSync(abs, 'utf8').slice(0, MAX_PEEK_BYTES)
       : fs.readFileSync(abs, 'utf8');
-    ui.showRead(rel, text);
+    const adapter = require('./adapters').outputAdapter({ title: rel, lines: [] });
+    // THE FILE AS IT IS: its own case in the title, and its blank lines kept.
+    adapter.title = rel;
+    adapter.keepCase = true;
+    const rows = text.replace(/\r\n/g, '\n').split('\n');
+    // Numbered when opened at a line, so the referenced row is findable at a glance.
+    adapter.items = rows.map((l, i) => ({ label: (line ? `${String(i + 1).padStart(5)}${i + 1 === line ? ' ▶ ' : '   '}` : '') + (l.replace(/\s+$/, '') || ' '), selectable: false }));
+    if (line) adapter.title = `${rel}:${line}`;
+    panel.open(adapter);
+    if (line) panel.scroll = Math.max(0, Math.min(rows.length - 1, line - 4));
     return true;
   } catch {
     return false;
@@ -230,6 +264,15 @@ function handleMouse(ui, ev) {
       // target: a message that happens to mention a filename is still a
       // message, and putting it back on the input line is what a click on it
       // has always meant.
+      // ---- [Diff] / [× Diff] TOGGLES THE TRANSIENT DIFF (ui/difftoggle.js) ----
+      if (!text && ui._toggleDiff) {
+        require('./difftoggle').toggle(screen, ui._toggleDiff);
+        ui._toggleDiff = null; ui._openFile = null; ui._recallSaid = null;
+        if (screen.clearSelection) screen.clearSelection();
+        ui.refresh();
+        return true;
+      }
+      ui._toggleDiff = null;
       if (!text && ui._openFile) {
         const opened = openFile(ui, ui._openFile);
         ui._openFile = null;
@@ -310,6 +353,14 @@ function handleMouse(ui, ev) {
     const bodyTop = m.panelStart + 3;                 // border, title, separator
     const idx = screen.panel.scroll + (y - bodyTop);
     const item = screen.panel.items[idx];
+    // A FRAME MAY OWN ITS CLICKS — a shelf's action buttons (ui/shelf.js). The
+    // column is measured from the row text, past the panel indent and marker.
+    const frame = screen.panel.frame;
+    if (frame && typeof frame.onClick === 'function') {
+      frame.onClick(item, x - (m.panelCol || 1) - 4, { panel: screen.panel, index: idx });
+      ui.refresh();
+      return true;
+    }
     if (item && item.selectable !== false) {
       screen.panel.cursor = idx;
       ui.refresh();
@@ -359,6 +410,7 @@ function handleMouse(ui, ev) {
   // ARMED THE SAME WAY, for the same reason: a press that turns into a drag
   // is a selection, not a click, and must not open anything.
   ui._openFile = fileAt(screen, y);
+  ui._toggleDiff = diffAt(screen, y, x);
 
   // ---- A PRESS IN THE FEED BEGINS A TEXT SELECTION -----------------------
   //

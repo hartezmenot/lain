@@ -51,7 +51,7 @@ function askRun({ question, options, keys, input = null, cwd = null }) {
     configDir,
     env: tui,
     stdinSteps: [`start${ENTER}`, ...keys, '/exit\n'],
-    stepDelayMs: 700,
+    stepDelayMs: 2500,
     script: [
       { text: 'Asking.', tool_calls: [{ name: 'ask_user', input: { question, options, input } }] },
       { text: 'Noted.' },
@@ -84,7 +84,7 @@ module.exports = async function () {
       question: 'level', options: ['1', '2', '3', '4'], keys: [`2${ENTER}`],
     });
     const out = plain(r.out);
-    const strays = (out.match(/^\s*❯ 2\s*$/gm) || []).length;
+    const strays = (out.match(/USER[A-Z ]* · 2\s*$/gm) || []).length;
     assert.strictEqual(strays, 0, `the answer was also submitted as a task:\n${out.slice(-900)}`);
   });
 

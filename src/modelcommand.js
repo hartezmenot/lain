@@ -27,6 +27,13 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // there is no way to guess which one a person will reach for, and they run
     // the same code — there is one registry.
     if (rest.trim().toLowerCase() === 'refresh') { await refreshCatalog(app); return; }
+    // ---- MODELS FIRST; SOURCES ARE SECONDARY (§54–55) -----------------------
+    //
+    // This used to open a "Model source" shelf — LAIN · ChatGPT.com ·
+    // Gemini.google.com — before any model, flattening SOURCES into the place a
+    // person looks for MODELS. `/model` is now "Search models…" straight away;
+    // the website sources are reached with the `external:` filter (or /source),
+    // where each is one secondary row. See ui/adapters.js modelsAdapter.
     // A picker with nothing in it is not an answer. If no route has ever been
     // asked what it serves, ask now — this is the moment the list is needed.
     await app.ensureCatalog();
@@ -59,7 +66,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       // not the display id, which may carry a route namespace.
       const byId = new Map(app.connections().map((c) => [c.id, c]));
       const readinessOf = (c) => (byId.get(c.baseConnectionId) || {}).readiness || 'unknown';
-      const availabilityOf = (c) => app.availability.get(c.baseConnectionId).status;
+      const availabilityOf = (c) => app.availability.getFor(c.baseConnectionId, c.modelId).status;
       // ONE builder, used both to open the browser and to rebuild it as the
       // user types. Effort now travels with the route choice, so picking in the
       // browser settles model, connection and level in a single act.
@@ -75,8 +82,10 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on
         // it, and "rate limited" without "clears in 3h 59m" is the half of the
         // fact that does not help anybody choose.
-        availabilityRaw: (c) => app.availability.get(c.baseConnectionId),
+        availabilityRaw: (c) => app.availability.getFor(c.baseConnectionId, c.modelId),
         isNew,
+        externalSources: externalSources(app),
+        sourceIssues: require('./catalogstate').issues(app.connections()),
         onPickRoute: (model, conn, effort) => {
           app.cfg.model = model.id;
           app.cfg.connection = conn.connectionId;
@@ -103,6 +112,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       // submitted as `qwen free/status`.
       if (app.input) app.input.setLine('');
       else app.ui.setInput('');
+      if (picked && picked.source) { await pickSource(app, picked.source); return; }
       // DID MY MODEL ACTUALLY CHANGE? Answered on the spot, in the words the
       // picker used — not left for the user to go and check with /status. The
       // header updates too; this is the receipt for the action just taken.
@@ -123,7 +133,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     }
     if (!cat.models.length) {
       w(C.dim('\n  No models. Declare a connection in ' + config.configFile() + ':\n'));
-      w(C.dim('    { "connections": { "omniroute": { "provider": "anthropic", "via": "bridge",\n'));
+      w(C.dim('    { "connections": { "my-gateway": { "provider": "anthropic", "via": "bridge",\n'));
       w(C.dim('        "baseUrl": "http://localhost:20128/v1" } } }\n'));
       w(C.dim('\n  A connection with a baseUrl is asked what it serves; listing "models" is optional.\n'));
       w(C.dim('  /provider refresh <id> re-reads a route\'s catalog.\n'));
@@ -211,11 +221,11 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         model: m,
         currentConnection: app.cfg.connection,
         readinessOf: (c) => (byId.get(c.baseConnectionId) || {}).readiness || 'unknown',
-        availabilityOf: (c) => app.availability.get(c.baseConnectionId).status,
+        availabilityOf: (c) => app.availability.getFor(c.baseConnectionId, c.modelId).status,
         // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on
         // it, and "rate limited" without "clears in 3h 59m" is the half of the
         // fact that does not help you choose.
-        availabilityRaw: (c) => app.availability.get(c.baseConnectionId),
+        availabilityRaw: (c) => app.availability.getFor(c.baseConnectionId, c.modelId),
         onPickRoute: (_model, c) => { picked = c; },
       }));
       // ESCAPE CHANGES NOTHING. Cancelling a question is not an instruction to
@@ -240,13 +250,96 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // that there were other routes.
     if (m.connections.length > 1) {
       w(C.dim(`  ${m.connections.length} routes serve this model:\n`));
-      for (const c of m.connections) {
-        const a = app.availability.get(c.connectionId);
+      // FREE/PAID IS THE ONE SPLIT §57 ASKS FOR, and only when the user's own
+      // config actually said which route is which (catalog.js `tier`) — an
+      // unset tier is never guessed, so a model with no known tiers keeps its
+      // old flat list exactly as before.
+      const known = m.connections.filter((c) => c.tier).length;
+      const printRow = (c) => {
+        const a = app.availability.getFor(c.baseConnectionId || c.connectionId, c.modelId);
         w(C.dim(`    ${c.connectionId === conn.connectionId ? '●' : ' '} ${c.connectionId.padEnd(22)}${c.provider} · ${c.via} · ${a.status}`) + '\n');
+      };
+      if (known >= 2) {
+        for (const tier of ['free', 'paid']) {
+          const rows = m.connections.filter((c) => c.tier === tier);
+          if (!rows.length) continue;
+          w(C.dim(`  ${tier.toUpperCase()}\n`));
+          for (const c of rows) printRow(c);
+        }
+        for (const c of m.connections.filter((c) => !c.tier)) printRow(c);
+      } else {
+        for (const c of m.connections) printRow(c);
       }
       w(C.dim(`  /models ${query} <connection> picks a different one.\n`));
     }
     if (conn.efforts.length) w(C.dim(`  efforts on this route: ${conn.efforts.join(', ')}  ·  /effort to choose\n`));
 }
 
-module.exports = { pickCommand };
+/**
+ * THE SOURCE SHELF, then — for a website — its account's models.
+ *
+ * @returns {Promise<'lain'|'web'|null>} 'lain' to continue into the catalog
+ *   browser; 'web' when a website source was handled here; null when closed.
+ */
+/** The website sources, as secondary rows for the `external:` filter. */
+function externalSources(app) {
+  try {
+    const { SOURCE, LABEL } = require('./modelsource/contract');
+    const current = require('./modelsource/registry').selectedId(app);
+    return [SOURCE.CHATGPT_WEB, SOURCE.GEMINI_WEB].map((id) => ({ id, label: LABEL[id] || id, current: id === current }));
+  } catch { return []; }
+}
+
+async function pickSource(app, preset = null) {
+  const registry = require('./modelsource/registry');
+  const { SOURCE, LABEL, MODEL_STATE } = require('./modelsource/contract');
+  const { shelf } = require('./ui/shelf');
+  const current = registry.selectedId(app);
+  const ids = [SOURCE.LAIN, SOURCE.CHATGPT_WEB, SOURCE.GEMINI_WEB];
+  const picked = preset ? { choice: preset } : await app.ui.ask(shelf({
+    title: 'Model source',
+    choices: ids.map((id) => ({ label: LABEL[id] || id, value: id, detail: id === current ? '· current' : '' })),
+    cursor: Math.max(0, ids.indexOf(current)),
+    actions: [{ label: 'Choose model', value: 'choose' }],
+    footer: '↑↓ source · Enter choose model · Esc close',
+  }));
+  if (!picked || !picked.choice) return null;
+  const r = registry.selectSource(app, picked.choice);
+  if (!r.ok) { app.transient('warn', r.why); return null; }
+  try { app.session.save(); } catch { /* the selection still holds for this run */ }
+  if (picked.choice === SOURCE.LAIN) return 'lain';
+
+  const src = registry.get(app, picked.choice);
+  let inv = await src.discoverModels({});
+  if (!inv.ok && inv.authRequired) {
+    // CONNECT IS A DELIBERATE ACT: it opens the persistent WebModel browser for
+    // a human login, so it is offered, never started by itself.
+    const again = await app.ui.ask(shelf({
+      title: LABEL[picked.choice],
+      context: [String(inv.why || 'Sign in is required to read this account\'s models.')],
+      actions: [{ label: 'Connect', value: 'connect' }],
+    }));
+    if (!again) return 'web';
+    const st = await src.connect();
+    if (st.state !== 'READY') { app.transient('warn', `${LABEL[picked.choice]}: ${st.state}${st.why ? ` — ${st.why}` : ''}`); return 'web'; }
+    inv = await src.discoverModels({ refresh: true });
+  }
+  if (!inv.ok) { app.transient('warn', `${LABEL[picked.choice]}: ${inv.why}`); return 'web'; }
+  const chosen = src.selectedModel();
+  const models = inv.models.filter((m) => m.state !== MODEL_STATE.UNAVAILABLE);
+  const m = await app.ui.ask(shelf({
+    title: `${LABEL[picked.choice]} models`,
+    choices: models.map((x) => ({ label: x.label && x.label !== x.id ? `${x.label}  (${x.id})` : x.id, value: x.id, detail: x.id === chosen ? '· current' : '' })),
+    cursor: Math.max(0, models.findIndex((x) => x.id === chosen)),
+    actions: [{ label: 'Use', value: 'use' }],
+    footer: '↑↓ model · Enter use · Esc close',
+  }));
+  if (!m || !m.choice) return 'web';
+  const sel = await src.selectModel(m.choice);
+  if (sel && sel.ok === false) app.transient('warn', sel.why || 'that model could not be selected');
+  else app.transient('info', `${LABEL[picked.choice]} · ${m.choice}`);
+  try { app.session.save(); } catch { /* the selection still holds for this run */ }
+  return 'web';
+}
+
+module.exports = { pickCommand, pickSource, externalSources };

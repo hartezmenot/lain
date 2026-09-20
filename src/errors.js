@@ -85,7 +85,7 @@ const KIND = Object.freeze({
  * retriable and is deliberately NOT matched here, while the caps that do not
  * clear are.
  */
-const QUOTA_RE = /insufficient[_ ](?:quota|credit|balance|funds)|quota[_ ]exceeded|exceeded your current quota|out of credits?|no credit(?:s)? remaining|billing[_ ](?:hard[_ ])?limit|payment required|add (?:a payment method|credits)|individual quota|reached (?:the |your )?(?:daily |monthly |hourly |weekly )?(?:request|usage|token|message|generation)s?[_ ]limit|(?:daily|monthly|weekly) (?:limit|quota) (?:reached|exceeded)|requests? per (?:day|month|week) exceeded/i;
+const QUOTA_RE = /insufficient[_ ](?:quota|credit|balance|funds)|quota[_ ]exceeded|exceeded your current quota|out of credits?|no credit(?:s)? remaining|billing[_ ](?:hard[_ ])?limit|payment required|add (?:a payment method|credits)|individual quota|reached (?:the |your )?(?:daily |monthly |hourly |weekly )?(?:request|usage|token|message|generation)s?[_ ]limit|(?:daily|monthly|weekly) (?:limit|quota) (?:reached|exceeded)|(?:usage|request|token) limit (?:has been |was )?(?:reached|exceeded)|credits? (?:exhausted|depleted)|exhausted (?:its |your |the )?credits?|requests? per (?:day|month|week) exceeded/i;
 
 /**
  * A PROVIDER SAYING IT DOES NOT SERVE THIS MODEL.
@@ -100,13 +100,104 @@ const MODEL_RE = /\b(?:model|deployment)[^.\n]{0,40}\b(?:not found|does not exis
  *  classified as transient and took the whole REPL down. */
 const TRANSPORT_RE = /(ECONNREFUSED|ECONNRESET|ECONNABORTED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|EPIPE|EHOSTUNREACH|ENETUNREACH|socket hang up|fetch failed|network|terminated)/i;
 
+/**
+ * A LIMIT THAT STATES WHEN IT ENDS, even when a gateway re-wraps it.
+ *
+ * Observed live through 9router (2026-09-18): HTTP 503 with
+ *   {"error":{"message":"[codex/gpt-5.6-luna] [429]: The usage limit has been
+ *    reached (reset after 1m 59s)"}}
+ * The router mapped the upstream 429 to 503, so this fell to the 5xx branch:
+ * shown as `Network 503`, retried at 5s, 10s, 15s… — five refusals inside the
+ * window the provider had already named. The body carries both the upstream
+ * status and the reset; they are the truth, whatever the outer status says.
+ */
+const LIMIT_WORDS_RE = /\[429\]|\b429\b|rate[_ -]?limit|usage limit|request limit|too many requests|limit (?:has been |was )?(?:reached|exceeded)/i;
+/** The longest stated reset believed at all: a quota week, with room. */
+const MAX_RESET_MS = 14 * 24 * 3600 * 1000;
+
+const UNIT_MS = (u) => {
+  const x = u.toLowerCase();
+  if (x.startsWith('w')) return 7 * 86400000;
+  if (x.startsWith('d')) return 86400000;
+  if (x.startsWith('h')) return 3600000;
+  if (x.startsWith('m')) return 60000;
+  return 1000;
+};
+const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/**
+ * WHEN THE LIMIT ENDS, in ms from `now`, or 0 when the provider did not say.
+ * Every shape seen on the wire: a duration ("reset after 1m 59s", "resets in
+ * 4h 12m", "try again in 3 days"), an ISO time ("resets at
+ * 2026-09-22T08:00:00Z"), epoch seconds ("reset": 1789900000), and a weekday
+ * with a clock ("Reset Monday 08:00"). A known reset is waited for — never
+ * hammered with a retry ladder (turn.js, ratelimit.js, availability.js).
+ */
+function resetHintMs(msg, now = Date.now()) {
+  const s = String(msg || '');
+  const dur = /(?:reset|resets|try again|retry|available again)\s*(?:after|in)?\s*:?\s*((?:\d+(?:\.\d+)?\s*(?:weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b[\s,]*(?:and\s+)?)+)/i.exec(s);
+  if (dur) {
+    let ms = 0;
+    for (const [, n, u] of dur[1].matchAll(/(\d+(?:\.\d+)?)\s*(weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b/gi)) ms += Number(n) * UNIT_MS(u);
+    return ms > 0 && ms <= MAX_RESET_MS ? Math.round(ms) : 0;
+  }
+  const iso = /(?:reset|resets|resets_at|reset_at|available again|try again)[^0-9]{0,12}(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)/i.exec(s);
+  if (iso) { const t = Date.parse(iso[1]); if (t > now && t - now <= MAX_RESET_MS) return t - now; }
+  const epoch = /(?:reset|resets_at|reset_at)["']?\s*[:=]\s*["']?(\d{10})(?:\.\d+)?\b/i.exec(s);
+  if (epoch) { const t = Number(epoch[1]) * 1000; if (t > now && t - now <= MAX_RESET_MS) return t - now; }
+  const wk = /\breset(?:s)?\s+(?:on\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday)(?:\s+(?:at\s+)?(\d{1,2}):(\d{2}))?/i.exec(s);
+  if (wk) {
+    const d = new Date(now);
+    const want = DAYS.indexOf(wk[1].toLowerCase());
+    let add = (want - d.getDay() + 7) % 7;
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + add, Number(wk[2] || 0), Number(wk[3] || 0), 0, 0);
+    if (t.getTime() <= now) t.setDate(t.getDate() + 7);
+    add = t.getTime() - now;
+    return add > 0 && add <= MAX_RESET_MS ? add : 0;
+  }
+  return 0;
+}
+
+/** Which kind of window a stated limit is, for the person reading it. */
+function limitClass(msg, resetMs) {
+  const s = String(msg || '');
+  if (/\bweekly|per week|week\b/i.test(s) || resetMs >= 3 * 86400000) return 'weekly';
+  if (/\bdaily|per day\b/i.test(s) || resetMs >= 6 * 3600000) return 'daily';
+  if (/\bhourly|per hour|5-?hour\b/i.test(s) || resetMs >= 15 * 60000) return 'hourly';
+  return 'rate';
+}
+
 function classify(err) {
   if (!err) return { kind: KIND.UNKNOWN, retriable: false, message: 'unknown error' };
   if (err.name === 'AbortError' || err.aborted) {
     return { kind: KIND.ABORTED, retriable: false, message: 'aborted' };
   }
-  const status = Number(err.status || err.statusCode) || 0;
+  const outer = Number(err.status || err.statusCode) || 0;
   const msg = String((err && err.message) || err) + ' ' + String((err && err.code) || '');
+  // ---- THE UPSTREAM'S STATUS, WHEN A ROUTER WRAPS IT -----------------------
+  //
+  // 9router answers every upstream refusal as 503 with the real status in the
+  // body: `[codex/gpt-5.6-luna] [401]: …`, `[kimchi/kimi-k3] [402]: …`,
+  // `[nvidia/z-ai/glm-5.2] [410]: Gone`. Read as 503 they were all "the
+  // network", retried up to ten times. The inner 4xx is the answer that was given.
+  const inner = outer >= 500 ? /\]\s*\[(4\d\d)\]\s*:/.exec(msg) : null;
+  const status = inner ? Number(inner[1]) : outer;
+
+  // ---- A LIMIT WITH A SHORT, STATED RESET: wait exactly that long ----------
+  const limited = status === 429 || LIMIT_WORDS_RE.test(msg);
+  const reset = limited ? resetHintMs(msg) : 0;
+  // A STATED RESET OF ANY LENGTH IS A RATE LIMIT WITH A CLOCK: waited for once
+  // in the turn when short, handed to WAIT / change-model when long
+  // (ratelimit.worthAsking), and the route stays shut until then
+  // (availability) — never a 1/10 retry ladder against a named window.
+  if (limited && reset > 0) {
+    return {
+      kind: KIND.RATE_LIMITED, retriable: true, status,
+      retryAfterMs: Math.max(retryAfterMs(err), reset), resetHintMs: reset,
+      limitClass: limitClass(msg, reset), resetSource: 'provider message',
+      message: err.message || 'rate limited',
+    };
+  }
 
   // ---- QUOTA BEFORE RATE LIMIT, because a 429 can be either ---------------
   //
@@ -193,7 +284,11 @@ function classify(err) {
  */
 function retryAfterMs(err) {
   const raw = Number(err && err.retryAfter) || 0;
-  if (raw > 0 && raw <= 3600) return raw * 1000;
+  if (raw > 0 && raw * 1000 <= MAX_RESET_MS) return raw * 1000;        // a delta, up to a quota week
+  if (raw > 1e9) {                                                     // an absolute epoch in seconds
+    const left = raw * 1000 - Date.now();
+    if (left > 0 && left <= MAX_RESET_MS) return left;
+  }
   return 0;
 }
 
@@ -270,6 +365,6 @@ function shortReason(failure) {
 }
 
 module.exports = {
-  KIND, LIMIT, LAYER, classify, explain, isProviderFailure, retryAfterMs,
+  KIND, LIMIT, LAYER, classify, explain, isProviderFailure, retryAfterMs, resetHintMs,
   retryWord, shortReason,
 };

@@ -20,7 +20,6 @@ const search = require('./search');
 const intel = require('./intel');
 const ask = require('./ask');
 const planTools = require('./plan');
-const visualTools = require('./visual');
 const jobTools = require('./jobs');
 const execTools = require('./exec');
 // SEMANTIC EDITS are always offered, like search and unlike `computer`: they
@@ -38,12 +37,6 @@ const semanticTools = require('./semantic');
 // moment that failure forms. See tools/migrate.js.
 const migrateTools = require('./migrate');
 
-// `visual_choice` is ALWAYS offered, unlike `computer`. It needs no
-// bridge — its candidates are images produced by whatever made them, a browser
-// screenshot or a Python script — and the behaviour it replaces (capture,
-// describe, adjust, repeat) is available to a model on any task with a picture
-// in it. One schema on every request against a loop that can spend a whole
-// budget is a trade worth making in one direction only.
 // `observe_*` IS ALWAYS OFFERED TOO, for the same reason and a stronger one.
 // It needs no bridge — a run that writes a log is watchable with no screen at
 // all, and the capture rules simply record NOT SEEN when nothing can look. And
@@ -81,10 +74,17 @@ const harnessTools = require('./harness');
 
 const TOOLS = {
   ...fsTools.tools, ...editTools.tools, ...search.tools, ...intel.tools, ...shell.tools,
-  ...planTools.tools, ...ask.tools, ...visualTools.tools, ...jobTools.tools,
+  ...planTools.tools, ...ask.tools, ...jobTools.tools,
   ...execTools.tools, ...observeTools.tools, ...semanticTools.tools,
   ...migrateTools.tools, ...testTools.tools, ...conceptTools.tools,
   ...harnessTools.tools,
+  // ALWAYS OFFERED: a request for a capability LAIN does not hold yet is itself
+  // a real tool call, admitted and executed — see tools/capability.js.
+  ...require('./capability').tools,
+  // Delegation to bounded subagents and the A/B candidate workflow.
+  ...require('./delegate').tools,
+  // DOWNLOAD_FILE is its own permission class; see tools/download.js.
+  ...require('./download').tools,
 };
 
 /**
@@ -121,7 +121,18 @@ function active(ctxApp) {
   // screen and input are how anyone uses a computer. (The Probe transport and
   // its `probe` tool were removed from LAIN CLI in 2026-09; the desktop bridge
   // remains the carrier.)
-  if (mcpConfigured) out = { ...out, ...require('./computer').tools };
+  // COMPUTER MCP WINS WHEN IT IS LIVE. It is the same one name, `computer`,
+  // with the structured vocabulary — a model is never offered both it and the
+  // coordinate-only one, because two ways to press a button is exactly the
+  // duplication this file exists to prevent. See src/computermcp.js.
+  const computerMcp = require('../computermcp').existing(app);
+  if (computerMcp && computerMcp.connected) out = { ...out, ...require('./computermcp').tools };
+  else if (mcpConfigured) out = { ...out, ...require('./computer').tools };
+  // LAIN FOR CHROME follows its own transport too, for the same reason: a
+  // model on an ordinary coding task is never offered control of the user's
+  // real browser. See src/lainchrome.js.
+  const lainChrome = require('../lainchrome').existing(app);
+  if (lainChrome && lainChrome.connected) out = { ...out, ...require('./chrometab').tools };
   // ---- LOOKING SOMETHING UP, and the two halves follow different rules ----
   //
   // `web_fetch` is a plain HTTP GET: no browser, no profile, no cookies. It
@@ -176,13 +187,68 @@ async function execute(name, input, ctx) {
   // the Probe integration in 2026-09 — there is no longer a second execution
   // environment to enforce a boundary for.)
 
+  // ---- A BOUNDED WORKER READS ONLY ITS ASSIGNMENT, AND RUNS NO COMMANDS ------
+  //
+  // workorderguard.js. The main executor carries no bounded order and is not
+  // affected. A shell command's targets cannot be known, so a bounded worker
+  // may not run one unless its order says so.
+  // ---- THE CHAT VIEW DISCUSSES; IT NEVER WRITES ------------------------------
+  //
+  // A Chat model proposing a patch does not gain the authority to apply it.
+  // Structural, not a prompt instruction: a mutating tool from a Chat-view turn
+  // is refused here, whatever model asked. See sessionviews.js.
+  const chatView = ctx && ctx.app && ctx.app.session && ctx.app.session.thread === 'chat';
+  if (chatView && tool.mutates) {
+    return { output: `DENIED CHAT_VIEW_READ_ONLY: ${name} changes things, and the Chat view only reads and plans. Put it in the plan; the Coding view implements it.`, isError: true, denied: true };
+  }
+  const order = ctx && ctx.workOrder;
+  if (order && order.bounded) {
+    const guard = require('../workorderguard');
+    const p = input && (input.path || input.file);
+    if (p && !tool.mutates) {
+      const ok = guard.readAllowed(order, require('path').resolve((ctx && ctx.cwd) || process.cwd(), String(p)), ctx && ctx.cwd);
+      if (!ok.ok) return { output: `DENIED ${ok.why}`, isError: true, denied: true };
+    }
+    if (tool.mutates && !require('../mutation').isSourceMutation(name) && order.allowCommands !== true) {
+      return { output: `DENIED ${guard.VERDICT.OUTSIDE_WORK_ORDER}: work order ${order.id} does not allow ${name}`, isError: true, denied: true };
+    }
+  }
+
+  // ---- THE SESSION'S EXECUTION MODE, AND WHO OWNS WHICH FILES --------------
+  //
+  // PLAN refuses anything that acts; MANUAL asks first (execmode.js). A write
+  // into files a background job or subagent holds is refused (leases.js) —
+  // the holder itself writes freely inside its own lease.
+  const modeVerdict = await require('../execmode').gate(ctx, name, tool, input);
+  if (!modeVerdict.ok) return { output: modeVerdict.output, isError: true, denied: true };
+  const exec = await require('./download').executeGuard(ctx, name, input);
+  if (exec && !exec.ok) return { output: exec.output, isError: true, denied: true };
+  if (tool.mutates) {
+    const cwd = (ctx && ctx.cwd) || process.cwd();
+    const holder = (order && order.leaseHolder) || null;
+    for (const p of require('../gate').pathsIn(input, cwd)) {
+      const l = require('../leases').check(holder, p, cwd);
+      if (!l.ok) return { output: `DENIED LEASED: ${l.why}. Work on independent files, or wait for it (/jobs).`, isError: true, denied: true };
+    }
+  }
+
   const verdict = await require('../gate').check(name, input, ctx, {
     mutates: Boolean(tool.mutates), effect: tool.effect || null, approval: tool.approval || null,
   });
   if (!verdict.ok) return { output: verdict.output, isError: true };
+  const args = input && typeof input === 'object' ? input : {};
+  // ---- ONE LIFECYCLE FOR EVERY SOURCE WRITE ---------------------------------
+  //
+  // Authority, baseline, stale check, checkpoint, apply, structural verify,
+  // refresh, verify, keep or revert, receipt — mutation.js. It runs the parse
+  // and lint rungs below itself, so a transacted write returns from here.
+  const mutation = require('../mutation');
+  if (mutation.isSourceMutation(name)) {
+    return mutation.transact({ name, input: args, ctx: ctx || {}, apply: () => tool.run(args, ctx) });
+  }
   let r;
   try {
-    r = await tool.run(input && typeof input === 'object' ? input : {}, ctx);
+    r = await tool.run(args, ctx);
     r = r && typeof r === 'object' ? r : { output: String(r == null ? '' : r) };
   } catch (e) {
     return { output: `${name} failed: ${(e && e.message) || e}`, isError: true };

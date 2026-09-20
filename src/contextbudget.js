@@ -82,7 +82,9 @@ function charsFor(pc, cfg = {}) {
   const set = Number(cfg && cfg.contextBudgetTokens);
   const want = Number.isFinite(env) && env > 0 ? env
     : (Number.isFinite(set) && set > 0 ? set : DEFAULT_BUDGET_TOKENS);
-  const budget = Math.max(MIN_BUDGET_TOKENS, want) * CHARS_PER_TOKEN;
+  // FAST spends more context, ECO less (profile.js) — within the same floor and ceiling.
+  const scale = require('./profile').scale(cfg && cfg.executionProfile);
+  const budget = Math.max(MIN_BUDGET_TOKENS, Math.round(want * scale)) * CHARS_PER_TOKEN;
   const ceiling = require('./session').budgetChars(pc);
   return Math.floor(Math.min(budget, ceiling));
 }

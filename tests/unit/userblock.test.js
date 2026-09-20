@@ -171,24 +171,21 @@ module.exports = async function () {
     }
   });
 
-  await test('SAID: a multi-line message is ONE block with ONE marker, not one per line', () => {
+  await test('SAID: a multi-line message is ONE anchor row, never one per line', () => {
+    // THE ONE-LINE ANCHOR (2026-09-14): `USER · first line second line`. The
+    // exact submitted text rides on the row (`userAt`) and comes back on a click.
     const lines = views.activity({ session: oneTurn('first line\nsecond line'), width: 70 });
     const text = T.strip(lines.join('\n'));
-    assert.strictEqual((text.match(/❯/g) || []).length, 1,
-      'a marker per line reads as several messages:\n' + text);
-    assert.match(text, /first line/);
-    assert.match(text, /second line/);
+    assert.strictEqual((text.match(/^USER · /gm) || []).length, 1, 'one anchor:\n' + text);
+    assert.match(text, /USER · first line second line/);
   });
 
-  await test('SAID: EVERY row of a message maps back to the WHOLE message', () => {
+  await test('SAID: the anchor row maps back to the WHOLE, exact message', () => {
     const said = 'first line\nsecond line';
     const lines = views.activity({ session: oneTurn(said), width: 70 });
     const idx = Object.keys(lines.userAt || {}).map(Number);
-    assert.strictEqual(idx.length, 2, 'both drawn rows carry the mapping');
-    for (const i of idx) {
-      assert.strictEqual(lines.userAt[i], said,
-        'clicking the second line must bring back the message, not its middle line');
-    }
+    assert.strictEqual(idx.length, 1, 'one drawn row carries the mapping');
+    assert.strictEqual(lines.userAt[idx[0]], said, 'clicking the anchor brings back the message with its line breaks');
   });
 
   await test('SAID: the mapping is a side-channel, not content', () => {

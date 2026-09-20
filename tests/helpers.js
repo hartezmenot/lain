@@ -98,6 +98,68 @@ function shutdownSupervisorIn(home) {
 }
 
 async function runCli(args = [], o = {}) {
+  const { cwd, configDir, env } = prepareCli(o);
+  const scope = await require('./supervisor-scope').open();
+  env.LAIN_SUPERVISOR_LEASE_PORT = String(scope.port);
+  try {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [BIN, ...args], { cwd, env, windowsHide: true });
+    child.once('error', reject);
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => { stdout += d.toString('utf8'); });
+    child.stderr.on('data', (d) => { stderr += d.toString('utf8'); });
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, o.timeoutMs || 30000);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      // ---- TAKE THE SUPERVISOR DOWN WITH THE CLI THAT WOKE IT -------------
+      //
+      // A supervisor is BUILT to outlive its client — that is its entire
+      // purpose, and it is why nothing kills it when a CLI exits. Correct in
+      // production, and a leak in a suite that starts hundreds of CLIs: every
+      // smoke test that runs a turn wakes one in its own isolated home, and
+      // nothing ever asks it to stop.
+      //
+      // Measured mid-run while writing the remote-control tests: 217 orphaned
+      // supervisors, ~10 per minute, all from one smoke pass. They hold the
+      // built binary open, so the next `cargo build` fails with "Access is
+      // denied" — a build error with no visible connection to its cause, which
+      // is exactly how an afternoon disappears.
+      //
+      // SCOPED TO THIS TEST'S OWN HOME, and asked rather than killed: the op is
+      // the supervisor's own `shutdown`, which stops that process and touches no
+      // worker it started. Nothing outside this temporary directory can be
+      // affected, and a supervisor that was never started is a no-op.
+      shutdownSupervisorIn(env.LAIN_HOME)
+        .then(() => resolve({ code, stdout, stderr, out: stdout + stderr, cwd, configDir }))
+        // Cleanup is part of the result: a leaked process must fail visibly.
+        .catch(reject);
+    });
+    // STAGED STDIN. Writing everything at once delivers keystrokes before the
+    // async work they are meant to answer has even started — a panel opened by
+    // a tool call would never see them. `stdinSteps` writes each chunk after a
+    // pause, which is what a person at a terminal actually does: look, then type.
+    if (Array.isArray(o.stdinSteps)) {
+      const gap = o.stepDelayMs || 400;
+      let i = 0;
+      const writeNext = () => {
+        if (i >= o.stdinSteps.length) { child.stdin.end(); return; }
+        child.stdin.write(o.stdinSteps[i++]);
+        setTimeout(writeNext, gap);
+      };
+      setTimeout(writeNext, gap);
+    } else if (o.stdin !== undefined) child.stdin.end(o.stdin);
+    else child.stdin.end();
+  });
+  } finally { await scope.close(); }
+}
+
+/**
+ * THE ISOLATED WORLD A SPAWNED LAIN RUNS IN — trust, config home, supervisor
+ * home, a scrubbed environment, the mock script. Shared by `runCli` (a pipe) and
+ * tests/tty/realtty.js (a real ConPTY), so the two tiers cannot drift apart.
+ */
+function prepareCli(o = {}) {
   const cwd = o.cwd || tmpdir('lain-cwd-');
   const configDir = o.configDir || path.join(cwd, '.config');
   // ---- THE PROJECT IS ALREADY TRUSTED, unless the test says otherwise ------
@@ -195,59 +257,7 @@ async function runCli(args = [], o = {}) {
     env.LAIN_PROVIDER = 'mock';
     env.LAIN_MOCK_SCRIPT = Array.isArray(o.script) ? writeScript(configDirEnsure(configDir), o.script) : o.script;
   }
-  const scope = await require('./supervisor-scope').open();
-  env.LAIN_SUPERVISOR_LEASE_PORT = String(scope.port);
-  try {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [BIN, ...args], { cwd, env, windowsHide: true });
-    child.once('error', reject);
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (d) => { stdout += d.toString('utf8'); });
-    child.stderr.on('data', (d) => { stderr += d.toString('utf8'); });
-    const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, o.timeoutMs || 30000);
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      // ---- TAKE THE SUPERVISOR DOWN WITH THE CLI THAT WOKE IT -------------
-      //
-      // A supervisor is BUILT to outlive its client — that is its entire
-      // purpose, and it is why nothing kills it when a CLI exits. Correct in
-      // production, and a leak in a suite that starts hundreds of CLIs: every
-      // smoke test that runs a turn wakes one in its own isolated home, and
-      // nothing ever asks it to stop.
-      //
-      // Measured mid-run while writing the remote-control tests: 217 orphaned
-      // supervisors, ~10 per minute, all from one smoke pass. They hold the
-      // built binary open, so the next `cargo build` fails with "Access is
-      // denied" — a build error with no visible connection to its cause, which
-      // is exactly how an afternoon disappears.
-      //
-      // SCOPED TO THIS TEST'S OWN HOME, and asked rather than killed: the op is
-      // the supervisor's own `shutdown`, which stops that process and touches no
-      // worker it started. Nothing outside this temporary directory can be
-      // affected, and a supervisor that was never started is a no-op.
-      shutdownSupervisorIn(env.LAIN_HOME)
-        .then(() => resolve({ code, stdout, stderr, out: stdout + stderr, cwd, configDir }))
-        // Cleanup is part of the result: a leaked process must fail visibly.
-        .catch(reject);
-    });
-    // STAGED STDIN. Writing everything at once delivers keystrokes before the
-    // async work they are meant to answer has even started — a panel opened by
-    // a tool call would never see them. `stdinSteps` writes each chunk after a
-    // pause, which is what a person at a terminal actually does: look, then type.
-    if (Array.isArray(o.stdinSteps)) {
-      const gap = o.stepDelayMs || 400;
-      let i = 0;
-      const writeNext = () => {
-        if (i >= o.stdinSteps.length) { child.stdin.end(); return; }
-        child.stdin.write(o.stdinSteps[i++]);
-        setTimeout(writeNext, gap);
-      };
-      setTimeout(writeNext, gap);
-    } else if (o.stdin !== undefined) child.stdin.end(o.stdin);
-    else child.stdin.end();
-  });
-  } finally { await scope.close(); }
+  return { cwd, configDir, env };
 }
 
 function configDirEnsure(d) { fs.mkdirSync(d, { recursive: true }); return d; }
@@ -341,7 +351,7 @@ function isRuleRow(line) { return /^─{4}/.test(String(line || '')); }
 function ruleRowIndex(rows) { return rows.findIndex((l) => isRuleRow(l)); }
 
 module.exports = {
-  ROOT, BIN, test, results, setFile, tmpdir, runCli, writeScript,
+  ROOT, BIN, test, results, setFile, tmpdir, runCli, prepareCli, writeScript,
   frames, rowsOf, lastFrameRows,
   headerMark, isRuleRow, ruleRowIndex,
   assertIncludes, assertNotIncludes,

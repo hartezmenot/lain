@@ -173,8 +173,8 @@ connection states **where it is**; what it *serves* is discovered from it:
       "provider": "anthropic", "via": "native", "auth": "api_key",
       "envKey": "ANTHROPIC_API_KEY"
     },
-    "omniroute": {
-      "provider": "omniroute", "via": "bridge",
+    "my-gateway": {
+      "provider": "anthropic", "via": "bridge",
       "baseUrl": "http://localhost:20128/v1",
       "default": "claude-opus-5"
     }
@@ -431,7 +431,7 @@ Launching shows a start screen rather than an empty dashboard:
                         Ready to work.
 
                     Model       Claude Opus 5
-                    Connection  anthropic · omniroute
+                    Connection  anthropic · my-gateway
                     Effort      auto
 
                       Type a task below.
@@ -588,6 +588,7 @@ under it. Press Ctrl+C to stop the turn first, or wait for it to finish.
 | `→` | accept a completion · `←` back in a drill-down |
 | `Esc` | close a menu, dismiss a question, stop a retry wait |
 | `PgUp` `PgDn` `Home` `End` | scroll the conversation |
+| `Ctrl+PgDn` | jump straight to the newest output and follow it again — works with a panel open, types nothing |
 | `Alt+↑` `Alt+↓` | jump to the previous / next thing **you** said — an instruction, a decision, a pasted attachment |
 | `Ctrl+C` | while working, cancel it; when idle, press once to confirm then again to exit |
 
@@ -652,7 +653,7 @@ needed to find out whether it worked:
 ```
 ✓ Model selected
     Qwen3.8 27B Free
-    omniroute
+    my-gateway
     effort auto
 ```
 
@@ -693,8 +694,8 @@ one settles model, connection and level in a single act:
 
 ```
 CLAUDE SONNET 5   ·   anthropic
-  connection    omniroute:anthropic
-  provider      omniroute  ·  via bridge
+  connection    my-gateway:anthropic
+  provider      my-gateway  ·  via bridge
   credential    none
   readiness     AUTHENTICATED
   availability  AVAILABLE
@@ -1047,6 +1048,15 @@ remains answerable at every size.
 
 ```
 bin/lain.js → src/cli.js → src/app.js        the REPL shell, and only that
+  lain --desktop → desktoprun.js   LAIN as an application: Core, a native window,
+                  no REPL. A second launch is shown the first one's window.
+  sessionpool.js  one App per LIVE session; the view a surface shows is NOT the
+                  session that is executing — navigation is not execution
+  corelock.js     one LAIN per account: a lock file and a three-verb control pipe
+  teardown.js     the ONE shutdown sequence — /exit, the tray's Quit, the pipe's
+                  quit. X on the window HIDES to the tray; it does not end LAIN
+  sessionstore.js the only code that deletes a conversation, deliberately not in
+                  session.js, which is on the compaction path
   input.js        the ONE editing state machine — paste-aware (a paste is ONE
                   input), key events, bounded in-memory prompt history
   task.js         the ONE task-identity classifier

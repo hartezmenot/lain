@@ -167,4 +167,69 @@ module.exports = async function () {
     const denied = await interaction.run(app, { ask: async () => 'Deny' }, () => tools.execute('cowork_notes_change', { action: 'create', title: 'Private note', body: 'Remember this' }, { app, cwd: app.session.cwd }));
     assert.strictEqual(denied.isError, true); assert.strictEqual(calls, 0);
   });
+  // ------------------------------------------------- authority adoption ----
+  //
+  // Cowork predates the authority model. §8: ADOPT it, do not redesign it. These
+  // assert both halves of that — the chain is now visible, and the ownership
+  // boundary that was already correct is untouched by making it visible.
+
+  await test('COWORK: a bound session projects the authority chain it is serving', () => {
+    const app = appAt(tmpdir('cowork-auth-'));
+    const goal = require('../../src/goal');
+    const { Task } = require('../../src/task');
+    goal.set(app.session, 'finish the Cowork lane');
+    app.session.task = new Task('produce an owned result');
+    app.session.task.assignExecutor({ provider: 'anthropic', model: 'opus-5' });
+    start(app);
+
+    const view = runtime.project(app);
+    assert.ok(view.authority, 'a Cowork client must be able to see what the work is for');
+    assert.strictEqual(view.authority.goal, 'finish the Cowork lane');
+    assert.strictEqual(view.authority.goalId, goal.id(app.session));
+    assert.strictEqual(view.authority.taskId, app.session.task.id);
+    assert.strictEqual(view.authority.executor.model, 'opus-5');
+    assert.strictEqual(view.authority.executor.epoch, 1);
+  });
+
+  await test('COWORK: an unbound session projects NO authority, like every other field', () => {
+    const app = appAt(tmpdir('cowork-unbound-'));
+    require('../../src/goal').set(app.session, 'a direction nobody in Cowork asked for');
+    assert.strictEqual(runtime.project(app).authority, null,
+      'the Cowork lane says nothing at all until a source binds it');
+  });
+
+  await test('COWORK: 14.D a background job from a Cowork session carries the chain', () => {
+    // The originating Cowork session's direction must reach the worker. This is
+    // the same `app.startBackground` path the CLI uses, which is the point:
+    // there is ONE background seam, so Cowork inherits the fix rather than
+    // needing its own.
+    const app = appAt(tmpdir('cowork-bg-'));
+    const goal = require('../../src/goal');
+    const { Task } = require('../../src/task');
+    goal.set(app.session, 'finish the Cowork lane');
+    app.session.task = new Task('clean the spreadsheet');
+    start(app);
+
+    const fork = require('../../src/jobrunner').forkSession(app);
+    assert.strictEqual(goal.id(fork), goal.id(app.session), 'same goal identity');
+
+    const order = require('../../src/authority').issue(app.session, { id: '4', objective: 'deduplicate the rows' });
+    assert.strictEqual(order.goalId, goal.id(app.session));
+    assert.strictEqual(order.taskId, app.session.task.id);
+    assert.strictEqual(order.objectiveProjection, 'deduplicate the rows');
+  });
+
+  await test('COWORK: artifact ownership is NOT keyed on the authority chain', () => {
+    // THE SECURITY PROPERTY, restated as an assertion because the projection
+    // added above must never become an authorisation input. Ownership is the
+    // harness task's `sessionId` and `workspace`; a goal id cannot widen it.
+    const app = appAt(tmpdir('cowork-own-'));
+    require('../../src/goal').set(app.session, 'anything at all');
+    start(app);
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/cowork/artifacts.js'), 'utf8');
+    for (const word of ['goalId', 'workOrder', 'scopeRevision', 'authority']) {
+      assert.ok(!src.includes(word),
+        `cowork/artifacts.js must not consult \`${word}\` — ownership is session + workspace`);
+    }
+  });
 };

@@ -48,6 +48,18 @@ async function start({ cfg = config.load(), cwd = process.cwd(), dir = config.co
   try {
     gateway = new Gateway({ cfg, cwd, dir: loc.dir, registry: registry || createRegistry(), runtimeFactory });
     await gateway.start();
+    // THE PROGRESS WEBAPP (read-only; webapp.js), only when asked for and only
+    // with Telegram's own verification available — never a plain open endpoint.
+    const tg = cfg.bot?.platforms?.telegram;
+    if (cfg.bot?.webapp?.enabled && tg?.tokenEnv && process.env[tg.tokenEnv]) {
+      try {
+        const web = await require('../webapp').start({ port: Number(cfg.bot.webapp.port) || 0, botToken: process.env[tg.tokenEnv], allowUsers: tg.allowUsers || [],
+          jobs: () => [...gateway.runtimes.values()].flatMap((r) => r.app.jobs.all().map((j) => j.summary())) });
+        gateway.webapp = web;
+        const prevStop = gateway.stop.bind(gateway);
+        gateway.stop = async () => { await web.close().catch(() => {}); return prevStop(); };
+      } catch { /* the Bot still works without the progress view */ }
+    }
     fs.writeFileSync(loc.file, JSON.stringify({ token, port: loc.port }), { mode: 0o600 });
     server.on('error', () => stop().catch(() => {}));
     return { gateway, stop, done, get stopped() { return stopped; } };
@@ -70,7 +82,8 @@ function describe(status) {
   return [`Bot: ${status.state}`, ...(status.platforms || []).map(p => `  ${p.platform} (${p.accountId}): ${p.state}${p.reason ? ' — ' + p.reason : ''}`),
     ...(status.pendingDeliveries ? [`  ${status.pendingDeliveries} delivery fragments are pending.`] : []),
     ...(status.uncertain ? [`  ⚠ Delivery status unknown · ${status.uncertain} message fragment(s) may have been sent. Use /delivery in the originating conversation; no automatic resend.`] : []),
-    ...(status.interrupted ? [`  ${status.interrupted} turns were interrupted; no automatic replay.`] : [])].join('\n');
+    ...(status.interrupted ? [`  ${status.interrupted} turns were interrupted; no automatic replay.`] : []),
+    ...(status.webapp ? [status.webapp.url ? `  WebApp button URL: ${status.webapp.url}` : `  WebApp on port ${status.webapp.port} — set bot.webapp.pageUrl (the HTTPS address serving it) for the button URL.`] : [])].join('\n');
 }
 async function foreground({ cwd } = {}) {
   let service;

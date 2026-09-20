@@ -69,6 +69,13 @@ function commit(app, mode, line) {
   const steps = split(line);
   if (!steps.length) return null;
 
+  // NEW: the plan in hand MOVES to `planHistory`, unmutated — its
+  // completed steps are evidence about work that happened, and a new strategy
+  // must not rewrite them.
+  if (mode === 'new' && session.plan) {
+    session.planHistory = (session.planHistory || []).concat(session.plan).slice(-5);   // moved, NOT retired: superseded is not completed (goalplan guard)
+    session.plan = null;
+  }
   if (!session.plan) {
     session.plan = new Plan(session.task ? session.task.objective : 'session plan');
   }
@@ -88,9 +95,7 @@ function commit(app, mode, line) {
   } else {
     plan.addSteps(steps, { origin: 'user' });
   }
-  app.transient('info', mode === 'replace'
-    ? `Plan replaced — ${steps.length} step${steps.length === 1 ? '' : 's'}`
-    : `Plan extended — ${steps.length} step${steps.length === 1 ? '' : 's'} added`);
+  // NO RECEIPT: the plan is state, not news — `/plan` shows it on its shelf.
   return plan;
 }
 

@@ -385,10 +385,18 @@ module.exports = async function () {
     // background work with it. `cancelAll` is the AgentJobs' own sweep and
     // `stopAll` is the shell jobs'; the harness takes its services down through
     // `cleanup(taskId)`, which is its own responsibility and its own test.
+    //
+    // IT MOVED (2026-09-15), and the move is why this test now reads two files.
+    // The terminal used to be the only way to end LAIN; there are three now —
+    // `/exit`, Quit from the tray, and a `quit` on the control pipe — so the
+    // sequence lives in src/teardown.js and every ending goes through it. What
+    // this guards is unchanged: nothing LAIN started outlives it.
     const fs = require('fs');
     const path = require('path');
     const repl = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'repl.js'), 'utf8');
-    assert.match(repl, /jobs\.cancelAll\(/, 'the AgentJobs are cancelled on the way out');
+    assert.match(repl, /teardown'\)\.shutdown\(app/, 'the terminal ends through the one sequence');
+    const teardown = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'teardown.js'), 'utf8');
+    assert.match(teardown, /jobs\.cancelAll\(/, 'the AgentJobs are cancelled on the way out');
     // ---- THE LEAK THIS TEST FOUND ------------------------------------
     //
     // `src/jobs.js stopAll` has always carried the comment "Called when the
@@ -397,7 +405,30 @@ module.exports = async function () {
     // detached, with nobody left who knew about it. `/ps` is what made it
     // visible: a command that shows what LAIN owns has to be able to say that
     // LAIN let go of it.
-    assert.match(repl, /_jobs\.stopAll\(/, 'and the shell jobs, which are real child processes');
-    assert.match(repl, /harnesslink'\)\.shutdown/, 'and the harness takes its services with it');
+    assert.match(teardown, /_jobs\.stopAll\(/, 'and the shell jobs, which are real child processes');
+    assert.match(teardown, /harnesslink'\)\.shutdown/, 'and the harness takes its services with it');
+    // AND THE CONVERSATIONS THE WINDOW OPENED BESIDE THIS ONE. A session in the
+    // rail has its own turn, its own jobs and its own unsaved state — see
+    // src/sessionpool.js — and an exit that only swept the foreground would
+    // leave every one of them running.
+    assert.match(teardown, /pool\(\)/, 'every live session is swept, not just the foreground one');
+  });
+
+  await test('/bg: DETACHING is a receipt that closes itself; bare /bg (a summary) stays until dismissed', async () => {
+    // Live, 2026-09-19: "BACKGROUND #2 · npm run smoke · pid 7148 keeps running" stayed on
+    // screen two minutes after the job had COMPLETED — a confirmation left to go stale.
+    const bg = require('../../src/bgdetach');
+    const saved = { running: bg.running, detachProcess: bg.detachProcess };
+    const closes = [];
+    const app = { abort: null, render: { write() {}, notice() {}, openSurface() {}, doneSurface: (o) => closes.push(o.closeAfterMs) }, jobs: { all: () => [] }, session: { id: 's' } };
+    try {
+      bg.running = () => [{}];
+      bg.detachProcess = () => ({ id: 2, request: 'npm run smoke', pid: 7148 });
+      await require('../../src/commands').run(app, '/bg');
+      assert.ok(closes[0] > 0, 'the detach confirmation closes on its own');
+      bg.running = () => [];
+      try { await require('../../src/commands').run(app, '/bg'); } catch { /* the summary needs more of an app; only the close policy is under test */ }
+      assert.strictEqual(closes[1], 0, 'the summary is read at the reader\'s pace');
+    } finally { Object.assign(bg, saved); }
   });
 };

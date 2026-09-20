@@ -126,12 +126,26 @@ module.exports = async function () {
     assert.match(app.text, /ship the harness/, 'the goal is read out instead');
   });
 
-  await test('GOAL: a REAL terminal still opens the composer, prefilled', async () => {
+  await test('GOAL: a REAL terminal opens the goal shelf, and Edit prefills the composer', async () => {
     const app = appWith({ isTTY: true });
     goal.set(app.session, 'ship the harness');
+    let frame = null;
+    app.ui.ask = async (f) => { frame = f; return { action: 'edit', choice: null }; };
     await goalRun()(app, { args: [], rest: '' });
-    assert.ok(compose.pending(app), 'on a keyboard the composer is the point of bare /goal');
-    assert.strictEqual(app.input.line, 'ship the harness', 'and it is prefilled with the goal');
+    assert.strictEqual(frame && frame.kind, 'SHELF', 'an existing goal opens the action shelf');
+    assert.deepStrictEqual(frame.shelf.actions.map((a) => a.label), ['Continue', 'Edit', 'New', 'Delete']);
+    assert.ok(compose.pending(app), 'Edit opens the composer');
+    assert.strictEqual(app.input.line, 'ship the harness', 'prefilled with the goal');
+    compose.cancel(app);
+  });
+
+  await test('GOAL: with no goal a REAL terminal goes straight to an empty composer', async () => {
+    const app = appWith({ isTTY: true });
+    await goalRun()(app, { args: [], rest: '' });
+    assert.strictEqual(app.ui.asked, 0, 'no shelf when there is nothing to act on');
+    assert.ok(compose.pending(app));
+    assert.strictEqual(app.input.line, '');
+    assert.ok(!app.text, 'and nothing is narrated into the conversation');
     compose.cancel(app);
   });
 

@@ -443,6 +443,26 @@ async function runCommand(app, ctx = {}, { C } = {}) {
 
   let name = want;
   let got = null;
+  // ---- A KEYBOARD GETS THE COPY SHELF (ui/shelf.js) ----------------------
+  //
+  // Only targets that have something in them RIGHT NOW are offered — an empty
+  // button is a promise the clipboard cannot keep. With one or none, bare
+  // `/copy` keeps its old meaning (the best default) and asks nothing.
+  if (!name && app.ui && app.ui.enabled && app.input && app.input.isTTY) {
+    const offer = [['question', 'Open question'], ['summary', 'Summary'], ['last', 'Last answer'], ['context', 'Context'], ['diff', 'Diff']];
+    const ready = [];
+    for (const [key, label] of offer) {
+      const r = await collect(app, key);
+      if (r && r.text) ready.push({ label, value: key, got: r });
+    }
+    if (ready.length > 1) {
+      const picked = await app.ui.ask(require('./ui/shelf').shelf({ title: 'Copy', actions: ready.map(({ label, value }) => ({ label, value })) }));
+      if (!picked) return;
+      const hit = ready.find((x) => x.value === picked.action);
+      name = hit.value;
+      got = hit.got;
+    }
+  }
   if (!name) {
     // Pick the first thing that HAS something in it, and say which was chosen —
     // silently copying "the task" when the user meant the answer is worse than

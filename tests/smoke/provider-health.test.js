@@ -90,7 +90,7 @@ module.exports = async function () {
     const h = home('maint');
     const r = await runCli([], {
       cwd,
-      stdin: '/provider maintenance omniroute\n/provider status\n/exit\n',
+      stdin: '/provider maintenance gateway\n/provider status\n/exit\n',
       script: [],
       env: { LAIN_HOME: h },
     });

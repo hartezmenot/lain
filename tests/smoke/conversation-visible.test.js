@@ -104,9 +104,9 @@ module.exports = async function () {
     // everything said after it. The requirement never changed — the user must
     // be visible in their own conversation — so it is asserted as itself
     // rather than as one particular rendering of it.
-    assert.ok(/TASK\s+find the dashboard bug/.test(frame) || /❯ find the dashboard bug/.test(frame),
+    assert.ok(/TASK\s+find the dashboard bug/.test(frame) || /USER[A-Z ]* · find the dashboard bug/.test(frame),
       `the user is a participant in their own conversation:\n${frame}`);
-    assert.ok(!/(❯ find the dashboard bug[\s\S]*){2}/.test(frame),
+    assert.ok(!/(USER[A-Z ]* · find the dashboard bug[\s\S]*){2}/.test(frame),
       `the objective is drawn twice — the banner and a user row both have it:\n${frame}`);
     assertIncludes(frame, 'LAIN', 'and the model must be visible as a speaker');
     assertIncludes(frame, 'stale cache in status.js', 'the answer must survive the flood that produced it');
@@ -231,8 +231,11 @@ module.exports = async function () {
     // It failed intermittently, because whether it happened depended on how
     // much the live row happened to move. Stopping at the gap that ends the row
     // makes the key the action and nothing else.
+    // THE LIVE ROW'S GLYPH ENDS A KEY TOO. With the activity surface instant,
+    // the status row (`◐ Writing`, `Ⅱ Step limit`) is the next thing drawn and
+    // follows the action row with no gap at all.
     const calls = new Set(everything.match(
-      /✓ (?:[a-z_]+) · [^\s│][^│\r\n]*?(?=\s{2,}|│|$)/g) || []);
+      /✓ (?:[a-z_]+) · [^\s│][^│\r\n◐◑◒◓Ⅱ]*?(?=\s{2,}|│|[◐◑◒◓Ⅱ]|$)/g) || []);
     assert.ok(calls.size <= 4,
       `${calls.size} calls (${[...calls].join(' | ')}) means the turn did not stop at its bound`);
 

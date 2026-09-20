@@ -55,6 +55,14 @@ function begin(app) {
   identify(app);
   const session = app && app.session;
   if (!session || !session.id) return;
+  // THE ONE START STAMP a session with no terminal clock reads — the same
+  // moment the Guardian is told, so the rail and the runtime cannot disagree
+  // about when this turn began. See sessionstatus.js.
+  app._turnStartedAt = Date.now();
+  app._turnId = `t${((session.turns || []).length) + 1}`;
+  // RUNNING IS NEWS AT ONCE — a website Chat turn reports no phases, so without
+  // this the rail would learn only on its next read.
+  require('./sessionstatus').touch(app);
   let pc = {};
   try {
     pc = require('./provider').resolve({ ...app.cfg, _evidence: app.connectionEvidence });
@@ -114,6 +122,9 @@ function end(app, record) {
     kind: (f && f.kind) || '',
     reason: (f && f.message) || '',
   });
+  // THE RAIL LEARNS NOW, not on the next poll — a session finishing in the
+  // background is exactly the change a person switched away from.
+  require('./sessionstatus').touch(app, { ended: true });
 }
 
 /**

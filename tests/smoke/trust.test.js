@@ -51,7 +51,10 @@ module.exports = async function () {
       cwd, configDir, env: TUI, trust: false, stdinSteps: ['\r', '/exit\n'], stepDelayMs: 1500, script: [], timeoutMs: 40000,
     });
     const out = plain(r.out);
-    assert.match(out, /TRUST THIS DIRECTORY\?/, 'the question must appear');
+    // CASE-INSENSITIVE: panel titles are drawn in sentence case ("Trust this
+    // directory?") since 2026-09-10. The negative assertions below were passing
+    // vacuously against the old capitals.
+    assert.match(out, /TRUST THIS DIRECTORY\?/i, 'the question must appear');
     assert.match(out, /read, write and run/, 'and must say what saying yes means');
   });
 
@@ -74,7 +77,7 @@ module.exports = async function () {
     const { cwd, configDir } = project();
     await runCli([], { cwd, configDir, env: TUI, trust: false, stdinSteps: ['\r', '/exit\n'], stepDelayMs: 1500, script: [], timeoutMs: 40000 });
     const again = await runCli([], { cwd, configDir, env: TUI, trust: false, stdin: '/exit\n', script: [], timeoutMs: 30000 });
-    assert.ok(!/TRUST THIS DIRECTORY\?/.test(plain(again.out)),
+    assert.ok(!/TRUST THIS DIRECTORY\?/i.test(plain(again.out)),
       'a decided directory must not ask again');
   });
 
@@ -92,7 +95,7 @@ module.exports = async function () {
       ],
       timeoutMs: 40000,
     });
-    assert.ok(!/TRUST THIS DIRECTORY\?/.test(plain(r.out)), 'there is nobody to ask on a pipe');
+    assert.ok(!/TRUST THIS DIRECTORY\?/i.test(plain(r.out)), 'there is nobody to ask on a pipe');
     assert.strictEqual(fs.readFileSync(path.join(cwd, 'note.txt'), 'utf8'), 'hello',
       'and the work must still happen');
   });

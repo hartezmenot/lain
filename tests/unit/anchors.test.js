@@ -132,10 +132,11 @@ module.exports = async function () {
     const lines = feed.renderFeed(out, 80);
     const text = lines.join(NL);
     assert.ok(text.includes('USER REQUEST'), text.slice(0, 200));
-    assert.ok(!/pasted text/.test(text), 'the record is not collapsed');
-    assert.ok(text.includes('line 30 of a long pasted log'), 'the payload is drawn');
-    // AND IT STILL TRAVELS WITH EVERY ROW, so a click brings back the whole
-    // message rather than the one line under the pointer.
+    // THE ANCHOR IS ONE ROW (2026-09-14): the first line, with the wall MARKED.
+    // The payload is not drawn in the feed; it travels with the row, so a click
+    // brings back every byte that was sent, and /copy context exports it.
+    assert.strictEqual(lines.filter((l) => /USER REQUEST/.test(l)).length, 1, 'one anchor row');
+    assert.ok(!text.includes('line 30 of a long pasted log'), 'the wall is not drawn into the conversation');
     const at = lines.userAt;
     const carried = Object.keys(at).map((k) => at[k]);
     assert.ok(carried.some((v) => String(v).includes('line 30 of a long pasted log')),
@@ -183,6 +184,10 @@ module.exports = async function () {
     const { Screen } = require('../../src/ui/layout');
     const s = new Screen({ out: { columns: 80, rows: 30, isTTY: true, write() {}, on() {}, removeListener() {} } });
     const out = [];
+    // Something above the first message: an anchor on row 0 is already on screen
+    // at scroll 0, and "jump forward" rightly skips it (the one-row anchor made
+    // the first message row 0; the old `USER` label row used to push it to 1).
+    feed.pushNote(out, 'resumed session', 'info');
     feed.pushUser(out, 'first thing');
     for (let i = 0; i < 40; i++) feed.pushModel(out, `a line of prose number ${i}`);
     feed.pushUser(out, 'proceed');

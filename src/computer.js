@@ -106,6 +106,19 @@ const NAMES = Object.freeze(Object.keys(OPS));
  *
  * @returns {{ok:boolean, region?:object, title?:string, why?:string}}
  */
+/** `needle` appears in `haystack` bounded by something that is not a letter or digit. */
+function wordMatch(haystack, needle) {
+  const hay = String(haystack || '').toLowerCase();
+  const want = String(needle || '').toLowerCase();
+  if (!hay || !want) return false;
+  const alnum = (ch) => /[\p{L}\p{N}]/u.test(ch);
+  for (let at = hay.indexOf(want); at >= 0; at = hay.indexOf(want, at + 1)) {
+    const end = at + want.length;
+    if ((at === 0 || !alnum(hay[at - 1])) && (end >= hay.length || !alnum(hay[end]))) return true;
+  }
+  return false;
+}
+
 async function regionOf(app, wanted) {
   const want = String(wanted || '').trim();
   if (!want) return { ok: false, why: 'no window was named' };
@@ -116,10 +129,13 @@ async function regionOf(app, wanted) {
   const rows = (listed.result && (listed.result.windows || listed.result.list || listed.result)) || [];
   const all = Array.isArray(rows) ? rows : [];
   const needle = want.toLowerCase();
-  // EXACT TITLE FIRST, then a contained match. A game called "Client" must not
-  // lose to a browser tab whose title happens to mention it.
+  // EXACT TITLE FIRST, then a WHOLE-WORD match. A game called "Client" must not
+  // lose to a browser tab whose title happens to mention it — and a plain
+  // substring is not enough for that: measured on a real desktop, "Open" found
+  // a window called "Welcome back - OpenAI", because "open" is inside "openai".
+  // The same rule is enforced in the Computer MCP bridge (MatchTitle).
   const hit = all.find((w) => String((w && w.title) || '').toLowerCase() === needle)
-    || all.find((w) => String((w && w.title) || '').toLowerCase().includes(needle));
+    || all.find((w) => wordMatch(String((w && w.title) || ''), want));
   if (!hit) {
     const titles = all.map((w) => String((w && w.title) || '')).filter(Boolean).slice(0, 12);
     return {
@@ -486,4 +502,4 @@ async function attempt(app, op, params = {}, { window = '', why = '' } = {}) {
   return { stage, trail, result: r.result, why: '', transport: transport.kind };
 }
 
-module.exports = { OPS, NAMES, DIALECT, REGIONS, transports, pick, perform, capabilityFor, channelsOf, visualReadiness, regionOf };
+module.exports = { OPS, NAMES, DIALECT, REGIONS, transports, pick, perform, capabilityFor, channelsOf, visualReadiness, regionOf, wordMatch };

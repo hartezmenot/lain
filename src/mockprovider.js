@@ -130,10 +130,15 @@ async function* chat(pc, messages, opts = {}) {
       calls: step.tool_calls.map((c, i) => ({
         id: c.id || `mock_${cursor}_${i}`,
         name: String(c.name || ''),
-        input: c.input && typeof c.input === 'object' ? c.input : {},
+        // `args` scripts the RAW argument text a provider streamed — a cut or
+        // mistranslated call is then parsed exactly as a real one is (finish.js).
+        ...(typeof c.args === 'string' ? require('./finish').parseArgs(c.args) : { input: c.input && typeof c.input === 'object' ? c.input : {} }),
       })),
     };
   }
+
+  // `finish` scripts WHY the generation ended: 'stop', 'length', 'content_filter'…
+  if (step.finish) yield { type: 'finish', reason: require('./finish').normalize(step.finish), raw: step.finish };
 
   yield {
     type: 'usage',

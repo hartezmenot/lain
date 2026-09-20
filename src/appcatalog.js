@@ -54,7 +54,10 @@ async function ensureCatalog(app, { force = false, only = null, announce = true 
     if (announce) {
       for (const r of results) {
         if (r.ok) app.transient('info', `${r.id}: ${r.count} model(s) advertised`);
-        else app.transient('warn', `${r.id}: could not read a model list — ${r.error}`);
+        // A BROKEN SOURCE IS STATE ON THE SOURCE (catalogstate.js, shown in the
+        // picker), not a WARN block on every `/model`. One line, only when it
+        // CHANGED, and never the provider's raw JSON — that stays on the record.
+        else if (r.changed) app.transient('warn', require('./catalogstate').line(r.id, r.state));
       }
     }
     return results;

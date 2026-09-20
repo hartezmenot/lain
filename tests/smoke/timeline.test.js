@@ -157,19 +157,20 @@ module.exports = async function () {
     assert.match(after, /raw\.trim\(\)/, 'the edit actually happened');
   });
 
-  await test('TIMELINE: the diff window OPENS and then GOES AWAY', async () => {
-    // A permanent diff panel is the thing this replaces. It must appear, and it
-    // must not still be there at the end.
+  await test('TIMELINE: an edit is a row in the record, never a window performed over the work', async () => {
+    // The temporary diff window used to PERFORM the edit — open, strike, type,
+    // close — for seconds after the file had already changed. That pacing is
+    // gone: the edit is its feed row the frame it lands, and the change itself
+    // is one keystroke away in /diff.
     const { dir, cfg } = project();
     const r = await runCli([], {
       cwd: dir, configDir: cfg, env: tui, script: SCRIPT,
       stdinSteps: ['fix the empty case' + CR, '', '', '', ''], stepDelayMs: 5000, timeoutMs: 90000,
     });
     const frames = String(r.out).split('\x1b[?25l').map(plain);
-    const withDiff = frames.filter((f) => /raw\.trim\(\)/.test(f) && /┌─ src/.test(f));
-    assert.ok(withDiff.length, 'the diff window was drawn at some point');
-    const last = frames[frames.length - 1] || '';
-    assert.ok(!/┌─ src[\\/]parser\.js/.test(last), 'and it did not stay open to the end');
+    assert.ok(!frames.some((f) => /┌─ src[\\/]parser\.js/.test(f)), 'no performance window was drawn');
+    assert.ok(frames.some((f) => /src[\\/]parser\.js/.test(f)), 'the edited file is named on screen');
+    assert.match(fs.readFileSync(path.join(dir, 'src', 'parser.js'), 'utf8'), /raw\.trim\(\)/, 'and the edit is real');
   });
 
   await test('TIMELINE: scrolling and stray keys mid-animation do not disturb the work', async () => {

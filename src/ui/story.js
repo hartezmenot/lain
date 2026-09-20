@@ -92,9 +92,10 @@ class Story {
    *   draw a continuation as a continuation instead of claiming the user typed
    *   six hundred characters they never typed.
    */
-  setUser(text, from = null) {
+  setUser(text, from = null, typed = false) {
     this.user = String(text || '').trim() || null;
     this.userFrom = this.user ? (from || null) : null;
+    this.userTyped = Boolean(this.user && typed);
   }
 
   noteAction(a) {

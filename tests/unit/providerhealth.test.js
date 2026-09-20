@@ -63,26 +63,22 @@ function row(over = {}) {
 module.exports = async function run() {
   // ---- WHAT IS ADOPTED ---------------------------------------------------
 
-  await test('HEALTH: a rate limit with a stated reset in the future survives the restart', async () => {
+  // §48 (2026-09-18): a limit from an earlier process is HISTORICAL. It is
+  // kept for diagnostics and never gates or warns in a restarted runtime.
+  await test('HEALTH: a rate limit from an earlier process is kept as history, and does not shut the door', async () => {
     const a = new Availability();
     const resetAt = Date.now() + 4 * HOUR;
     const took = a.hydrate([row({ rate_limited: true, reset_at: resetAt, limited_now: true })]);
-
     assert.strictEqual(took.limited, 1, 'the row was adopted');
-    const gate = a.shouldAttempt('omniroute-main');
-    assert.strictEqual(gate.allow, false, 'and the door is still shut');
-    assert.strictEqual(gate.rateLimited, true);
-    assert.strictEqual(gate.resumeAt, resetAt, 'to the millisecond the provider stated');
+    assert.strictEqual(a.get('omniroute-main').historicalLimit.resumeAt, resetAt, 'kept, to the millisecond, for /provider');
+    assert.strictEqual(a.shouldAttempt('omniroute-main').allow, true, 'the next real request settles it');
+    assert.ok(!a.get('omniroute-main').rateLimited, 'no live limit in this process');
   });
 
-  await test('HEALTH: an adopted limit reads as DEGRADED, never as UNAVAILABLE', async () => {
-    // The renderer paints these differently and the difference is the whole
-    // point: yellow means "wait, here is when it clears", red means "something
-    // has to be done". Hydrating a limit as unreachable sends a person off to
-    // check credentials that were never the problem. See ui/adapters.routeHealth.
+  await test('HEALTH: an adopted historical limit is never painted as UNAVAILABLE or DEGRADED', async () => {
     const a = new Availability();
     a.hydrate([row({ rate_limited: true, reset_at: Date.now() + HOUR, limited_now: true })]);
-    assert.strictEqual(a.get('omniroute-main').status, STATUS.DEGRADED);
+    assert.ok(![STATUS.UNAVAILABLE, STATUS.DEGRADED].includes(a.get('omniroute-main').status));
   });
 
   await test('HEALTH: a state a person set survives, because a decision is not an observation', async () => {

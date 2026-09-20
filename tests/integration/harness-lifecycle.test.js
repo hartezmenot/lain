@@ -129,7 +129,13 @@ module.exports = async function () {
       const command = await until(() => read(root, 'root'));
       child.kill('SIGKILL');
       await gone(child.pid, result.endpoint.pid, result.job.pid, command.pid, leaf.pid);
-      assert.strictEqual(await portOpen(leaf.port), false);
+      // RELEASED, NOT RELEASED THIS MILLISECOND: measured 2026-09-19 under full CPU, the port
+      // answered 52ms after every PID was confirmed dead, then closed — Windows tears the
+      // socket down after the process. A leaked listener stays open; 2s tells the two apart.
+      const t0 = Date.now();
+      let open = await portOpen(leaf.port);
+      while (open && Date.now() - t0 < 2000) { await pause(50); open = await portOpen(leaf.port); }
+      assert.strictEqual(open, false);
     } finally { if (supervisor.alive(child.pid)) child.kill('SIGKILL'); }
   });
 

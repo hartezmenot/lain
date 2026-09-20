@@ -48,6 +48,8 @@ function accountTo(life, record) {
   record.narrations = Number(v.narrations) || 0;
   if (record.providerFailure && record.providerFailure.kind === 'AUTH') {
     life.noteAuthFailure(record.providerFailure.provider, record.providerFailure.message);
+  } else if (record.usage && record.usage.requests > 0 && !record.providerFailure) {
+    life.noteProviderAnswered();
   }
   record.lifecycle = life.summary();
   return record;
@@ -74,12 +76,16 @@ function remember(session, record) {
     // session after a resume. Without it a reloaded conversation shows an
     // advisory continuation as a user request again.
     from: record.from || null,
+    // A PERSON TYPED IT, even when it arrived through a recovery or a steer.
+    typed: Boolean(record.typed),
     // WHAT EACH REQUEST OF THIS TURN COST, AND OF WHAT. Kept because the
     // question `/tokens` answers is always asked AFTER the turn ended, and
     // because a session saved and resumed should still be able to say where
     // its tokens went. Bounded by MAX_AUDITS when it was collected.
     audits: record.audits || [],
     text: String(record.text || '').slice(0, MAX_KEPT_TEXT),
+    // JUDGED ON THE WHOLE ANSWER, before it is cut: a blocker is stated at the end (wakeup.statesBlocker).
+    blocker: require('./wakeup').statesBlocker(record.text),
     // Two scalars the record already counts and the saved session was losing:
     // how many model steps the turn took, and how many reads the evidence
     // ledger served instead of the filesystem. Both are what a benchmark (and
@@ -103,6 +109,8 @@ function remember(session, record) {
     reasoning: String(record.reasoning || '').slice(0, MAX_KEPT_TEXT),
     errors: record.errors.slice(0, 5),
     mutations: record.mutations, stopReason: record.stopReason,
+    // How many hidden wake-ups this turn needed (wakeup.js) — 0 or 1.
+    wakeups: record.wakeups || 0,
     usage: record.usage,
   });
   return record;

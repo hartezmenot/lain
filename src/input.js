@@ -325,7 +325,8 @@ class Input extends EventEmitter {
    * long, rather than merging into whatever typing came before or after it.
    */
   insertText(text, { pasted = false } = {}) {
-    const s = String(text == null ? '' : text);
+    // LF ONLY, the same as a bracketed paste — see pastebuffer.js `lf`.
+    const s = paste.lf(text == null ? '' : text);
     if (!s) return false;
     this._insert(s, pasted ? 'paste' : 'insert');
     if (pasted) {
@@ -383,6 +384,7 @@ class Input extends EventEmitter {
    * back over a line break in a pasted buffer exactly as it walks over a space.
    */
   deleteWord() {
+    if (require('./lineedit').deletePaste(this, -1)) return true;   // a collapsed paste goes whole
     if (this.cursor <= 0) return false;
     const before = this.line.slice(0, this.cursor);
     const isWord = (c) => /[A-Za-z0-9_]/.test(c);

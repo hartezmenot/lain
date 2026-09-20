@@ -83,6 +83,8 @@ function key(o) {
       (t.narration || []).length,
       (t.steerTexts || []).length,
       (t.errors || []).length,
+      // Set just AFTER the turn is recorded (app.js), so it must move the key.
+      (t.contradiction || '').length,
     );
   }
   const extras = o.extras || [];
@@ -92,7 +94,7 @@ function key(o) {
   parts.push('p', plan ? plan.steps.map((s) => s.status).join('') : '');
   parts.push('t', o.objective ? String(o.objective).length : 0);
   parts.push('a', (o.liveActions || []).length);
-  for (const a of o.liveActions || []) parts.push(a.name, a.ok ? 1 : 0, (a.note || '').length, (a.output || '').length);
+  for (const a of o.liveActions || []) parts.push(a.name, a.ok ? 1 : 0, (a.note || '').length, (a.output || '').length, a.added || 0, a.removed || 0);
   // THE LIVE PROSE GOES IN WHOLE, not as a length: it is the one input that
   // changes without changing size, because a paragraph resolving on screen
   // (ui/reveal.js) swaps unsettled glyphs for real characters one at a time.
@@ -108,6 +110,10 @@ function key(o) {
   parts.push('u', o.liveUser ? String(o.liveUser).length : 0);
   parts.push('r', (o.transcript || []).length, (o.transcript || []).length ? String(o.transcript[o.transcript.length - 1]).length : 0);
   parts.push('c', ((o.current && o.current.steps) || []).map((s) => `${s.label}${s.done ? 1 : 0}${s.active ? 1 : 0}`).join('|'));
+  // WHICH DIFF IS OPEN, and where history ends — both change what is drawn.
+  parts.push('d', o.openDiff || '', 'h', o.historyTurns || 0);
+  // Which diffs are collapsed, and — only while an edit is arriving — the frame's time.
+  parts.push('x', o.closedDiffs || '', 'a', o.arriving || 0);
   return parts.join(',');
 }
 
@@ -124,6 +130,15 @@ function copyOf(lines) {
   out.spoken = lines.spoken;
   if (lines.userAt) {
     Object.defineProperty(out, 'userAt', { value: lines.userAt, enumerable: false, writable: true });
+  }
+  // AND `fileAt`, the third channel. Dropped here, every cached frame — which is
+  // every frame of a settled screen — lost click-to-open; only the constant
+  // redraws of the old activity animation kept the cache from being used.
+  if (lines.fileAt) {
+    Object.defineProperty(out, 'fileAt', { value: lines.fileAt, enumerable: false, writable: true });
+  }
+  for (const key of ['diffAt', 'hunkAt']) {
+    if (lines[key]) Object.defineProperty(out, key, { value: lines[key], enumerable: false, writable: true });
   }
   return out;
 }

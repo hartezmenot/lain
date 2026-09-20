@@ -123,8 +123,8 @@ module.exports = async function () {
     assertIncludes(out, 'line one', 'the first line reached the conversation');
     assertIncludes(out, 'line two', 'and the second');
     assertIncludes(out, 'line three', 'and the third');
-    assert.ok(!/❯ line two/.test(out), 'no later line became a prompt of its own');
-    assert.ok(!/❯ line three/.test(out), 'nor the last');
+    assert.ok(!/USER[A-Z ]* · line two/.test(out), 'no later line became a prompt of its own');
+    assert.ok(!/USER[A-Z ]* · line three/.test(out), 'nor the last');
   });
 
   await test('MULTILINE LIVE: a soft break does not submit — nothing runs until Enter', async () => {

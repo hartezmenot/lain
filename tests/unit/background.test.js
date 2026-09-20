@@ -82,6 +82,25 @@ function app(cwd) {
 const settle = () => new Promise((r) => setImmediate(r));
 const after = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * WAIT FOR THE THING, NOT FOR A NUMBER OF MILLISECONDS.
+ *
+ * The parked-job cases slept 400 ms and then asserted the job was parked.
+ * Measured idle, a job parks in 13-20 ms, so 400 was a 20x margin — and under a
+ * full unit tier it still failed, twice, because a stalled event loop does not
+ * care about margins. A sleep is a guess about how long something takes; this
+ * asks whether it has happened, and the deadline is only there so a job that
+ * never parks fails in seconds instead of hanging the tier.
+ */
+async function until(pred, { deadline = 5000 } = {}) {
+  const end = Date.now() + deadline;
+  while (!pred()) {
+    if (Date.now() > end) return false;
+    await after(10);
+  }
+  return true;
+}
+
 /** Run `fn` with a scripted provider, and always put the environment back. */
 async function scripted(steps, fn) {
   const dir = script(steps);
@@ -345,9 +364,14 @@ module.exports = async function () {
       const a = app(dir);
       const t0 = Date.now();
       const job = a.startBackground('inspect the README');
-      assert.ok(Date.now() - t0 < PROMPT_BUDGET, 'asking must not block the caller either');
+      // BLOCKING HERE WOULD BE UNBOUNDED — the question is never answered — so
+      // any finite bound proves the caller was not held. SLOW, not
+      // PROMPT_BUDGET: measured idle this returns in 5-25 ms, and the 250 ms
+      // prompt budget failed under a full tier from event-loop stalls rather
+      // than from anything this function did.
+      assert.ok(Date.now() - t0 < SLOW, 'asking must not block the caller either');
 
-      await after(400);
+      assert.ok(await until(() => job.needsInput), 'the job parked on its question');
       assert.strictEqual(job.state, STATE.RUNNING, 'parked is a phase of RUNNING, not a new state');
       assert.strictEqual(job.needsInput, true);
       assert.strictEqual(job.label, 'NEEDS INPUT');
@@ -382,8 +406,7 @@ module.exports = async function () {
       ], async (dir) => {
         const a = app(dir);
         const job = a.startBackground('something that asks');
-        await after(400);
-        assert.strictEqual(job.needsInput, true, 'it must actually be parked for this to mean anything');
+        assert.ok(await until(() => job.needsInput), 'it must actually be parked for this to mean anything');
         job.cancel('you cancelled it');
         await job.wait();
         assert.strictEqual(job.state, STATE.CANCELLED);

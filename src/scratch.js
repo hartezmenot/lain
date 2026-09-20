@@ -182,6 +182,9 @@ function promote(root, sessionId, { text, evidence, by = 'lain' } = {}) {
     by: String(by).slice(0, 60),
     session: String(sessionId || ''),
     at: Date.now(),
+    // THE FINGERPRINTS of the files the evidence names, so the fact goes STALE
+    // when they change. See freshness.js.
+    proof: require('./freshness').stamp(root, require('./freshness').pathsIn(root, e)).evidence,
   };
   // THE SAME FACT TWICE IS ONE FACT, refreshed. Otherwise a loop that promotes
   // on every pass fills memory with copies.

@@ -241,8 +241,12 @@ function onDisk(checkpoints, cwd) {
  * @param {{cwd?:string, checkpoints?:object, toModel?:string}} opts
  */
 function build(session, opts = {}) {
-  const { cwd = '', checkpoints = null, toModel = '', runtime = null } = opts;
+  const { cwd = '', checkpoints = null, toModel = '', runtime = null, opened = false } = opts;
   if (!session) return '';
+  // THE HANDOVER IS THE OPENING OF A TURN. Once that turn has sent its first
+  // request the receiving model has read it; every later step is an ordinary
+  // continuation and gets the working context instead. See prompt.workingContext.
+  if (opened) return '';
   const root = cwd || session.cwd || process.cwd();
   const parts = [];
 
@@ -258,6 +262,10 @@ function build(session, opts = {}) {
   //
   // It is also the only account that can name the PREVIOUS MODEL after a switch
   // decided in a process that has since exited.
+  // READ BEFORE THE OPENING IS BUILT, because the opening now says whether the
+  // TASK survived the executor change — which is a property of the task, not of
+  // the turn record. See src/task.js STATE.
+  const task = session.task;
   const rt = runtime && typeof runtime === 'object' ? runtime : null;
   if (rt) {
     const why = RUNTIME_WHY[rt.kind] || 'the previous turn did not complete';
@@ -267,7 +275,42 @@ function build(session, opts = {}) {
       + (prev ? ` The work up to this point was done by ${prev}.` : ''));
   }
   if (from && toModel && from !== toModel) {
-    opening.push(`You are taking over this task from a different model (${from}).`);
+    // ---- WHY THIS SENTENCE SAYS MORE THAN "A DIFFERENT MODEL WAS HERE" -----
+    //
+    // It used to say only that, and that is exactly the sentence a receiving
+    // model reads as SOMEBODY ELSE'S PROPERTY. The observed behaviour was a
+    // model declining to repair a login bug because the session code it ran
+    // through had been written by the previous executor — treating a record of
+    // who wrote something as a rule about who may change it.
+    //
+    // So the authority is stated outright. A previous executor leaves
+    // PROVENANCE, not a claim: the user owns the objective, LAIN owns the task,
+    // and the model currently holding it is the one that works it. See
+    // src/task.js EXECUTOR.
+    //
+    // AND THE REASON IS CARRIED WHEN THERE IS ONE. "The previous model hit a
+    // provider limit" and "the user changed model" call for different things
+    // from the reader: the first is an interruption to continue through, the
+    // second may be a deliberate change of approach.
+    // THE REASON BELONGS TO THE EXECUTOR THAT STOPPED, NOT THE ONE READING THIS.
+    //
+    // `task.executor.why` is the CURRENT executor's, and by the time a
+    // replacement is reading this packet the current executor is the
+    // replacement — whose `why` is empty, because nothing has gone wrong for it
+    // yet. The reason the previous one stopped is on the handover row that
+    // recorded the change. See src/task.js `assignExecutor`.
+    const last = task && Array.isArray(task.handovers) && task.handovers.length
+      ? task.handovers[task.handovers.length - 1] : null;
+    const reason = (last && last.why)
+      || (task && task.executor && task.executor.state !== 'ACTIVE' && task.executor.why)
+      || '';
+    const why = reason ? String(reason).slice(0, 120) : '';
+    opening.push(`You are continuing this task from a different model (${from})`
+      + (why ? ` — ${from} stopped because: ${why}` : '')
+      + '. The TASK is unchanged and is still active: same objective, same evidence, '
+      + 'same plan, same files. Previous work is provenance, not ownership — nothing '
+      + 'here belongs to another model, and you may change any of it that this task '
+      + 'requires. Continue from the state below rather than restarting.');
   }
   if (last && last.stopReason && last.stopReason !== 'end') {
     const why = WHY[last.stopReason] || last.stopReason;
@@ -285,12 +328,16 @@ function build(session, opts = {}) {
   // First, because it is the one thing in the packet that cannot be recovered
   // by looking at the repository. Everything below can be re-measured; a
   // correction the user made an hour ago cannot.
-  const task = session.task;
   if (task && task.objective) parts.push(`Task: ${String(task.objective).replace(/\s+/g, ' ').slice(0, 300)}`);
-  if (task && Array.isArray(task.steers) && task.steers.length) {
-    const rows = task.steers.slice(-MAX_STEERS)
-      .map((s) => `- ${String(s.text || '').replace(/\s+/g, ' ').slice(0, 160)}`);
-    parts.push(`The user has since said (these override the original request):\n${rows.join('\n')}`);
+  // ONE CURRENT INTENT (intent.js): the repeated requests a rate limit or a
+  // model switch produced collapse; new constraints and corrections survive.
+  // The original turns stay in history, never replayed as separate orders.
+  {
+    const intent = require('./intent');
+    const repeats = ((session && session.turns) || []).slice(1).map((t) => t.userInput).filter(Boolean);
+    const later = [...repeats, ...((task && Array.isArray(task.steers)) ? task.steers.slice(-MAX_STEERS) : [])];
+    const said = later.length ? intent.render(intent.effective(task && task.objective, later), { objective: !(task && task.objective) }) : '';
+    if (said) parts.push(said);
   }
 
   // ---- WHAT IS TRUE ON DISK RIGHT NOW -------------------------------------
@@ -338,8 +385,10 @@ function build(session, opts = {}) {
   // contradicts what the dead turn said about itself.
   if (life && life.lastCommand) {
     const c = life.lastCommand;
-    parts.push(`Last check actually run: \`${String(c.command).slice(0, 120)}\` — `
-      + `${c.ok ? 'PASSED' : `FAILED${c.exitCode != null ? ` (exit ${c.exitCode})` : ''}`}.`);
+    const verdict = c.ok === true ? 'PASSED'
+      : c.ok === false ? `FAILED${c.exitCode != null ? ` (exit ${c.exitCode})` : ''}`
+      : `INCONCLUSIVE${c.note ? ` — ${c.note}` : ''} — treat this task's requirement as UNVERIFIED, not passed`;
+    parts.push(`Last check actually run: \`${String(c.command).slice(0, 120)}\` — ${verdict}.`);
   } else {
     parts.push('No check has been run in this session yet — nothing here is verified by execution.');
   }
@@ -376,8 +425,13 @@ function build(session, opts = {}) {
   try {
     const scratch = require('./scratch');
     const mine = scratch.notes(root, session.id);
-    if (mine.length) {
-      const rows = mine.slice(-8).reverse().map((n) => `- ${n.text}${n.by ? `  [${n.by}]` : ''}`);
+    // WORKING NARRATION IS NOT A FINDING (§16): "One last read…", "Back on the
+    // two bugs…" never enter the handover —
+    // intent.durable drops pure announcements; what survives is labelled by kind.
+    const intentMod = require('./intent');
+    const durable = mine.map((n) => ({ ...n, text: intentMod.durable(n.text) })).filter((n) => n.text);
+    if (durable.length) {
+      const rows = durable.slice(-8).reverse().map((n) => `- ${n.kind && n.kind !== 'finding' ? `${n.kind.toUpperCase()}: ` : ''}${n.text}${n.by ? `  [${n.by}]` : ''}`);
       parts.push(`The previous turn had already found (half-checked findings, its scratch):\n${rows.join('\n')}`);
     }
     const others = scratch.orphans(root, { exclude: session.id }).slice(-MAX_ORPHANS);

@@ -577,7 +577,10 @@ module.exports = {
       id: 'A2', name: 'LOCAL SYMBOL CHANGE — WASTEFUL TWIN', cls: 'detector-validation',
       purpose: 'the same task done redundantly on purpose: the waste detectors MUST fire',
       prompt: A_PROMPT, mockScript: A2_SCRIPT, verify: verifyA, live: false,
-      expect: { requests: 12, toolCalls: 11, rediscoveries: 2, duplicates: 3, semanticEdits: 1, fullTests: 2, ledgerReuse: 0, retries: 0 },
+      // ledgerReuse 1: the planted duplicate read_symbol is still counted as the
+      // model's rediscovery, AND LAIN served it from its read receipt instead of
+      // re-running it (src/progress.js). Both are true; neither hides the other.
+      expect: { requests: 12, toolCalls: 11, rediscoveries: 2, duplicates: 3, semanticEdits: 1, fullTests: 2, ledgerReuse: 1, retries: 0 },
     },
     {
       id: 'B', name: 'CROSS-FILE API CHANGE', cls: 'cross-file-change',

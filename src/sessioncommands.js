@@ -22,8 +22,9 @@ const { Session } = require('./session');
  * @param {object} api  { define, DURING_TURN, C } — the registry's own
  *                      vocabulary, passed in rather than imported back.
  */
-function register({ define, REGISTRY, DURING_TURN, C }) {
+function register({ define, REGISTRY, DURING_TURN, C, FLASH_MS }) {
   define('/new', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: LAIN talking about itself, not about the work. Goes to the
     // command panel, never into the conversation the model reads.
     surface: true,
@@ -160,6 +161,7 @@ function register({ define, REGISTRY, DURING_TURN, C }) {
    * BLOCKED during a turn: it rewrites the very array the turn is sending.
    */
   define('/clear', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: LAIN talking about itself, not about the work. Goes to the
     // command panel, never into the conversation the model reads.
     surface: true,

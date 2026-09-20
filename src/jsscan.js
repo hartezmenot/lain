@@ -30,11 +30,19 @@
  *
  * DECLARED LIMITS, because the honest statement of what a tool cannot do is
  * what makes the rest of it trustworthy:
- *   · JavaScript and JSX-free TypeScript syntax. Not JSX, not Python, not Go.
+ *   · JavaScript, JSX and TypeScript. Not Python, not Go, not Rust.
  *   · No scope analysis: it says a name is a name, not which binding it is.
- *   · No type information of any kind.
+ *   · No type information of any kind. A type annotation is tokens like any
+ *     other, so `x: string` can leave a `string` binding behind — noise the
+ *     CAVEAT in locate.js already states for every answer built on this.
  * Anything outside that returns `supported: false` and the callers say so
  * rather than guessing.
+ *
+ * THIS PARAGRAPH USED TO SAY "Not JSX" AND "JSX-free TypeScript", while
+ * `SUPPORTED` admitted neither TS nor JSX at all — so the documented limit and
+ * the enforced one disagreed, and both were wrong. Measured on a real TS/React
+ * project: JSX components, typed functions and their import specifiers all come
+ * out correctly. What the scanner does is now what this says it does.
  */
 
 /** What a token can be. A `name` is an identifier or a keyword. */
@@ -289,8 +297,39 @@ function matchBracket(tokens, from) {
   return -1;
 }
 
-/** Files this scanner claims to understand. Anything else gets an honest no. */
-const SUPPORTED = /\.(?:js|cjs|mjs)$/i;
+/**
+ * FILES THIS SCANNER CLAIMS TO UNDERSTAND. Anything else gets an honest no.
+ *
+ * ------------------------------------------------------------------------
+ * WHY TYPESCRIPT IS ON THIS LIST, AND WHAT IT COST TO LEAVE IT OFF.
+ *
+ * This read `/\.(?:js|cjs|mjs)$/i` while projectindex.js decided what to scan
+ * with `/\.(?:js|jsx|mjs|cjs|ts|tsx)$/i`. Two lists, one of them wrong, and the
+ * disagreement was SWALLOWED: the index marked a `.ts` file `lang: 'js'`, asked
+ * for its symbols, was told "not JavaScript", and stored the file with NO
+ * symbols and NO imports — no error, no warning, no degraded state.
+ *
+ * The effect on a TypeScript project is total. Measured on a real one
+ * (toradb, 41 TS/TSX sources): the persisted index held 47 files and ZERO
+ * symbols, so `locate`, `definitionsOf` and `importersOf` could never answer,
+ * and every question about the project fell back to grep and whole-file reads
+ * — the same regions, every turn, across every resume. That is the reread loop.
+ *
+ * THE SCANNER WAS ALWAYS ABLE TO DO IT. It is lexical, not a type checker, and
+ * declaration SHAPES are the same in both languages; asked to scan the same
+ * files with the gate bypassed it produced 1821 symbols with correct
+ * containers and correct import specifiers, JSX included. The gate was the only
+ * thing in the way.
+ *
+ * WHAT IT STILL IS: lexical. A type annotation can read as a declaration
+ * (`x: string` can yield a `string` binding), and that noise is the same class
+ * the CAVEAT in locate.js already states for every answer built on this. It is
+ * worth far less than answering "unknown" about every symbol in the project.
+ *
+ * ONE LIST. Every caller asks `supports()`; nobody keeps a private copy. See
+ * tests/unit/codemodel.test.js, which fails if a second list appears.
+ */
+const SUPPORTED = /\.(?:js|cjs|mjs|jsx|ts|tsx|mts|cts)$/i;
 
 function supports(file) { return SUPPORTED.test(String(file || '')); }
 

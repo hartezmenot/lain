@@ -1,0 +1,887 @@
+{"t": 1787224269.621, "level": "info", "event": "probe.start", "session": "s_1m0fdw8qr4g01", "session_": "s_1m0fdw8qr4g01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 4644}
+{"t": 1787224270.252, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "process", "critical": false}
+{"t": 1787224270.252, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "memory", "critical": false}
+{"t": 1787224270.252, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "code", "critical": false}
+{"t": 1787224270.252, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "debug", "critical": true}
+{"t": 1787224270.252, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "pointers", "critical": false}
+{"t": 1787224270.27, "level": "info", "event": "findings.open", "session": "s_1m0fdw8qr4g01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "findings", "critical": false}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "vision", "critical": false}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "input", "critical": true}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "automation", "critical": false}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "python", "critical": false}
+{"t": 1787224270.27, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "investigate", "critical": false}
+{"t": 1787224270.272, "level": "info", "event": "tools.built", "session": "s_1m0fdw8qr4g01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224270.272, "level": "info", "event": "engine.registered", "session": "s_1m0fdw8qr4g01", "engine": "protocol", "critical": false}
+{"t": 1787224270.272, "level": "info", "event": "session.peer", "session": "s_1m0fdw8qr4g01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224270.272, "level": "info", "event": "lain.serving", "session": "s_1m0fdw8qr4g01", "ops": 73}
+{"t": 1787224270.272, "level": "info", "event": "session.bound", "session": "s_1m0fdw8qr4g01", "lain_session": "trace-session", "connection": "c_mt1f6o4els2g", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224270.272, "level": "info", "event": "session.peer", "session": "s_1m0fdw8qr4g01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224270.272, "level": "info", "event": "lain.hello", "session": "s_1m0fdw8qr4g01", "client": "lain", "client_version": 2, "lain_session": "trace-session", "connection": "c_mt1f6o4els2g"}
+{"t": 1787224270.275, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fdw9e14g02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224270.275, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdw9e24g03", "summary": "count=73"}
+{"t": 1787224270.277, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdw9e44g04", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224270.277, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fdw9e44g05", "summary": "active, capabilities, prompter"}
+{"t": 1787224270.277, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "input.status", "state": "ok", "ms": 0, "request_id": "r_1m0fdw9e54g06", "summary": "summary=nothing held"}
+{"t": 1787224270.278, "level": "info", "event": "tool.done", "session": "s_1m0fdw8qr4g01", "tool": "probe.status", "state": "ok", "ms": 1, "request_id": "r_1m0fdw9e54g07", "summary": "session, health, engines, permissions"}
+{"t": 1787224304.347, "level": "info", "event": "probe.start", "session": "s_1m0fdxamy3001", "session_": "s_1m0fdxamy3001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 27416}
+{"t": 1787224304.976, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "process", "critical": false}
+{"t": 1787224304.976, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "memory", "critical": false}
+{"t": 1787224304.976, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "code", "critical": false}
+{"t": 1787224304.976, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "debug", "critical": true}
+{"t": 1787224304.976, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "pointers", "critical": false}
+{"t": 1787224304.977, "level": "info", "event": "findings.open", "session": "s_1m0fdxamy3001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224304.977, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "findings", "critical": false}
+{"t": 1787224304.977, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "vision", "critical": false}
+{"t": 1787224304.977, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "input", "critical": true}
+{"t": 1787224304.977, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "automation", "critical": false}
+{"t": 1787224304.977, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "python", "critical": false}
+{"t": 1787224304.979, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "investigate", "critical": false}
+{"t": 1787224304.979, "level": "info", "event": "tools.built", "session": "s_1m0fdxamy3001", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224304.979, "level": "info", "event": "engine.registered", "session": "s_1m0fdxamy3001", "engine": "protocol", "critical": false}
+{"t": 1787224305.08, "level": "info", "event": "target.target_discovered", "session": "s_1m0fdxamy3001", "count": 316, "selectable": 184, "filter": null}
+{"t": 1787224305.093, "level": "info", "event": "ui.open", "session": "s_1m0fdxamy3001", "topmost": true}
+{"t": 1787224305.093, "level": "info", "event": "session.peer", "session": "s_1m0fdxamy3001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224305.093, "level": "info", "event": "lain.serving", "session": "s_1m0fdxamy3001", "ops": 73}
+{"t": 1787224305.093, "level": "info", "event": "session.bound", "session": "s_1m0fdxamy3001", "lain_session": "trace2", "connection": "c_mt1f7ex68r3r", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224305.093, "level": "info", "event": "session.peer", "session": "s_1m0fdxamy3001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224305.093, "level": "info", "event": "lain.hello", "session": "s_1m0fdxamy3001", "client": "lain", "client_version": 2, "lain_session": "trace2", "connection": "c_mt1f7ex68r3r"}
+{"t": 1787224305.096, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fdxbe63002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224305.096, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbe83003", "summary": "count=73"}
+{"t": 1787224305.098, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbe93004", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224305.099, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbe93005", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224305.099, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbeb3006", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224305.099, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbeb3007", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224305.099, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fdxbeb3008", "summary": "active, capabilities, prompter"}
+{"t": 1787224305.101, "level": "info", "event": "tool.done", "session": "s_1m0fdxamy3001", "tool": "vision.capture", "state": "error", "ms": 0, "request_id": "r_1m0fdxbec3009", "summary": "unknown tool"}
+{"t": 1787224358.737, "level": "info", "event": "probe.start", "session": "s_1m0fdyzrpy001", "session_": "s_1m0fdyzrpy001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 23280}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "process", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "memory", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "code", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "debug", "critical": true}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "pointers", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "findings.open", "session": "s_1m0fdyzrpy001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "findings", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "vision", "critical": false}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "input", "critical": true}
+{"t": 1787224359.344, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "automation", "critical": false}
+{"t": 1787224359.345, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "python", "critical": false}
+{"t": 1787224359.345, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "investigate", "critical": false}
+{"t": 1787224359.345, "level": "info", "event": "tools.built", "session": "s_1m0fdyzrpy001", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224359.345, "level": "info", "event": "engine.registered", "session": "s_1m0fdyzrpy001", "engine": "protocol", "critical": false}
+{"t": 1787224359.448, "level": "info", "event": "target.target_discovered", "session": "s_1m0fdyzrpy001", "count": 315, "selectable": 183, "filter": null}
+{"t": 1787224359.46, "level": "info", "event": "ui.open", "session": "s_1m0fdyzrpy001", "topmost": true}
+{"t": 1787224359.46, "level": "info", "event": "session.peer", "session": "s_1m0fdyzrpy001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224359.46, "level": "info", "event": "lain.serving", "session": "s_1m0fdyzrpy001", "ops": 73}
+{"t": 1787224359.46, "level": "info", "event": "session.bound", "session": "s_1m0fdyzrpy001", "lain_session": "trace3", "connection": "c_mt1f8kw4tv3h", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224359.461, "level": "info", "event": "session.peer", "session": "s_1m0fdyzrpy001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224359.461, "level": "info", "event": "lain.hello", "session": "s_1m0fdyzrpy001", "client": "lain", "client_version": 2, "lain_session": "trace3", "connection": "c_mt1f8kw4tv3h"}
+{"t": 1787224359.463, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fdz0h5y002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224359.464, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0h7y003", "summary": "summary=no authorised target"}
+{"t": 1787224359.477, "level": "info", "event": "target.target_discovered", "session": "s_1m0fdyzrpy001", "count": 315, "selectable": 208, "filter": null}
+{"t": 1787224359.477, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "target.list", "state": "ok", "ms": 12, "request_id": "r_1m0fdz0h8y004", "summary": "summary=315 processes, 208 selectable [USER SELECTABLE]"}
+{"t": 1787224359.477, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hny005", "summary": "active, capabilities, prompter"}
+{"t": 1787224359.479, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.health", "state": "ok", "ms": 1, "request_id": "r_1m0fdz0hny006", "summary": "state=ok"}
+{"t": 1787224359.48, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hry007", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224359.482, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hry008", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224359.483, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hsy009", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224359.483, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hvy00a", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224359.483, "level": "info", "event": "tool.done", "session": "s_1m0fdyzrpy001", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fdz0hvy00b", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224573.132, "level": "info", "event": "probe.start", "session": "s_1m0fe5h4g0g01", "session_": "s_1m0fe5h4g0g01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 22788}
+{"t": 1787224573.747, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "process", "critical": false}
+{"t": 1787224573.747, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "memory", "critical": false}
+{"t": 1787224573.747, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "code", "critical": false}
+{"t": 1787224573.747, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "debug", "critical": true}
+{"t": 1787224573.747, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "pointers", "critical": false}
+{"t": 1787224573.748, "level": "info", "event": "findings.open", "session": "s_1m0fe5h4g0g01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "findings", "critical": false}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "vision", "critical": false}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "input", "critical": true}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "automation", "critical": false}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "python", "critical": false}
+{"t": 1787224573.748, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "investigate", "critical": false}
+{"t": 1787224573.75, "level": "info", "event": "tools.built", "session": "s_1m0fe5h4g0g01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224573.75, "level": "info", "event": "engine.registered", "session": "s_1m0fe5h4g0g01", "engine": "protocol", "critical": false}
+{"t": 1787224573.852, "level": "info", "event": "target.target_discovered", "session": "s_1m0fe5h4g0g01", "count": 318, "selectable": 184, "filter": null}
+{"t": 1787224573.866, "level": "info", "event": "ui.open", "session": "s_1m0fe5h4g0g01", "topmost": true}
+{"t": 1787224573.866, "level": "info", "event": "session.peer", "session": "s_1m0fe5h4g0g01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224573.866, "level": "info", "event": "lain.serving", "session": "s_1m0fe5h4g0g01", "ops": 73}
+{"t": 1787224573.866, "level": "info", "event": "session.bound", "session": "s_1m0fe5h4g0g01", "lain_session": "trace4", "connection": "c_mt1fd6b8pade", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224573.866, "level": "info", "event": "session.peer", "session": "s_1m0fe5h4g0g01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224573.867, "level": "info", "event": "lain.hello", "session": "s_1m0fe5h4g0g01", "client": "lain", "client_version": 2, "lain_session": "trace4", "connection": "c_mt1fd6b8pade"}
+{"t": 1787224573.869, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fe5hxb0g02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224573.87, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fe5hxe0g03", "summary": "active, capabilities, prompter"}
+{"t": 1787224573.871, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "target.status", "state": "ok", "ms": 1, "request_id": "r_1m0fe5hxe0g04", "summary": "summary=no authorised target"}
+{"t": 1787224573.871, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fe5hxf0g05", "summary": "active, capabilities, prompter"}
+{"t": 1787224573.873, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0fe5hxh0g06", "summary": "summary=no authorised target"}
+{"t": 1787224573.876, "level": "info", "event": "tool.done", "session": "s_1m0fe5h4g0g01", "tool": "probe.status", "state": "ok", "ms": 1, "request_id": "r_1m0fe5hxj0g07", "summary": "session, health, engines, permissions"}
+{"t": 1787224612.662, "level": "info", "event": "probe.start", "session": "s_1m0fe6qqkf001", "session_": "s_1m0fe6qqkf001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 10360}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "process", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "memory", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "code", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "debug", "critical": true}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "pointers", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "findings.open", "session": "s_1m0fe6qqkf001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "findings", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "vision", "critical": false}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "input", "critical": true}
+{"t": 1787224613.309, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "automation", "critical": false}
+{"t": 1787224613.311, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "python", "critical": false}
+{"t": 1787224613.311, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "investigate", "critical": false}
+{"t": 1787224613.311, "level": "info", "event": "tools.built", "session": "s_1m0fe6qqkf001", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224613.311, "level": "info", "event": "engine.registered", "session": "s_1m0fe6qqkf001", "engine": "protocol", "critical": false}
+{"t": 1787224613.416, "level": "info", "event": "target.target_discovered", "session": "s_1m0fe6qqkf001", "count": 317, "selectable": 183, "filter": null}
+{"t": 1787224613.429, "level": "info", "event": "ui.open", "session": "s_1m0fe6qqkf001", "topmost": true}
+{"t": 1787224613.429, "level": "info", "event": "session.peer", "session": "s_1m0fe6qqkf001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224613.429, "level": "info", "event": "lain.serving", "session": "s_1m0fe6qqkf001", "ops": 73}
+{"t": 1787224613.429, "level": "info", "event": "session.bound", "session": "s_1m0fe6qqkf001", "lain_session": "ui", "connection": "c_mt1fe0t40zrl", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224613.429, "level": "info", "event": "session.peer", "session": "s_1m0fe6qqkf001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224613.429, "level": "info", "event": "lain.hello", "session": "s_1m0fe6qqkf001", "client": "lain", "client_version": 2, "lain_session": "ui", "connection": "c_mt1fe0t40zrl"}
+{"t": 1787224613.432, "level": "info", "event": "tool.done", "session": "s_1m0fe6qqkf001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fe6rhpf002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224613.434, "level": "info", "event": "tool.done", "session": "s_1m0fe6qqkf001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fe6rhsf003", "summary": "active, capabilities, prompter"}
+{"t": 1787224613.435, "level": "info", "event": "tool.done", "session": "s_1m0fe6qqkf001", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0fe6rhvf004", "summary": "summary=no authorised target"}
+{"t": 1787224831.631, "level": "info", "event": "probe.start", "session": "s_1m0feddjfqg01", "session_": "s_1m0feddjfqg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 7612}
+{"t": 1787224832.312, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "process", "critical": false}
+{"t": 1787224832.312, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "memory", "critical": false}
+{"t": 1787224832.312, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "code", "critical": false}
+{"t": 1787224832.312, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "debug", "critical": true}
+{"t": 1787224832.312, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "pointers", "critical": false}
+{"t": 1787224832.314, "level": "info", "event": "findings.open", "session": "s_1m0feddjfqg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "findings", "critical": false}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "vision", "critical": false}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "input", "critical": true}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "automation", "critical": false}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "python", "critical": false}
+{"t": 1787224832.315, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "investigate", "critical": false}
+{"t": 1787224832.318, "level": "info", "event": "tools.built", "session": "s_1m0feddjfqg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224832.318, "level": "info", "event": "engine.registered", "session": "s_1m0feddjfqg01", "engine": "protocol", "critical": false}
+{"t": 1787224832.318, "level": "info", "event": "session.peer", "session": "s_1m0feddjfqg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224832.318, "level": "info", "event": "lain.serving", "session": "s_1m0feddjfqg01", "ops": 73}
+{"t": 1787224832.319, "level": "info", "event": "session.bound", "session": "s_1m0feddjfqg01", "lain_session": "t5", "connection": "c_mt1fiprtrz10", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224832.319, "level": "info", "event": "session.peer", "session": "s_1m0feddjfqg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224832.319, "level": "info", "event": "lain.hello", "session": "s_1m0feddjfqg01", "client": "lain", "client_version": 2, "lain_session": "t5", "connection": "c_mt1fiprtrz10"}
+{"t": 1787224832.323, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fedea0qg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224832.323, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea2qg03", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.325, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea4qg04", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.325, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea5qg05", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.325, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea5qg06", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.327, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea6qg07", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.327, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea7qg08", "summary": "summary=1 tool(s), with their parameters"}
+{"t": 1787224832.328, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea7qg09", "summary": "summary=nothing here is called 'python.execute'"}
+{"t": 1787224832.328, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea7qg0a", "summary": "summary=nothing here is called 'vision.read'"}
+{"t": 1787224832.328, "level": "info", "event": "tool.done", "session": "s_1m0feddjfqg01", "tool": "probe.tools", "state": "ok", "ms": 0, "request_id": "r_1m0fedea7qg0b", "summary": "summary=nothing here is called 'screen.ocr'"}
+{"t": 1787224891.429, "level": "info", "event": "probe.start", "session": "s_1m0fef7zb0g01", "session_": "s_1m0fef7zb0g01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 23300}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "process", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "memory", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "code", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "debug", "critical": true}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "pointers", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "findings.open", "session": "s_1m0fef7zb0g01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "findings", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "vision", "critical": false}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "input", "critical": true}
+{"t": 1787224892.034, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "automation", "critical": false}
+{"t": 1787224892.036, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "python", "critical": false}
+{"t": 1787224892.036, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "investigate", "critical": false}
+{"t": 1787224892.036, "level": "info", "event": "tools.built", "session": "s_1m0fef7zb0g01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224892.037, "level": "info", "event": "engine.registered", "session": "s_1m0fef7zb0g01", "engine": "protocol", "critical": false}
+{"t": 1787224892.139, "level": "info", "event": "target.target_discovered", "session": "s_1m0fef7zb0g01", "count": 317, "selectable": 183, "filter": null}
+{"t": 1787224892.152, "level": "info", "event": "ui.open", "session": "s_1m0fef7zb0g01", "topmost": true}
+{"t": 1787224892.152, "level": "info", "event": "session.peer", "session": "s_1m0fef7zb0g01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224892.152, "level": "info", "event": "lain.serving", "session": "s_1m0fef7zb0g01", "ops": 73}
+{"t": 1787224892.152, "level": "info", "event": "session.bound", "session": "s_1m0fef7zb0g01", "lain_session": "e2e-input", "connection": "c_mt1fjzx3hvws", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224892.152, "level": "info", "event": "session.peer", "session": "s_1m0fef7zb0g01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224892.152, "level": "info", "event": "lain.hello", "session": "s_1m0fef7zb0g01", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt1fjzx3hvws"}
+{"t": 1787224892.155, "level": "info", "event": "tool.done", "session": "s_1m0fef7zb0g01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fef8qs0g02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224892.155, "level": "info", "event": "tool.done", "session": "s_1m0fef7zb0g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fef8qt0g03", "summary": "active, capabilities, prompter"}
+{"t": 1787224892.155, "level": "info", "event": "tool.done", "session": "s_1m0fef7zb0g01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0fef8qt0g04", "summary": "summary=no authorised target"}
+{"t": 1787224928.41, "level": "info", "event": "probe.start", "session": "s_1m0fegc2xpg01", "session_": "s_1m0fegc2xpg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 27828}
+{"t": 1787224929.009, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "process", "critical": false}
+{"t": 1787224929.009, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "memory", "critical": false}
+{"t": 1787224929.009, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "code", "critical": false}
+{"t": 1787224929.009, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "debug", "critical": true}
+{"t": 1787224929.009, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "pointers", "critical": false}
+{"t": 1787224929.01, "level": "info", "event": "findings.open", "session": "s_1m0fegc2xpg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "findings", "critical": false}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "vision", "critical": false}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "input", "critical": true}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "automation", "critical": false}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "python", "critical": false}
+{"t": 1787224929.01, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "investigate", "critical": false}
+{"t": 1787224929.012, "level": "info", "event": "tools.built", "session": "s_1m0fegc2xpg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787224929.012, "level": "info", "event": "engine.registered", "session": "s_1m0fegc2xpg01", "engine": "protocol", "critical": false}
+{"t": 1787224929.114, "level": "info", "event": "target.target_discovered", "session": "s_1m0fegc2xpg01", "count": 318, "selectable": 184, "filter": null}
+{"t": 1787224929.128, "level": "info", "event": "ui.open", "session": "s_1m0fegc2xpg01", "topmost": true}
+{"t": 1787224929.128, "level": "info", "event": "session.peer", "session": "s_1m0fegc2xpg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787224929.128, "level": "info", "event": "lain.serving", "session": "s_1m0fegc2xpg01", "ops": 73}
+{"t": 1787224929.128, "level": "info", "event": "session.bound", "session": "s_1m0fegc2xpg01", "lain_session": "e2e-input", "connection": "c_mt1fksg8ypye", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787224929.128, "level": "info", "event": "session.peer", "session": "s_1m0fegc2xpg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787224929.128, "level": "info", "event": "lain.hello", "session": "s_1m0fegc2xpg01", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt1fksg8ypye"}
+{"t": 1787224929.131, "level": "info", "event": "tool.done", "session": "s_1m0fegc2xpg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0fegcv9pg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787224929.131, "level": "info", "event": "tool.done", "session": "s_1m0fegc2xpg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0fegcvapg03", "summary": "active, capabilities, prompter"}
+{"t": 1787224929.131, "level": "info", "event": "tool.done", "session": "s_1m0fegc2xpg01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0fegcvapg04", "summary": "summary=no authorised target"}
+{"t": 1787256191.229, "level": "info", "event": "probe.start", "session": "s_1m0gcae63mg01", "session_": "s_1m0gcae63mg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 15524}
+{"t": 1787256191.832, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "process", "critical": false}
+{"t": 1787256191.832, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "memory", "critical": false}
+{"t": 1787256191.832, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "code", "critical": false}
+{"t": 1787256191.832, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "debug", "critical": true}
+{"t": 1787256191.832, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "pointers", "critical": false}
+{"t": 1787256191.834, "level": "info", "event": "findings.open", "session": "s_1m0gcae63mg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "findings", "critical": false}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "vision", "critical": false}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "input", "critical": true}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "automation", "critical": false}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "python", "critical": false}
+{"t": 1787256191.834, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "investigate", "critical": false}
+{"t": 1787256191.835, "level": "info", "event": "tools.built", "session": "s_1m0gcae63mg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787256191.835, "level": "info", "event": "engine.registered", "session": "s_1m0gcae63mg01", "engine": "protocol", "critical": false}
+{"t": 1787256191.929, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256191.944, "level": "info", "event": "ui.open", "session": "s_1m0gcae63mg01", "topmost": true}
+{"t": 1787256191.944, "level": "info", "event": "session.peer", "session": "s_1m0gcae63mg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787256191.944, "level": "info", "event": "lain.serving", "session": "s_1m0gcae63mg01", "ops": 73}
+{"t": 1787256191.944, "level": "info", "event": "session.bound", "session": "s_1m0gcae63mg01", "lain_session": "input-audit", "connection": "c_mt1y6v052xx7", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787256191.944, "level": "info", "event": "session.peer", "session": "s_1m0gcae63mg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787256191.944, "level": "info", "event": "lain.hello", "session": "s_1m0gcae63mg01", "client": "lain", "client_version": 2, "lain_session": "input-audit", "connection": "c_mt1y6v052xx7"}
+{"t": 1787256191.947, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0gcaey9mg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787256193.514, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0gcagfamg03", "summary": "active, capabilities, prompter"}
+{"t": 1787256193.514, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0gcagfamg04", "summary": "summary=no authorised target"}
+{"t": 1787256193.517, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "window.list", "state": "ok", "ms": 2, "request_id": "r_1m0gcagfamg05", "summary": "summary=1 visible window(s)"}
+{"t": 1787256194.063, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256196.181, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256198.307, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256200.432, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256202.563, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 298, "selectable": 165, "filter": null}
+{"t": 1787256203.84, "level": "info", "event": "permission.granted", "session": "s_1m0gcae63mg01", "capability": "screen.capture", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787256203.993, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "window.focus", "state": "ok", "ms": 10475, "request_id": "r_1m0gcagfcmg06", "summary": "summary=focused 'LAIN INPUT TEST TARGET'"}
+{"t": 1787256204.691, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 298, "selectable": 165, "filter": null}
+{"t": 1787256205.157, "level": "info", "event": "permission.granted", "session": "s_1m0gcae63mg01", "capability": "keyboard.press", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787256205.203, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "input.keyboard.tap", "state": "ok", "ms": 1155, "request_id": "r_1m0gcatrgmg07", "summary": "summary=pressed a"}
+{"t": 1787256205.25, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "input.keyboard.tap", "state": "ok", "ms": 45, "request_id": "r_1m0gcavwkmg08", "summary": "summary=pressed b"}
+{"t": 1787256205.877, "level": "info", "event": "permission.granted", "session": "s_1m0gcae63mg01", "capability": "mouse.click", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787256206.673, "level": "info", "event": "permission.granted", "session": "s_1m0gcae63mg01", "capability": "mouse.move", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787256206.718, "level": "info", "event": "target.target_selected", "session": "s_1m0gcae63mg01", "pid": 17528, "name": "AMDRSServ.exe", "actor": "user", "identity": "amdrsserv.exe:17528:134315165472284616:s_1m0gcae63mg01"}
+{"t": 1787256206.73, "level": "warn", "event": "input.click", "session": "s_1m0gcae63mg01", "button": "left", "at": [363, 245], "double": false}
+{"t": 1787256206.731, "level": "info", "event": "tool.done", "session": "s_1m0gcae63mg01", "tool": "input.mouse.click", "state": "ok", "ms": 1480, "request_id": "r_1m0gcavy2mg09", "summary": "summary=left click at (363, 245)"}
+{"t": 1787256206.82, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcae63mg01", "count": 299, "selectable": 165, "filter": null}
+{"t": 1787256254.825, "level": "info", "event": "probe.start", "session": "s_1m0gccc9jbg01", "session_": "s_1m0gccc9jbg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 5468}
+{"t": 1787256255.373, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "process", "critical": false}
+{"t": 1787256255.373, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "memory", "critical": false}
+{"t": 1787256255.373, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "code", "critical": false}
+{"t": 1787256255.374, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "debug", "critical": true}
+{"t": 1787256255.374, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "pointers", "critical": false}
+{"t": 1787256255.375, "level": "info", "event": "findings.open", "session": "s_1m0gccc9jbg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "findings", "critical": false}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "vision", "critical": false}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "input", "critical": true}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "automation", "critical": false}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "python", "critical": false}
+{"t": 1787256255.375, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "investigate", "critical": false}
+{"t": 1787256255.376, "level": "info", "event": "tools.built", "session": "s_1m0gccc9jbg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787256255.376, "level": "info", "event": "engine.registered", "session": "s_1m0gccc9jbg01", "engine": "protocol", "critical": false}
+{"t": 1787256255.47, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256255.48, "level": "info", "event": "ui.open", "session": "s_1m0gccc9jbg01", "topmost": true}
+{"t": 1787256255.48, "level": "info", "event": "session.peer", "session": "s_1m0gccc9jbg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787256255.48, "level": "info", "event": "lain.serving", "session": "s_1m0gccc9jbg01", "ops": 73}
+{"t": 1787256255.48, "level": "info", "event": "session.bound", "session": "s_1m0gccc9jbg01", "lain_session": "input-audit", "connection": "c_mt1y882t08wo", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787256255.482, "level": "info", "event": "session.peer", "session": "s_1m0gccc9jbg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787256255.482, "level": "info", "event": "lain.hello", "session": "s_1m0gccc9jbg01", "client": "lain", "client_version": 2, "lain_session": "input-audit", "connection": "c_mt1y882t08wo"}
+{"t": 1787256255.483, "level": "info", "event": "tool.done", "session": "s_1m0gccc9jbg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0gccczsbg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787256257.041, "level": "info", "event": "tool.done", "session": "s_1m0gccc9jbg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0gcceghbg03", "summary": "active, capabilities, prompter"}
+{"t": 1787256257.041, "level": "info", "event": "tool.done", "session": "s_1m0gccc9jbg01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0gcceghbg04", "summary": "summary=no authorised target"}
+{"t": 1787256257.043, "level": "info", "event": "tool.done", "session": "s_1m0gccc9jbg01", "tool": "window.list", "state": "ok", "ms": 1, "request_id": "r_1m0gcceghbg05", "summary": "summary=1 visible window(s)"}
+{"t": 1787256257.509, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256259.612, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256261.729, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256263.837, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256265.961, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256268.072, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256270.202, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787256272.342, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256274.466, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256276.579, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256278.695, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256280.812, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256282.938, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256285.057, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256287.103, "level": "warn", "event": "permission.denied", "session": "s_1m0gccc9jbg01", "capability": "keyboard.press", "operation": "input.keyboard.tap", "why": "not granted"}
+{"t": 1787256287.103, "level": "info", "event": "tool.done", "session": "s_1m0gccc9jbg01", "tool": "input.keyboard.tap", "state": "denied", "ms": 0, "request_id": "r_1m0gcdbvzbg08", "summary": "permission to keyboard.press is not granted"}
+{"t": 1787256287.166, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 300, "selectable": 165, "filter": null}
+{"t": 1787256289.29, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 299, "selectable": 164, "filter": null}
+{"t": 1787256291.304, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787256293.426, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787256295.547, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787256297.664, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787256299.777, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787256301.885, "level": "info", "event": "target.target_discovered", "session": "s_1m0gccc9jbg01", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787256352.973, "level": "info", "event": "probe.start", "session": "s_1m0gcfc4nrg01", "session_": "s_1m0gcfc4nrg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 12740}
+{"t": 1787256353.518, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "process", "critical": false}
+{"t": 1787256353.518, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "memory", "critical": false}
+{"t": 1787256353.518, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "code", "critical": false}
+{"t": 1787256353.518, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "debug", "critical": true}
+{"t": 1787256353.518, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "pointers", "critical": false}
+{"t": 1787256353.52, "level": "info", "event": "findings.open", "session": "s_1m0gcfc4nrg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "findings", "critical": false}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "vision", "critical": false}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "input", "critical": true}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "automation", "critical": false}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "python", "critical": false}
+{"t": 1787256353.52, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "investigate", "critical": false}
+{"t": 1787256353.521, "level": "info", "event": "tools.built", "session": "s_1m0gcfc4nrg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787256353.521, "level": "info", "event": "engine.registered", "session": "s_1m0gcfc4nrg01", "engine": "protocol", "critical": false}
+{"t": 1787256353.617, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256353.627, "level": "info", "event": "ui.open", "session": "s_1m0gcfc4nrg01", "topmost": true}
+{"t": 1787256353.627, "level": "info", "event": "session.peer", "session": "s_1m0gcfc4nrg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787256353.627, "level": "info", "event": "lain.serving", "session": "s_1m0gcfc4nrg01", "ops": 73}
+{"t": 1787256353.627, "level": "info", "event": "session.bound", "session": "s_1m0gcfc4nrg01", "lain_session": "audit2", "connection": "c_mt1yabt3vaxx", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787256353.627, "level": "info", "event": "session.peer", "session": "s_1m0gcfc4nrg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787256353.629, "level": "info", "event": "lain.hello", "session": "s_1m0gcfc4nrg01", "client": "lain", "client_version": 2, "lain_session": "audit2", "connection": "c_mt1yabt3vaxx"}
+{"t": 1787256353.63, "level": "info", "event": "tool.done", "session": "s_1m0gcfc4nrg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0gcfctwrg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787256355.653, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256357.787, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256359.904, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256362.027, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256364.153, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256366.28, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256368.395, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256370.51, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256372.622, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256374.734, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256376.859, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256378.97, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256381.089, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256383.211, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256385.334, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256387.46, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256389.592, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 302, "selectable": 166, "filter": null}
+{"t": 1787256391.702, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256393.827, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256395.938, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256398.074, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256400.182, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256402.311, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256404.415, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256406.535, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256408.646, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 306, "selectable": 171, "filter": null}
+{"t": 1787256410.77, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256412.787, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256414.91, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256417.042, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 301, "selectable": 166, "filter": null}
+{"t": 1787256419.167, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256421.297, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256423.41, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256425.53, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256427.654, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256429.768, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256431.878, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256433.986, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256436.117, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256438.231, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256440.359, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787256442.482, "level": "info", "event": "target.target_discovered", "session": "s_1m0gcfc4nrg01", "count": 300, "selectable": 166, "filter": null}
+{"t": 1787291955.079, "level": "info", "event": "probe.start", "session": "s_1m0hedvt6fg01", "session_": "s_1m0hedvt6fg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 11644}
+{"t": 1787291955.689, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "process", "critical": false}
+{"t": 1787291955.689, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "memory", "critical": false}
+{"t": 1787291955.689, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "code", "critical": false}
+{"t": 1787291955.689, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "debug", "critical": true}
+{"t": 1787291955.689, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "pointers", "critical": false}
+{"t": 1787291955.69, "level": "info", "event": "findings.open", "session": "s_1m0hedvt6fg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "findings", "critical": false}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "vision", "critical": false}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "input", "critical": true}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "automation", "critical": false}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "python", "critical": false}
+{"t": 1787291955.69, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "investigate", "critical": false}
+{"t": 1787291955.692, "level": "info", "event": "tools.built", "session": "s_1m0hedvt6fg01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787291955.692, "level": "info", "event": "engine.registered", "session": "s_1m0hedvt6fg01", "engine": "protocol", "critical": false}
+{"t": 1787291955.808, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 293, "selectable": 158, "filter": null}
+{"t": 1787291955.818, "level": "info", "event": "ui.open", "session": "s_1m0hedvt6fg01", "topmost": true}
+{"t": 1787291955.818, "level": "info", "event": "session.peer", "session": "s_1m0hedvt6fg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787291955.82, "level": "info", "event": "lain.serving", "session": "s_1m0hedvt6fg01", "ops": 73}
+{"t": 1787291955.82, "level": "info", "event": "session.bound", "session": "s_1m0hedvt6fg01", "lain_session": "e2e-input", "connection": "c_mt2jhejxfler", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787291955.82, "level": "info", "event": "session.peer", "session": "s_1m0hedvt6fg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787291955.82, "level": "info", "event": "lain.hello", "session": "s_1m0hedvt6fg01", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt2jhejxfler"}
+{"t": 1787291955.821, "level": "info", "event": "tool.done", "session": "s_1m0hedvt6fg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hedwkbfg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787291955.823, "level": "info", "event": "tool.done", "session": "s_1m0hedvt6fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hedwkefg03", "summary": "active, capabilities, prompter"}
+{"t": 1787291955.823, "level": "info", "event": "tool.done", "session": "s_1m0hedvt6fg01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0hedwkefg04", "summary": "summary=no authorised target"}
+{"t": 1787291956.989, "level": "info", "event": "tool.done", "session": "s_1m0hedvt6fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hedxqxfg05", "summary": "active, capabilities, prompter"}
+{"t": 1787291957.84, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291959.966, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291962.097, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291964.224, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 295, "selectable": 160, "filter": null}
+{"t": 1787291966.24, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291968.267, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291970.389, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 294, "selectable": 159, "filter": null}
+{"t": 1787291972.519, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787291974.55, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787291976.677, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787291978.795, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787291980.935, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787291983.071, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 301, "selectable": 165, "filter": null}
+{"t": 1787291985.191, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 301, "selectable": 165, "filter": null}
+{"t": 1787291987.313, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 308, "selectable": 172, "filter": null}
+{"t": 1787291989.349, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787291991.483, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787291993.606, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787291995.73, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 312, "selectable": 176, "filter": null}
+{"t": 1787291997.859, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 312, "selectable": 176, "filter": null}
+{"t": 1787291999.995, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 312, "selectable": 176, "filter": null}
+{"t": 1787292002.122, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 312, "selectable": 176, "filter": null}
+{"t": 1787292004.249, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 312, "selectable": 176, "filter": null}
+{"t": 1787292006.269, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 308, "selectable": 172, "filter": null}
+{"t": 1787292008.411, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 308, "selectable": 172, "filter": null}
+{"t": 1787292010.55, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 315, "selectable": 179, "filter": null}
+{"t": 1787292012.679, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 313, "selectable": 177, "filter": null}
+{"t": 1787292014.695, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 313, "selectable": 177, "filter": null}
+{"t": 1787292016.817, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 313, "selectable": 177, "filter": null}
+{"t": 1787292018.941, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 309, "selectable": 173, "filter": null}
+{"t": 1787292021.064, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 309, "selectable": 173, "filter": null}
+{"t": 1787292023.173, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 309, "selectable": 173, "filter": null}
+{"t": 1787292025.29, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 309, "selectable": 173, "filter": null}
+{"t": 1787292027.397, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 309, "selectable": 173, "filter": null}
+{"t": 1787292029.519, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292031.534, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292033.649, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292035.781, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292037.899, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292040.035, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292042.161, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 307, "selectable": 171, "filter": null}
+{"t": 1787292044.291, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 315, "selectable": 179, "filter": null}
+{"t": 1787292046.417, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292048.542, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292050.668, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292052.805, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292054.936, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292057.06, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 316, "selectable": 180, "filter": null}
+{"t": 1787292059.198, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 321, "selectable": 184, "filter": null}
+{"t": 1787292061.334, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 326, "selectable": 190, "filter": null}
+{"t": 1787292063.463, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 326, "selectable": 190, "filter": null}
+{"t": 1787292065.594, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 326, "selectable": 190, "filter": null}
+{"t": 1787292067.72, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 322, "selectable": 186, "filter": null}
+{"t": 1787292069.869, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 322, "selectable": 186, "filter": null}
+{"t": 1787292072.004, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 322, "selectable": 186, "filter": null}
+{"t": 1787292074.137, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 322, "selectable": 186, "filter": null}
+{"t": 1787292076.263, "level": "info", "event": "target.target_discovered", "session": "s_1m0hedvt6fg01", "count": 322, "selectable": 186, "filter": null}
+{"t": 1787292077.042, "level": "info", "event": "permission.refused", "session": "s_1m0hedvt6fg01", "capability": "keyboard.press", "why": "the request timed out with no answer"}
+{"t": 1787292077.042, "level": "info", "event": "tool.done", "session": "s_1m0hedvt6fg01", "tool": "permission.request", "state": "ok", "ms": 120053, "request_id": "r_1m0hedxqxfg06", "summary": "summary=denied: the request timed out with no answer"}
+{"t": 1787293927.924, "level": "info", "event": "probe.start", "session": "s_1m0hga2dtc001", "session_": "s_1m0hga2dtc001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 19552}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "process", "critical": false}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "memory", "critical": false}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "code", "critical": false}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "debug", "critical": true}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "pointers", "critical": false}
+{"t": 1787293928.479, "level": "info", "event": "findings.open", "session": "s_1m0hga2dtc001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "findings", "critical": false}
+{"t": 1787293928.479, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "vision", "critical": false}
+{"t": 1787293928.481, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "input", "critical": true}
+{"t": 1787293928.481, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "automation", "critical": false}
+{"t": 1787293928.481, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "python", "critical": false}
+{"t": 1787293928.481, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "investigate", "critical": false}
+{"t": 1787293928.481, "level": "info", "event": "tools.built", "session": "s_1m0hga2dtc001", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787293928.482, "level": "info", "event": "engine.registered", "session": "s_1m0hga2dtc001", "engine": "protocol", "critical": false}
+{"t": 1787293928.582, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787293928.593, "level": "info", "event": "ui.open", "session": "s_1m0hga2dtc001", "topmost": true}
+{"t": 1787293928.593, "level": "info", "event": "session.peer", "session": "s_1m0hga2dtc001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787293928.593, "level": "info", "event": "lain.serving", "session": "s_1m0hga2dtc001", "ops": 73}
+{"t": 1787293928.593, "level": "info", "event": "session.bound", "session": "s_1m0hga2dtc001", "lain_session": "e2e-input", "connection": "c_mt2knotmywcb", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787293928.595, "level": "info", "event": "session.peer", "session": "s_1m0hga2dtc001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787293928.595, "level": "info", "event": "lain.hello", "session": "s_1m0hga2dtc001", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt2knotmywcb"}
+{"t": 1787293928.596, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hga34jc002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787293928.598, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hga34nc003", "summary": "active, capabilities, prompter"}
+{"t": 1787293928.598, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0hga34nc004", "summary": "summary=no authorised target"}
+{"t": 1787293930.603, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293932.747, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293934.882, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293937.017, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293939.041, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293941.174, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293943.317, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787293945.447, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293947.467, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293949.6, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787293949.757, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgaqswc006", "summary": "active, capabilities, prompter"}
+{"t": 1787293951.627, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293953.767, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293955.904, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293958.031, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293960.157, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293962.283, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293964.415, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293966.54, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787293968.68, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293970.702, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 302, "selectable": 167, "filter": null}
+{"t": 1787293972.841, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293974.973, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293977.105, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293979.232, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293981.355, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293983.387, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293985.522, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293987.541, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293989.673, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293991.81, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293993.842, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787293995.861, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787293997.979, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294000.113, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294002.237, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294004.365, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294006.502, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294008.633, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294010.757, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 169, "filter": null}
+{"t": 1787294012.782, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294014.917, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294017.047, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294019.187, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294021.308, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 303, "selectable": 168, "filter": null}
+{"t": 1787294023.444, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294025.568, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294027.7, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294029.719, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294031.845, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294033.983, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294036.111, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294038.13, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294040.154, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294042.177, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294044.309, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294046.442, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294048.567, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294049.801, "level": "info", "event": "permission.refused", "session": "s_1m0hga2dtc001", "capability": "screen.capture", "why": "the request timed out with no answer"}
+{"t": 1787294049.801, "level": "warn", "event": "permission.denied", "session": "s_1m0hga2dtc001", "capability": "screen.capture", "operation": "window.focus", "why": "not granted"}
+{"t": 1787294049.801, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "window.focus", "state": "denied", "ms": 120052, "request_id": "r_1m0hga48mc005", "summary": "permission to screen.capture is not granted"}
+{"t": 1787294050.599, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294052.732, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294054.859, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294056.991, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294059.011, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294061.126, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294063.238, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294065.367, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294067.495, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294069.63, "level": "info", "event": "target.target_discovered", "session": "s_1m0hga2dtc001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294069.816, "level": "info", "event": "permission.refused", "session": "s_1m0hga2dtc001", "capability": "keyboard.press", "why": "the request timed out with no answer"}
+{"t": 1787294069.816, "level": "info", "event": "tool.done", "session": "s_1m0hga2dtc001", "tool": "permission.request", "state": "ok", "ms": 120059, "request_id": "r_1m0hgaqswc007", "summary": "summary=denied: the request timed out with no answer"}
+{"t": 1787294093.64, "level": "info", "event": "probe.start", "session": "s_1m0hgf48f0001", "session_": "s_1m0hgf48f0001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 22784}
+{"t": 1787294094.254, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "process", "critical": false}
+{"t": 1787294094.254, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "memory", "critical": false}
+{"t": 1787294094.254, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "code", "critical": false}
+{"t": 1787294094.254, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "debug", "critical": true}
+{"t": 1787294094.254, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "pointers", "critical": false}
+{"t": 1787294094.255, "level": "info", "event": "findings.open", "session": "s_1m0hgf48f0001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "findings", "critical": false}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "vision", "critical": false}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "input", "critical": true}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "automation", "critical": false}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "python", "critical": false}
+{"t": 1787294094.255, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "investigate", "critical": false}
+{"t": 1787294094.257, "level": "info", "event": "tools.built", "session": "s_1m0hgf48f0001", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787294094.257, "level": "info", "event": "engine.registered", "session": "s_1m0hgf48f0001", "engine": "protocol", "critical": false}
+{"t": 1787294094.363, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294094.375, "level": "info", "event": "ui.open", "session": "s_1m0hgf48f0001", "topmost": true}
+{"t": 1787294094.375, "level": "info", "event": "session.peer", "session": "s_1m0hgf48f0001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787294094.375, "level": "info", "event": "lain.serving", "session": "s_1m0hgf48f0001", "ops": 73}
+{"t": 1787294094.377, "level": "info", "event": "session.bound", "session": "s_1m0hgf48f0001", "lain_session": "e2e-input", "connection": "c_mt2kr8ot65t4", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787294094.377, "level": "info", "event": "session.peer", "session": "s_1m0hgf48f0001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787294094.377, "level": "info", "event": "lain.hello", "session": "s_1m0hgf48f0001", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt2kr8ot65t4"}
+{"t": 1787294094.379, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hgf5190002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787294094.379, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgf51b0003", "summary": "active, capabilities, prompter"}
+{"t": 1787294094.379, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0hgf51b0004", "summary": "summary=no authorised target"}
+{"t": 1787294096.402, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294098.543, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294100.663, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294102.801, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294103.227, "level": "info", "event": "permission.granted", "session": "s_1m0hgf48f0001", "capability": "screen.capture", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787294103.383, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "window.focus", "state": "ok", "ms": 7836, "request_id": "r_1m0hgf65s0005", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787294103.896, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgfeap0006", "summary": "active, capabilities, prompter"}
+{"t": 1787294104.924, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 306, "selectable": 169, "filter": null}
+{"t": 1787294105.427, "level": "info", "event": "permission.granted", "session": "s_1m0hgf48f0001", "capability": "keyboard.press", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787294105.427, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "permission.request", "state": "ok", "ms": 1531, "request_id": "r_1m0hgfeaq0007", "summary": "summary=granted"}
+{"t": 1787294105.579, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hgfftk0008", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787294105.731, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hgffzb0009", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787294105.779, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "input.keyboard.tap", "state": "ok", "ms": 47, "request_id": "r_1m0hgfg43000a", "summary": "summary=pressed W"}
+{"t": 1787294106.683, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgfh1v000b", "summary": "active, capabilities, prompter"}
+{"t": 1787294106.835, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hgfh1v000c", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787294106.987, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hgfh6j000d", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787294106.988, "level": "warn", "event": "input.key_down", "session": "s_1m0hgf48f0001", "key": "W", "vk": 87}
+{"t": 1787294106.988, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "input.keyboard.press", "state": "ok", "ms": 1, "request_id": "r_1m0hgfhba000e", "summary": "summary=W is down"}
+{"t": 1787294107.012, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 306, "selectable": 169, "filter": null}
+{"t": 1787294109.032, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgf48f0001", "count": 306, "selectable": 169, "filter": null}
+{"t": 1787294109.573, "level": "info", "event": "permission.granted", "session": "s_1m0hgf48f0001", "capability": "keyboard.release", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787294109.575, "level": "info", "event": "input.key_up", "session": "s_1m0hgf48f0001", "key": "W", "vk": 87}
+{"t": 1787294109.575, "level": "info", "event": "tool.done", "session": "s_1m0hgf48f0001", "tool": "input.keyboard.release", "state": "ok", "ms": 1374, "request_id": "r_1m0hgfjh7000f", "summary": "summary=W is up"}
+{"t": 1787294122.797, "level": "info", "event": "probe.start", "session": "s_1m0hgg0qg5g01", "session_": "s_1m0hgg0qg5g01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 6700}
+{"t": 1787294123.373, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "process", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "memory", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "code", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "debug", "critical": true}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "pointers", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "findings.open", "session": "s_1m0hgg0qg5g01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "findings", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "vision", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "input", "critical": true}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "automation", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "python", "critical": false}
+{"t": 1787294123.375, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "investigate", "critical": false}
+{"t": 1787294123.377, "level": "info", "event": "tools.built", "session": "s_1m0hgg0qg5g01", "total": 78, "listed": 26, "implemented": 73, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787294123.377, "level": "info", "event": "engine.registered", "session": "s_1m0hgg0qg5g01", "engine": "protocol", "critical": false}
+{"t": 1787294123.474, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787294123.485, "level": "info", "event": "ui.open", "session": "s_1m0hgg0qg5g01", "topmost": true}
+{"t": 1787294123.485, "level": "info", "event": "session.peer", "session": "s_1m0hgg0qg5g01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787294123.485, "level": "info", "event": "lain.serving", "session": "s_1m0hgg0qg5g01", "ops": 73}
+{"t": 1787294123.487, "level": "info", "event": "session.bound", "session": "s_1m0hgg0qg5g01", "lain_session": "e2e-input", "connection": "c_mt2krv6p186o", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787294123.487, "level": "info", "event": "session.peer", "session": "s_1m0hgg0qg5g01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787294123.487, "level": "info", "event": "lain.hello", "session": "s_1m0hgg0qg5g01", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt2krv6p186o"}
+{"t": 1787294123.488, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hgg1ey5g02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787294123.49, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgg1f15g03", "summary": "active, capabilities, prompter"}
+{"t": 1787294123.49, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0hgg1f15g04", "summary": "summary=no authorised target"}
+{"t": 1787294125.503, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294127.521, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294129.538, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294131.667, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294133.797, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294135.932, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787294137.949, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 303, "selectable": 167, "filter": null}
+{"t": 1787294140.075, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294142.212, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294144.344, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294144.666, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hggp4s5g06", "summary": "active, capabilities, prompter"}
+{"t": 1787294146.546, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294148.667, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294150.788, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294152.915, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294155.037, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 168, "filter": null}
+{"t": 1787294157.164, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294159.282, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 167, "filter": null}
+{"t": 1787294161.407, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294163.431, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294165.451, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294167.578, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294169.715, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 169, "filter": null}
+{"t": 1787294171.825, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294173.885, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294176.009, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294178.146, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294180.277, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 168, "filter": null}
+{"t": 1787294182.3, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 302, "selectable": 165, "filter": null}
+{"t": 1787294184.439, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 167, "filter": null}
+{"t": 1787294186.585, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 167, "filter": null}
+{"t": 1787294188.609, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 167, "filter": null}
+{"t": 1787294190.745, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 305, "selectable": 167, "filter": null}
+{"t": 1787294192.87, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 304, "selectable": 165, "filter": null}
+{"t": 1787294195.007, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 303, "selectable": 165, "filter": null}
+{"t": 1787294197.131, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 308, "selectable": 170, "filter": null}
+{"t": 1787294199.153, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 315, "selectable": 177, "filter": null}
+{"t": 1787294201.283, "level": "info", "event": "target.target_discovered", "session": "s_1m0hgg0qg5g01", "count": 315, "selectable": 177, "filter": null}
+{"t": 1787294203.334, "level": "info", "event": "permission.granted", "session": "s_1m0hgg0qg5g01", "capability": "keyboard.press", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787294203.334, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "permission.request", "state": "ok", "ms": 58668, "request_id": "r_1m0hggp4s5g07", "summary": "summary=granted"}
+{"t": 1787294203.335, "level": "warn", "event": "permission.denied", "session": "s_1m0hgg0qg5g01", "capability": "screen.capture", "operation": "window.focus", "why": "not granted"}
+{"t": 1787294203.335, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "window.focus", "state": "denied", "ms": 0, "request_id": "r_1m0hgjfe65g08", "summary": "permission to screen.capture is not granted"}
+{"t": 1787294203.337, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hgjfe95g09", "summary": "active, capabilities, prompter"}
+{"t": 1787294203.337, "level": "warn", "event": "permission.denied", "session": "s_1m0hgg0qg5g01", "capability": "screen.capture", "operation": "window.focus", "why": "not granted"}
+{"t": 1787294203.337, "level": "info", "event": "tool.done", "session": "s_1m0hgg0qg5g01", "tool": "window.focus", "state": "denied", "ms": 0, "request_id": "r_1m0hgjfe95g0a", "summary": "permission to screen.capture is not granted"}
+{"t": 1787308255.618, "level": "info", "event": "probe.start", "session": "s_1m0hxzaa8fg01", "session_": "s_1m0hxzaa8fg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 25724}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "process", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "memory", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "code", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "debug", "critical": true}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "pointers", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "findings.open", "session": "s_1m0hxzaa8fg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "findings", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "vision", "critical": false}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "input", "critical": true}
+{"t": 1787308256.232, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "automation", "critical": false}
+{"t": 1787308256.233, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "python", "critical": false}
+{"t": 1787308256.233, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "investigate", "critical": false}
+{"t": 1787308256.233, "level": "info", "event": "tools.built", "session": "s_1m0hxzaa8fg01", "total": 79, "listed": 26, "implemented": 74, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787308256.233, "level": "info", "event": "engine.registered", "session": "s_1m0hxzaa8fg01", "engine": "protocol", "critical": false}
+{"t": 1787308256.332, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 329, "selectable": 197, "filter": null}
+{"t": 1787308256.344, "level": "info", "event": "ui.open", "session": "s_1m0hxzaa8fg01", "topmost": true}
+{"t": 1787308256.344, "level": "info", "event": "session.peer", "session": "s_1m0hxzaa8fg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787308256.344, "level": "info", "event": "lain.serving", "session": "s_1m0hxzaa8fg01", "ops": 74}
+{"t": 1787308256.345, "level": "info", "event": "session.bound", "session": "s_1m0hxzaa8fg01", "lain_session": "e2e-input", "connection": "c_mt2t6s4xm7xw", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787308256.345, "level": "info", "event": "session.peer", "session": "s_1m0hxzaa8fg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787308256.345, "level": "info", "event": "lain.hello", "session": "s_1m0hxzaa8fg01", "client": "lain", "client_version": 2, "lain_session": "e2e-input", "connection": "c_mt2t6s4xm7xw"}
+{"t": 1787308256.347, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hxzb2sfg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787308256.347, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hxzb2vfg03", "summary": "active, capabilities, prompter"}
+{"t": 1787308256.349, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "target.status", "state": "ok", "ms": 0, "request_id": "r_1m0hxzb2wfg04", "summary": "summary=no authorised target"}
+{"t": 1787308256.365, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.list", "state": "ok", "ms": 14, "request_id": "r_1m0hxzb2yfg05", "summary": "summary=14 visible window(s)"}
+{"t": 1787308258.382, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 330, "selectable": 198, "filter": null}
+{"t": 1787308259.83, "level": "info", "event": "permission.granted", "session": "s_1m0hxzaa8fg01", "capability": "screen.capture", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787308259.994, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.focus", "state": "ok", "ms": 2475, "request_id": "r_1m0hxzc7efg06", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308260.404, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 330, "selectable": 198, "filter": null}
+{"t": 1787308260.495, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hxzf4efg07", "summary": "active, capabilities, prompter"}
+{"t": 1787308262.433, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 330, "selectable": 198, "filter": null}
+{"t": 1787308262.9, "level": "info", "event": "permission.granted", "session": "s_1m0hxzaa8fg01", "capability": "keyboard.press", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787308262.9, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.request", "state": "ok", "ms": 2403, "request_id": "r_1m0hxzf4gfg08", "summary": "summary=granted"}
+{"t": 1787308262.9, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hxzhfmfg09", "summary": "active, capabilities, prompter"}
+{"t": 1787308263.053, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.focus", "state": "ok", "ms": 152, "request_id": "r_1m0hxzhfmfg0a", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308263.204, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.focus", "state": "ok", "ms": 150, "request_id": "r_1m0hxzhmdfg0b", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308263.249, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "input.keyboard.tap", "state": "ok", "ms": 44, "request_id": "r_1m0hxzhs4fg0c", "summary": "summary=pressed W"}
+{"t": 1787308264.151, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hxzjppfg0d", "summary": "active, capabilities, prompter"}
+{"t": 1787308264.152, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hxzjpqfg0e", "summary": "active, capabilities, prompter"}
+{"t": 1787308264.303, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hxzjpqfg0f", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308264.455, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "window.focus", "state": "ok", "ms": 151, "request_id": "r_1m0hxzjvffg0g", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308264.459, "level": "warn", "event": "input.key_down", "session": "s_1m0hxzaa8fg01", "key": "W", "vk": 87}
+{"t": 1787308264.459, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "input.keyboard.press", "state": "ok", "ms": 3, "request_id": "r_1m0hxzk07fg0h", "summary": "summary=W is down"}
+{"t": 1787308264.465, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 330, "selectable": 198, "filter": null}
+{"t": 1787308266.496, "level": "info", "event": "target.target_discovered", "session": "s_1m0hxzaa8fg01", "count": 330, "selectable": 198, "filter": null}
+{"t": 1787308267.224, "level": "info", "event": "permission.granted", "session": "s_1m0hxzaa8fg01", "capability": "keyboard.release", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787308267.227, "level": "info", "event": "input.key_up", "session": "s_1m0hxzaa8fg01", "key": "W", "vk": 87}
+{"t": 1787308267.227, "level": "info", "event": "tool.done", "session": "s_1m0hxzaa8fg01", "tool": "input.keyboard.release", "state": "ok", "ms": 1557, "request_id": "r_1m0hxzm65fg0j", "summary": "summary=W is up"}
+{"t": 1787308316.803, "level": "info", "event": "probe.start", "session": "s_1m0hy162d5001", "session_": "s_1m0hy162d5001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 30248}
+{"t": 1787308317.378, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "process", "critical": false}
+{"t": 1787308317.378, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "memory", "critical": false}
+{"t": 1787308317.378, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "code", "critical": false}
+{"t": 1787308317.378, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "debug", "critical": true}
+{"t": 1787308317.378, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "pointers", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "findings.open", "session": "s_1m0hy162d5001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "findings", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "vision", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "input", "critical": true}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "automation", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "python", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "investigate", "critical": false}
+{"t": 1787308317.38, "level": "info", "event": "tools.built", "session": "s_1m0hy162d5001", "total": 79, "listed": 26, "implemented": 74, "engines": ["process", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1787308317.381, "level": "info", "event": "engine.registered", "session": "s_1m0hy162d5001", "engine": "protocol", "critical": false}
+{"t": 1787308317.483, "level": "info", "event": "target.target_discovered", "session": "s_1m0hy162d5001", "count": 329, "selectable": 196, "filter": null}
+{"t": 1787308317.497, "level": "info", "event": "ui.open", "session": "s_1m0hy162d5001", "topmost": true}
+{"t": 1787308317.497, "level": "info", "event": "session.peer", "session": "s_1m0hy162d5001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1787308317.497, "level": "info", "event": "lain.serving", "session": "s_1m0hy162d5001", "ops": 74}
+{"t": 1787308317.497, "level": "info", "event": "session.bound", "session": "s_1m0hy162d5001", "lain_session": "verify", "connection": "c_mt2t83ctti5i", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1787308317.498, "level": "info", "event": "session.peer", "session": "s_1m0hy162d5001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1787308317.498, "level": "info", "event": "lain.hello", "session": "s_1m0hy162d5001", "client": "lain", "client_version": 2, "lain_session": "verify", "connection": "c_mt2t83ctti5i"}
+{"t": 1787308317.499, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m0hy16ss5002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1787308318.859, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hy184b5003", "summary": "active, capabilities, prompter"}
+{"t": 1787308319.523, "level": "info", "event": "target.target_discovered", "session": "s_1m0hy162d5001", "count": 330, "selectable": 197, "filter": null}
+{"t": 1787308321.545, "level": "info", "event": "target.target_discovered", "session": "s_1m0hy162d5001", "count": 332, "selectable": 200, "filter": null}
+{"t": 1787308322.906, "level": "info", "event": "permission.granted", "session": "s_1m0hy162d5001", "capability": "keyboard.press", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787308322.906, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "permission.request", "state": "ok", "ms": 4047, "request_id": "r_1m0hy184b5004", "summary": "summary=granted"}
+{"t": 1787308322.907, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "permission.state", "state": "ok", "ms": 0, "request_id": "r_1m0hy1c2t5005", "summary": "active, capabilities, prompter"}
+{"t": 1787308323.555, "level": "info", "event": "permission.granted", "session": "s_1m0hy162d5001", "capability": "screen.capture", "scope": "session", "seconds": 600.0, "target": null}
+{"t": 1787308323.555, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "permission.request", "state": "ok", "ms": 647, "request_id": "r_1m0hy1c2v5006", "summary": "summary=granted"}
+{"t": 1787308323.588, "level": "info", "event": "target.target_discovered", "session": "s_1m0hy162d5001", "count": 333, "selectable": 201, "filter": null}
+{"t": 1787308323.718, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "window.focus", "state": "ok", "ms": 163, "request_id": "r_1m0hy1cq35007", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308323.874, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "window.focus", "state": "ok", "ms": 155, "request_id": "r_1m0hy1cw65008", "summary": "summary=focused 'LAIN KEY WITNESS'"}
+{"t": 1787308323.919, "level": "info", "event": "tool.done", "session": "s_1m0hy162d5001", "tool": "input.keyboard.tap", "state": "ok", "ms": 45, "request_id": "r_1m0hy1d115009", "summary": "summary=pressed W"}
+{"t": 1788356923.211, "level": "info", "event": "probe.start", "session": "s_1m1h623r75g01", "session_": "s_1m1h623r75g01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 111660}
+{"t": 1788356924.814, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "process", "critical": false}
+{"t": 1788356924.818, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "investigation", "critical": false}
+{"t": 1788356924.819, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "memory", "critical": false}
+{"t": 1788356924.819, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "code", "critical": false}
+{"t": 1788356924.819, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "debug", "critical": true}
+{"t": 1788356924.819, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "pointers", "critical": false}
+{"t": 1788356924.833, "level": "info", "event": "findings.open", "session": "s_1m1h623r75g01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1788356924.833, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "findings", "critical": false}
+{"t": 1788356924.833, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "vision", "critical": false}
+{"t": 1788356924.833, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "input", "critical": true}
+{"t": 1788356924.834, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "automation", "critical": false}
+{"t": 1788356924.834, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "python", "critical": false}
+{"t": 1788356924.834, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "investigate", "critical": false}
+{"t": 1788356924.836, "level": "info", "event": "tools.built", "session": "s_1m1h623r75g01", "total": 108, "listed": 30, "implemented": 104, "engines": ["process", "investigation", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1788356924.836, "level": "info", "event": "engine.registered", "session": "s_1m1h623r75g01", "engine": "protocol", "critical": false}
+{"t": 1788356925.045, "level": "info", "event": "target.target_discovered", "session": "s_1m1h623r75g01", "count": 1136, "selectable": 1002, "filter": null}
+{"t": 1788356925.072, "level": "info", "event": "ui.open", "session": "s_1m1h623r75g01", "topmost": true}
+{"t": 1788356925.072, "level": "info", "event": "session.peer", "session": "s_1m1h623r75g01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1788356925.073, "level": "info", "event": "lain.serving", "session": "s_1m1h623r75g01", "ops": 104}
+{"t": 1788356925.073, "level": "info", "event": "session.bound", "session": "s_1m1h623r75g01", "lain_session": null, "connection": "c_mtk5jd7a8pju", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1788356925.073, "level": "info", "event": "session.peer", "session": "s_1m1h623r75g01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1788356925.073, "level": "info", "event": "lain.hello", "session": "s_1m1h623r75g01", "client": "lain", "client_version": 2, "lain_session": null, "connection": "c_mtk5jd7a8pju"}
+{"t": 1788356925.089, "level": "info", "event": "tool.done", "session": "s_1m1h623r75g01", "tool": "probe.skill", "state": "ok", "ms": 14, "request_id": "r_1m1h625mj5g02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1788356940.278, "level": "info", "event": "probe.start", "session": "s_1m1h62mdm4001", "session_": "s_1m1h62mdm4001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 117792}
+{"t": 1788356940.904, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "process", "critical": false}
+{"t": 1788356940.906, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "investigation", "critical": false}
+{"t": 1788356940.906, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "memory", "critical": false}
+{"t": 1788356940.906, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "code", "critical": false}
+{"t": 1788356940.906, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "debug", "critical": true}
+{"t": 1788356940.906, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "pointers", "critical": false}
+{"t": 1788356940.907, "level": "info", "event": "findings.open", "session": "s_1m1h62mdm4001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "findings", "critical": false}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "vision", "critical": false}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "input", "critical": true}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "automation", "critical": false}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "python", "critical": false}
+{"t": 1788356940.907, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "investigate", "critical": false}
+{"t": 1788356940.909, "level": "info", "event": "tools.built", "session": "s_1m1h62mdm4001", "total": 108, "listed": 30, "implemented": 104, "engines": ["process", "investigation", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1788356940.909, "level": "info", "event": "engine.registered", "session": "s_1m1h62mdm4001", "engine": "protocol", "critical": false}
+{"t": 1788356941.127, "level": "info", "event": "target.target_discovered", "session": "s_1m1h62mdm4001", "count": 1134, "selectable": 1000, "filter": null}
+{"t": 1788356941.153, "level": "info", "event": "ui.open", "session": "s_1m1h62mdm4001", "topmost": true}
+{"t": 1788356941.153, "level": "info", "event": "session.peer", "session": "s_1m1h62mdm4001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1788356941.153, "level": "info", "event": "lain.serving", "session": "s_1m1h62mdm4001", "ops": 104}
+{"t": 1788356941.154, "level": "info", "event": "session.bound", "session": "s_1m1h62mdm4001", "lain_session": null, "connection": "c_mtk5jqe7qaso", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1788356941.154, "level": "info", "event": "session.peer", "session": "s_1m1h62mdm4001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1788356941.154, "level": "info", "event": "lain.hello", "session": "s_1m1h62mdm4001", "client": "lain", "client_version": 2, "lain_session": null, "connection": "c_mtk5jqe7qaso"}
+{"t": 1788356941.157, "level": "info", "event": "tool.done", "session": "s_1m1h62mdm4001", "tool": "probe.skill", "state": "ok", "ms": 0, "request_id": "r_1m1h62nb34002", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1788356941.159, "level": "info", "event": "tool.done", "session": "s_1m1h62mdm4001", "tool": "assignment.status", "state": "ok", "ms": 0, "request_id": "r_1m1h62nb54003", "summary": "summary=no target assigned - attach to begin"}
+{"t": 1788356941.314, "level": "info", "event": "probe.start", "session": "s_1m1h62ne3gg01", "session_": "s_1m1h62ne3gg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 66436}
+{"t": 1788356941.927, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "process", "critical": false}
+{"t": 1788356941.929, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "investigation", "critical": false}
+{"t": 1788356941.929, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "memory", "critical": false}
+{"t": 1788356941.929, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "code", "critical": false}
+{"t": 1788356941.929, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "debug", "critical": true}
+{"t": 1788356941.929, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "pointers", "critical": false}
+{"t": 1788356941.93, "level": "info", "event": "findings.open", "session": "s_1m1h62ne3gg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "findings", "critical": false}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "vision", "critical": false}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "input", "critical": true}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "automation", "critical": false}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "python", "critical": false}
+{"t": 1788356941.93, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "investigate", "critical": false}
+{"t": 1788356941.932, "level": "info", "event": "tools.built", "session": "s_1m1h62ne3gg01", "total": 108, "listed": 30, "implemented": 104, "engines": ["process", "investigation", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1788356941.932, "level": "info", "event": "engine.registered", "session": "s_1m1h62ne3gg01", "engine": "protocol", "critical": false}
+{"t": 1788356942.155, "level": "info", "event": "target.target_discovered", "session": "s_1m1h62ne3gg01", "count": 1134, "selectable": 1000, "filter": null}
+{"t": 1788356942.181, "level": "info", "event": "ui.open", "session": "s_1m1h62ne3gg01", "topmost": true}
+{"t": 1788356942.181, "level": "info", "event": "session.peer", "session": "s_1m1h62ne3gg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1788356942.181, "level": "info", "event": "lain.serving", "session": "s_1m1h62ne3gg01", "ops": 104}
+{"t": 1788356942.182, "level": "info", "event": "session.bound", "session": "s_1m1h62ne3gg01", "lain_session": null, "connection": "c_mtk5jr70qu2j", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1788356942.182, "level": "info", "event": "session.peer", "session": "s_1m1h62ne3gg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1788356942.182, "level": "info", "event": "lain.hello", "session": "s_1m1h62ne3gg01", "client": "lain", "client_version": 2, "lain_session": null, "connection": "c_mtk5jr70qu2j"}
+{"t": 1788356942.185, "level": "info", "event": "tool.done", "session": "s_1m1h62ne3gg01", "tool": "probe.skill", "state": "ok", "ms": 2, "request_id": "r_1m1h62pb7gg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1788356975.417, "level": "info", "event": "probe.start", "session": "s_1m1h63pqmwg01", "session_": "s_1m1h63pqmwg01", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 36580}
+{"t": 1788356976.0, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "process", "critical": false}
+{"t": 1788356976.002, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "investigation", "critical": false}
+{"t": 1788356976.002, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "memory", "critical": false}
+{"t": 1788356976.002, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "code", "critical": false}
+{"t": 1788356976.002, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "debug", "critical": true}
+{"t": 1788356976.002, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "pointers", "critical": false}
+{"t": 1788356976.003, "level": "info", "event": "findings.open", "session": "s_1m1h63pqmwg01", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "findings", "critical": false}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "vision", "critical": false}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "input", "critical": true}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "automation", "critical": false}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "python", "critical": false}
+{"t": 1788356976.003, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "investigate", "critical": false}
+{"t": 1788356976.004, "level": "info", "event": "tools.built", "session": "s_1m1h63pqmwg01", "total": 108, "listed": 30, "implemented": 104, "engines": ["process", "investigation", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1788356976.004, "level": "info", "event": "engine.registered", "session": "s_1m1h63pqmwg01", "engine": "protocol", "critical": false}
+{"t": 1788356976.19, "level": "info", "event": "target.target_discovered", "session": "s_1m1h63pqmwg01", "count": 1135, "selectable": 1000, "filter": null}
+{"t": 1788356976.216, "level": "info", "event": "ui.open", "session": "s_1m1h63pqmwg01", "topmost": true}
+{"t": 1788356976.216, "level": "info", "event": "session.peer", "session": "s_1m1h63pqmwg01", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1788356976.216, "level": "info", "event": "lain.serving", "session": "s_1m1h63pqmwg01", "ops": 104}
+{"t": 1788356976.216, "level": "info", "event": "session.bound", "session": "s_1m1h63pqmwg01", "lain_session": "20260902-214935-6ik5", "connection": "c_mtk5khi3p3qs", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1788356976.217, "level": "info", "event": "session.peer", "session": "s_1m1h63pqmwg01", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1788356976.217, "level": "info", "event": "lain.hello", "session": "s_1m1h63pqmwg01", "client": "lain", "client_version": 2, "lain_session": "20260902-214935-6ik5", "connection": "c_mtk5khi3p3qs"}
+{"t": 1788356976.219, "level": "info", "event": "tool.done", "session": "s_1m1h63pqmwg01", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m1h63qjtwg02", "summary": "form, bytes, skill, full_bytes"}
+{"t": 1788356976.22, "level": "info", "event": "tool.done", "session": "s_1m1h63pqmwg01", "tool": "assignment.status", "state": "ok", "ms": 0, "request_id": "r_1m1h63qjwwg03", "summary": "summary=no target assigned - attach to begin"}
+{"t": 1788356976.378, "level": "info", "event": "probe.start", "session": "s_1m1h63qnp8001", "session_": "s_1m1h63qnp8001", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2", "state_dir": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe", "python": "C:\\Users\\Hartezmenot\\AppData\\Local\\Programs\\Python\\Python311\\python.exe", "endpoint": "stdio", "pid": 115776}
+{"t": 1788356976.964, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "process", "critical": false}
+{"t": 1788356976.966, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "investigation", "critical": false}
+{"t": 1788356976.966, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "memory", "critical": false}
+{"t": 1788356976.966, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "code", "critical": false}
+{"t": 1788356976.966, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "debug", "critical": true}
+{"t": 1788356976.966, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "pointers", "critical": false}
+{"t": 1788356976.967, "level": "info", "event": "findings.open", "session": "s_1m1h63qnp8001", "path": "C:\\Users\\Hartezmenot\\Documents\\lain-v2\\.lain-probe\\findings.db", "count": 0}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "findings", "critical": false}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "vision", "critical": false}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "input", "critical": true}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "automation", "critical": false}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "python", "critical": false}
+{"t": 1788356976.967, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "investigate", "critical": false}
+{"t": 1788356976.968, "level": "info", "event": "tools.built", "session": "s_1m1h63qnp8001", "total": 108, "listed": 30, "implemented": 104, "engines": ["process", "investigation", "memory", "code", "debug", "pointers", "findings", "vision", "input", "automation", "python", "investigate"]}
+{"t": 1788356976.968, "level": "info", "event": "engine.registered", "session": "s_1m1h63qnp8001", "engine": "protocol", "critical": false}
+{"t": 1788356977.146, "level": "info", "event": "target.target_discovered", "session": "s_1m1h63qnp8001", "count": 1135, "selectable": 1000, "filter": null}
+{"t": 1788356977.171, "level": "info", "event": "ui.open", "session": "s_1m1h63qnp8001", "topmost": true}
+{"t": 1788356977.172, "level": "info", "event": "session.peer", "session": "s_1m1h63qnp8001", "state": "connecting", "reason": "waiting for hello"}
+{"t": 1788356977.172, "level": "info", "event": "lain.serving", "session": "s_1m1h63qnp8001", "ops": 104}
+{"t": 1788356977.173, "level": "info", "event": "session.bound", "session": "s_1m1h63qnp8001", "lain_session": "20260902-214935-6ik5", "connection": "c_mtk5ki8x45mi", "project_root": "C:\\Users\\Hartezmenot\\Documents\\lain-v2"}
+{"t": 1788356977.173, "level": "info", "event": "session.peer", "session": "s_1m1h63qnp8001", "state": "connected", "reason": "lain \u00b7 lain dialect v2"}
+{"t": 1788356977.173, "level": "info", "event": "lain.hello", "session": "s_1m1h63qnp8001", "client": "lain", "client_version": 2, "lain_session": "20260902-214935-6ik5", "connection": "c_mtk5ki8x45mi"}
+{"t": 1788356977.174, "level": "info", "event": "tool.done", "session": "s_1m1h63qnp8001", "tool": "probe.skill", "state": "ok", "ms": 1, "request_id": "r_1m1h63rgn8002", "summary": "form, bytes, skill, full_bytes"}

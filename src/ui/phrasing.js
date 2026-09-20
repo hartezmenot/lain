@@ -231,6 +231,12 @@ const SELF_ASKED = Object.freeze({
   'provider-failover': 'continuing on another provider',
   handover: 'continuing from what LAIN observed',
   steer: 'continuing with what you added',
+  plan: 'executing the accepted plan',
+  'bg-complete': 'continuing with the background result',
+  // Found live 2026-09-19: these two were drawn as a second USER message. (`continue` —
+  // a shelf's Continue — deliberately shows the instruction it sent: the person pressed it.)
+  'rate-limit-switch': 'retrying your message on the model you switched to',
+  'smoke-failed': 'continuing: the final smoke failed — repairing the step it names',
 });
 
 /**
@@ -253,8 +259,11 @@ const SELF_ASKED = Object.freeze({
  * by default and a new synthetic prompt has to be declared here to be hidden,
  * which is the safer direction for both to fail in.
  */
-function selfAskedCaption(from) {
-  if (!from) return null;
+function selfAskedCaption(from, typed = false) {
+  // TEXT A PERSON TYPED IS NEVER CAPTIONED. A `continue` held by the runtime gate
+  // and resubmitted through a recovery, or a steer delivered once the turn ended,
+  // is still the user's own words — captioning it replaced them on screen.
+  if (!from || typed) return null;
   return SELF_ASKED[from] || null;
 }
 

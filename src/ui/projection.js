@@ -27,10 +27,39 @@
 const views = require('./views');
 const termtitle = require('../termtitle');
 
-function statusState(ui) {
+/** The selection a provider fact is about: the model and route in use. */
+function selectionKey(app) {
+  const cfg = (app && app.cfg) || {};
+  return `${cfg.model || ''}|${cfg.connection || ''}`;
+}
+
+/**
+ * A PROVIDER WARNING IS LIVE ONLY WHILE ITS SELECTION IS (§48). A new model or
+ * route ends it; so does a restart or a resume — the resting state is read only
+ * from turns that ended in THIS process (`app._turnsAtAdopt`), never from a
+ * persisted record, which is how a resumed session re-showed an old red limit.
+ */
+function activeFailure(ui) {
+  if (!ui.failed) return false;
+  return ui.failedFor && ui.failedFor !== selectionKey(ui.app) ? false : ui.failed;
+}
+
+function lastTurnOfThisProcess(ui) {
   const turns = (ui.app.session && ui.app.session.turns) || [];
-  const last = turns[turns.length - 1] || null;
+  const floor = Number(ui.app._turnsAtAdopt) || 0;
+  const last = turns.length > floor ? turns[turns.length - 1] : null;
+  if (!last) return null;
+  const providerStop = last.stopReason === 'provider' || last.stopReason === 'rate-limited';
+  if (providerStop && ui.failedFor && ui.failedFor !== selectionKey(ui.app)) return { ...last, stopReason: null };
+  return last;
+}
+
+function statusState(ui) {
+  const last = lastTurnOfThisProcess(ui);
   return {
+    // FOR THE ACTIVITY BOX: is a turn working, and did the person expand it (Ctrl+O).
+    busy: Boolean(ui.busy),
+    activityExpanded: Boolean(ui.activityExpanded),
     phase: ui.phase,
     phaseSince: ui.phaseSince,
     // ---- HOW LONG THIS TASK HAS BEEN WORKING ----------------------------
@@ -46,7 +75,7 @@ function statusState(ui) {
     op: require('./operation').current(ui),
     interrupting: ui.interrupting,
     interrupted: ui.interrupted,
-    failed: ui.failed,
+    failed: activeFailure(ui),
     retryCancelled: ui.retryCancelled,
     pendingCompletion: ui.app.pendingCompletion || null,
     // A DELIBERATE WAIT, so the strip can name it and count it down. Without
@@ -67,6 +96,14 @@ function statusState(ui) {
     // `✓ LAIN DONE`. Two surfaces disagreeing about one fact, and the one a
     // person reads at a glance was the wrong one. The strip is where "did
     // that work?" gets answered without reading anything.
+    // THE FINAL SMOKE'S STATE for this task — ✓ DONE waits on it (finalsmoke.js).
+    finalSmoke: (() => {
+      const sess = ui.app.session;
+      if (!sess || !sess.lifecycle) return null;
+      const fsm = require('../finalsmoke');
+      const st = fsm.state(sess.lifecycle, sess.cwd);
+      return { state: st, why: fsm.why(st, sess.cwd) };
+    })(),
     lastCheckFailed: (ui.app.session && ui.app.session.lifecycle
       && ui.app.session.lifecycle.lastCommand
       && ui.app.session.lifecycle.lastCommand.ok === false)
@@ -119,6 +156,7 @@ function statusState(ui) {
       toolCalls: last.toolCalls || 0,
       filesChanged: (last.mutations || []).length,
       stopReason: last.stopReason || null,
+      blocker: last.blocker != null ? Boolean(last.blocker) : require('../wakeup').statesBlocker(last.text),
     } : null,
   };
 }
@@ -162,7 +200,7 @@ function frameState(ui) {
   let pc = {};
   try { pc = require('../provider').resolve({ ...app.cfg, _evidence: app.connectionEvidence }); } catch { pc = {}; }
   let providerStatus = null;
-  try { providerStatus = app.availability.get(pc.connectionId || pc.provider || '').status; } catch { /* none */ }
+  try { providerStatus = app.availability.getFor(pc.connectionId || pc.provider || '', pc.canonicalModel || pc.model || '').status; } catch { /* none */ }
   const life = app.session.lifecycle;
   const summary = life && life.summary ? life.summary() : null;
   return {
@@ -185,6 +223,10 @@ function frameState(ui) {
      * ui/index.js `noteOutputChars`.
      */
     output: ui.liveOutput || null,
+    // THE HEADER'S RUN STATE — mode, RUNNING, elapsed, real step progress. See ui/headerstate.js.
+    run: require('./headerstate').run(ui),
+    // TURNS THAT ENDED IN AN EARLIER PROCESS — drawn as history, never as alarms.
+    historyTurns: Number(app._turnsAtAdopt) || 0,
     /**
      * HOW MUCH OF THE MODEL'S WINDOW THIS CONVERSATION OCCUPIES.
      *
@@ -235,6 +277,7 @@ function frameState(ui) {
     // WHAT THE COMPOSER IS CAPTURING, or '' — see ui/inputbox.js promptFor.
     compose: require('../composemode').label(ui.app),
     liveFrom: ui.liveFrom || null,
+    liveTyped: Boolean(ui.liveTyped),
     /**
      * THE ACTIVITY TIMELINE — the live operation and the diff window, if any.
      *
@@ -392,4 +435,4 @@ function title(ui, s) {
   } catch { /* the title is chrome on another program's window */ }
 }
 
-module.exports = { statusState, frameState, lastSessionToken, readiness, changedCount, title, clock, contextUsage };
+module.exports = { selectionKey, activeFailure, lastTurnOfThisProcess, statusState, frameState, lastSessionToken, readiness, changedCount, title, clock, contextUsage };

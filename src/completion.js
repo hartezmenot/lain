@@ -40,7 +40,7 @@ function maybeComplete(app, record = null) {
     return false;
   }
 
-  const r = life.complete();
+  const r = life.complete({ cwd: app.session.cwd });
   if (!r.ok) {
     // A refusal here is INFORMATION: every step is ticked off and LAIN is
     // declining to call it done. Silence made that indistinguishable from
@@ -81,4 +81,25 @@ function maybeComplete(app, record = null) {
   return true;
 }
 
-module.exports = { maybeComplete };
+/**
+ * WHAT `maybeComplete` IS ABOUT TO SAY, decided before the screen settles.
+ *
+ * The turn's `finally` redraws (setPhase, endTurn) before `maybeComplete` runs,
+ * so an unverified task drew one frame of `✓ DONE` and then `Verifying`. This
+ * sets only `pendingCompletion`, from a DRY RUN of `lifecycle.complete()` on a
+ * shadow object — the lifecycle's state and evidence are never written, no
+ * notice is printed and no overlay opens. `maybeComplete` still decides.
+ */
+function preview(app, record = null) {
+  const plan = app.session.plan;
+  const life = app.session.lifecycle;
+  if (!plan || !plan.steps.length || !plan.isFinished || !life || life.state === 'DONE') return;
+  if (record && require('./lifecycle').Lifecycle.saysMoreToDo(record.text)) {
+    app.pendingCompletion = 'the model says it still has work to do';
+    return;
+  }
+  const r = Object.getPrototypeOf(life).complete.call(Object.create(life), { cwd: app.session.cwd });
+  if (!r.ok) app.pendingCompletion = r.why;
+}
+
+module.exports = { maybeComplete, preview };

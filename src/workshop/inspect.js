@@ -179,6 +179,22 @@ async function pick(page) {
   return r.ok ? { ok: true, state: r.value } : r;
 }
 
+/**
+ * PICK THE ELEMENT AT A POINT — the click a person makes on the preview IMAGE
+ * in the application, mapped to the page's own coordinates by the caller. The
+ * same descriptor the in-window picker produces, without having to go and
+ * click in a second window.
+ */
+async function pickAt(page, x, y) {
+  const px = Math.max(0, Math.round(Number(x) || 0));
+  const py = Math.max(0, Math.round(Number(y) || 0));
+  const r = await ask(page, 'pick the element at a point',
+    `(() => { window.__lainPicked = document.elementFromPoint(${px}, ${py}); return Boolean(window.__lainPicked); })()`);
+  if (!r.ok) return r;
+  if (!r.value) return { ok: false, why: `there is no element at ${px},${py}` };
+  return picked(page);
+}
+
 /** What was picked, or null while nothing has been. Polled by the frontend. */
 async function picked(page) {
   const r = await ask(page, 'read the picked element', describeExpr(null));
@@ -249,6 +265,6 @@ function networkReport(session) {
 }
 
 module.exports = {
-  element, pick, picked, unpick, axTree, consoleReport, networkReport,
+  element, pick, pickAt, picked, unpick, axTree, consoleReport, networkReport,
   describeExpr, LAYOUT_PROPS, MAX_TEXT, MAX_NODES, MAX_CONSOLE, MAX_NETWORK,
 };

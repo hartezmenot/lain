@@ -101,4 +101,44 @@ module.exports = async function () {
     assert.strictEqual(r.kind, 'RATE_LIMITED');
     assert.strictEqual(r.retriable, true, 'a rate limit clears on its own — retrying is correct');
   });
+
+  await test('RATE LIMIT: a gateway-wrapped upstream 429 with a stated reset waits that reset', () => {
+    // Captured through 9router, 2026-09-18: the router answered 503, so LAIN
+    // showed `Network 503` and retried at 5s/10s/15s inside a named 2m window.
+    const e = new Error('503 Service Unavailable — {"error":{"message":"[codex/gpt-5.6-luna] [429]: The usage limit has been reached (reset after 1m 59s)"}}');
+    e.status = 503;
+    const c = errors.classify(e);
+    assert.strictEqual(c.kind, 'RATE_LIMITED', 'the body carries the upstream status; it wins over the wrapper');
+    assert.strictEqual(c.retriable, true);
+    assert.strictEqual(c.retryAfterMs, 119000, 'the stated reset is the wait');
+    assert.strictEqual(require('../../src/backoff').backoffFor(1, c.retryAfterMs), 119000, 'and the first retry honours it');
+
+    // A long reset is a limit with a clock: not sat through inside the turn, but
+    // handed to WAIT / change model with the route shut until then (ratelimit.js).
+    const long = new Error('[codex/gpt-5.6-luna] [429]: The usage limit has been reached (reset after 4h 12m)');
+    long.status = 503;
+    const l = errors.classify(long);
+    assert.strictEqual(l.kind, 'RATE_LIMITED');
+    assert.strictEqual(l.retryAfterMs, (4 * 60 + 12) * 60000);
+    assert.strictEqual(require('../../src/ratelimit').worthAsking(l), true, 'the turn ends and offers WAIT');
+
+    // A wrapped [429] with no reset is still a rate limit, not an outage.
+    const bare = new Error('[x/y] [429]: Too many requests'); bare.status = 502;
+    assert.strictEqual(errors.classify(bare).kind, 'RATE_LIMITED');
+    // A wrapped upstream credential refusal is AUTH, even with the router's cooldown suffix.
+    const lic = new Error('[github/claude-sonnet-4.6] [403]: unauthorized: not licensed to use Copilot\n (reset after 25s)'); lic.status = 503;
+    assert.strictEqual(errors.classify(lic).kind, errors.KIND.AUTH);
+    assert.strictEqual(errors.classify(lic).retriable, false);
+    const revoked = new Error('[codex/gpt-5.6-luna] [401]: {"error":{"message":"Encountered invalidated oauth token","code":"token_revoked"}} (reset after 2m)'); revoked.status = 503;
+    assert.strictEqual(errors.classify(revoked).kind, errors.KIND.AUTH);
+    // Every upstream 4xx a router wraps is classified by the upstream's status (bodies captured live).
+    const w = (m) => { const x = new Error(m); x.status = 503; return errors.classify(x); };
+    assert.strictEqual(w('[kimchi/kimi-k3] [402]: {"error": "the provider for model kimi-k3 has exhausted its credits"}').kind, errors.KIND.QUOTA);
+    assert.strictEqual(w('[codebuddy-intl/glm-5.2] [429]: {"error":{"data":{"code":14018,"msg":"Credits exhausted. Please"}}}').kind, errors.KIND.QUOTA);
+    const gone = w('[nvidia/z-ai/glm-5.2] [410]: {"type":"about:blank","title":"Gone","status":410}');
+    assert.strictEqual(gone.retriable, false, 'a 410 behind a router is not an outage to wait out');
+    // An ordinary 503 is untouched.
+    const down = new Error('upstream connect error'); down.status = 503;
+    assert.strictEqual(errors.classify(down).kind, errors.KIND.UNAVAILABLE);
+  });
 };

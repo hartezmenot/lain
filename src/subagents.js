@@ -1,0 +1,257 @@
+'use strict';
+
+/**
+ * SUBAGENTS — bounded specialists, never copies of the main agent (§58–64, §71–72).
+ *
+ * THE FAILURE THIS PREVENTS: main agent → subagent A reads the whole codebase →
+ * subagent B reads the whole codebase → both edit the same files. That doubles
+ * the context bill and manufactures conflicts. So a subagent is:
+ *
+ *   A FRESH SESSION. It is handed a brief — role, objective, scopes, expected
+ *     output, verification, completion condition, and what earlier stages
+ *     produced — never the parent conversation. (`/bg` forks a whole session;
+ *     this deliberately does not. The two are different things, §71.)
+ *   A BOUNDED WORK ORDER. readScope/writeScope are enforced at the tool door by
+ *     workorderguard.js; a role that must not write gets an empty writeScope.
+ *   A WRITE LEASE on its writeScope (leases.js), so the foreground and other
+ *     subagents cannot write the same files while it runs.
+ *
+ * PARALLEL only when write ownership is genuinely separable (`partition`);
+ * PIPELINE for the staircase — SCOUT maps, FOUNDATION lays interfaces,
+ * IMPLEMENTER builds on them, VERIFIER tests the integrated result.
+ *
+ * THE MAIN AGENT STAYS THE INTEGRATOR: results come back to it as evidence; a
+ * subagent cannot delegate further and does not redefine architecture.
+ *
+ * MODEL-NEUTRAL: `model`/`connection` on a contract select any catalog source
+ * (OpenRouter included) through the ordinary resolver. There is no
+ * provider-specific orchestration anywhere here.
+ */
+
+const ROLES = Object.freeze({
+  SCOUT: { write: false, commands: false, does: 'map ownership, constraints and where the change belongs — read only' },
+  FOUNDATION: { write: true, commands: true, does: 'establish the interfaces, contracts or migration the rest builds on' },
+  IMPLEMENTER: { write: true, commands: true, does: 'build the change inside its write scope' },
+  VERIFIER: { write: false, commands: true, does: 'test and observe the integrated result — never edits' },
+  RESEARCHER: { write: false, commands: false, does: 'gather external evidence only' },
+});
+
+const WHOLE_PROJECT = /^(?:\*\*?|\.\/?|\*\*\/\*|\/)?$/;
+
+/**
+ * A contract is complete and bounded, or it is refused with the reason.
+ * @returns {{ok:true, contract:object}|{ok:false, why:string}}
+ */
+function validate(c = {}, { parentTask = '' } = {}) {
+  const role = String(c.role || '').toUpperCase();
+  if (!ROLES[role]) return { ok: false, why: `role must be one of ${Object.keys(ROLES).join(', ')}` };
+  const need = ['objective', 'expectedOutput', 'verification', 'completion'];
+  for (const k of need) if (!String(c[k] || '').trim()) return { ok: false, why: `${role} contract is missing ${k}` };
+  const readScope = (Array.isArray(c.readScope) ? c.readScope : []).map(String).filter(Boolean);
+  const writeScope = (Array.isArray(c.writeScope) ? c.writeScope : []).map(String).filter(Boolean);
+  if (!readScope.length) return { ok: false, why: `${role} contract needs a readScope — "help with this project" is not a scope` };
+  if (!ROLES[role].write && writeScope.length) return { ok: false, why: `${role} is read-only and may not hold a writeScope` };
+  if (ROLES[role].write && !writeScope.length) return { ok: false, why: `${role} needs a writeScope naming the files or globs it owns` };
+  const unbounded = writeScope.find((e) => WHOLE_PROJECT.test(e.trim()));
+  if (unbounded != null && !c.isolated) return { ok: false, why: `writeScope "${unbounded}" is the whole project — a subagent owns a part` };
+  return {
+    ok: true,
+    contract: {
+      role,
+      objective: String(c.objective).trim(),
+      readScope,
+      writeScope,
+      ownedFiles: (Array.isArray(c.ownedFiles) ? c.ownedFiles : writeScope).map(String),
+      expectedOutput: String(c.expectedOutput).trim(),
+      verification: String(c.verification).trim(),
+      completion: String(c.completion).trim(),
+      parentTask: String(c.parentTask || parentTask || '').trim(),
+      model: c.model ? String(c.model) : null,
+      connection: c.connection ? String(c.connection) : null,
+      cwd: c.cwd ? String(c.cwd) : null,
+      isolated: Boolean(c.isolated),
+    },
+  };
+}
+
+/** No two contracts that will run together may own an overlapping file. */
+function partition(contracts = []) {
+  const leases = require('./leases');
+  for (let i = 0; i < contracts.length; i++) {
+    for (let j = i + 1; j < contracts.length; j++) {
+      const hit = leases.scopesOverlap(contracts[i].writeScope, contracts[j].writeScope);
+      if (hit) return { ok: false, why: `${contracts[i].role} #${i + 1} (${hit.a}) and ${contracts[j].role} #${j + 1} (${hit.b}) would write the same files — run them as a pipeline, or split ownership` };
+    }
+  }
+  return { ok: true };
+}
+
+/** The whole of what a subagent is told. Bounded: it rides every request it makes. */
+function brief(c, { stage = 0, of = 1, inputs = [] } = {}) {
+  const lines = [
+    `You are a ${c.role} subagent (${ROLES[c.role].does}). Stage ${stage + 1} of ${of}.`,
+    `Parent task: ${c.parentTask || '(the main agent\'s current task)'}`,
+    `Objective: ${c.objective}`,
+    `Read scope: ${c.readScope.join(', ')} — read nothing outside it; do not survey the whole codebase.`,
+    c.writeScope.length ? `Write scope (yours alone while you run): ${c.writeScope.join(', ')}` : 'You may not modify any file.',
+    `Expected output: ${c.expectedOutput}`,
+    `Verification required: ${c.verification}`,
+    `You are done when: ${c.completion}`,
+    'You do not redefine the architecture and you cannot delegate. Report findings and decisions that need the main agent instead of making them.',
+  ];
+  for (const inp of inputs) lines.push('', `From ${inp.role} (stage ${inp.stage + 1}):`, String(inp.output || '').slice(0, 4000));
+  lines.push('', 'Finish with the expected output, stated plainly, and the verification you actually ran.');
+  return lines.join('\n');
+}
+
+/**
+ * Run one contract as a bounded worker. `runner` is the test seam; production
+ * runs a real turn through the ordinary loop, tools and gates.
+ */
+async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, signal = null } = {}) {
+  const { Session } = require('./session');
+  const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  const holder = `subagent:${c.role.toLowerCase()}#${id}`;
+  const leases = require('./leases');
+  // An isolated candidate (A/B) writes only its own worktree; the canonical
+  // scope is leased by the A/B run itself, so it takes no lease here.
+  const lease = c.isolated ? { ok: true } : leases.acquire(holder, c.writeScope, `${c.role} subagent`);
+  if (!lease.ok) return { ok: false, role: c.role, stage, why: `write lease refused: ${lease.why}` };
+  const session = new Session({ cwd: c.cwd || app.session.cwd });
+  const order = require('./authority').issue(app.session, { id: holder, objective: c.objective, readScope: c.readScope, writeScope: c.writeScope, bounded: true });
+  order.leaseHolder = holder;
+  order.allowCommands = ROLES[c.role].commands;
+  session.workOrder = order;
+  const job = app.jobs.create({ request: `${c.role} · ${c.objective}`, primary: false, session, kind: 'subagent' });
+  job.parentSessionId = app.session.id;
+  job.scope = c.writeScope.slice();
+  job.planStep = currentStep(app);
+  job.state = 'RUNNING';
+  job.startedAt = Date.now();
+  app.jobs.changed();
+  const text = brief(c, { stage, of, inputs });
+  let record = null;
+  try {
+    if (runner) record = await runner({ contract: c, session, order, brief: text, stage });
+    else {
+      const { runTurn } = require('./turn');
+      const opts = require('./jobrunner').turnOptions(app, { session, signal: signal || job.abort.signal, from: 'subagent' });
+      if (c.model) opts.cfg = { ...opts.cfg, model: c.model, ...(c.connection ? { connection: c.connection } : {}) };
+      opts.workOrder = order;
+      opts.requiresExecution = false;
+      opts.ask = (q) => require('./decisions').ask(app, { type: 'ASK_USER', title: `${c.role} subagent asks`, question: q && q.question, options: (q && q.options) || [] });
+      for await (const ev of runTurn(session, text, opts)) {
+        if (ev && ev.type === 'tool_start') { job.detail = `${ev.name}`.slice(0, 80); app.jobs.changed(); }
+        if (ev && ev.type === 'done') record = ev.record;
+      }
+    }
+    let settlement = null;
+    try { settlement = require('./proposal').settle(order, session, { claim: record && record.text }); } catch { /* the result stands */ }
+    const output = String((record && record.text) || '').trim();
+    job.resultSummary = output.slice(0, 200);
+    // A WORKER WHOSE TURN DID NOT END NATURALLY DID NOT FINISH. Any returned
+    // record used to be DONE — a worker cut off by a provider failure, a stall,
+    // a rate limit or a no-progress stop handed its partial text up as a result.
+    const stop = record && record.stopReason;
+    const unfinished = (stop && stop !== 'end') ? `its turn ended ${stop}${record.providerFailure && record.providerFailure.message ? ` (${String(record.providerFailure.message).slice(0, 120)})` : ''}`
+      : require('./wakeup').statesBlocker(output) ? 'it stated a blocker' : null;
+    if (unfinished) {
+      job._finish('FAILED', { error: unfinished });
+      return { ok: false, role: c.role, stage, why: `${unfinished}${output ? ` — what it said: ${output.slice(-400)}` : ''}`, mutations: (record && record.mutations) || [], holder };
+    }
+    job._finish('SUCCEEDED', { result: record });
+    return { ok: true, role: c.role, stage, output, mutations: (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, holder };
+  } catch (e) {
+    job._finish('FAILED', { error: (e && e.message) || String(e) });
+    return { ok: false, role: c.role, stage, why: (e && e.message) || String(e), holder };
+  } finally {
+    leases.release(holder);
+    app.jobs.changed();
+    // AGENT COMPLETE · Role · result — a transient operation note, then gone:
+    // the result lives in the parent's evidence, not as worker chatter.
+    try {
+      const said = job.state === 'SUCCEEDED' ? String(job.resultSummary || 'done').replace(/\s+/g, ' ').slice(0, 40) : 'failed';
+      require('./ui/operation').say(app, `AGENT ${job.state === 'SUCCEEDED' ? 'COMPLETE' : 'FAILED'} · ${c.role} · ${said}`);
+    } catch { /* nothing drawn */ }
+  }
+}
+
+function currentStep(app) {
+  const plan = app && app.session && app.session.plan;
+  const st = plan && plan.steps ? plan.steps.find((s) => s.status === 'active') || plan.steps.find((s) => s.status !== 'done' && s.status !== 'dropped') : null;
+  return st ? st.text : null;
+}
+
+/**
+ * Run a set of contracts. `pipeline` runs them in order, each stage handed the
+ * earlier stages' outputs; `parallel` requires disjoint write ownership.
+ */
+async function run(app, raw = [], { mode = 'pipeline', runner = null, signal = null } = {}) {
+  const parentTask = (app.session.task && app.session.task.objective) || '';
+  const contracts = [];
+  for (const r of raw) {
+    const v = validate(r, { parentTask });
+    if (!v.ok) return { ok: false, why: v.why, results: [] };
+    contracts.push(v.contract);
+  }
+  if (!contracts.length) return { ok: false, why: 'no subagents were described', results: [] };
+  if (mode === 'parallel') {
+    const p = partition(contracts);
+    if (!p.ok) return { ok: false, why: p.why, results: [] };
+    // AT MOST maxConcurrent AT ONCE (`/subagents max N`), in waves, results in order.
+    const { maxConcurrent } = settings(app);
+    const results = new Array(contracts.length);
+    for (let from = 0; from < contracts.length; from += maxConcurrent) {
+      const wave = contracts.slice(from, from + maxConcurrent);
+      const done = await Promise.all(wave.map((c, k) => runOne(app, c, { stage: from + k, of: contracts.length, runner, signal })));
+      done.forEach((r, k) => { results[from + k] = r; });
+    }
+    return { ok: results.every((r) => r.ok), mode, results };
+  }
+  const results = [];
+  for (let i = 0; i < contracts.length; i++) {
+    const r = await runOne(app, contracts[i], { stage: i, of: contracts.length, inputs: results.filter((x) => x.ok), runner, signal });
+    results.push(r);
+    if (!r.ok) break;
+  }
+  // WHAT NEVER RAN is part of the handoff: a stage-2 failure used to report "1/2 completed" of a 4-stage pipeline.
+  return { ok: results.length === contracts.length && results.every((r) => r.ok), mode, results, remaining: contracts.slice(results.length) };
+}
+
+function report(out) {
+  if (!out.ok && !out.results.length) return `DELEGATION REFUSED: ${out.why}`;
+  const rest = out.remaining || [];
+  const done = out.results.filter((r) => r.ok).length;
+  const failed = out.results.length - done;
+  const total = out.results.length + rest.length;
+  const lines = [`SUBAGENTS · ${out.mode} · ${done}/${total} completed${failed ? ` · ${failed} failed` : ''}${rest.length ? ` · ${rest.length} not run` : ''}`];
+  for (const r of out.results) {
+    lines.push('', `[${r.stage + 1}] ${r.role} — ${r.ok ? 'DONE' : 'FAILED'}${r.mutations && r.mutations.length ? ` · changed ${r.mutations.join(', ')}` : ''}`);
+    lines.push(r.ok ? (r.output || '(no output)').slice(0, 3000) : `why: ${r.why}`);
+  }
+  rest.forEach((c, k) => lines.push('', `[${out.results.length + k + 1}] ${c.role} — NOT RUN (the pipeline stopped at the failure above) · ${String(c.objective || '').slice(0, 160)}`));
+  if (failed || rest.length) lines.push('', 'HANDOFF: the failed stage and every stage after it are yours — do that work here, or delegate again with a corrected contract. Completed stages stand.');
+  lines.push('', 'You are the integrator: check these results against the task before relying on them.');
+  return lines.join('\n');
+}
+
+/**
+ * THE PERSON'S SETTING (`/subagents`): AUTO (the model delegates when the work
+ * genuinely partitions — the recommended default) or OFF; and how many workers
+ * may run at once. Persisted in config; the execution profile still applies on
+ * top (ECO refuses unless asked — profile.js).
+ */
+const DEFAULT_MAX = 3;
+function settings(app) {
+  const s = (app && app.cfg && app.cfg.subagents) || {};
+  const mode = String(s.mode || 'auto').toLowerCase() === 'off' ? 'off' : 'auto';
+  const max = Math.max(1, Math.min(8, Number(s.maxConcurrent) || DEFAULT_MAX));
+  return { mode, maxConcurrent: max };
+}
+
+/** Running subagent jobs right now — what the AGENTS counter shows. */
+function running(app) {
+  return app && app.jobs && typeof app.jobs.running === 'function' ? app.jobs.running().filter((j) => j.kind === 'subagent') : [];
+}
+
+module.exports = { ROLES, validate, partition, brief, runOne, run, report, settings, running, DEFAULT_MAX };

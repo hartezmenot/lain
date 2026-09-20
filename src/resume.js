@@ -45,6 +45,15 @@ const SEARCH = 60;
 function adopt(app, id, { C }) {
   const s = Session.resume(id);
   if (!s) { app.render.notice('error', `No session "${id}". Nothing was resumed.`); return null; }
+  // ---- IT MAY ALREADY BE OPEN IN THE WINDOW ----------------------------
+  //
+  // The window can hold a conversation live beside this one (sessionpool.js).
+  // Two Apps on one session would be two conversations writing one transcript,
+  // so the window's copy is handed over first — and if a turn is running in it,
+  // the honest answer is that the work is already somewhere rather than that it
+  // will be moved out from under itself.
+  const hand = app.pool().handover(id);
+  if (!hand.ok) { app.render.notice('warn', hand.why); return null; }
   try { app.session.save(); } catch { /* keep the outgoing session's state */ }
   app.adopt(s, { resumedFrom: id });
   // WHAT CAME BACK, checked rather than claimed. A restored transcript is not a
@@ -135,17 +144,31 @@ async function runCommand(app, { args, rest } = {}, { C } = {}) {
   // the same data, and it still names sessions by what they were.
   if (!app.ui || !app.ui.enabled) { writeList(app, list, { C: col }); return null; }
 
-  const { sessionListAdapter } = require('./ui/pickers');
-  const picked = await app.ui.ask(sessionListAdapter({
-    sessions: list,
-    title: query ? `RESUME — matching "${query}"` : 'RESUME SESSION',
-    current: app.session.id,
-  }));
-  // The filter text lives on the input line while a picker is open; it leaves
-  // with the picker, exactly as the model browser's query does.
-  if (app.input) app.input.setLine('');
-  if (!picked) { app.render.write(col.dim('  nothing resumed.\n')); return null; }
-  return adopt(app, picked, { C: col });
+  // THE RESUME SHELF (ui/shelf.js): recent sessions as choices, one action.
+  // Only what exists safely is offered — there is no delete here, because a
+  // session file is a record and nothing about resuming asks for its removal.
+  // Closing it says nothing: the prompt coming back is the answer.
+  const { shelf } = require('./ui/shelf');
+  const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' '); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
+  let cursor = 0;
+  for (;;) {
+    const picked = await app.ui.ask(shelf({
+      title: query ? `Resume session · matching "${query}"` : 'Resume session',
+      choices: list.map((s) => ({ label: `${clip(s.project, 18)} · ${clip(sessionIndex.headline(s), 56)}`, value: s.id, detail: s.when && s.when.text })),
+      cursor,
+      actions: [{ label: 'Continue', value: 'continue' }, { label: 'Details', value: 'details' }],
+      footer: '↑↓ choose · ←→ action · Enter · Esc close',
+    }));
+    if (app.input) app.input.setLine('');
+    if (!picked || !picked.choice) return null;
+    if (picked.action === 'details') {
+      // READ-ONLY: what the session was, then back to the same row of the list.
+      cursor = Math.max(0, list.findIndex((s) => s.id === picked.choice));
+      await app.ui.ask(require('./ui/pickers').sessionDetailsAdapter({ session: list[cursor] }));
+      continue;
+    }
+    return adopt(app, picked.choice, { C: col });
+  }
 }
 
 /** `/sessions` — the same descriptions, without ever resuming one. */

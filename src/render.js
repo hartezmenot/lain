@@ -161,7 +161,13 @@ function clipMessage(raw) {
     const said = /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(s.slice(body));
     if (said && said[1]) {
       const head = s.slice(0, body).replace(/[-–—:,]\s*$/, '').trim();
-      const one = said[1].replace(/\\(.)/g, '$1').trim();
+      let one = said[1].replace(/\\n/g, ' ').replace(/\\(.)/g, '$1').replace(/\s+/g, ' ').trim();
+      // A ROUTER NESTS THE UPSTREAM'S OBJECT inside its own `message`
+      // ("[codex/…] [401]: {"error":{"message":"Encountered invalidated oauth
+      // token…"}}"). One more level, keeping the router's `[route] [status]`.
+      const inner = one.indexOf('{');
+      const deeper = inner > 0 ? /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(one.slice(inner)) : null;
+      if (deeper && deeper[1]) one = `${one.slice(0, inner).replace(/[-–—:,]\s*$/, '').trim()}: ${deeper[1].replace(/\\(.)/g, '$1').trim()}`;
       return (head ? head + ' — ' : '') + one;
     }
   }
@@ -430,7 +436,14 @@ class Renderer {
         this.write(C.dim(`  ${l}`) + '\n');
       }
     } else {
-      for (const l of wrapPlain(`Provider ${f.provider} is not answering: ${f.message}`, this.width)) {
+      // WHAT THE PROVIDER DID, by kind. "is not answering" was printed for a
+      // credential refusal and a rate limit too — both of which ARE answers.
+      const did = {
+        AUTH: 'refused the credential', RATE_LIMITED: 'is rate limiting this model',
+        QUOTA: 'reports no quota left', MODEL_UNAVAILABLE: 'does not serve this model',
+        BAD_REQUEST: 'rejected the request', CONTEXT_LIMIT: 'refused the conversation size',
+      }[f.kind] || 'is not answering';
+      for (const l of wrapPlain(`Provider ${f.provider} ${did}: ${f.message}`, this.width)) {
         this.write(C.yellow(`  ${l}`) + '\n');
       }
       for (const l of wrapPlain('Your session is intact. Try again, or switch provider. The prompt is yours.', this.width)) {
@@ -463,4 +476,4 @@ function summarizeInput(name, input) {
   return keys.length ? `{${keys.slice(0, 3).join(', ')}}` : '';
 }
 
-module.exports = { Renderer, C, summarizeInput };
+module.exports = { Renderer, C, summarizeInput, clipMessage };

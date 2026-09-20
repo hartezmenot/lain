@@ -69,13 +69,38 @@ function usingProfile(snapshot, profileDir) {
   return snapshot.lines.filter((l) => l.toLowerCase().includes(want)).length;
 }
 
-/** Everything NOT running on one of our profiles: the person's own browsers. */
-function personalCount(snapshot, ourProfiles = []) {
+/**
+ * THE PERSON'S OWN BROWSER PROFILES — as a SET, not as a process count.
+ *
+ * ------------------------------------------------------------------------
+ * COUNTING PROCESSES WAS THE WRONG MEASURE, and it produced a false accusation.
+ *
+ * A running Chrome spawns and reaps renderer, GPU and utility processes
+ * continuously, for its own reasons, while a person browses. So a before/after
+ * COUNT of the person's browser processes changes on its own — and the test
+ * then reported "launching a Harness browser changed how many personal
+ * Chrome/Edge processes are running", which is an accusation about LAIN
+ * produced by the user opening a tab. It failed exactly once, in a full tier
+ * run, and passed in isolation every time.
+ *
+ * WHAT THE TEST ACTUALLY WANTS TO KNOW is whether LAIN started a browser in the
+ * person's world. Starting a browser adds a PROFILE; churning renderers does
+ * not — every process of one browser session shares its `--user-data-dir`. So
+ * the identity is the profile, and the assertion is a set comparison.
+ *
+ * A process with no `--user-data-dir` is the person's default profile, which is
+ * exactly one identity however many processes it runs.
+ */
+function personalProfiles(snapshot, ourProfiles = []) {
   const mine = ourProfiles.filter(Boolean).map((p) => String(p).toLowerCase());
-  return snapshot.lines.filter((l) => {
-    const low = l.toLowerCase();
-    return !mine.some((p) => low.includes(p));
-  }).length;
+  const out = new Set();
+  for (const line of snapshot.lines) {
+    const low = line.toLowerCase();
+    if (mine.some((p) => low.includes(p))) continue;
+    const m = /--user-data-dir=(?:"([^"]+)"|(\S+))/i.exec(line);
+    out.add(m ? String(m[1] || m[2]).toLowerCase() : '(default profile)');
+  }
+  return out;
 }
 
 module.exports = async function () {
@@ -90,7 +115,7 @@ module.exports = async function () {
     const before = browserProcesses();
     // Nothing of ours is running yet, so every browser process on this machine
     // right now is the person's. That is the number that must not move.
-    const personalBefore = personalCount(before, []);
+    const personalBefore = personalProfiles(before, []);
 
     // A REAL ProcessManager, because a VERIFY browser is TASK-OWNED and the
     // runtime refuses to start one that nothing can clean up.
@@ -106,6 +131,7 @@ module.exports = async function () {
     assert.ok(got.ok, `the Harness browser did not launch: ${got.why || ''} ${got.detail || ''}`);
 
     const inst = got.instance;
+    let stopped = null;      // what stop() reported, so a leak can say why
     try {
       // ---- IT IS THE BROWSER WE OWN, AND THE VERSION IS RECORDED --------
       assert.ok(inst.version, 'a verdict that cannot name its browser cannot be compared with last week');
@@ -139,15 +165,15 @@ module.exports = async function () {
       // ---- THE PERSON'S OWN BROWSERS ARE UNTOUCHED ---------------------
       const during = browserProcesses();
       if (before.counted && during.counted) {
-        assert.strictEqual(
-          personalCount(during, [inst.profileDir]), personalBefore,
-          'launching a Harness browser changed how many personal Chrome/Edge processes are running',
-        );
+        const now = personalProfiles(during, [inst.profileDir]);
+        const added = [...now].filter((p) => !personalBefore.has(p));
+        assert.deepStrictEqual(added, [],
+          `launching a Harness browser started a browser in the person's world: ${added.join(', ')}`);
         assert.ok(usingProfile(during, inst.profileDir) > 0,
           'no running process is using the Harness profile — nothing actually launched');
       }
     } finally {
-      await rt.stop(inst);
+      stopped = await rt.stop(inst);
     }
 
     // ---- IT EXITS, AND LEAVES NOTHING BEHIND --------------------------
@@ -157,13 +183,32 @@ module.exports = async function () {
       await new Promise((r) => setTimeout(r, 100));
     }
     assert.strictEqual(inst.alive, false, 'the Harness browser is still running after stop()');
+
+    // THE PROFILE GOES — AND A BUSY MACHINE IS GIVEN TIME TO LET GO OF IT.
+    //
+    // `stop()` already retries the removal and REPORTS the outcome (`cleaned`,
+    // `why`), so a real leak is never silent. What it cannot control is how
+    // long Windows holds the handles of nine just-killed Chromium processes,
+    // and under the full smoke tier — dozens of browsers in one run — the
+    // removal outran its budget and this failed on a machine that was merely
+    // loaded. Polling keeps the guard's teeth (a profile that genuinely
+    // survives still fails, and says what stop() reported) without asserting a
+    // deadline the OS never promised.
+    const gone = Date.now() + 20_000;
+    while (fs.existsSync(inst.profileDir) && Date.now() < gone) {
+      // eslint-disable-next-line no-await-in-loop -- waiting on the filesystem.
+      await new Promise((r) => setTimeout(r, 250));
+    }
     assert.strictEqual(fs.existsSync(inst.profileDir), false,
-      'the disposable verification profile survived the browser that used it');
+      'the disposable verification profile survived the browser that used it'
+      + (stopped && stopped.why ? ` — stop() said: ${stopped.why}` : ''));
 
     const after = browserProcesses();
     if (before.counted && after.counted) {
-      assert.strictEqual(personalCount(after, [inst.profileDir]), personalBefore,
-        'the personal browser process count changed across the run');
+      // SAME MEASURE AS ABOVE: a profile that was not there before is a browser
+      // LAIN started; a renderer the person's own Chrome spawned is not.
+      const left = [...personalProfiles(after, [inst.profileDir])].filter((p) => !personalBefore.has(p));
+      assert.deepStrictEqual(left, [], `a browser was left behind in the person's world: ${left.join(', ')}`);
       // THE WHOLE TREE, not just the process we spawned. A Chromium is a
       // browser process plus a renderer, a GPU process and several utility
       // processes; killing only the parent leaves the rest running, which is

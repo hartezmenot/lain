@@ -70,7 +70,17 @@ const turnclose = require('./turnclose');
  */
 function routes(app, verdict) {
   if (!app || !app.session) return { yes: false, why: 'no session' };
+  // ---- AN EXPLICIT VIEW DECIDES, NOT THE CLASSIFIER -----------------------
+  //
+  // The window's Chat view is where a person chose to discuss, so its turns go
+  // to the Chat source whatever the sentence looks like ("plan how to fix X"
+  // classifies as a bugfix and is still a Chat question). The Coding view never
+  // goes to a website. A turn with no view — the terminal — keeps the
+  // deterministic lane below, unchanged.
+  const view = app.session.thread;
+  if (view === 'coding') return { yes: false, why: "the Coding view runs on LAIN's runtime" };
   if (!registry.usingWeb(app)) return { yes: false, why: "the chat source is LAIN's own runtime" };
+  if (view === 'chat') return { yes: true, why: '', lane: { lane: lane.LANE.CHAT, mode: (verdict && verdict.mode) || null, reason: 'the Chat view', deterministic: true } };
   const l = lane.forVerdict(verdict);
   if (l.lane !== lane.LANE.CHAT) {
     return { yes: false, why: `this is a ${l.mode} turn — LAIN's coding runtime owns it`, lane: l };
@@ -84,12 +94,13 @@ function routes(app, verdict) {
  * Yields the same events a coding turn yields. The caller does not know or care
  * which produced them, which is the point.
  */
-async function* run(app, text, verdict, { from = null, signal = null } = {}) {
+async function* run(app, text, verdict, { from = null, typed = false, signal = null } = {}) {
   const session = app.session;
   const source = registry.selected(app);
   const model = source.selectedModel();
   const record = newRecord(session.id, text, model);
   record.from = from || null;
+  record.typed = Boolean(typed);
   // WHICH LANE, AND WHO ANSWERED, ON THE RECORD. A frontend rendering the
   // history must be able to tell a chat turn from a coding one without
   // re-classifying the text — re-deriving it later is how two readings of one

@@ -36,6 +36,7 @@ const KEYS = [
   ['Enter', 'send the prompt'],
   ['↑ ↓', 'move within a multi-line prompt, then through history'],
   ['PgUp/PgDn, Home/End', 'scroll the conversation'],
+  ['Ctrl+PgDn', 'jump straight to the newest output, and keep following it'],
   ['Alt+↑ Alt+↓', 'jump to the previous or next thing YOU said'],
   ['Esc', 'close a panel, or stop a retry wait'],
   ['drag in the prompt', 'select text — Shift+drag keeps the terminal own selection'],
@@ -87,7 +88,7 @@ function groupOf(name) {
   return '';
 }
 
-function register({ define, REGISTRY, C }) {
+function register({ define, REGISTRY, C, FLASH_MS }) {
 
   /**
    * `/mouse` — GIVE THE TERMINAL ITS SELECTION BACK.
@@ -113,6 +114,7 @@ function register({ define, REGISTRY, C }) {
    * for it will actually look.
    */
   define('/mouse', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     surface: true,
     args: '[on|off]',
     desc: 'Mouse capture on or off - off restores your terminal own text selection',

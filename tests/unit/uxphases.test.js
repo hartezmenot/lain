@@ -102,7 +102,8 @@ module.exports = async function () {
     const rows = {};
     // ANY COLUMN: every region is drawn inside the content frame now (ui/frame.js
     // `contentBounds`), so the address carries the frame's left edge, not 1.
-    const re = new RegExp('\\x1b\\[(\\d+);\\d+H([^\\x1b]*)', 'g');
+    // A frame row erases its whole line right after its address (ui/frameout.js).
+    const re = new RegExp('\\x1b\\[(\\d+);\\d+H(?:\\x1b\\[2K)?([^\\x1b]*)', 'g');
     let m;
   // THE CARET PARK IS A CURSOR MOVE WITH NO TEXT, and it is the LAST address in
     // every frame. Letting it win blanks whatever row the caret is on — which,

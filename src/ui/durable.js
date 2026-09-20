@@ -67,6 +67,10 @@ function durable(a) {
   if (a.ok === false) return true;
   if (DURABLE_TOOLS.has(String(a.name || ''))) return true;
   if (CHANGED.has(V().verbOf(a.name))) return true;
+  // THE SYMBOL EDITS HAVE NO VERB (replace_symbol, rename_symbol…), so a live
+  // edit through them left no row — and no [Diff] — until the turn settled
+  // (live, 2026-09-19). The edit set is the one CHANGE is drawn from.
+  if (require('./turnsections').EDIT.has(String(a.name || ''))) return true;
   // WHOEVER PRODUCED THE ACTION MAY SAY SO. Nothing sets this today; it is the
   // seam for a tool that knows its own result is worth keeping, so that the
   // answer does not have to be guessed from a name in this file.

@@ -291,6 +291,14 @@ function build(connections = []) {
       // recorded on the connection below and the exact upstream id still travels
       // on the wire — collapsing changes what is DISPLAYED, never what is sent.
       const { key: modelId, route: namespace } = identityOf({ ...slot.entry, id: realBase }, conn.id);
+      // A MODEL WHOSE CATALOG ID NAMES A RETIRED ROUTER is not listed —
+      // retired.selection refuses exactly that id, whatever route serves it, so
+      // the picker offered 16 `tokenrouter/…` rows (from a live local endpoint)
+      // that failed on selection. Judged on the CANONICAL id, the one selection
+      // judges: an upstream id merely routed through such a prefix and folded to
+      // `anthropic/claude-opus-5-fast` stays. Endpoint, its other models and the
+      // derived cache are untouched (2026-09-18).
+      if (require('./retired').modelSystem(modelId)) continue;
 
       if (!models.has(modelId)) {
         models.set(modelId, { id: modelId, displayName: displayName(modelId), connections: [] });
@@ -330,6 +338,15 @@ function build(connections = []) {
         route: namespace,
         via: conn.via || 'native',
         auth: conn.auth || 'none',
+        // OPTIONAL, AND NEVER GUESSED. `tier` groups a model's routes into
+        // FREE/PAID sub-rows only when the user's own config said which is
+        // which (`connections.<id>.tier`). `auth === 'none'` is not a proxy
+        // for "free" — a corporate proxy with no key can still be billed —
+        // so an unset tier stays unset rather than showing a label that
+        // might be wrong. See catalog.test.js and §57.
+        tier: conn.tier === 'free' || conn.tier === 'paid' ? conn.tier : null,
+        // A route to this machine (a local server) — the `local:` filter.
+        local: /^https?:\/\/(?:localhost|127\.|\[::1\])/i.test(String(conn.baseUrl || '')),
         efforts,
         upstreamByEffort: isFamily ? Object.fromEntries(slot.efforts) : {},
         upstreamId: isFamily ? null : realBase,
@@ -358,13 +375,69 @@ function build(connections = []) {
     byFold.set(k, keep);
   }
 
+  familyFold(byFold);
+
   const canonical = new Map();
   for (const m of byFold.values()) {
+    // WHICH MODEL A ROUTE ROW SERVES, after every fold — availability keys a
+    // server-answered refusal by route AND model (availability.noteOutcome).
+    for (const c of m.connections) c.modelId = m.id;
     canonical.set(m.id, m);
     for (const a of m.aliases || []) canonical.set(a, m);
   }
   const list = [...byFold.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { models: list, byId: canonical };
+}
+
+/**
+ * ONE ROW PER MODEL FAMILY (§56–57). Two conservative merges, both keeping
+ * every exact upstream id on its route, so the wire is unchanged:
+ *
+ *   ACCESS-PATH SUFFIXES — `gemini-3.8-flash-tiered`, `qwen3:free`,
+ *     `x-paid` — join their base model when that base exists. They are a way
+ *     to REACH a model, not a model; the route carries the access label and,
+ *     for free/paid, the tier the picker groups by.
+ *   ONE VENDOR QUALIFIER — `google/gemini-3.8-flash` joins bare
+ *     `gemini-3.8-flash` when it is the ONLY vendor spelling of that name. Two
+ *     different vendors' `x/foo` and `y/foo` stay apart: a false merge hides a
+ *     model, which is worse than a duplicate row.
+ */
+const ACCESS_SUFFIX = /(?:[-:](tiered|free|paid|priority|batch|flex))$/i;
+
+function familyFold(byFold) {
+  const byBare = new Map();
+  for (const [k, m] of byFold) byBare.set(k, m);
+  const absorb = (keep, drop, { access = null } = {}) => {
+    for (const c of drop.connections) {
+      const connectionId = access && keep.connections.some((x) => x.connectionId === c.connectionId) ? `${c.connectionId}#${access}` : c.connectionId;
+      if (keep.connections.some((x) => x.connectionId === connectionId)) continue;
+      const tier = c.tier || (/^(free|paid)$/i.test(access || '') ? access.toLowerCase() : null);
+      keep.connections.push({ ...c, connectionId, access: access || c.access || null, tier });
+    }
+    keep.aliases = [...new Set([...(keep.aliases || []), ...(drop.aliases || []), drop.id])];
+  };
+  for (const [k, m] of [...byFold]) {
+    const s = ACCESS_SUFFIX.exec(m.id);
+    if (!s) continue;
+    const base = byBare.get(foldKey(m.id.slice(0, -s[0].length)));
+    if (!base || base === m) continue;
+    absorb(base, m, { access: s[1].toLowerCase() });
+    byFold.delete(k);
+  }
+  const vendors = new Map();
+  for (const [k, m] of byFold) {
+    const parts = m.id.split('/');
+    if (parts.length !== 2) continue;
+    const tail = foldKey(parts[1]);
+    if (!vendors.has(tail)) vendors.set(tail, []);
+    vendors.get(tail).push(k);
+  }
+  for (const [tail, keys] of vendors) {
+    const bare = byFold.get(tail);
+    if (!bare || keys.length !== 1) continue;
+    absorb(bare, byFold.get(keys[0]));
+    byFold.delete(keys[0]);
+  }
 }
 
 /**
@@ -518,7 +591,13 @@ async function refreshAndReport(app, { only = null } = {}, { C } = {}) {
   let failures = 0;
   for (const r of results) {
     if (r.ok) w(C.green('  ✓ ') + r.id + C.dim(`  ${r.count} model(s) from ${r.url}\n`));
-    else { failures += 1; w(C.yellow('  ✕ ') + r.id + C.dim(`  ${r.error}\n`)); }
+    else {
+      // ASKED FOR, SO SHOWN IN FULL: the verdict, then what the provider said.
+      failures += 1;
+      const label = require('./catalogstate').LABEL[r.state] || 'failed';
+      w(C.yellow('  ✕ ') + r.id + C.dim(`  ${label} · ${r.error}\n`));
+      if (r.raw) w(C.dim(`      ${String(r.raw).replace(/\s+/g, ' ').slice(0, 300)}\n`));
+    }
   }
 
   const after = app.catalog();

@@ -111,9 +111,19 @@ module.exports = async function () {
     // sentence you typed in front of it), and the TRANSCRIPT is the record,
     // which has to be readable back.
     //
-    // So: `<pasted text>` on the input line BEFORE Enter, the full payload in
-    // the conversation AFTER it, and the full payload in `session.messages`
-    // either way — which is what the model receives.
+    // So: `<pasted text>` on the input line BEFORE Enter, and the full payload
+    // in `session.messages` — which is what the model receives.
+    //
+    // WHAT CHANGED AFTERWARDS, deliberately. The transcript no longer PRINTS
+    // the wall once it is sent. A user message is now ONE gray anchor row —
+    // `USER · <the real opening words>…` — above a turn divider, because the
+    // conversation is read for LAIN'S ANSWERS and thirty lines of pasted log
+    // between every question and its answer is what made the CLI unreadable.
+    // The record is not lost: the anchor carries the exact prompt and clicking
+    // it restores it, Alt+Up walks the anchors (the case above), and the
+    // session holds every byte. So this asserts the ANCHOR and the PAYLOAD,
+    // and no longer asserts that line 29 is on the screen — it is not supposed
+    // to be.
     // ------------------------------------------------------------------
     const cwd = tmpdir('anchor-');
     const long = Array.from({ length: 30 }, (_, i) => `line ${i} of a pasted log`).join(NL);
@@ -129,8 +139,15 @@ module.exports = async function () {
     const out = plain(r.out);
     assertIncludes(out, '<pasted text>',
       'the COMPOSER collapses it — otherwise thirty lines bury the prompt being written');
-    assertIncludes(out, 'line 29 of a pasted log',
-      'and the CONVERSATION shows what was actually sent, once it has been');
+    // ONE ANCHOR ROW, opening with what was really said. The label is the
+    // anchor's own (`USER REQUEST` for a request, `USER DECISION` for a
+    // one-word answer, `USER` otherwise — see src/ui/anchors.js), so the
+    // assertion names the family rather than pinning one of them.
+    assert.ok(/USER(?: REQUEST| DECISION)? · line 0 of a pasted log/.test(out),
+      `once sent it becomes ONE anchor row that opens with what was really said\n${out.slice(-1500)}`);
+    assert.ok(!out.includes('line 29 of a pasted log'),
+      'and the wall is NOT reprinted into the conversation — the anchor holds it, '
+      + 'and Alt+Up or a click restores the exact prompt');
 
     const fs = require('fs');
     const path = require('path');

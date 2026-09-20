@@ -26,6 +26,10 @@ const edited = (l, f) => l.observeTool({ name: 'write_file', input: { path: f },
 const ran = (l, cmd, code) => l.observeTool({
   name: 'run_bash', input: { command: cmd }, output: '', isError: code !== 0, exitCode: code,
 });
+// THE FINAL SMOKE (finalsmoke.js): this cwd's own final suite, run last and passing.
+const smoked = (l) => l.observeTool({
+  name: 'run_bash', input: { command: require('../../src/finalsmoke').suite(process.cwd()).command }, output: '', exitCode: 0, finalSmoke: true,
+});
 
 /** A plan whose every step is done — 100%, by construction. */
 function finishedPlan() {
@@ -190,11 +194,23 @@ module.exports = async function () {
     assert.ok(!/DONE/.test(line), 'nothing may read as finished while a model is still working');
   });
 
+  // TEST 9b — targeted tests alone are not the final smoke
+  await test('PLAN100 + targeted tests passed but no final smoke → NOT DONE (finalsmoke.js)', () => {
+    const life = new Lifecycle('do the work');
+    edited(life, '/p/src/a.js');
+    ran(life, 'npm test', 0);
+    const app = appWith(finishedPlan(), life);
+    assert.strictEqual(app.maybeComplete({ text: 'Fixed the handler; the suite passes.' }), false);
+    assert.match(app.pendingCompletion, /final smoke has not run/);
+    assert.notStrictEqual(life.state, STATE.DONE);
+  });
+
   // TEST 10 — genuinely complete
   await test('PLAN100 + objective satisfied and verified → DONE', () => {
     const life = new Lifecycle('do the work');
     edited(life, '/p/src/a.js');
     ran(life, 'npm test', 0);
+    smoked(life);                                   // the final smoke, last
     const app = appWith(finishedPlan(), life);
     assert.strictEqual(app.maybeComplete({ text: 'Fixed the handler; the suite passes.' }), true);
     assert.strictEqual(life.state, STATE.DONE);
@@ -250,6 +266,7 @@ module.exports = async function () {
     const life = new Lifecycle('do the work');
     edited(life, '/p/src/a.js');
     ran(life, 'npm test', 0);
+    smoked(life);                                   // the final smoke, last
     const plan = finishedPlan();
     const app = appWith(plan, life);
 
@@ -278,6 +295,7 @@ module.exports = async function () {
     const life = new Lifecycle('do the work');
     edited(life, '/p/src/a.js');
     ran(life, 'npm test', 0);
+    smoked(life);                                   // the final smoke, last
     const plan = finishedPlan();
     const app = appWith(plan, life);
     app.maybeComplete({ text: 'Done; the suite passes.' });

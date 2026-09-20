@@ -38,13 +38,30 @@ function effortAdapter({ available = [], current = null }) {
 }
 
 /** `/models` — MODEL-CENTRIC. One row per identity; routes on drill-down. */
-function modelsAdapter({ catalog, current = null, currentConnection = null, onPickRoute = null, readinessOf = null, availabilityOf = null, availabilityRaw = null, filter = '', isNew = null }) {
+function modelsAdapter({ catalog, current = null, currentConnection = null, onPickRoute = null, readinessOf = null, availabilityOf = null, availabilityRaw = null, filter = '', isNew = null, externalSources = [], sourceIssues = [] }) {
+  // ---- FILTERS: All · Free · Paid · Local · External (§55) --------------
+  // Typed as `free:` `paid:` `local:` `external:` in the search. External lists
+  // the website SOURCES as secondary rows — sources are never flattened into
+  // the model list.
+  const fm = /(?:^|\s)(free|paid|local|external):(?=\s|$)/i.exec(String(filter || ''));
+  const kind = fm ? fm[1].toLowerCase() : null;
+  if (kind === 'external') {
+    const rows = (externalSources || []).map((s) => ({ label: `  ${pad(s.label, 22)}external source${s.current ? '  · current' : ''}`, value: `source:${s.id}`, source: s.id }));
+    return {
+      title: 'MODELS · EXTERNAL SOURCES', kind: KIND.MODEL_SELECTION, mode: MODE.EXPANDED,
+      items: rows.length ? rows : [{ label: 'no external source is available', selectable: false }],
+      footer: '↑↓ source · Enter list its models · Esc cancel',
+      onSelect(item) { return item && item.source ? { close: { source: item.source } } : undefined; },
+    };
+  }
   // THE SAME SEARCH THE COMMAND USES. This used to be a second, stricter
   // filter — `includes()` on one contiguous string — so `/models qwen free`
   // found a model and typing `qwen free` into the picker found nothing. One
   // implementation, one answer.
-  const q = String(filter || '').trim();
-  const models = q ? require('../catalog').search(catalog, q, 400) : catalog.models;
+  const q = String(filter || '').replace(/(?:^|\s)(free|paid|local|external):(?=\s|$)/ig, ' ').trim();
+  const searched = q ? require('../catalog').search(catalog, q, 400) : catalog.models;
+  const wants = (m) => !kind || m.connections.some((c) => (kind === 'local' ? c.local : c.tier === kind));
+  const models = searched.filter(wants);
   const items = models.map((m) => {
     // WHAT HELPS SOMEONE CHOOSE, and nothing else. A route count is only worth
     // a person's attention when there is actually a choice in it; effort levels
@@ -75,17 +92,21 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
   // so the title carries it when the list cannot.
   const currentModel = current && catalog.models.find((m) => m.id === current);
   const currentShown = at >= 0;
-  const title = q
-    ? `MODELS   ${models.length} matching "${filter}"`
+  // A SOURCE THAT CANNOT LIST ITS MODELS IS SAID HERE, restrained, as its state
+  // (src/catalogstate.js) — not as a WARN block every time the picker opens.
+  const issues = (sourceIssues || []).map((s) => `${s.id} ${s.label}`).join(' · ');
+  const title = (kind ? `MODELS · ${kind.toUpperCase()}  ` : '') + (q
+    ? `MODELS   ${models.length} matching "${q}"`
       + (currentModel && !currentShown ? `   ·   current: ${clip(currentModel.displayName, 28)}` : '')
-    : `MODELS   ${models.length}`;
+    : `MODELS   ${models.length}`)
+    + (issues ? `   ·   ${issues}` : '');
   return {
     title,
     kind: KIND.MODEL_SELECTION,
     mode: MODE.EXPANDED,
     items,
     cursor: at > 0 ? at : 0,
-    footer: '↑↓ select · Enter use · → routes · Esc cancel',
+    footer: '↑↓ select · Enter use · → routes · filter: free: paid: local: external: · Esc cancel',
     /**
      * ENTER MEANS "USE THIS MODEL".
      *

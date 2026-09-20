@@ -16,3 +16,12 @@ bench/out/
 # Python workers are source; interpreter caches are machine output.
 __pycache__/
 *.py[cod]
+
+# The WebView2 SDK LAIN Desktop links against. The RUNTIME is part of
+# Windows; only the SDK is vendored, and it is fetched on first build with a
+# pinned version and a recorded hash. Binaries are machine state, never source.
+# See native/vendor.js.
+native/vendor/
+
+# The built installer artifact. Rebuilt by `npm run dist`; never source.
+dist/

@@ -261,4 +261,25 @@ module.exports = async function () {
     assert.ok(dels > 0, `and removals: ${dels}`);
     assert.ok(adds > dels, 'a file that grew has more added rows than removed ones');
   });
+
+  await test('DIFF: two separate edits are two hunks — unchanged lines between them are never drawn as changed', () => {
+    // Live [Diff] on pricing.js, 2026-09-18: lines 7 and 14 edited, drawn as
+    // lines 7–14 removed and re-added (-8 +8) under a row that said +2 -2.
+    const panes = require('../../src/ui/panes');
+    const before = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n') + '\n';
+    const after = before.replace('line 7\n', 'LINE 7\n').replace('line 14\n', 'LINE 14\n');
+    const rows = panes.unified(before, after);
+    assert.strictEqual(rows.filter((r) => /^\s*\d+ - /.test(r)).length, 2, rows.join('\n'));
+    assert.strictEqual(rows.filter((r) => /^\s*\d+ \+ /.test(r)).length, 2);
+    assert.ok(!rows.some((r) => /^\s*\d+ [-+] line 10$/.test(r)), 'an untouched line is not a change');
+    assert.ok(rows.some((r) => /^\s*14 \+ LINE 14$/.test(r)), 'numbers stay the file\'s own');
+    // And the count shown beside the file agrees with the drawn diff.
+    const root = require('../helpers').tmpdir('lain-count-');
+    const file = require('path').join(root, 'f.txt');
+    require('fs').writeFileSync(file, after);
+    const files = panes.changedFiles({ checkpoints: { entries: [{ files: [{ path: file, bytes: Buffer.from(before), existed: true }] }] }, cwd: root });
+    assert.strictEqual(files.length, 1);
+    assert.strictEqual(files[0].added, 2, JSON.stringify({ a: files[0].added, r: files[0].removed }));
+    assert.strictEqual(files[0].removed, 2);
+  });
 };

@@ -155,6 +155,32 @@ function matchEndings(text, fileText) {
 }
 
 /**
+ * Where the comment block DIRECTLY above `start` begins (a `/* … *\/` block, or
+ * a run of `//` lines, with no blank line between it and the declaration), or
+ * `start` itself when there is none.
+ */
+function leadingCommentStart(source, start) {
+  const lineStart = (i) => source.lastIndexOf('\n', i - 1) + 1;
+  let cur = lineStart(start);
+  if (source.slice(cur, start).trim()) return start;          // code before the keyword on its line
+  let from = start;
+  for (;;) {
+    if (cur === 0) break;
+    const prevStart = lineStart(cur - 1);
+    const line = source.slice(prevStart, cur - 1).replace(/\r$/, '');
+    const t = line.trim();
+    if (t.startsWith('//')) { from = prevStart + line.indexOf('//'); cur = prevStart; continue; }
+    if (t.endsWith('*/')) {
+      const open = source.lastIndexOf('/*', prevStart + line.lastIndexOf('*/'));
+      if (open < 0 || source.slice(lineStart(open), open).trim()) break;
+      from = open; cur = lineStart(open); continue;
+    }
+    break;
+  }
+  return from;
+}
+
+/**
  * Write, verify, and undo the write if it broke the file.
  *
  * The rollback is the whole contract. Without it a semantic edit that produces
@@ -281,7 +307,13 @@ tools.replace_symbol = {
     if (found.error) return { output: found.error, isError: true };
     const s = found.symbol;
     const body = matchEndings(input.replacement, f.source);
-    const next = f.source.slice(0, s.start) + body + f.source.slice(s.end);
+    // A REPLACEMENT THAT BRINGS ITS OWN DOC COMMENT replaces the one above the
+    // symbol too. The symbol's range starts at its keyword, so a model that (as
+    // read_file showed it) included the JSDoc left the old one standing above
+    // the new — a duplicated comment (live, 2026-09-19). No comment in the
+    // replacement: the existing one is kept, as before.
+    const from = /^\s*(?:\/\*|\/\/)/.test(input.replacement) ? leadingCommentStart(f.source, s.start) : s.start;
+    const next = f.source.slice(0, from) + body + f.source.slice(s.end);
     const w = await writeVerified(f.abs, next, f.source, ctx.cwd);
     if (w.rejected) return { output: w.rejected, isError: true };
     const wasLines = s.endLine - s.startLine + 1;

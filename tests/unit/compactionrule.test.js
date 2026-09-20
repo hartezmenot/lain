@@ -300,7 +300,9 @@ module.exports = async function () {
     };
     walk(SRC);
     callers = callers.filter((f) => f !== path.join('tools', 'index.js'));
-    assert.deepStrictEqual(callers, ['turn.js'],
+    // toolstep.js is the turn's per-call half, split out of turn.js at the size
+    // guard; it is still the ONE caller.
+    assert.deepStrictEqual(callers, ['toolstep.js'],
       'one executor, so one policy: ' + callers.join(', '));
   });
 

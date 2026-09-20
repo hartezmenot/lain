@@ -52,9 +52,16 @@ module.exports = async function () {
     const out = plain(r.out);
     assert.match(out, /Waiting to send/, 'it must be shown waiting, not silently queued');
     assert.match(out, /also check the backend/, 'and the text must be visible while it waits');
-    // DELIVERED AFTER THE WORK, not dropped when the turn ended.
-    assert.match(out, /delivering what you typed while it worked/,
-      'the waiting steer must reach the model once the work finished');
+    // DELIVERED AFTER THE WORK, not dropped when the turn ended. Asserted on
+    // the SAVED SESSION: the acknowledgement is a transient operation note that
+    // the next turn's start replaces in the same tick, so the screen is not the
+    // evidence — a second turn carrying the words, marked as a steer, is.
+    const dir = path.join(r.configDir || configDir, 'sessions');
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.json'));
+    const turns = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')).turns || [];
+    const steered = turns.find((t) => /also check the backend/.test(String(t.userInput || '')));
+    assert.ok(steered, `the waiting steer must reach the model once the work finished: ${JSON.stringify(turns.map((t) => [t.from, t.userInput]))}`);
+    assert.strictEqual(steered.from, 'steer', 'and it arrives as the steer it was');
   });
 
   await test('STEER LIVE: a SECOND Enter promotes it, and the region says so', async () => {

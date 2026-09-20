@@ -67,11 +67,13 @@ module.exports = async function () {
 
     // IT SAID WHAT WAS HAPPENING. A silent wait is indistinguishable from a hang.
     assert.match(out, /rate limit exceeded/, `the reason must be shown:\n${out.slice(-800)}`);
-    assert.match(out, /retry 1\/\d+ at \d\d:\d\d:\d\d/, 'with an ABSOLUTE time, not only a duration');
-    assert.match(out, /Esc cancels the wait/, 'and a way out');
+    // THE COMPACT TRANSIENT FORM (2026-09-10): `Rate limited · 429 … · retry in
+    // 1s · 1/10`. The absolute time and the Esc way out live on the TUI's live
+    // row (asserted in integration-push.test.js); a pipe has no Escape to offer.
+    assert.match(out, /retry in \d+s · 1\/\d+/, 'how long, and which attempt');
 
     // IT RESUMED, AND FINISHED, with nobody typing anything.
-    assert.match(out, /the wait is over/, 'the resume is announced');
+    assert.match(out, /Resuming/, 'the resume is announced');
     assert.match(out, /FINISHED/, `the task must complete after the wait:\n${out.slice(-800)}`);
     assert.strictEqual(r.code, 0);
   });
@@ -122,9 +124,10 @@ module.exports = async function () {
       timeoutMs: 90000,
     });
     const out = plain(r.out);
-    const attempts = (out.match(/retry \d+\/\d+/g) || []).length;
+    const attempts = (out.match(/retry in \d+s · \d+\/\d+/g) || []).length;
+    const { MAX_RETRIES } = require('../../src/backoff');
     assert.ok(attempts >= 1, 'it did retry');
-    assert.ok(attempts <= 6, `${attempts} retries is not a bounded budget:\n${out.slice(-600)}`);
+    assert.ok(attempts <= MAX_RETRIES, `${attempts} retries is not the bounded budget of ${MAX_RETRIES}:\n${out.slice(-600)}`);
     // And it gave up honestly rather than claiming anything.
     assert.strictEqual(r.code, 0, 'the binary still exits cleanly');
     assert.ok(!/FINISHED|TASK COMPLETE/.test(out), 'a provider that never answered completes nothing');

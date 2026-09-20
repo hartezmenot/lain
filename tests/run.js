@@ -43,6 +43,11 @@ const path = require('path');
 const REAL_HOME = path.join(os.homedir(), '.lain-v2');
 if (!process.env.LAIN_CONFIG_DIR) {
   process.env.LAIN_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-test-home-'));
+  // No filesystem watchers unless a test starts one itself: a watched temp tree
+  // cannot be removed on Windows. See freshness.js.
+  if (process.env.LAIN_WATCH == null) process.env.LAIN_WATCH = '0';
+  // The person's real ~/.lain/AGENTS.md must not ride into test prompts.
+  if (process.env.LAIN_AGENTS_HOME == null) process.env.LAIN_AGENTS_HOME = process.env.LAIN_CONFIG_DIR;
 } else if (path.resolve(process.env.LAIN_CONFIG_DIR) === path.resolve(REAL_HOME)) {
   // REFUSE, rather than report afterwards. A test that fails on this has
   // already run every test before it, and one of those writes the config —
@@ -164,7 +169,37 @@ const helpers = require('./helpers');
 // silently suppress their OSC output; tests of dumb terminals set it explicitly.
 process.env.TERM = 'xterm-256color';
 
-const TIERS = ['unit', 'integration', 'smoke', 'distribution', 'live'];
+/**
+ * THE SMOKE TIER IS FOUR TIERS, RUN IN THIS ORDER (§36, 2026-09-18):
+ *
+ *   workflow  tests/workflow — the implementation / bug-fix / `/bg` workflows,
+ *             through the real binary. If these fail, nothing broader matters.
+ *   cli       tests/smoke, CLI only
+ *   harness   tests/smoke, Harness / native desktop only — a CLI regression can
+ *             never depend on WebView2 being there
+ *   global    tests/smoke, cross-surface integration (Bot, dashboard, remote,
+ *             hygiene last)
+ *
+ * `smoke` still names all four, in order. Files are classified here rather
+ * than moved, so history and relative requires are untouched.
+ */
+const SMOKE_HARNESS = new Set([
+  'harness-contract-real.test.js', 'harnessapp-real.test.js', 'harnessapp-source.test.js', 'harnessapp-workshop.test.js',
+  'desktop-real.test.js', 'terminal-real.test.js', 'workshop-real.test.js', 'computermcp-real.test.js',
+]);
+const SMOKE_GLOBAL = new Set([
+  'bot-check-cli.test.js', 'bot-cli.test.js', 'observe-bot.test.js', 'relay-dash-mcp.test.js', 'dashinstances.test.js',
+  'rc.test.js', 'harness-cli.test.js', 'integration-push.test.js', 'environment-browser.test.js', 'production.test.js',
+  'bench.test.js', 'zz-hygiene.test.js',
+]);
+const SMOKE_TIERS = ['workflow', 'cli', 'harness', 'global'];
+function smokeClass(f) { return SMOKE_HARNESS.has(f) ? 'harness' : SMOKE_GLOBAL.has(f) ? 'global' : 'cli'; }
+function tierSource(tier) {
+  if (tier === 'cli' || tier === 'harness' || tier === 'global') return { dir: path.join(__dirname, 'smoke'), keep: (f) => smokeClass(f) === tier };
+  return { dir: path.join(__dirname, tier), keep: () => true };
+}
+
+const TIERS = ['unit', 'integration', ...SMOKE_TIERS, 'distribution', 'live'];
 
 /**
  * `adversarial` is DELIBERATELY NOT in the default run.
@@ -194,22 +229,22 @@ async function main() {
     if (!facts || facts.lifetime !== 'lease-v1') throw new Error('The supervisor test binary predates scoped ownership. Rebuild rust/lain-supervisor or set LAIN_SUPERVISOR_BIN to the rebuilt binary before running tests.');
   }
   const want = process.argv[2];
-  const tiers = want ? [want] : TIERS;
-  if (want && !TIERS.includes(want) && !EXTRA_TIERS.includes(want)) {
+  const tiers = want === 'smoke' ? SMOKE_TIERS : (want ? [want] : TIERS);
+  if (want && want !== 'smoke' && !TIERS.includes(want) && !EXTRA_TIERS.includes(want)) {
     process.stderr.write(`unknown tier "${want}" (${[...TIERS, ...EXTRA_TIERS].join('|')})\n`);
     process.exit(2);
   }
 
   const started = Date.now();
   for (const tier of tiers) {
-    const dir = path.join(__dirname, tier);
+    const { dir, keep } = tierSource(tier);
     let files = [];
-    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && (!process.argv[3] || new RegExp(process.argv[3]).test(f))).sort(); } catch { files = []; }
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && keep(f) && (!process.argv[3] || new RegExp(process.argv[3]).test(f))).sort(); } catch { files = []; }
     if (!files.length) continue;
     process.stdout.write(`\n${tier.toUpperCase()}\n`);
     for (const f of files) {
       process.stdout.write(`${f}\n`);
-      helpers.setFile(`${tier}/${f}`);
+      helpers.setFile(`${path.basename(dir) === tier ? tier : `${tier}:${path.basename(dir)}`}/${f}`);
       // ---- ONE UNLOADABLE FILE MUST NOT END THE TIER ------------------------
       //
       // `require` was called bare here, so a file that fails to PARSE threw

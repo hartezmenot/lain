@@ -133,7 +133,20 @@ function keyFor(name, input) {
  */
 function fingerprintOf(name, input, resultContent) {
   if (name === 'understand') return 'args';
-  return fp(resultContent);
+  // A READ SERVED FROM ITS RECEIPT (src/progress.js) is the same bytes under a
+  // one-line header. The MODEL still asked again — that is still its waste — so
+  // the header is removed before the evidence is compared.
+  const text = String(resultContent == null ? '' : resultContent);
+  const body = text.startsWith('[receipt ') ? text.slice(text.indexOf('\n') + 1) : text;
+  // AND A NON_PROGRESS STEER IS NOT EVIDENCE EITHER — same argument as the
+  // receipt header, at the other end of the string. progress.js appends it to
+  // the result of a read it has decided is going nowhere; the MODEL still asked
+  // again, so the waste is still the model's and must still be counted. Leaving
+  // the steer in the fingerprint made the re-acquisition look like a VALID
+  // RECHECK ("the evidence changed"), which is the instrumentation being fooled
+  // by LAIN's own advice — measured: A2's planted rediscoveries fell from 2 to 1.
+  const steered = body.indexOf('\nNON_PROGRESS:');
+  return fp(steered >= 0 ? body.slice(0, steered) : body);
 }
 
 // What the trace reports for one acquisition.

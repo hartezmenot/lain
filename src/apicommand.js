@@ -116,7 +116,7 @@ function shapeOf(cred) {
  * WHICH PROVIDER DOES THIS KEY BELONG TO?
  *
  * The known endpoints, then anything already in the user's config, then
- * `Other…` — which asks for a base URL rather than guessing one. See
+ * `Customs…` — which asks for a base URL rather than guessing one. See
  * providers.js for why a guessed endpoint is a security question and not a
  * convenience one.
  */
@@ -134,11 +134,19 @@ function providerAdapter(list) {
   //
   //   PICK AND GO        the endpoint is known, or the user already configured
   //                      it. One keystroke and the credential is stored.
-  //   Other…             the universal escape. Works for anything.
+  //   Customs…           the universal escape. Works for anything.
   //   NEEDS AN ENDPOINT  a name LAIN knows and cannot place. This is the SAME
-  //                      action as `Other…` with the name filled in — a
+  //                      action as `Customs…` with the name filled in — a
   //                      convenience over it, not a step before it — so it
   //                      belongs after it rather than in front of it.
+  //
+  // THERE IS ONE CUSTOM CATEGORY, AND IT IS CALLED `Customs…` (2026-09-15).
+  // The picker used to show this escape as `Other…` AND a separate row named
+  // `custom` carried in from the user's V1 configuration — two spellings of one
+  // idea, side by side. The row is retired (providers.js RETIRED) and the escape
+  // took the name. NOTHING PERSISTED CHANGES: the value behind this row is the
+  // internal sentinel `__other__`, never a stored label, and a credential
+  // entered through it is still filed under its own hostname.
   //
   // Nothing is hidden and nothing is guessed; only the order changed.
   const row = (p) => ({
@@ -158,7 +166,7 @@ function providerAdapter(list) {
     mode: 'EXPANDED',
     items: [
       ...ready.map(row),
-      { label: 'Other…   (enter the base URL yourself)', value: OTHER },
+      { label: 'Customs…   (enter the base URL yourself)', value: OTHER },
       ...unplaced.map(row),
     ],
     footer: '↑↓ select · Enter confirm · Esc cancel',
@@ -307,7 +315,11 @@ async function discoverModels(app, connectionId) {
     // worse copy of one that had already happened.
     const r = await connectionsMod.discover(conn);
     if (!r || !r.ok) {
-      return { ok: false, error: (r && r.error) || 'the provider answered, but listed no models' };
+      // THE PROVIDER'S OWN WORDS, here: this is the person checking a credential
+      // they just entered. `discover` keeps the body off its one-line `error`
+      // (see catalogstate.js — the `/model` path), so it is added back.
+      const said = r && r.raw ? ` — ${String(r.raw).replace(/\s+/g, ' ').slice(0, 200)}` : '';
+      return { ok: false, error: r && r.error ? `${r.error}${said}` : 'the provider answered, but listed no models' };
     }
     return { ok: true, models: r.models, url: r.url };
   } catch (e) {
@@ -514,7 +526,7 @@ async function credentialFlow(app, credential, { C, config, refreshCatalog, pres
   return require('./modelcommand').pickCommand(app, { args: [], rest: '' }, { C, config, refreshCatalog });
 }
 
-// `providerAdapter` is exported for the test that pins WHERE `Other…` sits in
+// `providerAdapter` is exported for the test that pins WHERE `Customs…` sits in
 // the list — see tests/unit/apiflow.test.js. Its position is a property of the
 // picker rather than of a flow, so it is asserted on the adapter directly.
 module.exports = {

@@ -48,6 +48,8 @@ class Gateway {
       const adapter = row.event && this.adapters.get(`${row.event.platform}:${row.event.accountId}`);
       if (row.state === 'queued' && row.event && adapter && !['unavailable', 'stopped'].includes(adapter.state)) this.enqueue(id, row.event);
     }
+    // LAIN NEEDS YOU: Core decisions and attention events to the owner chat. See bot/attention.js.
+    this.attention = require('./attention').forGateway(this).start();
     this.pump(); return this.status();
   }
   status() {
@@ -57,13 +59,22 @@ class Gateway {
         accountFingerprint: a.identity ? digest([a.caps.platform, String(a.accountId || 'default'), String(a.identity)]).slice(0, 24) : '', diagnostics: diagnostics(a) })).concat(this.unavailable),
       pendingDeliveries: Object.values(this.store.data.deliveries).filter(r => r.state === 'pending').length,
       uncertain: Object.values(this.store.data.deliveries).filter(r => r.state === 'uncertain').length,
-      interrupted: Object.values(this.store.data.inbox).filter(r => r.state === 'interrupted').length };
+      interrupted: Object.values(this.store.data.inbox).filter(r => r.state === 'interrupted').length,
+      // THE WEBAPP BUTTON URL (webapp.js launchUrl): endpoints + ping key, from the HTTPS page address you serve it at.
+      ...(this.webapp ? { webapp: { port: this.webapp.port, url: this.cfg?.bot?.webapp?.pageUrl ? this.webapp.launch(this.cfg.bot.webapp.pageUrl) : null } } : {}) };
   }
   async receive(raw) {
     if (this.stopping) return { accepted: false };
     let e; try { e = event(raw); } catch { return { accepted: false }; }
     const adapter = this.adapters.get(`${e.platform}:${e.accountId}`);
-    if (!adapter || !authorized(e, adapter.settings)) return { accepted: false };
+    if (!adapter || !authorized(e, adapter.settings)) {
+      // An unauthorized private `/start` is a request to be approved locally —
+      // recorded for LAIN Desktop's Bot view, answered with nothing, granting nothing.
+      if (adapter && e.platform === 'telegram' && e.kind === 'dm' && !e.bot && /^\/start\b/i.test(e.text.trim())) {
+        try { this.store.candidate(e); } catch { /* a full or unwritable store still refuses the sender */ }
+      }
+      return { accepted: false };
+    }
     if (!e.text.trim() && !e.attachments.length && !e.promptResponse) return { accepted: false };
     this.store.account(`${e.platform}:${e.accountId}`, adapter.identity);
     const key = sessionKey(e), id = eventKey(e);
@@ -79,7 +90,7 @@ class Gateway {
         for (const waiting of this.queues.get(key) || []) this.store.settle(waiting.id, 'done');
         this.queues.delete(key);
       } else if (/^\/steer\s+/.test(e.text)) this.runtimes.get(key)?.steer(e.text.replace(/^\/steer\s+/, ''));
-      else this.prompts.resolve(e);
+      else if (!this.prompts.resolve(e)) this.attention?.resolve(e);
       this.store.settle(id, 'done'); return { accepted: true };
     }
     this.enqueue(id, e); this.pump(); return { accepted: true };
@@ -135,7 +146,7 @@ class Gateway {
     }
   }
   async stop() {
-    this.stopping = true; this.prompts.cancel(); this.delivery.stop();
+    this.stopping = true; this.prompts.cancel(); this.attention?.stop(); this.delivery.stop();
     for (const r of this.runtimes.values()) r.stop();
     await Promise.allSettled([...this.tasks]);
     await Promise.allSettled([...this.runtimes.values()].map(r => r.close()));

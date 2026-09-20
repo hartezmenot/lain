@@ -51,7 +51,29 @@ const KIND = Object.freeze({
   METHOD: 'method',
   VARIABLE: 'variable',
   PROPERTY: 'property',
+  // ---- TYPESCRIPT DECLARES THINGS THAT ARE NOT VALUES ---------------------
+  //
+  // `interface StallPolicy` and `type Item` are DECLARATIONS a person looks for
+  // by name exactly as often as a class — and they were invisible. A TS project
+  // indexed its functions and classes and answered "where is StallPolicy
+  // defined?" with nothing, which sends the model straight back to grep for a
+  // fact the index should have had. Measured on a real TS fixture, 2026-09-15.
+  INTERFACE: 'interface',
+  TYPE: 'type',
+  ENUM: 'enum',
 });
+
+/**
+ * TYPE-LEVEL DECLARATIONS, and why they are matched so narrowly.
+ *
+ * `type` is NOT a reserved word in JavaScript: `type = 4`, `obj.type`, and
+ * `{ type: 'x' }` are all ordinary code, and treating every one of them as a
+ * declaration would fill the index with noise that looks authoritative. So a
+ * match requires the shape a declaration actually has — the keyword, then a
+ * name, then `=` for an alias or `{`/`extends` for an interface — and anything
+ * else is left alone.
+ */
+const TYPE_DECLARATORS = new Set(['interface', 'type', 'enum']);
 
 const DECLARATORS = new Set(['const', 'let', 'var']);
 
@@ -125,6 +147,50 @@ function statementEnd(tokens, from) {
   return tokens.length - 1;
 }
 
+/**
+ * THE `{` THAT OPENS A BODY, STEPPING OVER A RETURN TYPE.
+ *
+ * `function addMovie(m) {` and `function addMovie(m: Row): Promise<void> {` are
+ * the same declaration; only the second carries an annotation between the
+ * parameter list and the body. Both branches below used to require the `{` to
+ * sit immediately after the `)`, so in TypeScript EVERY function with a
+ * declared return type vanished from the index — and in typed code that is most
+ * exported functions. Measured: `export function addMovie(m: Row):
+ * Promise<void>` produced no symbol at all.
+ *
+ * Only type-shaped tokens may be stepped over, and never a `;`, `=` or `)`,
+ * so an interface member (`foo(): void;`) or a call is not mistaken for a body.
+ *
+ * @returns {number} index of the opening `{`, or -1
+ */
+function bodyAfter(tokens, closeParen) {
+  if (closeParen <= 0) return -1;
+  let k = closeParen + 1;
+  if (isPunct(tokens[k], '{')) return k;
+  if (!isPunct(tokens[k], ':')) return -1;
+  k += 1;
+  let angle = 0;
+  for (let steps = 0; k < tokens.length && steps < 120; steps++, k++) {
+    const t = tokens[k];
+    if (!t) return -1;
+    if (t.type === T.PUNCT) {
+      if (t.value === '<') { angle += 1; continue; }
+      if (t.value === '>') { angle = Math.max(0, angle - 1); continue; }
+      if (t.value === '{') {
+        // `: { a: number }` is an inline object TYPE, not the body — a body
+        // never sits inside an unclosed generic, and a type that ends here is
+        // followed by the real `{`.
+        if (angle > 0) return -1;
+        return k;
+      }
+      if (t.value === ';' || t.value === '=' || t.value === ')' || t.value === '}' || t.value === ',') return -1;
+      continue;      // . [ ] | & ? ( etc. are all type punctuation here
+    }
+    // NAME, STRING and NUMBER tokens are all legal inside a type.
+  }
+  return -1;
+}
+
 /** Every NAME inside a bracket group, for parameter and pattern collection. */
 function namesIn(tokens, open, close, out) {
   for (let k = open + 1; k < close; k++) {
@@ -133,6 +199,51 @@ function namesIn(tokens, open, close, out) {
     if (isPunct(tokens[k - 1], '.')) continue;   // a member, not a binding
     if (NOT_A_REFERENCE.has(t.value)) continue;
     out.add(t.value);
+  }
+}
+
+/**
+ * THE SECOND AND LATER NAMES IN ONE DECLARATION.
+ *
+ * `const a = 1, b = 2;` and `let x, { y } = o;` are single statements that bind
+ * more than one name. Walking from just past the first declarator to the end of
+ * the statement, a comma AT THE STATEMENT'S OWN BRACKET DEPTH starts the next
+ * one — a comma inside `f(a, b)` or `{ a, b }` does not.
+ *
+ * `statementEnd` deliberately stops at the FIRST top-level comma — it marks one
+ * declarator — so this walks to the end of the whole DECLARATION instead: a
+ * `;` at depth 0, or the closing bracket of whatever encloses it.
+ *
+ * @param {Array} tokens
+ * @param {number} from   first token after the first declared name
+ * @param {Set} bindings
+ * @param {Function} add  (name, kind, startTok, endTok, container)
+ * @param {string|null} container
+ */
+function declaratorsAfter(tokens, from, bindings, add, container) {
+  let depth = 0;
+  for (let k = from; k < tokens.length; k++) {
+    const t = tokens[k];
+    if (t.type === T.PUNCT) {
+      if (t.value === '(' || t.value === '[' || t.value === '{') { depth += 1; continue; }
+      if (t.value === ')' || t.value === ']' || t.value === '}') {
+        if (depth === 0) return;                 // the enclosing block ended first
+        depth -= 1;
+        continue;
+      }
+      if (t.value === ';' && depth === 0) return;
+      if (t.value !== ',' || depth !== 0) continue;
+      const next = tokens[k + 1];
+      if (!next) return;
+      if (isPunct(next, '{') || isPunct(next, '[')) {
+        const close = matchBracket(tokens, k + 1);
+        if (close > 0) { namesIn(tokens, k + 1, close, bindings); k = close; }
+        continue;
+      }
+      if (next.type === T.NAME && !NOT_A_REFERENCE.has(next.value)) {
+        add(next.value, KIND.VARIABLE, k + 1, k + 1, container);
+      }
+    }
   }
 }
 
@@ -209,9 +320,9 @@ function scan(source, file = '') {
       if (isName(tokens[n]) && !NOT_A_REFERENCE.has(tokens[n].value)) {
         const nameTok = n;
         const paren = isPunct(tokens[n + 1], '(') ? n + 1 : -1;
-        const body = paren >= 0 ? matchBracket(tokens, paren) + 1 : -1;
+        const body = paren >= 0 ? bodyAfter(tokens, matchBracket(tokens, paren)) : -1;
         if (paren >= 0) namesIn(tokens, paren, matchBracket(tokens, paren), bindings);
-        const close = isPunct(tokens[body], '{') ? matchBracket(tokens, body) : -1;
+        const close = body > 0 ? matchBracket(tokens, body) : -1;
         const start = isName(prev, 'async') ? k - 1 : k;
         if (close > 0) add(tokens[nameTok].value, KIND.FUNCTION, start, close, containers[containers.length - 1]);
         // NOT SKIPPED PAST THE BODY, and the earlier version was — `k = close`
@@ -234,6 +345,39 @@ function scan(source, file = '') {
         enter(next.value, close);
       }
       continue;
+    }
+
+    // ---- interface / type / enum — TypeScript's own declarations -----------
+    //
+    // SHAPE-CHECKED, NOT KEYWORD-CHECKED. None of these three words is reserved
+    // in JavaScript, so `type` as a variable, a property or an object key must
+    // not be read as a declaration. What distinguishes one is what FOLLOWS the
+    // name: `=` for an alias, `{` or `extends` for an interface or enum body.
+    if (TYPE_DECLARATORS.has(t.value) && isName(next) && !NOT_A_REFERENCE.has(next.value)
+      && !isPunct(prev, '.') && !isPunct(prev, '?') && !isPunct(prev, ',')) {
+      const after = tokens[k + 2];
+      // `type Fn<T> = …` IS STILL AN ALIAS. The `=` is just behind the type
+      // parameters, so a bounded look-ahead finds it — bounded because an
+      // unbounded one would happily read `type < 4` as a declaration by finding
+      // an `=` somewhere later in the file.
+      const aliasAhead = () => {
+        for (let j = k + 2; j < Math.min(tokens.length, k + 42); j += 1) {
+          if (isPunct(tokens[j], '=')) return true;
+          if (isPunct(tokens[j], ';') || isPunct(tokens[j], '{') || isPunct(tokens[j], ')')) return false;
+        }
+        return false;
+      };
+      const alias = t.value === 'type' && (isPunct(after, '=') || (isPunct(after, '<') && aliasAhead()));
+      const body = t.value !== 'type' && (isPunct(after, '{') || isName(after, 'extends') || isPunct(after, '<'));
+      if (alias || body) {
+        add(next.value,
+          t.value === 'interface' ? KIND.INTERFACE : t.value === 'enum' ? KIND.ENUM : KIND.TYPE,
+          k, k + 2, containers[containers.length - 1]);
+        // NOT ENTERED AS A CONTAINER. The members of a type are its shape, not
+        // declarations a person navigates to by name, and indexing every field
+        // of every interface would bury the names that are actually looked up.
+        continue;
+      }
     }
 
     // ---- const / let / var, and destructuring patterns ---------------------
@@ -260,6 +404,15 @@ function scan(source, file = '') {
         // `const tools = { … }` — its members belong to it, and are named
         // `tools.grep` rather than being reported as top-level declarations.
         if (isPunct(tokens[k + 3], '{')) enter(next.value, matchBracket(tokens, k + 3));
+        // ---- AND EVERY OTHER NAME IN THE SAME DECLARATION -----------------
+        //
+        // `const runtime = f(), sheet = g();` declares TWO names. Only the
+        // first was registered, so every later one read as a use of something
+        // undeclared — and the unresolved check then offered the nearest
+        // binding as a near miss. Observed: `sheet` reported as a typo for
+        // `sent`, in working code. A declaration list is one statement and all
+        // of its names are bindings.
+        declaratorsAfter(tokens, k + 2, bindings, add, containers[containers.length - 1]);
         continue;
       }
     }
@@ -286,8 +439,9 @@ function scan(source, file = '') {
       && !isName(prev, 'function') && !isName(prev, 'class')
       && !(isPunct(prev, '*') && isName(tokens[k - 2], 'function'))) {
       const closeParen = matchBracket(tokens, k + 1);
-      if (closeParen > 0 && isPunct(tokens[closeParen + 1], '{')) {
-        const closeBody = matchBracket(tokens, closeParen + 1);
+      const bodyAt = bodyAfter(tokens, closeParen);
+      if (bodyAt > 0) {
+        const closeBody = matchBracket(tokens, bodyAt);
         if (closeBody > 0) {
           namesIn(tokens, k + 1, closeParen, bindings);
           // The modifiers belong to the definition, so the range starts at them

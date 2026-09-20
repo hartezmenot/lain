@@ -28,8 +28,9 @@
  * ask the model to do it and without waiting for a turn to come round.
  */
 
-function register({ define, DURING_TURN, C }) {
+function register({ define, DURING_TURN, C, FLASH_MS }) {
   define('/stop', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about the run, not about the conversation. It goes to the
     // bottom surface and clears itself.
     surface: true,

@@ -46,11 +46,20 @@ function liveLines(screen, width) {
     session: s.session, current: s.current, width,
     transcript: s.transcript,
     liveActions: s.liveActions || [], liveNarration: s.liveNarration || [], liveNotes: s.liveNotes || [],
-    liveUser: s.liveUser || null, liveFrom: s.liveFrom || null, extras: s.extras || [],
+    liveUser: s.liveUser || null, liveFrom: s.liveFrom || null, liveTyped: Boolean(s.liveTyped), extras: s.extras || [],
     // HOW A PARAGRAPH OF THE TURN IN FLIGHT IS PRESENTED — see ui/reveal.js.
     // Handed in rather than reached for, so the dashboard and the tests render
     // the same account with no animation and no argument about a clock.
     reveal: s.activity ? (text, at) => s.activity.reveal(text, at) : null,
+    // THE TRANSIENT DIFF, and where history (an earlier process) ends.
+    openDiff: screen.openDiff || null,
+    closedDiffs: screen.closedDiffs || null,
+    shownDiffs: screen.shownDiffs || null,
+    // The clock the newest edit's diff arrives against — ui/turnsections.js.
+    now: Date.now(),
+    historyTurns: Number(s.historyTurns) || 0,
+    checkpoints: s.checkpoints || null,
+    cwd: s.cwd || '',
   });
 }
 

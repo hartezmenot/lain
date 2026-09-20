@@ -86,8 +86,14 @@ function lastRows(out) {
   const f = String(out).split(ESC + '[?25l').pop() || '';
   // ANY COLUMN: the content frame moved every region off column 1
   // (ui/frame.js `contentBounds`).
-  return f.split(new RegExp(ESC + '\\[\\d+;\\d+H')).slice(1)
-    .map(plain).map((r) => r.replace(/\s+$/, ''));
+  //
+  // BY THE ROW NUMBER IN THE ESCAPE, not by position in the split. A frame can
+  // write more positioned runs than the screen has rows (a region redrawn after
+  // the body), and counting splits then names a row that is not on screen.
+  const parts = f.split(new RegExp(ESC + '\\[(\\d+);\\d+H'));
+  const rows = [];
+  for (let i = 1; i < parts.length; i += 2) rows[Number(parts[i]) - 1] = plain(parts[i + 1]).replace(/\s+$/, '');
+  return Array.from(rows, (r) => (r === undefined ? '' : r));
 }
 
 module.exports = async function () {
@@ -113,7 +119,9 @@ module.exports = async function () {
     });
     assert.strictEqual(probe.code, 0);
     const rows = lastRows(probe.out);
-    const idx = rows.findIndex((r) => /edited · src[\\/]loader\.js/.test(r));
+    // The finished turn's CHANGE row (ui/turnsections.js). Clicking the file
+    // NAME opens the file; the [Diff] control on the same row toggles the diff.
+    const idx = rows.findIndex((r) => /src[\\/]loader\.js\s+\+\d+ -\d+\s+\[(?:× )?Diff\]/.test(r));
     assert.ok(idx >= 0, `the action row must be drawn at all:${NL}${rows.join(NL)}`);
     const row = idx + 1;                       // terminal rows are 1-based
 

@@ -51,6 +51,21 @@ function digestOf(p) {
   } catch { return null; }
 }
 
+/**
+ * WHAT ONE PATH HOLDS RIGHT NOW: existence, bytes (bounded) and a content
+ * fingerprint. The one snapshot primitive — the mutation transaction
+ * (mutation.js) reverts from these, and `capture` below persists the same
+ * thing for `/undo`. Two byte-snapshot systems is the V1 mistake this file ends.
+ */
+function snapshot(p) {
+  try {
+    const st = fs.statSync(p);
+    if (!st.isFile()) return { existed: false, bytes: null, fp: null };
+    const bytes = st.size <= MAX_FILE_BYTES ? fs.readFileSync(p) : null;
+    return { existed: true, bytes, fp: bytes ? digest(bytes).slice(0, 16) : `size:${st.size}:${Math.floor(st.mtimeMs)}` };
+  } catch { return { existed: false, bytes: null, fp: null }; }
+}
+
 class Checkpoints {
   /**
    * @param {string}  sessionId
@@ -244,4 +259,4 @@ class Checkpoints {
   }
 }
 
-module.exports = { Checkpoints, MAX_FILE_BYTES };
+module.exports = { Checkpoints, MAX_FILE_BYTES, snapshot };

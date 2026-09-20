@@ -31,6 +31,11 @@ const LF = String.fromCharCode(10);
 const strip = (x) => T.strip(String(x));
 const RULE = /^─{8,}\s*$/;
 
+// THE READING RHYTHM (2026-09-14): a LONG rule opens each exchange; a HALF rule
+// separates what was asked (the one-line USER anchor) from what came back.
+const isLong = (r) => RULE.test(r) && T.width(r.trim()) > 32;
+const isHalf = (r) => RULE.test(r) && T.width(r.trim()) <= 32;
+
 function fakeOut(cols, rows) {
   const buf = [];
   return {
@@ -58,7 +63,7 @@ module.exports = async function () {
 
   await test('DIVIDER: one between exchanges, and none before the first', () => {
     const rows = views.activity({ session: exchanges(3), width: 90 }).map(strip);
-    const at = rows.map((r, i) => (RULE.test(r) ? i : -1)).filter((i) => i >= 0);
+    const at = rows.map((r, i) => (isLong(r) ? i : -1)).filter((i) => i >= 0);
     // Three exchanges have two boundaries between them.
     assert.strictEqual(at.length, 2, 'one divider per boundary: ' + JSON.stringify(at));
     assert.ok(at[0] > 0, 'nothing is divided off the top of the screen');
@@ -76,8 +81,11 @@ module.exports = async function () {
     feed.pushAction(out, { name: 'edit_file', target: 'a.js', ok: true });
     feed.pushNote(out, 'a note about it', 'info');
     const rows = feed.renderFeed(out, 90).map(strip);
-    assert.strictEqual(rows.filter((r) => RULE.test(r)).length, 0,
-      'one exchange carries no dividers at all:' + LF + rows.join(LF));
+    assert.strictEqual(rows.filter(isLong).length, 0,
+      'one exchange carries no exchange divider:' + LF + rows.join(LF));
+    assert.strictEqual(rows.filter(isHalf).length, 1, 'and exactly one rule between the ask and the result');
+    assert.match(rows[0], /^USER · fix it/, 'which sits directly under the anchor');
+    assert.ok(isHalf(rows[1]));
   });
 
   await test('DIVIDER: it never lands inside code or a diagram', () => {
@@ -85,8 +93,8 @@ module.exports = async function () {
     feed.pushUser(out, 'draw it');
     feed.pushModel(out, ['```', '      A', '      |', '      v', '      B', '```'].join(LF));
     const rows = feed.renderFeed(out, 90).map(strip);
-    const at = rows.findIndex((r) => RULE.test(r));
-    assert.strictEqual(at, -1, 'a fenced block is never divided');
+    const at = rows.findIndex((r, i) => i > 1 && RULE.test(r));
+    assert.strictEqual(at, -1, 'a fenced block is never divided (the rule under the anchor is row 1)');
     // And the figure survived whole.
     for (const row of ['      A', '      |', '      v', '      B']) {
       assert.ok(rows.some((r) => r.includes(row)), 'the figure lost ' + JSON.stringify(row));
@@ -196,7 +204,8 @@ module.exports = async function () {
           assert.ok(rule, 'the header rule was drawn at ' + cols);
           const col = Number(rule[1]);
           const body = rule[2];
-          const seen = strip(body).replace(new RegExp(String.fromCharCode(27) + '\\[K'), '');
+          // The row owns its whole line (ui/frameout.js): an erase follows the address.
+          const seen = strip(body).replace(new RegExp(String.fromCharCode(27) + '\\[2?K', 'g'), '');
           assert.match(seen, /USER · request number 6/, 'the anchor previews the newest prompt');
           // ONE ROW, INSIDE THE FRAME, and never to the physical edge.
           assert.strictEqual(col, s.rowMap.contentCol, 'the anchor starts at the frame');

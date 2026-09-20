@@ -51,7 +51,10 @@ function compactionSummary(session, fit = {}) {
   if (life && life.evidence) {
     const files = [...(life.evidence.filesChanged || [])];
     if (files.length) kept.push(`${files.length} changed file${files.length === 1 ? '' : 's'}`);
-    if (life.lastCommand) kept.push(`the last check (${life.lastCommand.ok ? 'passed' : 'FAILED'})`);
+    if (life.lastCommand) {
+      const word = life.lastCommand.ok === true ? 'passed' : life.lastCommand.ok === false ? 'FAILED' : 'inconclusive';
+      kept.push(`the last check (${word})`);
+    }
   }
 
   const headline = `CONTEXT COMPACTION  ${k(fit.before)} → ${k(fit.after)} chars`;
@@ -88,7 +91,11 @@ function resumeSummary(session, app = null) {
   else say(false, 'no files were changed in that session');
 
   if (life && life.lastCommand) {
-    say(life.lastCommand.ok, `last check: ${life.lastCommand.command} — ${life.lastCommand.ok ? 'passed' : 'FAILED, and it is still red'}`);
+    const c = life.lastCommand;
+    const text = c.ok === true ? `last check: ${c.command} — passed`
+      : c.ok === false ? `last check: ${c.command} — FAILED, and it is still red`
+      : `last check: ${c.command} — INCONCLUSIVE${c.note ? ` (${c.note})` : ''}, not verified either way`;
+    say(c.ok === true, text);
   } else say(false, 'no check had been run, so nothing is verified');
 
   // ---- WHAT ELSE THIS SESSION HAD IN FLIGHT --------------------------------

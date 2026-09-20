@@ -153,6 +153,43 @@ function extendSelection(r, at) {
  * after the caret. A newline goes like any other character, which is what
  * joins two lines of a multi-line prompt.
  */
+/**
+ * A COLLAPSED PASTE IS ONE WORD TO WORD DELETION.
+ *
+ * The composer draws an intact large paste as one `<pasted text>` marker
+ * (ui/composer.js), and keeps it collapsed only while the buffer still holds
+ * the exact payload. Ctrl+Backspace — how the person who reported this deletes
+ * — removed the last word OF the payload, the match broke, and the next frame
+ * unfolded the WHOLE raw paste into the composer (3 KB, `[268/268]`), to be
+ * deleted word by word through text they had never seen. The drawing says the
+ * block is one object, so the word-deleting keys (Ctrl+Backspace, Ctrl+W,
+ * Alt+Backspace, Ctrl+Delete) treat it as one word.
+ *
+ * PLAIN Backspace and Delete are deliberately NOT routed here: they edit the
+ * payload a character at a time (tests/smoke/pasteflow.test.js pins that the
+ * buffer holds the TEXT and a Backspace trims it), which is the character-level
+ * key doing the character-level thing.
+ *
+ * `dir` −1: the caret is at the end of, or inside, a collapsed block.
+ * `dir` +1: the caret is at the start of, or inside, one.
+ * One undo step, so Ctrl+Z brings the whole paste back.
+ */
+function deletePaste(r, dir) {
+  if (r.hasSelection && r.hasSelection()) return false;
+  const found = require('./ui/composer').spans(r.line, r.pastesInLine || []);
+  const hit = found.find((s) => (dir < 0 ? r.cursor > s.from && r.cursor <= s.to : r.cursor >= s.from && r.cursor < s.to));
+  if (!hit) return false;
+  r._pushUndo('delete-paste');
+  const body = r.line.slice(hit.from, hit.to);
+  r.line = r.line.slice(0, hit.from) + r.line.slice(hit.to);
+  r.cursor = hit.from;
+  const i = (r.pastesInLine || []).indexOf(body);
+  if (i >= 0) r.pastesInLine.splice(i, 1);
+  if (r.line === '') { r.pastedInLine = false; if (r.pastesInLine) r.pastesInLine.length = 0; }
+  r.emit('edit', r.line);
+  return true;
+}
+
 function deleteForward(r) {
   if (r.deleteSelection()) return true;    // takes its own undo snapshot
   if (r.cursor >= r.line.length) return false;
@@ -171,6 +208,7 @@ function deleteForward(r) {
  */
 function deleteWordForward(r) {
   if (r.deleteSelection()) return true;
+  if (deletePaste(r, 1)) return true;
   const to = wordBoundary(r, 1);
   if (to === r.cursor) return false;
   r._pushUndo('delete-word');
@@ -206,5 +244,5 @@ function cursorEnd(r) {
 
 module.exports = {
   editKey, lineStart, lineEnd, wordBoundary, moveCursorTo, extendSelection,
-  deleteForward, deleteWordForward, cursorHome, cursorEnd, selectAll,
+  deleteForward, deleteWordForward, cursorHome, cursorEnd, selectAll, deletePaste,
 };

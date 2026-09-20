@@ -190,7 +190,7 @@ function editSize(checkpoints, checkpoint) {
   const id = checkpoint.id || checkpoint;
   const entry = ((checkpoints.entries || []).find((e) => e.id === id)) || null;
   if (!entry || !entry.files || !entry.files.length) return {};
-  const { countChanges } = require('./ui/panes');
+  const { countChanges, linesOf } = require('./ui/panes');
   let added = 0;
   let removed = 0;
   for (const f of entry.files) {
@@ -198,8 +198,10 @@ function editSize(checkpoints, checkpoint) {
     let after = null;
     try { after = fs.readFileSync(f.path, 'utf8'); } catch { after = null; }
     if (before === after) continue;
-    const n = countChanges(before == null ? [] : before.split(NL),
-      after == null ? [] : after.split(NL));
+    // ONE COUNT OF LINES FOR EVERY SURFACE (ui/panes.js `linesOf`): the row and
+    // `/diff` must not disagree about a trailing newline.
+    const n = countChanges(before == null ? [] : linesOf(before),
+      after == null ? [] : linesOf(after));
     added += n.added;
     removed += n.removed;
   }
@@ -225,6 +227,10 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
     name: call.name,
     target: describeTarget(call.name, call.input),
     ok: !(result && result.isError),
+    // REFUSED BEFORE IT RAN — a PLAN/MANUAL/permission denial is not a failed check.
+    ...(result && result.denied ? { denied: true } : {}),
+    // PRODUCED AN ARTIFACT (a Cowork workbook, document…) — a change, though not a project file.
+    ...(result && result.artifact && !result.isError ? { artifact: true } : {}),
     step,                      // which model step this call belonged to
     ms,
     reused: Boolean(reused),

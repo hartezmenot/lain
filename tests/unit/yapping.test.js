@@ -221,7 +221,8 @@ module.exports = async function () {
     }
     // And the tool account is still there — suppressing prose must not suppress
     // the record of what actually happened.
-    assert.ok(/patched · src\/serializer\.js/.test(prose), 'the edit must still be reported');
+    // In the CHANGE section now (ui/turnsections.js): one row per changed file.
+    assert.ok(/CHANGE .*src\/serializer\.js/.test(prose), 'the edit must still be reported');
     // `verb · subject`, and the verb of a shell command is its PROGRAM - the word
     // `Ran` said only that something ran, which every row on the screen shares.
     // See ui/phrasing.js.

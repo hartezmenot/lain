@@ -529,6 +529,11 @@ function classify(r = {}) {
   }
   const code = r.exitCode;
   if (code === 0) return { class: CLASS.OK, fact: null, mismatch: null };
+  // A SEARCH'S EXIT 1 IS ITS ANSWER. shell.js already decided `[no match]` /
+  // `[NO FILES SEARCHED]`; classifying the same result APPLICATION_ERROR put
+  // "[CLASSIFICATION: APPLICATION_ERROR (exit 1)]" above "[no match]" — two
+  // verdicts on one result, one of them wrong (live `rg`, 2026-09-18).
+  if (r.noMatch || r.noneSearched) return { class: CLASS.OK, fact: null, mismatch: null };
 
   const shell = SHELLS.includes(r.shell) ? r.shell : (r.shell === 'sh' ? 'bash' : null);
   // stderr first, always. stdout is consulted only when stderr said nothing —

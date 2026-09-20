@@ -35,6 +35,29 @@
  *   begins the BUFFER index this row begins at — what inverts a click
  *   last   true when this row ends its buffer line (the caret may sit past it)
  */
+/**
+ * How many CODE UNITS of `text`, from `col`, fit in `room` CELLS.
+ *
+ * The room is terminal cells; the buffer is indexed in code units. A CJK
+ * character is one unit and two cells, so budgeting a row by `.length` let a
+ * row of them draw twice as wide as the box — the composer's grey fill then ran
+ * off the right edge and wrapped into the next row's gutter, where nothing ever
+ * repaints it. Never splits a surrogate pair; always takes at least one glyph.
+ */
+function unitsIn(text, col, room) {
+  const { cells } = require('./text');
+  let used = 0;
+  let i = col;
+  while (i < text.length) {
+    const cp = text.codePointAt(i);
+    const w = cells(cp);
+    if (used + w > room && i > col) break;
+    used += w;
+    i += cp > 0xffff ? 2 : 1;
+  }
+  return i - col;
+}
+
 function wrapInput(buffer, width) {
   const buf = String(buffer == null ? '' : buffer);
   // One column is reserved for the caret: at the end of a row it sits AFTER the
@@ -46,18 +69,19 @@ function wrapInput(buffer, width) {
   for (const [line, text] of buf.split('\n').entries()) {
     let col = 0;
     do {
-      if (text.length - col <= room) {
+      const fits = unitsIn(text, col, room);
+      if (col + fits >= text.length) {
         rows.push({ line, start: col, text: text.slice(col), begins: at + col, last: true });
         break;
       }
       // The last space inside the room, so a word is not split when it need not
       // be. `+ 1` so the break is looked for INCLUDING the column just past the
       // window — a space exactly there is a clean break, not a wrap.
-      const window = text.slice(col, col + room + 1);
+      const window = text.slice(col, col + fits + 1);
       const space = window.lastIndexOf(' ');
       // A SINGLE TOKEN LONGER THAN THE BOX is cut mid-word. The alternative is
       // a blank row followed by the same problem, which is worse than a cut.
-      const take = space > 0 ? space : room;
+      const take = space > 0 ? space : fits;
       rows.push({ line, start: col, text: text.slice(col, col + take), begins: at + col, last: false });
       // A space AT the break is consumed by it: leading a wrapped row with a
       // space is a visible indent nobody typed.

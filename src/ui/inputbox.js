@@ -200,7 +200,11 @@ function promptFor(screen) {
   // screen at that moment and there is nowhere else to put it: the composer is
   // the region you are typing into. Checked before the answer label because a
   // composer and an open question cannot both own the line.
-  if (screen && screen.compose) return `${screen.compose} ›`;
+  // READ FROM THE DRAWN STATE: ui/projection.js publishes `compose` on the
+  // screen's state. This read `screen.compose`, which nothing sets, so the
+  // label never drew in a real terminal and `/goal` looked like it did nothing.
+  const compose = screen && (screen.compose || (screen.state && screen.state.compose));
+  if (compose) return `${compose} ›`;
   const p = screen && screen.panel;
   if (p && p.visible && p.acceptsTyped && !p.isCompletion) {
     try { return require('./answer').inputLabel(p.options, p.takes); } catch { /* fall through */ }
@@ -225,7 +229,6 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
   // in a diff and impossible to grep for.
   const ESC = String.fromCharCode(27);
   const at = (r, c) => ESC + '[' + r + ';' + c + 'H';
-  const EOL = ESC + '[K';
   /**
    * One row of the region: the FRAME's width, on the grey ground.
    *
@@ -253,7 +256,13 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
   );
 
   const view = shown(screen);
-  const wrappedRows = views.wrapInput(view.text, inner);
+  // A COMPOSER KEEPS ITS LABEL WHILE THERE IS TEXT: `GOAL › Finish the Harness`.
+  // Empty, the label is the placeholder (see promptFor); with text it leads the
+  // first row and continuation rows align under it. Caret and click columns
+  // shift by the same width, so neither lands inside the label.
+  const composing = screen && (screen.compose || (screen.state && screen.state.compose));
+  const lead = composing && view.text.length ? `${composing} › ` : '';
+  const wrappedRows = views.wrapInput(view.text, Math.max(8, inner - lead.length));
   const caret = views.caretRow(wrappedRows, view.toProjected(screen.inputCursorAt));
   // The window follows the caret, so a prompt taller than the region scrolls
   // rather than pinning to its top.
@@ -326,9 +335,10 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
     // deletes text without warning the next time anything is typed. Applied to
     // the drawn slice of THIS row, so a run spanning several rows highlights
     // correctly on each of them.
+    const pre = lead && vr ? (first + vi === 0 ? P.meta(lead) : ' '.repeat(lead.length)) : '';
     const body = empty && vi === 0
       ? P.meta(placeholder)
-      : highlight(text, vr, screen.inputSelection) + (tag ? P.meta(tag) : '');
+      : pre + highlight(text, vr, screen.inputSelection) + (tag ? P.meta(tag) : '');
     if (vr) {
       // ---- THE CLICK MAP IS IN *BUFFER* COORDINATES ---------------------
       //
@@ -347,17 +357,25 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
       if (onCaret) {
         // THE FIRST CHARACTER SITS AT THE CONTENT FRAME'S INSET, then text — the
         // same column the conversation above it begins on. See PAD.
-        screen.cursorCol = startCol + PAD + Math.min(caret.col, Math.max(0, inner));
+        // CELLS, not code units: two-cell glyphs before the caret move it two.
+        const caretCells = require('./text').width(vr.text.slice(0, caret.col));
+        screen.cursorCol = startCol + PAD + lead.length + Math.min(caretCells, Math.max(0, inner));
         screen.cursorRow = row;
         screen.rowMap.inputRow = row;
-        screen.rowMap.inputTextCol = startCol + PAD;
+        screen.rowMap.inputTextCol = startCol + PAD + lead.length;
         screen.rowMap.inputStart = 0;
         screen.rowMap.inputLineStart = view.toBuffer(vr.begins);
       }
     }
     // MEASURED ON THE PLAIN WIDTH. Reverse-video and colour codes carry no
     // columns, and measuring them would tear the right-hand edge off the fill.
-    const visible = PAD + (empty && vi === 0 ? placeholder.length : text.length + tag.length);
+    // IN CELLS. `.length` counted a CJK glyph as one column while the terminal
+    // drew two, so the fill ran past the frame's right edge and autowrapped into
+    // the NEXT row's left gutter — grey cells no frame ever repaints, left behind
+    // after the text that caused them was deleted (reproduced in a real
+    // pseudo-console).
+    const W = require('./text').width;
+    const visible = PAD + (empty && vi === 0 ? W(placeholder) : (vr ? W(lead) : 0) + W(text) + W(tag));
     // ---- THE ERASE STAYS, AND IT IS NOT AN OUTER-BOUND DECISION -------
     //
     // This pass removed the trailing erase-to-end-of-line, reasoning that it
@@ -372,7 +390,8 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
     // the default background and cannot bleed the grey ground into the gutter.
     // The painted extent — which is what the eye measures and what
     // tests/unit/geometry-rails.test.js asserts — is exactly the frame width.
-    out.push(at(row++, startCol) + ground(body, visible) + EOL);
+    // The whole terminal line is this row's — gutter too. See ui/frameout.js.
+    out.push(require('./frameout').row(at(row++, startCol) + ground(body, visible)));
   }
   return out;
 }

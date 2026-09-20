@@ -201,25 +201,46 @@ class Lifecycle {
    *
    * @returns {{repeated:number, key:string, isError:boolean}}
    */
-  observeTool({ name, input, output, isError = false, mutated = [], exitCode = null }) {
+  observeTool({ name, input, output, isError = false, mutated = [], exitCode = null, noMatch = false, searchLike = false, denied = false, finalSmoke = false, detached = false }) {
     this.evidence.toolCalls += 1;
-    if (/^run_/.test(name)) {
+    // A CALL REFUSED BEFORE IT RAN (PLAN/MANUAL mode, permission, lease) is no
+    // verdict on anything: PLAN refusing `run_tests` closed the turn as
+    // "NOT VERIFIED · npm test failed" for a test that never ran (live, 2026-09-18).
+    if (/^run_/.test(name) && !denied) {
       this.evidence.commandsRun += 1;
       // Recorded per command, so the LAST one is always the current verdict. A
       // failing test run followed by a fix and a passing run leaves `ok: true`,
       // which is exactly right — the point is the state the task ends in, not
       // whether anything ever failed along the way.
+      //
+      // `ok` IS TRI-STATE: true, false, or null. null means "this exit code
+      // does not verify anything" — a masked compound command (see
+      // evidencekind.js) or a search that found nothing. Every consumer of
+      // lastCommand.ok must treat null as UNVERIFIED, never as failure.
+      const raw = String((input && input.command) || name);
+      const verdict = require('./evidencekind').classifyCommand({ command: raw, exitCode, isError, noMatch, searchLike });
       this.lastCommand = {
-        command: String((input && input.command) || name).replace(/\s+/g, ' ').slice(0, 120),
-        ok: !isError,
+        command: raw.replace(/\s+/g, ' ').slice(0, 120),
+        ok: verdict.ok,
         exitCode: exitCode == null ? null : Number(exitCode),
+        kind: verdict.kind,
+        masked: verdict.masked,
+        note: verdict.note || '',
       };
       // A command that ran clean AFTER something was changed is the shape of a
       // verification. Named conservatively: it is evidence a check passed, not
-      // a claim about what the check tested.
-      if (!isError && this.evidence.filesChanged.size > 0) this.evidence.verifiedChecks += 1;
+      // a claim about what the check tested. `ok === true` ONLY — a masked or
+      // no-match result (ok === null) never counts, per the regression above.
+      if (verdict.ok === true && this.evidence.filesChanged.size > 0) this.evidence.verifiedChecks += 1;
     }
     for (const m of mutated) this.evidence.filesChanged.add(m);
+    // EVERY CHANGE INVALIDATES A FINAL SMOKE THAT RAN BEFORE IT (finalsmoke.js).
+    if (mutated.length) this.mutationSeq = (this.mutationSeq || 0) + 1;
+    if (finalSmoke && !denied) {
+      this.smoke = detached
+        ? { ok: null, running: true, seq: this.mutationSeq || 0, command: String((input && input.command) || name), at: Date.now() }
+        : { ok: Boolean(this.lastCommand && this.lastCommand.ok === true), running: false, seq: this.mutationSeq || 0, command: String((input && input.command) || name), at: Date.now() };
+    }
 
     const fp = fingerprint(name, input, output);
     const n = (this.seen.get(fp) || 0) + 1;
@@ -309,8 +330,12 @@ class Lifecycle {
    */
   contradiction(text) {
     const last = this.lastCommand;
-    if (!last || last.ok) return null;
+    if (!last || last.ok === true) return null;
     if (!claimsSuccess(text)) return null;
+    if (last.ok === null) {
+      return `The last check does not verify that: ${last.command} — ${last.note || 'its exit code proves nothing about this requirement'}. `
+        + 'Run something that actually checks it before treating this as done.';
+    }
     return `The last check was still failing when that was written: ${last.command}`
       + `${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}. Run it again before treating this as done.`;
   }
@@ -319,6 +344,22 @@ class Lifecycle {
     this.state = STATE.NEEDS_AUTH;
     this.reason = `authentication failed for ${provider}${detail ? ': ' + detail : ''}`;
     this.blockers.push(this.reason);
+    return this;
+  }
+
+  /**
+   * A PROVIDER ANSWERED, SO AN AUTH REFUSAL IS NO LONGER THE STATE.
+   *
+   * Measured in a saved session: NEEDS_AUTH was set by a 403 from one route and
+   * never cleared while another route served the next 79 turns. The prompt
+   * re-stated it on every request, and 104 of 245 assistant messages spent their
+   * opening acknowledging an auth failure that was not happening.
+   */
+  noteProviderAnswered() {
+    if (this.state === STATE.NEEDS_AUTH) {
+      this.state = STATE.ACTIVE;
+      this.reason = '';
+    }
     return this;
   }
 
@@ -395,7 +436,22 @@ class Lifecycle {
    * NOTE WHAT IS NOT HERE: the plan. A finished plan is not an input to this
    * decision at all. `plan.isFinished` only decides when it is worth ASKING.
    */
-  complete({ verified = false, userConfirmed = false, note = '' } = {}) {
+  /**
+   * A DETACHED FINAL SMOKE REJOINED (/bg). Its verdict becomes the task's last
+   * check, exactly as if it had finished in the foreground — but only if no
+   * change landed after it started, which would make it a run of an older tree.
+   */
+  settleSmoke(ok, { command = '', exitCode = null } = {}) {
+    if (!this.smoke || !this.smoke.running) return false;
+    const current = this.smoke.seq === (this.mutationSeq || 0);
+    this.smoke = { ...this.smoke, running: false, ok: Boolean(ok) && current };
+    this.lastCommand = { command: String(command || this.smoke.command).slice(0, 120), ok: Boolean(ok), exitCode, kind: 'COMMAND_EXIT_STATUS', masked: false, note: 'background final smoke' };
+    this.evidence.commandsRun += 1;
+    if (ok && this.evidence.filesChanged.size > 0) this.evidence.verifiedChecks += 1;
+    return current;
+  }
+
+  complete({ verified = false, userConfirmed = false, note = '', cwd = null } = {}) {
     if (verified) this.evidence.verifiedChecks += 1;
     if (userConfirmed) this.evidence.userConfirmed = true;
     const e = this.evidence;
@@ -415,11 +471,16 @@ class Lifecycle {
     // wanted anyway. `userConfirmed` still overrides, because the user is
     // allowed to say "yes, I know, that failure is expected".
     const last = this.lastCommand;
-    if (last && !last.ok && !e.userConfirmed) {
+    // ok === false (a real failure) AND ok === null (masked/no-match — proves
+    // nothing) both block completion; only ok === true clears this gate. The
+    // message says which one it actually was, since they are not the same claim.
+    if (last && last.ok !== true && !e.userConfirmed) {
       return {
         ok: false,
         state: this.state,
-        why: `the last command failed${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}: ${last.command}`,
+        why: last.ok === null
+          ? `the last command does not verify this: ${last.command}${last.note ? ` — ${last.note}` : ''}`
+          : `the last command failed${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}: ${last.command}`,
         failedCheck: last,
       };
     }
@@ -444,6 +505,13 @@ class Lifecycle {
         why: `${e.filesChanged.size} file(s) changed but nothing has been run to check them`,
         unverified: true,
       };
+    }
+    // THE FINAL SMOKE IS THE TERMINAL STEP (finalsmoke.js): a changed tree is
+    // complete only once the final suite has run AND passed after the last change.
+    if (cwd && !e.userConfirmed) {
+      const fs = require('./finalsmoke');
+      const st = fs.state(this, cwd);
+      if (st !== 'NOT_REQUIRED' && st !== 'PASSED') return { ok: false, state: this.state, why: fs.why(st, cwd), smoke: st };
     }
     this.state = STATE.DONE;
     this.reason = note || `${e.filesChanged.size} file(s) changed, ${e.commandsRun} command(s) run`
@@ -470,7 +538,7 @@ class Lifecycle {
     return {
       objective: this.objective, state: this.state, reason: this.reason,
       nudges: this.nudges, turns: this.turns, blockers: this.blockers,
-      lastCommand: this.lastCommand,
+      lastCommand: this.lastCommand, mutationSeq: this.mutationSeq || 0, smoke: this.smoke || null,
       evidence: { ...this.evidence, filesChanged: [...this.evidence.filesChanged] },
     };
   }
@@ -486,6 +554,9 @@ class Lifecycle {
     // Restored so a resumed task cannot complete on the strength of a check
     // that was still failing when the session ended.
     l.lastCommand = data.lastCommand && typeof data.lastCommand === 'object' ? data.lastCommand : null;
+    // THE FINAL SMOKE survives a resume too: a restart must not forget that the tree changed after it (finalsmoke.js).
+    l.mutationSeq = Number(data.mutationSeq) || 0;
+    l.smoke = data.smoke && typeof data.smoke === 'object' ? { ...data.smoke, running: false } : null;
     const e = data.evidence || {};
     l.evidence = {
       filesChanged: new Set(e.filesChanged || []),

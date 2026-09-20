@@ -107,7 +107,9 @@ module.exports = async function () {
     // is what enforces it — a submission with one is drawn as a caption, never as
     // a user block.
     const conv = read('ui', 'conversation.js');
-    assert.match(conv, /sayInput\(out, text, from\)/, 'the feed asks who submitted it');
+    // `typed` rides beside `from`: text a PERSON entered is never captioned, and
+    // a synthetic resume still is (tests/unit/continuevisible.test.js).
+    assert.match(conv, /sayInput\(out, text, from(?:, typed[^)]*)?\)/, 'the feed asks who submitted it');
     const phrasing = read('ui', 'phrasing.js');
     assert.match(phrasing, /selfAskedCaption/, 'and a non-user submission gets a caption');
 
@@ -132,6 +134,14 @@ module.exports = async function () {
     assert.ok(used.size >= 3, 'the walk found the submissions: ' + [...used].join(', '));
     // EVERY RUNTIME CONTINUATION IS DECLARED. `src/` composes these four prompts
     // for itself, and each must be captioned rather than drawn as a user message.
+    // AND EVERY OTHER ONE: a list of four let 'rate-limit-switch' and 'continue' through, and both were
+    // drawn as a second USER block (live, 2026-09-19). Only a transport carrying a PERSON's words is exempt.
+    // `continue` is a shelf's Continue button: the person pressed it, and the instruction it
+    // sent is shown as what they asked (tests/smoke/shelves.test.js reads it off the screen).
+    const PERSON = new Set(['messaging', 'continue']);
+    for (const key of used) {
+      assert.ok(PERSON.has(key) || Object.prototype.hasOwnProperty.call(known, key), 'a runtime submission needs a caption: ' + key);
+    }
     for (const key of ['rate-limit-resume', 'provider-failover', 'handover', 'steer']) {
       assert.ok(used.has(key), 'the walk should have found ' + key);
       assert.ok(Object.prototype.hasOwnProperty.call(known, key),
@@ -200,7 +210,10 @@ module.exports = async function () {
     const app = read('app.js');
     assert.ok(!/noteActor\('note', `⚑ delivering/.test(app),
       'the delivery banner is no longer a durable row');
-    assert.match(app, /require\('\.\/ui\/operation'\)\.note\(this\.ui/, 'it is an operation');
+    // AND NO ACKNOWLEDGEMENT AT ALL NOW: the transient note it became was cleared
+    // by `beginTurn` in the same tick and never drew. The next turn's USER block
+    // is the delivery (asserted against a saved session in smoke/steermode).
+    assert.ok(!/Delivered what you typed/.test(app), 'no acknowledgement row that could never draw');
     // THE USER'S OWN WORDS STAY. They are recorded on the turn and replayed at the
     // step they reached, which is the one thing that cannot be recovered by
     // re-reading the repository.

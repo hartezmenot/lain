@@ -279,4 +279,101 @@ module.exports = async function () {
     assert.deepStrictEqual(findings, [],
       `the checker flagged working code:\n${findings.join('\n')}`);
   });
+
+  /**
+   * ONE LIST OF SCANNABLE FILES, AND TYPESCRIPT IS ON IT.
+   *
+   * THE DEFECT THIS PINS. `jsscan.SUPPORTED` was `/\.(?:js|cjs|mjs)$/i` while
+   * `projectindex.js` decided what to scan with its own
+   * `/\.(?:js|jsx|mjs|cjs|ts|tsx)$/i`. The index called a `.ts` file scannable,
+   * the scanner said "not JavaScript", and the entry was stored with NO symbols
+   * and NO imports — silently. Measured on a real TypeScript project: 47 files
+   * indexed, ZERO symbols, so `locate`, `definitionsOf` and `importersOf` could
+   * answer nothing and every question fell back to grep and whole-file reads,
+   * the same regions on every turn and after every resume.
+   *
+   * Two lists is the bug. A private copy anywhere fails this test.
+   */
+  await test('MODEL: one list of scannable files, and it includes TypeScript', () => {
+    const { supports, SUPPORTED } = require('../../src/jsscan');
+    for (const ext of ['js', 'cjs', 'mjs', 'jsx', 'ts', 'tsx', 'mts', 'cts']) {
+      assert.ok(supports(`a/b/thing.${ext}`), `.${ext} must be scannable`);
+    }
+    for (const ext of ['css', 'json', 'md', 'png', 'py', 'rs', 'txt']) {
+      assert.ok(!supports(`a/b/thing.${ext}`), `.${ext} must get an honest no`);
+    }
+    // AND THE SCANNER REALLY PARSES THEM — a list that claims more than the
+    // scanner delivers is the same defect wearing the other mask.
+    const ts = 'import { api } from "./api";\n'
+      + 'export interface Row { id: number; name: string }\n'
+      + 'export function addMovie(m: Row): Promise<void> { return api.post("/m", m); }\n'
+      + 'export const Chip = (p: { s: string }) => <span className={p.s}>{p.s}</span>;\n';
+    const m = codemodel.scan(ts, 'src/App.tsx');
+    assert.strictEqual(m.supported, true, 'a .tsx file is scanned, not refused');
+    const names = m.symbols.map((s) => s.name);
+    assert.ok(names.includes('addMovie'), `the function is found: ${names.join(', ')}`);
+    assert.ok(names.includes('Chip'), `the component is found: ${names.join(', ')}`);
+    assert.ok(m.imports.some((i) => (typeof i === 'string' ? i : i.spec) === './api'),
+      'and its import specifier is recorded');
+
+    // AND THE INDEX AGREES WITH THE SCANNER — the actual invariant that broke.
+    //
+    // Asserted as a PROPERTY over a real tree rather than by grepping for
+    // extension lists. A textual guard flags lists that only look alike: both
+    // `audit.js` and `compare.js` ask "can a person read this as text" (.py,
+    // .go, .md), and `diagnostics.js` asks "will `vm.Script` accept this",
+    // where TypeScript genuinely does NOT belong. The invariant worth pinning
+    // is narrower and exact: anything projectindex calls `lang: 'js'` must be
+    // something the scanner will actually scan — no silent empty entries.
+    const os2 = require('os');
+    const fs2 = require('fs');
+    const dir = fs2.mkdtempSync(path.join(os2.tmpdir(), 'lain-scannable-'));
+    const made = ['a.js', 'b.mjs', 'c.cjs', 'd.jsx', 'e.ts', 'f.tsx', 'g.mts', 'h.cts',
+      'styles.css', 'data.json', 'notes.md', 'script.py'];
+    for (const n of made) {
+      fs2.writeFileSync(path.join(dir, n), /\.(css|json|md|py)$/.test(n)
+        ? 'nothing to declare here\n'
+        : 'export function declared(x: number): string { return String(x); }\n');
+    }
+    const idx = require('../../src/projectindex').refresh(dir).index;
+    const claimed = Object.entries(idx.files).filter(([, e]) => e.lang === 'js');
+    assert.ok(claimed.length >= 8, `every JS-family file is admitted: ${claimed.length}`);
+    const silent = claimed.filter(([, e]) => !Array.isArray(e.symbols) || e.symbols.length === 0);
+    assert.deepStrictEqual(silent.map(([k, e]) => `${k} (${e.unscanned || 'no symbols, no reason'})`), [],
+      'a file the index calls scannable must come back WITH symbols, or say why it did not');
+    for (const [rel, e] of claimed) {
+      assert.ok(e.symbols.some((s) => s.name === 'declared'), `${rel} found its declaration`);
+    }
+    fs2.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
+  });
+
+  /**
+   * ONE DECLARATION, EVERY NAME IT BINDS.
+   *
+   * `const runtime = f(), sheet = g();` binds two names. Only the first was
+   * registered, so every later one read as a reference to something undeclared
+   * — and the typo channel, doing its job on bad input, offered the nearest
+   * binding: `sheet` reported as a typo for `sent`, in working code. A single
+   * false positive is what makes that channel worthless, so the parse is the
+   * thing that has to be right.
+   */
+  await test('MODEL: a declaration list binds all of its names, not just the first', () => {
+    const cases = [
+      ['const runtime = f(), sheet = g();', ['runtime', 'sheet']],
+      ['let a, b = 2, c;', ['a', 'b', 'c']],
+      ['const x = f(a, b), { y, z } = o;', ['x', 'y', 'z']],
+      ['for (let i = 0, n = xs.length; i < n; i++) {}', ['i', 'n']],
+      ['function f() { const p = 1, q = 2; return p + q; }', ['f', 'p', 'q']],
+    ];
+    for (const [src, want] of cases) {
+      const m = codemodel.scan(src);
+      for (const name of want) {
+        assert.ok(m.bindings.has(name), `${JSON.stringify(src)} binds ${name}`);
+      }
+    }
+    // AND A COMMA THAT IS NOT A DECLARATOR STAYS ONE. An object literal's keys
+    // and a call's arguments are not bindings, or the check goes blind instead.
+    const obj = codemodel.scan('const m = { a: 1, b: 2 };');
+    assert.deepStrictEqual([...obj.bindings].sort(), ['m']);
+  });
 };

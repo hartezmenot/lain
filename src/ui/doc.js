@@ -85,22 +85,14 @@ const COLUMN_BREAKPOINT = 76;
  * its length skipped real characters. `C:\Users\...\src\ui` came back as
  * `C:\Users\Hartezmeno…\Documents\lain-v2\…rc\ui`: an ellipsis in the middle
  * and a missing `s`. A path a reader cannot copy is a path that is not there.
+ *
+ * THE IMPLEMENTATION MOVED TO ui/text.js. The copy that stood here counted ONE
+ * CELL PER JS CHARACTER, so it took twice the requested width of CJK and could
+ * cut a surrogate pair in half — and it was a second answer to a question
+ * `T.width` was already the authority on. Bound rather than inlined at the call
+ * site so `wrap` below reads unchanged.
  */
-function hardSlice(s, width) {
-  let taken = '';
-  let used = 0;
-  let i = 0;
-  while (i < s.length && used < width) {
-    if (s[i] === '\x1b') {
-      const m = /^\x1b\[[0-9;]*m/.exec(s.slice(i));
-      if (m) { taken += m[0]; i += m[0].length; continue; }   // escapes cost no columns
-    }
-    taken += s[i];
-    used += 1;
-    i += 1;
-  }
-  return taken;
-}
+const hardSlice = T.hardSlice;
 
 /** Where a long token can be broken so the pieces still read as one thing. */
 const BREAK_AFTER = /[\\/\-_.,:;]/;

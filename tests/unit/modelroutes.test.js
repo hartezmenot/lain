@@ -37,7 +37,7 @@ function harness(m, { enabled = true, answer = null } = {}) {
   const state = { asked: null, wrote: [], saved: 0 };
   const app = {
     cfg: {},
-    availability: { get: () => ({ status: 'UNKNOWN' }) },
+    availability: { get: () => ({ status: 'UNKNOWN' }), getFor: () => ({ status: 'UNKNOWN' }) },
     connections: () => m.connections.map((c) => ({ id: c.connectionId })),
     ensureCatalog: async () => {},
     catalog: () => ({ models: [m], byId: new Map([[m.id, m]]) }),

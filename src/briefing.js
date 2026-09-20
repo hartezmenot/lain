@@ -89,7 +89,10 @@ function environmentSection(s) {
   out.push('Every execution tool accepts an explicit cwd; there is no need to cd inside a command.');
   if (s.lastCommand) {
     out.push(`Last command: ${s.lastCommand.command}`);
-    out.push(`  ${s.lastCommand.ok ? 'PASSED' : `FAILED (exit ${s.lastCommand.exitCode})`}`);
+    const verdict = s.lastCommand.ok === true ? 'PASSED'
+      : s.lastCommand.ok === false ? `FAILED (exit ${s.lastCommand.exitCode})`
+      : `INCONCLUSIVE${s.lastCommand.note ? ` — ${s.lastCommand.note}` : ''}`;
+    out.push(`  ${verdict}`);
   } else {
     out.push('Last command: none recorded in this session.');
   }

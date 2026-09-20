@@ -109,7 +109,8 @@ module.exports = async function () {
     // read is live state, shown in the row above the caret while it happens and
     // gone afterwards (ui/durable.js). What persists is what CHANGED and the
     // verdict the turn ended on.
-    assert.ok(/wrote · src\/auth\/login\.js/.test(f), `the write is the record: ${f.slice(0, 700)}`);
+    // The finished turn's CHANGE section names the written file (ui/turnsections.js).
+    assert.ok(/CHANGE[\s\S]*src\/auth\/login\.js[\s\S]*\[(?:× )?Diff\]/.test(f), `the write is the record: ${f.slice(0, 700)}`);
     assert.ok(/echo · tests passed/.test(f), 'and the command that ran');
     assert.ok(!/read · src\/auth\/login\.js/.test(f),
       'a routine read must not take a row in the conversation');
@@ -141,9 +142,9 @@ module.exports = async function () {
     // and becomes the provider's own count when the receipt lands. Everything
     // else — per-request input, cache reads, the measured/estimated split — is
     // `/token`, asked for rather than always drawn.
-    const strip = f.split('\n').find((l) => /LAIN\s+\S+\s+mock-model/.test(l)) || '';
+    const strip = f.split('\n').find((l) => /LAIN\s+(?:·\s+)?\S+\s+(?:·\s+)?mock-model/.test(l)) || '';
     assert.ok(strip, 'the header row must be on screen at all');
-    assert.match(strip, /~?\d+\s*$/,
+    assert.match(strip, /~?\d+(?:\.\d)?[KMB]?\s*$/,
       `the header carries the output figure, once, at its right: ${strip.trim()}`);
     assert.ok(!/[↑↓⚡]\s*\d/.test(f),
       'the session accounting cluster is `/token` now, and belongs on no drawn row');

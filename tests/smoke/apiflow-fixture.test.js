@@ -132,7 +132,7 @@ module.exports = async function () {
           //
           // The last row is a provider LAIN knows the NAME of and cannot place,
           // and picking one asks for an endpoint instead of guessing — which is
-          // the behaviour under test here. `Other...` takes the identical path;
+          // the behaviour under test here. `Customs...` takes the identical path;
           // it is asserted separately, by position, because its JOB is to be
           // findable rather than to be reachable by wrapping.
           //
@@ -166,11 +166,14 @@ module.exports = async function () {
       assert.match(out, /api credential/i, 'the masked credential question opened');
       assert.match(out, /which provider is this credential for/i, 'the provider picker opened');
       // THE ESCAPE HATCH IS ON THE FIRST SCREEN. The panel shows about ten rows
-      // and the list is twenty-one; `Other...` is the one row that works for
+      // and the list is twenty; `Customs...` is the one row that works for
       // every provider in existence, so it may not sit below the fold. It was
       // last, and fell two screens down when the list grew.
-      assertIncludes(out, 'Other', 'the row that asks rather than guesses must be visible');
-      assert.match(out, /base url/i, 'Other... asked for an endpoint');
+      // RENAMED 2026-09-15: the picker had an `Other…` escape AND a row named
+      // `custom` from the user's V1 config — two spellings of one idea. One
+      // category now, and it is called `Customs…`.
+      assertIncludes(out, 'Customs', 'the row that asks rather than guesses must be visible');
+      assert.match(out, /base url/i, 'Customs... asked for an endpoint');
       assert.match(out, /fetching available models/i, 'discovery was announced');
       assertIncludes(out, `${SERVED.length} model(s) available`,
         'discovery reported the real count — the defect reported "listed no models" here');

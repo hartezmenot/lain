@@ -197,4 +197,97 @@ function foldSummary(gone) {
   };
 }
 
-module.exports = { capFor, foldedMessage, stuckMessage, foldSummary, MARGIN, FLOOR, SELF_FRACTION, FOLD_USER_KEEP, FOLD_SAID_KEEP };
+/** The characters one message costs — the one measure `Session.contextChars` sums. */
+function messageChars(m) {
+  let n = String((m && m.content) || '').length + 24;   // + envelope
+  for (const tc of (m && m.tool_calls) || []) n += String(tc.arguments || '').length + String(tc.name || '').length + 40;
+  return n;
+}
+
+/**
+ * An old call's arguments larger than this are elided. A string field no longer
+ * than ARG_FIELD_KEEP (a `path`, an `offset`, a short command) survives verbatim,
+ * because stub labels and the evidence ledger read those back.
+ */
+const ARGS_STUB_MIN = 400;
+const ARG_FIELD_KEEP = 160;
+/** A character-driven fold aims this far under the budget, so it does not re-fire next step. */
+const FOLD_CHAR_TARGET = 0.7;
+
+/**
+ * THE HALF OF A CALL THAT COMPACTION NEVER SHRANK: ITS ARGUMENTS.
+ *
+ * ------------------------------------------------------------------------
+ * MEASURED, NOT GUESSED. Three saved sessions (scalpbot, crusaderengine,
+ * toradb) each sat at ~2.4x the 180k-char budget, and compacting the saved
+ * state removed ZERO characters. In scalpbot 188k of the 426k was
+ * `tool_calls[].arguments` — every `plan_write` re-sending the whole plan,
+ * every `run_bash` its script — which alone exceeds the budget. So the
+ * context could never get back under it, every step compacted, and every
+ * result older than the recent working set was stubbed one or two steps after
+ * it was read. The model re-read the same twenty lines about fifteen times and
+ * said why: "the last reads kept getting elided".
+ *
+ * STAYS VALID JSON. provider.js parses arguments into a tool_use input, so a
+ * stub that is not an object breaks the request. Short string and scalar
+ * fields survive, so `path` is still there for the stub label and the ledger.
+ *
+ * Mutates the message's calls; returns the characters removed. Idempotent: an
+ * elided call is marked `argsElided`.
+ */
+function elideArguments(m) {
+  let removed = 0;
+  for (const tc of (m && m.tool_calls) || []) {
+    if (!tc || tc.argsElided) continue;
+    const raw = typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments || {});
+    if (raw.length <= ARGS_STUB_MIN) continue;
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    const kept = {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v == null || typeof v === 'number' || typeof v === 'boolean') kept[k] = v;
+        else if (typeof v === 'string' && v.length <= ARG_FIELD_KEEP) kept[k] = v;
+        else kept[k] = `[elided ${typeof v === 'string' ? v.length : JSON.stringify(v).length} chars]`;
+      }
+    } else {
+      kept._elided = `${raw.length} chars of arguments`;
+    }
+    const next = JSON.stringify(kept);
+    if (next.length >= raw.length) continue;
+    tc.arguments = next;
+    tc.argsElided = raw.length;
+    removed += raw.length - next.length;
+  }
+  return removed;
+}
+
+/**
+ * WHERE TO CUT so a fold of `messages[1 .. cut)` leaves at most `targetChars`,
+ * never reaching `floor` (the start of the recent working set).
+ *
+ * Found from per-message sizes, then checked against the REAL summary — which
+ * can itself be sizeable, since it keeps what the user said — and pushed
+ * further while the result would still be over. Returns 1 when nothing needs
+ * folding. The caller snaps the cut to a call/result boundary.
+ */
+function charCut(messages, targetChars, floor) {
+  let total = 0;
+  for (const m of messages) total += messageChars(m);
+  if (total <= targetChars || floor <= 2) return 1;
+  let cut = 1;
+  let removed = 0;
+  while (cut < floor && total - removed > targetChars) { removed += messageChars(messages[cut]); cut += 1; }
+  for (;;) {
+    const summary = foldSummary(messages.slice(1, cut)).content.length + 24;
+    if (total - removed + summary <= targetChars || cut >= floor) break;
+    removed += messageChars(messages[cut]);
+    cut += 1;
+  }
+  return cut;
+}
+
+module.exports = {
+  capFor, foldedMessage, stuckMessage, foldSummary, messageChars, elideArguments, charCut,
+  MARGIN, FLOOR, SELF_FRACTION, FOLD_USER_KEEP, FOLD_SAID_KEEP, ARGS_STUB_MIN, ARG_FIELD_KEEP, FOLD_CHAR_TARGET,
+};

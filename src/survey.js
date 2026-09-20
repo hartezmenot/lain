@@ -261,7 +261,10 @@ function grade({ findings, ran, testRun, lastCommand }) {
 
   const test = !testRun ? HEALTH.UNVERIFIED : testRun.ok ? HEALTH.PASS : HEALTH.FAILED;
 
-  const runtime = !lastCommand ? HEALTH.UNVERIFIED : lastCommand.ok ? HEALTH.PASS : HEALTH.FAILED;
+  // `ok` is tri-state (see evidencekind.js): null is a masked or no-match
+  // result, which proves nothing either way and must land on UNVERIFIED, not
+  // FAILED — the falsy branch a plain `? :` would otherwise take it to.
+  const runtime = !lastCommand || lastCommand.ok === null ? HEALTH.UNVERIFIED : lastCommand.ok ? HEALTH.PASS : HEALTH.FAILED;
 
   // ---- ENGINEERING IS GRADED ON EVERYTHING THE BUILD IGNORES -------------
   //

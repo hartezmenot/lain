@@ -204,4 +204,50 @@ module.exports = async function () {
     assert.ok(!registry.has('computer'),
       'a tool for a bridge that is not there is an offer that cannot be kept');
   });
+
+  /**
+   * A CALL THAT IS MEANT TO WAIT MUST NOT BE CUT OFF BY THE PIPE.
+   *
+   * `wait.window` and its siblings carry the time the CALLER gave the screen.
+   * The transport used to impose a flat 15s under them, so every longer wait
+   * came back "no answer within 15s" — a transport failure dressed as a screen
+   * that never changed. Observed against a real file dialog that HAD opened.
+   */
+  await test('a wait longer than the ordinary call deadline is allowed to wait', () => {
+    const mcp = require('../../src/mcp');
+    assert.strictEqual(mcp.callDeadline({}), mcp.CALL_TIMEOUT_MS,
+      'an ordinary call keeps the ordinary deadline');
+    assert.strictEqual(mcp.callDeadline({ timeoutMs: 8000 }), mcp.CALL_TIMEOUT_MS,
+      'a short wait is never given LESS than the ordinary deadline');
+    assert.strictEqual(mcp.callDeadline({ timeoutMs: 20000 }), 20000 + mcp.CALL_GRACE_MS,
+      'a long wait gets the time it asked for, plus room to answer');
+    assert.strictEqual(mcp.callDeadline({ timeoutMs: 10 ** 9 }), mcp.MAX_CALL_TIMEOUT_MS,
+      'and nothing waits forever');
+    for (const junk of [{ timeoutMs: -1 }, { timeoutMs: 0 }, { timeoutMs: 'soon' }, { timeoutMs: NaN }]) {
+      assert.strictEqual(mcp.callDeadline(junk), mcp.CALL_TIMEOUT_MS, `nonsense falls back: ${JSON.stringify(junk)}`);
+    }
+  });
+
+  /**
+   * WINDOWS ARE NAMED WITHIN A PROCESS. A dialog an application raised belongs
+   * to that application, and saying so is what stops a wait for "Open" from
+   * landing on somebody's "OpenAI" browser tab. The matching itself is the
+   * bridge's (tests/smoke/computermcp-real.test.js proves it on a real
+   * desktop); what is pinned here is that the expectation SURVIVES the trip.
+   */
+  await test('a window expectation carries its process, not just a title', async () => {
+    const sent = [];
+    const c = Object.create(require('../../src/computermcp').ComputerMCP.prototype);
+    c.call = async (op, params) => { sent.push({ op, params }); return { ok: true, result: { found: true, window: { handle: 1 } } }; };
+
+    await c.observe({ window: 'Save As' });
+    assert.strictEqual(sent[0].op, 'wait.window');
+    assert.strictEqual(sent[0].params.title, 'Save As', 'a bare string is still a title');
+    assert.strictEqual(sent[0].params.pid, undefined);
+
+    const r = await c.observe({ window: { title: 'Open', pid: 4242 } });
+    assert.strictEqual(sent[1].params.title, 'Open');
+    assert.strictEqual(sent[1].params.pid, 4242, 'the process reaches the bridge');
+    assert.match(r.why, /pid 4242/, 'and the reason says which process was meant');
+  });
 };

@@ -91,6 +91,8 @@ const SLOTS = Object.freeze({
   validation: 'validation/checks.json',
   /** The file/symbol index. Written by projectindex.js since before this file. */
   index: 'index.json',
+  /** Content fingerprints of the tree when LAIN first arrived. See bootstrap.js. */
+  baseline: 'fingerprints/baseline.json',
 });
 
 /** Directories that exist because something writes into them per-session. */
@@ -179,7 +181,13 @@ function taskFile(root, taskId, area, name) {
  * this directory is built to avoid — see projectindex.js, which learned it
  * first.
  */
+/** The schema is brought current before the first read or write of a project. */
+function schemaFirst(root) {
+  try { require('./lainschema').ensure(root); } catch { /* documents are still readable as they are */ }
+}
+
 function read(root, slot, fallback = null) {
+  schemaFirst(root);
   let raw;
   try { raw = fs.readFileSync(pathOf(root, slot), 'utf8'); } catch { return fallback; }
   let doc;
@@ -202,6 +210,8 @@ function read(root, slot, fallback = null) {
  */
 function write(root, slot, body) {
   const file = pathOf(root, slot);
+  const created = !fs.existsSync(dirFor(root));
+  if (!created) schemaFirst(root);
   const doc = { version: VERSION, slot, updatedAt: Date.now(), body };
   let text;
   try { text = JSON.stringify(doc); } catch { return false; }
@@ -210,6 +220,7 @@ function write(root, slot, body) {
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, text);
     fs.renameSync(tmp, file);
+    if (created) require('./lainschema').stampNew(root);
     return true;
   } catch {
     return false;

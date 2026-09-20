@@ -141,6 +141,33 @@ async function supervisedJob(id) {
   } catch { return null; }
 }
 
+/**
+ * A PROCESS THE PERSON DETACHED WITH /bg, or a background branch.
+ *
+ * Those live in the App's agent-job registry (bgdetach.js), not in `_jobs`.
+ * The detach notice tells the model "background job #2 — do not start it
+ * again"; job_wait then answered `no job "2". Start one with run_background`,
+ * and the model started the 90-second smoke a second time (live, 2026-09-18).
+ * Every job id the model is told about must be one these tools can find.
+ */
+function detachedJob(app, id) {
+  const j = app && app.jobs && typeof app.jobs.get === 'function' ? app.jobs.get(String(id).replace(/^#/, '')) : null;
+  return j && (j.kind === 'process' || j.kind === 'subagent') ? j : null;
+}
+
+function describeDetached(j) {
+  const s = j.summary();
+  const head = `job #${s.id} · ${s.state} · ${String(s.request || '').slice(0, 80)} · ${Math.round((s.elapsedMs || 0) / 1000)}s`
+    + (j.pid ? ` · pid ${j.pid}` : '') + ' · detached with /bg';
+  return s.result ? `${head}${String.fromCharCode(10)}${s.result}` : `${head}${String.fromCharCode(10)}still running — its result rejoins this task when it finishes.`;
+}
+
+async function waitDetached(j, limitMs) {
+  const limit = Number(limitMs) || 0;
+  if (!j.done) await (limit > 0 ? Promise.race([j.wait(), new Promise((r) => setTimeout(r, limit))]) : j.wait());
+  return { output: describeDetached(j), meta: { job: j.id, state: j.state, detached: true } };
+}
+
 const tools = {};
 
 tools.run_background = {
@@ -275,6 +302,8 @@ tools.job_wait = {
       const s = await job.wait(Number(input.limit_ms) || null);
       return { output: describe(job, s), meta: { job: job.id, state: s.state } };
     }
+    const det = detachedJob(app, input.id);
+    if (det) return waitDetached(det, input.limit_ms);
     // ---- A SUPERVISED JOB IS WAITED ON WHERE IT ACTUALLY LIVES ---------
     //
     // There is no in-process child to resolve on, so this asks the authority.
@@ -319,6 +348,8 @@ tools.job_status = {
     if (input.id) {
       const local = jobs && jobs.get(input.id);
       if (!local) {
+        const det = detachedJob(app, input.id);
+        if (det) return { output: describeDetached(det), meta: { job: det.id, state: det.state, detached: true } };
         const sj = await supervisedJob(input.id);
         if (sj) return { output: describeSupervised(sj), meta: { job: sj.id, state: sj.state, supervised: true } };
         return { output: `no job "${input.id}".`, isError: true };

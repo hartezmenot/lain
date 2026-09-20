@@ -43,6 +43,7 @@ const KIND = Object.freeze({
   GOAL: 'GOAL',
   PLAN_REPLACE: 'PLAN_REPLACE',
   PLAN_ADD: 'PLAN_ADD',
+  PLAN_NEW: 'PLAN_NEW',
 });
 
 /** What the composer says in front of the line, per kind. */
@@ -50,6 +51,7 @@ const LABEL = Object.freeze({
   [KIND.GOAL]: 'GOAL',
   [KIND.PLAN_REPLACE]: 'PLAN',
   [KIND.PLAN_ADD]: 'PLAN +',
+  [KIND.PLAN_NEW]: 'PLAN',
 });
 
 /**
@@ -59,9 +61,12 @@ const LABEL = Object.freeze({
  *   the §15 behaviour and it is the point of the whole mode: an existing goal
  *   is EDITED, never retyped from memory.
  */
-function open(app, kind, { prefill = '' } = {}) {
+function open(app, kind, { prefill = '', hint = '', target = null, intent = null } = {}) {
   if (!app || !KIND[kind]) return null;
-  app.composing = { kind, at: Date.now() };
+  // `intent` says what a composed GOAL becomes: 'new' (a fresh goal; the active one is
+  // paused, never lost) or 'edit' of `target`. Absent, it rewrites the active goal.
+  app.composing = { kind, at: Date.now(), hint: String(hint || ''), target, intent };
+  if (hint && typeof app.transient === 'function') app.transient('info', hint);
   // THE LINE ITSELF. `setLine` is the existing editor entry point — the one
   // history recall and completion acceptance already use — so the text arrives
   // with the cursor at its end, undo reset, and the paste flag cleared.
@@ -72,9 +77,22 @@ function open(app, kind, { prefill = '' } = {}) {
 /** Is a composer open, and for what? */
 function pending(app) { return (app && app.composing) || null; }
 
+/**
+ * THE HINT GOES WITH THE COMPOSER. "Enter commits, Esc cancels" describes a
+ * mode; once the mode is shut it is an instruction for nothing, and left in
+ * the story it read as a question still waiting for an answer.
+ */
+function dropHint(app, c) {
+  const notes = c && c.hint && app.ui && app.ui.story && app.ui.story.notes;
+  if (!Array.isArray(notes)) return;
+  const at = notes.map((n) => n.text).lastIndexOf(c.hint);
+  if (at >= 0) notes.splice(at, 1);
+}
+
 /** Shut it without committing anything. */
 function cancel(app) {
   if (!app) return null;
+  dropHint(app, app.composing);
   app.composing = null;
   try { if (app.input && typeof app.input.setLine === 'function') app.input.setLine(''); } catch { /* no editor */ }
   return null;
@@ -97,22 +115,25 @@ function label(app) {
 function take(app, textIn) {
   const c = pending(app);
   if (!c) return false;
+  dropHint(app, c);
   app.composing = null;
   const value = String(textIn == null ? '' : textIn).trim();
   // AN EMPTY LINE COMMITS NOTHING. See the header: the least deliberate
   // keystroke there is must not destroy durable direction.
   if (!value) {
-    app.transient('info', `${LABEL[c.kind]} unchanged.`);
+    // Nothing committed, nothing said: the line simply comes back.
     return true;
   }
   if (c.kind === KIND.GOAL) {
     const goal = require('./goal');
-    goal.set(app.session, value);
-    app.transient('info', `Goal set — ${value.replace(/\s+/g, ' ').slice(0, 60)}${value.length > 60 ? '…' : ''}`);
-  } else if (c.kind === KIND.PLAN_REPLACE || c.kind === KIND.PLAN_ADD) {
+    if (c.intent === 'new') goal.create(app.session, value);
+    else if (c.intent === 'edit' && c.target) goal.edit(app.session, c.target, value);
+    else goal.set(app.session, value);
+    // NO RECEIPT: the goal is state, not news. `/goal` shows it on its shelf.
+  } else if (c.kind === KIND.PLAN_REPLACE || c.kind === KIND.PLAN_ADD || c.kind === KIND.PLAN_NEW) {
     // ONE PLAN OWNER. The steps are built by plan.js from this text; nothing
     // here keeps a second copy of them or a second notion of what a step is.
-    require('./plancompose').commit(app, c.kind === KIND.PLAN_REPLACE ? 'replace' : 'add', value);
+    require('./plancompose').commit(app, c.kind === KIND.PLAN_REPLACE ? 'replace' : c.kind === KIND.PLAN_NEW ? 'new' : 'add', value);
   }
   try { app.session.save(); } catch { /* the change still holds for this run */ }
   return true;

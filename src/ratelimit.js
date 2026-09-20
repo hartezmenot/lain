@@ -64,14 +64,28 @@ function human(ms) {
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
+  // A weekly reset in DAYS: "96h 0m" makes a person do the division.
+  if (h >= 48) return `${Math.floor(h / 24)}d ${h % 24}h`;
   if (h) return `${h}h ${m}m`;
   if (m) return `${m}m ${s}s`;
   return `${s}s`;
 }
 
 /** The absolute clock time the limit clears, for "can I go and do something". */
+/** How long a window this is, in the words a person uses: weekly and daily limits say so. */
+function windowWord(ms) {
+  if (ms >= 3 * 86400000) return 'WEEKLY LIMIT';
+  if (ms >= 6 * 3600000) return 'DAILY LIMIT';
+  return 'RATE LIMITED';
+}
+
 function at(resumeAt) {
-  try { return new Date(resumeAt).toTimeString().slice(0, 5); } catch { return '—'; }
+  try {
+    const d = new Date(resumeAt);
+    const hhmm = d.toTimeString().slice(0, 5);
+    // A reset days away needs its DAY — "around 08:00" for a weekly limit is a lie by omission.
+    return resumeAt - Date.now() > 20 * 3600000 ? `${d.toLocaleDateString('en-US', { weekday: 'long' })} ${hhmm}` : hhmm;
+  } catch { return '—'; }
 }
 
 /**
@@ -132,7 +146,7 @@ function adapter({ provider, resumeAt, model, alternative = null, exhausted = fa
   items.push({ label: `Wait for the reset — LAIN carries on by itself in ${human(left)}`, value: CHOICE.WAIT });
   items.push({ label: 'Change model — pick another model and retry now', value: CHOICE.CHANGE });
   return {
-    title: 'RATE LIMITED',
+    title: windowWord(left),
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     items,
@@ -160,6 +174,25 @@ function adapter({ provider, resumeAt, model, alternative = null, exhausted = fa
 async function handle(app, record, text) {
   const f = record.providerFailure;
   const resumeAt = f.resumeAt || (Date.now() + (f.retryAfterMs || 0));
+
+  // ---- THE EXECUTOR IS BLOCKED. THE TASK IS NOT. --------------------------
+  //
+  // Recorded FIRST, before the user is asked anything, because it is true
+  // whatever they answer and it must survive a process that dies while the
+  // question is still on screen. See src/task.js STATE: this used to be
+  // recorded — where it was recorded at all — as the task failing, and that
+  // single conflation is what made a returning model restate the objective and
+  // throw away the evidence of work that was nearly finished.
+  //
+  // `blockExecutor` deliberately does not touch `task.state`. A weekly cap is a
+  // fact about a provider; whether the account backend still needs writing is a
+  // different question with a different answer.
+  try {
+    if (app.session && app.session.task) {
+      app.session.task.blockExecutor(
+        `${f.provider || 'the provider'} rate limited${f.retryAfterMs ? `, clears ${at(resumeAt)}` : ''}`);
+    }
+  } catch { /* a bookkeeping failure must not swallow the rate limit itself */ }
 
   // NOBODY TO ASK is not a reason to invent an answer. Off a TTY it reports
   // the limit and stops, exactly as any other provider failure would.
@@ -277,4 +310,4 @@ async function handle(app, record, text) {
   return await app.submit(RESUME_PROMPT, { sameTask: true, from: 'rate-limit-resume' });
 }
 
-module.exports = { worthAsking, human, at, adapter, handle, CHOICE, RESUME_PROMPT, ASK_ABOVE_MS, TICK_MS };
+module.exports = { worthAsking, human, at, windowWord, adapter, handle, CHOICE, RESUME_PROMPT, ASK_ABOVE_MS, TICK_MS };

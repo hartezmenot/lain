@@ -147,7 +147,7 @@ function detail(app, id, C) {
   return out;
 }
 
-function register({ define, C }) {
+function register({ define, C, FLASH_MS }) {
   // ---- /steer MOVED HERE, UNCHANGED IN MEANING -------------------------
   //
   // It is the same subject as the three below: work in flight, and what you
@@ -168,6 +168,7 @@ function register({ define, C }) {
  * entire purpose is to run during one.
  */
 define('/steer', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
   // MACHINERY: LAIN talking about itself, not about the work. Goes to the
   // command panel, never into the conversation the model reads.
   surface: true,
@@ -318,7 +319,29 @@ define('/steer', {
       // asking what is running, and being told how to start more is an answer
       // to a question they did not ask. The usage line is still here — it is
       // what an EMPTY list says, where it is the only useful thing to say.
-      if (!arg) return void summary(app, C, w);
+      // ---- BARE `/bg` WHILE SOMETHING BLOCKS: DETACH IT (§28–30) ----------
+      // The running process keeps its PID and moves to the background; with
+      // no process, a thinking turn continues as a bounded read-only branch.
+      // Only then is it a summary. See bgdetach.js.
+      if (!arg) {
+        const bg = require('./bgdetach');
+        const proc = bg.running(app).length ? bg.detachProcess(app) : null;
+        if (proc) {
+          w(C.green(`  BACKGROUND #${proc.id}`) + C.dim(`  ·  ${String(proc.request).slice(0, 60)}  ·  pid ${proc.pid || '?'} keeps running`));
+          w(C.dim('  The foreground is free — the result rejoins this task when it finishes.'));
+          require('./commands').receipt();   // a confirmation: it closes itself (the Background row tracks the job)
+          return;
+        }
+        const turnActive = Boolean(app.abort && !app.abort.signal.aborted);
+        const branch = turnActive ? bg.detachBranch(app) : null;
+        if (branch) {
+          w(C.green(`  BACKGROUND #${branch.id}`) + C.dim('  ·  the current question continues as a read-only branch'));
+          w(C.dim('  The foreground is free — its answer rejoins this task when it finishes.'));
+          require('./commands').receipt();
+          return;
+        }
+        return void summary(app, C, w);
+      }
 
       const words = arg.split(/\s+/);
       if (words[0].toLowerCase() === 'stop') return void stop(app, C, w, words[1]);
@@ -366,6 +389,7 @@ define('/steer', {
   });
 
   define('/cancel', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     surface: true,
     args: '<n>',
     desc: 'Stop a running job at its next safe point',

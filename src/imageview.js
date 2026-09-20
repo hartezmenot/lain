@@ -9,18 +9,31 @@
  * That is honest, and on its own it is a dead end: the one thing a person wants
  * at that moment is to LOOK, and there was no way to.
  *
- * So this opens it — in the machine's default viewer, which is what a person
- * would have done by hand. (LAIN's own Chromium used to be opened first, to
- * keep LAIN's windows out of the user's session; it went with the browser in
- * 2026-09, and the default viewer is the only window left.)
+ * So this SHOWS it — in LAIN's own window, which is the product the person is
+ * already looking at. Where there is no window (a plain terminal session), it
+ * hands the IMAGE ITSELF to the machine's viewer, which is what a person would
+ * have done by hand.
+ *
+ * ------------------------------------------------------------------------
+ * IT NO LONGER GENERATES AN HTML PAGE, AND THAT WAS THE WHOLE BUG.
+ *
+ * This used to write `<config>/visual/view/view-<timestamp>.html` — an `<img>`
+ * tag wrapped in markup — and hand that file to the default viewer, which on
+ * Windows is a BROWSER. So "show me shot.png" opened a browser tab pointed at a
+ * generated file:// page, put browser-era architecture in the path of the
+ * native application, and left the page on disk forever. Observed in the wild
+ * as `.../lain-test-home-.../visual/view/view-1789468899258.html`.
+ *
+ * A PNG needs no markup to be looked at. See src/imageviewer.js.
  *
  * IT NEVER CLAIMS THE PICTURE WAS SEEN. Opening a window is not looking at one,
- * and the difference is the whole of the evidence discipline here: `visual_choice`
- * is how a judgment is obtained, and this is how a person is given the chance to
- * make one. What comes back says which window was opened and nothing more.
+ * and that difference is the whole of the evidence discipline here: this gives a
+ * person the CHANCE to look, and records only which window was opened. A
+ * judgment, if one is wanted, is something the person says afterwards.
  *
- * IT WRITES NOTHING INTO THE PROJECT. The wrapper page goes to LAIN's own
- * directory beside the visual rounds, and the image itself is only ever read.
+ * IT WRITES NOTHING ANYWHERE. The image is read; nothing is generated. Where a
+ * task is running the picture is ADOPTED as that task's artifact, which is a
+ * copy into the project's own evidence area rather than scaffolding.
  */
 
 const fs = require('fs');
@@ -28,11 +41,6 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const images = require('./ui/images');
-
-/** Where the wrapper pages go — LAIN's own, never the project's. */
-function dir() {
-  return path.join(require('./visualwindow').dir(), 'view');
-}
 
 /**
  * The images LAIN has actually seen mentioned, newest first.
@@ -54,51 +62,21 @@ function recent(app, limit = 10) {
   return found;
 }
 
-/**
- * A page that shows one image at its real size, on a neutral ground.
- *
- * A neutral mid-grey rather than white or black: a screenshot judged against a
- * background that is itself one of the extremes reads lighter or darker than it
- * is, which is precisely the kind of error somebody opens an image to avoid.
- */
-function page(file, d) {
-  const src = `file:///${String(file).replace(/\\/g, '/')}`;
-  const facts = d.ok
-    ? `${format(file)} · ${d.width}×${d.height} · ${Math.round(d.bytes / 1024)} KB`
-    : `${d.why || 'could not be measured'}`;
-  return `<meta charset="utf-8"><title>${esc(path.basename(file))}</title>
-<style>
-  html,body{margin:0;height:100%;background:#6b6b6b;color:#eee;
-            font:13px ui-monospace,Consolas,monospace}
-  header{padding:8px 12px;background:#2a2a2a;border-bottom:1px solid #444}
-  b{color:#8fe3a8}
-  main{display:flex;align-items:center;justify-content:center;
-       height:calc(100% - 38px);overflow:auto}
-  img{max-width:100%;max-height:100%;image-rendering:pixelated}
-</style>
-<header><b>${esc(path.basename(file))}</b> &nbsp; ${esc(facts)} &nbsp;
-  <span style="color:#999">${esc(file)}</span></header>
-<main><img src="${esc(src)}" alt=""></main>`;
-}
-
 /** What the file claims to be. `describe` measures the pixels; this names the kind. */
 function format(file) {
   return (path.extname(String(file)).replace('.', '') || '?').toUpperCase();
 }
 
-function esc(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-}
-
 /**
  * Open one image for a person to look at.
  *
- * @returns {{ok, how, file, page, why, facts}}
- *   `how` is 'default-viewer' — the machine's own viewer, the same window any
- *   other file on this machine opens in. (A 'lain-chromium' value was removed
- *   with the browser in 2026-09.)
+ * @returns {{ok, how, file, ref, why, facts}}
+ *   `how` is 'harness' when LAIN's own window is showing it, or
+ *   'default-viewer' when there is no window and the machine's image viewer
+ *   was handed the file. (A 'lain-chromium' value was removed with the browser
+ *   in 2026-09; the generated-HTML page went in 2026-09-16.)
  */
-async function open(app, file) {
+async function open(app, file, { launch = null } = {}) {
   const target = path.resolve(String(file || ''));
   if (!fs.existsSync(target)) {
     return { ok: false, how: null, file: target, why: 'there is no file at that path' };
@@ -109,38 +87,45 @@ async function open(app, file) {
   const facts = images.describe(target);
   if (facts.ok) facts.kind = format(target);
 
-  let out = null;
-  try {
-    fs.mkdirSync(dir(), { recursive: true });
-    out = path.join(dir(), `view-${Date.now()}.html`);
-    fs.writeFileSync(out, page(target, facts), 'utf8');
-  } catch (e) {
-    return { ok: false, how: null, file: target, facts, why: `could not write the page: ${e.message}` };
+  // ---- LAIN'S OWN WINDOW FIRST -----------------------------------------
+  //
+  // It is the native product; it can fit, zoom and say where the picture came
+  // from; and it does not put a browser in the path of the application.
+  const viewer = require('./imageviewer');
+  if (viewer.windowed(app)) {
+    const offered = viewer.offer(app, target, { note: 'opened to be looked at' });
+    if (offered.ok) {
+      viewer.show(app, offered.ref);
+      return { ok: true, how: 'harness', file: target, ref: offered.ref, facts };
+    }
   }
 
-  // (This used to open in LAIN's own Chromium first — the browser LAIN was
-  // allowed to drive, keeping its windows out of the user's session. That
-  // browser was removed in 2026-09 per the browser-ownership ruling, and the
-  // machine's own viewer is the only path left, which is the same viewer any
-  // other file on this machine opens in.)
-
+  // ---- OTHERWISE, THE MACHINE'S OWN VIEWER, ON THE IMAGE ITSELF ---------
+  //
+  // Not a wrapper page: the file. Windows opens a .png in the image viewer and
+  // a .html in a browser, which is how the old wrapper turned "look at this
+  // screenshot" into "open a browser tab".
+  // OPENING A WINDOW IS INJECTABLE, AND ONLY TESTS INJECT IT. A suite that
+  // exercises this path otherwise opens a real image viewer on the developer's
+  // desktop on every run — several of them, once there are several cases.
   try {
-    if (process.platform === 'win32') {
+    if (launch) launch(target);
+    else if (process.platform === 'win32') {
       // The empty title argument is required: `start "path"` treats a single
       // quoted argument as the window title and opens nothing.
-      spawn('cmd', ['/c', 'start', '', out], { detached: true, stdio: 'ignore' }).unref();
+      spawn('cmd', ['/c', 'start', '', target], { detached: true, stdio: 'ignore' }).unref();
     } else if (process.platform === 'darwin') {
-      spawn('open', [out], { detached: true, stdio: 'ignore' }).unref();
+      spawn('open', [target], { detached: true, stdio: 'ignore' }).unref();
     } else {
-      spawn('xdg-open', [out], { detached: true, stdio: 'ignore' }).unref();
+      spawn('xdg-open', [target], { detached: true, stdio: 'ignore' }).unref();
     }
-    return { ok: true, how: 'default-viewer', file: target, page: out, facts };
+    return { ok: true, how: 'default-viewer', file: target, facts };
   } catch (e) {
     return {
-      ok: false, how: null, file: target, page: out, facts,
-      why: `the page is written but no viewer could be opened (${e.message}) — open it yourself`,
+      ok: false, how: null, file: target, facts,
+      why: `no viewer could be opened (${e.message}) — the file is at the path above`,
     };
   }
 }
 
-module.exports = { open, recent, page, dir };
+module.exports = { open, recent, format };

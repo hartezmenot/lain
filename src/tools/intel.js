@@ -166,11 +166,19 @@ tools.understand = {
           + (facts ? ' The facts are load-bearing: do not re-derive what they state.' : ''));
       }
     } catch { /* orientation never fails for want of the durable layer */ }
+    // FRESHNESS, derived from the disk now — what is written in .lain/ against
+    // what the files say. See freshness.js.
+    let fresh = '';
+    try {
+      const f = require('../freshness');
+      fresh = `${NL}${NL}${f.describe(f.report(root))}`;
+    } catch { /* orientation never fails for want of it */ }
     return {
       output: pi.orientation(r.index)
-        + `${NL}${NL}${require('../projectsync').say(sync.verdict, r)} (${r.ms}ms)`
+        + `${NL}${NL}${require('../projectsync').say(sync.verdict, r)} (${r.ms}ms${r.targeted ? ', targeted refresh of changed paths' : ''})`
         + note.join(NL)
-        + lain.join(''),
+        + lain.join('')
+        + fresh,
       meta: {
         indexed: r.scanned, reused: r.reused, rescanned: changed, ms: r.ms,
         // THE RUNTIME'S WORD, carried so a caller can tell "I have never seen

@@ -10,6 +10,7 @@ Usage
   lain --resume <id>        Restore a saved session, then continue
   lain --sessions           List saved sessions and exit
   lain --doctor             Report what works on this machine, and exit
+  lain --desktop            Open LAIN Desktop (starts LAIN, or shows the running one)
   lain --bot                Run the configured messaging gateway in the foreground
   lain --bot-check <name>   Observe telegram, discord or whatsapp configuration
 
@@ -22,6 +23,12 @@ Options
                          Touches no provider and creates no session — this is
                          the command an installer uses to verify itself.
       --cwd <dir>        working directory for the session
+      --desktop          start LAIN as an application: no terminal, no REPL, a
+                         native window and a tray icon. If this account is
+                         already running LAIN — a CLI, or an earlier launch in
+                         the tray — its window is shown instead and no second
+                         LAIN is started. See src/desktoprun.js.
+      --dev              with --desktop: developer window (devtools, context menu)
       --bot-check <name> read-only bot diagnostics; no service is started
       --live             with --bot-check: authenticate using live platform APIs
       --record           with --bot-check --live: save non-secret evidence
@@ -45,6 +52,8 @@ function parseArgs(argv) {
       case '--live': opts.botLive = true; break;
       case '--record': opts.botRecord = true; break;
       case '--cwd': opts.cwd = argv[++i]; break;
+      case '--desktop': opts.desktop = true; break;
+      case '--dev': opts.dev = true; break;
       default:
         if (a.startsWith('-')) { opts.unknown = a; return opts; }
         opts._.push(a);
@@ -76,6 +85,13 @@ async function main(argv) {
   if (opts.botLive || opts.botRecord) { process.stderr.write('lain: --live and --record require --bot-check <platform>\n'); return 2; }
   if ((opts._.join(' ') === '/bot doctor' && opts.print === undefined) || opts.print?.trim() === '/bot doctor') return require('./bot/doctor').main();
   if (opts.bot) return require('./bot/service').foreground({ cwd: opts.cwd });
+
+  // ---- LAIN AS AN APPLICATION -------------------------------------------
+  //
+  // Before anything that would build a session: a direct launch may turn out to
+  // be a request to SHOW the LAIN that is already running, in which case this
+  // process must not construct an App at all. See src/desktoprun.js.
+  if (opts.desktop) return require('./desktoprun').main({ cwd: opts.cwd, dev: opts.dev });
 
   // ---- THE POST-INSTALL VERIFICATION COMMAND ----------------------------
   //

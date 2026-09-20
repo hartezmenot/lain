@@ -82,19 +82,34 @@ module.exports = async function () {
       'reasoning must not be recorded as what the model said');
   });
 
-  await test('EMPTY: a genuinely silent turn SAYS it was silent', async () => {
+  await test('EMPTY: a silent reply is retried once, and a second one is a PROVIDER FAILURE — never DONE', async () => {
+    // THE CONTRACT CHANGED, measured in a real session: an empty reply settled
+    // as DONE, so the model never answered after its tools ran, and every next
+    // prompt produced another instant DONE that read as a swallowed line.
     const { cwd, configDir } = project();
     const r = await runCli(['-p', 'hello'], {
       cwd, configDir,
-      script: [{ text: '' }],
+      script: [{ text: '' }, { text: '' }],
       timeoutMs: 60000,
     });
     const out = plain(r.out);
-    assert.match(out, /returned no text and called no tools/,
-      'an empty answer must be reported, not left as a blank pane');
-    // AND IT NAMES THE LIKELIEST CAUSE, because this is not something a user
-    // can diagnose by looking at their own screen.
-    assert.match(out, /reasoning/, 'it points at the field the prose may be arriving in');
+    assert.match(out, /empty response/, 'the empty reply is reported as what it is');
+    const dir = path.join(r.configDir, 'sessions');
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.json'));
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+    const turn = saved.turns[saved.turns.length - 1];
+    assert.strictEqual(turn.stopReason, 'provider', 'an empty turn does not settle as a completed one');
+    assert.strictEqual(turn.usage.requests, 2, 'exactly one retry');
+  });
+
+  await test('EMPTY: one silent reply followed by a real one completes normally', async () => {
+    const { cwd, configDir } = project();
+    const r = await runCli(['-p', 'hello'], {
+      cwd, configDir,
+      script: [{ text: '' }, { text: 'RECOVERED_ANSWER' }],
+      timeoutMs: 60000,
+    });
+    assert.match(plain(r.out), /RECOVERED_ANSWER/);
   });
 
   await test('EMPTY: an ordinary reply is untouched, and says nothing extra', async () => {

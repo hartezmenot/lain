@@ -54,6 +54,24 @@ function uninstall(opts = {}) {
     text: out.removed.length ? `removed ${out.removed.length} launcher(s) from ${dir}` : `no launchers in ${dir}`,
   });
 
+  // ---- THE START MENU ENTRY ----------------------------------------------
+  //
+  // Installed by install.js §6. Removed the same way: one file, by name. The
+  // `LAIN.exe` it pointed at stays — it lives in LAIN's own directory alongside
+  // the built host, and it is rebuilt from source on demand rather than being
+  // something the installer put there.
+  if (process.platform === 'win32' && opts.shortcut !== false) {
+    const shortcut = require('./shortcut');
+    const r = shortcut.remove();
+    if (!r.ok) {
+      out.warnings.push(`the Start Menu entry was not removed: ${r.why}`);
+      out.steps.push({ ok: false, text: `Start Menu: ${r.why}` });
+    } else {
+      if (r.removed) out.removed.push(r.link);
+      out.steps.push({ ok: true, text: r.removed ? `removed the Start Menu entry` : 'Start Menu: there was no entry' });
+    }
+  }
+
   // ---- THE PATH ENTRY ----------------------------------------------------
   if (opts.skipPath) {
     out.steps.push({ ok: true, text: 'PATH: left alone as asked' });

@@ -59,7 +59,12 @@ async function runFetch(input, ctx) {
     research.note(app, `fetch failed · ${String(r.why).slice(0, 120)}`);
     return { output: r.why, isError: true, meta: { web: 'fetch' } };
   }
-  research.note(app, `read · ${r.title || r.url}`);
+  // THE HOST, ALWAYS. A successful read leaves no action row (ui/durable.js), so
+  // this note is the only place a person sees WHICH machine theirs talked to;
+  // a page title alone does not say.
+  let host = '';
+  try { host = new URL(r.url).host; } catch { /* the title still says something */ }
+  research.note(app, `read · ${r.title || r.url}${r.title && host ? ` · ${host}` : ''}`);
   const head = [
     `${r.url}${r.status && r.status !== 200 ? `  [HTTP ${r.status}]` : ''}`,
     r.title ? `title: ${r.title}` : null,

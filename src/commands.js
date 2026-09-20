@@ -70,21 +70,49 @@ const DURING_TURN = Object.freeze({
  * it wrong the other way loses the record.
  */
 /**
- * HOW LONG A MACHINERY NOTICE STAYS BEFORE CLEARING ITSELF.
+ * HOW LONG A RECEIPT STAYS BEFORE CLEARING ITSELF.
  *
- * THE DEFAULT IS TO CLEAR. "Model changed", "unchanged", "effort high",
- * "compacted 296k -> 294k" are NOTIFICATIONS: you asked for something, this
- * says what happened, and there is nothing further to do with it. Requiring Esc
- * to dismiss your own confirmation is a keystroke that buys nothing, and until
- * you remember to press it the box sits over the conversation.
+ * ------------------------------------------------------------------------
+ * THE DEFAULT USED TO BE "CLEAR", AND THAT WAS THE WRONG WAY ROUND.
+ *
+ * The reported defect was that `/lain` and `/jobs` "disappear without user
+ * interaction". They did, and nothing was wrong with either command: neither
+ * declared a `flashMs`, so both inherited this value, and a panel full of
+ * project state wiped itself off the screen 1.5 seconds after it was asked for.
+ * A person reading it watched it go mid-sentence.
+ *
+ * The two kinds of output are not hard to tell apart, and the distinction is
+ * not about which command it is:
+ *
+ *   A RECEIPT confirms an action the user has just deliberately taken.
+ *     "Model changed", "effort high", "compacted 296k -> 294k". You have read
+ *     it by the time you have read it, and making somebody press Esc to dismiss
+ *     their own confirmation is a keystroke that buys nothing.
+ *
+ *   AN INSPECTOR is state you asked to LOOK AT. `/lain`, `/jobs`, `/status`,
+ *     `/plan`. It is read at the reader's pace, not at a timer's, and it is
+ *     finished with when the reader says so.
+ *
+ * SO THE DEFAULT IS NOW "STAY", AND A RECEIPT OPTS IN. That is the safe
+ * direction and it is why the inversion is the fix rather than a preference: a
+ * panel that stays can always be dismissed with one key, while a panel that
+ * vanishes has already taken away something that was asked for. Getting it
+ * wrong the new way costs an Esc; getting it wrong the old way loses the
+ * answer.
  *
  * Long enough to read a sentence unhurried, short enough not to be in the way.
- * Esc still closes it immediately.
- *
- * A command whose output you actually READ - /dash, /status - opts out with
- * flashMs: 0 and waits to be dismissed.
+ * Esc still closes a receipt immediately.
  */
 const FLASH_MS = 1500;
+
+/**
+ * THE DEFAULT: A PANEL STAYS UNTIL IT IS DISMISSED. See FLASH_MS.
+ *
+ * Named rather than written as a bare `0` at the one site that uses it, because
+ * `flashMs = 0` reads as "no value supplied" and this is a deliberate policy
+ * about who decides when a person has finished reading.
+ */
+const STAY_OPEN = 0;
 /**
  * @param {boolean} [o.hidden]  A COMPATIBILITY ALIAS: it still runs when typed,
  *   and it is not offered anywhere. Two names for one thing is a thing to learn
@@ -96,7 +124,7 @@ const FLASH_MS = 1500;
  *   expected to find must never set it — see helpcommand.js, which is the view
  *   that honours it, and ui/menus.js, which is the other one.
  */
-function define(name, { args = '', desc, run, duringTurn = DURING_TURN.SAFE, surface = false, flashMs = FLASH_MS, hidden = false }) {
+function define(name, { args = '', desc, run, duringTurn = DURING_TURN.SAFE, surface = false, flashMs = STAY_OPEN, hidden = false }) {
   const key = name.toLowerCase();
   if (REGISTRY.has(key)) throw new Error(`duplicate command: ${key}`);
   REGISTRY.set(key, { name: key, args, desc, run, duringTurn, surface, flashMs, hidden: Boolean(hidden) });
@@ -150,7 +178,7 @@ async function run(app, input) {
   // and never into Context. Everything about the TASK stays in Context, because
   // that is the record of the work. See `define` for where the line is drawn.
   if (!cmd.surface) return cmd.run(app, { args, rest });
-  app.render.openSurface(cmd.name);
+  app.render.openSurface(cmd.name); receiptMarked = false;
   try {
     return await cmd.run(app, { args, rest });
   } finally {
@@ -158,10 +186,10 @@ async function run(app, input) {
     // took deliberately, and so clears itself rather than waiting for an Esc
     // that buys nothing. Anything you READ (`/dash`, `/status`) has no flashMs
     // and stays until dismissed. See Renderer.doneSurface.
-    app.render.doneSurface({ closeAfterMs: cmd.flashMs || 0 });
+    app.render.doneSurface({ closeAfterMs: cmd.flashMs || (receiptMarked ? FLASH_MS : 0) });
   }
 }
-
+let receiptMarked = false; function receipt() { receiptMarked = true; }   // THIS RUN is a receipt though other forms inspect (/bg detach vs summary)
 // ------------------------------------------------------------- commands ----
 
 
@@ -170,7 +198,6 @@ async function run(app, input) {
 const LEAVE = 'Save the session and leave (Ctrl+C twice to leave immediately)';
 define('/exit', { duringTurn: DURING_TURN.BLOCKED, desc: LEAVE, run(app) { app.wantExit = true; } });
 define('/quit', { duringTurn: DURING_TURN.BLOCKED, desc: LEAVE, run(app) { app.wantExit = true; } });
-
 
 define('/status', {
   // READ, not glanced at: a dozen facts you look through. It waits for Esc.
@@ -225,13 +252,17 @@ define('/status', {
 define('/mcp', {
   // MACHINERY: about LAIN, not about the work. Goes to the command panel.
   surface: true,
-  args: '[status|connect|revoke|disconnect]',
-  desc: 'The desktop bridge and what it is currently allowed to do',
+  args: '[status|computer|connect|revoke|disconnect]',
+  desc: 'Computer MCP and the desktop bridge — what they are, and what they may do',
   async run(app, { args }) {
     const mcpMod = require('./mcp');
     const { bridge, permissions } = app.desktop();
     const sub = String(args[0] || 'status').toLowerCase();
     const w = (s) => app.render.write(s);
+
+    // COMPUTER MCP is LAIN's own desktop capability — one question, once per
+    // session. See src/computercommand.js and src/computermcp.js.
+    if (sub === 'computer') return require('./computercommand').run(app, args.slice(1), { C });
 
     if (sub === 'connect') {
       if (!mcpMod.configured(app.cfg)) {
@@ -328,17 +359,18 @@ define('/mcp', {
  * That is honest, and on its own it is a dead end: the one thing a person wants
  * at that moment is to LOOK, and there was no way to.
  *
- * This is the other half. The machine's own viewer, the same window any other
- * file on this machine opens in. (LAIN's own Chromium used to take this when
- * one was running; it was removed in 2026-09 per the browser-ownership
- * ruling.)
+ * This is the other half. LAIN'S OWN WINDOW where one is open — the native
+ * viewer, which fits, zooms and says where the picture came from; otherwise the
+ * machine's own image viewer, handed the FILE. It used to generate an HTML page
+ * around the image and open THAT, which on Windows is a browser tab. See
+ * src/imageview.js.
  *
  * With no argument it offers the images LAIN has seen mentioned, read from the
  * OUTPUT surface that already lists them rather than from a second record kept
  * for this.
  *
- * IT DOES NOT CLAIM ANYTHING WAS SEEN. Opening a window is not looking at one;
- * `visual_choice` is how a judgment is obtained.
+ * IT DOES NOT CLAIM ANYTHING WAS SEEN. Opening a window is not looking at one,
+ * and nothing here records that anybody did.
  */
 define('/image', {
   // MACHINERY: LAIN talking about itself, not about the work. Goes to the
@@ -477,7 +509,7 @@ define('/plan', {
   // and absent from the next turn's context. See the note on `surface` above,
   // and tests/smoke/surface.test.js, which exists because of it.
   duringTurn: DURING_TURN.BLOCKED,
-  args: '[<nothing — edit it>|show|step <text>|done <note>|drop <n>|clear]',
+  args: '[<nothing — discuss it>|accept|show|step <text>|done <note>|drop <n>|clear]',
   desc: 'The session-owned plan (optional — plans are never required)',
   run(app, ctx) { return require('./plan').runCommand(app, ctx, { C }); },
 });
@@ -572,89 +604,92 @@ define('/config', {
 // workspace commands. It is a split of the FILE, not of the registry: there is
 // still one map, one `define`, and one duplicate check. Registered last so a
 // duplicate name still throws at load, exactly as before.
-require('./sessioncommands').register({ define, REGISTRY, DURING_TURN, C });
-require('./routecommands').register({ define, REGISTRY, C });
+require('./sessioncommands').register({ define, FLASH_MS, REGISTRY, DURING_TURN, C });
+require('./routecommands').register({ define, FLASH_MS, REGISTRY, C });
 // THE WORKING-TREE COMMANDS do the same, for the same reason: /undo and
 // /changes are one subject — the bytes on disk and how to put them back — and
 // they read the ONE byte-snapshot system rather than keeping a record of their
 // own. See workcommands.js.
-require('./workcommands').register({ define, DURING_TURN, C });
+require('./workcommands').register({ define, FLASH_MS, DURING_TURN, C });
 // AND /dash, which left for a reason of its own: it is the only command that
 // runs a SERVER, and the decisions that come with that — bind the network or
 // not, allow actions or not, come up by itself or not — are its subject and
 // nobody else's. See dashcommand.js.
-require('./dashcommand').register({ define, C });
+require('./dashcommand').register({ define, FLASH_MS, C });
 // AND /trust + /permissions, which are one subject — what this session may
 // touch, and what it was stopped from touching. See trustcommand.js.
-require('./trustcommand').register({ define, C });
+require('./trustcommand').register({ define, FLASH_MS, C });
 // AND /jobs + /bg + /cancel, which are one subject — work in flight and what
 // it is doing. All three are SAFE during a turn by construction: a command
 // about running work that could not run while work was running would be
 // useless. See jobcommands.js.
-require('./jobcommands').register({ define, C });
+require('./jobcommands').register({ define, FLASH_MS, C });
 // AND /ps, THE OTHER ALTITUDE OF THE SAME SUBJECT. `/bg` is the LOGICAL work —
 // what you asked for and whether it finished. `/ps` is what that work is
 // PHYSICALLY made of right now: the harness's managed services and the shell
 // jobs, projected, never re-registered. See pscommand.js on why there is no
 // `/ps all` and why nothing here scans the host.
-require('./pscommand').register({ define, C });
+require('./pscommand').register({ define, FLASH_MS, C });
 // AND `/token` — the whole token account. One subject, its own file: the
 // header carries the live output number and this carries everything else.
-require('./tokencommand').register({ define });
+require('./tokencommand').register({ define, FLASH_MS });
 // AND /runtime + /session — ONE subject: the process that outlives this
 // one, and the windows onto it. sessionview.js registers /session.
-require('./runtimecommand').register({ define, C });
-require('./sessionview').register({ define, C });
+require('./runtimecommand').register({ define, FLASH_MS, C });
+require('./sessionview').register({ define, FLASH_MS, C });
 // AND /stop + /observing, whose subject is A RUN BEING WATCHED. `/stop` exists
 // because "stop the bot" and "stop LAIN" were one key everywhere else, so
 // stopping a misbehaving run meant risking the investigation of it. See
 // observecommand.js.
-require('./observecommand').register({ define, DURING_TURN, C });
+require('./observecommand').register({ define, FLASH_MS, DURING_TURN, C });
 // `/compact` uses the same context authority as the automatic path, in its own
 // module so the command registry stays below the architecture guard.
-require('./compactcommand').register({ define, DURING_TURN, C });
+require('./compactcommand').register({ define, FLASH_MS, DURING_TURN, C });
 // `/lain` surveys what `.lain/` remembers — architecture, wiring, vocabulary,
 // facts and unfinished turns — in its own module for the same reason.
-require('./laincommand').register({ define, C });
+require('./laincommand').register({ define, FLASH_MS, C });
+require('./provenancecommand').register({ define, C });
+require('./modecommands').register({ define, C });   // /focus /fast /browser (/chrome = hidden alias)
 // AND THE REPORT COMMANDS — /compare, /audit, /health, /ready, /doctor: read
 // something and say what is true of it, changing nothing.
 
-// `/note` — the one door into RUNTIME NOTES (this machine's observations; evidence-gated FACTS are .lain's). See notecommand.js
-// it is one command and not four.
-require('./notecommand').register({ define, C });
-require('./reportcommands').register({ define, C, config });
+// `/note` — the one door into RUNTIME NOTES (this machine's observations; evidence-gated FACTS are .lain's). See notecommand.js; it is one command and not four.
+require('./notecommand').register({ define, FLASH_MS, C });
+require('./reportcommands').register({ define, FLASH_MS, C, config });
 // `/brief` — the engineering briefing. A report command by nature, but its own
 // file because it orchestrates every instrument in the tree; see briefcommand.js
 // for why it is not called `/steer`.
-require('./briefcommand').register({ define, C });
+require('./briefcommand').register({ define, FLASH_MS, C });
 // THE HARNESS COMMANDS — /harness, /tasks, /verify, /artifacts, /env. Every one
 // of them is a projection of the SAME task state the dashboard and a remote
 // client read, which is what stops the terminal being the degraded surface.
 // See harnesscommands.js on why `/task` was extended rather than replaced.
-require('./harnesscommands').register({ define, DURING_TURN, C });
-require('./botcommand').register({ define });
+require('./harnesscommands').register({ define, FLASH_MS, DURING_TURN, C });
+require('./botcommand').register({ define, FLASH_MS });
 // AND `/source` — WHICH MODEL ANSWERS A CHAT TURN: LAIN's own runtime,
 // ChatGPT.com or Gemini.google.com. Its own file because it is one subject and
 // because the model sources have a package of their own; it is also what
 // replaced `/external`, which was a draft-and-dispatch command where a
 // SELECTION is the right shape. See sourcecommand.js.
-require('./sourcecommand').register({ define, C });
+require('./sourcecommand').register({ define, FLASH_MS, C });
 // AND `/goal` — the standing direction this work serves. Beside /plan rather
 // than with the machinery: a goal is a statement about the WORK, in the record
 // of the work, so it stays in Context. See goalcommand.js and src/goal.js for
 // why GOAL, PLAN, PLAN_STEP and STEER are four concepts and not one.
-require('./goalcommand').register({ define, C });
-// AND `/app` — the LAIN Harness application, the graphical surface over THIS
-// session. Not a second LAIN and not a second session engine: one App, one
-// conversation, two ways to look at it. See src/harnessapp/server.js.
-require('./appcommand').register({ define, C });
+require('./goalcommand').register({ define, FLASH_MS, C });
+// `/app` IS GONE (2026-09-15). The Harness was a page a command had to summon:
+// `/app` minted a token, started a loopback listener and opened the person's
+// browser at a URL. LAIN Desktop is the application now and it is launched like
+// one — a shortcut, the Start menu, `LAIN.exe` — so a command to conjure the
+// product from inside the other surface is a command for a shape LAIN no longer
+// has. See src/desktoprun.js and src/corelock.js.
 // AND /help, which is a VIEW OF THIS REGISTRY rather than a family of
 // commands: it renders what is defined here, plus the keys — which is the
 // half that grew, because a key nobody is told about is a key that does not
 // exist. See helpcommand.js.
-require('./helpcommand').register({ define, REGISTRY, C });
+require('./helpcommand').register({ define, FLASH_MS, REGISTRY, C });
 
-module.exports = {
+module.exports = { receipt,
   REGISTRY, define, looksLikeCommand, parse, run,
   DURING_TURN, blockedDuringTurn, offered,
   // EVERY name, aliases included — this answers "can this be typed", which is a

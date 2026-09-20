@@ -23,12 +23,16 @@
     "bin/",
     "src/",
     "distribution/",
+    "native/host.cs",
+    "native/pty.cs",
+    "native/vendor.js",
     "README.md",
     "docs/HARNESS.md",
     "docs/COWORK.md",
     "docs/BOT.md",
     "docs/BOT-ARCHITECTURE.md",
-    "docs/MODEL-SOURCES.md"
+    "docs/MODEL-SOURCES.md",
+    "docs/INSTALL.md"
   ],
   "scripts": {
     "start": "node bin/lain.js",
@@ -38,7 +42,12 @@
     "test:unit": "node tests/run.js unit",
     "test:integration": "node tests/run.js integration",
     "test:smoke": "node tests/run.js smoke",
+    "test:workflow": "node tests/run.js workflow",
+    "test:cli": "node tests/run.js cli",
+    "test:harness": "node tests/run.js harness",
+    "test:global": "node tests/run.js global",
     "test:live": "node tests/run.js live",
-    "test:distribution": "node tests/run.js distribution"
+    "test:distribution": "node tests/run.js distribution",
+    "dist": "node distribution/build.js"
   }
 }

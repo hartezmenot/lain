@@ -90,7 +90,9 @@ function label(text) {
 function rowsIn(lines) {
   if (!lines || !lines.userAt) return [];
   const rows = Object.keys(lines.userAt).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
-  return rows.filter((r, i) => i === 0 || rows[i - 1] !== r - 1);
+  // EVERY MAPPED ROW IS AN ANCHOR: a message is drawn as ONE row now (ui/feeduser.js),
+  // so two adjacent rows are two messages, never one message's two lines.
+  return rows;
 }
 
 /** How much of a long prompt the anchor shows before it trails off. */

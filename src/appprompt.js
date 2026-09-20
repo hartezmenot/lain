@@ -66,8 +66,11 @@ function build(app) {
     try { app._projectBrief = require('./project').brief(app.session.cwd); } catch { app._projectBrief = ''; }
   }
   if (app._projectBrief) sys += `\n\n# This project\n${app._projectBrief}`;
-  const cowork = require('./cowork/prompt').forSession(app.session);
-  if (cowork) sys += `\n\n${cowork}`;
+  // AGENTS.md, Cowork, the goal and a worker's assignment come from the ONE
+  // assembly the live turns use — see promptparts.durable.
+  const d = require('./promptparts').durable(app, app.session);
+  if (d.agents) sys += `\n\n${d.agents}`;
+  if (d.cowork) sys += `\n\n${d.cowork}`;
   // ---- THE STANDING GOAL, BEFORE THE PLAN -------------------------------
   //
   // ORDER IS THE ARGUMENT: a goal is what the user is trying to achieve and a
@@ -75,11 +78,22 @@ function build(app) {
   // it serves. Marked as DIRECTION rather than as this turn's request — a model
   // handed a goal as an instruction starts working on the goal, which is almost
   // always far larger than the sentence the person just typed. See src/goal.js.
-  const goalText = require('./goal').forPrompt(app.session);
-  if (goalText) sys += `\n\n# Goal\n${goalText}`;
+  if (d.goal) sys += `\n\n${d.goal}`;
   // ONLY this session's plan can ever reach the prompt: it is a field on this
   // session object, so there is no other plan it could pick up.
   if (app.session.plan) sys += `\n\n# Plan (this session)\n${app.session.plan.digest()}`;
+  // ---- A WORKER\'S EXACT ASSIGNMENT, WHEN THIS SESSION IS ONE --------------
+  //
+  // ONLY A BACKGROUND SESSION HAS ONE. The foreground conversation is not
+  // executing an order - it IS the thing that issues them - so this section is
+  // absent there, and its absence is what distinguishes the two.
+  //
+  // THE ORDER IS NARROWER THAN THE GOAL AND THE TASK ABOVE IT, and it is stated
+  // last for the same reason the plan reads under the goal: a rung may narrow
+  // the one above it and never replace it. A worker handed a conversation it
+  // inherited and no assignment has to INFER which part of it is the job, which
+  // is exactly the guessing the work order exists to end. See src/authority.js.
+  if (d.assignment) sys += `\n\n${d.assignment}`;
   return sys;
 }
 

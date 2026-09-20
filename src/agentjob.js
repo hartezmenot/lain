@@ -96,8 +96,17 @@ const WAITING_PHASES = new Set(['WAITING', 'RATE_LIMITED', 'ASKING', 'RETRYING',
 const NEEDS_INPUT = 'WAITING_FOR_INPUT';
 
 class AgentJob {
-  constructor({ id, request, primary = false, session = null }) {
+  constructor({ id, request, primary = false, session = null, kind = 'agent' }) {
     this.id = id;
+    // FIRST-CLASS FACTS (§33): what kind of work, whose session/task/step it
+    // belongs to, and which files it owns. `kind` keeps /bg detaches, subagents
+    // and forked agents apart — one is never silently turned into another.
+    this.kind = kind;           // agent | process | branch | subagent | ab
+    this.parentSessionId = null;
+    this.taskId = null;
+    this.planStep = null;
+    this.scope = [];
+    this.resultSummary = null;
     this.request = String(request || '');
     /** Does this job own `app.session`? Exactly one may. See the header. */
     this.primary = Boolean(primary);
@@ -234,6 +243,13 @@ class AgentJob {
       endedAt: this.endedAt,
       elapsedMs: this.elapsedMs,
       error: this.error,
+      kind: this.kind,
+      sessionId: this.parentSessionId || (this.session && this.session.id) || null,
+      taskId: this.taskId || null,
+      planStep: this.planStep,
+      scope: this.scope.slice(),
+      result: this.resultSummary,
+      word: this.state === 'SUCCEEDED' ? 'DONE' : this.waiting || this.needsInput ? 'WAITING' : this.state,
     };
   }
 }
@@ -259,9 +275,9 @@ class AgentJobs {
   /** The job that owns `app.session`, or null. At most one, ever. */
   primary() { return this.list.find((j) => j.primary && !j.done) || null; }
 
-  create({ request, primary = false, session = null }) {
+  create({ request, primary = false, session = null, kind = 'agent' }) {
     this._seq += 1;
-    const job = new AgentJob({ id: String(this._seq), request, primary, session });
+    const job = new AgentJob({ id: String(this._seq), request, primary, session, kind });
     this.list.push(job);
     // Finished jobs are kept so a result can still be read, but not forever.
     while (this.list.length > MAX_KEPT) {

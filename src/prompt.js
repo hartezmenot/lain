@@ -44,6 +44,10 @@ WORK, THEN SPEAK. While a task is running the order is: make the tool call, read
 
 DURING EXECUTION, AIM FOR UNDER TEN WORDS. Not a rule with a counter behind it — a target for what a normal working line looks like: "Serializer still emits the legacy field." · "Backend route exists but is unwired." · "Targeted test reproduces the failure." · "Provider refused the request." Length is earned by a blocker, a decision you need, or the final summary.
 
+ACTING OVER NARRATING IS GUIDANCE, NOT A GAG. Explain properly when the person asks, when the architecture is genuinely ambiguous, when a decision needs its reasons, or when a blocker needs context. The loop is LOCATE → UNDERSTAND → ACT → VERIFY → STOP; reuse what is already established (project intelligence, read receipts, plan findings, fingerprints) and re-read only what changed or what you have not seen.
+
+WHEN STRONGER EVIDENCE NEEDS A CAPABILITY YOU DO NOT HOLD, REQUEST IT. request_browser inspects a page (the person's Chrome, the frontend dev server, or an isolated browser — LAIN routes it); request_computer observes the desktop through Computer MCP. Each asks the person once, then runs for real and returns evidence; carry on with the original task from that evidence.
+
 NEVER ASK YOURSELF A QUESTION IN FRONT OF THE USER. "Should I ask the user?" · "Maybe I should check the writer?" · "Do I need to read this first?" — these are addressed to nobody and nobody can answer them; the turn does not stop for them. If you want an answer, call ask_user, which actually stops and asks. If you do not, decide and act. The interface removes these lines before drawing them, so writing one costs you tokens and shows the user nothing.
 
 END with a summary, and make it the most useful thing you say. Compact, scannable, and only the parts that apply:
@@ -55,7 +59,7 @@ END with a summary, and make it the most useful thing you say. Compact, scannabl
   How to test  the real test command
   Remaining    what is still open, or nothing
 
-WHEN YOU CHANGED CODE, "How to run" AND "How to test" ARE NOT OPTIONAL, and they are written as one line each in exactly that form — "How to run: npm start", "How to test: npm test". The interface draws those two lines as a highlighted command so a person can find them without reading the report, which it can only do when the line names itself. Give the real command for THIS project, taken from its manifest or its scripts, not a plausible one. If there genuinely is no test command, say so on the line rather than leaving it out.
+WHEN YOU CHANGED CODE, "How to run" AND "How to test" ARE NOT OPTIONAL, and they are written as one line each in exactly that form — "How to run: <command>", "How to test: <command>". The interface draws those two lines as a highlighted command so a person can find them without reading the report, which it can only do when the line names itself. Give the real command for THIS project, taken from its manifest or its scripts, not a plausible one — a package.json with no "start" script has no "npm start". If there genuinely is no run or test command (a library, no test runner), say so on the line — "How to run: none (library)" — rather than inventing one.
 
 Ground rules:
 - Act through tools. Describing a command does not run it; printing a file in a code fence does not write it.
@@ -68,6 +72,7 @@ Ground rules:
 - Take your scaffolding with you. Temporary logging, debug prints and throwaway probes added while diagnosing must be removed before you report — a green test suite does not notice them, so nothing will catch it but you.
 - Change only what the task needs. Leave unrelated code alone even when you can see something you would do differently.
 - For work worth tracking, plan_write records a few steps and plan_step_done ticks them off as they are genuinely done. Both are optional — a small fix needs neither.
+- On a LONG step, plan_findings records what that step has already established — settled decisions, what has landed on disk, what is still owed, and pointers to the evidence. It is kept on the step and survives compaction and resume, so you do not re-derive your own conclusions after the conversation is shortened. Short factual lines; it is a record, not a scratchpad.
 
 Find things with tools, not with the model. Cheapest first:
 - symbols answers "where is X defined" and "who calls X" in one call, already sorted into definitions, imports and uses.
@@ -91,12 +96,16 @@ SCALE THE INVESTIGATION TO THE TASK. A three-line bug and an architectural defec
 - Do not map a repository, build a reproduction harness, add a layer, or refactor code the task did not name. If you believe the task needs that, say so in one sentence and ask — do not simply do it.
 - One good test for the behaviour you changed beats twenty that restate it.
 
+WHEN THE READING IS DONE, PATCH. The expensive failure is not reading too little; it is reading forever. Once the decision is settled, the symbols are located, the index is fresh and you know the shapes you have to match, WRITE THE CHANGE. A further read then needs a CONCRETE UNRESOLVED QUESTION you can name in one sentence — "does handleStalled take the item or the id?" is one; "let me pin the exact idiom", "one more look to be safe", "the last four anchors", "one decisive batch" are not. Those are the sentences a loop tells itself, and a step that has produced no edit and no check for several turns is not being careful, it is stuck. If something really is unresolved, name it and act on the rest.
+
 "Replace X with Y" is two claims and the tests only ever check one. Y exists — proven, because the new path works. X is gone — unproven, because a leftover definition breaks nothing, which is exactly why it survives and why the next person edits the wrong copy. On any migration, replacement, removal or move, check the second claim before reporting, and if part of the old thing stays on purpose, say which and why. find_residue answers it for a name or a file; for a whole migration — a language, a framework, a build system, a component, a set of agents — migration_plan writes the contract first and migration_verify checks both halves against it.
 
 How to talk:
 - Explain like a capable person talking to someone who knows computers but not this codebase. "The button sends the new value, but the server never saves it — I'm fixing that first" beats "state propagation inconsistency in the presentation layer".
 - Say what you found and what you are doing about it. Do not narrate every file you are about to open.
-- When you are done, say what actually changed, briefly — and keep CHANGED separate from VERIFIED. "I changed the loader to read the JSON, and the suite passes" and "I changed the loader to read the JSON; I have not run anything" are different reports, and only one of them is what you did. Anything you did not check, say you did not check. Do not round an edit up to a fix.`;
+- When you are done, say what actually changed, briefly — and keep CHANGED separate from VERIFIED. "I changed the loader to read the JSON, and the suite passes" and "I changed the loader to read the JSON; I have not run anything" are different reports, and only one of them is what you did. Anything you did not check, say you did not check. Do not round an edit up to a fix.
+
+${require('./contextprovenance').TEACHING}`;
 
 /**
  * WHAT TO DO FIRST, given what the user asked for.
@@ -161,7 +170,33 @@ If the language or framework was not specified, pick a sensible one and say in o
   RESUME: `Pick up the work that already exists. The plan, what is already done, and what has been inspected are in your context — use them.
 Do not re-plan from scratch, do not redo finished steps, and do not re-read files that have not changed. Continue from the first thing that is genuinely still outstanding.`,
 
-  CHAT: `Answer the user. This does not need the project inspected or any files changed.`,
+  // ---- NOT "Answer the user." — THIS WAS THE OTHER HALF OF THE P0 BUG -----
+  //
+  // Second person addressed to "the user" is confusable with the user
+  // speaking, and once this rides on the wire under `role: 'user'`
+  // (contextfit.buildWire, framed by contextprovenance.js), a model that
+  // received the sentence "Answer the user. This does not need the project
+  // inspected or any files changed." right after a genuine diagnostic
+  // request answered the SENTENCE instead of the request. Rewritten as a
+  // description of the situation rather than an instruction phrased at a
+  // human — third person throughout, nothing here says "the user" as if
+  // addressing them.
+  CHAT: `This is a conversational message, not a task. It does not require inspecting the project or changing files to respond to.`,
+};
+
+/**
+ * WHAT GROUNDING THIS REQUEST ACTUALLY NEEDS — see taskclass.js for the
+ * defect this closes. Added ALONGSIDE the mode guidance above, never
+ * replacing it: PROJECT_IMPLEMENTATION gets nothing extra here (§13 forbids
+ * loosening its guards), and the other three classes get one explicit
+ * sentence saying what they do NOT need, because the failure this exists to
+ * prevent was the model inventing a demand for a project, an architecture
+ * owner, or an implementation target that a live or direct task never had.
+ */
+const CLASS_GUIDANCE = {
+  LIVE_EXTERNAL_DIAGNOSTIC: 'This is a diagnostic against something OUTSIDE the project — a native application, a running process, the desktop, or a page in a browser. It does not require the project source, an architecture owner, or an implementation target. Ground it against the LIVE target: request_browser for a page, Computer MCP for the desktop; observe real state, act if asked, and verify the result actually changed rather than assuming the action landed. When the person asked what something shows, the observation IS the answer — report it; do not search the project for where it came from unless they asked.',
+  DIRECT_TOOL_TASK: 'This is one concrete, deterministic operation — not a project task. Do the operation with the tool that matches it, and confirm the result. It does not need to be turned into an implementation request, a plan, or a search of the project.',
+  PROJECT_DIAGNOSTIC: 'This asks what is true about the project, not for a fix. Read, run tests, check logs — say what you found. Do not implement a change unless the person asks for one; naming what is broken is the whole answer here.',
 };
 
 /**
@@ -188,16 +223,59 @@ const MAX_FILES = 8;
 /** Durable project truths carried on every request. See the memory block below. */
 const MAX_MEMORY = 6;
 
-function workingContext({ session } = {}) {
+/**
+ * @param {object}  o
+ * @param {boolean} o.opened  this turn has already sent its first request. The
+ *   ONCE-PER-TURN facts — the previous turn was cut off, the task is blocked —
+ *   were stated then. Re-stating them in the tail of every later step made them
+ *   read as a fresh instruction each time: 65 steps of one saved session opened
+ *   "Resuming at the exact stop point".
+ * @param {object} [o.app]  the running App, read-only, ONLY for the
+ *   clarification budget (§15) — it is the one durable fact this function
+ *   needs that lives on the app rather than the session. Optional: callers
+ *   that build a prompt with no App (a test, appprompt.js's legacy path)
+ *   simply do not get this section, which is the existing behaviour for
+ *   every field below when its source is absent.
+ */
+function workingContext({ session, opened = false } = {}) {
   if (!session) return '';
+  // ---- EVERYTHING BELOW IS "WHAT WAS ALREADY TRUE WHEN THIS TURN STARTED" --
+  //
+  // Computed ONCE, before the turn's first request (jobrunner.js turnOptions
+  // builds `liveContinuing` up front), and reused UNCHANGED, verbatim, for
+  // every later step of the same turn. Once is correct: the turn's own
+  // opening request already carried every line of it, and that opening
+  // request stays in the conversation history for the rest of the turn.
+  //
+  // REPEATING IT ON EVERY CONTINUATION WAS THE EXACT MECHANISM BEHIND A REAL,
+  // REPORTED DEFECT. A single focused correction ("fix two router bugs...")
+  // produced repeated mid-task restatement — "The steer is...", "Back on the
+  // two router bugs..." — appearing between ordinary reads, many steps into a
+  // task nobody had corrected again. The block was authority-correct (framed
+  // as generated context, never the user speaking — see contextprovenance.js)
+  // and small (capped; see the length test below) — and still amplified into
+  // compulsive re-acknowledgment, because "the user has since said... these
+  // override the original request" reads as an ANNOUNCEMENT, and a model
+  // handed the same announcement at the tail of its context on every step
+  // treats it as news every time.
+  //
+  // A correction typed DURING a turn is unaffected by this gate — that is
+  // `app.queueSteer`'s live, consume-once `steer()` callback (app.js), an
+  // entirely different path from this durable per-turn recap. So is the
+  // clarification-budget directive (prompt.build, below) — deliberately NOT
+  // gated the same way, because it is a hard constraint on tool use that must
+  // never be missed, not an informational correction already delivered once.
+  if (opened) return '';
   const parts = [];
   const task = session.task;
   const life = session.lifecycle;
 
+  // ONE CURRENT INTENT, not every steer verbatim (intent.js): repeated asks
+  // collapse, new constraints merge, a correction wins. History is untouched.
   if (task && Array.isArray(task.steers) && task.steers.length) {
-    const rows = task.steers.slice(-MAX_STEERS)
-      .map((s) => `- ${String(s.text || '').replace(/\s+/g, ' ').slice(0, 160)}`);
-    parts.push(`The user has since said (these override the original request):\n${rows.join('\n')}`);
+    const intent = require('./intent');
+    const said = intent.render(intent.effective(task.objective, task.steers.slice(-MAX_STEERS)));
+    if (said) parts.push(said);
   }
 
   // ---- WHAT IS DURABLY TRUE ABOUT THIS PROJECT ----------------------------
@@ -243,7 +321,10 @@ function workingContext({ session } = {}) {
     }
     const last = life.lastCommand;
     if (last) {
-      parts.push(`Last check: ${last.command} — ${last.ok ? 'passed' : `FAILED${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}`}`);
+      const verdict = last.ok === true ? 'passed'
+        : last.ok === false ? `FAILED${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}`
+        : `INCONCLUSIVE${last.note ? ` — ${last.note}` : ''}`;
+      parts.push(`Last check: ${last.command} — ${verdict}`);
     }
   }
 
@@ -301,7 +382,10 @@ function workingContext({ session } = {}) {
   // because "the last turn ended" is not news.
   const turns = Array.isArray(session.turns) ? session.turns : [];
   const lastTurn = turns[turns.length - 1] || null;
-  if (lastTurn && lastTurn.stopReason && lastTurn.stopReason !== 'end') {
+  // `opened` is always false here — the function returned above otherwise —
+  // kept explicit rather than removed so this block's own reason for existing
+  // (once, at turn open, never on a continuation) stays visible at the call site.
+  if (!opened && lastTurn && lastTurn.stopReason && lastTurn.stopReason !== 'end') {
     const why = {
       aborted: 'the user interrupted it',
       provider: 'the provider stopped answering',
@@ -321,7 +405,7 @@ function workingContext({ session } = {}) {
   // Same argument. `NEEDS_USER` after an ask_user, `NEEDS_AUTH` after a refused
   // credential and `BLOCKED` are facts about the task that no amount of reading
   // the transcript recovers once the transcript has been folded.
-  if (life && life.state && life.state !== 'ACTIVE' && life.state !== 'DONE') {
+  if (!opened && life && life.state && life.state !== 'ACTIVE' && life.state !== 'DONE') {
     parts.push(`This task is currently ${life.state}${life.reason ? `: ${life.reason}` : ''}. `
       + 'Resolve or acknowledge that before doing anything else.');
   }
@@ -342,7 +426,7 @@ function workingContext({ session } = {}) {
  *   whether a command will run. `Platform: win32` was the whole of what the
  *   model used to be told, and it left every one of those to be guessed at.
  */
-function build({ cwd, platform, model, mode = null, session = null, checkpoints = null, jobs = null, providers = null, runtime = null, separate = false } = {}) {
+function build({ cwd, platform, model, mode = null, session = null, checkpoints = null, jobs = null, providers = null, runtime = null, separate = false, opened = false, app = null } = {}) {
   let env = '';
   if (platform) {
     // Never fatal. A prompt that failed to build because a directory could not
@@ -365,8 +449,25 @@ function build({ cwd, platform, model, mode = null, session = null, checkpoints 
   // measurement that made this worth doing.
   const stable = out;
   let live = '';
-  const guide = mode && MODE_GUIDANCE[mode];
+  // An OBSERVATION (taskclass 3b) is reported, not troubleshot: the project
+  // mode framing ("the user has a problem…") sent a page read into a hunt.
+  const observing = Boolean(session && session.taskClassVerdict && session.taskClassVerdict.observe);
+  const guide = !observing && mode && MODE_GUIDANCE[mode];
   if (guide) live += `# This request\n${guide}`;
+  const working = require('./execmode').guidance(session);
+  if (working) live += `${live ? '\n\n' : ''}${working}`;
+  // THE TERMINAL STEP of implementation work (finalsmoke.js), with its current state.
+  const cls = session && session.taskClassVerdict && session.taskClassVerdict.cls;
+  const smokeLine = cls === 'PROJECT_IMPLEMENTATION' ? require('./finalsmoke').guidance(session.lifecycle, session.cwd) : '';
+  if (smokeLine) live += `${live ? '\n\n' : ''}# Final smoke\n${smokeLine}`;
+  // WHICH GROUNDING STRATEGY, from taskclass.js — consumed from the session
+  // where identify.js already settled it, never re-derived here.
+  const taskClass = session && session.taskClassVerdict;
+  if (taskClass) {
+    const extra = CLASS_GUIDANCE[taskClass.cls];
+    live += `${live ? '\n\n' : ''}# Grounding\n${require('./taskclass').statusLine(taskClass)}`
+      + (extra ? `\n${extra}` : '');
+  }
   // ---- IS THIS A HANDOVER, OR AN ORDINARY CONTINUATION? -------------------
   //
   // Two renderings of ONE set of facts, never both. The working context is the
@@ -387,10 +488,29 @@ function build({ cwd, platform, model, mode = null, session = null, checkpoints 
       // that can describe a failure the session file did not survive. See
       // inputgate.js, which is the only thing that sets it, for one turn.
       runtime,
+      opened,
     });
     if (packet) { established = packet; heading = 'Session handover — continue this work'; }
   } catch { /* a handover that cannot be built must not take the turn with it */ }
-  if (!established) established = workingContext({ session });
+  if (!established) established = workingContext({ session, opened });
+  // ---- THE CLARIFICATION BUDGET, IF SPENT — NEVER DROPPED BY THE BRANCH --
+  //
+  // Appended AFTER the handover/working-context choice above, rather than
+  // being inside either branch, on purpose: a handover packet REPLACES the
+  // working context (see the comment above — "never both"), and folding the
+  // budget directive into workingContext alone meant it silently vanished on
+  // exactly the turns §15 cares most about — a recovery, a resume, a model
+  // switch — because those are handover turns. This is the standing
+  // constraint restated regardless of which rendering was chosen, which is
+  // the whole point of a fact that must survive every path that reaches the
+  // model. See clarify.js `directive`.
+  try {
+    const clarify = require('./clarify');
+    const budget = app && app._clarify instanceof clarify.Clarifications ? app._clarify : null;
+    if (budget && budget.exhausted) {
+      established = established ? `${established}\n\n${budget.directive()}` : budget.directive();
+    }
+  } catch { /* clarify state is a courtesy, never a reason to fail the prompt */ }
   if (established) live += `${live ? '\n\n' : ''}# ${heading}\n${established}`;
   // BACKWARD COMPATIBLE BY DEFAULT. Every existing caller and test asked for
   // one string and still gets exactly the string it got before — the halves are

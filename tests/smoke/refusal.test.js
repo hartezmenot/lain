@@ -61,11 +61,13 @@ module.exports = async function () {
     // and a word announcing that actions are actions added a row without adding
     // a distinction. What this test is about is unchanged — the region around
     // the successful call must not be wearing the provider's refusal.
-    const i = last.indexOf('Ran echo LINE1470');
+    // The action vocabulary is `✓ <verb> · <subject>` — `✓ echo · LINE1470`
+    // for this command — so the row is found by its subject, not by a verb.
+    const i = last.indexOf('· LINE1470');
     assert.ok(i >= 0, `the tool call must be on screen:
 ${last.slice(-400)}`);
     const region = last.slice(Math.max(0, i - 60), i + 200);
-    assert.match(region, /✓ Ran echo LINE1470/, `the command succeeded and must say so: ${region}`);
+    assert.match(region, /✓ \S+ · LINE1470/, `the command succeeded and must say so: ${region}`);
     assert.ok(!/✗ 413/.test(region),
       `the provider's refusal is wearing the tool's failure mark: ${region}`);
   });

@@ -53,8 +53,8 @@ function changedFiles({ checkpoints, cwd }) {
     let after = null;
     try { after = fs.readFileSync(rec.path, 'utf8'); } catch { after = null; }
     if (rec.before === after) continue;
-    const a = rec.before == null ? [] : rec.before.split('\n');
-    const b = after == null ? [] : after.split('\n');
+    const a = rec.before == null ? [] : linesOf(rec.before);
+    const b = after == null ? [] : linesOf(after);
     const { added, removed } = countChanges(a, b);
     out.push({
       path: rec.path,
@@ -68,13 +68,30 @@ function changedFiles({ checkpoints, cwd }) {
 }
 
 /** Line counts either side of the common prefix/suffix. Bounded and exact. */
+/**
+ * A FILE'S LINES. The newline that ENDS the last line does not start another:
+ * `'a\nb\n'.split('\n')` is three elements for two lines, and every count and
+ * diff built on it reported one phantom empty line added or removed.
+ */
+function linesOf(text) {
+  const t = String(text);
+  if (!t) return [];
+  return (t.endsWith('\n') ? t.slice(0, -1) : t).split('\n');
+}
+
+/**
+ * Lines added/removed, from the same edit script `unified` draws — so the
+ * count beside a file agrees with its [Diff]. The prefix/suffix span counted
+ * two edits eight lines apart as +8 -8 (live completion card, 2026-09-18).
+ */
 function countChanges(a, b) {
-  let s = 0;
-  while (s < a.length && s < b.length && a[s] === b[s]) s++;
-  let ea = a.length - 1;
-  let eb = b.length - 1;
-  while (ea >= s && eb >= s && a[ea] === b[eb]) { ea--; eb--; }
-  return { added: Math.max(0, eb - s + 1), removed: Math.max(0, ea - s + 1) };
+  let added = 0;
+  let removed = 0;
+  for (const o of require('./diffscript').ops(a, b)) {
+    if (o.op === 'add') added += 1;
+    else if (o.op === 'del') removed += 1;
+  }
+  return { added, removed };
 }
 
 /**
@@ -206,32 +223,47 @@ function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 40
 }
 
 /**
- * A line-level diff with line numbers and a little context.
- *
- * Not Myers: it brackets the changed region between the common prefix and
- * suffix, which is what a reviewer reads and is bounded by construction — a
- * 10,000-line rewrite cannot produce 10,000 rows.
+ * A line-level diff with line numbers and a little context, in real hunks
+ * (unchanged runs between them elided to `…`). Bounded twice: the LCS table by
+ * diffscript.MAX_CELLS, and the rows by `max` changed lines — a 10,000-line
+ * rewrite cannot produce 10,000 rows.
  */
 function unified(before, after, max = 400, context = 3) {
-  const a = before == null ? [] : before.split('\n');
-  const b = after == null ? [] : after.split('\n');
+  const a = before == null ? [] : linesOf(before);
+  const b = after == null ? [] : linesOf(after);
   if (before == null) return b.slice(0, max).map((l, i) => `${String(i + 1).padStart(4)} + ${l}`);
   if (after == null) return a.slice(0, max).map((l, i) => `${String(i + 1).padStart(4)} - ${l}`);
 
-  let s = 0;
-  while (s < a.length && s < b.length && a[s] === b[s]) s++;
-  let ea = a.length - 1;
-  let eb = b.length - 1;
-  while (ea >= s && eb >= s && a[ea] === b[eb]) { ea--; eb--; }
-
+  // ---- REAL HUNKS, not one prefix/suffix span ------------------------------
+  //
+  // Bracketing the change between the common prefix and suffix drew two edits
+  // eight lines apart as eight removed + eight added lines — every unchanged
+  // line between them marked as changed (live [Diff] on pricing.js, +2 -2 drawn
+  // as -8 +8, 2026-09-18). The line-level edit script is diffscript.ops (LCS on
+  // the middle, bounded by MAX_CELLS, degrading to the old single span).
+  const ops = require('./diffscript').ops(a, b);
+  const near = new Uint8Array(ops.length);
+  for (let i = 0; i < ops.length; i++) {
+    if (ops[i].op === 'eq') continue;
+    for (let k = Math.max(0, i - context); k < Math.min(ops.length, i + context + 1); k++) near[k] = 1;
+  }
   const out = [];
-  for (let i = Math.max(0, s - context); i < s; i++) out.push(`${String(i + 1).padStart(4)}   ${a[i]}`);
-  const removed = a.slice(s, ea + 1);
-  const added = b.slice(s, eb + 1);
-  for (let i = 0; i < removed.length && out.length < max; i++) out.push(`${String(s + i + 1).padStart(4)} - ${removed[i]}`);
-  for (let i = 0; i < added.length && out.length < max; i++) out.push(`${String(s + i + 1).padStart(4)} + ${added[i]}`);
-  for (let i = eb + 1; i < Math.min(b.length, eb + 1 + context); i++) out.push(`${String(i + 1).padStart(4)}   ${b[i]}`);
-  if (removed.length + added.length > max) out.push(`     … ${removed.length + added.length - max} more changed lines`);
+  let na = 0;
+  let nb = 0;
+  let changed = 0;
+  let gap = false;
+  let over = 0;
+  for (let i = 0; i < ops.length; i++) {
+    const o = ops[i];
+    if (o.op !== 'add') na += 1;
+    if (o.op !== 'del') nb += 1;
+    if (!near[i]) { gap = out.length > 0; continue; }
+    if (o.op !== 'eq' && changed >= max) { over += 1; continue; }
+    if (gap) { out.push('     …'); gap = false; }
+    if (o.op === 'eq') out.push(`${String(nb).padStart(4)}   ${o.text}`);
+    else { changed += 1; out.push(`${String(o.op === 'del' ? na : nb).padStart(4)} ${o.op === 'del' ? '-' : '+'} ${o.text}`); }
+  }
+  if (over) out.push(`     … ${over} more changed lines`);
   return out;
 }
 
@@ -447,7 +479,7 @@ function outputView({ outputs = [], width = 80, running = null }) {
 }
 
 module.exports = {
-  changedFiles, countChanges, groupChanges, diffView, unified, filesView, scanTree, outputView,
+  changedFiles, countChanges, linesOf, groupChanges, diffView, diffRow, unified, filesView, scanTree, outputView,
   // EXPORTED so `/image` can offer the images LAIN has actually seen mentioned
   // without keeping a second list of them. One record of a thing, read both by
   // the pane that draws it and by the command that opens it — see imageview.js.

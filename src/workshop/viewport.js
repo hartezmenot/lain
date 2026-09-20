@@ -78,14 +78,37 @@ async function apply(session, name, { reload = true } = {}) {
   }
   if (reload) {
     try {
+      // THE NEW DOCUMENT, LOADED — not a fixed pause. This waited 400ms, and
+      // under load the overflow check then measured the OLD document or the new
+      // one before its stylesheet applied, so a 900px page "fit" a 390px phone
+      // (workshop-real, measured 2026-09-18). A marker on the old window tells
+      // the two documents apart; `complete` means stylesheets have loaded.
+      const mark = `v${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+      if (typeof session.evaluate === 'function') await session.evaluate(`window.__lainVp = ${JSON.stringify(mark)}`).catch(() => null);
       await session.conn.send('Page.reload', { ignoreCache: false });
-      // Settle briefly so the caller reads the page AFTER its gates re-ran
-      // rather than during the reload. Bounded and short.
-      await new Promise((r) => setTimeout(r, 400));
+      await loaded(session, mark);
     } catch { /* a page that will not reload is still emulated */ }
   }
   session.viewport = p.key;
   return { ok: true, viewport: p.key, width: p.width, height: p.height, why: `${p.label} ${p.width}px` };
+}
+
+/**
+ * Until the document that replaced the marked one reports `complete`, bounded.
+ * A page that never finishes loading is measured as it stands at the deadline.
+ */
+async function loaded(session, mark, { timeoutMs = 10000, everyMs = 50 } = {}) {
+  if (typeof session.evaluate !== 'function') return false;
+  const probe = `window.__lainVp !== ${JSON.stringify(mark)} && document.readyState === 'complete'`;
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    // eslint-disable-next-line no-await-in-loop -- a poll is ordered by definition
+    const r = await session.evaluate(probe).catch(() => null);
+    if (r && r.ok && r.value === true) return true;
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((res) => setTimeout(res, everyMs));
+  }
+  return false;
 }
 
 /** Hand the page back its real window. */
@@ -136,4 +159,4 @@ async function overflow(session) {
   };
 }
 
-module.exports = { PRESETS, ORDER, preset, apply, clear, overflow };
+module.exports = { PRESETS, ORDER, preset, apply, clear, overflow, loaded };

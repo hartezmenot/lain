@@ -25,6 +25,9 @@
  */
 function livePlan(session) {
   const plan = session && session.plan;
+  // WHILE THE PLAN IS BEING DISCUSSED THERE IS NO EXECUTION PROGRESS (§12):
+  // PLAN mode shows `PLAN · discussing`, never `3/8`. See ui/headerstate.js.
+  if (require('../execmode').of(session) === 'PLAN') return null;
   return plan && plan.isLive !== false ? plan : null;
 }
 

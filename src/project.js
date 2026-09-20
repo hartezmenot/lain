@@ -64,7 +64,10 @@ const MAX_COMPLETIONS = 200;
 const MAX_SOURCE_DIRS = 6;
 const MAX_FILES_PER_DIR = 400;
 /** How wide one directory line may get. See the loop in `brief`. */
-const MAX_DIR_LINE = 2600;
+// 2600 → 3200 (2026-09-16): LAIN's own src/ outgrew one line, and names past
+// the cut (steerqueue.js, promptcache.js) stopped being listed. Still well
+// inside MAX_CHARS for the whole brief.
+const MAX_DIR_LINE = 3200;
 
 /**
  * Directories worth naming. A project's own code lives in a small, boringly

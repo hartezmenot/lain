@@ -281,7 +281,7 @@ module.exports = async function () {
       width: 70,
     }).join('\n');
     assert.match(lines, /Looking at the router/);
-    assert.match(lines, /edited · a\.js/, 'a change to the project is the account of the work');
+    assert.match(lines, /edited · a\.js\s+\[(?:× )?Diff\]/, 'a change to the project is the account of the work — with its Diff, while it runs');
     assert.ok(!/read · a\.js/.test(lines), 'a routine read must not accumulate in the conversation');
   });
 

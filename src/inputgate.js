@@ -193,7 +193,9 @@ async function recover(app, verdict) {
     : null;
   op.say(app, 'Continuing from verified state');
   try {
-    return await app.submit(intent, { sameTask: true, from: 'handover' });
+    // `typed`: these are sentences a person entered — `continue` included — and
+    // they are drawn as the user's words, not replaced by the recovery caption.
+    return await app.submit(intent, { sameTask: true, from: 'handover', typed: true });
   } finally {
     // ONE TURN'S LIFETIME. A flag that outlived its turn would make every later
     // request a recovery.

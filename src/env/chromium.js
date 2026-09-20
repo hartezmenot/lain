@@ -202,9 +202,9 @@ function argsFor(kind, profileDir, { headless }) {
  *
  * WHAT IT IS NOT: a native shell. There is still a Chromium process, the window
  * decorations are the platform's default, and there is no menu bar, tray icon,
- * file-association or auto-update. Those need a native host — see
- * harnessapp/desktop.js, which states the boundary and why this repo cannot
- * cross it yet without taking a build step and a dependency.
+ * file-association or auto-update. LAIN HAS a native shell now (native/host.cs)
+ * and the Harness runs in it, so what is left here serves the Workshop preview
+ * and the website model surfaces — which really are browsers.
  */
 function appWindowArgs(url, profileDir, { width = 1440, height = 900 } = {}) {
   return [
@@ -268,14 +268,6 @@ class ChromiumRuntime {
         return require('../workshop/profile').ensure(projectPath || process.cwd());
       case PURPOSE.WEBMODEL:
         return require('../modelsource/webprofile').ensure(sourceId || 'default');
-      case PURPOSE.HARNESSAPP: {
-        // ONE PROFILE FOR THE APPLICATION, not one per project: this is the
-        // window LAIN's own UI runs in, and a person expects their window to be
-        // where they left it whichever project they open next.
-        const dir = path.join(require('../config').configDir(), 'harnessapp');
-        fs.mkdirSync(dir, { recursive: true });
-        return dir;
-      }
       case PURPOSE.VERIFY:
         // DISPOSABLE, AND A NEW ONE EVERY TIME. Reusing one directory across
         // verifications would quietly reintroduce exactly the shared state the

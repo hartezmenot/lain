@@ -1,5 +1,7 @@
 'use strict';
 
+const finishMod = require('./finish');
+
 /**
  * The network boundary. Everything above this file is protocol-agnostic.
  *
@@ -34,6 +36,11 @@ function resolve(cfg = {}) {
   if (process.env.LAIN_PROVIDER === 'mock') {
     return { protocol: PROTOCOL.MOCK, provider: 'mock', connectionId: 'mock', model: cfg.model || 'mock-model', apiKey: 'mock', ctx: 200000, maxTokens: 4096 };
   }
+
+  // A SELECTION ON A REMOVED ROUTER IS UNAVAILABLE, never silently rerouted to
+  // another connection that happens to carry the same model name. See retired.js.
+  const gone = require('./retired').selection(cfg);
+  if (gone) return { protocol: null, provider: null, connectionId: gone.connection, model: cfg.model || null, apiKey: '', unavailable: gone };
 
   // STRUCTURED SELECTION: {model, connection, effort} resolved through the
   // catalog. The fused upstream id is produced HERE, at send time, and nowhere
@@ -112,6 +119,7 @@ function resolve(cfg = {}) {
  * find an API key they did not need.
  */
 function credentialHint(pc, cfg = null) {
+  if (pc.unavailable) return require('./retired').unavailableText(pc.unavailable);
   if (!pc.protocol) {
     const hasConnections = cfg && cfg.connections && Object.keys(cfg.connections).length > 0;
     if (hasConnections && !cfg.model) {
@@ -175,7 +183,16 @@ function credentialHint(pc, cfg = null) {
  * means different things on different routes.
  */
 const TTFB_TIMEOUT_MS = Number(process.env.LAIN_TTFB_TIMEOUT_MS) || 600_000;
-const INACTIVITY_TIMEOUT_MS = Number(process.env.LAIN_STREAM_TIMEOUT_MS) || 60_000;
+/**
+ * SILENCE MID-REPLY, bounded at 180s (it was 60s). Real session 2026-09-19: the
+ * model streamed a sentence, then generated a ~12KB tool call (≈3k tokens,
+ * about a minute of generation) that the router BUFFERS whole — sending no
+ * bytes until it is complete. 60s of that silence is a healthy provider mid-
+ * tool-call, and it ended a forty-action turn. A stall that does happen is now
+ * resumed with the reply kept (finish.js `resumable`), not ended.
+ */
+// Read per stream, so the bound can be set without reloading this module.
+const inactivityMs = () => Number(process.env.LAIN_STREAM_TIMEOUT_MS) || 180_000;
 
 /**
  * Compose the caller's abort signal with a deadline. Returns the signal to pass
@@ -270,10 +287,10 @@ async function* sseLines(res, signal = null) {
     let timer;
     const stall = new Promise((_, reject) => {
       timer = setTimeout(() => {
-        const e = new Error(`stream inactive for ${Math.round(INACTIVITY_TIMEOUT_MS / 1000)}s`);
+        const e = new Error(`stream inactive for ${Math.round(inactivityMs() / 1000)}s`); e.stalled = true;
         e.timedOut = true;
         reject(e);
-      }, INACTIVITY_TIMEOUT_MS);
+      }, inactivityMs());
     });
     // The abort must be a RACER, not only a check at the top of the loop: a
     // stream that has gone quiet is precisely when somebody reaches for Ctrl+C,
@@ -445,6 +462,7 @@ async function* anthropicChat(pc, messages, opts) {
   // climbing step over step while input tokens (the uncached remainder) stay
   // small and roughly flat, rather than growing with the conversation.
   let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  let stopRaw = null;
   for await (const j of sseLines(res, opts.signal)) {
     if (j.type === 'content_block_start' && j.content_block && j.content_block.type === 'tool_use') {
       acc[j.index || 0] = { id: j.content_block.id, name: j.content_block.name, args: '' };
@@ -468,16 +486,15 @@ async function* anthropicChat(pc, messages, opts) {
       // and turn.js ADDS it to the record; emitting one here would double every
       // request's input tokens the moment the real one arrived.
       yield { type: 'usage_live', ...usage };
-    } else if (j.type === 'message_delta' && j.usage) {
-      usage.outputTokens = j.usage.output_tokens || usage.outputTokens;
+    } else if (j.type === 'message_delta') {
+      if (j.usage) usage.outputTokens = j.usage.output_tokens || usage.outputTokens;
+      if (j.delta && j.delta.stop_reason) stopRaw = j.delta.stop_reason;
     }
   }
-  const calls = acc.filter(Boolean).map((t) => {
-    let input = {};
-    try { input = t.args.trim() ? JSON.parse(t.args) : {}; } catch { input = {}; }
-    return { id: t.id, name: t.name, input };
-  });
+  // WHY IT ENDED, and arguments exactly as they arrived (finish.js).
+  const calls = acc.filter(Boolean).map((t) => ({ id: t.id, name: t.name, ...finishMod.parseArgs(t.args) }));
   if (calls.length) yield { type: 'tool_calls', calls };
+  yield { type: 'finish', reason: finishMod.normalize(stopRaw), raw: stopRaw || null };
   yield { type: 'usage', ...usage };
 }
 
@@ -519,6 +536,8 @@ async function* openaiChat(pc, messages, opts) {
   }, payload, opts.signal);
 
   const acc = [];
+  const inline = new (require('./inlinethink').InlineThink)();
+  let stopRaw = null;
   let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
   for await (const j of sseLines(res, opts.signal)) {
     if (j.usage) {
@@ -545,9 +564,11 @@ async function* openaiChat(pc, messages, opts) {
       // for every provider to be made to look the same.
       if (usage.inputTokens && usage.inputTokens !== before) yield { type: 'usage_live', ...usage };
     }
+    if (j.choices && j.choices[0] && j.choices[0].finish_reason) stopRaw = j.choices[0].finish_reason;
     const d = j.choices && j.choices[0] && j.choices[0].delta;
     if (!d) continue;
-    if (d.content) yield { type: 'text', chunk: d.content };
+    // Inline `<thinking>` in content is reasoning, not the answer (inlinethink.js).
+    if (d.content) for (const ev of inline.push(d.content)) yield ev;
     // ---- A REASONING MODEL MAY PUT EVERYTHING SOMEWHERE ELSE -------------
     //
     // Observed in a live session: `stealth/ox-alpha` through omniroute was
@@ -576,12 +597,10 @@ async function* openaiChat(pc, messages, opts) {
       if (tc.function && tc.function.arguments) acc[i].args += tc.function.arguments;
     }
   }
-  const calls = acc.filter((t) => t && t.name).map((t) => {
-    let input = {};
-    try { input = t.args.trim() ? JSON.parse(t.args) : {}; } catch { input = {}; }
-    return { id: t.id, name: t.name, input };
-  });
+  for (const ev of inline.flush()) yield ev;
+  const calls = acc.filter((t) => t && t.name).map((t) => ({ id: t.id, name: t.name, ...finishMod.parseArgs(t.args) }));
   if (calls.length) yield { type: 'tool_calls', calls };
+  yield { type: 'finish', reason: finishMod.normalize(stopRaw), raw: stopRaw || null };
   yield { type: 'usage', ...usage };
 }
 

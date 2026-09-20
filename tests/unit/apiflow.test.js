@@ -307,38 +307,47 @@ module.exports = async function () {
     assert.strictEqual(list.find((p) => p.id === 'myrouter').baseUrl, 'https://r.example/v1');
   });
 
-  await test('PROVIDERS: `Other…` is on the FIRST screen, not below the fold', () => {
+  await test('PROVIDERS: `Customs…` is on the FIRST screen, not below the fold, and is the only custom row', () => {
     // ---- WHY THIS IS PINNED BY POSITION ---------------------------------
     //
-    // The panel shows about ten rows. `Other…` — "I know where my key goes,
+    // The panel shows about ten rows. `Customs…` — "I know where my key goes,
     // let me type the URL" — is the one row that works for every provider in
     // existence, and it used to be last. That was right at twelve rows and
     // wrong the moment the list reached twenty-one: the escape hatch fell two
     // screens below the fold, behind the rows LAIN can do LEAST with.
     //
-    // So the order is by READINESS — pick-and-go, then `Other…`, then the names
-    // LAIN cannot place (which are the same action as `Other…` with the name
+    // So the order is by READINESS — pick-and-go, then `Customs…`, then the names
+    // LAIN cannot place (which are the same action as `Customs…` with the name
     // filled in). Nothing is hidden and nothing is guessed; only the order.
     // ASSERTED AS AN ORDER, NOT AS AN INDEX. A machine with twenty working
-    // routes configured legitimately pushes `Other…` further down, and those
+    // routes configured legitimately pushes `Customs…` further down, and those
     // rows are all pick-and-go — nothing is buried by them. What must never
     // happen is a row LAIN CANNOT USE standing in front of the escape hatch.
     const { providerAdapter } = require('../../src/apicommand');
     const list = providers.choices({ connections: {} });
     const items = providerAdapter(list).items;
-    const at = items.findIndex((i) => /^Other/.test(i.label));
-    assert.ok(at >= 0, '`Other…` must be offered at all');
+    const at = items.findIndex((i) => /^Customs/.test(i.label));
+    assert.ok(at >= 0, '`Customs…` must be offered at all');
     assert.strictEqual(at, list.filter((p) => p.baseUrl).length,
-      '`Other…` must sit immediately after the rows that can be picked and used');
+      '`Customs…` must sit immediately after the rows that can be picked and used');
     for (const i of items.slice(0, at)) {
       assert.ok(!/needs an endpoint/.test(i.label),
-        `a row that cannot be used yet sits above \`Other…\`: ${i.label}`);
+        `a row that cannot be used yet sits above \`Customs…\`: ${i.label}`);
     }
     // With nothing configured, that puts it inside the panel's first screen —
     // derived from the built-in table rather than from a magic number, so
     // adding a known endpoint cannot silently push it under the fold again.
     assert.ok(providers.KNOWN.length + 1 <= 10,
-      'the built-in table has outgrown the first screen — `Other…` needs a new home');
+      'the built-in table has outgrown the first screen — `Customs…` needs a new home');
+
+    // ---- AND THERE IS EXACTLY ONE CUSTOM CATEGORY (2026-09-15) -----------
+    //
+    // The picker used to carry this escape as `Other…` AND a separate row named
+    // `custom`, brought in from the user's V1 configuration — two spellings of
+    // one idea in one list. The row is retired; this is the only one left.
+    const customish = items.filter((i) => /custom|^Other/i.test(i.label));
+    assert.strictEqual(customish.length, 1, `one custom category: ${customish.map((i) => i.label).join(' | ')}`);
+    assert.match(customish[0].label, /^Customs…/);
     // And nothing was dropped to achieve any of it.
     assert.strictEqual(items.length, list.length + 1);
   });

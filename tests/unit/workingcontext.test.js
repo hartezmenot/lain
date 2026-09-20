@@ -135,7 +135,7 @@ ${out}`);
     }
   });
 
-  await test('CTX: the block stays small — it rides on every request of the turn', () => {
+  await test('CTX: the block stays small — it is sent once, at turn open', () => {
     const s = sess({
       task: { objective: 'x', steers: Array.from({ length: 9 }, (_, i) => ({ text: 'a decision '.repeat(30) + i })) },
       lifecycle: {
@@ -144,6 +144,43 @@ ${out}`);
       },
     });
     const out = prompt.workingContext({ session: s });
-    assert.ok(out.length < 1800, `the block grew to ${out.length} chars — it is sent on every step`);
+    assert.ok(out.length < 1800, `the block grew to ${out.length} chars`);
+  });
+
+  // ---- THE RE-ENTRY / REPEATED-STEER DEFECT --------------------------------
+  //
+  // This block used to ride on EVERY request of a turn, per the test this
+  // replaces ("rides on every request of the turn" — that was the documented
+  // design, not an accident). Traced to a real, reported symptom: a single
+  // focused correction produced repeated mid-task restatement — "The steer
+  // is...", "Back on the two router bugs..." — between ordinary reads, many
+  // steps into a task nobody had corrected again. The block was
+  // authority-correct and small; it was still an announcement repeated
+  // verbatim at the tail of context on every step, and a model handed the
+  // same announcement every step treated it as news every time. `opened`
+  // already existed for exactly two OTHER once-per-turn facts (a cut-off
+  // previous turn, a blocked state) — this closes the gap for the rest.
+  await test('CTX: on a CONTINUATION step (opened:true), the whole recap is silent — a correction already delivered once is not news twice', () => {
+    const s = sess({
+      task: { objective: 'x', steers: [{ text: 'Actually make it disabled by default.' }] },
+      lifecycle: {
+        evidence: { filesChanged: new Set(['C:/p/settings.js']) },
+        lastCommand: { command: 'npm test', ok: false, exitCode: 1 },
+      },
+      evidence: { digest: () => 'Already inspected this session (unchanged since):\n  - settings.js (420 lines)' },
+    });
+    assert.strictEqual(prompt.workingContext({ session: s, opened: true }), '');
+    // AND UNCHANGED ON THE OPENING STEP — this is a gate on repetition, not a
+    // removal of the fact.
+    assert.match(prompt.workingContext({ session: s, opened: false }), /disabled by default/);
+  });
+
+  await test('CTX: a live, mid-turn correction is unaffected — it travels through app.queueSteer\'s consume-once callback, not this recap', () => {
+    // Structural: the recap being silent on a continuation step must not be
+    // mistaken for "corrections cannot reach the model mid-turn" — that path
+    // is jobrunner.js's `steer()` callback (app.js), asserted here to still
+    // exist and remain independent of workingContext/opened.
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'src', 'app.js'), 'utf8');
+    assert.match(src, /steer:\s*\(\)\s*=>/, 'the live per-step steer callback must still exist');
   });
 };

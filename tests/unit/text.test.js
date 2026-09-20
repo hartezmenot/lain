@@ -89,12 +89,19 @@ module.exports = async function () {
   });
 
   await test('DETAB: it fixes the ARITHMETIC too, which is the quiet half', () => {
-    // `width()` counts a tab as one cell; the terminal advances up to eight. A
-    // row measured short is padded too far and its right border lands past the
-    // frame — the tearing this module exists to prevent, from an input nobody
+    // A TAB HAS NO WIDTH OF ITS OWN. The terminal does not WRITE anything for
+    // one - it moves the cursor to the next stop, advancing between one and
+    // eight columns depending on where the row already was. So there is no
+    // number `cells()` could return that is right, and it returns the one that
+    // is honest about a control: zero.
+    //
+    // THE POINT IS THAT IT MUST NEVER REACH A PAINTED ROW UNEXPANDED. A row
+    // measured short is padded too far and its right border lands past the
+    // frame - the tearing this module exists to prevent, from an input nobody
     // thought to expand.
     const raw = 'a' + TAB + 'b';
-    assert.strictEqual(T.width(raw), 3, 'measured as three, which is the lie');
+    assert.ok(T.width(raw) < 9,
+      "an unexpanded tab ALWAYS measures short of what the terminal will do");
     assert.strictEqual(T.width(T.detab(raw)), 9, 'and nine is what the terminal does');
   });
 
@@ -109,5 +116,76 @@ module.exports = async function () {
   await test('DETAB: text with no tab is returned untouched', () => {
     const plain = 'nothing to expand here';
     assert.strictEqual(T.detab(plain), plain);
+  });
+  // ------------------------------------------------------------ cell width --
+  //
+  // THE REPORTED FAILURE, and the one these cases exist to keep fixed: a
+  // provider answered with a CJK error message, `String.length` measured eight
+  // characters where the terminal drew sixteen cells, and every row carrying it
+  // was padded eight columns past the right-hand rail. The report blamed the
+  // rails; the cause was the ruler.
+
+  await test('WIDTH: a CJK glyph is TWO cells, not one character', () => {
+    assert.strictEqual(T.width('鉴权服务请求失败'), 16,
+      'eight ideographs occupy sixteen terminal cells');
+    assert.strictEqual('鉴权服务请求失败'.length, 8,
+      'and String.length really does see eight - that was the bug');
+    assert.strictEqual(T.width('ＡＢ'), 4, 'fullwidth ASCII is wide too');
+    assert.strictEqual(T.width('한국어'), 6, 'Hangul syllables');
+    assert.strictEqual(T.width('あい'), 4, 'kana');
+  });
+
+  await test('WIDTH: a combining mark costs nothing, and a surrogate pair costs one glyph', () => {
+    assert.strictEqual(T.width('é'), 1, 'e + combining acute is one cell, two JS characters');
+    assert.strictEqual('é'.length, 2);
+    assert.strictEqual(T.width('❤️'), 1, 'a variation selector adds no cell of its own');
+    assert.strictEqual(T.width('\u{1F600}'), 2, 'an emoji is two cells and two code units');
+  });
+
+  await test('WIDTH: a box rule, arrow or tick is still ONE cell', () => {
+    // East Asian *Ambiguous*. Counting these as two would re-tear every frame
+    // in the tree to fix a case nobody reported.
+    for (const ch of ['─', '│', '┌', '✔', '↑', '↓', '⚡', '❯', '…']) {
+      assert.strictEqual(T.width(ch), 1, `${JSON.stringify(ch)} must stay one cell`);
+    }
+  });
+
+  await test('WIDTH: a row fitted to a rail occupies EXACTLY that many cells', () => {
+    // The end-to-end property every painted region depends on. If this holds,
+    // no row can draw past the right-hand rail whatever the provider sent.
+    const msg = 'NOT AUTHENTICATED — 401 — {"error":{"message":'
+      + '"鉴权服务请求失败: Invalid or expired api_key"}}';
+    for (const w of [60, 80, 100, 120, 160]) {
+      assert.strictEqual(T.width(T.fit(msg, w)), w, `a ${w}-column rail gets ${w} cells`);
+    }
+  });
+
+  await test('CLIP: never splits a surrogate pair, never overshoots on wide text', () => {
+    // The old fast path was `t.slice(0, w - 1)` - a CODE-UNIT index. On wide
+    // text it returned roughly twice the width asked for, and it could land
+    // between the halves of a pair and put a replacement character on screen.
+    const cjk = '鉴权服务请求失败';
+    for (const w of [3, 4, 5, 8, 11]) {
+      assert.ok(T.width(T.clip(cjk, w)) <= w, `clip(${w}) must not exceed its budget`);
+    }
+    const emoji = '\u{1F600}\u{1F601}\u{1F602}';
+    const cut = T.clip(emoji, 4);
+    assert.ok(!/[\uD800-\uDBFF]$/.test(T.strip(cut).replace(/…$/, '')),
+      'a clip must never end on a lone high surrogate');
+  });
+
+  await test('HARDSLICE: takes whole glyphs and loses nothing', () => {
+    const cjk = '鉴权服务';
+    const head = T.hardSlice(cjk, 5);
+    assert.strictEqual(T.width(head), 4, 'a two-cell glyph is taken whole or not at all');
+    assert.ok(cjk.startsWith(head), 'and it is a genuine prefix - nothing is dropped or rewritten');
+  });
+
+  await test('CELLS: the classification is exposed and total', () => {
+    assert.strictEqual(T.cells(0x41), 1);
+    assert.strictEqual(T.cells(0x4e00), 2);
+    assert.strictEqual(T.cells(0x0301), 0);
+    assert.strictEqual(T.cells(0x200d), 0, 'the zero-width joiner draws nothing');
+    assert.strictEqual(T.cells(0x07), 0, 'a control is not a cell');
   });
 };

@@ -35,6 +35,8 @@ const FAILURE = Object.freeze({
   TIMEOUT: { word: 'NETWORK', say: 'the provider did not answer in time' },
   RATE_LIMITED: { word: 'RATE LIMITED', say: 'the provider is refusing for now' },
   AUTH: { word: 'NOT AUTHENTICATED', say: 'the credential was rejected' },
+  QUOTA: { word: 'QUOTA', say: 'the account behind this route has no quota left' },
+  MODEL_UNAVAILABLE: { word: 'MODEL UNAVAILABLE', say: 'this route does not serve the model' },
   CONTEXT_LIMIT: { word: 'CONTEXT FULL', say: 'the conversation is too long for this model' },
   BAD_REQUEST: { word: 'MODEL REFUSED', say: 'the provider rejected the request' },
   UNKNOWN: { word: 'ERROR', say: 'the provider did not answer' },
@@ -57,15 +59,35 @@ function failureRow(failed) {
         + '/compact folds the oldest into one summary and keeps what you asked for',
     };
   }
+  // A STREAM THAT WENT SILENT MID-REPLY is not "could not be reached" and not a
+  // refusal: it answered, then stopped. Said as what it was, with what LAIN did.
+  if (failed && failed.kind === 'TIMEOUT' && /stream inactive/i.test(String(failed.message || ''))) {
+    const secs = (String(failed.message).match(/(\d+)s/) || [])[1];
+    const resumed = Number(failed.resumed) || 0;
+    return {
+      word: 'STREAM STALLED',
+      detail: `the provider went silent mid-reply${secs ? ` for ${secs}s` : ''}`
+        + (resumed ? ` · resumed ${resumed}× without recovering` : '') + ' · the work so far is kept — say continue to pick it up',
+    };
+  }
+  // A LIMIT WITH A KNOWN RESET says WHICH model and WHEN, not the provider's body:
+  //   RATE LIMITED · claude-sonnet-4.5 · reset in 42m · 18:04   /   WEEKLY LIMIT · … · Monday 08:00
+  if (failed && failed.kind === 'RATE_LIMITED' && Number(failed.resumeAt) > Date.now()) {
+    const rl = require('../ratelimit');
+    const left = failed.resumeAt - Date.now();
+    return { word: rl.windowWord(left), detail: `${failed.model ? `${failed.model} · ` : ''}reset in ${rl.human(left)} · ${rl.at(failed.resumeAt)}` };
+  }
   const f = (failed && FAILURE[failed.kind]) || FAILURE.UNKNOWN;
   // THE STATUS CODE IS THE MOST USEFUL FACT ABOUT A NETWORK FAILURE, and it
   // is the one thing the generic sentence never carried.
-  const code = failed && failed.status ? `${failed.status} ` : '';
   // ONE LINE, NOT A JSON BODY. A provider that answers with a whole error
   // object put four wrapped lines of braces into a row that has one, and the
-  // useful sentence was buried in the middle of it.
+  // useful sentence was buried in the middle of it — so the provider's own
+  // sentence is lifted out of the object (render.clipMessage), and the status
+  // is not printed twice when the message already opens with it.
   const raw = String((failed && failed.message) || f.say);
-  const why = raw.replace(/\s+/g, ' ').trim().slice(0, MAX_DETAIL);
+  const why = require('../render').clipMessage(raw).slice(0, MAX_DETAIL);
+  const code = failed && failed.status && !why.startsWith(String(failed.status)) ? `${failed.status} ` : '';
   return { word: f.word, detail: `${code}${why}` };
 }
 

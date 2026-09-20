@@ -78,18 +78,56 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
     rows = require('../sessionindex').summaries({ limit: Math.min(limit, 200) }) || [];
   } catch { rows = []; }
   const current = app && app.session ? app.session.id : null;
+  // WHAT EACH LIVE CONVERSATION IS DOING — the reason a person can leave a
+  // session and still know when it finished. Sessions that are not live carry
+  // no status: "nothing is happening in it here" is the honest answer, and
+  // inventing one from a transcript on disk would be a guess.
+  let live = {};
+  try { live = app.pool().statuses(); } catch { live = {}; }
+  // ---- A CONVERSATION YOU ARE IN IS ALWAYS IN THE LIST -------------------
+  //
+  // The index reads the sessions DIRECTORY, and a session is written when it
+  // first has something to write. So a brand-new one — the session LAIN starts
+  // with, or one just made from New — was missing from its own rail until the
+  // first turn landed, which reads as "creating a session did nothing". Found by
+  // the real-window test asserting that the session it was looking at was there.
+  //
+  // The summary comes from the same `describe` the index uses, so the row is
+  // built the one way rather than a second way for the unsaved case.
+  const known = new Set(rows.map((r) => r.id));
+  for (const id of Object.keys(live)) {
+    if (known.has(id)) continue;
+    const held = (() => { try { return app.pool().live(id); } catch { return null; } })();
+    if (!held) continue;
+    try {
+      // A session that has never been written has no mtime, and "now" is the
+      // true answer for one that is open in front of you.
+      const row = require('../sessionindex').describe(id, held.session.toJSON(), { mtimeMs: Date.now() });
+      row.here = true;
+      rows.unshift(row);
+    } catch { /* a session that cannot describe itself is left to the next poll */ }
+  }
   const out = { engineering: [], cowork: [] };
   for (const s of rows) {
     const lane = laneOf(s.data || s);
     const entry = {
       id: s.id,
       short: s.short || (s.id || '').split('-').pop(),
-      title: s.headline || s.objective || '(no objective recorded)',
+      title: require('../sessionindex').headline(s),
       project: s.cwd ? path.basename(s.cwd) : '',
       cwd: s.cwd || '',
       when: s.when && s.when.text ? s.when.text : '',
       turns: s.turns || 0,
       current: s.id === current,
+      // LIVE IN THIS PROCESS, and what it is doing. `null` means it is a
+      // transcript on disk and nothing more.
+      live: Boolean(live[s.id]),
+      // THE AUTHORITATIVE STATUS — one of the eight sessionstatus.js words, with
+      // its summary and clock. `status` stays the word, for readers of the old
+      // shape; `state` is the whole projection.
+      status: live[s.id] ? live[s.id].state : null,
+      detail: live[s.id] ? live[s.id].detail : '',
+      state: live[s.id] ? (live[s.id].status || null) : null,
       // REMOTE ORIGIN, and only when Astra actually recorded one. `harness`
       // means the person started it here; the rest name where it came from.
       source: lane === 'cowork' ? ((s.data && s.data.cowork && s.data.cowork.source) || 'harness') : null,
@@ -97,6 +135,26 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
     out[lane].push(entry);
   }
   return out;
+}
+
+/**
+ * COMPUTER MCP, or null when the desktop has never been connected.
+ *
+ * WHAT IT IS DOING, not how it works: the application shows the target and the
+ * steps with their verdicts, and offers exactly two things a person may want —
+ * see it, and stop it.
+ */
+function computer(app) {
+  const c = require('../computermcp').existing(app);
+  if (!c) return null;
+  const s = c.status();
+  return {
+    connected: s.connected,
+    authorized: s.authorized,
+    why: s.why,
+    steps: s.steps.slice(-8),
+    target: (s.permissions && s.permissions.target) || null,
+  };
 }
 
 /** The conversation, as the application renders it. Bounded, and prose only. */
@@ -116,6 +174,9 @@ function conversation(session) {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       text: body.slice(0, MESSAGE_CHARS),
       at: m.ts || null,
+      // WHICH VIEW'S THREAD — the Chat view renders `chat`, the Coding view the
+      // rest. Untagged history is engineering history (sessionviews.threadOf).
+      thread: require('../sessionviews').threadOf(m),
       // WHO ANSWERED, when it was not LAIN's own runtime. Stamped at execution
       // time by chatdispatch.js and carried on the message ever since.
       provenance: m.provenance ? { label: m.provenance.label, source: m.provenance.sourceId } : null,
@@ -176,6 +237,9 @@ function workshop(app) {
       viewport: live ? (live.viewport || 'desktop') : null,
       observations: live ? ws.observations(cwd) : null,
       before: Boolean(ws.before(cwd, live ? live.viewport || 'desktop' : 'desktop')),
+      // THE DEV SERVER AS ITS OWN OBJECT — status from the process authority,
+      // never inferred from whether a preview happens to be showing.
+      devServer: require('./stateviews').devServer(app),
     };
   } catch (e) {
     return { available: false, why: (e && e.message) || String(e), open: false };
@@ -207,7 +271,22 @@ function execution(app) {
   const idle = { word: 'READY', detail: '', level: 'idle', spin: false, clock: null, alert: null };
   try {
     const ui = app.ui;
-    if (!ui || !ui.enabled) return idle;
+    // ---- A CONVERSATION WITH NO TERMINAL --------------------------------
+    //
+    // A session the window opened beside the terminal's has no status strip to
+    // read, because it has no screen. It still has the feed the strip is built
+    // from: `notePhase` records into the primary job before every provider
+    // request and every tool, with or without a UI.
+    //
+    // So this is the SAME source at a coarser grain, not a second opinion —
+    // and the alternative, reporting READY over a session that is visibly
+    // working, is the exact lie the strip exists to prevent. See
+    // sessionpool.statusOf.
+    if (!ui || !ui.enabled) {
+      const st = require('../sessionpool').statusOf(app, Boolean(app.abort && !app.abort.signal.aborted));
+      if (!st.notable) return idle;
+      return { word: st.word, detail: st.detail, level: st.level, spin: st.spin, clock: null, alert: null };
+    }
     const live = require('../ui/status').liveState(require('../ui/projection').statusState(ui));
     const rest = require('../ui/alert').resting(ui);
     return {
@@ -290,7 +369,7 @@ async function read(app) {
   const goalText = (() => {
     try { return require('../goal').text(s); } catch { return ''; }
   })();
-  return {
+  const out = {
     at: Date.now(),
     // WHICH SESSION IS OPEN IN THE TERMINAL. The application does not get to
     // change this: `/resume` is how a session becomes current, and a second way
@@ -303,10 +382,20 @@ async function read(app) {
       goal: goalText,
       turns: (s.turns || []).length,
       cowork: s.cowork ? { source: s.cowork.source } : null,
+      // WHETHER THE PROJECT IS STILL THERE. Checked when the session was opened
+      // (sessionpool.reattachProject), not on every poll — a directory that has
+      // been moved or deleted must be SAID, or the next turn fails on every read
+      // for a reason nothing on screen explains.
+      projectMissing: Boolean(app._projectMissing),
     },
     sessions: sessions(app),
     conversation: conversation(s),
     changes: changes(app),
+    // A PICTURE THE PERSON ASKED TO SEE. The bytes are NOT here — this says
+    // which image is open and what is known about it, and the viewer fetches it
+    // once by reference. Putting a screenshot in a poll payload would ship it
+    // again every poll, to a window that already has it.
+    viewing: (() => { try { return require('../imageviewer').current(app); } catch { return null; } })(),
     sources: await sources(app),
     workshop: workshop(app),
     // THE LIVE OPERATIONAL ROW. One state, shared with the terminal and the
@@ -328,7 +417,20 @@ async function read(app) {
     // The neutral Cowork projection reads the same Session, Harness, approval,
     // artifact and background-job owners as every other surface.
     cowork: require('../cowork/runtime').project(app),
+    // A QUESTION A WINDOW-STARTED TURN IS WAITING ON. See sessionroutes.js.
+    ask: require('./sessionroutes').pendingAsk(app),
+    // THE DESKTOP, only when there is one. `existing` never creates it, so
+    // polling the application does not connect anything. See computermcp.js.
+    computer: computer(app),
   };
+  // THE ENGINEERING SESSION CONTRACT — header, Chat/Coding views, plans and
+  // handoff, composer prefill, workspace panels, per-view models. Reshaped by
+  // stateviews.js from the owners; see docs/HARNESS_UI_CONTRACT.md.
+  Object.assign(out, require('./stateviews').project(app, out));
+  // `environment` is DIAGNOSTICS (host, browser build, running instruments) —
+  // kept for the diagnostics surface, not primary UX.
+  out.diagnostics = { environment: out.environment };
+  return out;
 }
 
 module.exports = { read, sessions, conversation, changes, sources, workshop, execution, environment, laneOf, SESSION_LIMIT, TURN_LIMIT };

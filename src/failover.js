@@ -94,9 +94,14 @@ function routesFor(app, model, { now = Date.now() } = {}) {
   const current = app && app.cfg ? app.cfg.connection : null;
 
   return m.connections.map((c) => {
-    const state = avail ? avail.get(c.connectionId) : null;
-    const gate = avail ? avail.shouldAttempt(c.connectionId, now) : { allow: true, status: STATUS.UNKNOWN, reason: '' };
-    const limited = Boolean(state && state.rateLimited && (!state.resumeAt || state.resumeAt > now));
+    // Keyed as turn.js records it: the BASE connection plus the model
+    // (availability.noteOutcome). The namespaced id was never recorded, so a
+    // limited route always read UNKNOWN here.
+    const base = c.baseConnectionId || c.connectionId;
+    const state = avail ? avail.getFor(base, m.id) : null;
+    const gate = avail ? avail.shouldAttemptFor(base, m.id, now) : { allow: true, status: STATUS.UNKNOWN, reason: '' };
+    // ONE AUTHORITY, expiry included — an unstated reset is bounded (availability.limitActive).
+    const limited = Boolean(avail && typeof avail.limitActiveFor === 'function' ? avail.limitActiveFor(base, m.id, now) : (state && state.rateLimited && state.resumeAt > now));
     return {
       model: m.id,
       connectionId: c.connectionId,

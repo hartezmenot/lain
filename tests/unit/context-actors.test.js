@@ -54,7 +54,7 @@ module.exports = async function () {
     }
     // The two that no longer wear a word are told apart by SHAPE, which
     // survives monochrome: a tool call is quoted behind a gutter, prose is not.
-    assert.match(text, /│\s+✓ edited · dashboard\.py/, `a tool call is quoted:\n${text}`);
+    assert.match(text, /│\s+✓ edited · dashboard\.py\s+\[(?:× )?Diff\]/, `a tool call is quoted — a live edit with its Diff:\n${text}`);
     assert.match(text, /^I found the writer\./m, `and prose sits at the margin:\n${text}`);
     assert.ok(!/^\s*LAIN$/m.test(text), 'the application does not name itself at the user');
     assert.ok(!/^\s*ACTIONS$/m.test(text), 'and actions do not announce that they are actions');

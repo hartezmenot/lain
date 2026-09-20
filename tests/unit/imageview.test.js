@@ -35,12 +35,14 @@ function withImage(name = 'shot.png') {
 module.exports = async function () {
   await test('IMAGE: a real image opens, and the facts come from the file', async () => {
     const file = withImage();
-    const r = await view.open({}, file);
+    const r = await view.open({}, file, { launch: () => {} });
     assert.strictEqual(r.ok, true, r.why);
     assert.strictEqual(r.facts.width, 2, 'measured from the PNG header, not assumed');
     assert.strictEqual(r.facts.height, 2);
     assert.strictEqual(r.facts.kind, 'PNG');
-    assert.ok(fs.existsSync(r.page), 'and a page was written to look at it in');
+    // NO PAGE IS WRITTEN. It used to generate an HTML wrapper here; see
+    // tests/unit/imageviewer.test.js for what that was and why it is gone.
+    assert.ok(!('page' in r), 'nothing is generated to look at it in');
   });
 
   await test('IMAGE: it says WHICH window — the machine\'s own viewer', async () => {
@@ -49,7 +51,7 @@ module.exports = async function () {
     // default viewer as the fallback. The browser was removed in 2026-09, so
     // the default viewer is the only window there is, which is the same one a
     // person would have opened by hand.)
-    const r = await view.open({}, withImage());
+    const r = await view.open({}, withImage(), { launch: () => {} });
     assert.strictEqual(r.how, 'default-viewer',
       `"${r.how}" is not a window anyone can identify`);
   });
@@ -70,30 +72,24 @@ module.exports = async function () {
   });
 
   await test('IMAGE: it NEVER claims anybody looked', async () => {
-    // Opening a window is not looking at one. `visual_choice` is how a judgment
-    // is obtained; conflating the two is what the whole evidence model forbids.
-    const r = await view.open({}, withImage());
+    // Opening a window is not looking at one, and conflating the two is what the
+    // whole evidence model forbids.
+    const r = await view.open({}, withImage(), { launch: () => {} });
     const said = JSON.stringify(r).toLowerCase();
     for (const claim of ['verified', 'confirmed', 'looks', 'seen', 'judged']) {
       assert.ok(!said.includes(claim), `the result claims "${claim}": ${said}`);
     }
   });
 
-  await test('IMAGE: the page names the file and the measurement, and escapes them', () => {
-    const html = view.page('C:\\a\\<script>.png', { ok: true, width: 4, height: 3, bytes: 2048 });
-    assert.ok(html.includes('&lt;script&gt;'), 'a filename is not markup');
-    assert.match(html, /4×3/);
-    assert.match(html, /PNG/);
-  });
-
-  await test('IMAGE: nothing is written into the project', async () => {
-    // The wrapper page goes to LAIN's own directory; the image is only read.
+  await test('IMAGE: nothing is written ANYWHERE', async () => {
+    // It used to write a wrapper page into LAIN's own directory. Now the image
+    // is only ever read.
     const file = withImage();
     const before = fs.readdirSync(path.dirname(file));
-    const r = await view.open({}, file);
+    const r = await view.open({}, file, { launch: () => {} });
     assert.deepStrictEqual(fs.readdirSync(path.dirname(file)), before,
       'the folder the image lives in must be untouched');
-    assert.ok(!r.page.startsWith(path.dirname(file)), 'and the page is not written beside it');
+    assert.ok(!('page' in r), 'and there is no page to have written');
   });
 
   await test('IMAGE: the images offered are read from the OUTPUT surface, not a second list', () => {

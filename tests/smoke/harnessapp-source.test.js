@@ -1,15 +1,22 @@
 'use strict';
 
 /**
- * THE SOURCE WORKSPACE AND THE UI↔SOURCE LOOP, DRIVEN THROUGH THE APPLICATION.
+ * THE SOURCE WORKSPACE AND THE UI<->SOURCE LOOP, DRIVEN AS THE APPLICATION DRIVES IT.
  *
  * ------------------------------------------------------------------------
  * EVERY CALL HERE IS ONE THE PAGE MAKES.
  *
- * Nothing reaches into `harnessapp/source.js` directly. The server is started,
- * a launch token is exchanged for a session exactly as a browser would, and
- * every step goes over HTTP through the real route table. What passes here is
- * what the product does; a component test could not say that.
+ * Nothing reaches into `harnessapp/source.js` directly: every step goes through
+ * `routes.dispatch` — the single entry the native channel uses for every
+ * request the window sends (harnessapp/ipc.js). What passes here is what the
+ * product does.
+ *
+ * IT USED TO GO OVER HTTP, through a loopback listener and a session cookie.
+ * That transport was the browser Harness's, and it was removed with it
+ * (2026-09-15); the two cases that tested the transport rather than the feature
+ * went with it — a launch token, and a 401 without a session. The native
+ * channel's own refusal is proved against a real pipe in
+ * tests/smoke/desktop-real.test.js.
  *
  * ------------------------------------------------------------------------
  * IT IS ITS OWN FIXTURE, DELIBERATELY.
@@ -17,7 +24,7 @@
  * The dogfood run (Harness editing Harness) happens against the real tree and
  * is recorded in docs/STATUS.md. This runs against a temporary project so it
  * can WRITE, be refused, and be written under, without touching the repository
- * — a test that mutates the source it is testing is a test that fails
+ * - a test that mutates the source it is testing is a test that fails
  * differently on the second run.
  */
 
@@ -25,46 +32,9 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const http = require('http');
 const { test } = require('../helpers');
 
-const server = require('../../src/harnessapp/server');
-
-const PORT = 4497;
-let SESSION = '';
-
-function req(method, p, body) {
-  return new Promise((resolve) => {
-    const data = body === undefined ? null : JSON.stringify(body);
-    const r = http.request({
-      hostname: '127.0.0.1', port: PORT, path: p, method,
-      headers: Object.assign(
-        SESSION ? { 'x-lain-session': SESSION } : {},
-        data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {},
-      ),
-    }, (res) => {
-      let b = '';
-      res.on('data', (c) => { b += c; });
-      res.on('end', () => {
-        try { resolve({ code: res.statusCode, body: JSON.parse(b) }); }
-        catch { resolve({ code: res.statusCode, body: b }); }
-      });
-    });
-    r.on('error', (e) => resolve({ code: 0, body: String(e) }));
-    if (data) r.write(data);
-    r.end();
-  });
-}
-
-function getRaw(p) {
-  return new Promise((resolve) => {
-    http.get({ hostname: '127.0.0.1', port: PORT, path: p }, (res) => {
-      let b = '';
-      res.on('data', (c) => { b += c; });
-      res.on('end', () => resolve(b));
-    }).on('error', () => resolve(''));
-  });
-}
+const routes = require('../../src/harnessapp/routes');
 
 module.exports = async function () {
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-srcsmoke-'));
@@ -76,19 +46,9 @@ module.exports = async function () {
   fs.writeFileSync(path.join(proj, 'node_modules', 'junk.js'), 'module.exports=1');
 
   const app = { session: { id: 'smoke', cwd: proj, turns: [], messages: [] }, ui: null, checkpoints: null, events: null };
-  const started = await server.start(app, { port: PORT });
+  const req = (method, p, body) => routes.dispatch(app, method, p, body);
 
   try {
-    await test('SOURCE LIVE: a launch token opens the application without a pasted password', async () => {
-      assert.ok(started.ok, started.why);
-      assert.match(String(started.launchUrl || ''), /\?t=[0-9a-f]{40,}$/);
-      const page = await getRaw(`/${started.launchUrl.split('/').pop()}`);
-      SESSION = (page.match(/__LAIN_HANDED__ = "([^"]+)"/) || [])[1] || '';
-      assert.ok(SESSION, 'the server must hand a session to the document it serves');
-      const state = await req('POST', '/api/files/tree', { path: '' });
-      assert.strictEqual(state.code, 200, 'and that session must authenticate');
-    });
-
     await test('SOURCE LIVE: the tree is the project, and not its dependencies', async () => {
       const r = await req('POST', '/api/files/tree', { path: '' });
       const names = r.body.entries.map((e) => e.name);
@@ -186,7 +146,7 @@ module.exports = async function () {
       assert.ok(r.body.selectors[0].why, 'each selector says what produced it');
     });
 
-    await test('SOURCE LIVE: the workspace boundary holds over HTTP', async () => {
+    await test('SOURCE LIVE: the workspace boundary holds', async () => {
       for (const p of ['../escape.txt', '../../../etc/passwd', '/etc/passwd', 'C:\\Windows\\win.ini']) {
         const r = await req('POST', '/api/files/open', { path: p });
         assert.notStrictEqual(r.code, 200, `${p} was served`);
@@ -198,19 +158,7 @@ module.exports = async function () {
       assert.match(String(w.body.why || ''), /outside the project/);
       assert.strictEqual(fs.existsSync(path.join(path.dirname(proj), 'escape.txt')), false);
     });
-
-    await test('SOURCE LIVE: none of it is reachable without a session', async () => {
-      const saved = SESSION;
-      SESSION = '';
-      try {
-        for (const p of ['/api/files/tree', '/api/files/open', '/api/files/save', '/api/files/from-element']) {
-          const r = await req('POST', p, { path: 'ui/checkout.css' });
-          assert.strictEqual(r.code, 401, `${p} answered ${r.code} unauthenticated`);
-        }
-      } finally { SESSION = saved; }
-    });
   } finally {
-    server.stop();
     try { fs.rmSync(proj, { recursive: true, force: true }); } catch { /* windows holds it briefly */ }
   }
 };

@@ -73,18 +73,29 @@ function paintMark(row, P, subject = '') {
    * dim. A wrapped continuation line never reaches here.
    */
   const SEP = ' ' + SUBJECT_SEP + ' ';
+  // THE SIZE OF A CHANGE, and the control that may follow it. Additions green,
+  // deletions red, and nothing else on the row takes either colour. The
+  // pattern used to require the counts to END the row, so once `[Diff]` was
+  // appended it never matched and `+18 -7` was painted as part of the path —
+  // the "no useful colour distinction" that was reported.
+  const COUNTS = /(\s+)\+(\d+) -(\d+)(\s+\[(?:× )?Diff\])?\s*$/;
+  const counted = (m) => m[1] + P.ok(`+${m[2]}`) + ' ' + P.bad(`-${m[3]}`) + (m[4] ? P.meta(m[4]) : '');
   const parts = (rest) => {
     const at = rest.indexOf(SEP);
-    if (at < 0) return P.meta(rest);
+    if (at < 0) {
+      const c = COUNTS.exec(rest);
+      return c ? P.meta(rest.slice(0, c.index)) + counted(c) : P.meta(rest);
+    }
     const tail = rest.slice(at + SEP.length);
-    // THE SIZE OF A CHANGE IS METADATA, not part of the subject. `+75 -40` rides
-    // on the end of the row (see `editCounts`) and was inheriting the path's
-    // accent, which made a number as loud as the file it was about.
-    const counts = /\s+\+\d+ -\d+\s*$/.exec(tail);
-    const subj = counts ? tail.slice(0, counts.index) : tail;
+    // THE SIZE OF A CHANGE IS METADATA, not part of the subject — it must not
+    // inherit the path's accent.
+    const counts = COUNTS.exec(tail);
+    const control = !counts && /(\s+\[(?:× )?Diff\])\s*$/.exec(tail);
+    const cut = counts || control;
+    const subj = cut ? tail.slice(0, cut.index) : tail;
     return P.meta(rest.slice(0, at + 1) + SUBJECT_SEP + ' ')
       + P.path(subj)
-      + (counts ? P.meta(counts[0]) : '');
+      + (counts ? counted(counts) : control ? P.meta(control[1]) : '');
   };
   if (row.startsWith(m.done)) return P.ok(m.done) + parts(row.slice(m.done.length));
   if (row.startsWith(m.error)) return P.bad(m.error) + parts(row.slice(m.error.length));

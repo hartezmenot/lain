@@ -87,6 +87,10 @@ async function open(root, { budgetMs } = {}) {
   // Stat every file, re-scan what moved. This happens FIRST because the digest
   // describes the tree as it is now, and the runtime's answer is a comparison
   // against it — asking before looking would be asking about nothing.
+  // EXTERNAL CHANGES ARE WATCHED from the moment a project is opened, so the
+  // next query re-measures only what an editor, git or a formatter touched.
+  // LAIN_WATCH=0 turns it off (the test runner does, so temp trees can be removed).
+  if (process.env.LAIN_WATCH !== '0') { try { require('./freshness').track(root); } catch { /* the stat walk still answers */ } }
   const refresh = projectindex.refresh(root, budgetMs ? { budgetMs } : {});
   const digest = digestOf(refresh.index);
   const symbols = Object.values(refresh.index.files || {})

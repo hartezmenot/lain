@@ -118,6 +118,19 @@ function ROUTE(key) {
     }
   }
 
+  // ---- CTRL+PGDN: THE NEWEST OUTPUT, FROM ANYWHERE -------------------------
+  //
+  // ONE MEANING WHEREVER THE KEYBOARD IS. It moves the MAIN conversation to its
+  // last row and re-attaches it to streaming output, so new rows keep arriving
+  // at the bottom. It is handled before any panel because no panel has a use
+  // for it: an open inspector keeps its own selection and scroll untouched, and
+  // nothing is typed into the composer.
+  if (key === 'ctrl-pagedown') {
+    this.screen.stickToBottom = true;
+    this.refresh();
+    return true;
+  }
+
   // ---- AN ADVISORY IS NOT A PANEL YOU ARE IN ------------------------------
   //
   // Everything below this point assumes an open panel is where the keyboard
@@ -157,6 +170,15 @@ function ROUTE(key) {
 
   if (this.panel.visible) {
     const rows = Math.max(1, g.panelRows - 6);
+    // AN INSPECTOR NAVIGATES ITSELF — ←/→ between files, Enter into one. Keys it
+    // does not claim fall to the ordinary handling below (↑↓ select, Esc back/close).
+    // A SHELF does the same for its action row (ui/shelf.js): any frame that
+    // declares `onKey` is asked first.
+    if (this.panel.frame && typeof this.panel.frame.onKey === 'function'
+        && this.panel.frame.onKey(key, { panel: this.panel, rows })) {
+      this.refresh();
+      return true;
+    }
     switch (key) {
       case 'up': this.panel.move(-1, rows); this.refresh(); return true;
       case 'down': this.panel.move(1, rows); this.refresh(); return true;
@@ -239,6 +261,29 @@ function ROUTE(key) {
     // wrong granularity for scrolling back through an hour of work: what
     // somebody is looking for is their own instruction, their own decision, or
     // the log they pasted. See ui/anchors.js and ui/layout.js `jumpToAnchor`.
+    // SHIFT+TAB CYCLES AUTO → MANUAL → PLAN (§11). The mode is session state
+    // and takes effect at the next tool call, so it is safe mid-turn.
+    // CTRL+O EXPANDS OR COLLAPSES THE ACTIVITY BOX (§5). Presentation only.
+    // ESC CLOSES AN OPEN DIFF (the same state [Diff] and × close) — when no
+    // panel is open, since an open panel owns Escape.
+    case 'escape':
+      if (!this.panel.visible && this.screen.openDiff) {
+        require('./difftoggle').close(this.screen);
+        this.refresh();
+        return true;
+      }
+      return false;
+    case 'ctrl-o':
+      this.activityExpanded = !this.activityExpanded;
+      this.refresh();
+      return true;
+    case 'shift-tab': {
+      const m = require('../execmode').cycle(this.app.session);
+      try { this.app.session.save(); } catch { /* the mode still applies in memory */ }
+      require('./operation').say(this.app, `${m} mode`, 'info');
+      this.refresh();
+      return true;
+    }
     case 'alt-up': return this.screen.jumpToAnchor(-1);
     case 'alt-down': return this.screen.jumpToAnchor(1);
     // HOME/END BELONG TO WHATEVER YOU ARE EDITING. With text on the input

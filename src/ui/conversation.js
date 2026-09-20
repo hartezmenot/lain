@@ -106,14 +106,14 @@ function sameText(a, b) {
  * itself — the one line that says so. The words are in ui/phrasing.js, with the
  * dashboard's copy of this decision.
  */
-function sayInput(out, text, from) {
+function sayInput(out, text, from, typed = false) {
   if (!String(text || '').trim()) return;
-  const note = require('./phrasing').selfAskedCaption(from);
+  const note = require('./phrasing').selfAskedCaption(from, typed);
   if (note) { pushNote(out, note, 'info'); return; }
   pushUser(out, text);
 }
 
-function activity({ session, current = null, width = 80, transcript = null, liveActions = [], liveNarration = [], liveNotes = [], liveUser = null, liveFrom = null, extras = [], reveal = null }) {
+function activity({ session, current = null, width = 80, transcript = null, liveActions = [], liveNarration = [], liveNotes = [], liveUser = null, liveFrom = null, liveTyped = false, extras = [], reveal = null, openDiff = null, closedDiffs = null, shownDiffs = null, now = 0, historyTurns = 0, checkpoints = null, cwd = '' }) {
   // A PARAGRAPH OF THE TURN IN FLIGHT IS PRESENTED, NOT DUMPED — see
   // ui/reveal.js. Applied ONLY to the live narration: everything above it
   // already happened and settled, and re-resolving history on every redraw
@@ -247,8 +247,13 @@ function activity({ session, current = null, width = 80, transcript = null, live
   // the content rather than from a flag somebody has to remember to set.
   const cache = require('./feedcache');
   const ck = cache.key({
-    width, turns, extras, plan, liveActions, liveNotes, liveUser, liveFrom, transcript, current,
+    width, turns, extras, plan, liveActions, liveNotes, liveUser, liveFrom, liveTyped, transcript, current,
     liveTexts, settledTexts, objective: session && session.task && session.task.objective,
+    openDiff: openDiff ? `${openDiff.turn}:${openDiff.path}` : '', historyTurns,
+    // Collapsed diffs change what is drawn; so does a diff mid-arrival, frame by frame.
+    closedDiffs: (closedDiffs && closedDiffs.size) || (shownDiffs && shownDiffs.size)
+      ? `${[...(closedDiffs || [])].sort().join('|')}+${[...(shownDiffs || [])].sort().join('|')}` : '',
+    arriving: now && require('./turnsections').arriving(liveActions, now) ? now : 0,
   });
   const hit = cache.get(ck);
   if (hit) return hit;
@@ -350,7 +355,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // otherwise the objective would vanish from the surface entirely: the feed
     // would be withholding the first message in favour of a region that no
     // longer exists. Every message the user sent is drawn, including the first.
-    sayInput(said, t.userInput, t.from);
+    sayInput(said, t.userInput, t.from, t.typed);
     const actions = Array.isArray(t.actions) ? t.actions : [];
     // WHICH OF THEM LEAVE A ROW BEHIND. Computed once over the WHOLE turn,
     // because one of the rules — the turn's standing verdict — cannot be decided
@@ -368,7 +373,13 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // cannot be recovered by re-reading the repository.
     const steers = Array.isArray(t.steerTexts) ? t.steerTexts : [];
 
-    if (narration) {
+    // A TURN THAT CHANGED OR CHECKED SOMETHING is drawn as CHANGE / VERIFY /
+    // RESULT (ui/turnsections.js); any other turn keeps the interleaved form.
+    const sectioned = narration && require('./turnsections').pushTurn(said, t, ti, {
+      actions, kept, narration, steers, settled, feed: { pushUser, pushModel, pushAction },
+      ctx: { openDiff, closedDiffs, shownDiffs, checkpoints, cwd: cwd || (session && session.cwd) || '' },
+    });
+    if (sectioned) { /* drawn */ } else if (narration) {
       const steps = [...new Set([
         ...narration.map((n) => n.step),
         ...actions.map((a) => a.step),
@@ -452,8 +463,15 @@ function activity({ session, current = null, width = 80, transcript = null, live
       // now, in LAIN's own failure vocabulary rather than the raw body the
       // provider happened to send.
       const f = require('./status').failureRow(e);
-      pushNote(said, `${f.word} — ${f.detail}`, 'error');
+      // A FAILURE FROM A TURN THAT ENDED IN AN EARLIER PROCESS is history, not
+      // an alarm (§48, §80): kept in the transcript, never drawn in red again.
+      if (ti < historyTurns) pushNote(said, `earlier · ${f.word} — ${f.detail}`, 'info');
+      else pushNote(said, `${f.word} — ${f.detail}`, 'error');
     }
+    // A SUCCESS CLAIM THE EVIDENCE CONTRADICTED belongs to THIS turn (app.js
+    // stores it on the record). As a floating notice it sat under the NEXT
+    // turn's ✓ DONE and read as a verdict on that one (live, 2026-09-18).
+    if (t.contradiction) pushNote(said, t.contradiction, 'warn');
   }
 
   // Everything said after the last recorded turn — including a review that has
@@ -461,13 +479,19 @@ function activity({ session, current = null, width = 80, transcript = null, live
   flushActors(Number.MAX_SAFE_INTEGER);
 
   // The message being worked on RIGHT NOW, which has no turn record yet.
-  sayInput(said, liveUser, liveFrom);
+  sayInput(said, liveUser, liveFrom, liveTyped);
 
   // WHICH LIVE CALLS LEAVE A ROW. The standing verdict is the last clean command
   // SO FAR, which is what a verdict is while the work is still going: as the next
   // command lands it becomes the verdict and the previous one recedes into the
   // live row it came from. See ui/feed.js `keepers`.
   const liveKept = keepers(liveActions);
+  const sectionsOf = require('./turnsections');
+  const lastEditOf = new Map();
+  liveActions.forEach((a, k) => { if (sectionsOf.isChange(a)) lastEditOf.set(String(a.path || a.target), k); });
+  const liveCtx = { openDiff, closedDiffs, shownDiffs, now, checkpoints, cwd: cwd || (session && session.cwd) || '' };
+  // ONLY THE MOST RECENTLY EDITED FILES show their diff unasked — ui/turnsections.js MAX_AUTO_FILES.
+  const recentFiles = new Set([...lastEditOf.entries()].sort((x, y) => y[1] - x[1]).slice(0, sectionsOf.MAX_AUTO_FILES).map(([k]) => k));
 
   // THE TURN IN FLIGHT. `session.turns` only gains an entry when a turn ENDS,
   // so without this the feed was empty for the entire time the work was
@@ -488,7 +512,13 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // THE INDEX STILL ADVANCES for every action, durable or not: `liveNarration`
     // and `liveNotes` are positioned by it, so skipping one would move the
     // paragraphs that were said around it.
-    if (liveKept.has(liveActions[i])) pushAction(said, liveActions[i]);
+    // THE DIFF OF THE TURN IN FLIGHT: the LAST edit of each file carries a [Diff]
+    // in place — persistent for the whole turn, keyed as the settled CHANGE row
+    // will be, so it stays open across DONE. Independent of the reel and counters.
+    const a = liveActions[i];
+    if (!liveKept.has(a)) continue;
+    if (sectionsOf.isChange(a) && lastEditOf.get(String(a.path || a.target)) === i) sectionsOf.pushLiveChange(said, a, turns.length, liveCtx, pushAction, recentFiles.has(String(a.path || a.target)));
+    else pushAction(said, a);
   }
   for (const n of liveNarration.filter((x) => x.after >= liveActions.length)) say(said, n);
   for (const n of liveNotes.filter((x) => x.after >= liveActions.length)) pushNote(said, n.text, n.level);
@@ -530,6 +560,12 @@ function activity({ session, current = null, width = 80, transcript = null, live
         Object.defineProperty(lines, 'fileAt', { value: Object.create(null), enumerable: false, writable: true });
       }
       for (const k of Object.keys(feedLines.fileAt)) lines.fileAt[base + Number(k)] = feedLines.fileAt[k];
+    }
+    // AND WHERE EACH [Diff] CONTROL AND EACH HUNK LANDED — ui/difftoggle.js.
+    for (const key of ['diffAt', 'hunkAt']) {
+      if (!feedLines[key]) continue;
+      if (!lines[key]) Object.defineProperty(lines, key, { value: Object.create(null), enumerable: false, writable: true });
+      for (const k of Object.keys(feedLines[key])) lines[key][base + Number(k)] = feedLines[key][k];
     }
     for (const l of feedLines) lines.push(l);
   }

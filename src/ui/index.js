@@ -60,11 +60,13 @@ class UI {
     // the turn loop awaits it, and `instant` collapses it to its final state
     // without changing a single fact it reports.
     //
-    // ANIMATED ONLY WHEN THERE IS A SCREEN TO ANIMATE: a pipe gets `instant`,
-    // which keeps `lain -p` output plain and keeps the tests reading the same
-    // account either way.
-    const still = !(process.stdout.isTTY || process.env.LAIN_FORCE_TUI === '1');
-    this.activity = new (require('./activity').ActivitySurface)({ instant: still });
+    // INSTANT EVERYWHERE. It used to animate on a terminal: prose resolved
+    // through a scramble band for up to 1.5 s, every tool card held for at
+    // least 560 ms, and the timeline was allowed to run up to 12 s BEHIND the
+    // work it described. That is presentation time a person waits through, and
+    // on a finished turn it read as LAIN still being busy. The screen shows the
+    // real state the frame it becomes true; the call in flight keeps its card.
+    this.activity = new (require('./activity').ActivitySurface)({ instant: true });
   }
 
 
@@ -74,6 +76,7 @@ class UI {
   get liveNotes() { return this.story.notes; }
   get liveUser() { return this.story.user; }
   get liveFrom() { return this.story.userFrom || null; }
+  get liveTyped() { return Boolean(this.story.userTyped); }
   get outputs() { return this.story.outputs; }
 
   /**
@@ -84,8 +87,10 @@ class UI {
    */
   get extras() { return this.app.session.actors || []; }
 
-  setLiveUser(text, from = null) { this.story.setUser(text, from); this.refresh(); }
+  setLiveUser(text, from = null, typed = false) { this.story.setUser(text, from, typed); this.refresh(); }
   noteAction(a) {
+    // WHEN AN EDIT LANDED, for its diff's arrival in the feed (ui/turnsections.js). Presentation only: not enumerable, never saved.
+    if (a && require('./turnsections').isChange(a) && !a.landedAt) Object.defineProperty(a, 'landedAt', { value: Date.now(), enumerable: false });
     this.story.noteAction(a);
     // The real numbers land here — the timeline’s counters have been climbing
     // towards them, and this is what they land ON.
@@ -94,10 +99,10 @@ class UI {
     this.refresh();
   }
 
-  // AN EDIT PERFORMS ITS CHANGE; A READ ONLY LOOKS THROUGH THE FILE. Both open
-  // the same temporary window and close it themselves — see ui/diffreel.js for
-  // why those are two different animations. Neither is ever waited on.
-  showDiff(file, before, after) { this.activity.showDiff(file, before, after); this._syncTicker(); this.refresh(); }
+  // AN EDIT ARRIVES IN THE FEED, WHERE IT STAYS (ui/turnsections.js) — it no
+  // longer opens a second, temporary window that closed itself. A READ still
+  // looks through its file in the reel (ui/diffreel.js). Neither is waited on.
+  showDiff() { this._syncTicker(); this.refresh(); }
 
   showRead(file, text) { this.activity.showRead(file, text); this._syncTicker(); this.refresh(); }
 
@@ -376,7 +381,7 @@ class UI {
       // was still running. Claiming LAIN is waiting on you when it is not is
       // the same class of untruth as DONE over unfinished work, and this is the
       // header word a person actually acts on.
-      awaitingUser: this.panel.visible && !this.panel.isCompletion && !this.panel.isPassive,
+      awaitingUser: this.panel.visible && !this.panel.isCompletion && !this.panel.isPassive && !this.panel.isInspector && this.panel.kind !== 'SHELF',
       providerStatus: s.providerStatus,
       // The live phase is the most specific true thing available, so it decides
       // the header word: THINKING and RUNNING are both "working", and telling

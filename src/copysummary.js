@@ -56,7 +56,7 @@ function initiatingTurn(session) {
     // A CONTINUATION IS NOT AN INITIATION. `from` marks a turn LAIN started on
     // its own behalf (a recovery, an advisory continuation); summarising one of
     // those reports the machinery's request instead of the person's.
-    if (!turns[i].from || turns[i].from === 'user') return turns[i];
+    if (!turns[i].from || turns[i].from === 'user' || turns[i].typed) return turns[i];
   }
   return turns[turns.length - 1] || null;
 }
@@ -281,7 +281,7 @@ function context(app, { all = false } = {}) {
     // The person's words first, because they are what everything after is a
     // response to. An advisory continuation is labelled as one rather than
     // presented as something the user typed.
-    const who = t.from && t.from !== 'user' ? `USER (via ${t.from})` : 'USER';
+    const who = t.from && t.from !== 'user' && !t.typed ? `USER (via ${t.from})` : 'USER';
     push(who, t.userInput);
 
     for (const st of (t.steerTexts || [])) {

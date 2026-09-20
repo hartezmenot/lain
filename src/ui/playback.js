@@ -71,7 +71,9 @@
  * catching up was for.
  */
 const ENTER_MS = 140;
-const HOLD_MS = 560;      // the floor: an instant tool is still READ, not glimpsed
+// NO MINIMUM CARD LIFETIME (§50, 2026-09-18): the card holds exactly as long as
+// the operation ran. Enter/settle/exit are transitions, not a floor on reality.
+const HOLD_MS = 0;
 const SETTLE_MS = 200;    // the finished state, counters landed
 const EXIT_MS = 160;
 
@@ -357,11 +359,23 @@ class Playback {
     // test take, and it must produce the same CONTENT as a full playback.
     if (this.instant) {
       this.cursor = this.events.length;
+      // THE CALL STILL IN FLIGHT IS SHOWN AS IT IS, NOW — no enter, no hold, no
+      // settle. It is the one thing a live card says that no other row does
+      // ("running npm test", for as long as it really runs), and it costs no
+      // time: the card leaves the frame its result arrives in.
+      const last = this.events[this.events.length - 1];
+      const live = last && !last.done ? last : null;
+      const before = live && this.events.length > 1 ? this.events[this.events.length - 2] : null;
       return {
-        active: null,
-        history: this.events.map((e) => compactOf(e)),
+        active: live ? {
+          still: true, leaving: before ? compactOf(before) : null, verb: live.verb, target: live.target, name: live.name, ok: live.ok,
+          isEdit: live.isEdit, isRun: live.isRun, added: 0, removed: 0,
+          finalAdded: live.added, finalRemoved: live.removed, progress: 0,
+          phase: PHASE.ACTIVE, window: null, windowMs: 0, performing: false, enter: 1, tick: 0,
+        } : null,
+        history: (live ? this.events.slice(0, -1) : this.events).map((e) => compactOf(e)),
         busy: false,
-        phase: PHASE.COMPACT,
+        phase: live ? PHASE.ACTIVE : PHASE.COMPACT,
       };
     }
 

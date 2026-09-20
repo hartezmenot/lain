@@ -105,10 +105,20 @@ module.exports = async function () {
       'nor the older spelling of it');
     // IT IS WHAT THE COMPOSER SHOWS while the paste is still being edited...
     assertIncludes(out, '<pasted text>', 'the composer must stay compact');
-    // ...AND THE CONVERSATION SHOWS WHAT WAS SENT, once it has been. A
-    // transcript that cannot be read back is a transcript nobody can trust.
-    assertIncludes(out, 'line 14 of the ALPHA payload',
-      'the record draws the payload the user actually sent');
+    // ...AND ONCE SENT, THE CONVERSATION SHOWS ONE ANCHOR ROW.
+    //
+    // This used to assert that the transcript REDREW the payload ("line 14 of
+    // the ALPHA payload"). It deliberately no longer does: a user message is
+    // one gray anchor — `USER · <what was really said>…` — above a turn
+    // divider, because the conversation is read for LAIN'S ANSWERS and a wall
+    // of pasted log between every question and its answer is what made the CLI
+    // unreadable. Nothing is lost: the anchor carries the exact prompt, Alt+Up
+    // walks the anchors, a click restores it, and — asserted above — the
+    // session and the model hold every byte. See tests/smoke/anchornav.test.js.
+    assert.ok(/USER(?: REQUEST| DECISION)? · /.test(out),
+      `the record is an anchor row that opens with what was really said\n${out.slice(-1200)}`);
+    assert.ok(!out.includes('line 14 of the ALPHA payload'),
+      'and the wall is NOT reprinted into the conversation');
   });
 
   await test('PASTE: typing AFTER a paste keeps both the payload and the typing', async () => {

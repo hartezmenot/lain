@@ -130,19 +130,16 @@ module.exports = async function () {
     assert.strictEqual(img.isImage('a.pngx'), false);
   });
 
-  await test('IMAGE: the visual workflow is where a picture is actually JUDGED', () => {
-    // OUTPUT proves a capture exists. visual.js is the only thing that can
-    // record that a person looked — and it needs a measurement per candidate.
-    const visual = require('../../src/visual');
+  await test('IMAGE: a capture existing is still not a person having looked', () => {
+    // THE FOUR-CANDIDATE JUDGMENT FLOW WAS REMOVED (2026-09-15) — it opened an
+    // HTML page in the machine's browser, which is the one thing the native
+    // Harness exists to stop doing. What it guarded is kept and is asserted
+    // here: LAIN reports an image as a real file it has NOT seen, and nothing
+    // anywhere upgrades "a screenshot exists" into "somebody looked at it".
     const dir = tmpdir('img-');
-    const c = visual.candidate({
-      label: 'threshold 140',
-      image: png(dir, 'cand.png', 64, 64),
-      machine: 'OCR confidence 0.81',
-    });
-    assert.ok(c.image, 'a candidate carries the real file');
-    const i = new visual.VisualInspection('which is clearest?');
-    assert.strictEqual(i.conclusion().verdict, visual.VERDICT.NOT_INSPECTED,
-      'and until somebody looks, nothing is inspected');
+    const file = png(dir, 'shot.png', 64, 64);
+    const said = img.imageLines(file).join(' | ');
+    assert.match(said, /NOT SEEN/, 'the claim is refused in as many words');
+    assert.ok(img.describe(file).ok, 'while the file itself is really measured');
   });
 };

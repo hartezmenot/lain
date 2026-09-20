@@ -16,7 +16,7 @@ const { test, tmpdir, runCli, rowsOf, assertIncludes, assertNotIncludes } = requ
 
 const CONFIG = {
   connections: {
-    omniroute: {
+    gateway: {
       provider: 'anthropic', via: 'bridge', baseUrl: 'http://localhost:20128/v1',
       models: ['claude-opus-5-low', 'claude-opus-5-medium', 'claude-opus-5-high', 'kimi-k3'],
     },
@@ -74,12 +74,12 @@ module.exports = async function () {
     const { cwd, configDir } = ws();
     const r = await runCli([], {
       cwd, configDir, env: tui,
-      stdin: '/model claude-opus-5 omniroute\n/effort high\n/exit\n',
+      stdin: '/model claude-opus-5 gateway\n/effort high\n/exit\n',
       script: [],
     });
     const out = plain(r.stdout);
     assertIncludes(out, 'Claude Opus 5');
-    assertIncludes(out, 'omniroute');
+    assertIncludes(out, 'gateway');
     assertIncludes(out, 'high');
   });
 
@@ -171,7 +171,7 @@ module.exports = async function () {
     const { cwd, configDir } = ws();
     const r = await runCli([], {
       cwd, configDir, env: tui,
-      stdin: '/model claude-opus-5 omniroute\n/effort\n\x1b\n/exit\n',
+      stdin: '/model claude-opus-5 gateway\n/effort\n\x1b\n/exit\n',
       script: [],
     });
     const out = plain(r.stdout);

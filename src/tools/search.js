@@ -172,14 +172,15 @@ const tools = {
       let matches = 0;
       let truncated = false;
       let scanned = 0;
+      let skipped = 0;
 
       for (const f of files) {
         if (includeRe && !includeRe.test(f.rel)) continue;
         let st;
         try { st = fs.statSync(f.abs); } catch { continue; }
-        if (st.size > MAX_FILE_BYTES) continue;
+        if (st.size > MAX_FILE_BYTES) { skipped += 1; continue; }
         let buf;
-        try { buf = fs.readFileSync(f.abs); } catch { continue; }
+        try { buf = fs.readFileSync(f.abs); } catch { skipped += 1; continue; }
         if (looksBinary(buf)) continue;
         scanned += 1;
 
@@ -206,7 +207,7 @@ const tools = {
       }
 
       if (filesOnly) {
-        if (!matchedFiles.length) return { output: `no file matches /${patternStr}/ (${scanned} file(s) searched)` };
+        if (!matchedFiles.length) return zeroResult(`/${patternStr}/`, scanned, skipped, input.include);
         const shown = matchedFiles.slice(0, MAX_GLOB_RESULTS);
         return {
           output: shown.join('\n')
@@ -218,7 +219,7 @@ const tools = {
         // A zero-result search is a RESULT, not an error — "it is not there" is
         // often exactly what the model needed to learn. Reporting how much was
         // searched is what makes that conclusion trustworthy.
-        return { output: `no match for /${patternStr}/ in ${scanned} file(s)${input.include ? ` matching ${input.include}` : ''}` };
+        return zeroResult(`/${patternStr}/`, scanned, skipped, input.include);
       }
       const body = out.join('\n');
       return {
@@ -553,14 +554,15 @@ tools.symbols = {
     const imports = [];
     const uses = [];
     let scanned = 0;
+    let skipped = 0;
 
     for (const f of walk(root)) {
       if (includeRe && !includeRe.test(f.rel)) continue;
       let st;
       try { st = fs.statSync(f.abs); } catch { continue; }
-      if (st.size > MAX_FILE_BYTES) continue;
+      if (st.size > MAX_FILE_BYTES) { skipped += 1; continue; }
       let buf;
-      try { buf = fs.readFileSync(f.abs); } catch { continue; }
+      try { buf = fs.readFileSync(f.abs); } catch { skipped += 1; continue; }
       if (looksBinary(buf)) continue;
       scanned += 1;
 
@@ -578,7 +580,7 @@ tools.symbols = {
     }
 
     if (!defs.length && !imports.length && !uses.length) {
-      return { output: `"${name}" does not appear in ${scanned} file(s)${input.include ? ` matching ${input.include}` : ''}` };
+      return zeroResult(`"${name}"`, scanned, skipped, input.include);
     }
     const section = (title, rows, cap) => (rows.length
       ? `${title} (${rows.length})\n` + rows.slice(0, cap).map((r) => '  ' + r).join('\n')
@@ -597,4 +599,27 @@ tools.symbols = {
   },
 };
 
-module.exports = { tools, globToRegExp, walk, looksBinary, defineRe, MAX_MATCHES, MAX_GLOB_RESULTS };
+/**
+ * NOTHING FOUND IS THREE DIFFERENT ANSWERS (2026-09-18). "no match in 0 files"
+ * was read live as "the string does not exist" — but zero files searched says
+ * nothing about the content, and a file skipped as too large may be exactly
+ * where it is. Only SEARCHED_FILES_NO_MATCH (N>0 searched, none skipped) is a
+ * conclusive absence.
+ */
+function zeroResult(what, scanned, skipped, include) {
+  if (!scanned) {
+    return {
+      output: `NO FILES IN SCOPE: nothing was searched for ${what}${include ? ` — include ${include} matched no file` : ''}`
+        + `${skipped ? ` (${skipped} file(s) skipped as too large or unreadable)` : ''}. `
+        + 'This says NOTHING about whether it exists: widen include/path, or read the file directly.',
+      meta: { searchState: 'NO_FILES_IN_SCOPE', scanned, skipped },
+    };
+  }
+  const gap = skipped ? ` ${skipped} file(s) were NOT searched (too large or unreadable) — it may be in one of them; read them in ranges.` : '';
+  return {
+    output: `no match for ${what} in ${scanned} file(s) searched${include ? ` matching ${include}` : ''}.${gap}`,
+    meta: { searchState: skipped ? 'PARTIAL_NO_MATCH' : 'SEARCHED_FILES_NO_MATCH', scanned, skipped },
+  };
+}
+
+module.exports = { tools, globToRegExp, walk, looksBinary, defineRe, zeroResult, MAX_MATCHES, MAX_GLOB_RESULTS };

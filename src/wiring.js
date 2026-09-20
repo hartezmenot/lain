@@ -120,6 +120,8 @@ function load(root) {
       via: String(e.via || ''),
       note: String(e.note || ''),
       at: Number(e.at) || 0,
+      ...(Array.isArray(e.proof) ? { proof: e.proof, proofAt: Number(e.proofAt) || 0 } : {}),
+      ...(e.proofOrigin ? { proofOrigin: String(e.proofOrigin) } : {}),
     };
     const k = keyOf(edge);
     if (seen.has(k)) continue;      // a duplicated edge is one edge
@@ -131,6 +133,17 @@ function load(root) {
 
 function save(root, graph) {
   graph.updatedAt = Date.now();
+  // PROOF: an edge depends on both ends' locations and on `via` when it names a file.
+  const freshness = require('./freshness');
+  let model = null;
+  for (const e of graph.edges) {
+    if (Array.isArray(e.proof) && e.proofAt === e.at) continue;
+    if (!model) { try { model = require('./architecture').load(root); } catch { model = { nodes: {} }; } }
+    const locs = [e.from, e.to].map((id) => model.nodes[id] && model.nodes[id].location).filter(Boolean);
+    e.proof = freshness.stamp(root, [...locs, ...freshness.pathsIn(root, e.via)]).evidence;
+    e.proofAt = e.at;
+    delete e.proofOrigin;
+  }
   return lainstore.write(root, 'wiring', { edges: graph.edges, updatedAt: graph.updatedAt });
 }
 

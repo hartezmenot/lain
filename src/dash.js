@@ -191,7 +191,12 @@ function dashState(app) {
       ? { attempt: phase.attempt, of: phase.of, resumeAt: phase.resumeAt || null, rateLimited: Boolean(phase.rateLimited) }
       : null,
     lifecycle: life ? { state: life.state, reason: life.reason || null } : null,
-    verification: life && life.lastCommand ? { command: life.lastCommand.command, ok: Boolean(life.lastCommand.ok) } : null,
+    // ok stays boolean for existing consumers; inconclusive distinguishes a
+    // masked/no-match result (ok:null) from an actual failure, since both are
+    // falsy under Boolean() and only one of them is "still red".
+    verification: life && life.lastCommand
+      ? { command: life.lastCommand.command, ok: Boolean(life.lastCommand.ok), inconclusive: life.lastCommand.ok === null }
+      : null,
     context: { used, room, percent: room ? Math.round((used / room) * 100) : 0 },
     changed,
     recent,

@@ -79,6 +79,9 @@ const AUDIT_QUESTION_RE = /\bwhat(?:'s| is| are)?\b[^.?!]{0,30}\b(?:missing|wron
 
 /** "explain", "what does X do", "how does Y work" — describe, do not change. */
 const EXPLAIN_RE = /\b(?:explain|describe|walk me through|what does\b|what do\b|how does\b|how do(?:es)?\b[^.?!]{0,20}\bwork|what is this|tell me (?:about|what|how)|summari[sz]e)\b/i;
+/** Opens with an interrogative and is asked as a question. See rule 8c. */
+const ASKED_RE = /^\s*(?:which|what|where|who|whom|whose|when|is|are|does|do|did|can|could|has|have)\b[^?]*\?/i;
+const CHANGE_VERB_RE = /\b(?:fix|repair|patch|implement|add|build|create|write|change|update|edit|refactor|rename|remove|delete|migrate|install|upgrade|replace|move)\b/i;
 
 /**
  * A concrete failure: a named thing behaving in a named wrong way.
@@ -238,6 +241,12 @@ function classify(text, ctx = {}) {
   //     the change verbs, because "find the code that sets this" shares
   //     "find" with them and means the opposite.
   if (LOCATE_RE.test(one)) return decide(KIND.EXPLAIN, 'asks where something is, not for it to change');
+
+  // 8c. A PLAIN QUESTION. "Which function in src/pricing.js applies the tier
+  //     discount? Answer in one line." fell through to IMPLEMENT (live,
+  //     2026-09-18) and was framed to the model as an implementation request.
+  //     After the defect rules, so "why is the total wrong?" stays a bug.
+  if (ASKED_RE.test(one) && !CHANGE_VERB_RE.test(one)) return decide(KIND.EXPLAIN, 'asks a question, not for a change');
 
   // 9. REFACTOR before IMPLEMENT — they share verbs, and only this one is
   //    about code that already works. See REFACTOR_RE.

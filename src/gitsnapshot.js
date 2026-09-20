@@ -132,6 +132,13 @@ function say(review) {
 function prefetch(app, expected = []) {
   if (!app || !app.session || !app.session.cwd) return Promise.resolve(null);
   const cwd = app.session.cwd;
+  // THE OLD MEASUREMENT IS WITHDRAWN NOW, synchronously. The request is
+  // assembled before this resolves, and it used to find the PREVIOUS turn's
+  // snapshot still here and send it as the current tree: a follow-up turn was
+  // told the tree held one untracked scratch file while two sources were
+  // modified (live, 2026-09-18). A turn that outruns the measurement renders
+  // no section, which is what the header promises.
+  app._gitSnapshot = null;
   return Promise.resolve()
     .then(() => gitsense.review(cwd, { expected }))
     .then((r) => { app._gitSnapshot = r || null; return r; })

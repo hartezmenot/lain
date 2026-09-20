@@ -18,6 +18,7 @@ const path = require('path');
 const config = require('./config');
 const { EvidenceLedger, BODY_READS } = require('./evidence');
 const { Task } = require('./task');
+const msgfold = require('./msgfold');
 
 /**
  * Pessimistic on purpose — see `contextChars`. Code and JSON tokenize worse
@@ -55,6 +56,18 @@ function budgetChars(pc) {
   const reserve = 4000;                                  // system prompt + tool schemas
   const usable = Math.max(4000, ctx - out - reserve);
   return Math.floor(usable * CHARS_PER_TOKEN);
+}
+
+/**
+ * WHAT A STUB TELLS THE MODEL TO DO NEXT. "Re-run the call" for a whole-file
+ * read that did not fit invited the exact read that gets elided again — the
+ * live reread loop of 2026-09-18. A body read is told to narrow instead.
+ */
+function rerunAdvice(name) {
+  if (String(name) === 'read_file' || String(name) === 'read_symbol') {
+    return ' Re-run the call for only the part you need — a range (offset/limit, 40–120 lines) or read_symbol for one definition; repeating the whole read is elided again.';
+  }
+  return ' Re-run the call if you need the rest.';
 }
 
 function newId() {
@@ -111,6 +124,7 @@ class Session {
     this.actors = [];
     // WHO ANSWERS A CHAT TURN, and which website thread is this one's.
     require('./modelsource/sessionstate').attach(this);
+    require('./sessionviews').attach(this);   // Chat/Coding views, pins, panel, project — see there
     // Cowork uploads wait here only until the next active Harness task adopts
     // them. Metadata is persisted; bytes remain in this session's scratch.
     this.coworkInputs = [];
@@ -134,10 +148,7 @@ class Session {
    */
   contextChars() {
     let n = 0;
-    for (const m of this.messages) {
-      n += String((m && m.content) || '').length + 24;   // + envelope
-      for (const tc of (m && m.tool_calls) || []) n += String(tc.arguments || '').length + String(tc.name || '').length + 40;
-    }
+    for (const m of this.messages) n += msgfold.messageChars(m);
     return n;
   }
 
@@ -208,6 +219,9 @@ class Session {
       p = a && a.path;
     } catch { p = null; }
     if (p) this.evidence.elide(String(p));
+    // AND THE READ IS RECORDED AS INCOMPLETE, so repeating it is narrowed
+    // instead of elided again (readcoverage.js).
+    if (p) require('./readcoverage').noteElided(this, String(p));
   }
 
   /**
@@ -301,6 +315,8 @@ class Session {
       // and then the call that made it is repeatable like any other. Without
       // this, whatever happened to be recent when the window first filled kept a
       // large body for the rest of the session.
+      // Old call ARGUMENTS too — see msgfold.elideArguments for the measured floor.
+      if (m && m.role === 'assistant') elided += msgfold.elideArguments(m);
       if (!m || m.elided === 'stub') continue;
       const body = String(m.content || '');
 
@@ -314,7 +330,7 @@ class Session {
         m.content =
           `[elided to fit the context window] ${name}${args ? ' ' + args : ''} returned ${orig} chars.`
           + (head ? ` First line: ${head}` : '')
-          + ` Re-run the call if you need the rest.`
+          + rerunAdvice(name)
           + this._semanticResidue(tc);
         m.elided = 'stub';
         m.origChars = orig;
@@ -373,7 +389,7 @@ class Session {
           // because a gap is at least visibly a gap.
           const args2 = tc ? String(tc.arguments || '').slice(0, 120) : '';
           m.content = `[elided to fit the context window] ${name}${args2 ? ' ' + args2 : ''}`
-            + ` returned ${m.origChars} chars. Re-run the call if you need it.`
+            + ` returned ${m.origChars} chars.` + rerunAdvice(name)
             + this._semanticResidue(tc);
           m.elided = 'stub';
           this._forgetElided(tc);
@@ -399,7 +415,15 @@ class Session {
     // message cannot be recovered by re-running a call — the words are gone
     // from what the model sees. They remain in the session file, so /resume
     // and the transcript still have them; it is the REQUEST that gets smaller.
-    const foldedCount = maxMessages > 0 ? this._foldOldest(maxMessages, keepRecent) : 0;
+    let foldedCount = maxMessages > 0 ? this._foldOldest(maxMessages, keepRecent) : 0;
+    // STILL OVER THE CHARACTER BUDGET AFTER ELISION. Hundreds of short messages
+    // have a floor no stub reaches (290k-370k against 180k on the sessions that
+    // looped), and left there every step compacts and stubs what was just read.
+    if (budgetChars > 0 && this.contextChars() > budgetChars) {
+      const floor = Math.max(1, this.messages.length - Math.max(1, keepRecent));
+      const cut = msgfold.charCut(this.messages, Math.floor(budgetChars * msgfold.FOLD_CHAR_TARGET), floor);
+      if (cut > 1) foldedCount += this._foldAt(cut, floor);
+    }
 
     const after = this.contextChars();
     return {
@@ -432,7 +456,11 @@ class Session {
     // request that is still refused is better than one that has lost the step
     // it is in the middle of. The caller is told the count that remains.
     const floor = Math.max(1, this.messages.length - Math.max(1, keepRecent));
-    let cut = Math.min(floor, this.messages.length - target + 1);
+    return this._foldAt(Math.min(floor, this.messages.length - target + 1), floor);
+  }
+
+  /** Fold messages[1 .. cut) into one summary, snapped to a call/result unit boundary. */
+  _foldAt(cut, floor) {
     // SNAP TO A UNIT BOUNDARY, or this is the 400 the comment above warns
     // about. A `tool` message at the cut is the answer to a call that is INSIDE
     // the folded run: keeping it leaves a result whose call has vanished, and
@@ -447,12 +475,13 @@ class Session {
     if (cut <= 1) return 0;
     const gone = this.messages.slice(1, cut);
     if (!gone.length) return 0;
+    for (const m of gone) for (const tc of (m && m.tool_calls) || []) this._forgetElided(tc);
     // ---- ONE SUMMARY, WHICH SUPERSEDES THE PREVIOUS ONE ----------------
     //
     // msgfold.foldSummary MERGES a fold it finds inside `gone` rather than quoting
     // it, and hands back the structured parts so the next fold can do the same.
     // See its header for the defect that produced this.
-    const folded = require('./msgfold').foldSummary(gone);
+    const folded = msgfold.foldSummary(gone);
     const summary = {
       role: 'user',
       content: folded.content,
@@ -483,7 +512,12 @@ class Session {
       lifecycle: this.lifecycle ? this.lifecycle.toJSON() : null,
       evidence: this.evidence.toJSON(),
       plan: this.plan ? this.plan.toJSON() : null,
+      planHistory: (this.planHistory || []).slice(-5).map((p) => p.toJSON()),
       mode: this.mode || null,
+      execMode: this.execMode || null, focus: Boolean(this.focus), fast: Boolean(this.fast), profile: this.profile || null,
+      decisions: Array.isArray(this.decisions) ? this.decisions.slice(-20) : [],
+      bgResults: Array.isArray(this._bgResults) ? this._bgResults.slice(-20) : [],
+      taskClassVerdict: this.taskClassVerdict || null,
       actors: this.actors,
       // THE RECORD THAT SOMETHING LEFT THIS MACHINE. Summaries only — see
       // externalstate.ExternalLedger.toJSON for why the packet itself is not
@@ -491,9 +525,17 @@ class Session {
       external: this.external ? this.external.toJSON() : [],
       // THE CHAT SOURCE SURVIVES A RESUME. See modelsource/sessionstate.js.
       ...require('./modelsource/sessionstate').toJSON(this),
+      ...require('./sessionviews').toJSON(this),
+      ...require('./planhandoff').toJSON(this),
       cowork: require('./cowork/sessionstate').from(this.cowork),
       coworkInputs: require('./cowork/attachments').pending(this),
       goal: require('./goal').toJSON(this),
+      pausedGoals: require('./goal').pausedToJSON(this),
+      // WHAT LAIN DID AND CHECKED: transaction receipts (mutation.js), verification
+      // runs (verifycontract.js) and the non-progress state (progress.js).
+      mutationReceipts: Array.isArray(this.mutationReceipts) ? this.mutationReceipts.slice(-60) : [],
+      verification: this.verification || null,
+      progress: require('./progress').toJSON(this),
     };
   }
 
@@ -545,15 +587,26 @@ class Session {
     // write to a file it just wrote for a blind one.
     s.evidence = EvidenceLedger.from(data.evidence, s.cwd, s.id);
     s.plan = require('./plan').Plan.from(data.plan);
+    s.planHistory = (Array.isArray(data.planHistory) ? data.planHistory : []).map((p) => require('./plan').Plan.from(p)).filter(Boolean).slice(-5);
     s.mode = data.mode || null;
+    s.execMode = data.execMode || null; s.focus = Boolean(data.focus); s.fast = Boolean(data.fast); s.profile = data.profile || null;
+    s.decisions = Array.isArray(data.decisions) ? data.decisions : [];
+    s._bgResults = Array.isArray(data.bgResults) ? data.bgResults : [];
+    s.taskClassVerdict = data.taskClassVerdict || null;
     // The other voices come back with the rest of the story. A session written
     // before this existed simply has none, which is the true answer for it.
     s.actors = Array.isArray(data.actors) ? data.actors : [];
     s.external = require('./externalstate').ExternalLedger.from(data.external);
     require('./modelsource/sessionstate').restore(s, data);
+    require('./sessionviews').restore(s, data);
+    require('./planhandoff').restore(s, data);
     s.cowork = require('./cowork/sessionstate').from(data.cowork);
     s.coworkInputs = Array.isArray(data.coworkInputs) ? data.coworkInputs.slice(0, 8) : [];
     s.goal = require('./goal').from(data.goal);
+    s.pausedGoals = require('./goal').pausedFrom(data.pausedGoals);
+    s.mutationReceipts = Array.isArray(data.mutationReceipts) ? data.mutationReceipts.slice(-60) : [];
+    s.verification = data.verification && typeof data.verification === 'object' ? data.verification : null;
+    require('./progress').restore(s, data.progress);
     return s;
   }
 

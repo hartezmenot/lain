@@ -99,7 +99,9 @@ function load(root) {
 
 function save(root, index) {
   try {
+    const created = !fs.existsSync(dirFor(root));
     fs.mkdirSync(dirFor(root), { recursive: true });
+    if (created) require('./lainschema').stampNew(root);
     const tmp = path.join(dirFor(root), `${INDEX}.tmp`);
     fs.writeFileSync(tmp, JSON.stringify(index));
     fs.renameSync(tmp, fileFor(root));
@@ -126,15 +128,28 @@ function stampOf(abs) {
   }
 }
 
-const JS = /\.(?:js|jsx|mjs|cjs|ts|tsx)$/i;
+// WHICH FILES CARRY SYMBOLS IS THE SCANNER'S ANSWER, NOT A COPY OF IT.
+//
+// This used to keep its own regex, and it disagreed with the scanner's: it
+// admitted `.ts`/`.tsx`, the scanner did not, and `scanOne` quietly stored the
+// file with no symbols. A whole TypeScript project indexed to zero symbols and
+// nothing said so. There is one list now — see jsscan.js SUPPORTED.
+const { supports } = require('./jsscan');
 
 /** Everything the index records about one file. */
 function scanOne(abs, rel, stamp) {
-  const entry = { size: stamp.size, mtime: stamp.mtime, lang: JS.test(rel) ? 'js' : 'other' };
+  const entry = { size: stamp.size, mtime: stamp.mtime, lang: supports(rel) ? 'js' : 'other' };
   if (entry.lang !== 'js' || stamp.size > MAX_FILE_BYTES) return entry;
   let model;
   try { model = codemodel.scanFile(abs); } catch { return entry; }
-  if (!model || !model.supported || !model.source) return entry;
+  // A FILE THIS INDEX CALLED SCANNABLE AND THE SCANNER REFUSES IS A CONTRADICTION,
+  // and it is recorded on the entry rather than silently becoming an empty one.
+  // `unscanned` is what a coverage report counts and what stops this exact
+  // class of defect from being invisible again.
+  if (!model || !model.supported || !model.source) {
+    entry.unscanned = (model && model.why) || 'the scanner returned nothing';
+    return entry;
+  }
   const src = model.source;
   entry.symbols = (model.symbols || []).map((s) => ({
     name: s.name,
@@ -170,7 +185,29 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null } = {}) {
   let added = 0;
   let truncated = false;
 
-  for (const f of search.walk(root)) {
+  // ---- LAZY, TARGETED REFRESH --------------------------------------------
+  //
+  // When a watcher has been running since before this index was last fully
+  // refreshed, only the paths it saw change are re-measured. No watcher, an
+  // overflow, or an older index: the stat walk below, which is always correct.
+  const freshness = require('./freshness');
+  const dirty = Object.keys(before).length ? freshness.pending(root, ix.refreshedAt) : null;
+  if (dirty) {
+    Object.assign(files, before);
+    for (const rel of dirty) {
+      if (rel === DIR || rel.startsWith(`${DIR}/`) || freshness.IGNORE.test(rel)) continue;
+      const abs = path.join(root, rel);
+      const stamp = stampOf(abs);
+      const prev = before[rel];
+      if (!stamp) { if (prev) delete files[rel]; continue; }
+      scanned += 1;
+      if (prev && prev.size === stamp.size && prev.mtime === stamp.mtime) { reused += 1; continue; }
+      files[rel] = scanOne(abs, rel, stamp);
+      if (prev) changed += 1; else added += 1;
+    }
+    freshness.consume(root, dirty);
+  }
+  for (const f of (dirty ? [] : search.walk(root))) {
     // The index never indexes itself.
     if (f.rel === DIR || f.rel.startsWith(`${DIR}/`)) continue;
     const stamp = stampOf(f.abs);
@@ -200,6 +237,7 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null } = {}) {
   // Anything in the old index and no longer on disk is simply absent from the
   // new one — a deletion needs no special case.
   const removed = Object.keys(before).filter((k) => !files[k]).length;
+  if (!dirty && !truncated) freshness.consume(root, [], { full: true });
 
   const next = {
     version: VERSION,
@@ -218,6 +256,7 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null } = {}) {
     removed,
     truncated,
     persisted,
+    targeted: Boolean(dirty),
     ms: Date.now() - started,
   };
 }
@@ -318,9 +357,106 @@ function orientation(index, { changed = [], max = 12 } = {}) {
   return out.join('\n');
 }
 
+/**
+ * HOW MUCH OF THIS PROJECT THE INDEX ACTUALLY KNOWS, AND WHAT IT MISSED.
+ *
+ * ------------------------------------------------------------------------
+ * WHY THIS EXISTS. The index once held a whole TypeScript project as 47 files
+ * and ZERO symbols, and nothing anywhere said so: the files were admitted, the
+ * scanner refused them, and the empty entries looked exactly like entries. A
+ * number that would have made that obvious in one glance is worth more than the
+ * comment explaining how it happened.
+ *
+ * SO EVERY FILE IS IN EXACTLY ONE BUCKET, and `unscanned` is never silent. This
+ * is a DIAGNOSTIC — `/status` and the doctor ask for it — not a surface that
+ * lives on screen.
+ *
+ * FRESH   everything admitted was scanned
+ * PARTIAL something was admitted and could not be scanned, and it says which
+ * STALE  nothing has been indexed yet, or the last refresh ran out of budget
+ * UNKNOWN there is no index on disk at all
+ */
+function coverage(root, { index = null, max = 8 } = {}) {
+  const onDisk = index ? null : undefined;
+  const ix = index || load(root);
+  const persisted = fs.existsSync(fileFor(root));
+  const entries = Object.entries(ix.files || {});
+  const code = entries.filter(([, e]) => e.lang === 'js');
+  const scanned = code.filter(([, e]) => Array.isArray(e.symbols));
+  const unscanned = code.filter(([, e]) => !Array.isArray(e.symbols));
+  const symbols = scanned.reduce((n, [, e]) => n + e.symbols.length, 0);
+  const imports = scanned.reduce((n, [, e]) => n + ((e.imports || []).length), 0);
+
+  // WHY each unscanned file was missed. A bucket called "we missed it" is the
+  // thing this function exists to make impossible.
+  const why = {};
+  for (const [rel, e] of unscanned) {
+    const reason = e.unscanned
+      || (e.size > MAX_FILE_BYTES ? `over ${Math.round(MAX_FILE_BYTES / 1e6)} MB` : 'no reason recorded');
+    (why[reason] = why[reason] || []).push(rel);
+  }
+
+  // ---- STRUCTURAL COLLAPSE IS NOT FRESHNESS ------------------------------
+  //
+  // THE FAILURE THIS CATCHES, which is the one that actually happened: a
+  // TypeScript project indexed 47 files, every one of them "scanned", and
+  // produced ZERO declarations — because the scanner admitted the extension and
+  // then refused to parse it. Every count was green. `state` said FRESH. And
+  // every structural question fell back to grep for the rest of the session,
+  // with nothing anywhere saying why.
+  //
+  // A file with no declarations is ordinary (a config, a barrel, a constant). A
+  // whole project of source files with no declarations between them is not a
+  // project — it is a scanner that stopped working, and the honest word for it
+  // is PARTIAL with a reason, never FRESH.
+  //
+  // BOUNDED SO IT CANNOT CRY WOLF: it takes effect only when there are enough
+  // code files for "none of them declares anything" to be evidence rather than
+  // coincidence.
+  const COLLAPSE_FLOOR = 3;
+  const collapsed = code.length >= COLLAPSE_FLOOR && scanned.length > 0 && symbols === 0;
+  if (collapsed) {
+    why['scanned, but nothing was declared — the scanner may have stopped understanding this language'] = scanned.map(([rel]) => rel).slice(0, 8);
+  }
+
+  const state = !persisted && !entries.length ? 'UNKNOWN'
+    : (!entries.length ? 'STALE' : ((unscanned.length || collapsed) ? 'PARTIAL' : 'FRESH'));
+
+  return {
+    state,
+    persisted,
+    root: ix.root || root,
+    refreshedAt: ix.refreshedAt || 0,
+    discovered: entries.length,
+    code: code.length,
+    scanned: scanned.length,
+    unscanned: unscanned.length,
+    other: entries.length - code.length,
+    symbols,
+    imports,
+    why,
+    onDisk,
+    lines: [
+      'PROJECT INTELLIGENCE',
+      `  files indexed      ${String(entries.length).padStart(6)}`,
+      `  readable as code   ${String(code.length).padStart(6)}`,
+      `  scanned            ${String(scanned.length).padStart(6)}`,
+      `  declarations       ${String(symbols).padStart(6)}`,
+      `  imports            ${String(imports).padStart(6)}`,
+      `  not scanned        ${String(unscanned.length).padStart(6)}`,
+      `  freshness          ${state}${persisted ? '' : ' (nothing persisted)'}`,
+      ...Object.entries(why).flatMap(([reason, rels]) => [
+        `    ${rels.length} × ${reason}`,
+        ...rels.slice(0, max).map((r) => `      ${r}`),
+        ...(rels.length > max ? [`      [${rels.length - max} more]`] : []),
+      ]),
+    ].join('\n'),
+  };
+}
+
 module.exports = {
-  DIR, INDEX, VERSION, BUDGET_MS,
-  load, save, refresh, fresh, stampOf,
+  DIR, INDEX, VERSION, BUDGET_MS, MAX_FILE_BYTES,
+  load, save, refresh, fresh, stampOf, coverage,
   definitionsOf, importersOf, outlineOf, orientation,
   dirFor, fileFor, empty,
 };

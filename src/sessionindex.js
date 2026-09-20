@@ -79,6 +79,9 @@ function describe(id, data, stat, now = Date.now()) {
   return {
     id,
     shortId: id.split('-').pop(),
+    // WHICH LANE THE SESSION BELONGS TO. Without it every Cowork session was
+    // listed under Chat / Coding in the Harness (harnessapp/state.js `laneOf`).
+    cowork: data.cowork && typeof data.cowork === 'object' ? { lane: data.cowork.lane, source: data.cowork.source || null } : null,
     cwd: data.cwd || '',
     project: data.cwd ? path.basename(data.cwd) : '(unknown)',
     objective: task && task.objective ? String(task.objective).replace(/\s+/g, ' ') : null,

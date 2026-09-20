@@ -120,8 +120,8 @@ module.exports = async function () {
 
   await test('SURFACE: a tool call becomes rows', () => {
     const r = rig();
-    call(r, 'read_file', 'python.js');
-    r.tick(200);
+    r.a.begin('read_file', 'python.js');   // still running: held for as long as it really runs
+    r.tick(400);
     const rows = r.a.rows(80, r.now()).join('\n');
     assert.match(rows, /reading/, 'the label');
     assert.match(rows, /python\.js/, 'and the thing it is reading');

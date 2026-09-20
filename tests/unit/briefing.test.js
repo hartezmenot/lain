@@ -332,6 +332,15 @@ module.exports = async function () {
     const r = await toolchain.analyze(dir, {
       languages: { py: 2 }, pythonFiles: survey.pythonFiles(dir), timeoutMs: 60_000,
     });
+    // A TIMEOUT IS NOT A CLEAN RUN, and toolchain.js already says so — it
+    // records the tool as skipped and adds an UNVERIFIED finding. Without this
+    // line a compile that was killed under load filtered down to zero SYNTAX
+    // findings and failed as "exactly the broken file, and not the correct
+    // one", which is a sentence about the wrong thing. Observed once, in a full
+    // tier, straight after the distribution tier had the machine building
+    // installers.
+    assert.deepStrictEqual(r.skipped || [], [],
+      `the analyser ran to completion: ${JSON.stringify(r.skipped)}`);
     const hits = r.findings.filter((x) => x.category === F.CATEGORY.SYNTAX);
     assert.strictEqual(hits.length, 1, 'exactly the broken file, and not the correct one');
     assert.strictEqual(hits[0].file, 'bad.py');

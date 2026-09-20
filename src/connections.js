@@ -197,9 +197,11 @@ async function discover(conn, { signal, timeoutMs = DISCOVER_TIMEOUT_MS } = {}) 
   try {
     const res = await fetch(url, { headers, signal: ac.signal });
     if (!res.ok) {
-      let detail = '';
-      try { detail = (await res.text()).slice(0, 200); } catch { /* no body */ }
-      return { ok: false, count: 0, url, error: `${res.status} ${res.statusText}${detail ? ' — ' + detail : ''}` };
+      // THE STATUS DECIDES WHAT THIS MEANS (catalogstate.js); the body is kept
+      // whole for diagnostics and never becomes the sentence a person reads.
+      let raw = '';
+      try { raw = (await res.text()).slice(0, 2000); } catch { /* no body */ }
+      return { ok: false, count: 0, url, status: res.status, raw, error: `${res.status} ${res.statusText}`.trim() };
     }
     const j = await res.json();
     const rows = Array.isArray(j) ? j : (Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : []));
@@ -226,6 +228,21 @@ async function discover(conn, { signal, timeoutMs = DISCOVER_TIMEOUT_MS } = {}) 
   }
 }
 
+/**
+ * THE API ROOT, when a base URL was entered as a full endpoint.
+ *
+ * Seen on a real configuration: `lain:api.b.ai` had `https://api.b.ai/v1/chat/completions`
+ * as its base. Everything downstream APPENDS a path — discovery asked
+ * `…/chat/completions/models` (the chat endpoint answering 405 "Use POST"), and
+ * a chat request would have gone to `…/chat/completions/chat/completions`. One
+ * trailing OpenAI/Anthropic endpoint segment is removed when the connection is
+ * READ; the user's config is never rewritten.
+ */
+const ENDPOINT_TAIL = /\/(?:chat\/completions|completions|models|messages|responses)\/*$/i;
+function apiRoot(base) {
+  return String(base || '').replace(/\/+$/, '').replace(ENDPOINT_TAIL, '');
+}
+
 /** Connections whose model list is empty and whose cache is missing or stale. */
 function needsDiscovery(connections = []) {
   return connections.filter((c) => c && c.baseUrl && !c.declaredModels && cacheAgeMs(c.id) > CACHE_TTL_MS);
@@ -246,7 +263,12 @@ async function discoverAll(connections, { force = false, only = null, done = new
   const wanted = only
     ? connections.filter((c) => c.id === only && c.baseUrl)
     : (force ? connections.filter((c) => c.baseUrl && !c.declaredModels) : needsDiscovery(connections));
-  const todo = wanted.filter((c) => force || !done.has(c.id));
+  // A SOURCE WHOSE LAST ANSWER CANNOT CHANGE is not asked again: a rejected
+  // credential or an endpoint that does not enumerate models, with the SAME
+  // URL and key, gives the same answer every launch. `force` (`/model refresh`)
+  // always asks. See catalogstate.js.
+  const cs = require('./catalogstate');
+  const todo = wanted.filter((c) => force || (!done.has(c.id) && !cs.suppressed(c)));
 
   const results = [];
   for (const c of todo) {
@@ -255,7 +277,8 @@ async function discoverAll(connections, { force = false, only = null, done = new
     // A catalog endpoint answering does not prove the CHAT endpoint works, so a
     // failure here is reported and deliberately never trips the request breaker.
     const r = await discover(c, { signal });
-    results.push({ id: c.id, ...r });
+    const changed = cs.record(c, r);
+    results.push({ id: c.id, ...r, state: r.ok ? cs.STATE.OK : cs.classify(r.status), changed });
   }
   return results;
 }
@@ -274,6 +297,7 @@ function fromConfig(cfg = {}, evidence = {}) {
 
   for (const [id, c] of Object.entries(declared)) {
     if (!c || typeof c !== 'object') continue;
+    if (require('./retired').connectionSystem(id, c)) continue;
     const ev = evidence[id] || {};
     const via = c.via === VIA.BRIDGE ? VIA.BRIDGE : VIA.NATIVE;
     const auth = c.auth || (via === VIA.BRIDGE ? AUTH.NONE : AUTH.API_KEY);
@@ -301,7 +325,7 @@ function fromConfig(cfg = {}, evidence = {}) {
       via,
       auth,
       protocol: c.protocol || 'chat',
-      baseUrl: c.baseUrl || '',
+      baseUrl: apiRoot(c.baseUrl),
       envKey: c.envKey || null,
       apiKey: key,
       models: declared || (cached ? cached.models : []),
@@ -436,5 +460,5 @@ function noteTurn(evidence, id, record) {
 module.exports = {
   READINESS, VIA, AUTH, fromConfig, authRoutes, readinessFor, hasKeylessRoute, noteTurn,
   discover, discoverAll, needsDiscovery, readCache, writeCache, cacheFile, cacheAgeMs,
-  normalizeCatalogRow, CACHE_TTL_MS, MAX_DISCOVERED,
+  normalizeCatalogRow, CACHE_TTL_MS, MAX_DISCOVERED, apiRoot,
 };

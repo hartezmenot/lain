@@ -37,6 +37,18 @@ async function start(app) {
   // about to repaint over them.
   await app.prepare();
 
+  // ---- THIS TERMINAL IS THE LAIN THIS ACCOUNT IS RUNNING -------------------
+  //
+  // So that double-clicking LAIN Desktop opens a window onto THIS session — the
+  // project you are in, the turn that is running, the bots that are connected —
+  // rather than starting a second LAIN beside it. The CLI and the window are two
+  // surfaces on one Core; this is how the second one finds the first.
+  //
+  // NOT FATAL, and quiet. A LAIN that cannot claim the lock works completely; it
+  // is simply not the one a later launch will find, and saying so at startup
+  // would be noise about a file nobody asked about. See src/corelock.js.
+  try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
+
   // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
   //
   // ON BY DEFAULT — `dashAutostart: false` in config.json is the way out. It was
@@ -116,7 +128,10 @@ async function start(app) {
     // and §5 named it as one of the three lines that read as something the
     // model had said. The `›` is the same mark every transient operational line
     // in LAIN wears. See ui/operation.js.
-    if (orphans.length) app.render.write(C.dim(`  › ${orphans.length} unfinished turn(s) left findings behind · /lain\n`));
+    // IN THE TUI IT IS AN OPERATION NOTE, not a transcript line: this runs
+    // AFTER `app.ui.enable()`, so a write here landed in the trailing
+    // transcript and was redrawn under every later turn (live, 2026-09-18).
+    if (orphans.length) require('./ui/operation').say(app, `${orphans.length} unfinished turn(s) left findings behind · /lain`);
   } catch { /* startup chrome never blocks the session */ }
 
   if (!tui) app.banner();
@@ -248,6 +263,7 @@ async function start(app) {
   // one action, not two. An empty line then reads as a plain Enter with no
   // panel open, which is exactly "just close it" for that case.
   input.enterGoesToUI = () => {
+    if (tui && app.ui.panel.visible) require('./admissiontrace').note(app, 'enter:panel-open');
     if (!tui || !app.ui.panel.visible) return false;
     if (app.ui.panel.isAdvisory) return false;
     if (app.ui.panel.isPassive) { app.ui.panel.close(null); app.ui.refresh(); return false; }
@@ -277,13 +293,15 @@ async function start(app) {
     // drains the queue was by then waiting for a turn that was waiting for an
     // answer sitting in the queue. See App.dispatching.
     const turnActive = Boolean(app.abort && !app.abort.signal.aborted) || app.dispatching > 0;
+    const trace = require('./admissiontrace');
+    trace.note(app, 'input', { chars: String(ev.text || '').length, turnActive });
     // AN ANSWER NEVER QUEUES. Something inside the turn is awaiting this
     // line — ask_user's "Other…", or a review pasted back for the external
     // human relay — and the REPL loop that drains the queue is parked inside
     // that very turn. Queued, the answer would wait for the work that is
     // waiting for it, which is a deadlock the user experiences as "I pasted
     // it and nothing happened".
-    if (app.pendingAsk && app.answerPending(ev.text)) return;
+    if (app.pendingAsk && app.answerPending(ev.text)) { trace.note(app, 'input:answer'); return; }
     if (turnActive && !ev.isPaste && !app.pendingAsk
         && commands.looksLikeCommand(ev.text)
         // ONLY the safe ones jump the queue. A blocked command stays in the
@@ -293,6 +311,7 @@ async function start(app) {
         // set wantExit while the model was mid-question, and the session tore
         // down around an open panel.
         && !commands.blockedDuringTurn(commands.parse(ev.text).name)) {
+      trace.note(app, 'input:command-during-turn');
       Promise.resolve(commands.run(app, ev.text)).catch((e) => {
         app.render.notice('error', `${ev.text}: ${e && e.message}`);
       });
@@ -314,7 +333,8 @@ async function start(app) {
     // (The second Enter that promotes a waiting steer is handled on the KEY
     // event — an empty line never reaches this one. See the `enter` branch in
     // the key handler above.)
-    if (turnActive && !app.pendingAsk && app.queueSteer(ev.text)) return;
+    if (turnActive && !app.pendingAsk && app.queueSteer(ev.text)) { trace.note(app, 'input:steer'); return; }
+    trace.note(app, 'input:queued');
     queue.push(ev);
     wake();
   });
@@ -467,9 +487,10 @@ async function start(app) {
     // blocked at any point, before or after this change.
     if (queue.length) {
       const primary = app.jobs.primary();
-      if (primary) { await primary.wait(); continue; }
+      if (primary) { require('./admissiontrace').note(app, 'queue:wait-primary'); await primary.wait(); continue; }
     }
     const ev = queue.shift();
+    require('./admissiontrace').note(app, 'queue:dequeue', { chars: String(ev.text || '').length });
     try {
       if (tui) app.ui.setInput('');
       // ---- THE LINE THAT USED TO BLOCK THE WHOLE INTERFACE ----------------
@@ -500,38 +521,16 @@ async function start(app) {
   }
 
   input.stop();
-  if (app._botService) await app._botService.stop();
   // ---- NOTHING KEEPS WORKING AFTER THE SESSION ENDS ----------------------
   //
-  // A background job holds a provider request, a tool and a forked session.
-  // It must not outlive the terminal that started it - the same rule the
-  // shell jobs and the desktop bridge already follow below.
-  try { app.jobs.cancelAll('the session ended'); } catch { /* none started */ }
-  // ---- AND THE SHELL JOBS, WHICH ARE ACTUAL CHILD PROCESSES ---------------
-  //
-  // FOUND BY WRITING THE `/ps` TESTS, and it is the same leak this repository
-  // has already paid for once. `src/jobs.js` has always had `stopAll`, with the
-  // comment "Called when the session ends; never leaves an orphan" — and
-  // NOTHING CALLED IT. `run_background` spawns a real child (a test suite, a
-  // build, a watcher); the AgentJobs sweep above does not touch it, and the
-  // harness's `shutdown` below owns SERVICES rather than jobs. So a suite
-  // started with `run_background` and still running when the user typed `/exit`
-  // simply carried on, detached, with nobody left who knew about it.
-  //
-  // `/ps` is what made it visible: it lists exactly these, and a command that
-  // shows you what LAIN owns has to be able to say that LAIN let go of it.
-  try { if (app._jobs) app._jobs.stopAll('the session ended'); } catch { /* none started */ }
-  // A listening socket and a desktop bridge must not outlive the session that
-  // opened them — a dashboard still answering after LAIN exits, or a bridge
-  // still holding a grant, is exactly the thing nobody remembers turning off.
-  try { require('./dash').stop(); } catch { /* was not running */ }
-  // AND EVERY SERVICE AND BROWSER THE HARNESS STARTED. Same rule, same reason:
-  // a dev server or a headless browser still running after LAIN exits is the
-  // thing nobody remembers turning off. See harness/processes.js on the ninety
-  // orphaned processes this repository already paid for once.
-  await require('./harnesslink').shutdown(app);
-  if (app._desktop) app._desktop.bridge.close('the session ended');
-  try { require('./controlwindow').close(app); } catch { /* no window */ }
+  // The whole list — the gateway, the agent jobs, the shell children, the other
+  // open conversations, the browser surface, the harness services, the computer
+  // bridge, the native window — moved to src/teardown.js when the terminal
+  // stopped being the only way to end LAIN. There are three ways now (this, the
+  // tray's Quit, and a `quit` on the control pipe) and exactly one sequence, so
+  // none of them can forget an entry. Every entry on that list is something this
+  // repository has already paid for by leaving it running.
+  await require('./teardown').shutdown(app, { why: 'the session ended' });
   process.removeListener('unhandledRejection', onRejection);
   app.ui.disable();                       // restore the user's terminal
   try { app.session.save(); } catch { /* best effort on the way out */ }

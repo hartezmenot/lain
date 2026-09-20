@@ -118,6 +118,30 @@ class Clarifications {
 
   get spent() { return this.asked.length; }
   get remaining() { return Math.max(0, this.maxRounds - this.spent); }
+  get exhausted() { return this.remaining <= 0; }
+
+  /**
+   * THE DIRECTIVE, restated on every step once the budget is gone — see
+   * prompt.js `workingContext`. §15's exact defect: `ask_user` refuses a
+   * fourth question and says so ONCE, in the tool result for that call. On
+   * the very next step — or the next turn, or after a compaction that folded
+   * that tool result away — nothing repeats the fact, so a model that simply
+   * writes its next question in plain prose instead of calling the tool
+   * again faces no obstacle at all: the ONE governed path (this class) can
+   * only refuse a TOOL CALL, and has nothing to say about free text.
+   *
+   * This is read into the framed context (contextprovenance.js) on every
+   * step while the budget stays spent, so the constraint is a standing fact
+   * about the task rather than a one-time refusal that scrolled away.
+   */
+  directive() {
+    if (!this.exhausted) return '';
+    return `The clarification budget for this task is spent (${this.maxRounds} question(s) already asked and answered). `
+      + 'Do not ask another question about this task, through ask_user or in your own words, however it is phrased. '
+      + 'Make the safest reasonable assumption, state it, and continue — or if you are genuinely blocked by something '
+      + 'that is not a matter of preference (a missing credential, a tool that refuses, a real conflict), report that '
+      + 'as a blocker instead of a question.';
+  }
 
   /** Has this question — or a rewording of it — already been answered? */
   previous(question) {

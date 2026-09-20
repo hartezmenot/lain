@@ -4,94 +4,44 @@
  * HOW A USER MESSAGE IS DRAWN — one concern, taken out of ui/feed.js.
  *
  * ------------------------------------------------------------------------
- * WHY IT MOVED, AND IT WAS THE GUARD'S IDEA.
+ * ONE ROW: THE ANCHOR.
  *
- * `feed.js` sat at 698 lines against a 700-line ceiling, so any real change to
- * it tripped the god-object guard — which is exactly what that guard is for. It
- * says "split it before it becomes repl.js", and this is the seam it was
- * pointing at: everything here answers ONE question — what does a person's own
- * message look like on the screen — and nothing else in that file asks it.
+ *     USER · implement Computer MCP and test the native picker…
  *
- * feed.js still decides WHICH entries exist and groups the runs. This decides
- * how one run of them is turned into rows.
+ * A turn starts with what the person asked, as a single gray row carrying the
+ * real prompt — never a model-written title, never a bare `USER`. It is the
+ * reading rhythm of the conversation: the eye finds every exchange by its
+ * anchor, and LAIN's result follows beneath a quiet rule.
  *
- * ------------------------------------------------------------------------
- * A STRUCTURED PROMPT IS A DOCUMENT, NOT A PARAGRAPH.
+ * THE ROW IS A PREVIEW, NOT THE MESSAGE. It used to be the whole prompt,
+ * rendered as a document (a structured brief kept its headings and lists), so
+ * a four-page brief pushed its own answer off the screen. The row now shows the
+ * first sentence with an ellipsis, and the MESSAGE travels with it: `userAt`
+ * maps the row to the exact submitted text, so a click puts the original prompt
+ * back on the input line (ui/mouse.js), Alt+↑/↓ jump between anchors
+ * (ui/anchors.js), and `/copy context` exports the full text from the turn
+ * record. Nothing about what was sent, stored or given to the model changes.
  *
- * THE DEFECT: the user branch only ever called `wrap`, the PROSE wrapper, while
- * a model answer had gone through ui/markdown.js since it was written. So a
- * brief with headings, separators, bullets and numbered lists was word-wrapped
- * into one continuous block — the separator joined to the heading, the heading
- * joined to the paragraph after it:
- *
- *     0. ABSOLUTE PROJECT BOUNDARY ===== DO NOT modify LAIN. DO NOT...
- *     - easy provider management - Import Models - automatic model discovery
- *
- * Everything the person had done to make it readable was thrown away, and the
- * longer and better-structured the prompt, the worse it looked.
- *
- * THE SAME RENDERER, NOT A SECOND ONE. `markdown.render` is what the model
- * branch calls, at the same width, under the same rules — so a numbered list
- * means the same thing whoever typed it. `looksMarked` keeps an ordinary
- * one-line message on the cheap path, exactly as it does there.
- *
- * ------------------------------------------------------------------------
- * PRESENTATION ONLY. The ENTRIES are untouched and `source` below is still the
- * raw text — which is what `/copy`, `/copy context` and the click handler read.
- * Nothing here renumbers, rewrites, merges or drops a line of what was typed.
+ * `USER DECISION` / `USER REQUEST` still distinguish a one-word answer and a
+ * paste from a sentence (ui/anchors.js `label`).
  */
 
 const T = require('./text');
 
-/** views.js holds the shared text helpers; required lazily to avoid a cycle. */
-const V = () => require('./views');
-
 /**
- * THE ROWS FOR ONE RUN OF USER ENTRIES.
- *
- * SPLIT INTO LINES FIRST. `markdown.render` takes ONE LINE PER ELEMENT — the
- * model branch gets that for free because its entries arrive per line as the
- * answer streams. A user message is ONE entry holding the whole document, so
- * passing the run straight in handed the renderer a single line containing
- * every newline, and it word-wrapped the lot: the original defect, reproduced
- * one layer further in.
+ * @param {string[]} out   the feed being built; carries `userAt`
+ * @param {string} text    the exact submitted prompt
  */
-function userRows(run, room) {
-  const md = require('./markdown');
-  const NL = String.fromCharCode(10);
-  const raw = run.join(NL);
-  const rows = md.looksMarked(raw)
-    ? md.render(raw.split(NL), room)
-    : run.flatMap((t) => V().wrap(t, room));
-  return { raw, rows };
-}
-
-/**
- * WHAT THE USER SAID IS A BLOCK, NOT A LINE.
- *
- * Painted across the full width on its own ground, so the eye finds the thing
- * that started each exchange by SHAPE rather than by reading — the same reason
- * a diff gets its own surface. Rows a person can click to bring back are worth
- * looking clickable.
- *
- * `out.userAt` maps the index of a drawn line to the message it came from, so a
- * click in the feed can put that message back on the input line without
- * re-deriving anything from the painted text. See ui/mouse.js.
- */
-function userBlock(out, text, rows, width, P) {
+function userAnchor(out, text, width, P) {
+  const anchors = require('./anchors');
   const w = Math.max(8, width);
-  let first = true;
-  for (const row of rows) {
-    const body = (first ? '❯ ' : '  ') + row;
-    out.userAt[out.length] = text;
-    // NO BASE GUTTER HERE. The content frame owns the outer margin and the
-    // layout positions this whole region inside it (ui/views.js
-    // `contentBounds`), so a two-column indent of our own would be counted
-    // twice. `body` still carries the `❯ ` marker and the alignment under it,
-    // which is structure rather than margin.
-    out.push(P.surface(T.pad(body, w)));
-    first = false;
-  }
+  const head = `${anchors.label(text)} · `;
+  const room = Math.max(4, w - T.width(head) - 1);
+  const body = anchors.preview(text, room);
+  out.userAt[out.length] = text;
+  // The content frame owns the outer margin, so no gutter of our own here.
+  // ONE PAINT, NOT NESTED: an inner reset would cancel the gray ground mid-row.
+  out.push(P.surface(T.pad(head + body, w)));
 }
 
-module.exports = { userBlock, userRows };
+module.exports = { userAnchor };

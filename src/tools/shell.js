@@ -70,7 +70,26 @@ function killTree(child) {
   require('../harness/processes').stopTree(child).catch(() => { /* finish reports cleanup failure */ });
 }
 
-function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal }) {
+/**
+ * TOOLS WHOSE EXIT 1 MEANS "NOTHING MATCHED", not "something went wrong".
+ *
+ * POSIX defines it for `grep`; ripgrep, ack, ag, git-grep and findstr all copy
+ * it. Only the LAST command decides the status of a pipeline, so that is the
+ * one inspected — `rg foo | head` exits as `head` does, and `ls | grep foo`
+ * exits as the grep does.
+ */
+const SEARCH_LIKE = /^(?:sudo\s+)?(?:git\s+grep|grep|egrep|fgrep|zgrep|rg|ripgrep|ag|ack|ack-grep|findstr)\b/i;
+
+function searchLike(command) {
+  const text = String(command || '').trim();
+  if (!text) return false;
+  // The last segment of the pipeline, ignoring pipes inside quotes.
+  const segments = text.split(/\|(?![^'"]*['"][^'"]*$)/);
+  const last = segments[segments.length - 1].trim().replace(/^[({\s]+/, '');
+  return SEARCH_LIKE.test(last);
+}
+
+function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, detach = null }) {
   return new Promise((resolve) => {
     // ALREADY CANCELLED. `addEventListener('abort')` never fires on a signal
     // that has already fired, so without this an interrupt arriving between the
@@ -119,9 +138,21 @@ function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal }) {
 
     let timedOut = false;
     let settled = false;
+    // DETACHED BY /bg: the tool call already returned; the same child keeps
+    // running and its end is reported to the background job instead. See bgdetach.js.
+    let detachedDone = null;
+    let unregister = () => {};
     const finish = async (result) => {
+      if (detachedDone) {
+        const done = detachedDone;
+        detachedDone = null;
+        try { await require('../harness/processes').stopTree(child); } catch { /* already gone */ }
+        done({ code: result.exitCode, output: out, timedOut: Boolean(result.timedOut) });
+        return;
+      }
       if (settled) return;
       settled = true;
+      unregister();
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onAbort);
       try { await require('../harness/processes').stopTree(child); }
@@ -152,6 +183,23 @@ function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal }) {
     };
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
+    if (detach && detach.app) {
+      unregister = require('../bgdetach').register(detach.app, {
+        label: detach.label || command, tool: detach.tool || 'run_bash', pid: child.pid, startedAt: Date.now(), turnId: detach.turnId || null,
+        detach(job, onDone) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (signal) signal.removeEventListener('abort', onAbort);
+          detachedDone = onDone;
+          const cap = setTimeout(() => { timedOut = true; killTree(child); }, require('../bgdetach').DETACHED_CAP_MS);
+          if (cap.unref) cap.unref();
+          resolve({ output: `DETACHED by the user (/bg) → background job #${job.id} (pid ${child.pid}). The same process keeps running; its result rejoins this task when it finishes. Continue with independent work — do not start it again.`,
+            isError: false, exitCode: null, detached: true, jobId: job.id });
+        },
+      });
+    }
+
     child.on('error', (e) => {
       // Naming the executable turns "bash failed" into something the model can
       // actually route around — it can see that the shell itself is missing and
@@ -174,10 +222,30 @@ function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal }) {
       parts.push(via(KIND.SHELL, execution.contextLine({ shell, cwd })));
       if (out) parts.push(truncated ? out + '\n[output truncated]' : out);
       if (timedOut) parts.push(`[timed out after ${Math.round(timeoutMs / 1000)}s]`);
-      if (code !== 0 && code !== null) parts.push(`[exit ${code}]`);
+      // ---- A SEARCH THAT FOUND NOTHING IS AN ANSWER, NOT A FAULT ----------
+      //
+      // `grep` exits 1 to mean NO MATCH. Reported as an error it reads to the
+      // model as "that command broke", and the reply to a broken command is to
+      // try the same question another way — sed, a wider grep, then reading the
+      // whole file. Observed in a real session: a `grep` exit 1 sitting in the
+      // middle of a reread loop over regions that were already settled.
+      //
+      // So for tools whose exit 1 is defined as "no match", exit 1 is a clean
+      // result that SAYS it found nothing. Exit 2 and above stay errors,
+      // because for these tools that really is a fault.
+      // ZERO FILES SEARCHED IS NOT "NO MATCH" (2026-09-18). ripgrep says so on
+      // stderr when its glob/type filter selected nothing; that result says
+      // nothing about whether the text exists anywhere.
+      const noneSearched = code === 1 && searchLike(command) && /No files were searched/i.test(err);
+      const noMatch = code === 1 && searchLike(command) && !noneSearched;
+      if (noneSearched) parts.push('[NO FILES SEARCHED — the filter selected nothing; this says nothing about whether the text exists]');
+      if (noMatch) parts.push('[no match]');
+      else if (!noneSearched && code !== 0 && code !== null) parts.push(`[exit ${code}]`);
       finish({
         output: parts.join('\n') || '[no output]',
-        isError: code !== 0 || timedOut,
+        isError: (code !== 0 && !noMatch && !noneSearched) || timedOut,
+        noneSearched,
+        noMatch,
         exitCode: code,
         timedOut,
         stderr: err,
@@ -248,11 +316,13 @@ for (const [name, shell, desc] of SHELLS) {
         cwd: where.cwd,
         timeoutMs: Number(input.timeout_ms) || DEFAULT_TIMEOUT_MS,
         signal: ctx.signal,
+        detach: ctx.app ? { app: ctx.app, label: command, tool: name, turnId: ctx.turnId } : null,
       });
 
       // An interrupt is the user's decision, not a failure of the command, and
-      // annotating it would put a CLASSIFICATION on something nobody ran.
-      if (r.interrupted) return r;
+      // annotating it would put a CLASSIFICATION on something nobody ran. A
+      // detach (/bg) is the same: the command is still running elsewhere.
+      if (r.interrupted || r.detached) return r;
 
       const { text, verdict } = execution.annotate(
         { ...r, shell, cwd: where.cwd, command },
@@ -303,4 +373,4 @@ function noteVerified(ctx, command, output) {
   return true;
 }
 
-module.exports = { tools, run, findBash, isWslShim, shellPrefix, resolveCwd, noteVerified, MAX_OUTPUT };
+module.exports = { tools, run, findBash, isWslShim, shellPrefix, resolveCwd, noteVerified, searchLike, MAX_OUTPUT };

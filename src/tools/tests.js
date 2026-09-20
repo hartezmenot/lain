@@ -222,10 +222,12 @@ const tools = {
         cwd,
         timeoutMs: Number(input && input.timeout_ms) || DEFAULT_TIMEOUT_MS,
         signal: ctx && ctx.signal,
+        detach: ctx && ctx.app ? { app: ctx.app, label: command, tool: 'run_tests', turnId: ctx.turnId } : null,
       });
 
       // The user stopping it is the user's decision, not a verdict about tests.
       if (r.interrupted) return { output: r.output, isError: true, meta: { testState: null } };
+      if (r.detached) return { output: r.output, meta: { testState: null, detached: true, jobId: r.jobId } };
 
       // `r` already carries `exitCode`, which is the field execution.classify
       // reads. Adding a second name for it here would be a spare copy that a
@@ -281,11 +283,23 @@ const tools = {
         }
       }
 
+      // THE RUN IS VERIFICATION EVIDENCE, recorded against the contract with the
+      // evidence state its runner earns (a unit tier is FIXTURE, not LIVE). A
+      // BLOCKED run is not recorded as a failure of the code. See verifycontract.js.
+      if (v.state !== testing.STATE.TESTS_BLOCKED && ctx && ctx.session) {
+        try {
+          const contract = require('../verifycontract');
+          const c = contract.contractFor(ctx.session);
+          contract.record(ctx.session, { command, ok: v.state === testing.STATE.TESTS_PASSED, level: c.level });
+        } catch { /* the result stands without the record */ }
+      }
+
       return {
         output: `${head.join('\n')}\n\n${execution.leadWith(body, text)}`,
         // A BLOCKED RUN IS AN ERROR RESULT and a PASSED one is not; PARTIAL is
         // not an error either, because the tests that ran really did pass.
         isError: v.state === testing.STATE.TESTS_FAILED || v.state === testing.STATE.TESTS_BLOCKED,
+        exitCode: r.exitCode == null ? null : r.exitCode,
         meta: {
           testState: v.state,
           counts: v.counts,

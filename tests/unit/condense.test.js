@@ -352,4 +352,16 @@ module.exports = async function () {
     keeps('Should I proceed?');
     keeps('Maybe I should ask whether you want A or B?');
   });
+
+  await test('FOLD: sentences kept from a sectioned report each end as a sentence; headings are not kept', () => {
+    // Live ECO run, 2026-09-19: "…percentage: `amount - pct` Changed to calculate…"
+    const report = 'The task is complete. I fixed applyDiscount and ran the tests as requested.\n\n## Issue\n'
+      + 'Line 14 subtracted `pct` directly instead of calculating the percentage: `amount - pct`\n\n## Fix\n'
+      + 'Changed to calculate the percentage of the amount: `amount - (amount * pct / 100)`\n\n## Changed\nsrc/pricing.js\n\n'
+      + 'The test suite shows 5 passed, 3 failed - but those 3 failures are pre-existing bugs unrelated to applyDiscount.';
+    const f = condense.fold(report, { last: false });
+    assert.strictEqual(f.folded, true);
+    assert.match(f.text, /`amount - pct`\. Changed/, f.text);
+    assert.doesNotMatch(f.text, /##|Issue|Fix\b/, 'no heading text survives as prose');
+  });
 };

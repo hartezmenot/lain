@@ -20,8 +20,9 @@
 
 const path = require('path');
 
-function register({ define, DURING_TURN, C }) {
+function register({ define, DURING_TURN, C, FLASH_MS }) {
   define('/undo', {
+    flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: LAIN talking about itself, not about the work. Goes to the
     // command panel, never into the conversation the model reads.
     surface: true,
@@ -41,6 +42,26 @@ function register({ define, DURING_TURN, C }) {
         app.render.write(C.dim(`    ${f.action}  ${path.relative(app.session.cwd, f.path)}`) + '\n');
         app.session.evidence.invalidate(f.path); // the bytes changed under us
       }
+    },
+  });
+
+  define('/diff', {
+    // AN INSPECTOR, NOT OUTPUT: it opens its own persistent panel (ui/diffinspector.js)
+    // and stays until Esc. Off a terminal there is nothing to navigate, so the
+    // same diff is printed once — to the command surface, never into the
+    // conversation. In the TUI the inspector replaces that output panel.
+    surface: true,
+    flashMs: 0,
+    desc: 'Inspect what changed — overview by file, Enter for the diff, Esc to close',
+    run(app) {
+      if (app.ui && app.ui.enabled) {
+        app.ui.panel.open(require('./ui/diffinspector').inspector(app));
+        app.ui.refresh();
+        return;
+      }
+      const panes = require('./ui/panes');
+      const lines = panes.diffView({ checkpoints: app.checkpoints, cwd: app.session && app.session.cwd, width: (app.render && app.render.width) || 80 });
+      for (const line of lines) app.render.write(line + '\n');
     },
   });
 

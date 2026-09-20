@@ -238,6 +238,10 @@ function pushUser(out, text) {
   const source = String(text == null ? '' : text);
   pushLines(out, source, 'user');
   for (let i = before; i < out.length; i++) out[i].source = source;
+  // WHERE ONE MESSAGE BEGINS. Two messages in a row with nothing between them
+  // (a turn that produced no visible output) were drawn as ONE block — the
+  // second prompt read as a continuation line of the first, i.e. as swallowed.
+  if (out.length > before) out[before].head = true;
 }
 
 /**
@@ -358,7 +362,7 @@ function kindOf(entry) {
 
 // HOW A USER MESSAGE IS DRAWN lives in ui/feeduser.js — see its header for
 // why (the god-object guard was pointing at exactly this seam).
-const { userBlock, userRows } = require('./feeduser');
+const { userAnchor } = require('./feeduser');
 
 function renderFeed(entries, width) {
   const { P } = require('./paint');
@@ -375,6 +379,9 @@ function renderFeed(entries, width) {
   // on without re-parsing painted text. Non-enumerable, so a rendered feed
   // still compares as an array of strings. See ui/mouse.js.
   Object.defineProperty(out, 'fileAt', { value: Object.create(null), enumerable: false, writable: true });
+  // WHERE A [Diff] CONTROL AND AN EXPANDED HUNK LANDED — ui/difftoggle.js.
+  Object.defineProperty(out, 'diffAt', { value: Object.create(null), enumerable: false, writable: true });
+  Object.defineProperty(out, 'hunkAt', { value: Object.create(null), enumerable: false, writable: true });
   const labels = width >= LABEL_MIN_WIDTH;
   // WHERE THE CURRENT RUN OF CALLS BEGINS. The last one is the work in hand;
   // everything before it has finished and recedes. See the action branch below.
@@ -386,14 +393,17 @@ function renderFeed(entries, width) {
   let last = null;
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
+    // CHANGE / VERIFY / RESULT labels and an expanded diff — ui/turnsections.js.
+    const special = require('./turnsections').renderSpecial(entries, i, out, width, P);
+    if (special) { i = special.next; last = special.kind; continue; }
     const k = kindOf(e);
     // BROKEN ON SEVERITY TOO, not only on speaker. A run keyed on `kind` alone
     // shows one label for the whole run, so a warning followed by an error drew
     // the error under the word WARN — the label naming the wrong thing, which
     // is worse than no label.
     const key = e.kind === 'note' ? `note:${e.level || 'info'}` : e.kind;
-    if (key !== last) {
-      if (last !== null) out.push('');
+    if (key !== last || (e.kind === 'user' && e.head)) {
+      if (last !== null && last !== 'section') out.push('');
       // ---- A DIVIDER AT A MAJOR BOUNDARY, AND ONLY THERE -----------------
       //
       // A long session is one wall of text: a user turn, an answer, the next user
@@ -439,7 +449,8 @@ function renderFeed(entries, width) {
       //
       // It costs one short row, and it is the one label that earns it at every
       // width.
-      if ((labels || e.kind === 'user') && k.label) out.push(text);
+      // THE USER'S LABEL IS NOW PART OF THEIR ANCHOR ROW (see the user branch below).
+      if (labels && e.kind !== 'user' && k.label) out.push(text);
       last = key;
     }
     // ---- PROSE STARTS AT THE MARGIN --------------------------------------
@@ -475,6 +486,7 @@ function renderFeed(entries, width) {
       // than derived from it afterwards: the entry knows its path, and reading
       // it back out of a painted sentence would be parsing our own output.
       const named = [];
+      const diffs = [];
       // WHAT EACH ROW IS ABOUT, collected beside the text. A row's subject - the
       // file it touched or the command it ran - is the one word a person scans a
       // session for, and it is painted as one. See `paintMark`.
@@ -484,6 +496,7 @@ function renderFeed(entries, width) {
           rows.push(entries[j].text);
           subjects.push(entries[j].path || entries[j].subject || '');
           if (entries[j].path) named.push({ text: entries[j].text, path: entries[j].path });
+          if (entries[j].diff) diffs.push({ path: entries[j].path, subject: entries[j].subject, diff: entries[j].diff });
         }
         j += 1;
       }
@@ -527,8 +540,14 @@ function renderFeed(entries, width) {
         // nesting rule. A receding row is painted `faint` WHOLE, from the raw
         // text, because wrapping an already-painted row in another colour would
         // have its first inner reset cancel the outer one.
+        // A RECEDING CHANGE ROW goes quiet like everything else that is done,
+        // EXCEPT its +N / -N, which keep green and red — they are the fact the
+        // row exists to state (ui/rowpaint.js).
+        const isChange = (r) => /\[(?:× )?Diff\]\s*$/.test(r);
+        const quiet = { ...P, meta: P.faint, path: P.faint, plain: P.faint };
         const quoted = quoteRun(
-          rows.map((r, n) => (recede ? P.faint(r) : paintMark(r, P, subjects[n] || ''))),
+          rows.map((r, n) => (!recede ? paintMark(r, P, subjects[n] || '')
+            : isChange(r) ? paintMark(r, quiet, subjects[n] || '') : P.faint(r))),
           P,
         );
         for (const row of quoted) {
@@ -541,7 +560,9 @@ function renderFeed(entries, width) {
           // name is not something anybody would aim at.
           const hit = named.find((n) => row.includes(n.path));
           if (hit) out.fileAt[out.length] = hit.path;
-          out.push(recede ? P.faint(row) : row);
+          const d = /\[(?:× )?Diff\]/.test(T.strip(row)) ? diffs.find((x) => (x.path && row.includes(x.path)) || (x.subject && row.includes(x.subject))) : null;
+          if (d) out.diffAt[out.length] = { ...d.diff, col: T.strip(row).lastIndexOf('[') };
+          out.push(recede && !d ? P.faint(row) : row);
         }
         i = j - 1;
         continue;
@@ -557,13 +578,15 @@ function renderFeed(entries, width) {
       let j = i;
       const run = [];
       let source = '';
-      while (j < entries.length && entries[j].kind === 'user') {
+      while (j < entries.length && entries[j].kind === 'user' && !(j > i && entries[j].head)) {
         if (!source && entries[j].source) source = entries[j].source;
         run.push(entries[j].text || '');
         j += 1;
       }
-      const { raw, rows } = userRows(run, Math.max(12, width - indent.length));
-      userBlock(out, source || raw, rows, width, P);
+      userAnchor(out, source || run.join(String.fromCharCode(10)), width, P);
+      // A QUIET RULE BETWEEN WHAT WAS ASKED AND WHAT CAME BACK — the one other
+      // major boundary in an exchange. Only when something follows it.
+      if (j < entries.length && entries[j].kind !== 'user') out.push(P.meta('─'.repeat(Math.max(8, Math.min(width, DIVIDER_MAX) >> 1))));
       i = j - 1;
       continue;
     }
@@ -631,6 +654,7 @@ function renderFeed(entries, width) {
       first = false;
     }
   }
+  require('./turnsections').markRefs(out);   // `src/foo.ts:84` is clickable (§17)
   return out;
 }
 

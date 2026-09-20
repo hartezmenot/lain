@@ -53,16 +53,43 @@ module.exports = async function () {
   //   the Probe keeps what is genuinely DIED with the tool — that was a test of
   //     its own                          the Harness's instrument, not of LAIN.
 
+  /**
+   * WHAT THIS PINS, AND WHAT IT USED TO PIN BY ACCIDENT.
+   *
+   * The claim is a SUBTRACTION claim: retiring the bridge's own `desktop` tool
+   * cost no capability, because `computer` speaks every operation `desktop` had.
+   * That is a statement about the OLD tool's surface, and the old surface is
+   * fixed history — so it is written down here.
+   *
+   * It used to be spelt "every key of mcp.OPS", which quietly meant "every
+   * operation the bridge will EVER offer". Computer MCP then added structured
+   * ones — a UI Automation tree, waits, dialogs, drag, scroll, the clipboard —
+   * that the coordinate-and-keystroke `computer` tool deliberately does not
+   * speak, and the test failed for them. That is growth, not loss, and the
+   * assertion below says so instead: the old surface is still covered, and the
+   * new operations belong to the Computer MCP tool.
+   */
   await test('ONE: everything `desktop` could do, `computer` can do', () => {
-    // The reason the subtraction is safe. `computer` speaks both dialects, so
-    // removing the bridge's own tool removed no capability at all.
-    const bridgeOps = Object.keys(require('../../src/mcp').OPS);
+    const HAD = ['window.list', 'window.focus', 'screen.capture', 'mouse.move', 'mouse.click', 'keyboard.type', 'keyboard.key'];
     const speak = computer.DIALECT.desktop;
     const covered = new Set(Object.values(speak).filter(Boolean));
-    for (const op of bridgeOps) {
+    for (const op of HAD) {
       assert.ok(covered.has(op), `${op} has no computer equivalent — this would be a real loss`);
     }
     assert.ok(computer.NAMES.includes('ocr'), 'and it does more: the bridge never had OCR');
+
+    // EVERY OPERATION THE BRIDGE OFFERS HAS AN OWNER. Anything beyond the old
+    // surface is Computer MCP's, and this is what fails when one is added with
+    // nothing able to reach it.
+    const bridgeOps = Object.keys(require('../../src/mcp').OPS);
+    const mcpTool = require('../../src/tools/computermcp');
+    const structured = new Set([...(mcpTool.OBSERVE || []), ...(mcpTool.ACT || [])].map(String));
+    for (const op of bridgeOps) {
+      if (covered.has(op)) continue;
+      assert.ok(structured.size > 0, 'the Computer MCP tool declares the operations it owns');
+      assert.ok(/^(uia|wait|window|mouse|keyboard|clipboard|screen|cursor|displays|hello)\b/.test(op),
+        `${op} belongs to no surface — either give it one or do not offer it`);
+    }
   });
 
   await test('ONE: the `probe` tool is not a tool name either, in any configuration', () => {

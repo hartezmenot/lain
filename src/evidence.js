@@ -61,6 +61,8 @@ class EvidenceLedger {
     this.byPath = new Map(); // norm abs path -> { stamp, lines, reads, firstSeenAt }
   }
 
+  _absOf(p) { return path.isAbsolute(p) ? p : path.resolve(this.cwd, p); }
+
   _key(p) {
     const abs = path.isAbsolute(p) ? p : path.resolve(this.cwd, p);
     return process.platform === 'win32' ? abs.toLowerCase() : abs;
@@ -90,6 +92,40 @@ class EvidenceLedger {
    * often it mattered — knowledge that survives perfectly well without the
    * bytes, and that `digest` reports so a later turn is not surprised by it.
    */
+  /**
+   * A CONFIRMED RANGE of a file (a ranged read, or the window of a narrowed
+   * one) — what a handover can name exactly: `server.ts:1309-1368`. Keyed to
+   * the file's stamp, so an edited file's ranges are stale on arrival.
+   */
+  noteRange(p, [from, to] = []) {
+    if (!p || !(from > 0) || !(to >= from)) return;
+    const stampNow = stampFor(this.cwd, p);
+    if (!stampNow) return;
+    if (!this.ranges) this.ranges = new Map();
+    const key = this._key(p);
+    const list = (this.ranges.get(key) || []).filter((r) => r.stamp.size === stampNow.size && r.stamp.mtime === stampNow.mtime);
+    list.push({ from, to, stamp: stampNow });
+    list.sort((a, b) => a.from - b.from);
+    const merged = [];
+    for (const r of list) {
+      const last = merged[merged.length - 1];
+      if (last && r.from <= last.to + 1) last.to = Math.max(last.to, r.to); else merged.push({ ...r });
+    }
+    this.ranges.set(key, merged.slice(-12));
+  }
+
+  /** Confirmed ranges still valid against disk, as `rel:from-to` strings. */
+  confirmedRanges(limit = 8) {
+    const out = [];
+    for (const [abs, list] of (this.ranges || new Map())) {
+      const now = stampFor(this.cwd, abs);
+      if (!now) continue;
+      const rel = path.relative(this.cwd, abs).replace(/\\/g, '/');
+      for (const r of list) if (r.stamp.size === now.size && r.stamp.mtime === now.mtime) out.push(`${rel}:${r.from}-${r.to}`);
+    }
+    return out.slice(-limit);
+  }
+
   elide(p) {
     if (!p) return;
     const e = this.byPath.get(this._key(p));
@@ -147,7 +183,9 @@ class EvidenceLedger {
     // EVERY SUCCESSFUL MUTATION IS NOTED ACROSS SESSIONS, not just invalidated
     // within this one. See `noteWrite` for the hole that closes.
     for (const abs of (result && result.mutated) || []) noteWrite(this.cwd, abs, this.owner);
-    if (MUTATORS.has(name)) { if (p) this.invalidate(p); return; }
+    // A write retires every READ RECEIPT of the file too — see readreceipts.js.
+    for (const abs of (result && result.mutated) || []) require('./readreceipts').invalidate(this, abs);
+    if (MUTATORS.has(name)) { if (p) { this.invalidate(p); require('./readreceipts').invalidate(this, this._absOf(p)); } return; }
     for (const abs of (result && result.mutated) || []) this.invalidate(abs);
     if (!BODY_READS.has(name) || !p) return;
     if (result && result.isError) return;
@@ -156,8 +194,12 @@ class EvidenceLedger {
     // ledger claim a 400-line file had been "inspected" after the model had seen
     // ten lines of it, and then suppress the real full read — the ledger lying,
     // and the exact prison it must never become. Only a whole-file read can
-    // establish whole-file evidence.
-    if (isTargeted(input)) return;
+    // establish whole-file evidence. It IS a confirmed RANGE (noteRange).
+    if (isTargeted(input)) {
+      const nums = String((result && result.output) || '').match(/^\s*(\d+)\t/gm) || [];
+      if (nums.length) this.noteRange(p, [Number(nums[0].trim()), Number(nums[nums.length - 1].trim())]);
+      return;
+    }
     const meta = (result && result.meta) || {};
     const stamp = meta.size != null && meta.mtimeMs != null
       ? { size: meta.size, mtime: meta.mtimeMs }
@@ -171,7 +213,11 @@ class EvidenceLedger {
    *  Entries stay keyed on size+mtime, so anything edited meanwhile is stale on
    *  arrival and re-read normally. */
   toJSON() {
-    return [...this.byPath.entries()].map(([abs, e]) => ({ path: abs, ...e }));
+    return {
+      files: [...this.byPath.entries()].map(([abs, e]) => ({ path: abs, ...e })),
+      receipts: require('./readreceipts').toJSON(this),
+      ranges: [...(this.ranges || new Map()).entries()].map(([abs, list]) => ({ path: abs, list })),
+    };
   }
 
   static from(rows, cwd, owner = null) {
@@ -179,7 +225,12 @@ class EvidenceLedger {
     // not recognise its OWN next write (`noteWrite` drops ownerless notes),
     // and `noInspection` would treat that write as blind.
     const l = new EvidenceLedger(cwd, owner);
-    for (const r of Array.isArray(rows) ? rows : []) {
+    // TWO SHAPES ON DISK: a bare array (every session saved before read receipts)
+    // and { files, receipts }. Both restore; neither is rewritten here.
+    const shaped = rows && !Array.isArray(rows) && typeof rows === 'object';
+    if (shaped) require('./readreceipts').restore(l, rows.receipts);
+    if (shaped && Array.isArray(rows.ranges)) l.ranges = new Map(rows.ranges.filter((r) => r && r.path && Array.isArray(r.list)).map((r) => [r.path, r.list]));
+    for (const r of Array.isArray(rows) ? rows : (shaped && Array.isArray(rows.files) ? rows.files : [])) {
       if (!r || !r.path || !r.stamp) continue;
       l.byPath.set(r.path, {
         stamp: r.stamp, lines: r.lines || 0, reads: r.reads || 1, firstSeenAt: r.firstSeenAt || Date.now(),
@@ -197,7 +248,7 @@ class EvidenceLedger {
     const all = [...this.byPath.entries()]
       .sort((a, b) => b[1].reads - a[1].reads || b[1].firstSeenAt - a[1].firstSeenAt)
       .slice(0, limit);
-    if (!all.length) return '';
+    if (!all.length && !this.confirmedRanges(1).length) return '';
     const label = ([abs, e]) => `  - ${path.basename(abs)} (${e.lines} lines${e.reads > 1 ? ` ×${e.reads}` : ''})`;
     const present = all.filter(([, e]) => e.bodyPresent !== false).map(label);
     // ---- WHAT WAS READ, AND IS NO LONGER IN FRONT OF YOU -------------------
@@ -210,8 +261,12 @@ class EvidenceLedger {
     const gone = all.filter(([, e]) => e.bodyPresent === false).map(label);
     const parts = [];
     if (present.length) parts.push('Already inspected this session (unchanged since):\n' + present.join('\n'));
+    // CONFIRMED RANGES — exactly what is established, so the next model reads
+    // only what is still missing instead of reacquiring the file (§15).
+    const ranges = this.confirmedRanges(limit);
+    if (ranges.length) parts.push('CONFIRMED READ (ranges, unchanged since):\n' + ranges.map((r) => `  - ${r}`).join('\n'));
     if (gone.length) {
-      parts.push('Read earlier, but the body has since been elided to fit the window — you no longer have it:\n'
+      parts.push('NOT ESTABLISHED — read earlier, but the body has since been elided to fit the window; you no longer have it:\n'
         + gone.join('\n')
         + '\nFor these, check_symbols {list_symbols:true} gives the outline and read_symbol one definition; '
         + 'a ranged or whole read is still available if you actually need it.');

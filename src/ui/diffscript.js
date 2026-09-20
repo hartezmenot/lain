@@ -49,7 +49,9 @@ const MAX_ROWS = 600;
 function lines(s) {
   if (s == null) return null;
   const t = String(s).replace(/\r\n/g, '\n');
-  return t === '' ? [] : t.split('\n');
+  if (t === '') return [];
+  // The newline ending the last line does not begin another one.
+  return (t.endsWith('\n') ? t.slice(0, -1) : t).split('\n');
 }
 
 /**

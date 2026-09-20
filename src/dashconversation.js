@@ -83,7 +83,7 @@ function conversation(session, live = {}) {
     // an external consultation hands back is submitted like any other turn, and
     // drawing it as `USER` claims somebody typed six hundred characters they
     // never typed. Same rule as the terminal feed — see ui/conversation.js.
-    const said = t.userInput ? require('./ui/phrasing').selfAskedCaption(t.from) : null;
+    const said = t.userInput ? require('./ui/phrasing').selfAskedCaption(t.from, t.typed) : null;
     if (said) out.push({ who: 'LAIN', text: said });
     else if (t.userInput) out.push({ who: 'USER', text: trim(t.userInput) });
     if (t.text) out.push({ who: 'LAIN', text: trim(t.text) });

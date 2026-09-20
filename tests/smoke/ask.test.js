@@ -28,10 +28,22 @@ module.exports = async function () {
 
   await test('ASK: the model asks, the panel renders the choices, the answer returns', async () => {
     const cwd = tmpdir('lain-ask-');
+    // ---- STDIN MUST STILL BE OPEN WHEN THE QUESTION ARRIVES -------------
+    //
+    // This used to write the whole script as ONE string, which CLOSES stdin
+    // immediately, and then relied on the question reaching the panel before
+    // the close was noticed. LAIN deliberately refuses to open a question
+    // nobody can answer (`ui/index.js`: "END OF INPUT IS A STATE, NOT AN
+    // EVENT"), so that race decided whether the panel rendered at all — and it
+    // started losing the moment an `await` was added ahead of `submit`. The
+    // race was the test's, not the product's: a person's terminal does not
+    // close while LAIN is asking them something. Fed as steps, stdin stays
+    // open and the panel is actually exercised.
     const r = await runCli([], {
       cwd, env: tui,
       // Enter selects the first option ("Node.js") in the panel.
-      stdin: `pick a backend${ENTER}${ENTER}/exit\n`,
+      stdinSteps: ['pick a backend' + ENTER, ENTER, '/exit\n'],
+      stepDelayMs: 3000,
       script: [
         { text: 'Asking.', tool_calls: [{ name: 'ask_user', input: { question: 'Which backend should be used?', options: ['Node.js', 'Python', 'Go'] } }] },
         { text: 'Understood.' },

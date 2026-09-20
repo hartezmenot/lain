@@ -192,6 +192,17 @@ module.exports = async function () {
     assert.strictEqual(before, null, 'and the field started empty');
   });
 
+  await test('GIT-PROMPT: a new prefetch withdraws the previous turn\'s snapshot before the request is assembled', () => {
+    // Live, 2026-09-18: the follow-up turn's context read "untracked: …manifest"
+    // — turn 1's snapshot — while src/pricing.js and src/regions.js were
+    // modified. The tail is built before the new measurement resolves.
+    const a = appLike({ session: { cwd: tmpdir('gitsnap-stale-') } });
+    a._gitSnapshot = { ok: true, files: [{ file: 'OLD.txt', untracked: true, added: 0, removed: 0 }] };
+    gitsnapshot.prefetch(a, []);
+    assert.strictEqual(a._gitSnapshot, null, 'synchronously, before any await');
+    assert.strictEqual(gitsnapshot.say(a._gitSnapshot), '', 'so a request built now says nothing rather than something stale');
+  });
+
   await test('GIT-PROMPT: prefetch with no app or no cwd resolves null and touches nothing', async () => {
     const nothing = await gitsnapshot.prefetch(null, []);
     assert.strictEqual(nothing, null);

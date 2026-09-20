@@ -130,11 +130,20 @@ module.exports = async function () {
     assert.strictEqual(r.code, 400);
   });
 
-  await test('APP: a turn refuses while one is already running', async () => {
+  await test('APP: a sentence typed into a working session is a STEER, not a refusal', async () => {
+    // THE CONTRACT CHANGED (2026-09-15). This was a flat 409, which is the right
+    // answer to "two uncontrolled turns in one session" and the wrong answer to
+    // what a person is actually doing — adding a sentence to work in progress.
+    // The terminal has always queued that as a steer; the window now uses the
+    // same contract rather than a second one. See routes.js `POST /api/turn`.
     const app = appAt(tmpdir('app-'));
     app.abort = new AbortController();
-    const r = await routes.dispatch(app, 'POST', '/api/turn', { text: 'go' });
-    assert.strictEqual(r.code, 409);
+    const r = await routes.dispatch(app, 'POST', '/api/turn', { text: 'also check the logs' });
+    assert.strictEqual(r.code, 200);
+    assert.strictEqual(r.body.steered, true, 'it was taken as a steer');
+    assert.strictEqual(app.waitingSteers().length, 1, 'and it is queued for the turn in flight');
+    // AND IT IS THE USER'S OWN TEXT, unchanged — nothing composes here.
+    assert.match(app.steerQueue[0].text, /also check the logs/);
   });
 
   await test('APP: asking goes through `app.handle`, the ONE door', () => {
@@ -150,16 +159,59 @@ module.exports = async function () {
     assert.ok(!/runTurn/.test(src), 'and never through the turn loop directly');
   });
 
-  await test('APP: the application cannot make a different session current', () => {
-    // `/resume` is the one path that crosses a session boundary — a rule the
-    // Session class states in its own header. A second way in from a browser,
-    // with a turn possibly running against the session being replaced, is
-    // exactly the leak that rule exists to prevent.
-    assert.ok(!Object.keys(routes.ROUTES).some((k) => /resume|session\/(open|switch)/i.test(k)),
-      'no route may switch sessions');
+  await test('APP: navigating between sessions is never refused by a running turn', async () => {
+    // THE CONTRACT CHANGED AGAIN (2026-09-15), and this is the correction the
+    // 2026-09-14 version got wrong. Refusing to OPEN session B because session A
+    // is working is a lock on the application, not a safety property: a running
+    // turn belongs to its session, and looking at another one mutates nothing.
+    //
+    // WHAT IS STILL GUARDED, and it is the part that mattered: no second way for
+    // a session to become live, and the terminal's session is not dragged along.
     const fs = require('fs');
-    const src = fs.readFileSync(require.resolve('../../src/harnessapp/routes'), 'utf8');
-    assert.ok(!/Session\.resume|app\.adopt\(/.test(src), 'and nothing here adopts a session');
+    const src = fs.readFileSync(require.resolve('../../src/harnessapp/sessionroutes'), 'utf8');
+    assert.ok(!/app\.session\s*=/.test(src), 'a session is never assigned directly');
+    assert.ok(/app\.pool\(\)/.test(src), 'it goes through the one set of live sessions');
+    const routesSrc = fs.readFileSync(require.resolve('../../src/harnessapp/routes'), 'utf8');
+    assert.ok(!/app\.adopt\(|Session\.resume/.test(routesSrc), 'routes.js itself opens nothing');
+
+    // AND THE BEHAVIOUR, against a real App with a real turn in flight.
+    const app = appAt(tmpdir('app-'));
+    const mine = app.session.id;
+    app.abort = new AbortController();               // session A is working
+
+    const made = await routes.dispatch(app, 'POST', '/api/session/new', { lane: 'engineering' });
+    assert.strictEqual(made.code, 200, 'a new session is created while A runs');
+    assert.notStrictEqual(made.body.id, mine, 'and it is a different session');
+
+    const cowork = await routes.dispatch(app, 'POST', '/api/session/new', { lane: 'cowork' });
+    assert.strictEqual(cowork.code, 200, 'a Cowork session too — the lanes share no lock');
+
+    const back = await routes.dispatch(app, 'POST', '/api/session/select', { id: mine });
+    assert.strictEqual(back.code, 200, 'and A can be returned to');
+    assert.strictEqual(back.body.running, true, 'with its turn still running');
+
+    // THE TERMINAL WAS NOT MOVED. Its session, and its turn, are where they were.
+    assert.strictEqual(app.session.id, mine, 'the terminal kept its session');
+    assert.ok(app.abort && !app.abort.signal.aborted, 'and its turn was never touched');
+
+    for (const id of [made.body.id, cowork.body.id]) require('../../src/sessionstore').forget(id);
+  });
+
+  await test('APP: closing a view keeps the conversation; deleting is its own verb', async () => {
+    const app = appAt(tmpdir('app-'));
+    const made = await routes.dispatch(app, 'POST', '/api/session/new', {});
+    const id = made.body.id;
+    assert.ok(require('../../src/session').Session.list(500).includes(id), 'it was written');
+
+    const closed = await routes.dispatch(app, 'POST', '/api/session/close', { id });
+    assert.strictEqual(closed.code, 200);
+    // THE WHOLE POINT: the transcript is still there and `/resume` can reach it.
+    assert.ok(require('../../src/session').Session.list(500).includes(id), 'closing kept it');
+    assert.ok(require('../../src/session').Session.resume(id), 'and it still resumes');
+
+    const gone = await routes.dispatch(app, 'POST', '/api/session/delete', { id });
+    assert.strictEqual(gone.code, 200);
+    assert.ok(!require('../../src/session').Session.list(500).includes(id), 'deleting removed it');
   });
 
   // ------------------------------------------------------ no second truth --
@@ -203,61 +255,40 @@ module.exports = async function () {
     }
   });
 
-  await test('APP: the shell is public and every fact behind it is not', () => {
-    // The SESSION credential lives in a header, never the URL — so a link is
-    // safe to hand around and the credential is not. Same rule dash.js settled
-    // on, and it is unchanged.
-    const fs = require('fs');
-    const src = fs.readFileSync(require.resolve('../../src/harnessapp/server'), 'utf8');
-    assert.ok(/x-lain-session/.test(src), 'the session token travels in a header');
-    assert.ok(/127\.0\.0\.1/.test(src), 'and it binds loopback only');
-    assert.ok(!/0\.0\.0\.0/.test(src), 'never every interface');
-  });
-
-  await test('APP: the launch token is the ONE thing in a URL, and it is spent on use', () => {
-    // ---- THIS RULE CHANGED, DELIBERATELY --------------------------------
+  await test('APP: there is no HTTP surface left to authenticate to', () => {
+    // ---- THREE TESTS BECAME ONE, BECAUSE THE THING THEY GUARDED IS GONE ---
     //
-    // The guard above used to also ban `searchParams.get('t')` outright. That
-    // was right while the only way in was a password a person pasted — and
-    // that flow was the reported defect: the paste worked, Enter sometimes did
-    // not take it, and the failure said very little.
+    // They pinned the loopback listener's credential rules: a session in a
+    // header rather than a URL, loopback-only binding, and a single-use launch
+    // token spent before it was compared. Every one of those was correct, and
+    // all of them were about a transport that existed so the Harness could be a
+    // page in somebody's Chrome.
     //
-    // `/app` now opens the browser itself with a ONE-TIME launch token in the
-    // URL, exchanged for a real session while the document is served. The
-    // exception is bounded, and these are the bounds — asserted, so they
-    // cannot quietly erode into "a credential in a URL".
-    const server = require('../../src/harnessapp/server');
+    // LAIN Desktop replaced it (2026-09-15). The window is LAIN's own process,
+    // reached over a private named pipe whose secret is proven on the first
+    // message — there is no port, no cookie, no URL and no token, so there is
+    // nothing left for those rules to be true OF.
+    //
+    // WHAT REPLACES THEM: the channel's own refusal, proved against a real pipe
+    // in tests/smoke/desktop-real.test.js, and the boundary guards in
+    // tests/unit/desktopboundary.test.js. What is asserted here is that the old
+    // surface did not quietly survive.
     const fs = require('fs');
-    const src = fs.readFileSync(require.resolve('../../src/harnessapp/server'), 'utf8');
-
-    // SINGLE USE, AND SPENT BEFORE IT IS CHECKED. The token is cleared from
-    // state before any comparison can fail or throw; a token that survives a
-    // rejected attempt is not single-use, and the ORDER is the only guarantee.
-    const consume = src.slice(src.indexOf('function consumeLaunchToken('), src.indexOf('function readBody('));
-    const clearedAt = consume.indexOf('state.launch = null');
-    const comparedAt = consume.indexOf('timingSafeEqual');
-    assert.ok(clearedAt > 0 && comparedAt > clearedAt,
-      'the launch token must be spent BEFORE it is compared, or a failed attempt leaves it usable');
-
-    // IT EXPIRES.
-    assert.ok(server.LAUNCH_TTL_MS > 0 && server.LAUNCH_TTL_MS <= 5 * 60 * 1000,
-      `a launch token good for ${server.LAUNCH_TTL_MS}ms is not a launch token`);
-    assert.match(consume, /expires/, 'and the expiry is actually checked');
-
-    // AND IT IS COMPARED IN CONSTANT TIME, like every other credential here.
-    assert.match(consume, /timingSafeEqual/);
-
-    // THE PAGE ERASES IT FROM THE ADDRESS BAR.
-    const script = require('../../src/harnessapp/pagescript').js();
-    assert.match(script, /history\.replaceState/,
-      'a spent credential left in the address bar is still something a person can copy into a message');
-  });
-
-  await test('APP: an unknown or reused launch token is refused', () => {
-    const server = require('../../src/harnessapp/server');
-    // With no server running there is no state, so nothing can be spent.
-    assert.strictEqual(server.consumeLaunchToken('deadbeef'), null);
-    assert.strictEqual(server.consumeLaunchToken(''), null);
-    assert.strictEqual(server.consumeLaunchToken(null), null);
+    const path = require('path');
+    const dir = path.join(__dirname, '..', '..', 'src', 'harnessapp');
+    for (const gone of ['server.js', 'localauth.js', 'desktop.js']) {
+      assert.ok(!fs.existsSync(path.join(dir, gone)), `${gone} is gone, not merely unused`);
+    }
+    // AND NOTHING REACHES FOR THEM.
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(dir, f), 'utf8');
+      assert.ok(!/require\('\.\/(server|localauth|desktop)'\)/.test(src), `${f} still requires a removed module`);
+    }
+    // AND THE PAGE CARRIES NO LOGIN OF ANY KIND.
+    const html = page.html();
+    assert.ok(!/<input[^>]*type=["']?password/i.test(html), 'no password field');
+    assert.ok(!/api\/login/i.test(html), 'nothing posts a login');
+    assert.ok(!/__LAIN_HANDED__/.test(html), 'and no session is handed to the document');
   });
 };

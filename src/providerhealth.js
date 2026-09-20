@@ -157,15 +157,9 @@ function refresh(app, { adopt = false } = {}) {
       // HYDRATED ONLY ONCE THE ROWS ARE ACTUALLY HERE. Which of them survive a
       // restart is decided in availability.js, where the reasoning lives next
       // to the state it is about.
-      const took = app.availability.hydrate(r.providers);
-      if (took.limited && app.ui && app.ui.enabled) {
-        // SAY IT. It is a fact the user cannot otherwise see and it changes what
-        // they should do next: a route they believe is fine is shut, and LAIN
-        // knows when it opens.
-        app.transient('info', took.limited === 1
-          ? '1 route is still rate limited from an earlier session'
-          : `${took.limited} routes are still rate limited from an earlier session`);
-      }
+      // Adopted silently: a limit from an earlier process is diagnostics, never
+      // a primary-UI warning. See availability.hydrate.
+      app.availability.hydrate(r.providers);
     })
     .catch(() => { /* provider health is not a dependency of this turn */ });
 }

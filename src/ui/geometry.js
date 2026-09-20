@@ -141,8 +141,16 @@ function regions(screen) {
   // conversation is. See ui/jobsview.js.
   let jobRows = require('./jobsview').rows(screen.state && screen.state.llm,
     Math.max(0, rows - headerRows - inputRows - panel - statusRows - pendingRows - 1));
-  const left = () => rows - headerRows - inputRows - panel - statusRows - pendingRows - jobRows;
+  // THE TRANSIENT ACTIVITY BOX — zero rows unless a turn is working on something
+  // worth a line; given up before anything else. See ui/activitybox.js.
+  let activityRows = require('./activitybox').rows(screen.state && screen.state.llm,
+    Math.max(0, rows - headerRows - inputRows - panel - statusRows - pendingRows - jobRows - 4), Date.now(), {
+      // THE DIFF IS PRIMARY while it arrives in the feed, or while one is expanded.
+      minimal: Boolean(screen.openDiff) || require('./turnsections').arriving((screen.state && screen.state.liveActions) || []),
+    });
+  const left = () => rows - headerRows - inputRows - panel - statusRows - pendingRows - jobRows - activityRows;
   if (left() < 1) headerRows = 1;
+  while (activityRows > 0 && left() < 1) activityRows = 0;
   // GIVEN UP FIRST. A steer you have typed and not yet sent is more urgent than
   // a status you can get from `/bg`, so this yields before pending does.
   while (jobRows > 0 && left() < 1) jobRows -= 1;
@@ -150,7 +158,7 @@ function regions(screen) {
   while (statusRows > 0 && left() < 1) statusRows -= 1;
   const workspace = Math.max(1, left());
   return {
-    headerRows, workspace, statusRows, inputRows, textRows, hintRows, panelRows: panel, pendingRows, jobRows,
+    headerRows, workspace, statusRows, inputRows, textRows, hintRows, panelRows: panel, pendingRows, jobRows, activityRows,
     // KEPT AS A NAME, not as a second layout. Nothing branches on them any
     // more — the header has one shape — but callers and tests read the object
     // and a missing key reads as `undefined` rather than as "no frame".

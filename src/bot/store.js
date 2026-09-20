@@ -43,6 +43,29 @@ class Store {
     if (this.data.accounts[key] && this.data.accounts[key] !== identity) throw new Error('bot account changed; configure a new accountId');
     if (!this.data.accounts[key]) { this.data.accounts[key] = identity; this.save(); }
   }
+  // A PERSON ASKING TO BE ALLOWED, recorded and nothing else. A Telegram private
+  // `/start` from a sender the allowlist does not name lands here so the local
+  // owner can approve that exact ID from LAIN Desktop. It grants nothing: the
+  // allowlist in config remains the only authority, and approval is a local act.
+  candidate(e) {
+    this.data.candidates ||= {};
+    const key = `${e.platform}:${e.accountId}:${e.senderId}`;
+    const row = this.data.candidates[key] || { platform: e.platform, accountId: e.accountId, senderId: e.senderId, chatId: e.chatId, firstAt: Date.now(), count: 0 };
+    row.lastAt = Date.now(); row.count += 1; row.chatId = e.chatId;
+    this.data.candidates[key] = row;
+    const rows = Object.entries(this.data.candidates).sort((a, b) => b[1].lastAt - a[1].lastAt);
+    for (const [k] of rows.slice(16)) delete this.data.candidates[k];
+    this.save();
+    return row;
+  }
+  dropCandidate(platform, accountId, senderId) {
+    if (!this.data.candidates) return false;
+    const key = `${platform}:${accountId}:${senderId}`;
+    const had = Boolean(this.data.candidates[key]);
+    delete this.data.candidates[key];
+    if (had) this.save();
+    return had;
+  }
   admit(key, event) {
     if (this.data.inbox[key]) return false;
     this.trim('inbox'); this.data.inbox[key] = { state: 'queued', event, at: Date.now() }; this.save(); return true;

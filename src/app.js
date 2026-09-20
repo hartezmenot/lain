@@ -32,7 +32,26 @@ const { onInterrupt } = require('./interrupt');
 
 class App {
   constructor(opts = {}) {
-    this.cfg = { ...config.load(), ...(opts.cfg || {}) };
+    /**
+     * ONE MORE CONVERSATION IN THE SAME PROCESS, or the process's own.
+     *
+     * A SIBLING is an App built by src/sessionpool.js to hold a session the
+     * window has open beside the one the terminal is on. It is the ordinary App
+     * — same turn loop, same tools, same gates — with three differences, all of
+     * them consequences of having no terminal of its own:
+     *
+     *   · it renders to a sink, so it can never write over the CLI's frame
+     *   · its `ui` is constructed and never enabled, so it draws nothing
+     *   · it SHARES the facts that are about the process rather than about a
+     *     conversation — the config object, `availability`, connection
+     *     evidence — because two answers to "is this route rate limited" is
+     *     two wrong answers half the time
+     *
+     * Everything a conversation owns — session, checkpoints, abort, jobs,
+     * events, handover, project caches — is its own. See sessionpool.js.
+     */
+    this._sibling = opts.sibling || null;
+    this.cfg = this._sibling ? this._sibling.cfg : { ...config.load(), ...(opts.cfg || {}) };
     // ---- WHAT MUST NEVER REACH A SCREEN, LEARNED BEFORE ANYTHING DRAWS ----
     //
     // connections.js registers each credential as it resolves one, which covers
@@ -79,21 +98,38 @@ class App {
     // nothing about whether a server is up; a rate limit is not, because "retry
     // in 4 hours" is a fact whose future outlasts this process. See
     // availability.hydrate and providerhealth.js.
-    this.availability = new Availability(this.cfg.availability || {});
+    // A RATE LIMIT IS A FACT ABOUT A ROUTE, NOT ABOUT A CONVERSATION, so a
+    // sibling reads and writes the primary's — one shut route, one answer.
+    this.availability = this._sibling ? this._sibling.availability : new Availability(this.cfg.availability || {});
     /** Durable provider rows, refreshed off the hot path. */
     this._supervisedProviders = [];
-    require('./providerhealth').installSink(this);
-    // ADOPTED ONLY HERE, once per process — see providerhealth.refresh.
-    require('./providerhealth').refresh(this, { adopt: true });
+    // THE SINK HANGS OFF `availability`, WHICH A SIBLING SHARES — so installing
+    // one again would replace the primary's with an identical closure over a
+    // different App. It reads only shared state, so nothing would change today;
+    // it is skipped because "the sibling reassigned the process's sink" is a
+    // sentence that stops being harmless the moment the sink reads anything
+    // session-shaped. ADOPTION is skipped for the plainer reason: a sibling is
+    // not a process, and the durable rows are adopted once per process (see
+    // providerhealth.refresh).
+    if (!this._sibling) {
+      require('./providerhealth').installSink(this);
+      require('./providerhealth').refresh(this, { adopt: true });
+    }
     /** Real request outcomes per connection — the ONLY thing that can make a
-     *  connection REQUEST_READY. A credential on disk never does. */
-    this.connectionEvidence = {};
+     *  connection REQUEST_READY. A credential on disk never does. Shared for
+     *  the same reason availability is: a request that really succeeded is
+     *  evidence once, not once per open conversation. */
+    this.connectionEvidence = this._sibling ? this._sibling.connectionEvidence : {};
     this.checkpoints = null; // created once the session exists (below)
 
     // A NEW SESSION IS EMPTY. Resuming happens only here, only because the user
     // asked for it on the command line. There is no lookup of a previous
     // session, no scan of the cwd, and nothing to inherit.
-    if (opts.resume) {
+    if (opts.session) {
+      // THE POOL ALREADY HAS THE SESSION — resumed or newly made. Adopting it
+      // here rather than re-reading it keeps one load per session.
+      this.adopt(opts.session, { resumedFrom: opts.resumedFrom || null });
+    } else if (opts.resume) {
       const restored = Session.resume(opts.resume);
       if (!restored) {
         this.render.notice('error', `No session "${opts.resume}". Nothing was resumed; starting a new session.`);
@@ -128,8 +164,13 @@ class App {
    * companions are rebound here or the leak comes back.
    */
   adopt(session, { resumedFrom = null } = {}) {
+    // A DESKTOP AUTHORIZATION BELONGS TO THE SESSION IT WAS GIVEN IN. Changing
+    // session ends it; the next piece of work asks again. See computermcp.js.
+    if (this._desktop && this.session && this.session.id !== session.id) this._desktop.permissions.revoke('the session changed');
     this.session = session;
     this.resumedFrom = resumedFrom;
+    // Turns that ended in an EARLIER process are history, not a resting state. See ui/projection.js.
+    this._turnsAtAdopt = (session.turns || []).length;
     // RESUMING loads that session's own snapshots back, so /undo and /changes
     // still work on the work it did. Snapshots were always written and never
     // read, which made both report "nothing" after a resume while the bytes
@@ -158,6 +199,16 @@ class App {
     require('./providerhealth').refresh(this);
     return session;
   }
+
+  /**
+   * THE LIVE SESSIONS IN THIS PROCESS, and which one a surface is looking at.
+   *
+   * A running turn belongs to ONE of these, never to the process — see
+   * sessionpool.js for the defect that sentence describes. Called on a sibling,
+   * it returns the same pool: there is one set of live sessions, not one per
+   * conversation.
+   */
+  pool() { return require('./sessionpool').forApp(this); }
 
   // WHAT THE SUPERVISOR HAS BEEN DOING, cached for the synchronous readers that
   // build prompts and draw frames. Fire-and-forget; see runtimefacts.js for why
@@ -195,14 +246,14 @@ class App {
   }
 
   /** One user message end-to-end. Returns the turn record. */
-  async submit(text, { isPaste = false, forceMode = null, sameTask = false, from = null } = {}) {
+  async submit(text, { isPaste = false, forceMode = null, sameTask = false, from = null, typed = false } = {}) {
     const verdict = this.identify(text, isPaste, forceMode, sameTask);
     if (process.env.LAIN_DEBUG_TASK) this.render.notice('info', `[task ${verdict.kind} · mode ${verdict.mode}] ${verdict.reason} · ${verdict.modeReason}`);
     // Elapsed time is measured from the start of the TASK, not the turn, and
     // restarts when the task does.
     if (this.ui.enabled && (!verdict.sameTask || !this.ui.startedAt)) this.ui.startedAt = Date.now();
 
-    require('./ui/alert').cancelPendingWait(this); this.abort = new AbortController();  // order matters: ui/alert.js
+    require('./ui/alert').cancelPendingWait(this); this.abort = new AbortController(); require('./admissiontrace').note(this, 'submit:begin', { from });  // order matters: ui/alert.js
     // GIT STATE, measured while the request is assembled. Fire-and-forget: the
     // section it feeds rides the volatile tail (gitsnapshot.js) and may never
     // delay the request that carries it — a turn that outruns the measurement
@@ -231,26 +282,27 @@ class App {
     // Whatever was outstanding last time is no longer the news; this turn will
     // decide again when it ends.
     this.pendingCompletion = null;
-    if (this.ui.enabled) { this.ui.beginTurn(verdict); this.ui.setLiveUser(text, from); }  // verdict: see ui/alert.js
+    if (this.ui.enabled) { this.ui.beginTurn(verdict); this.ui.setLiveUser(text, from, typed); }  // verdict: see ui/alert.js
     let record = null;
     // Carried across the whole event stream: prose buffered until the call it
     // preceded, and the finished record when it arrives. See turnevents.js.
     const ctx = { liveText: '', record: null };
     try {
-      if (this.interaction) text = await require('./interaction').prepareInput(this, text);
+      text = await require('./interaction').prepareInput(this, text);   // always: staged Cowork inputs reach the turn from EVERY surface
       // ONE LOOP, TWO SOURCES OF EVENTS: with LAIN's runtime selected (the
       // default) this is false and nothing changes, and a CODING turn never
       // diverts whatever is selected. See chatdispatch.js for both boundaries.
       const chat = require('./chatdispatch');
       const stream = chat.routes(this, verdict).yes
-        ? chat.run(this, text, verdict, { from, signal: this.abort.signal })
+        ? chat.run(this, text, verdict, { from, typed, signal: this.abort.signal })
         : runTurn(this.session, text, require('./jobrunner').turnOptions(this, {
         session: this.session,
         signal: this.abort.signal,
-        from,
+        from, typed,
         // Absent when there is no interactive UI, so ask_user reports that
         // rather than returning a null the model reads as a dismissal.
-        ask: this.interaction ? (q) => require('./interaction').ask(this, q) : this.ui.enabled ? (q) => this.ui.askUser(q) : null,
+        // ONE CORE DECISION per question, answerable from here or Telegram (decisions.js).
+        ask: require('./decisions').wrapAsk(this, require('./interaction').port(this) ? (q) => require('./interaction').ask(this, q) : this.ui.enabled ? (q) => this.ui.askUser(q) : null),
         // THE LIVENESS SIGNAL, and now also the PRIMARY JOB'S current activity.
         // turn.js computes this immediately before every provider call and
         // every tool; it is a local callback with no request and no token
@@ -326,8 +378,13 @@ class App {
       // thing the user reads, so an unchallenged "all tests pass" over a red
       // suite is the whole failure mode in one line. Costs nothing: a string
       // against an exit code.
-      const disagree = this.session.lifecycle && this.session.lifecycle.contradiction(record.text);
-      if (disagree) this.render.notice('warn', disagree);
+      const disagree = (this.session.lifecycle && this.session.lifecycle.contradiction(record.text)) || require('./runcheck').check(record.text, this.session.cwd);
+      if (disagree) {
+        // ON THE TURN IT IS ABOUT: a TUI notice floats under every later turn.
+        const kept = (this.session.turns || [])[this.session.turns.length - 1];
+        if (this.ui.enabled && kept && kept.turnId === record.turnId) kept.contradiction = disagree;
+        else this.render.notice('warn', disagree);
+      }
       // REQUEST_READY is earned by a request that actually succeeded.
       const pc = providerMod.resolve({ ...this.cfg, _evidence: this.connectionEvidence });
       connectionsMod.noteTurn(this.connectionEvidence, pc.connectionId || pc.provider, record);
@@ -340,79 +397,12 @@ class App {
     // AND THE TASK RECORD IS TOLD THE SAME THING. `DONE` becomes VERIFYING —
     // a model that stopped has stopped, not proved anything. See harnesslink.js.
     require('./harnesslink').endTurn(this, record);
-    try { this.session.save(); } catch (e) { this.render.notice('warn', `could not save session: ${e.message}`); }
+    try { this.session.save(); } catch (e) { this.render.notice('warn', `could not save session: ${e.message}`); } require('./admissiontrace').note(this, 'submit:settled', { stop: record && record.stopReason });
 
-    // ---- WHAT YOU TYPED WHILE IT WORKED, NOW THAT IT HAS FINISHED ---------
-    //
-    // A steer defaults to WAIT: it is delivered here, once the work in flight
-    // is done, rather than interrupting a healthy tool call to add a sentence.
-    // Pressing Enter again promotes it to NOW and it lands at the next step
-    // boundary instead — this path is for the ones nobody promoted.
-    //
-    // SAME TASK, deliberately. It is a correction to the work that just
-    // happened, not a new request, so it must not replace the objective.
-    //
-    // THIS IS THE USER'S OWN TEXT, which is why it may start a turn when
-    // nothing else may. LAIN composes nothing here: it delivers a sentence the
-    // person typed, at the first moment it is safe to deliver it.
-    // EVERY queued steer, not only the ones still WAITING — see `drainSteers`
-    // for the sentence that used to be deleted here without being delivered.
-    const waiting = this.wantExit ? [] : this.drainSteers();
-    if (waiting.length) {
-      const joined = waiting.join('\n');
-      // ---- AN ACKNOWLEDGEMENT, NOT A RECORD -----------------------------
-      //
-      // This was a durable row. What the user typed IS durable and is drawn where
-      // they typed it (turn.js records `steerTexts` and the feed replays them at the
-      // step they reached); saying a second time that it was handed over is LAIN
-      // confirming its own plumbing. One transient row, and then it is over.
-      if (this.ui.enabled) {
-        require('./ui/operation').note(this.ui, `Delivered what you typed · ${joined}`);
-      }
-      return await this.submit(joined, { sameTask: true, from: 'steer' });
-    }
-
-    // ---- IT ASKED YOU SOMETHING ------------------------------------------
-    //
-    // "Now press 2 and narrow to 2.0" is the model asking the PERSON to act. It
-    // is not finished and it is not continuing: it is waiting. Without this the
-    // strip said DONE over an investigation that was waiting for a key press.
-    //
-    // THIS IS THE ONLY THING LEFT OF WHAT USED TO BE `carryon`. That module
-    // decided the model should take ANOTHER TURN whenever a turn hit `maxSteps`,
-    // and manufactured one — up to four times, each with a synthetic "continue
-    // from where you stopped" prompt, each a fresh request re-sending the whole
-    // conversation, each leaving that prompt permanently in the history.
-    //
-    // It is gone, deliberately. `maxSteps` is a bound on LAIN'S EXECUTION, not a
-    // claim about the task and not a licence to spend four more requests
-    // deciding the model did not mean to stop. The model is the agent; when it
-    // stops, it has stopped, and the task simply stays ACTIVE so the next thing
-    // the user types carries on. Classifying the ending truthfully is LAIN's
-    // job. Overriding it is not.
-    //
-    // What remains here is a CLASSIFICATION, not a control flow: it reads the
-    // turn and sets lifecycle state. It starts nothing.
-    if (this.session.lifecycle && require('./lifecycle').Lifecycle.asksUserToAct(record.text)) {
-      const why = 'it asked you to do something and is waiting for you';
-      this.session.lifecycle.needsUser(why);
-      // THE ONE STATE WHERE NOTHING HAPPENS UNTIL A PERSON ACTS. A companion
-      // that cannot show it leaves the user waiting on a LAIN that is waiting
-      // on them — the same deadlock, in a second window.
-      this.events.emit(require('./events').EVENT.WAITING_FOR_USER, { reason: why });
-      if (this.ui.enabled) this.ui.refresh();
-    }
-
-    // ---- RATE LIMITED FOR HOURS: WAIT, OR CHANGE MODEL --------------------
-    //
-    // The turn ended without spending itself on a limit measured in hours (see
-    // turn.js). Only two answers are useful and both belong to the person, so
-    // they are asked — and then LAIN does the waiting, rather than the user
-    // coming back later to type `continue`.
-    if (record.stopReason === 'rate-limited' && record.providerFailure) {
-      return await this.handleRateLimit(record, text);
-    }
-    return record;
+    // WHETHER ANOTHER TURN FOLLOWS THIS ONE — a queued steer, a question
+    // waiting on the person, a rate limit worth waiting out. Moved out whole when
+    // this file crossed the god-object guard; see src/submitclose.js.
+    return await require('./submitclose').after(this, record, text);
   }
 
   /**
@@ -462,7 +452,14 @@ class App {
    * work the user can see happening.
    */
   notePhase(p) {
+    if (this.ui.enabled && p && p.phase === 'ENDED') require('./completion').preview(this, (this.session.turns || []).slice(-1)[0]);   // before the settle frame
     if (this.ui.enabled) this.ui.setPhase(p);
+    // AND THE WINDOW LOOKS AGAIN, NOW. This is called before every provider
+    // request and every tool, which is exactly when what a person is watching
+    // changes. Without it the application waited for its next poll and appeared
+    // slower than the work it was reporting. It carries no state — the window
+    // still reads /api/state — see harnessapp/ipc.js wake().
+    require('./sessionstatus').touch(this, { phase: p || null });   // records the phase, wakes, emits session.status
     // A THIRD READING OF THE SAME FACT, not a third source of it: it buys the
     // one thing the screen and `/jobs` cannot, a record of what the turn was
     // doing that survives this process. Costs no request and no token.
@@ -505,14 +502,14 @@ class App {
    * resume — leaves it off and gets the awaited turn it has always had, which
    * is why none of those paths had to change.
    */
-  async handle(text, { isPaste = false, from = null, background = false } = {}) {
+  async handle(text, { isPaste = false, from = null, background = false, forceMode = null } = {}) {
     const s = String(text == null ? '' : text);
     if (!s.trim()) return;
     // An outstanding question consumes this line as the ANSWER. It is not
     // classified, does not touch task identity and cannot start a task.
-    if (this.answerPending(s)) return;
+    const T = require('./admissiontrace'); T.note(this, 'handle', { chars: s.length }); if (this.answerPending(s)) { T.note(this, 'handle:answer'); return; }
     // A COMPOSED LINE IS A GOAL OR A PLAN, never a prompt — see composemode.js.
-    if (require('./composemode').take(this, s)) return;
+    if (require('./composemode').take(this, s)) return void T.note(this, 'handle:composer');
     // A bare `/` is someone reaching for the command menu, not a prompt. It is
     // never spent on a model request; the palette comes back instead.
     if (!isPaste && s.trim() === '/') { this.ui.updateMenus('/'); return; }
@@ -531,7 +528,7 @@ class App {
     this.dispatching += 1;
     try {
       const gate = await require('./inputgate').admit(this, s, { from });
-      if (gate.held) return gate.result;
+      T.note(this, gate.held ? 'handle:held' : 'handle:admitted'); if (gate.held) return gate.result;
       // A TASK IS STARTED, NOT AWAITED, when the caller is the interactive loop.
       // The job owns the turn from here; see src/jobrunner.js and the note in
       // src/repl.js at the line that used to await this.
@@ -545,7 +542,7 @@ class App {
       // NOT AWAITED, deliberately: `submit` mints `this.abort` before its first
       // await, so by the time this returns the ordinary "a turn is running"
       // signal is true and the counter below can safely go back down.
-      return this.submit(s, { isPaste, from });
+      return this.submit(s, { isPaste, from, forceMode });
     } finally {
       this.dispatching -= 1;
     }

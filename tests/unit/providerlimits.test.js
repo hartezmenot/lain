@@ -19,12 +19,23 @@ const pl = require('../../src/providerlimits');
 const wire = (n, content = 'x') => Array.from({ length: n }, () => ({ role: 'user', content }));
 
 module.exports = async function () {
-  await test('LIMITS: a known provider carries its message cap without any config', () => {
-    const omni = { provider: 'omniroute', connectionId: 'omniroute', ctx: 128000 };
-    const l = pl.limitsFor(omni, {});
+  await test('LIMITS: a configured message cap is carried, and is a different limit from the window', () => {
+    // ---- THE FIXTURE MOVED, THE MECHANISM DID NOT (2026-09-15) -----------
+    //
+    // This used to key on `omniroute`, the one row in the KNOWN table — the
+    // provider the 800-message refusal was first observed against. That provider
+    // was retired from the product, so the table is empty and the row it tested
+    // is gone. What matters is unchanged and is asserted here through the path a
+    // person actually has now: a cap they configured.
+    const route = { provider: 'someroute', connectionId: 'someroute', ctx: 128000 };
+    const l = pl.limitsFor(route, { providerLimits: { someroute: { messages: 800 } } });
     assert.strictEqual(l.messages, 800);
     assert.strictEqual(l.tokens, 128000, 'the token window is a DIFFERENT limit and is carried separately');
-    assert.match(l.source, /known default/);
+    assert.match(l.source, /configured/);
+
+    // AND THE KNOWN TABLE IS STILL CONSULTED — it is empty, not removed, so the
+    // next provider to refuse on a count is one row rather than a redesign.
+    assert.ok(pl.KNOWN && typeof pl.KNOWN === 'object', 'the known-defaults table survives its last row');
   });
 
   await test('LIMITS: an unknown provider gets NO invented cap', () => {

@@ -121,7 +121,7 @@ const KNOWN = Object.freeze([
     id: 'zai',
     label: 'Z.AI',
     protocol: 'chat',
-    baseUrl: 'https://api.z.ai/api/paas/v4',
+    baseUrl: 'https://api.z.ai/api/coding/paas/v4',
     envKey: 'ZAI_API_KEY',
   }),
   Object.freeze({
@@ -147,13 +147,12 @@ const KNOWN = Object.freeze([
  * belong on screen. Omitting them made the picker look like the ecosystem was
  * four providers wide; giving them a plausible URL would point a credential at
  * a guess. So they are offered, labelled, and route into the same base-URL
- * question `Other…` uses — the user supplies the one thing LAIN is missing.
+ * question `Customs…` uses — the user supplies the one thing LAIN is missing.
  *
  * A row moves OUT of this list by someone establishing its endpoint, not by
  * someone assuming one.
  */
 const NEEDS_ENDPOINT = Object.freeze([
-  Object.freeze({ id: 'tokenrouter', label: 'TokenRouter' }),
   Object.freeze({ id: 'agentrouter', label: 'AgentRouter' }),
   Object.freeze({ id: 'zenmux', label: 'ZenMux' }),
   Object.freeze({ id: 'nvidia', label: 'NVIDIA' }),
@@ -164,7 +163,6 @@ const NEEDS_ENDPOINT = Object.freeze([
   Object.freeze({ id: 'kiro', label: 'Kiro' }),
   Object.freeze({ id: 'commandcode', label: 'CommandCode' }),
   Object.freeze({ id: 'zed', label: 'Zed' }),
-  Object.freeze({ id: 'omniroute', label: 'OmniRoute' }),
 ]);
 
 /**
@@ -262,6 +260,41 @@ function envRoutes() {
  *
  * @param {object} cfg  the live config, for its `connections`
  */
+/**
+ * NAMES THIS PRODUCT NO LONGER OFFERS, from ANY list.
+ *
+ * ------------------------------------------------------------------------
+ * `omniroute` WAS A PROVIDER ROW, NOT A ROUTING SUBSYSTEM.
+ *
+ * It is worth being exact about what was removed, because the name suggested
+ * more than it was. LAIN never had an "OmniRoute router" or a routing facade:
+ * there was a row in the provider list, a message cap in providerlimits.js, and
+ * a handful of comments recording defects first OBSERVED against it. The row
+ * and the cap are gone (2026-09-15); the observations are kept, because they
+ * are the dated evidence behind real defensive code — a 413 that arrived
+ * mid-turn, a message-count refusal — and deleting the provenance of a fix
+ * leaves the fix looking arbitrary.
+ *
+ * `custom` IS RETIRED AS A ROW FOR A DIFFERENT REASON. It is not a provider at
+ * all: it is the word for "an endpoint you type in", which is exactly what the
+ * `Customs…` entry now is. Offering both put two spellings of one idea in the
+ * same picker. The ROUTE IS UNTOUCHED — `/api custom` and any credential stored
+ * against it work exactly as before; only the duplicate row is gone.
+ *
+ * FILTERED WHEREVER A ROW COMES FROM, including the user's own V1 configuration,
+ * because a retired name arriving from a file is still a retired name.
+ *
+ * `tokenrouter` is retired the same way, on the user's own word (2026-09-18) —
+ * it and `omniroute` were both routes to services this product no longer
+ * offers, and a "needs endpoint" row for it would invite pointing a fresh
+ * credential at something that should stay gone. Every OTHER mention of
+ * "omniroute"/"tokenrouter" left in this codebase's comments is either a
+ * dated observation about a real past incident or a doc example of a NAME A
+ * USER GAVE THEIR OWN bridge connection — neither is this row, and neither
+ * makes the retired name selectable again.
+ */
+const RETIRED = new Set(['omniroute', 'custom', 'tokenrouter']);
+
 function choices(cfg = {}) {
   // ---- A BRIDGE-HELD PROVIDER IS NEVER OFFERED, FROM ANY LIST ------------
   //
@@ -282,8 +315,10 @@ function choices(cfg = {}) {
   for (const [id, c] of Object.entries(declaredAll)) {
     if (c && typeof c === 'object' && c.via === 'bridge') bridged.add(String(c.provider || id));
   }
-  const out = KNOWN.filter((p) => !bridged.has(p.id)).map((p) => ({ ...p, known: true, source: 'built-in' }));
-  const seen = new Set([...out.map((p) => p.id), ...bridged]);
+  const out = KNOWN.filter((p) => !bridged.has(p.id) && !RETIRED.has(p.id)).map((p) => ({ ...p, known: true, source: 'built-in' }));
+  // RETIRED NAMES ARE SEEDED AS ALREADY-SEEN, so every loop below skips them
+  // without each one needing to remember to. See RETIRED.
+  const seen = new Set([...out.map((p) => p.id), ...bridged, ...RETIRED]);
   // OFFERED, AND HONEST ABOUT WHAT IS MISSING. `baseUrl` is empty, which is what
   // makes the caller ask for one rather than store a credential against nothing.
   // THE USER'S OWN RECORD OUTRANKS "I DO NOT KNOW". A name in this list that V1
@@ -356,4 +391,4 @@ function choices(cfg = {}) {
  */
 const connectionIdFor = (providerId) => `lain:${String(providerId)}`;
 
-module.exports = { KNOWN, NEEDS_ENDPOINT, byId, envRoutes, v1Routes, choices, connectionIdFor };
+module.exports = { KNOWN, NEEDS_ENDPOINT, RETIRED, byId, envRoutes, v1Routes, choices, connectionIdFor };

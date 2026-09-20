@@ -100,7 +100,13 @@ module.exports = async function () {
     assert.strictEqual(wire[0].role, 'system');
     assert.strictEqual(wire[0].content, 'STABLE HEAD');
     const last = wire[wire.length - 1];
-    assert.strictEqual(last.content, 'LIVE STATE', 'the volatile block must be last');
+    // FRAMED, since contextprovenance.js — wrapped in <lain-context> so the
+    // model has a structural signal that this is LAIN's own generated state,
+    // never the person's own words. See contextprovenance.test.js for the
+    // full P0 regression; this just checks the wrapping didn't break the
+    // tail-of-the-wire cache-friendly positioning this test file is about.
+    assert.strictEqual(last.content, '<lain-context>\nLIVE STATE\n</lain-context>', 'the volatile block, framed, must be last');
+    assert.ok(last.content.includes('LIVE STATE'), 'and it still carries the actual content');
     // ---- NOT ROLE `system` -----------------------------------------------
     //
     // provider.js hoists EVERY system message into Anthropic's system block,
