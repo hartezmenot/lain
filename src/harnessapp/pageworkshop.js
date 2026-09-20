@@ -48,7 +48,12 @@ LAIN.workshop = (function () {
     api = _api; notice = _notice; uiOf = _uiOf; poll = _poll;
     $('wsPill').onclick = toggle;
     $('wsClose').onclick = close;
-    $('wsReload').onclick = async function () { await api('/api/workshop/reload'); shoot(); };
+    $('wsReload').onclick = async function () { await api('/api/workshop/reload', {}); shoot(); };
+    // "RESTART" ON THE SERVER ROW IS THE SAME RELOAD ACTION AS THE ONE IN THE
+    // TOOLBAR. There is no separate dev-server-process control in this build —
+    // MISSING CONTRACT: a real restart-the-process route, distinct from
+    // reloading the page a running server already serves.
+    $('wsRestart').onclick = async function () { await api('/api/workshop/reload', {}); shoot(); };
     $('wsPick').onclick = pick;
     $('wsBefore').onclick = function () { capture('before'); };
     $('wsAfter').onclick = function () { capture('after'); };
@@ -62,18 +67,32 @@ LAIN.workshop = (function () {
   async function toggle() {
     if (W.open) return close();
     notice('Starting the dev server and opening the preview\\u2026');
-    var r = await api('/api/workshop/open', {});
-    if (!r.ok) { notice(r.why, true); return; }
-    W.open = true;
-    W.vp = 'desktop';
-    notice('');
-    layout();
+    // OPENING IS TWO CALLS, AND A POLL CAN LAND BETWEEN THEM. It did: render()
+    // saw the workshop open but the panel still NONE, retracted the column, and
+    // the preview was then drawn into a hidden section (workshop-real, measured
+    // 2026-09-18). So nothing retracts while opening, and the first state
+    // trusted afterwards is one fetched after the panel call.
+    W.opening = true;
+    try {
+      var r = await api('/api/workshop/open', {});
+      if (!r.ok) { notice(r.why, true); return; }
+      // WORKSPACE PANEL STATE IS CORE-HELD (docs/HARNESS_UI_CONTRACT.md §7) —
+      // this is the one call that says "Workshop is the open panel now", which
+      // is what makes Project Files retract on its own next render().
+      await api('/api/workspace/panel', { action: 'open', panel: 'WORKSHOP' });
+      W.open = true;
+      W.vp = 'desktop';
+      notice('');
+      layout();
+      await poll();
+    } finally { W.opening = false; }
     await shoot();
     poll();
   }
 
   async function close() {
     await api('/api/workshop/close', {});
+    await api('/api/workspace/panel', { action: 'close' });
     W = { open: false, shot: null, before: null, after: null, picking: false, element: null, verify: null, vp: 'desktop' };
     layout();
     poll();
@@ -81,8 +100,28 @@ LAIN.workshop = (function () {
 
   function layout() {
     $('workshop').hidden = !W.open;
-    $('main').className = W.open ? 'with-workshop' : '';
+    // A CLASS, NOT THE CLASS LIST: assigning className wiped with-source and the
+    // lane state along with it.
+    $('main').classList.toggle('with-workshop', W.open);
     $('wsPill').setAttribute('aria-selected', String(W.open));
+  }
+
+  /**
+   * DEV SERVER STATUS — "Vite . npm run dev / RUNNING / localhost:5173" in one
+   * line (§20). Reads the same ws.available/open/url/why the pill already
+   * used; nothing new is asked of the backend. An HTTP 500 in the preview is
+   * not a separate state Core reports — the honest thing this row can say
+   * from what it has is whether the server answered at all.
+   */
+  function renderServer(ws) {
+    var row = $('wsServer');
+    if (!ws || !ws.open) { row.hidden = true; return; }
+    row.hidden = false;
+    var dot = $('wsServerDot');
+    dot.textContent = '\\u25cf';
+    dot.style.color = 'var(--accent)';
+    $('wsServerText').textContent = 'Dev server \\u00b7 Running';
+    $('wsUrl').textContent = ws.url || '';
   }
 
   /** A fresh frame of the real preview. Not persisted — see \`capture\`. */
@@ -143,9 +182,27 @@ LAIN.workshop = (function () {
     draw();
   }
 
+  /**
+   * SELECT BY CLICKING THE PREVIEW HERE. The image is the page at its real CSS
+   * size, so a click is scaled from the drawn size to the natural size and the
+   * element at that point is read in the real browser.
+   */
+  async function pickAtImage(img, ev) {
+    var r0 = img.getBoundingClientRect();
+    var x = (ev.clientX - r0.left) * (img.naturalWidth / r0.width);
+    var y = (ev.clientY - r0.top) * (img.naturalHeight / r0.height);
+    var r = await api('/api/workshop/pick-at', { x: x, y: y });
+    if (!r.ok) return notice(r.why, true);
+    W.element = r.element;
+    W.source = r.source || null;
+    $('wsAttach').disabled = !W.element;
+    notice('');
+    draw();
+  }
+
   async function verify() {
-    notice('Verifying desktop and mobile\\u2026');
-    var r = await api('/api/workshop/verify', { viewports: ['desktop', 'mobile'] });
+    notice('Verifying desktop, tablet and mobile\\u2026');
+    var r = await api('/api/workshop/verify', { viewports: ['desktop', 'tablet', 'mobile'] });
     if (!r.ok) { notice(r.why || 'verification did not complete', true); return; }
     W.verify = r;
     notice('');
@@ -155,13 +212,18 @@ LAIN.workshop = (function () {
 
   /** Send the selection and the page's own failures as the NEXT question. */
   async function attach() {
-    var q = window.prompt('Ask LAIN about the selected element:',
-      'Why is this misaligned, and does it work on mobile?');
-    if (!q) return;
+    // THE QUESTION IS WHAT IS IN THE COMPOSER — the one place a person types.
+    // A blocking browser prompt was a second input box, and one nobody could
+    // automate or see beside the conversation.
+    var box = $('ask');
+    var q = box.value.trim();
+    if (!q) { box.focus(); notice('Type what you want to know or change about the selected element, then press Ask about selection.'); return; }
     var r = await api('/api/workshop/attach', {
       text: q, selector: W.element ? W.element.selector : null,
     });
     if (!r.ok) return notice(r.why, true);
+    box.value = '';
+    notice('');
     poll();
   }
 
@@ -191,7 +253,12 @@ LAIN.workshop = (function () {
       ba.appendChild(shotFig('After', W.after));
       body.appendChild(ba);
     } else if (W.shot) {
-      body.appendChild(shotFig(W.before ? 'Before captured \\u00b7 live' : 'Preview \\u00b7 ' + W.vp, W.shot));
+      var live = shotFig((W.before ? 'Before captured \\u00b7 live' : 'Preview \\u00b7 ' + W.vp) + (W.reloaded ? '  \\u00b7  ' + W.reloaded : '') + '  \\u00b7  click to select', W.shot);
+      var img = live.querySelector('img');
+      img.style.cursor = 'crosshair';
+      img.id = 'wsShot';
+      img.onclick = function (ev) { pickAtImage(img, ev); };
+      body.appendChild(live);
     }
 
     // ---- THE SELECTED ELEMENT ------------------------------------------
@@ -211,6 +278,11 @@ LAIN.workshop = (function () {
       }
       if (e.parent) put('parent', '<' + e.parent.tag + '> ' + e.parent.display
         + (e.parent.justify ? ' / ' + e.parent.justify : '') + (e.parent.align ? ' / ' + e.parent.align : ''));
+      if (W.source && W.source.candidates && W.source.candidates.length && W.source.confidence !== 'UNKNOWN') {
+        var top = W.source.candidates[0];
+        var hit = (top.hits || [])[0];
+        put('source', top.rel + (hit ? ':' + hit.line : '') + '  (' + String(W.source.confidence).toLowerCase() + ')');
+      }
       body.appendChild(dl);
     }
 
@@ -255,8 +327,43 @@ LAIN.workshop = (function () {
     // browser says so here rather than failing when the button is pressed.
     $('wsPill').disabled = !ws.available && !W.open;
     $('wsPill').title = ws.available ? '' : (ws.why || 'no browser is available on this machine');
+    if (W.opening) { renderServer(ws); return; }
     if (!ws.open && W.open) { W.open = false; layout(); }
-    if (ws.url) $('wsUrl').textContent = ws.url;
+    // ANOTHER PANEL TOOK OVER. workspace.openPanel is one Core-held value for
+    // Project Files, Workshop and the drawer panels alike (§7) — opening any
+    // other one retracts this column without a separate "close Workshop" call.
+    var eng = S.current && S.current.lane === 'engineering' && S.views && S.views.active === 'coding';
+    var openPanel = eng && S.workspace ? S.workspace.openPanel : 'NONE';
+    if (openPanel !== 'WORKSHOP' && W.open) { W.open = false; layout(); }
+    renderServer(ws);
+    // ---- HOT RELOAD AWARENESS ----------------------------------------------
+    //
+    // When LAIN changes a file in this project, the preview is reloaded and a
+    // fresh frame drawn — the change is SEEN, not assumed. The trigger is the
+    // checkpoint ledger's list of changed files, the same fact the Changes
+    // drawer shows; nothing here watches the disk itself.
+    var sig = JSON.stringify((S.changes || []).map(function (c) { return [c.path, c.added, c.removed]; }));
+    // A CHANGE SEEN WHILE A RELOAD IS IN FLIGHT WAITS FOR IT, rather than being
+    // recorded as seen: the ledger lists a file at its checkpoint, a moment
+    // BEFORE the write lands, so the first reload can race ahead of the bytes and
+    // the counts that follow the write are the change that must not be missed.
+    if (W.reloading) return;
+    if (W.open && W.changeSig != null && sig !== W.changeSig) {
+      W.reloading = true;
+      var changed = (S.changes || []).map(function (c) { return c.path; }).slice(-2).join(', ');
+      api('/api/workshop/reload', {}).then(function () { return shoot(); }).then(function () {
+        // THE SELECTION IS RE-READ, not kept: its box and styles described the
+        // page before the change.
+        return W.element && W.element.selector
+          ? api('/api/workshop/element', { selector: W.element.selector }).then(function (e) { if (e && e.ok) W.element = e.element; })
+          : null;
+      }).then(function () {
+        W.reloaded = 'reloaded after ' + changed + ' changed';
+        W.reloading = false;
+        draw();
+      }, function () { W.reloading = false; });
+    }
+    W.changeSig = sig;
   }
 
   return { boot: boot, render: render, draw: draw };

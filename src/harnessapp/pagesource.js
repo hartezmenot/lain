@@ -669,11 +669,26 @@ window.LAIN.source = (function () {
     $('quick').addEventListener('click', function (e) { if (e.target === this) closeQuick(); });
   }
 
+  /**
+   * SHOW OR HIDE THIS PANEL. The open flag is S.workspace.openPanel ===
+   * PROJECT_FILES — Core-held, per docs/HARNESS_UI_CONTRACT.md section 7 —
+   * never a local flag this module keeps for itself. Called on every
+   * render(); loadRoot() runs once per opening, not once per poll.
+   */
+  var wasOpen = false;
+  function sync(open) {
+    $('srcPanel').hidden = !open;
+    $('main').classList.toggle('with-source', open);
+    $('codePill').setAttribute('aria-selected', String(open));
+    if (open && !wasOpen) loadRoot();
+    wasOpen = open;
+  }
+
   return {
     boot: boot, loadRoot: loadRoot, openFile: openFile, gotoLine: gotoLine,
     refresh: refresh, renderTree: renderTree, find: find, save: save, diff: diff,
     state: function () { return st; },
-    highlight: highlight,
+    highlight: highlight, sync: sync,
   };
 })();
 `;
