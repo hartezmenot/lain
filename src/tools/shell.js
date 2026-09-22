@@ -186,7 +186,8 @@ function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, deta
     if (detach && detach.app) {
       unregister = require('../bgdetach').register(detach.app, {
         label: detach.label || command, tool: detach.tool || 'run_bash', pid: child.pid, startedAt: Date.now(), turnId: detach.turnId || null,
-        detach(job, onDone) {
+        cwd: detach.cwd || cwd, input: detach.input || {},
+        detach(job, onDone, by = 'the user (/bg)') {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
@@ -194,7 +195,7 @@ function run(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, deta
           detachedDone = onDone;
           const cap = setTimeout(() => { timedOut = true; killTree(child); }, require('../bgdetach').DETACHED_CAP_MS);
           if (cap.unref) cap.unref();
-          resolve({ output: `DETACHED by the user (/bg) → background job #${job.id} (pid ${child.pid}). The same process keeps running; its result rejoins this task when it finishes. Continue with independent work — do not start it again.`,
+          resolve({ output: `DETACHED by ${by} → background job #${job.id} (pid ${child.pid}). The same process keeps running; its result rejoins this task when it finishes. Continue with independent work — do not start it again.`,
             isError: false, exitCode: null, detached: true, jobId: job.id });
         },
       });
@@ -316,7 +317,7 @@ for (const [name, shell, desc] of SHELLS) {
         cwd: where.cwd,
         timeoutMs: Number(input.timeout_ms) || DEFAULT_TIMEOUT_MS,
         signal: ctx.signal,
-        detach: ctx.app ? { app: ctx.app, label: command, tool: name, turnId: ctx.turnId } : null,
+        detach: ctx.app ? { app: ctx.app, label: command, tool: name, turnId: ctx.turnId, cwd: where.cwd, input } : null,
       });
 
       // An interrupt is the user's decision, not a failure of the command, and

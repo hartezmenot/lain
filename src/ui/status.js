@@ -129,6 +129,7 @@ const STOPPED_WORD = {
   'no-progress': 'BLOCKED',
   length: 'CUT OFF',
   refused: 'MODEL REFUSED',
+  crashed: 'INTERRUPTED',
 };
 
 const STOPPED_BECAUSE = {
@@ -141,6 +142,7 @@ const STOPPED_BECAUSE = {
   'no-credential': 'no usable credential',
   length: 'the reply hit the model output limit, even after one resume — not a finished task',
   refused: 'the model stopped with a safety/refusal finish — not a finished task',
+  crashed: 'LAIN was closed mid-turn; the turn was recovered — type continue to resume',
 };
 
 /**
@@ -247,9 +249,16 @@ function liveState(s = {}, now = Date.now()) {
   if (phase) {
     switch (phase.phase) {
       case 'WAITING_MODEL':
-        return { actor: actorOf(phase), word: 'THINKING', detail: 'waiting for the model' + (steerQueued ? ' · steer queued' : ''), colour: 'info', spin: true, age: secs };
-      case 'RECEIVING':
-        return { actor: actorOf(phase), word: 'RECEIVING', detail: 'model response', colour: 'info', spin: true, age: secs };
+      case 'RECEIVING': {
+        // THE WIRE DECIDES THE WORD (streamprogress.js): WAITING before any data,
+        // THINKING while reasoning arrives, STREAMING, PREPARING TOOL · edit_file
+        // · 9.6 KB, and STALLED only after the stall threshold with no data.
+        const st = phase.live ? require('../streamprogress').state(phase.live, now) : null;
+        const steer = steerQueued ? ' · steer queued' : '';
+        if (st) return { actor: actorOf(phase), word: st.word, detail: st.detail + steer, colour: st.stalled ? 'warn' : 'info', spin: !st.stalled, age: secs };
+        if (phase.phase === 'RECEIVING') return { actor: actorOf(phase), word: 'RECEIVING', detail: 'model response', colour: 'info', spin: true, age: secs };
+        return { actor: actorOf(phase), word: 'THINKING', detail: 'waiting for the model' + steer, colour: 'info', spin: true, age: secs };
+      }
       case 'RUNNING_TOOL': {
         const word = VERB[phase.tool] || 'RUNNING';
         // A tool runs on THIS machine. That is a different actor from the model

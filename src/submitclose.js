@@ -92,6 +92,8 @@ async function after(app, record, text) {
   if (!app.wantExit && app._queuedContinue) {
     const queued = app._queuedContinue;
     app._queuedContinue = null;
+    // A GOAL SET MID-TURN (`/goal <text>`) is the person's own message, a new task.
+    if (queued.goal) return await app.submit(queued.text, {});
     return await app.submit(queued.text, { sameTask: true, from: 'continue' });
   }
 

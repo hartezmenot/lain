@@ -117,8 +117,23 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
   // scope is leased by the A/B run itself, so it takes no lease here.
   const lease = c.isolated ? { ok: true } : leases.acquire(holder, c.writeScope, `${c.role} subagent`);
   if (!lease.ok) return { ok: false, role: c.role, stage, why: `write lease refused: ${lease.why}` };
-  const session = new Session({ cwd: c.cwd || app.session.cwd });
-  const order = require('./authority').issue(app.session, { id: holder, objective: c.objective, readScope: c.readScope, writeScope: c.writeScope, bounded: true });
+  // ISOLATED, ALWAYS, when it can write or run commands (candidates.js): the child
+  // never touches the canonical tree; what it builds comes back as a CANDIDATE.
+  // The canonical lease above stays held so the main agent does not edit the same
+  // files underneath it. A/B (`isolated`) brings its own worktree.
+  const cands = require('./candidates');
+  const needsWs = !c.isolated && (ROLES[c.role].write || ROLES[c.role].commands);
+  const ws = needsWs ? cands.isolate(app, c.role.toLowerCase(), c) : null;
+  if (ws && !ws.ok) { leases.release(holder); return { ok: false, role: c.role, stage, why: `no isolated workspace, so the ${c.role} did not run: ${ws.why}` }; }
+  const trust = ws ? { path: ws.dir, level: 'TRUSTED' } : null;
+  if (trust && app.cfg) app.cfg.trustedPaths = [...(Array.isArray(app.cfg.trustedPaths) ? app.cfg.trustedPaths : []), trust];
+  const session = new Session({ cwd: ws ? ws.cwd : (c.cwd || app.session.cwd) });
+  // THE BASELINE IS MEASURED WHERE THE CHILD WORKS. Measured on the canonical
+  // tree it disagreed with the worktree's own bytes (a checkout differs in line
+  // endings), and every write was refused as STALE — found live, 2026-09-23.
+  const concrete = c.writeScope.map((e) => String(e).split('::')[0]).filter((p) => p && !/[*?]/.test(p));
+  const baseline = ws ? require('./workorderguard').baseline(ws.cwd, [...new Set(concrete)]) : null;
+  const order = require('./authority').issue(app.session, { id: holder, objective: c.objective, readScope: c.readScope, writeScope: c.writeScope, bounded: true, baseline });
   order.leaseHolder = holder;
   order.allowCommands = ROLES[c.role].commands;
   session.workOrder = order;
@@ -148,6 +163,9 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
     let settlement = null;
     try { settlement = require('./proposal').settle(order, session, { claim: record && record.text }); } catch { /* the result stands */ }
     const output = String((record && record.text) || '').trim();
+    // HARVESTED BEFORE ANY VERDICT: even a failed child's changes are a candidate
+    // the main agent can inspect — never something already applied.
+    const candidate = ws ? cands.harvest(app, ws, c, { role: c.role, claim: output }) : null;
     job.resultSummary = output.slice(0, 200);
     // A WORKER WHOSE TURN DID NOT END NATURALLY DID NOT FINISH. Any returned
     // record used to be DONE — a worker cut off by a provider failure, a stall,
@@ -157,15 +175,18 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
       : require('./wakeup').statesBlocker(output) ? 'it stated a blocker' : null;
     if (unfinished) {
       job._finish('FAILED', { error: unfinished });
-      return { ok: false, role: c.role, stage, why: `${unfinished}${output ? ` — what it said: ${output.slice(-400)}` : ''}`, mutations: (record && record.mutations) || [], holder };
+      return { ok: false, role: c.role, stage, why: `${unfinished}${output ? ` — what it said: ${output.slice(-400)}` : ''}`, mutations: ws ? [] : (record && record.mutations) || [], candidate, holder };
     }
     job._finish('SUCCEEDED', { result: record });
-    return { ok: true, role: c.role, stage, output, mutations: (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, holder };
+    return { ok: true, role: c.role, stage, output, mutations: ws ? [] : (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, candidate, holder };
   } catch (e) {
     job._finish('FAILED', { error: (e && e.message) || String(e) });
     return { ok: false, role: c.role, stage, why: (e && e.message) || String(e), holder };
   } finally {
     leases.release(holder);
+    // NO WORKSPACE OUTLIVES THE CALL, and the temporary trust goes with it.
+    if (ws) cands.dispose(ws);
+    if (trust && app.cfg && Array.isArray(app.cfg.trustedPaths)) app.cfg.trustedPaths = app.cfg.trustedPaths.filter((t) => t !== trust);
     app.jobs.changed();
     // AGENT COMPLETE · Role · result — a transient operation note, then gone:
     // the result lives in the parent's evidence, not as worker chatter.
@@ -213,9 +234,13 @@ async function run(app, raw = [], { mode = 'pipeline', runner = null, signal = n
     const r = await runOne(app, contracts[i], { stage: i, of: contracts.length, inputs: results.filter((x) => x.ok), runner, signal });
     results.push(r);
     if (!r.ok) break;
+    // A LATER STAGE NEVER BUILDS ON UNMERGED STATE: once a stage produced a
+    // candidate, the main agent integrates it before the rest runs.
+    if (r.candidate && r.candidate.files.length && i < contracts.length - 1) { r.awaitsIntegration = true; break; }
   }
   // WHAT NEVER RAN is part of the handoff: a stage-2 failure used to report "1/2 completed" of a 4-stage pipeline.
-  return { ok: results.length === contracts.length && results.every((r) => r.ok), mode, results, remaining: contracts.slice(results.length) };
+  const paused = results.some((r) => r.awaitsIntegration);
+  return { ok: (results.length === contracts.length || paused) && results.every((r) => r.ok), mode, results, remaining: contracts.slice(results.length), paused };
 }
 
 function report(out) {
@@ -228,9 +253,19 @@ function report(out) {
   for (const r of out.results) {
     lines.push('', `[${r.stage + 1}] ${r.role} — ${r.ok ? 'DONE' : 'FAILED'}${r.mutations && r.mutations.length ? ` · changed ${r.mutations.join(', ')}` : ''}`);
     lines.push(r.ok ? (r.output || '(no output)').slice(0, 3000) : `why: ${r.why}`);
+    if (r.candidate && (r.candidate.files.length || r.candidate.discarded.length)) lines.push(require('./candidates').describe(r.candidate));
   }
-  rest.forEach((c, k) => lines.push('', `[${out.results.length + k + 1}] ${c.role} — NOT RUN (the pipeline stopped at the failure above) · ${String(c.objective || '').slice(0, 160)}`));
-  if (failed || rest.length) lines.push('', 'HANDOFF: the failed stage and every stage after it are yours — do that work here, or delegate again with a corrected contract. Completed stages stand.');
+  const cands = out.results.filter((r) => r.candidate && r.candidate.files.length);
+  if (cands.length) {
+    lines.push('', 'NOTHING WAS WRITTEN TO THE PROJECT. Each change above is a CANDIDATE built in an isolated workspace (now removed). '
+      + 'Inspect it, then integrate_candidate {id} (optionally only some files) — you are the integrator: wire the parts together, '
+      + 'remove duplicate concepts, then run the integration test and the final smoke. A subagent pass is not a project pass.');
+  }
+  const waiting = out.results.find((r) => r.awaitsIntegration);
+  if (waiting) lines.push('', `PIPELINE PAUSED after stage ${waiting.stage + 1}: integrate candidate ${waiting.candidate.id} first, then delegate the remaining stage(s) so they start from the integrated tree.`);
+  const paused = out.results.some((r) => r.awaitsIntegration);
+  rest.forEach((c, k) => lines.push('', `[${out.results.length + k + 1}] ${c.role} — NOT RUN (${paused ? 'waiting for the candidate above to be integrated' : 'the pipeline stopped at the failure above'}) · ${String(c.objective || '').slice(0, 160)}`));
+  if (failed || (rest.length && !paused)) lines.push('', 'HANDOFF: the failed stage and every stage after it are yours — do that work here, or delegate again with a corrected contract. Completed stages stand.');
   lines.push('', 'You are the integrator: check these results against the task before relying on them.');
   return lines.join('\n');
 }

@@ -324,7 +324,7 @@ function build(connections = []) {
         if (!already.efforts.length && efforts.length) {
           already.efforts = efforts;
           already.upstreamByEffort = isFamily ? Object.fromEntries(slot.efforts) : {};
-          already.upstreamId = isFamily ? null : realBase;
+          already.upstreamId = isFamily ? (slot.plain || null) : realBase;
         }
         continue;
       }
@@ -349,7 +349,9 @@ function build(connections = []) {
         local: /^https?:\/\/(?:localhost|127\.|\[::1\])/i.test(String(conn.baseUrl || '')),
         efforts,
         upstreamByEffort: isFamily ? Object.fromEntries(slot.efforts) : {},
-        upstreamId: isFamily ? null : realBase,
+        // A FAMILY THAT ALSO HAS A PLAIN ID keeps it: "no effort chosen" means
+        // that model, not a silently picked -thinking/-agentic sibling (2026-09-23).
+        upstreamId: isFamily ? (slot.plain || null) : realBase,
       });
     }
   }
@@ -454,6 +456,7 @@ function resolve(catalog, { model, connectionId = null, effort = null }) {
     return { ok: true, model: m.id, connection: conn, effort: null, upstreamId: conn.upstreamId || m.id };
   }
   const want = String(effort || '').toLowerCase();
+  if (!want && conn.upstreamId) return { ok: true, model: m.id, connection: conn, effort: null, upstreamId: conn.upstreamId };
   const chosen = conn.upstreamByEffort[want]
     ? want
     : conn.efforts.includes('medium') ? 'medium' : conn.efforts[Math.floor(conn.efforts.length / 2)];

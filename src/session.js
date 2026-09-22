@@ -536,6 +536,10 @@ class Session {
       mutationReceipts: Array.isArray(this.mutationReceipts) ? this.mutationReceipts.slice(-60) : [],
       verification: this.verification || null,
       progress: require('./progress').toJSON(this),
+      // A TURN IN FLIGHT, so a force-close can be recovered (inflight.js).
+      inflight: this.inflight || null,
+      bgJobs: Array.isArray(this.bgJobs) ? this.bgJobs.slice(-20) : [],
+      workerLedger: Array.isArray(this.workerLedger) ? this.workerLedger.slice(-200) : [],   // workers.js
     };
   }
 
@@ -607,6 +611,18 @@ class Session {
     s.mutationReceipts = Array.isArray(data.mutationReceipts) ? data.mutationReceipts.slice(-60) : [];
     s.verification = data.verification && typeof data.verification === 'object' ? data.verification : null;
     require('./progress').restore(s, data.progress);
+    // A TURN THAT WAS IN FLIGHT WHEN ITS PROCESS DIED is repaired here — lost
+    // calls classified by inspecting reality, never replayed (inflight.js).
+    s.inflight = data.inflight && typeof data.inflight === 'object' ? data.inflight : null;
+    s.bgJobs = Array.isArray(data.bgJobs) ? data.bgJobs : [];
+    s.workerLedger = Array.isArray(data.workerLedger) ? data.workerLedger : [];
+    try {
+      const inf = require('./inflight');
+      const r = s.inflight ? inf.recover(s) : null;
+      const jobs = inf.recoverJobs(s);
+      if (jobs.length && s.recovered) s.recovered.line += ` · ${jobs.length} background job(s) left by the closed LAIN`;
+      if ((r && !r.live) || jobs.length) s.save();
+    } catch { /* the session still loads */ }
     return s;
   }
 

@@ -636,7 +636,12 @@ const tools = {
       // DELETING A FILE SOMEBODY ELSE JUST WROTE is the most complete way to
       // lose work nobody saw. A checkpoint can put it back; nothing puts back
       // the knowledge that it mattered.
-      const unsafeDelete = refuseIfUnsafe(ctx, abs, 'DELETE');
+      // `_anchorSha1`: the caller names the exact bytes it deletes (candidates.js).
+      let anchored = false;
+      if (typeof input._anchorSha1 === 'string' && input._anchorSha1) {
+        try { anchored = require('crypto').createHash('sha1').update(fs.readFileSync(abs)).digest('hex') === input._anchorSha1; } catch { anchored = false; }
+      }
+      const unsafeDelete = refuseIfUnsafe(ctx, abs, 'DELETE', { anchored });
       if (unsafeDelete) return unsafeDelete;
       fs.unlinkSync(abs);
       return { output: `deleted ${at(ctx.cwd, abs)} (${st.size} bytes)`, mutated: [abs] };

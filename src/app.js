@@ -502,19 +502,22 @@ class App {
    * resume — leaves it off and gets the awaited turn it has always had, which
    * is why none of those paths had to change.
    */
-  async handle(text, { isPaste = false, from = null, background = false, forceMode = null } = {}) {
-    const s = String(text == null ? '' : text);
+  async handle(text, { isPaste = false, from = null, background = false, forceMode = null, asText = false } = {}) {
+    let s = String(text == null ? '' : text);
     if (!s.trim()) return;
     // An outstanding question consumes this line as the ANSWER. It is not
     // classified, does not touch task identity and cannot start a task.
     const T = require('./admissiontrace'); T.note(this, 'handle', { chars: s.length }); if (this.answerPending(s)) { T.note(this, 'handle:answer'); return; }
-    // A COMPOSED LINE IS A GOAL OR A PLAN, never a prompt — see composemode.js.
-    if (require('./composemode').take(this, s)) return void T.note(this, 'handle:composer');
+    // A COMPOSED LINE IS A GOAL OR A PLAN (composemode.js). A CAPTURED goal comes back as
+    // `{ run }`: it is the work, and continues below as the person's own message.
+    const composed = require('./composemode').take(this, s);
+    if (composed && !composed.run) return void T.note(this, 'handle:composer');
+    if (composed) { s = composed.run; isPaste = false; asText = true; T.note(this, 'handle:goal'); }
     // A bare `/` is someone reaching for the command menu, not a prompt. It is
     // never spent on a model request; the palette comes back instead.
-    if (!isPaste && s.trim() === '/') { this.ui.updateMenus('/'); return; }
+    if (!isPaste && !asText && s.trim() === '/') { this.ui.updateMenus('/'); return; }
     // A paste is content by construction and can never be a command.
-    if (!isPaste && commands.looksLikeCommand(s)) return commands.run(this, s);
+    if (!isPaste && !asText && commands.looksLikeCommand(s)) return commands.run(this, s);
     // ---- THE INPUT GATEWAY -----------------------------------------------
     //
     // AFTER the command check and BEFORE anything reaches a model — the only

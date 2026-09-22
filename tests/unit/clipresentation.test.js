@@ -102,7 +102,7 @@ module.exports = async function () {
     assert.strictEqual(box.summary({ ...base, phase: { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'src/auth/c.js' } }).line, 'src/auth · 3 files');
     assert.strictEqual(box.summary({ ...base, phase: { phase: 'RUNNING_TOOL', tool: 'run_tests', target: 'retry' } }).kind, 'TESTING');
     assert.strictEqual(box.summary({ ...base, phase: { phase: 'RUNNING_TOOL', tool: 'locate', target: 'retryJob' } }).kind, 'LOCATING');
-    assert.strictEqual(box.summary({ ...base, phase: { phase: 'RETRYING', rateLimited: true, resumeAt: now + 9000 } }).kind, 'WAITING');
+    assert.strictEqual(box.summary({ ...base, phase: { phase: 'RETRYING', rateLimited: true, resumeAt: now + 9000 } }).kind, 'RATE LIMITED');
     assert.strictEqual(box.summary({ ...base, phase: { phase: 'WAITING_MODEL' } }).kind, 'THINKING');
     assert.strictEqual(box.rows({ busy: false, phase: null }), 0, 'closed the instant the turn ends');
     assert.strictEqual(box.rows({ busy: true, phase: { phase: 'WAITING_MODEL' }, phaseSince: now, recent: [] }, 99, now), 0, 'not opened for nothing');

@@ -54,7 +54,7 @@ const EXPECT = {
   },
 };
 
-const OBSERVE = ['windows', 'window', 'displays', 'ui_tree', 'find', 'read', 'screenshot', 'cursor', 'status'];
+const OBSERVE = ['windows', 'window', 'displays', 'ui_tree', 'expand', 'find', 'read', 'screenshot', 'cursor', 'status'];
 const ACT = ['focus_window', 'click_control', 'type_into', 'focus_control', 'key', 'type', 'click',
   'scroll', 'drag', 'close_window', 'clipboard_read', 'clipboard_write', 'open_app', 'wait', 'batch'];
 
@@ -92,6 +92,10 @@ const schema = {
       args: { type: 'array', items: { type: 'string' }, description: 'for open_app' },
       depth: { type: 'number', description: 'for ui_tree (default 3)' },
       maxNodes: { type: 'number', description: 'for ui_tree (default 300)' },
+      focus: { type: 'string', description: 'for ui_tree: WHAT YOU ARE LOOKING FOR ("network mode dropdown", "Save"). Returns an EVIDENCE SLICE — the matching controls, their path and region — instead of the whole tree; the full tree stays recoverable by receipt.' },
+      receipt: { type: 'string', description: 'for expand: the receipt id a ui_tree slice or a truncated tree gave you' },
+      query: { type: 'string', description: 'for expand: re-slice the stored tree for this focus instead of returning all of it' },
+      offset: { type: 'number', description: 'for expand: first row of the stored tree to return (pages of 200)' },
       timeoutMs: { type: 'number', description: 'how long an expectation may take to come true' },
       steps: {
         type: 'array',
@@ -126,11 +130,67 @@ function describeElement(e, indent = '') {
   return bits.join('  ');
 }
 
+/** Every row of a tree (no cap — the caps below decide what is SHOWN, never what is kept). */
 function treeLines(node, depth, out) {
-  if (!node || out.length > 200) return out;
+  if (!node) return out;
   out.push(describeElement(node, '  '.repeat(depth)));
   for (const kid of node.children || []) treeLines(kid, depth + 1, out);
   return out;
+}
+
+const SHOW_ROWS = 200;
+
+/**
+ * THE TREE, OR A SLICE OF IT (evidenceslice.js). With `focus`, the relevant
+ * controls only; without, the tree as before — but a tree longer than what is
+ * shown is STORED under a receipt and says so, where it used to stop at 200
+ * rows with nothing left of the rest.
+ */
+function treeOrSlice(ctx, result, target, input) {
+  const ev = require('../evidenceslice');
+  const workers = require('../workers');
+  const session = ctx && ctx.session;
+  const t0 = Date.now();
+  const rows = treeLines(result.tree, 0, []);
+  const header = `UI TREE · ${result.nodes} node(s)${result.truncated ? ' (truncated by the bridge)' : ''}`;
+  const rendered = lines(header, rows);
+  const focus = String(input.focus || '').trim();
+  const needsReceipt = focus || rows.length > SHOW_ROWS;
+  const receipt = needsReceipt ? ev.keep(session && session.id, result.tree, rendered, { window: target.window || null, nodes: result.nodes }) : '';
+  if (focus) {
+    const s = ev.slice(result.tree, { focus, window: target.window || '', receipt, totalChars: rendered.length, describe: describeElement });
+    workers.note(session, { contract: 'evidence_narrower', worker: 'LAYA', tier: 'deterministic', rawChars: rendered.length, inChars: rendered.length, outChars: s.text.length, ms: Date.now() - t0, abstain: s.abstain, confidence: s.confidence, receipt });
+    return { output: s.text, meta: { computer: 'ui_tree', slice: true, receipt, matched: s.matched, total: s.total } };
+  }
+  if (rows.length <= SHOW_ROWS) return { output: rendered.slice(0, 20000), meta: { computer: 'ui_tree' } };
+  const shown = lines(header, rows.slice(0, SHOW_ROWS));
+  return {
+    output: `${shown.slice(0, 20000)}\n… ${rows.length - SHOW_ROWS} more row(s) not shown — kept as receipt ${receipt || '(storage failed)'}. `
+      + `Use ui_tree with focus:"what you are looking for" for just the relevant controls, or expand {receipt:"${receipt}", offset:${SHOW_ROWS}}.`,
+    meta: { computer: 'ui_tree', receipt },
+  };
+}
+
+/** THE RAW TREE BACK, by receipt: a page of it, or a re-slice for another focus. */
+function expand(ctx, input) {
+  const ev = require('../evidenceslice');
+  const session = ctx && ctx.session;
+  const stored = ev.load(session && session.id, input.receipt);
+  if (!stored) return { output: `no evidence receipt "${input.receipt}" in this session`, isError: true };
+  if (input.query) {
+    const s = ev.slice(stored.tree, { focus: String(input.query), window: stored.window || '', receipt: stored.id, totalChars: stored.rendered.length, describe: describeElement });
+    return { output: s.text, meta: { computer: 'expand', receipt: stored.id } };
+  }
+  const all = stored.rendered.split('\n');
+  const from = Math.max(0, Math.floor(Number(input.offset) || 0));
+  const page = all.slice(from, from + SHOW_ROWS + 1).join('\n');
+  // FALSE NARROWING, MEASURED: the flagship needed raw rows a slice held back.
+  const sliced = (session && Array.isArray(session.workerLedger) ? session.workerLedger : []).find((r) => r.receipt === stored.id && r.contract === 'evidence_narrower');
+  if (sliced) sliced.reread = (sliced.reread || 0) + page.length;
+  return {
+    output: `${page}${from + SHOW_ROWS + 1 < all.length ? `\n… rows ${from + SHOW_ROWS + 1}–${all.length - 1} remain: expand {receipt:"${stored.id}", offset:${from + SHOW_ROWS + 1}}` : ''}`,
+    meta: { computer: 'expand', receipt: stored.id },
+  };
 }
 
 async function run(input, ctx) {
@@ -177,12 +237,9 @@ async function run(input, ctx) {
       case 'ui_tree': {
         const r = await c.tree({ ...target, depth: input.depth, maxNodes: input.maxNodes });
         if (!r.ok) return { output: r.why, isError: true };
-        const rows = treeLines(r.result.tree, 0, []);
-        return {
-          output: lines(`UI TREE · ${r.result.nodes} node(s)${r.result.truncated ? ' (truncated)' : ''}`, rows).slice(0, 20000),
-          meta: { computer: op },
-        };
+        return treeOrSlice(ctx, r.result, target, input);
       }
+      case 'expand': return expand(ctx, input);
       case 'find': {
         const r = await c.find(target);
         if (!r.ok) return { output: r.why, isError: true };

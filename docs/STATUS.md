@@ -12,6 +12,113 @@ Tiers: `unit` → UNIT-VERIFIED · `integration` → INTEGRATION-VERIFIED ·
 `smoke` (spawns the real binary) → LIVE-VERIFIED · `live` (contacts a real
 provider, self-skipping) → LIVE PROVIDER VERIFIED.
 
+## Stabilization, specialist workers, subagent isolation, CLI closure (2026-09-23)
+
+Worker architecture, contracts, the recruitment gate and its measurements are
+in `docs/WORKERS.md`. The runtime contract is updated in `docs/CLI.md`.
+
+| Defect / request | Owner / fix | Regression | Evidence |
+|---|---|---|---|
+| `/goal <text>` and the `/goal` capture only STORED the goal; a pasted task needed `/goal continue` | `goalcommand.execute`, `composemode.take` → `{run}` → `App.handle` as the person's own message. `/goal show` / `continue` / `clear`. A goal set mid-turn is queued behind the turn. | `goalexecute` ×7, `interactivefallback`, `goalplan`, `turnadmission` | UNIT + INTEGRATION + REAL TTY (`closure-cli` G1) |
+| `/fast` / `/eco` were one-way (`/fast off` only); `/eco` was a hidden alias | `profile.toggle`: bare = toggle its own profile; `on`/`off` explicit; `/normal` resets; FOCUS and AUTO/MANUAL/PLAN untouched | `execprofile` TOGGLE ×2 | UNIT + REAL TTY (P: all 7 transitions in the header) |
+| Silent periods: every open request said THINKING, and a 10 KB tool call streaming was indistinguishable from a dead socket (argument deltas were parsed and discarded) | `src/streamprogress.js`: one record per request, filled by `provider.js` (bytes, data frames, tool-argument bytes, hidden `thinking_delta`) and `turn.js` (text, reasoning). WAITING / THINKING / STREAMING / PREPARING TOOL · `edit_file · 9.6 KB` / STALLED (45 s without data, 120 s before the first frame; keepalives are not progress). Activity rectangle with the request clock and the model's own visible words. The strip shows the same word. RATE LIMITED is its own state. | `streamprogress` ×8 (real SSE bodies through both protocol parsers) | UNIT + REAL TTY (L1 STREAMING + commentary, L2 PREPARING TOOL · write_file · 5.0 KB, no STALLED) |
+| Force-close returned the person to the previous completed prompt: the session was written only when a turn ended | `src/inflight.js`: durable before every side effect, throttled for reads; STARTED → COMPLETED/FAILED ledger. On load of a dead owner's session: FILE writes classified LANDED / NOT_APPLIED by the target's hash, COMMAND UNKNOWN and never re-run, READ NOT_COMPLETED; missing tool results written (no 400); turn kept as `crashed`; `RECOVERED · cut off at step N · type continue to resume`. A live owner's session is left alone. | `inflight` ×6, `forceclose` (integration) | UNIT + INTEGRATION (real binary, TerminateProcess mid-command) + REAL TTY (G2/G3: `/goal` paste → hard kill → `--resume` → goal, CHANGE row and recovery back) |
+| In-process background jobs were orphaned with no record when LAIN died | `inflight.noteJob/jobEnded/recoverJobs`: ORPHANED (pid alive) / LOST, in the handover: "do not start it again" | `inflight` JOBS | UNIT |
+| Subagents (FOUNDATION/IMPLEMENTER) wrote the canonical project directly | `src/candidates.js`: isolated git worktree (or a snapshot outside git), candidate harvest, destructive-patch protection (out-of-scope, undeclared deletion, rename from outside, binary, size), main-agent-only `integrate_candidate` through the normal write door, anchored on the base bytes, CONFLICT when the canonical moved; pipeline pauses for integration; no workspace outlives the call | `candidates` ×8, `subagents` | UNIT (real git) + **LIVE PROVIDER** (below) |
+| Found live: every isolated child's write was refused as a STALE work order | work-order baseline measured in the child's workspace, not the canonical tree (the checkout differs in line endings) | `candidates` "baselined IN ITS WORKSPACE" | UNIT + LIVE PROVIDER re-run |
+| Found by the same test: LAIN's own `.lain/` bookkeeping inside a workspace made every candidate REJECTED | excluded from harvest | same | UNIT |
+| Found live: integration flipped LF files to the checkout's CRLF | the canonical file's line endings win | same | UNIT |
+| Found live: `kr/claude-haiku-4.5` could not be selected without an effort; its `-thinking`/`-agentic` siblings folded the plain upstream away (`upstreamId: null`) | `catalog.js`: a family keeps its plain id; no effort → the plain model | `catalog` plain-id | UNIT + LIVE PROVIDER (used for the run below) |
+| OpenCode Go refused every request (400 MissingSessionID) | `src/routeheaders.js`: `user-agent: lain/<ver>` + stable per-session `x-opencode-session` for opencode.ai hosts, in the adapter | — | LIVE (the error moved to the account's own 403 "active Go subscription required") |
+| ECO spent the same tokens as NORMAL: measured ±0.5%, ~15.4k tokens of tool schemas on every request | `src/schemacompact.js`: ECO sends every tool (same names, same parameters) with compact prose that keeps every rule sentence | `schemacompact` ×3 | UNIT + measured (below) |
+| FAST did not auto-background long work | `bgdetach.armAuto`: in FAST, a final smoke / full suite / build still running after 20 s is detached exactly like `/bg` (same PID, rejoins, task stays open); targeted runs never | `fastautobg` ×3 (real child process) | UNIT |
+| Computer `ui_tree` sent up to 20,000 chars and silently dropped rows past 200 | `src/evidenceslice.js`: `focus` → Evidence Slice (matches, path, region, confidence, receipt); raw tree stored and `expand`-able; re-reads counted as false narrowing; a long unfocused tree says what it held back | `evidenceslice` ×5 | UNIT |
+| "thanks, that worked" / "what did you change" / "show me the plan" were IMPLEMENT (a prose answer drew the wake-up and BLOCKED); yes/no judgements were EXPLAIN | three narrow rules in `mode.js` (found by the gate evaluation) | `mode` workergate | UNIT |
+
+**Measured, not assumed**
+- **ECO tokens**: same scripted fixture, the turn's own wire audits, 5 requests.
+  FAST 129,282 · NORMAL 128,723 · **ECO 109,566 (−14.9%)**. Before the change
+  ECO was 129,673. This is deterministic. **NOT VERIFIED** with a live model:
+  whether compact descriptions change what the model does.
+- **Evidence slice**: 423-node window, 22,330 → 640 chars (×34.9), about
+  5,400 flagship tokens avoided on one observation (unit fixture; not measured
+  on a live desktop).
+- **Recruitment gate (Jev role, intent tie-break)**: the local Qwen3-VL-4B
+  (llama-server) lifts the rule-default cases 57% → 79% at 225 ms but is wrong
+  25% of the time when it answers → **FAIL**, not recruited. Jev itself was not
+  evaluable: its free tier is OpenCode-client-only (403) and Zen had no funds
+  (402). Laya and Violetto are not installed anywhere reachable.
+
+**LIVE PROVIDER VERIFIED** (`kr/claude-haiku-4.5` via 9router, the real
+binary with `-p`, an isolated config home, and a git fixture):
+- the model delegated two IMPLEMENTERs in PARALLEL;
+- each worked in its own worktree → two ACCEPTABLE candidates, and nothing
+  was written to the project;
+- the main agent called `integrate_candidate` twice, then wired `formatSum`
+  to `add()` itself (`edit_file` / `apply_patch`);
+- `npm test` → `2 passing`;
+- `git worktree list` shows only the main tree; no branch; no stash;
+- 10 requests, 264k input tokens.
+
+The first attempt failed on the two defects above (stale baseline, then
+`.lain/`), both fixed and re-run.
+
+**Provider matrix** (2026-09-23, LAIN's own `provider.chat`; streaming · native
+tools · parallel tools · tool-result continuation · large args · structured):
+
+| Route | Result | Exact limitation |
+|---|---|---|
+| 9router `kr/claude-haiku-4.5` | stream ✓ · 1 tool call ✓ · continuation ✓ ("42") · parallel ✓ (2 calls, distinct ids) · 6.6 KB args ✓ · `response_format` ignored | Args are **buffered by the route** (4 frames after ~10 s), so LAIN shows WAITING rather than PREPARING TOOL; after 30 s it says the route may be holding a tool call |
+| 9router `cx/gpt-5.x` (GPT via Codex) | ✗ | `cx/gpt-5.4(-mini)`: "not supported when using Codex with a ChatGPT account"; `cx/gpt-5.5` / `5.6-luna`: usage limit (reset ≈2 min), then after the reset **"invalidated oauth token"** (401). Upstream auth; re-authenticate Codex in 9router |
+| 9router `cl/~z-ai/glm-latest` (**the current selection**) | ✗ | Cline 401: "re-authenticate your Cline account" |
+| 9router `oczen/jev-1.13-free`, Zen `jev-1.13-free` | ✗ | 403 FreeTierError: "OpenCode's free tier can only be used from within OpenCode" |
+| OpenCode Zen `gpt-5-nano` | ✗ | 402 insufficient account funds |
+| OpenCode Go `gpt-5.6-luna`, `glm-5.3-flash` | ✗ → ✗ | 400 MissingSessionID. **LAIN adapter fix** → 403 "active OpenCode Go subscription required" |
+| z.ai `glm-4.5-air` | ✗ | 429 weekly limit, reset 2026-09-27 16:30 |
+| OpenAI direct `lain:openai` | not probed | catalog state AUTH_REQUIRED (invalid key) |
+
+LAIN classifies all of these correctly: AUTH / RATE_LIMITED with the stated
+reset / MODEL_UNAVAILABLE / QUOTA, with no retry storm. **None of the GPT
+failures is LAIN's subagent system.** On this machine, today, no GPT route
+can carry any request at all. The subagent path needs only native tools and
+continuation, which is Tier 1 on the one working route. A Tier 2 mediated
+protocol was not needed and was not built.
+
+**TOTALS** (final code, this machine, `LAIN_TTY_PYTHON` set, each tier in one invocation):
+
+| Tier | Result |
+|---|---|
+| unit | 3219 / 3219 |
+| workflow | 7 / 7 |
+| integration | 214 / 214 (with the new real hard-kill test) |
+| global | 95 / 95 |
+| harness | 37 / 37 (shared Core changed: turn, provider, session) |
+| distribution | 48 / 48 |
+| cli (REAL ConPTY) | **496 / 496** (2247 s), including `closure-cli` 7/7 |
+
+The previous full CLI run on the same code was 494/496:
+- `closure-cli` P raced a repaint and was fixed to wait for the command's
+  receipt;
+- `ask` "chosen answer" is the known fixed-400 ms stdin staging race (3/3
+  when run alone, and green in both other full runs).
+
+A mid-pass run caught one real regression, fixed before the final runs: the
+model's sentence flickered out of view for the length of a tool call.
+Narration now enters the feed at the call's start.
+
+**NOT VERIFIED**
+- ECO's compact descriptions with a live model: the saving is measured on
+  the wire; the behavioural effect is not.
+- Live desktop Evidence Slices: unit fixture only.
+- GPT as a subagent: no GPT route can carry a request on this machine today
+  (see the matrix). A Jev / Laya / Violetto model was not recruited.
+- FAST auto-background in a real terminal: unit only, with a real child
+  process.
+
+**Operational note:** 9router was not running at the start of this pass. It
+was started for the matrix and the live run, then stopped again. The user's
+config was only read.
+
 ## Final stabilization closure + steer (2026-09-19)
 
 Same method as the self-diagnosis pass below:

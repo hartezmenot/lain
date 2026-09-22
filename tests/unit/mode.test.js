@@ -211,4 +211,24 @@ module.exports = async function () {
     ];
     for (const [text, want] of cases) assert.strictEqual(mode.classify(text).mode, want, text);
   });
+
+  await test('MODE (workergate 2026-09-23): acknowledgements are CHAT; "what did you change" is a report; yes/no judgements are AUDIT', () => {
+    // Each fell to IMPLEMENT and a prose answer then drew the hidden wake-up.
+    const cases = [
+      ['thanks, that worked', 'CHAT'],
+      ['awesome, works now', 'CHAT'],
+      ['what did you change', 'EXPLAIN'],
+      ['what have you done so far?', 'EXPLAIN'],
+      ['show me the plan', 'EXPLAIN'],
+      ['is the retry logic correct?', 'AUDIT'],
+      ['is this codebase in good shape?', 'AUDIT'],
+      ['what would you improve in the api layer', 'AUDIT'],
+      ['any dead code in src/ui?', 'AUDIT'],
+      // and the change requests that share words with them keep their modes
+      ['add exponential backoff to the retry logic', 'IMPLEMENT'],
+      ['show me the plan, then add the endpoint', 'IMPLEMENT'],
+      ['fix what you changed in the header', 'IMPLEMENT'],   // still work, never a report
+    ];
+    for (const [text, want] of cases) assert.strictEqual(mode.classify(text).mode, want, text);
+  });
 };

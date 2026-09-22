@@ -61,11 +61,13 @@ const { MAX_RETRIES } = require('../../src/backoff');
 const OUTAGE = (make) => Array.from({ length: MAX_RETRIES + 4 }, make);
 
 module.exports = async function () {
-  await test('SEE: the screen says THINKING while it waits for the model', async () => {
+  await test('SEE: the screen says the model is being waited on (WAITING / THINKING / STREAMING)', async () => {
     const r = await runCli([], { cwd: tmpdir('live-'), env: tui(), stdin: 'audit it\n', script: slowScript(1) });
     const out = plain(r.out);
-    assert.match(out, /THINKING/i, 'waiting on the provider must be visible in the header');
-    assertIncludes(out, 'waiting for the model', 'and said in words on the status strip above the input');
+    // The word follows the wire since 2026-09-23 (streamprogress.js): not every wait is THINKING.
+    assert.match(out, /THINKING|WAITING|STREAMING/i, 'waiting on the provider must be visible');
+    // Before any data arrives the strip says WAITING, not THINKING (streamprogress.js, 2026-09-23).
+    assert.match(out, /first response from the model|waiting for the model/, 'and said in words on the status strip above the input');
   });
 
   await test('SEE: the screen names the TOOL while the tool is running', async () => {

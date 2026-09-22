@@ -14,12 +14,14 @@
  *           disjoint write scopes), never skip verification.
  *   NORMAL  balanced default: the main agent first, delegation only when it
  *           clearly helps, moderate concurrency, normal budget.
- *   ECO     token economy (`/slow`): ONE agent, serial tool flow, no subagents
- *           and no A/B unless the person explicitly asks, a smaller context
- *           budget, and deterministic tools used aggressively so the model is
- *           called less — locate/symbols/dependents/targeted reads batched into
- *           one step before the next model call. It never sleeps and never
- *           strips a tool; it spends fewer TOKENS, not less care.
+ *   ECO     token economy (`/eco`, alias `/slow`): ONE agent, serial tool flow,
+ *           no subagents and no A/B unless the person explicitly asks, a smaller
+ *           context budget, deterministic tools used aggressively, and every
+ *           tool offered with COMPACT descriptions (schemacompact.js — the one
+ *           lever measured to change the payload: −14.9% input on a fixture).
+ *           It never sleeps and never strips a tool; fewer TOKENS, not less care.
+ *
+ * `/fast` and `/eco` TOGGLE (profile.toggle); `/normal` resets.
  *
  * Session preference: persisted with the session, survives a model switch and
  * a resume; a new session starts NORMAL unless `executionProfile` is configured.
@@ -52,6 +54,20 @@ function set(session, p) {
   session.profile = v;
   session.fast = v === 'FAST';     // the older boolean, for anything still reading it
   return v;
+}
+
+/**
+ * WHAT `/fast` OR `/eco` LEADS TO. Bare, each is a TOGGLE of its own profile:
+ * FAST→/fast→NORMAL, NORMAL→/fast→FAST, ECO→/fast→FAST, and the same for ECO.
+ * `on`/`off` are explicit and never flip. `/normal` is always NORMAL.
+ */
+function toggle(current, target, arg = '') {
+  const t = normalize(target) || 'NORMAL';
+  const a = String(arg || '').toLowerCase();
+  if (t === 'NORMAL') return 'NORMAL';
+  if (a === 'off') return 'NORMAL';
+  if (a === 'on') return t;
+  return normalize(current) === t ? 'NORMAL' : t;
 }
 
 const scale = (profile) => BUDGET_SCALE[normalize(profile) || 'NORMAL'];
@@ -95,4 +111,4 @@ function guidance(session) { return GUIDANCE[of(session)] || ''; }
 /** The header/composer tag: '' for NORMAL — the default says nothing. */
 function label(session) { const p = of(session); return p === 'NORMAL' ? '' : p; }
 
-module.exports = { PROFILES, BUDGET_SCALE, CONCURRENCY, normalize, of, set, scale, concurrency, allowsExtraAgents, guidance, label, OVERRIDE_RE };
+module.exports = { PROFILES, BUDGET_SCALE, CONCURRENCY, normalize, of, set, toggle, scale, concurrency, allowsExtraAgents, guidance, label, OVERRIDE_RE };

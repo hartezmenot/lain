@@ -210,4 +210,4 @@ function remember(app, record) {
   if (s.decisions.length > 20) s.decisions.shift();
 }
 
-module.exports = { run, select, baseCommit, changeOf, verify, cleanup };
+module.exports = { run, select, baseCommit, changeOf, verify, cleanup, git, addWorktree };

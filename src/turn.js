@@ -26,6 +26,8 @@
  */
 
 const provider = require('./provider');
+const progress = require('./streamprogress');
+const inflight = require('./inflight');
 const errors = require('./errors');
 const toolRegistry = require('./tools');
 
@@ -135,6 +137,7 @@ async function* runTurn(session, userInput, opts = {}) {
     Number(opts.maxConnectionRetries) || Number(cfg.maxConnectionRetries) || MAX_RETRIES));
 
   session.messages.push({ role: 'user', content: userInput, ts: new Date().toISOString() });
+  inflight.begin(session, record, { from: opts.from || null });   // DURABLE FROM HERE: a force-close keeps the turn (inflight.js)
 
   // THE TURN'S SCRATCH — findings recorded during the turn survive its death; turnclose settles it.
   require('./scratch').open(session.cwd, session.id, { goal: userInput });
@@ -155,7 +158,8 @@ async function* runTurn(session, userInput, opts = {}) {
 
   // The vocabulary follows the App: `computer` appears only while a transport
   // is connected, so the reader must forward the App it is working for.
-  const schemas = opts.tools === false ? [] : toolRegistry.schemas(opts.app);
+  const full = opts.tools === false ? [] : toolRegistry.schemas(opts.app);
+  const schemas = require('./profile').of(session, cfg) === 'ECO' ? require('./schemacompact').compact(full) : full;   // ECO: same tools, fewer words
   // `ask` lets ask_user reach the interaction panel. Absent on non-interactive
   // runs, where the tool says so rather than hanging.
   // `app` is here for ONE tool: `computer`, which must reach the permission gate
@@ -228,21 +232,7 @@ async function* runTurn(session, userInput, opts = {}) {
     // written, and the model sees the correction as the most recent thing said
     // to it. It does NOT start a second turn, does not touch the plan, and
     // cannot arrive in the middle of a tool call.
-    if (typeof opts.steer === 'function') {
-      for (const s of opts.steer() || []) {
-        const text = String(s || '').trim();
-        if (!text) continue;
-        session.messages.push({ role: 'user', content: `⚑ USER STEER: ${text}`, ts: new Date().toISOString(), _steer: true });
-        record.steers = (record.steers || 0) + 1;
-        // THE WORDS, AND WHERE THEY LANDED — not merely how many there were.
-        // Only the COUNT used to be kept, so the correction vanished from the
-        // finished transcript the moment the turn ended — and a user's steer is
-        // the one thing that cannot be recovered by re-reading the repository.
-        // `step` puts it back in the right place when the turn is replayed.
-        (record.steerTexts = record.steerTexts || []).push({ step, text });
-        yield { type: 'notice', level: 'info', message: `⚑ USER STEER delivered to the model: ${text}` };
-      }
-    }
+    for (const n of require('./steerqueue').deliver(session, record, opts, step)) yield n;
 
     // ---- WILL THIS PROVIDER ACCEPT WHAT IS ABOUT TO BE SENT? --------------
     //
@@ -286,7 +276,10 @@ async function* runTurn(session, userInput, opts = {}) {
 
     // ANNOUNCED BEFORE THE AWAIT, not after it. The request below can take a
     // minute; saying "waiting" once it returns would be a report, not a status.
-    status(opts, PHASE.WAITING_MODEL, { step: step + 1 });
+    // LIVENESS: one record per request, filled from the wire (streamprogress.js)
+    // and read by the screen on the frames it already draws.
+    const live = progress.begin();
+    status(opts, PHASE.WAITING_MODEL, { step: step + 1, live });
 
     // THE REQUEST BOUNDARY: the runtime admits BEFORE the wire; a denial means
     // the provider is never called. Retries re-enter here, so every real
@@ -307,21 +300,23 @@ async function* runTurn(session, userInput, opts = {}) {
       if (!failure) {
       record.usage.requests += 1;
     const trace = reqtrace.forStep(record.turnId, step + 1, {});
-      for await (const ev of provider.chat(pc, wire, { tools: schemas, signal, trace })) {
+      for await (const ev of provider.chat(pc, wire, { tools: schemas, signal, trace, live, sessionId: session.id })) {
         if (signal && signal.aborted) break;
         if (!ev) continue;
         if (ev.type === 'text') {
         // The FIRST byte is the moment waiting becomes receiving — announced
         // once per step, not per chunk (400 redraws/s is a storm, not status).
-          if (!text) status(opts, PHASE.RECEIVING, { step: step + 1 });
+          if (!text) status(opts, PHASE.RECEIVING, { step: step + 1, live });
+          progress.text(live, ev.chunk);
           text += ev.chunk || '';
           yield { type: 'text', chunk: ev.chunk || '' };
         } else if (ev.type === 'reasoning') {
           // THINKING ALOUD, kept out of `text` (the ANSWER, which feeds the
           // completion check and transcript); bounded, drawn only when nothing
           // was said. See ui/conversation.js.
-          if (!text) status(opts, PHASE.RECEIVING, { step: step + 1 });
+          if (!text && !thought) status(opts, PHASE.RECEIVING, { step: step + 1, live });
           const think = String(ev.chunk || '');
+          progress.reasoning(live, think.length);
           if (think.trim()) thought = true;
           record.reasoningChars = (record.reasoningChars || 0) + think.length;
           if ((record.reasoning || '').length < MAX_REASONING) record.reasoning = (record.reasoning || '') + think;
@@ -574,6 +569,7 @@ async function* runTurn(session, userInput, opts = {}) {
       }
       session.messages.push(asst);
     }
+    inflight.step(session, step);
 
     if (signal && signal.aborted) {
       for (const c of normalized) {
@@ -611,6 +607,7 @@ async function* runTurn(session, userInput, opts = {}) {
       }
       yield { type: 'tool_start', id: c.id, name: c.name, input: c.input };
       status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input) });
+      inflight.beforeTool(session, c, describeTarget(c.name, c.input));   // on disk BEFORE any effect
 
       // EVIDENCE, RECEIPTS AND THE TRANSACTION live in toolstep.js: an unchanged read may be served without re-running,
       // and a source write goes through the mutation lifecycle, which captures and settles its own checkpoint.
@@ -664,6 +661,7 @@ async function* runTurn(session, userInput, opts = {}) {
         isError: Boolean(result.isError),
         ts: new Date().toISOString(),
       });
+      inflight.afterTool(session, c, result);
 
       // `input` travels with the result so a consumer can label it without
       // having to remember what it saw at tool_start.

@@ -148,23 +148,29 @@ module.exports = async function () {
     // stream handed its partial text up as a result; (2) a pipeline stopped at stage 2 of 3 reported
     // "1/2 completed" and never mentioned the VERIFIER that did not run.
     leases._reset();
-    const app = fakeApp(tmpdir('sub-handoff-'));
+    const root = tmpdir('sub-handoff-');
+    const app = fakeApp(root);
     const out = await subagents.run(app, [
       { ...good({ role: 'SCOUT', writeScope: [] }), objective: 'map the failures' },
       good(),
       { ...good({ role: 'VERIFIER', writeScope: [] }), objective: 'run the suite' },
     ], {
       mode: 'pipeline',
-      runner: async ({ contract }) => (contract.role === 'IMPLEMENTER'
-        ? { text: 'Writing the fix now', stopReason: 'provider', providerFailure: { message: 'stream inactive for 180s' }, mutations: ['src/retry/a.js'] }
-        : { text: `${contract.role} OUTPUT`, stopReason: 'end', mutations: [] }),
+      runner: async ({ contract, session }) => {
+        if (contract.role !== 'IMPLEMENTER') return { text: `${contract.role} OUTPUT`, stopReason: 'end', mutations: [] };
+        // It writes — into ITS OWN workspace (candidates.js) — then its stream dies.
+        fs.mkdirSync(path.join(session.cwd, 'src', 'retry'), { recursive: true });
+        fs.writeFileSync(path.join(session.cwd, 'src', 'retry', 'a.js'), 'half done\n');
+        return { text: 'Writing the fix now', stopReason: 'provider', providerFailure: { message: 'stream inactive for 180s' }, mutations: ['src/retry/a.js'] };
+      },
     });
     assert.strictEqual(out.ok, false);
     assert.deepStrictEqual(out.results.map((r) => r.ok), [true, false]);
     assert.deepStrictEqual(out.remaining.map((c) => c.role), ['VERIFIER']);
     const r = subagents.report(out);
     assert.match(r, /1\/3 completed · 1 failed · 1 not run/);
-    assert.match(r, /IMPLEMENTER — FAILED · changed src\/retry\/a\.js/, 'what it changed before failing is still reported');
+    assert.ok(!fs.existsSync(path.join(root, 'src', 'retry', 'a.js')), 'the canonical tree was never written');
+    assert.match(r, /CANDIDATE c\w+ · IMPLEMENTER · 1 file\(s\)[\s\S]*A src\/retry\/a\.js/, 'what it changed before failing is still reported — as a candidate');
     assert.match(r, /its turn ended provider \(stream inactive for 180s\)/);
     assert.match(r, /VERIFIER — NOT RUN/);
     assert.match(r, /HANDOFF/);

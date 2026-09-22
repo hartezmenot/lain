@@ -82,6 +82,14 @@ module.exports = async function () {
     assert.strictEqual(names.filter((n) => n.startsWith('claude-opus-5')).length, 1, `expected one row, got ${JSON.stringify(names)}`);
     const m = cat.byId.get('claude-opus-5');
     assert.deepStrictEqual(m.connections[0].efforts.slice().sort(), ['agentic', 'thinking']);
+    // THE PLAIN MODEL SURVIVES THE FOLD (2026-09-23): with no effort chosen it is
+    // `claude-opus-5` that goes on the wire — not a silently picked -thinking.
+    // Found live: kr/claude-haiku-4.5 could not be selected without an effort.
+    assert.strictEqual(catalog.resolve(cat, { model: 'claude-opus-5' }).upstreamId, 'claude-opus-5');
+    assert.strictEqual(catalog.resolve(cat, { model: 'claude-opus-5', effort: 'thinking' }).upstreamId, 'claude-opus-5-thinking');
+    // A family WITHOUT a plain id still falls to an effort, as before.
+    const only = catalog.build([{ id: 'x', provider: 'x', models: ['m-agentic', 'm-thinking'] }]);
+    assert.ok(/m-(agentic|thinking)/.test(catalog.resolve(only, { model: 'm' }).upstreamId));
 
     // -fast is UNAFFECTED: still its own family, still never effort.
     assert.strictEqual(catalog.splitEffort('gpt-5.5-high-fast').base, 'gpt-5.5-fast');

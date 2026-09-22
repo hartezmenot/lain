@@ -261,9 +261,12 @@ tools.run_background = {
     // the state where LAIN is legitimately quiet and a window with nothing in
     // it is indistinguishable from a window that has stopped working.
     busOf(app).emit(EVENT.JOB_STARTED, { id: job.id, command, shell });
+    // DURABLE: a force-closed LAIN leaves this child running — recorded so the next one knows (inflight.js).
+    require('../inflight').noteJob(ctx && ctx.session, job, command);
     // ON ITS EXIT EVENT, not by polling — the job resolves its own waiters and
     // this rides the same promise. See jobs.js: there is no interval anywhere.
     Promise.resolve(job.wait()).then((s) => {
+      require('../inflight').jobEnded(ctx && ctx.session, job, s);
       busOf(app).emit(EVENT.JOB_COMPLETED, {
         id: job.id, state: s.state, exitCode: s.exitCode, command,
       });

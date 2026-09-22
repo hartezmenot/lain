@@ -183,6 +183,11 @@ function apply(app, ev, ctx) {
 
     case 'tool_start':
       app.render.toolStart(ev.name, ev.input);
+      // THE PROSE THAT PRECEDED THIS CALL ENTERS THE FEED NOW, not at its result
+      // (2026-09-23). The activity box quotes it while it streams; waiting for
+      // the result made it vanish for the length of the call and come back —
+      // the flicker smoke/livecontext caught. Same order as before: prose, call.
+      if (app.ui.enabled && ctx.liveText.trim()) { app.ui.noteNarration(ctx.liveText.trim()); ctx.liveText = ''; }
       // TWO FACTS, NOT ONE. "The model asked for this" and "this is running"
       // are different events to a companion: the first is a decision, the
       // second is work, and a window that conflates them cannot show a call
@@ -245,6 +250,15 @@ function apply(app, ev, ctx) {
         ...(edit ? { added: edit.added, removed: edit.removed } : {}),
         ...(ev.size && ev.size.name === ev.name && ev.size.path === ((ev.input && ev.input.path) || null) && (ev.size.added || ev.size.removed) ? { added: ev.size.added, removed: ev.size.removed } : {}),
       });
+      // AN INTEGRATED CANDIDATE writes several files in one call (candidates.js):
+      // each gets the same live CHANGE row and Diff a write of the main agent's does.
+      if (!ev.isError && ev.meta && Array.isArray(ev.meta.paths) && !(ev.input && ev.input.path)) {
+        for (const p of ev.meta.paths) {
+          let e = null;
+          try { e = noteEdit(app, p); } catch { /* the turn is unaffected */ }
+          app.ui.noteAction({ name: 'write_file', target: p, ok: true, file: true, path: p, actor: 'TOOL', ...(e ? { added: e.added, removed: e.removed } : {}) });
+        }
+      }
       // ---- AN EDIT SHOWS ITS CHANGE, ONCE -----------------------------------
       //
       // The counters on the timeline card and the diff window under it both

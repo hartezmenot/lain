@@ -222,7 +222,7 @@ const tools = {
         cwd,
         timeoutMs: Number(input && input.timeout_ms) || DEFAULT_TIMEOUT_MS,
         signal: ctx && ctx.signal,
-        detach: ctx && ctx.app ? { app: ctx.app, label: command, tool: 'run_tests', turnId: ctx.turnId } : null,
+        detach: ctx && ctx.app ? { app: ctx.app, label: command, tool: 'run_tests', turnId: ctx.turnId, cwd, input: input || {} } : null,
       });
 
       // The user stopping it is the user's decision, not a verdict about tests.

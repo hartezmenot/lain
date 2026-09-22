@@ -125,4 +125,29 @@ function drain(app) {
   return all;
 }
 
-module.exports = { MODE, queue, promote, takeBack, waiting, takeNow, drain };
+/**
+ * DELIVER the NOW steers into a running turn, between steps (moved here from
+ * turn.js). Returns the notices to yield. A steer is a durable event: the
+ * session is saved as it lands (inflight.js), so a force-close keeps it.
+ */
+function deliver(session, record, opts, step) {
+  const out = [];
+  if (!opts || typeof opts.steer !== 'function') return out;
+  for (const s of opts.steer() || []) {
+    const text = String(s || '').trim();
+    if (!text) continue;
+    session.messages.push({ role: 'user', content: `⚑ USER STEER: ${text}`, ts: new Date().toISOString(), _steer: true });
+    record.steers = (record.steers || 0) + 1;
+    // THE WORDS, AND WHERE THEY LANDED — not merely how many there were.
+    // Only the COUNT used to be kept, so the correction vanished from the
+    // finished transcript the moment the turn ended — and a user's steer is
+    // the one thing that cannot be recovered by re-reading the repository.
+    // `step` puts it back in the right place when the turn is replayed.
+    (record.steerTexts = record.steerTexts || []).push({ step, text });
+    out.push({ type: 'notice', level: 'info', message: `⚑ USER STEER delivered to the model: ${text}` });
+  }
+  if (out.length) require('./inflight').persist(session, { force: true });
+  return out;
+}
+
+module.exports = { MODE, queue, promote, takeBack, waiting, takeNow, drain, deliver };

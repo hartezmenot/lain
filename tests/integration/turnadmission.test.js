@@ -137,7 +137,9 @@ module.exports = async function () {
       { text: '', tool_calls: [{ name: 'write_file', input: { path: 'change1.txt', content: 'x' } }] },
       { text: '', tool_calls: [{ name: 'run_tests', input: { which: 'project' } }] },
       { text: 'I cannot proceed: the suite still fails in suite.js.' },
-      { text: 'after verify' }, { text: 'after goal' },
+      // `/goal <text>` EXECUTES the goal (2026-09-23): it has a turn of its own.
+      // (prose-only on an execution request: the one hidden wake-up takes a second reply)
+      { text: 'after verify' }, { text: 'working on the goal' }, { text: 'still on the goal' }, { text: 'after goal' },
     ]);
     const app = newApp(cwd);
     await send(app, 'fix it');
@@ -149,6 +151,7 @@ module.exports = async function () {
     assert.match(String((await send(app, 'why did it fail')).text), /after verify/);
     await app.handle('/goal ship the fix');
     assertIdle(app, 'after /goal');
+    assert.match(String(app.session.turns[app.session.turns.length - 1].text), /working on the goal/, 'the goal ran as its own turn');
     assert.match(String((await send(app, 'carry on with it')).text), /after goal/);
   });
 

@@ -81,8 +81,15 @@ def snapshot(screen, name):
         line = screen.buffer[y]
         painted = [x for x in range(screen.columns) if line[x].bg != "default" or line[x].reverse]
         grounds.append([painted[0], painted[-1]] if painted else None)
+    # THE COLOURS a row's visible characters are drawn in (pyte names, e.g.
+    # "green", or a hex for 256/truecolour), so semantics like a green `+` are testable.
+    fg = []
+    for y in range(screen.lines):
+        line = screen.buffer[y]
+        fg.append(sorted({line[x].fg for x in range(screen.columns) if line[x].data.strip()}))
     return {
         "name": name,
+        "fg": fg,
         "cols": screen.columns,
         "rows": screen.lines,
         "cursor": [screen.cursor.x, screen.cursor.y],
@@ -155,6 +162,18 @@ def main():
             time.sleep(step.get("settle", 250) / 1000.0)
             with lock:
                 out["snaps"].append(snapshot(screen, step["snap"]))
+        elif "hardkill" in step:
+            # A CRASH, not a close: TerminateProcess on the child itself. No
+            # Ctrl+C, no console-close event, no chance to save anything.
+            import os
+            import signal
+            try:
+                os.kill(proc.pid, signal.SIGTERM)
+            except Exception as e:
+                out["hardkillError"] = str(e)
+            time.sleep(0.8)
+            out["hardkilled"] = True
+            break
 
     done["flag"] = True
     try:

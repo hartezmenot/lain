@@ -132,6 +132,9 @@ async function start(app) {
     // AFTER `app.ui.enable()`, so a write here landed in the trailing
     // transcript and was redrawn under every later turn (live, 2026-09-18).
     if (orphans.length) require('./ui/operation').say(app, `${orphans.length} unfinished turn(s) left findings behind · /lain`);
+    // A TURN RECOVERED FROM A FORCE-CLOSE (inflight.js) says so once.
+    const rec = app.session && app.session.recovered;
+    if (rec && !rec.shown) { rec.shown = true; require('./ui/operation').say(app, rec.line); }
   } catch { /* startup chrome never blocks the session */ }
 
   if (!tui) app.banner();
@@ -333,7 +336,9 @@ async function start(app) {
     // (The second Enter that promotes a waiting steer is handled on the KEY
     // event — an empty line never reaches this one. See the `enter` branch in
     // the key handler above.)
-    if (turnActive && !app.pendingAsk && app.queueSteer(ev.text)) { trace.note(app, 'input:steer'); return; }
+    // AN OPEN COMPOSER (`/goal`, `/plan` capture) OWNS THE NEXT LINE, even
+    // mid-turn: it queues and `handle` gives it to the composer — never a steer.
+    if (turnActive && !app.pendingAsk && !app.composing && app.queueSteer(ev.text)) { trace.note(app, 'input:steer'); return; }
     trace.note(app, 'input:queued');
     queue.push(ev);
     wake();

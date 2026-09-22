@@ -23,10 +23,12 @@
  * plan or resetting a step. This is the same rule for a different destination,
  * and it is checked in the same place in `App.handle`, immediately after it.
  *
- * A composed line therefore CANNOT start a turn, cannot touch task identity,
- * cannot spend a token and cannot reach a model. That is the whole safety
- * property, and it is structural rather than a promise: `App.handle` returns
- * before it reaches the classifier.
+ * A composed PLAN line or a goal EDIT therefore cannot start a turn, cannot
+ * touch task identity, cannot spend a token and cannot reach a model:
+ * `App.handle` returns before it reaches the classifier. The one exception is
+ * deliberate and named: a CAPTURED goal (`/goal`, then the task) is returned as
+ * `{ run }`, and `App.handle` routes that text through the ordinary gateway as
+ * the person's own message — capturing a goal means "do this".
  *
  * ------------------------------------------------------------------------
  * ESCAPE IS ALWAYS A CANCEL, AND SO IS AN EMPTY LINE.
@@ -126,10 +128,17 @@ function take(app, textIn) {
   }
   if (c.kind === KIND.GOAL) {
     const goal = require('./goal');
-    if (c.intent === 'new') goal.create(app.session, value);
-    else if (c.intent === 'edit' && c.target) goal.edit(app.session, c.target, value);
+    if (c.intent === 'new') {
+      // CAPTURE: the line becomes the goal AND the work (2026-09-23). The caller
+      // (`App.handle`) runs `run` as the person's own message — once, no second
+      // `/goal continue`. Editing an existing goal (below) only edits it.
+      goal.create(app.session, value);
+      try { app.session.save(); } catch { /* the change still holds for this run */ }
+      return { run: value };
+    }
+    if (c.intent === 'edit' && c.target) goal.edit(app.session, c.target, value);
     else goal.set(app.session, value);
-    // NO RECEIPT: the goal is state, not news. `/goal` shows it on its shelf.
+    // NO RECEIPT: the goal is state, not news. `/goal show` shows it on its shelf.
   } else if (c.kind === KIND.PLAN_REPLACE || c.kind === KIND.PLAN_ADD || c.kind === KIND.PLAN_NEW) {
     // ONE PLAN OWNER. The steps are built by plan.js from this text; nothing
     // here keeps a second copy of them or a second notion of what a step is.

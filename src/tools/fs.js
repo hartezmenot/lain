@@ -181,7 +181,14 @@ const tools = {
       // Exemptions live in evidence.js `noInspection` — absent file (creation),
       // session-less context, and OUR OWN previous write still standing.
       const { noInspection, sessionIdOf } = require('../evidence');   // `ledgerOf` is already in scope above
-      const blind = noInspection(ledgerOf(ctx), ctx.cwd, abs, sessionIdOf(ctx));
+      // AN ANCHORED WRITE IS ITS OWN INSPECTION — `_anchorSha1` is the hash of the
+      // exact bytes being replaced, checked here (candidates.js integration: the
+      // candidate was built on precisely those bytes). A wrong hash is no anchor.
+      let anchored = false;
+      if (typeof input._anchorSha1 === 'string' && input._anchorSha1) {
+        try { anchored = require('crypto').createHash('sha1').update(fs.readFileSync(abs)).digest('hex') === input._anchorSha1; } catch { anchored = false; }
+      }
+      const blind = anchored ? null : noInspection(ledgerOf(ctx), ctx.cwd, abs, sessionIdOf(ctx));
       if (blind) {
         return {
           isError: true,

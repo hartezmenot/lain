@@ -65,21 +65,22 @@ function register({ define, C }) {
   });
   // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js). Strategy and
   // spend, never the correctness bar; orthogonal to AUTO/MANUAL/PLAN and FOCUS.
+  // `/fast` and `/eco` TOGGLE their profile (profile.toggle); `/normal` resets.
   const profileCmd = (name, target, desc, hidden = false) => define(name, {
-    surface: true, flashMs: 1500, hidden, args: name === '/fast' ? '[on|off]' : '',
+    surface: true, flashMs: 1500, hidden, args: target === 'NORMAL' ? '' : '[on|off]',
     desc,
     run(app, { args }) {
-      const off = name === '/fast' && String(args[0] || '').toLowerCase() === 'off';
-      const p = require('./profile').set(app.session, off ? 'NORMAL' : target);
+      const prof = require('./profile');
+      const p = prof.set(app.session, prof.toggle(prof.of(app.session, app.cfg), target, args[0]));
       try { app.session.save(); } catch { /* still applies in memory */ }
       if (app.ui && app.ui.enabled) app.ui.refresh();
       app.render.write(C.dim(`  ${p}${p === 'ECO' ? ' (token economy)' : ''} · ${execmode.label(app.session)}\n`));
     },
   });
-  profileCmd('/fast', 'FAST', 'FAST profile: finish quickly — parallel independent reads, disjoint subagents, bigger budget; same verification bar');
+  profileCmd('/fast', 'FAST', 'FAST profile (toggle): finish quickly — parallel independent work, disjoint subagents; same verification bar');
   profileCmd('/normal', 'NORMAL', 'NORMAL profile (default): main agent first, subagents only when clearly useful');
-  profileCmd('/slow', 'ECO', 'ECO profile — token economy: one agent, serial, deterministic tools first, smaller context; same verification bar');
-  profileCmd('/eco', 'ECO', 'Alias of /slow', true);
+  profileCmd('/eco', 'ECO', 'ECO profile (toggle) — token economy: one agent, serial, deterministic tools first, smaller context; same verification bar');
+  profileCmd('/slow', 'ECO', 'Alias of /eco', true);
   // SUBAGENTS — one small setting, not a panel: AUTO (recommended) or OFF, and
   // how many may run at once. The counter itself lives in the run state.
   define('/subagents', {
@@ -100,6 +101,31 @@ function register({ define, C }) {
         + `${prof === 'ECO' && s.mode === 'auto' ? ' (ECO: only when you ask for them)' : ''}\n`));
     },
   });
+  // DIAGNOSTIC ONLY (workers.js): the narrow workers, whether any model is
+  // recruited, and what they measurably saved. Never shown during normal work.
+  define('/workers', {
+    surface: true, desc: 'Diagnostics: narrow workers (Jev/Laya/Violetto contracts), recruitment gate, what they saved',
+    run(app) {
+      const workers = require('./workers');
+      const w = (s) => app.render.write(s);
+      const gates = gateResults();
+      w('\n' + C.bold('Workers') + C.dim('  — deterministic first; a model joins only through bench/workergate\n'));
+      for (const c of Object.values(workers.CONTRACTS)) {
+        const b = workers.binding(app.cfg, c.id);
+        const tier = b ? `model ${b.model}` : c.deterministic ? `deterministic (${c.deterministic})` : 'not built';
+        w(`  ${c.worker.padEnd(9)} ${c.id.padEnd(18)} ${tier}\n`);
+        for (const g of gates.filter((x) => x.contract === c.id)) w(C.dim(`            gate ${g.pass ? 'PASS' : 'FAIL'} · ${g.model} · ${g.detail}\n`));
+      }
+      const sum = workers.summary(app.session);
+      const keys = Object.keys(sum);
+      w('\n' + (keys.length ? '' : C.dim('  No worker ran in this session.\n')));
+      for (const k of keys) {
+        const s = sum[k];
+        w(`  ${k.padEnd(18)} ${s.calls} call(s) · raw ${s.rawChars} → out ${s.outChars} chars${s.compression ? ` (×${s.compression})` : ''}`
+          + ` · re-read ${s.rereadChars} · abstain ${s.abstain} · cache ${s.cacheHits} · ~${s.avoidedTokens} flagship tokens avoided\n`);
+      }
+    },
+  });
   define('/browser', {
     surface: true, args: '[current|tabs|connect|disconnect]',
     desc: 'The browser LAIN can see: your Chrome, the frontend dev server, or an isolated one',
@@ -111,4 +137,22 @@ function register({ define, C }) {
   });
 }
 
-module.exports = { register, acceptPlan, toggle, browser };
+/** The recorded recruitment-gate runs (bench/workergate/out), newest facts only. */
+function gateResults() {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '..', 'bench', 'workergate', 'out');
+  const out = [];
+  try {
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const r = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      if (!r.baseUrl) continue;   // the deterministic-only baseline is not a candidate
+      const m = r.metrics || {};
+      out.push({ contract: 'decision_intent', model: r.model, pass: Boolean(r.gate && r.gate.pass),
+        detail: `uncertain ${Math.round((m.detAccuracyUncertain || 0) * 100)}%→${Math.round((m.cascadeAccuracyUncertain || 0) * 100)}% · wrong-when-answering ${Math.round((m.answeredWrongRate || 0) * 100)}% · ${m.medianMs} ms` });
+    }
+  } catch { /* no runs recorded */ }
+  return out;
+}
+
+module.exports = { register, acceptPlan, toggle, browser, gateResults };

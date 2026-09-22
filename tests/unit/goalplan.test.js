@@ -176,7 +176,8 @@ module.exports = async function () {
     assert.ok(takeAt > 0, 'the composer is consumed in handle');
     assert.ok(submitAt > 0, 'and handle is what submits a real turn');
     assert.ok(takeAt < submitAt, 'the composer must be consumed before anything can submit the line');
-    assert.match(body.slice(takeAt, takeAt + 60), /return/, 'and it returns rather than falling through');
+    // Everything but a CAPTURED goal (`{ run }`) returns right there.
+    assert.match(body.slice(takeAt, takeAt + 200), /if \(composed && !composed\.run\) return/, 'and it returns rather than falling through');
     // AND BEFORE THE GATEWAY, so a composed line cannot be held, queued or
     // turned into a recovery either.
     const gateAt = body.indexOf("inputgate').admit");

@@ -41,9 +41,11 @@ const tools = {
       name: 'delegate',
       description: 'Hand bounded work to specialist subagents. Use ONLY when the task naturally partitions, a long independent investigation exists, '
         + 'specialist verification helps, or a pipeline would keep your own context small — a one-agent task stays with you. '
-        + 'Each subagent gets a FRESH session with only its contract (never this conversation), an enforced read/write scope and a write lease. '
-        + 'mode "pipeline" runs stages in order (SCOUT → FOUNDATION → IMPLEMENTER → VERIFIER), each handed the earlier outputs; '
-        + 'mode "parallel" requires disjoint writeScopes. You remain the integrator: check the results before relying on them.',
+        + 'Each subagent gets a FRESH session with only its contract (never this conversation), an enforced read/write scope, and works in an '
+        + 'ISOLATED copy of the project: nothing it does touches this tree. What it changes comes back as a CANDIDATE (checked for out-of-scope '
+        + 'writes and undeclared deletions) that YOU integrate with integrate_candidate, then wire, refactor and verify. '
+        + 'mode "pipeline" runs stages in order (SCOUT → FOUNDATION → IMPLEMENTER → VERIFIER), pausing after a stage that built a candidate '
+        + 'so the next starts from the integrated tree; mode "parallel" requires disjoint writeScopes. List a file in ownedFiles to allow deleting it.',
       parameters: {
         type: 'object',
         properties: {
@@ -59,6 +61,38 @@ const tools = {
       const out = await require('../subagents').run(ctx.app, input.agents || [], { mode: input.mode === 'parallel' ? 'parallel' : 'pipeline', signal: ctx.signal });
       const mutated = out.results.flatMap((r) => r.mutations || []);
       return { output: require('../subagents').report(out), isError: !out.ok, meta: { delegated: out.results.length, mode: out.mode }, mutated };
+    },
+  },
+  // THE MAIN AGENT'S ACT OF INTEGRATION (candidates.js). A subagent can never
+  // call it: children build candidates; only the main agent writes the project.
+  integrate_candidate: {
+    mutates: true,
+    schema: {
+      name: 'integrate_candidate',
+      description: 'Integrate a subagent CANDIDATE (from delegate) into this project. Each file is written through the normal write path '
+        + '(checkpoint, undo, diff). A file that changed in the project since the candidate was built is a CONFLICT and is not written — '
+        + 'integrate the rest, then reconcile that file yourself. A REJECTED candidate (out-of-scope writes, undeclared deletions) cannot be integrated. '
+        + 'After integrating, wire the parts together and run the integration test: a subagent pass is not a project pass.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'the candidate id from the delegate report, e.g. "c1x2y3"' },
+          files: { type: 'array', items: { type: 'string' }, description: 'optional: only these files of the candidate' },
+        },
+        required: ['id'],
+      },
+    },
+    async run(input, ctx) {
+      if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: 'DENIED: a subagent never integrates — its work is a candidate for the main agent.', isError: true, denied: true };
+      if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a LAIN session.', isError: true };
+      const r = await require('../candidates').integrate(ctx, String(input.id || ''), { only: input.files || null });
+      if (r.why) return { output: `NOT INTEGRATED: ${r.why}`, isError: true };
+      const lines = [`INTEGRATED ${r.done.length} file(s) from ${input.id} · ${r.state}`];
+      for (const f of r.done) lines.push(`  ✓ ${f}`);
+      for (const f of r.conflicts) lines.push(`  ✗ CONFLICT ${f}`);
+      for (const f of r.failed) lines.push(`  ✗ ${f}`);
+      if (r.done.length) lines.push('Next: wire and reconcile across components, then the integration test and the final smoke.');
+      return { output: lines.join('\n'), isError: !r.ok && !r.done.length, mutated: r.mutated, meta: { candidate: input.id, paths: r.done } };
     },
   },
   ab_compare: {

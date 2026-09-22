@@ -1,4 +1,15 @@
-# LAIN CLI — runtime and presentation contract (2026-09-18)
+# LAIN CLI — runtime and presentation contract (2026-09-18, closed 2026-09-23)
+
+> **STABILIZED / FEATURE-FROZEN (2026-09-23).** The fundamental CLI
+> architecture is closed. From here, CLI changes are normally one of: a
+> critical bug, security, a regression, or a small UX correction proven in a
+> real terminal. New concepts go to LAIN Harness, which can express what a
+> single column cannot: visual code selection, highlighted-code Q&A, a project
+> workspace, richer Diff, Browser/Workshop, live frontend inspection, error
+> overlays, Bot control, and progress / project-intelligence views. Both stay
+> clients of one Core (task/session state, Goal, Browser/Computer, worker
+> artifacts and Evidence Slices, subagent candidates, permissions,
+> verification, crash recovery, Bot state). Neither owns a second copy.
 
 LAIN CLI is the quiet, project-aware execution surface: **LOCATE → UNDERSTAND →
 ACT → VERIFY → STOP**. It is not an IDE and not a dashboard. Rich visual work
@@ -39,11 +50,24 @@ Retry scheduling now has one owner.
   NORMAL shows nothing), `AGENTS N` only while subagents run, and output tokens.
   No ETA is ever shown. `PLAN · discussing` replaces any step count while the
   plan is being discussed.
-* **ACTIVITY box** (`src/ui/activitybox.js`): READING, LOCATING, THINKING,
-  WRITING, EXECUTING, TESTING, VERIFYING, WAITING, BACKGROUND, BLOCKED — derived
-  only from runtime facts (phase, tool, targets). It never reads model
-  reasoning. Opens only while useful, closes the instant the turn ends, never
-  enters the transcript. **Ctrl+O** expands/collapses it.
+* **ACTIVITY box** (`src/ui/activitybox.js`): READING, LOCATING, WRITING,
+  EXECUTING, TESTING, VERIFYING, WAITING, BACKGROUND, BLOCKED, RATE LIMITED from
+  runtime facts (phase, tool, targets). While a request is open, the word
+  comes from the wire (`src/streamprogress.js`, one record per request that
+  the provider fills byte by byte):
+  - **WAITING**: no data yet. After 30 s it says the route may be holding a
+    tool call.
+  - **THINKING**: reasoning is arriving, shown as a size and never quoted.
+  - **STREAMING**: the answer is arriving.
+  - **PREPARING TOOL** · `edit_file · 9.6 KB`: tool arguments are arriving.
+  - **STALLED**: no data for 45 s (120 s before the first frame). Keepalive
+    bytes are shown as "connection alive" but are not progress.
+
+  The model rectangle carries the request clock and up to two rows of the
+  model's own visible words from the paragraph in progress (commentary, never
+  reasoning). The strip above the input shows the same word. The box opens
+  only while useful, closes the instant the turn ends, and never enters the
+  transcript. **Ctrl+O** expands/collapses it.
 * **Finished turns** (`src/ui/turnsections.js`): a turn that changed or checked
   something is drawn CHANGE → VERIFY → RESULT; reads are not listed; a purely
   conversational turn is drawn as before.
@@ -99,9 +123,32 @@ nothing). The correctness bar is identical in all three.
 
 | | command | what changes |
 |---|---|---|
-| **FAST** | `/fast` (`/fast off` → NORMAL) | independent leading reads run concurrently (up to 4), disjoint subagents allowed, context budget ×1.6 |
+| **FAST** | `/fast` toggles FAST ↔ NORMAL (`on`/`off` explicit) | independent leading reads run concurrently (up to 4), disjoint subagents allowed, context budget ×1.6; a final smoke / full suite / build still running after 20 s is **auto-backgrounded** like `/bg` (same PID; the task stays NOT DONE until it settles; targeted runs never are) |
 | **NORMAL** | `/normal` | default; main agent first, reads concurrency 2 |
-| **ECO** | `/slow` (`/eco` alias) | token economy: serial (concurrency 1), no subagents/A-B unless you ask, context budget ×0.5, batch cheap lookups, fix all failures before one re-run |
+| **ECO** | `/eco` toggles ECO ↔ NORMAL (`/slow` alias) | token economy: serial (concurrency 1), no subagents/A-B unless you ask, context budget ×0.5, batch cheap lookups, fix all failures before one re-run; **every tool with compact descriptions** (same names and parameters; rule sentences kept, `src/schemacompact.js`): −14.9% input tokens on the same fixture |
+
+From any profile, `/fast` or `/eco` switches to it. Repeating the same command returns to NORMAL.
+
+**`/goal`** (`src/goalcommand.js`):
+- `/goal <text>` sets the durable goal and executes it as one USER turn.
+- Bare `/goal` opens capture: the next submitted line (a multi-line paste
+  included) becomes the goal and executes immediately, with no second
+  `/goal continue`.
+- `/goal show` shows it (on a TTY: the Continue · Edit · New · Delete shelf).
+- `/goal continue` resumes it. `/goal clear` clears it.
+- A goal set mid-turn starts when that turn ends.
+
+**Force-close / crash** (`src/inflight.js`):
+- A turn in flight is on disk. The session is saved before every
+  side-effecting call and after it; reads are saved on a throttle.
+- Loading a session whose owner died repairs it. Each call left STARTED is
+  classified by inspecting reality: a file write LANDED / NOT_APPLIED (by the
+  target's hash); a command UNKNOWN, **never re-run**; a read NOT_COMPLETED.
+- The turn is kept as a record ending `crashed`. One line says
+  `RECOVERED · cut off at step N · type continue to resume`.
+- An in-process background job the closed LAIN left behind is reported
+  ORPHANED (still running, pid) or LOST, and the replacement model is told
+  not to start it twice.
 
 Measured live (2026-09-19, `kr/claude-sonnet-4.5`, same task and fixture):
 per-request input size was the same in all three (26–29k tokens), so cost is
@@ -206,7 +253,28 @@ independent files are free.
 contract: **role, objective, readScope, writeScope, owned files, expected
 output, verification, parent task, completion condition**. It runs in a fresh
 session with only its brief, under a bounded work order enforced at the tool
-door, with a write lease.
+door, with a write lease on the canonical scope.
+
+**A subagent never writes the canonical project** (`src/candidates.js`,
+2026-09-23):
+- Every role that can write or run commands works in an ISOLATED workspace:
+  a detached git worktree seeded from the exact working state (no branch, no
+  stash, no index touched), or a snapshot copy outside git. Dependency
+  directories are linked in, and the links are removed before anything else.
+- What it changes comes back as a **candidate**, checked before the main
+  agent sees it. Writes outside the writeScope, deletions not declared in
+  ownedFiles, renames from outside the scope, binary changes and oversized
+  patches are **REJECTED**.
+- The workspace is removed at harvest. No worktree outlives the call.
+- **`integrate_candidate {id, files?}`** is the main agent's act. Each file goes
+  through the normal write door (checkpoint, undo, live Diff), anchored on the
+  bytes the candidate was built from. A canonical file that moved since then
+  is a CONFLICT and is left alone. The canonical line-ending style is kept.
+  Subagents cannot call it.
+- A pipeline pauses after a stage that built a candidate, so the next stage
+  starts from the integrated tree.
+- LAIN's own `.lain/` bookkeeping inside a workspace is never part of a
+  candidate.
 
 | Role | Writes | Commands |
 |---|---|---|

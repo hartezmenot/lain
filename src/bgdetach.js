@@ -41,7 +41,43 @@ function register(app, entry) {
   if (!app) return () => {};
   const list = fgOf(app);
   list.push(entry);
-  return () => { const i = list.indexOf(entry); if (i >= 0) list.splice(i, 1); };
+  const auto = armAuto(app, entry);
+  return () => { if (auto) clearTimeout(auto); const i = list.indexOf(entry); if (i >= 0) list.splice(i, 1); };
+}
+
+// ---- FAST AUTO-BACKGROUND (2026-09-23) ---------------------------------------
+//
+// FAST means wall-clock. A final smoke, a full suite or a build that is still
+// running after AUTO_BG_MS is detached exactly as `/bg` would detach it: same
+// PID, result rejoins the task, the task stays NOT DONE until it settles
+// (finalsmoke.settleBackground). A short targeted test finishes first and is
+// never touched; a filtered run (`-- retry`, `-k`, `-t`, `--grep`) is targeted
+// by definition. NORMAL and ECO never auto-detach.
+const AUTO_BG_MS = () => Number(process.env.LAIN_AUTO_BG_MS) || 20_000;
+const BROAD = /\b(?:(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|build|smoke|e2e)|node\s+tests?\/run(?:\.js)?|cargo\s+(?:test|build)|pytest|go\s+test|gradle|mvn|make|dotnet\s+(?:test|build)|tsc\b)/i;
+const TARGETED = /\s--\s+\S|\s-(?:k|t)\s|--grep|--testNamePattern|--filter|\.test\.[jt]s\b|::/;
+
+function longEligible(entry) {
+  const cmd = String(entry.label || '');
+  try { if (require('./finalsmoke').isFinal(entry.cwd, entry.tool, { ...(entry.input || {}), command: (entry.input && entry.input.command) || cmd })) return 'final smoke'; } catch { /* not a project with a suite */ }
+  if (entry.tool === 'run_tests' && !(entry.input && (entry.input.filter || entry.input.pattern)) && !TARGETED.test(cmd)) return 'full suite';
+  if (BROAD.test(cmd) && !TARGETED.test(cmd)) return 'long build/suite';
+  return null;
+}
+
+function armAuto(app, entry) {
+  let prof = 'NORMAL';
+  try { prof = require('./profile').of(app.session, app.cfg); } catch { /* NORMAL */ }
+  if (prof !== 'FAST') return null;
+  const why = longEligible(entry);
+  if (!why) return null;
+  const t = setTimeout(() => {
+    if (!fgOf(app).includes(entry)) return;
+    const job = detachProcess(app, entry, { by: `FAST (auto-background: ${why} still running after ${Math.round(AUTO_BG_MS() / 1000)}s)` });
+    if (job) { try { require('./ui/operation').say(app, `AUTO-BG · ${why} → job #${job.id} · the task stays open until it settles`); } catch { /* nothing drawn */ } }
+  }, AUTO_BG_MS());
+  if (t.unref) t.unref();
+  return t;
 }
 
 function running(app) { return fgOf(app).slice(); }
@@ -96,9 +132,9 @@ function takeContext(session) {
 }
 
 /** Detach the newest foreground process into a background job. */
-function detachProcess(app) {
+function detachProcess(app, which = null, { by = 'the user (/bg)' } = {}) {
   const list = fgOf(app);
-  const entry = list[list.length - 1];
+  const entry = which && list.includes(which) ? which : list[list.length - 1];
   if (!entry) return null;
   const session = app.session;
   const job = app.jobs.create({ request: entry.label, primary: false, session: null, kind: 'process' });
@@ -118,7 +154,7 @@ function detachProcess(app) {
     app.jobs.changed();
     rejoin(app, session, { jobId: job.id, kind: 'process', label: entry.label, ok, summary: s.text, counts: s.counts,
       tail: String(output || '').slice(-MAX_TAIL), step: job.planStep, turnId, pid: entry.pid || null, at: Date.now() });
-  });
+  }, by);
   app.jobs.changed();
   return job;
 }
@@ -157,4 +193,4 @@ function detachBranch(app) {
   return job;
 }
 
-module.exports = { register, running, detachProcess, detachBranch, takeContext, rejoin, summarize, DETACHED_CAP_MS };
+module.exports = { register, running, detachProcess, detachBranch, takeContext, rejoin, summarize, longEligible, DETACHED_CAP_MS };

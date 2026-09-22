@@ -76,6 +76,10 @@ const FROM_SCRATCH_RE = /\bfrom scratch\b|\bnew project\b|\bgreenfield\b/i;
  *  Neither word appears in IMPLEMENT_RE, so nothing was taken from it. */
 const AUDIT_RE = /\b(?:audit|assess|review|inspect|analy[sz]e|evaluate|critique|compare|contrast|health[- ]check)\b/i;
 const AUDIT_QUESTION_RE = /\bwhat(?:'s| is| are)?\b[^.?!]{0,30}\b(?:missing|wrong with|broken|left to do|the state of|not implemented)\b/i;
+/** A yes/no JUDGEMENT asked of the code: "is the retry logic correct?", "any dead code in src/ui?". */
+const JUDGE_RE = /^\s*(?:(?:is|are)\s+(?:the|this|my|our|these|that)\b[^?]{0,60}\b(?:correct|right|safe|sound|ok(?:ay)?|fine|in (?:good|bad) shape|well[- ]designed|thread[- ]safe|secure|idiomatic)\s*\??|what would you (?:improve|change|fix|do differently)\b.*|any (?:dead code|bugs?|issues|problems|leaks?|smells?|race conditions?)\b.*)\s*$/i;
+/** What LAIN did or intends: "what did you change", "show me the plan". */
+const REPORT_RE = /^\s*(?:what (?:did|have) you (?:change|changed|do|done|edit|edited|modify|modified|touch|touched|fix|fixed|write|written|add|added|remove|removed)\b[^.!,;]*|show me (?:the )?(?:plan|diff|changes|goal|what (?:you )?changed)(?:\s+(?:so far|again|please))?)\??\s*$/i;
 
 /** "explain", "what does X do", "how does Y work" — describe, do not change. */
 const EXPLAIN_RE = /\b(?:explain|describe|walk me through|what does\b|what do\b|how does\b|how do(?:es)?\b[^.?!]{0,20}\bwork|what is this|tell me (?:about|what|how)|summari[sz]e)\b/i;
@@ -134,7 +138,7 @@ const IMPLEMENT_RE = /\b(?:add|implement|introduce|support|enable|integrate|wire
  * Conversation, not work. Pleasantries arrive combined — "nice, thank you",
  * "ok cool thanks" — so the whole line must be nothing but them.
  */
-const CHAT_WORD = '(?:hi|hey|hello|yo|thanks?|thank you|ta|cheers|ok(?:ay)?|cool|nice|great|perfect|got it|sounds good|never ?mind|nvm|sorry|no worries|wait|hmm+|lol)';
+const CHAT_WORD = '(?:hi|hey|hello|yo|thanks?|thank you|ta|cheers|ok(?:ay)?|cool|nice|great|perfect|got it|sounds good|never ?mind|nvm|sorry|no worries|wait|hmm+|lol|awesome|brilliant|all good|that (?:worked|works|did it|helped)|(?:it )?works now)';
 /**
  * WHO THE PLEASANTRY IS ADDRESSED TO. "hi there", "hey lain", "thanks mate".
  *
@@ -212,7 +216,11 @@ function classify(text, ctx = {}) {
 
   // 5. AUDIT before EXPLAIN: "review this project" is an assessment, and both
   //    are read-only so a wrong call between them is cheap.
-  if (AUDIT_RE.test(one) || AUDIT_QUESTION_RE.test(one)) return decide(KIND.AUDIT, 'asks for an assessment');
+  if (AUDIT_RE.test(one) || AUDIT_QUESTION_RE.test(one) || JUDGE_RE.test(one)) return decide(KIND.AUDIT, 'asks for an assessment');
+  // "what did you change", "show me the plan" — a report on the work, not work.
+  // It fell to IMPLEMENT on the word "change", and a prose answer then drew the
+  // hidden wake-up and a BLOCKED ending (bench/workergate, 2026-09-23).
+  if (REPORT_RE.test(one)) return decide(KIND.EXPLAIN, 'asks what was done or planned');
 
   // 6. A DEFECT. "should X but Y" is unambiguous; otherwise a symptom word
   //    plus something concrete to attach it to.

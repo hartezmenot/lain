@@ -8,12 +8,15 @@
  *     └──────────────────────────────────────────┘
  *
  * WHAT IT SAYS is derived ONLY from runtime state — the loop's phase, the tool
- * in flight, the targets this turn touched. It never shows the model's
- * reasoning, hidden or otherwise: a summary built from facts cannot leak a
- * chain of thought because it never reads one.
+ * in flight, the targets this turn touched, the wire progress of the open
+ * request. It never shows the model's reasoning, hidden or otherwise — only a
+ * SIZE of it; the commentary rows quote the visible answer text alone.
  *
  *   READING   LOCATING   THINKING   WRITING   EXECUTING   TESTING
- *   VERIFYING   WAITING   BACKGROUND   BLOCKED
+ *   VERIFYING   WAITING   BACKGROUND   BLOCKED   RATE LIMITED
+ *   and, while a request is open (streamprogress.js): WAITING · THINKING ·
+ *   STREAMING · PREPARING TOOL · STALLED, with the request clock, plus up to
+ *   two rows of the model's OWN visible words (never its reasoning).
  *
  * WHEN IT IS THERE: only while a turn is working and there is something worth
  * a line; it closes the instant the turn ends (no minimum lifetime, nothing
@@ -26,7 +29,7 @@ const { P } = require('./paint');
 
 const READ = new Set(['read_file', 'read_symbol', 'list_dir', 'file_info', 'grep', 'glob', 'web_fetch', 'check_symbols']);
 const LOCATE = new Set(['locate', 'symbols', 'dependents', 'understand', 'engineering_brief', 'concept', 'architecture', 'wiring', 'find_residue']);
-const WRITE = new Set(['write_file', 'edit_file', 'apply_patch', 'append_file', 'insert_at', 'delete_range', 'move_file', 'delete_file',
+const WRITE = new Set(['write_file', 'edit_file', 'apply_patch', 'integrate_candidate', 'append_file', 'insert_at', 'delete_range', 'move_file', 'delete_file',
   'replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol', 'download_file']);
 const TEST = new Set(['run_tests', 'discover_tests']);
 const VERIFY = new Set(['verify_task', 'review_changes', 'migration_verify', 'observe', 'observe_stop', 'service_check', 'request_browser', 'request_computer']);
@@ -83,7 +86,17 @@ function summaryOf(state, now = Date.now()) {
   const detail = recent.slice(-DETAIL_MAX).map((a) => `${a.ok === false ? '✗' : '✓'} ${a.name.replace(/_/g, ' ')} ${a.target || ''}`.trim());
   if (phase && phase.phase === 'RETRYING') {
     const secs = phase.resumeAt ? Math.max(0, Math.ceil((phase.resumeAt - now) / 1000)) : null;
-    return { kind: 'WAITING', line: `${phase.rateLimited ? 'rate limited' : 'provider'}${secs != null ? ` · retry in ${secs}s` : ''}`, detail };
+    return { kind: phase.rateLimited ? 'RATE LIMITED' : 'WAITING', line: `${phase.rateLimited ? 'provider limit' : 'provider'}${secs != null ? ` · retry in ${secs}s` : ''}`, detail };
+  }
+  // ---- A REQUEST IS OPEN: say what the WIRE says (streamprogress.js) -------
+  // WAITING (no data yet) · THINKING (reasoning arriving) · STREAMING (the
+  // answer) · PREPARING TOOL (arguments arriving, with their size) · STALLED.
+  // Before this every open request was THINKING, however it was behaving.
+  if (phase && (phase.phase === 'WAITING_MODEL' || phase.phase === 'RECEIVING') && phase.live) {
+    const progress = require('../streamprogress');
+    const st = progress.state(phase.live, now);
+    if (st.word === 'WAITING' && !recent.length && now - phase.live.startedAt < 1500) return null;   // nothing worth a box yet
+    return { kind: st.word, line: st.detail, clock: st.elapsed, commentary: progress.commentaryLine(phase.live), detail, model: true };
   }
   if (phase && phase.phase === 'RUNNING_TOOL') {
     const name = String(phase.tool || '');
@@ -100,14 +113,14 @@ function summaryOf(state, now = Date.now()) {
   const waited = state.phaseSince ? now - state.phaseSince : 0;
   if (phase && phase.phase === 'WAITING_MODEL') {
     if (!recent.length && waited < 1500) return null;       // nothing worth a box yet
-    return { kind: 'THINKING', line: recent.length ? `after ${recent.length} step${recent.length === 1 ? '' : 's'}` : 'working out the first step', detail };
+    return { model: true, kind: 'THINKING', line: recent.length ? `after ${recent.length} step${recent.length === 1 ? '' : 's'}` : 'working out the first step', detail };
   }
   if (phase && phase.phase === 'RECEIVING') return recent.length ? { kind: 'WRITING', line: 'the answer', detail } : null;
   return null;
 }
 
 /**
- * THE RECTANGLE IS FOR THINKING; EVERYTHING ELSE IS ONE LINE.
+ * THE RECTANGLE IS FOR THE MODEL; EVERYTHING ELSE IS ONE LINE.
  *
  * While the model is working out what to do, nothing else on screen says so,
  * and the box earns its rows:
@@ -120,23 +133,44 @@ function summaryOf(state, now = Date.now()) {
  * is still visibly alive and the rows go to the thing that is happening.
  * Ctrl+O still expands it to the last few operations, whatever the phase.
  */
+const COMMENTARY_ROWS = 2;
+
 function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   const s = summary(state, now);
   if (!s || room < 1) return 0;
   const expanded = Boolean(state.activityExpanded);
-  if (!expanded && (minimal || s.kind !== 'THINKING')) return 1;
+  // THE MODEL IS PRIMARY (an open request, whatever it is doing): the rectangle.
+  if (!expanded && (minimal || !s.model)) return 1;
   if (room < 2) return 1;
-  const want = 2 + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
+  const want = 2 + (s.commentary ? COMMENTARY_ROWS : 0) + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
   return Math.min(want, room);
 }
 
-const TONE = { BLOCKED: 'bad', WAITING: 'warn', TESTING: 'info', VERIFYING: 'info' };
+const TONE = { BLOCKED: 'bad', STALLED: 'warn', 'RATE LIMITED': 'warn', WAITING: 'warn', TESTING: 'info', VERIFYING: 'info' };
+
+/** Word-wrap the commentary into at most `n` rows of `w` cells (ellipsis on the last). */
+function wrapCommentary(text, w, n) {
+  const words = String(text || '').split(' ');
+  const out = [];
+  let cur = '';
+  for (const word of words) {
+    if (!cur) cur = word;
+    else if (T.width(cur + ' ' + word) <= w) cur += ' ' + word;
+    else { out.push(cur); cur = word; }
+  }
+  if (cur) out.push(cur);
+  if (out.length <= n) return out;
+  const kept = out.slice(out.length - n);   // the NEWEST words — what it is saying now
+  kept[0] = '…' + kept[0];
+  return kept;
+}
 
 function draw(state, width = 80, height = 0, now = Date.now()) {
   if (height <= 0) return [];
   const s = summary(state, now);
   if (!s) return new Array(height).fill(T.fit('', width));
-  const paint = P[TONE[s.kind] || 'plain'] || P.plain;
+  // An open request that has not answered yet is not a warning — only STALLED is.
+  const paint = P[(s.model && s.kind === 'WAITING') ? 'info' : (TONE[s.kind] || 'plain')] || P.plain;
   if (height < 2) {
     const one = T.fit(' ' + paint(T.clip(`${s.kind} · ${s.line}${s.agents ? '  ·  ' + s.agents : ''}`, Math.max(10, width - 2))), width);
     return [one];
@@ -145,8 +179,12 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   // the diff sit on, so the three read as one visual language.
   const box = Math.max(12, Math.min(width, 72));
   const ground = (text) => P.surface(' ' + T.fit(T.clip(text, box - 2), box - 2) + ' ');
-  const body = [paint(s.kind), s.line, ...(s.agents ? [s.agents] : []), ...(state.activityExpanded ? s.detail : [])];
-  const out = body.slice(0, height).map((t, i) => ground(i === 0 ? t : (i === 1 ? t : P.meta(t))));
+  // THE MODEL'S OWN WORDS, from the paragraph it is writing now — never its
+  // reasoning. Temporary: they leave with the box and never enter the feed.
+  const said = s.commentary ? wrapCommentary(s.commentary, box - 2, COMMENTARY_ROWS) : [];
+  const head = s.clock ? `${paint(s.kind)}${P.meta(' · ' + s.clock)}` : paint(s.kind);
+  const body = [head, s.line, ...said, ...(s.agents ? [s.agents] : []), ...(state.activityExpanded ? s.detail : [])];
+  const out = body.slice(0, height).map((t, i) => ground(i <= 1 ? t : P.meta(t)));
   while (out.length < height) out.push('');
   return out.map((l) => T.fit(l, width));
 }

@@ -126,16 +126,27 @@ module.exports = async function () {
     assert.match(app.text, /ship the harness/, 'the goal is read out instead');
   });
 
-  await test('GOAL: a REAL terminal opens the goal shelf, and Edit prefills the composer', async () => {
+  await test('GOAL: `/goal show` on a REAL terminal opens the goal shelf, and Edit prefills the composer', async () => {
     const app = appWith({ isTTY: true });
     goal.set(app.session, 'ship the harness');
     let frame = null;
     app.ui.ask = async (f) => { frame = f; return { action: 'edit', choice: null }; };
-    await goalRun()(app, { args: [], rest: '' });
+    await goalRun()(app, { args: ['show'], rest: 'show' });
     assert.strictEqual(frame && frame.kind, 'SHELF', 'an existing goal opens the action shelf');
     assert.deepStrictEqual(frame.shelf.actions.map((a) => a.label), ['Continue', 'Edit', 'New', 'Delete']);
     assert.ok(compose.pending(app), 'Edit opens the composer');
     assert.strictEqual(app.input.line, 'ship the harness', 'prefilled with the goal');
+    compose.cancel(app);
+  });
+
+  await test('GOAL: bare /goal with a goal set is CAPTURE — an empty composer, no shelf, no prefill', async () => {
+    // Prefilling would glue a pasted task onto the old goal (2026-09-23).
+    const app = appWith({ isTTY: true });
+    goal.set(app.session, 'ship the harness');
+    await goalRun()(app, { args: [], rest: '' });
+    assert.strictEqual(app.ui.asked, 0, 'capture opens no shelf');
+    assert.ok(compose.pending(app));
+    assert.strictEqual(app.input.line, '', 'and nothing is prefilled');
     compose.cancel(app);
   });
 

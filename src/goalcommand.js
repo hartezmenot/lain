@@ -33,17 +33,33 @@
 const goal = require('./goal');
 const compose = require('./composemode');
 
+/**
+ * THE SEMANTICS (2026-09-23 — a goal is set in order to be WORKED ON):
+ *
+ *   /goal <text>     set the durable goal, then execute it — one USER turn
+ *   /goal            capture mode: the next submitted line (a multi-line paste
+ *                    included) becomes the goal and executes the same way
+ *   /goal show       show it (the Continue · Edit · New · Delete shelf on a TTY)
+ *   /goal continue   resume the active — or most recent paused — goal
+ *   /goal clear      clear it
+ *
+ * Before, `/goal <text>` and the capture composer stored the goal and stopped,
+ * so a pasted task needed a second `/goal continue` to start. The text runs as
+ * the person's own message (drawn once, as USER), never as a paraphrase.
+ */
+const SUB = Object.freeze({ clear: 'clear', none: 'clear', show: 'show', continue: 'continue', resume: 'continue' });
+
 function register({ define, C }) {
   define('/goal', {
     // Like /plan: a statement about the task belongs in the task's record.
-    args: '[<what you are trying to achieve> | clear]',
-    desc: 'The standing goal this work serves — bare /goal edits it',
+    args: '[<what you are trying to achieve> | show | continue | clear]',
+    desc: 'Set the standing goal and start on it — bare /goal captures the next message',
     run(app, { args = [], rest = '' } = {}) {
       const w = (s) => app.render.write(s);
-      const sub = String(args[0] || '').toLowerCase();
+      const sub = args.length === 1 ? SUB[String(args[0] || '').toLowerCase()] : null;
       const current = goal.text(app.session);
 
-      if (sub === 'clear' || sub === 'none') {
+      if (sub === 'clear') {
         if (!current) { w(C.dim('  No goal set.\n')); return; }
         goal.clear(app.session);
         try { app.session.save(); } catch { /* the change still holds for this run */ }
@@ -51,16 +67,6 @@ function register({ define, C }) {
         return;
       }
 
-      // ---- `/goal <text>` — the direct form ------------------------------
-      // A NEW goal: the active one, if different, is paused rather than lost.
-      if (rest && rest.trim()) {
-        goal.create(app.session, rest.trim());
-        try { app.session.save(); } catch { /* the change still holds for this run */ }
-        w(C.green('  ✓ goal  ') + C.bold(goal.text(app.session)) + '\n');
-        return;
-      }
-
-      // ---- BARE `/goal` — open the composer, prefilled --------------------
       // `input.isTTY`, not `ui.enabled` — see plan.js for the whole reasoning.
       // The short version: UI ENABLED is a fact about output, and
       // `LAIN_FORCE_TUI=1` draws real frames over a pipe. Opening the composer
@@ -68,25 +74,61 @@ function register({ define, C }) {
       // so the composer stays open and EATS the following piped lines as its
       // own text instead of running them.
       const interactive = Boolean(app.ui && app.ui.enabled && app.input && app.input.isTTY);
+
+      if (sub === 'continue') {
+        const target = goal.list(app.session)[0];
+        if (!target) { w(C.dim('  No goal to continue. /goal <what you are trying to achieve>\n')); return; }
+        return require('./continueactions').goalContinue(app, target.id);
+      }
+
+      if (sub === 'show') {
+        const goals = goal.list(app.session);
+        if (!goals.length) { w(C.dim('  No goal set. /goal <what you are trying to achieve>\n')); return; }
+        if (!interactive) { w('  ' + C.bold(current || goals[0].text) + '\n' + C.dim('  /goal continue · /goal clear\n')); return; }
+        return shelfFor(app, goals);
+      }
+
+      // ---- `/goal <text>` — set it and start on it ------------------------
+      // A NEW goal: the active one, if different, is paused rather than lost.
+      if (rest && rest.trim()) return execute(app, rest.trim());
+
+      // ---- BARE `/goal` — capture mode -------------------------------------
       if (!interactive) {
         // NOTHING TO TYPE INTO. Say what is true rather than opening a mode
         // nobody can close — the same rule the ask panel follows on a pipe.
-        if (current) w('  ' + C.bold(current) + '\n' + C.dim('  /goal <text> to change it\n'));
+        if (current) w('  ' + C.bold(current) + '\n' + C.dim('  /goal <text> to set a new one · /goal continue\n'));
         else w(C.dim('  No goal set. /goal <what you are trying to achieve>\n'));
         return;
       }
-      // ---- NO GOAL AT ALL: straight into the composer ---------------------
-      //
       // `GOAL › _` is the whole interface: the composer's label says what the
-      // line is for, so nothing is written into the conversation.
-      const goals = goal.list(app.session);
-      if (!goals.length) {
-        compose.open(app, compose.KIND.GOAL, { prefill: '', intent: 'new' });
-        return;
-      }
-      return shelfFor(app, goals);
+      // line is for, so nothing is written into the conversation. ALWAYS EMPTY:
+      // prefilling the current goal would glue a pasted task onto it. Editing an
+      // existing goal is `/goal show` → Edit.
+      compose.open(app, compose.KIND.GOAL, { prefill: '', intent: 'new' });
     },
   });
+}
+
+/**
+ * SET THE GOAL AND RUN IT — the direct form and a captured line end here.
+ *
+ * The text goes through `App.handle` as the person's own message: the input
+ * gateway still decides whether it can reach a model now (a rate-limited route
+ * holds it), and the interactive loop gets its prompt back at once. `asText`
+ * keeps a goal that happens to begin with `/` from being run as a command.
+ */
+function execute(app, text) {
+  goal.create(app.session, text);
+  try { app.session.save(); } catch { /* the change still holds for this run */ }
+  // ONE TURN AT A TIME PER SESSION: set mid-turn, it runs when that turn ends
+  // (submitclose.js), never as a second concurrent turn.
+  if (app.abort && !app.abort.signal.aborted) {
+    app._queuedContinue = { text, goal: true, at: Date.now() };
+    app.render.write('  goal set — starts when the current turn ends\n');
+    return null;
+  }
+  const background = Boolean(app.interactive && app.ui && app.ui.enabled && typeof app.startPrimary === 'function');
+  return app.handle(text, { background, asText: true });
 }
 
 /**
@@ -163,4 +205,4 @@ async function shelfFor(app, goals) {
   }
 }
 
-module.exports = { register, shelfFor };
+module.exports = { register, shelfFor, execute };

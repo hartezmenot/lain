@@ -33,24 +33,29 @@ module.exports = async function () {
   await test('SHELVES: /goal, /plan and /model are compact action shelves, driven by keys', async () => {
     const out = await tty.runTty({
       cols: 110, rows: 34,
-      script: [{ text: 'R_AFTER_SHELVES' }],
+      // A captured goal EXECUTES (2026-09-23): each gets a reply that changes something.
+      script: [
+        { text: '', tool_calls: [{ name: 'write_file', input: { path: 'g1.txt', content: '1' } }] }, { text: 'R_GOAL1' },
+        { text: '', tool_calls: [{ name: 'write_file', input: { path: 'g2.txt', content: '2' } }] }, { text: 'R_GOAL2' },
+        { text: 'R_AFTER_SHELVES' },
+      ],
       steps: [
         { until: 'Ask LAIN', timeout: 40000 },
         // No goal: straight into the composer.
         { send: '/goal\r' }, { until: 'GOAL ›', timeout: 10000 }, { snap: 'goalEmpty', settle: 400 },
-        { send: 'Finish LAIN Harness\r' }, { wait: 900 },
-        // A goal: the shelf.
-        { send: '/goal\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalShelf', settle: 400 },
+        { send: 'Finish LAIN Harness\r' }, { until: 'R_GOAL1', timeout: 30000 }, { wait: 900 },
+        // A goal: the shelf is `/goal show` (bare /goal captures a NEW goal).
+        { send: '/goal show\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalShelf', settle: 400 },
         { key: 'right' }, { key: 'enter' }, { until: 'GOAL ›', timeout: 10000 }, { snap: 'goalEdit', settle: 400 },
         { send: ' and desktop control\r' }, { wait: 900 },
         // New, by its letter.
-        { send: '/goal\r' }, { until: 'Continue', timeout: 10000 }, { send: 'n' }, { until: 'GOAL ›', timeout: 10000 },
-        { send: 'Fix the release blocker\r' }, { wait: 900 },
+        { send: '/goal show\r' }, { until: 'Continue', timeout: 10000 }, { send: 'n' }, { until: 'GOAL ›', timeout: 10000 },
+        { send: 'Fix the release blocker\r' }, { until: 'R_GOAL2', timeout: 30000 }, { wait: 900 },
         // Two goals: choose the paused one, Delete, answer the in-place question.
-        { send: '/goal\r' }, { until: 'active', timeout: 10000 }, { snap: 'goalTwo', settle: 400 },
+        { send: '/goal show\r' }, { until: 'active', timeout: 10000 }, { snap: 'goalTwo', settle: 400 },
         { key: 'down' }, { key: 'left' }, { key: 'enter' }, { snap: 'goalConfirm', settle: 400 },
         { key: 'left' }, { key: 'enter' }, { wait: 900 },
-        { send: '/goal\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalAfterDelete', settle: 400 },
+        { send: '/goal show\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalAfterDelete', settle: 400 },
         { key: 'escape' }, { snap: 'goalClosed', settle: 500 },
         // /plan: composer, then the shelf.
         { send: '/plan\r' }, { until: 'PLAN ›', timeout: 10000 }, { snap: 'planEmpty', settle: 400 },
@@ -106,9 +111,11 @@ module.exports = async function () {
       const saved = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
       assert.strictEqual(saved.goal && saved.goal.text, 'Fix the release blocker');
       assert.deepStrictEqual(saved.pausedGoals, [], 'the deleted paused goal is not on disk');
-      // The last prompt started a NEW task, and a new task does not inherit the
-      // previous plan (identify.js) — the goal, which is durable, survives it.
-      assert.strictEqual(saved.plan, null, 'the plan belonged to the work before the new task');
+      // (Until 2026-09-23 no goal ran a turn, so the last prompt was the first
+      // task and the plan was asserted gone. Captured goals now EXECUTE, so a
+      // task is live and identify.js may read the last line as part of it. A NEW
+      // task still drops the plan: identify.js `if (!sameTask) session.plan = null`.)
+      assert.ok(fs.existsSync(path.join(out.cwd, 'g1.txt')) && fs.existsSync(path.join(out.cwd, 'g2.txt')), 'both captured goals executed');
     }
   });
 
@@ -123,15 +130,19 @@ module.exports = async function () {
   await test('SHELVES: Continue on the Goal and Plan shelves starts the work, with nothing typed', async () => {
     const out = await tty.runTty({
       cols: 120, rows: 40,
-      script: [{ text: 'R_GOAL_CONTINUED' }, { text: 'R_PLAN_CONTINUED' }],
+      script: [
+        // `/goal <text>` executes at once (2026-09-23).
+        { text: '', tool_calls: [{ name: 'write_file', input: { path: 'g.txt', content: 'g' } }] }, { text: 'R_GOAL_SET' },
+        { text: 'R_GOAL_CONTINUED' }, { text: 'R_PLAN_CONTINUED' },
+      ],
       steps: [
         { until: 'Ask LAIN', timeout: 40000 },
-        { send: '/goal Finish fixture frontend\r' }, { wait: 900 },
+        { send: '/goal Finish fixture frontend\r' }, { until: 'R_GOAL_SET', timeout: 30000 }, { wait: 900 },
         { send: '/plan\r' }, { until: 'PLAN ›', timeout: 10000 },
         { send: 'change heading → verify mobile → capture evidence\r' }, { wait: 900 },
 
         // GOAL → Continue. Continue is the first action, so Enter presses it.
-        { send: '/goal\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalShelf', settle: 400 },
+        { send: '/goal show\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalShelf', settle: 400 },
         { key: 'enter' },
         { until: 'R_GOAL_CONTINUED', timeout: 30000 }, { snap: 'goalRan', settle: 900 },
 

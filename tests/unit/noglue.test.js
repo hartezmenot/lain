@@ -217,7 +217,9 @@ module.exports = async function () {
     // THE USER'S OWN WORDS STAY. They are recorded on the turn and replayed at the
     // step they reached, which is the one thing that cannot be recovered by
     // re-reading the repository.
-    assert.match(read('turn.js'), /record\.steerTexts = record\.steerTexts \|\| \[\]/,
+    // Delivery moved into steerqueue.deliver (2026-09-23), which turn.js calls each step.
+    assert.match(read('turn.js'), /steerqueue'\)\.deliver\(session, record, opts, step\)/, 'the turn delivers steers');
+    assert.match(read('steerqueue.js'), /record\.steerTexts = record\.steerTexts \|\| \[\]/,
       'the steer is recorded on the turn');
     const text = views.activity({
       session: {

@@ -83,6 +83,7 @@ const WHY = {
   provider: 'the provider stopped answering',
   'max-steps': 'it reached the step budget',
   'no-credential': 'there was no usable credential',
+  crashed: 'LAIN itself was closed mid-turn (recovered from its in-flight record; lost calls are answered with what was inspected after restart)',
 };
 
 /**
@@ -320,6 +321,8 @@ function build(session, opts = {}) {
       + (inFlight ? `, last call \`${inFlight.name}${inFlight.target ? ' ' + inFlight.target : ''}\`` : '')
       + '. Nothing after that point happened.');
   }
+  // A background process the closed LAIN left running is reason enough to brief.
+  if (!opening.length && require('./inflight').jobRows(session).length) opening.push('LAIN was closed while background work was running; its processes are listed below.');
   if (!opening.length) return '';
   parts.push(opening.join(' '));
 
@@ -491,6 +494,10 @@ function build(session, opts = {}) {
         ? '\nSome of these are still going or could not be collected — ask for their status before assuming either way.'
         : ''));
   }
+
+  // ---- JOBS A FORCE-CLOSED LAIN LEFT BEHIND (inflight.js) ---------------------
+  const orphaned = require('./inflight').jobRows(session);
+  if (orphaned.length) parts.push(`Background processes from a LAIN that was closed mid-work:\n${orphaned.join('\n')}`);
 
   // ---- WHICH ROUTES ARE SHUT, AND UNTIL WHEN -------------------------------
   //

@@ -23,6 +23,8 @@ const finishMod = require('./finish');
  */
 
 const promptcache = require('./promptcache');
+const progress = require('./streamprogress');
+const { routeHeaders } = require('./routeheaders');
 const errors = require('./errors');
 
 const PROTOCOL = Object.freeze({ ANTHROPIC: 'anthropic', CHAT: 'chat', MOCK: 'mock' });
@@ -260,7 +262,7 @@ async function postSSE(url, headers, body, signal) {
  * promise that bytes will follow, and a stream that goes quiet mid-turn is the
  * other way a wedged bridge hangs the prompt.
  */
-async function* sseLines(res, signal = null) {
+async function* sseLines(res, signal = null, live = null) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
@@ -316,6 +318,8 @@ async function* sseLines(res, signal = null) {
     }
     const { done, value } = chunk;
     if (done) break;
+    // LIVENESS (streamprogress.js): a byte is a byte, keepalives included.
+    if (live) progress.bytes(live, value ? value.length : 0);
     buf += decoder.decode(value, { stream: true });
     let nl;
     while ((nl = buf.indexOf('\n')) >= 0) {
@@ -324,7 +328,10 @@ async function* sseLines(res, signal = null) {
       if (!line.startsWith('data:')) continue;
       const payload = line.slice(5).trim();
       if (!payload || payload === '[DONE]') continue;
-      try { yield JSON.parse(payload); } catch { /* keepalive or partial */ }
+      let parsed;
+      try { parsed = JSON.parse(payload); } catch { continue; /* keepalive or partial */ }
+      if (live) progress.data(live);
+      yield parsed;
     }
   }
 }
@@ -453,6 +460,7 @@ async function* anthropicChat(pc, messages, opts) {
   const res = await postSSE(`${pc.baseUrl}/messages`, {
     'x-api-key': pc.apiKey,
     'anthropic-version': '2023-06-01',
+    ...routeHeaders(pc, opts),
     ...pc.headers,
   }, payload, opts.signal);
 
@@ -463,12 +471,20 @@ async function* anthropicChat(pc, messages, opts) {
   // small and roughly flat, rather than growing with the conversation.
   let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
   let stopRaw = null;
-  for await (const j of sseLines(res, opts.signal)) {
+  const live = opts.live || null;
+  for await (const j of sseLines(res, opts.signal, live)) {
     if (j.type === 'content_block_start' && j.content_block && j.content_block.type === 'tool_use') {
       acc[j.index || 0] = { id: j.content_block.id, name: j.content_block.name, args: '' };
+      progress.toolDelta(live, { name: j.content_block.name, bytes: 0, index: acc.filter(Boolean).length - 1, calls: acc.filter(Boolean).length });
     } else if (j.type === 'content_block_delta' && j.delta) {
       if (j.delta.text) yield { type: 'text', chunk: j.delta.text };
-      if (j.delta.type === 'input_json_delta' && acc[j.index || 0]) acc[j.index || 0].args += j.delta.partial_json || '';
+      if (j.delta.type === 'input_json_delta' && acc[j.index || 0]) {
+        const t = acc[j.index || 0];
+        t.args += j.delta.partial_json || '';
+        progress.toolDelta(live, { name: t.name, bytes: t.args.length, index: acc.filter(Boolean).indexOf(t), calls: acc.filter(Boolean).length });
+      }
+      // HIDDEN THINKING is never shown or kept, but it IS the model working.
+      if (j.delta.type === 'thinking_delta' || j.delta.type === 'signature_delta') progress.reasoning(live, String(j.delta.thinking || '').length);
     } else if (j.type === 'message_start' && j.message && j.message.usage) {
       const u = j.message.usage;
       usage.inputTokens = u.input_tokens || 0;
@@ -532,14 +548,15 @@ async function* openaiChat(pc, messages, opts) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   }
   const res = await postSSE(`${pc.baseUrl}/chat/completions`, {
-    authorization: `Bearer ${pc.apiKey}`, ...pc.headers,
+    authorization: `Bearer ${pc.apiKey}`, ...routeHeaders(pc, opts), ...pc.headers,
   }, payload, opts.signal);
 
   const acc = [];
   const inline = new (require('./inlinethink').InlineThink)();
   let stopRaw = null;
   let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
-  for await (const j of sseLines(res, opts.signal)) {
+  const live = opts.live || null;
+  for await (const j of sseLines(res, opts.signal, live)) {
     if (j.usage) {
       const before = usage.inputTokens;
       usage.inputTokens = j.usage.prompt_tokens || usage.inputTokens;
@@ -595,6 +612,7 @@ async function* openaiChat(pc, messages, opts) {
       if (tc.id) acc[i].id = tc.id;
       if (tc.function && tc.function.name) acc[i].name += tc.function.name;
       if (tc.function && tc.function.arguments) acc[i].args += tc.function.arguments;
+      progress.toolDelta(live, { name: acc[i].name, bytes: acc[i].args.length, index: i, calls: acc.filter(Boolean).length });
     }
   }
   for (const ev of inline.flush()) yield ev;
@@ -666,4 +684,4 @@ async function* chat(pc, messages, opts = {}) {
 // the tail of the wire never produces two consecutive user turns, which this
 // protocol refuses with a 400. The alternative was a test that skipped itself
 // when the symbol was missing — a guarantee that quietly stops being checked.
-module.exports = { PROTOCOL, resolve, chat, credentialHint, classify: errors.classify, sseLines, toAnthropic };
+module.exports = { PROTOCOL, resolve, chat, credentialHint, routeHeaders, classify: errors.classify, sseLines, toAnthropic };

@@ -141,6 +141,7 @@ function close(session, life, record) {
   remember(session, record);
   settleScratch(session, record);
   tellRuntime(session, record);
+  require('./inflight').end(session);   // ended by a route LAIN saw — nothing to recover
   return record;
 }
 

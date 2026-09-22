@@ -106,7 +106,9 @@ module.exports = async function () {
     // can be produced again by running the tool; a sentence somebody typed an
     // hour ago cannot be produced again by anything.
     const fs = require('fs');
-    const turn = fs.readFileSync(require.resolve('../../src/turn.js'), 'utf8');
+    // Delivery moved into steerqueue.deliver (2026-09-23); turn.js calls it every step.
+    assert.match(fs.readFileSync(require.resolve('../../src/turn.js'), 'utf8'), /steerqueue'\)\.deliver\(session, record, opts, step\)/);
+    const turn = fs.readFileSync(require.resolve('../../src/steerqueue.js'), 'utf8');
     assert.ok(/record\.steerTexts = record\.steerTexts \|\| \[\]\)\.push\(\{ step, text \}\)/.test(turn),
       'the turn must record the steer TEXT and the step it landed on, not just a count');
     // ---- ASSERTED ON THE DATA, NOT ON WHERE THE CODE LIVES ----------------

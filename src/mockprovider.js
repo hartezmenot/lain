@@ -120,7 +120,27 @@ async function* chat(pc, messages, opts = {}) {
     // Stream in chunks so the renderer's streaming path is genuinely exercised.
     for (const part of step.text.match(/\S+\s*|\s+/g) || [step.text]) {
       if (opts.signal && opts.signal.aborted) break;
+      // `chunkDelayMs` paces the words, so a streaming answer is observable.
+      if (step.chunkDelayMs > 0) await new Promise((r) => setTimeout(r, step.chunkDelayMs));
       yield { type: 'text', chunk: part };
+    }
+  }
+
+  // `{ "toolStreamMs": 3000 }` streams each call's arguments over that long, in
+  // slices, the way a router relays a 10 KB `edit_file` — the liveness record
+  // (streamprogress.js) sees PREPARING TOOL with the size growing, and no text.
+  if (Array.isArray(step.tool_calls) && step.tool_calls.length && step.toolStreamMs > 0 && opts.live) {
+    const progress = require('./streamprogress');
+    const calls = step.tool_calls;
+    const slices = 20;
+    for (let i = 0; i < calls.length; i++) {
+      const raw = typeof calls[i].args === 'string' ? calls[i].args : JSON.stringify(calls[i].input || {});
+      for (let k = 1; k <= slices; k++) {
+        if (opts.signal && opts.signal.aborted) return;
+        await new Promise((r) => setTimeout(r, step.toolStreamMs / calls.length / slices));
+        progress.bytes(opts.live, Math.ceil(raw.length / slices) + 40);
+        progress.toolDelta(opts.live, { name: calls[i].name, bytes: Math.round(raw.length * k / slices), index: i, calls: calls.length });
+      }
     }
   }
 

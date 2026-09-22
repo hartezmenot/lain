@@ -29,6 +29,39 @@ module.exports = async function () {
     assert.strictEqual(profile.of(new Session({ cwd: tmpdir('prof-c-') }), { executionProfile: 'eco' }), 'ECO', 'a configured default is honoured');
   });
 
+  await test('PROFILE TOGGLE: /fast and /eco toggle their own profile; /normal resets; on/off never flip', () => {
+    const t = profile.toggle;
+    assert.strictEqual(t('NORMAL', 'FAST'), 'FAST');
+    assert.strictEqual(t('FAST', 'FAST'), 'NORMAL');
+    assert.strictEqual(t('NORMAL', 'ECO'), 'ECO');
+    assert.strictEqual(t('ECO', 'ECO'), 'NORMAL');
+    assert.strictEqual(t('FAST', 'ECO'), 'ECO');
+    assert.strictEqual(t('ECO', 'FAST'), 'FAST');
+    assert.strictEqual(t('ECO', 'NORMAL'), 'NORMAL');
+    assert.strictEqual(t('FAST', 'NORMAL'), 'NORMAL');
+    assert.strictEqual(t('FAST', 'FAST', 'on'), 'FAST', '`on` is explicit');
+    assert.strictEqual(t('NORMAL', 'FAST', 'off'), 'NORMAL');
+    assert.strictEqual(t('ECO', 'slow'), 'NORMAL', '/slow is the same toggle as /eco');
+  });
+
+  await test('PROFILE TOGGLE: through the registered commands, FOCUS and AUTO/MANUAL/PLAN untouched', async () => {
+    const commands = require('../../src/commands');
+    const { App } = require('../../src/app');
+    const a = new App({ interactive: false, cwd: tmpdir('prof-cmd-') });
+    a.render.write = () => {}; a.render.openSurface = () => {}; a.render.closeSurface = () => {};
+    a.session.save = () => {};
+    execmode.set(a.session, 'MANUAL');
+    a.session.focus = true;
+    const seq = [['/fast', 'FAST'], ['/fast', 'NORMAL'], ['/eco', 'ECO'], ['/eco', 'NORMAL'],
+      ['/fast', 'FAST'], ['/eco', 'ECO'], ['/fast', 'FAST'], ['/normal', 'NORMAL']];
+    for (const [cmd, want] of seq) {
+      await commands.run(a, cmd);
+      assert.strictEqual(profile.of(a.session), want, `${cmd} → ${want}`);
+      assert.strictEqual(execmode.of(a.session), 'MANUAL', 'the authority mode never moves');
+      assert.strictEqual(a.session.focus, true, 'FOCUS never moves');
+    }
+  });
+
   await test('PROFILE: persists with the session and survives a resume; a NEW session starts NORMAL', () => {
     const s = new Session({ cwd: tmpdir('prof-r-') });
     profile.set(s, 'ECO');
