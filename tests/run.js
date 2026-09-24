@@ -101,6 +101,11 @@ if (!process.env.LAIN_V1_CONFIG) {
  * which is what tests/integration/supervisor.test.js and
  * tests/integration/provider-health.test.js already do.
  */
+// TEMPORARY WORKSPACES TOO (src/tempworkspaces.js): a test's subagent or A/B
+// workspace is RETAINED while its candidate is unresolved, and its registry lives
+// in the throwaway config home — so under the real temp root it would outlive the
+// run as an unregistered, never-cleaned directory. Every run gets its own root.
+if (!process.env.LAIN_TEMP_ROOT) process.env.LAIN_TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-test-ws-'));
 if (!process.env.LAIN_HOME) {
   process.env.LAIN_HOME = path.join(process.env.LAIN_CONFIG_DIR, 'supervisor-home');
 } else if (path.resolve(process.env.LAIN_HOME) === path.resolve(REAL_HOME)) {

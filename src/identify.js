@@ -42,10 +42,19 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
     taskKind: verdict.kind,
     activeMode: app.session.mode,
     projectEmpty: app.projectIsEmpty(),
+    // A paste is "content" only when it joins work; one that STARTS a task is
+    // the request itself and is classified by its words (mode.js rule 2).
+    joinsActiveTask: Boolean(verdict.sameTask),
   });
   verdict.mode = (forceMode && modeId.KIND[forceMode]) || verdictMode.mode;  // a named mode (/troubleshoot) beats the keyword guess
   verdict.modeReason = forceMode && modeId.KIND[forceMode] ? 'requested by command' : verdictMode.reason;
   app.session.mode = verdict.mode;
+  // ---- WHAT THIS TASK MAY CHANGE — a capability mask, not a hint -------
+  //
+  // Only a person's explicit declaration sets it (readonly.js); settled here,
+  // once per input, so the tool gate, the offered vocabulary, the wake-up and
+  // the prompt all read one answer.
+  verdict.capabilityMask = require('./readonly').apply(app, verdict, verdictMode, text);
 
   // ---- WHAT GROUNDING DOES THIS ACTUALLY NEED? --------------------------
   //

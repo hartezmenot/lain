@@ -85,6 +85,9 @@ const TOOLS = {
   ...require('./delegate').tools,
   // DOWNLOAD_FILE is its own permission class; see tools/download.js.
   ...require('./download').tools,
+  // LAIN describing itself — models, usage, MCP, where a setting lives — from
+  // the same projection the window reads. Read-only; see tools/lainself.js.
+  ...require('./lainself').tools,
 };
 
 /**
@@ -143,6 +146,9 @@ function active(ctxApp) {
   // `web_search` — was removed in 2026-09; the plain fetch survives.)
   out = { ...out, ...require('./web').fetchTools };
   if (app?.session?.cowork) out = { ...out, ...require('./cowork').tools };
+  // THE GEOMETRY SPECIALIST exists only where policy lets Violetto serve — its
+  // gate failed, so that is only when forced on for an experiment (tools/geometry.js).
+  try { if (app && require('../workerruntime').uses(app, 'violetto', 'geometry')) out = { ...out, ...require('./geometry').tools }; } catch { /* not offered */ }
   return out;
 }
 
@@ -155,7 +161,10 @@ function active(ctxApp) {
  * connection-only vocabulary, which is the same answer it always gave.
  */
 function schemas(app) {
-  return Object.values(active(() => app)).map((t) => t.schema);
+  const all = active(() => app);
+  // A DECLARED READ-ONLY task is not offered the file writers at all (readonly.js):
+  // a tool the model never sees is a write it can never attempt.
+  return require('../readonly').offered(Object.keys(all), app && app.session).map((n) => all[n].schema);
 }
 
 function has(name, app) { return Object.prototype.hasOwnProperty.call(active(() => app), name); }
@@ -168,9 +177,29 @@ function names(app) { return Object.keys(active(() => app)); }
  * gets told what does exist and picks again.
  */
 async function execute(name, input, ctx) {
-  const tool = active(() => (ctx && ctx.app) || null)[name];
+  const app = (ctx && ctx.app) || null;
+  const tool = active(() => app)[name];
   if (!tool) {
-    return { output: `unknown tool "${name}". Available: ${names(ctx && ctx.app).join(', ')}`, isError: true };
+    // A NAME THAT IS NOT OURS BUT WHOSE MEANING IS — a foreign namespace
+    // ("functions/grep") or a known foreign tool ("print_tree"). Recovered
+    // locally and said so; see toolalias.js for why nothing fuzzier is.
+    const alias = require('../toolalias').resolve(name, input, (n) => has(n, app));
+    if (alias) {
+      const r = await execute(alias.name, alias.input, ctx);
+      return { ...r, output: `${alias.note}\n${r.output}`, adaptedFrom: alias.from };
+    }
+    // THE CATALOGUE ONCE PER TURN. The same unknown name again in the same turn
+    // gets the short answer: the list was already given and has not changed.
+    const s = (ctx && ctx.session) || (app && app.session) || null;
+    const offered = require('../readonly').offered(names(app), app && app.session);
+    const seen = s ? (s._unknownTools && s._unknownTools.turn === (ctx && ctx.turnId) ? s._unknownTools : (s._unknownTools = { turn: ctx && ctx.turnId, names: new Set(), listed: false })) : null;
+    const again = Boolean(seen && seen.names.has(name));
+    if (seen) seen.names.add(name);
+    if (again || (seen && seen.listed)) {
+      return { output: `unknown tool "${name}"${again ? ' — already reported this turn; do not call it again' : ''}. It does not exist; the available tools were listed earlier in this turn.`, isError: true };
+    }
+    if (seen) seen.listed = true;
+    return { output: `unknown tool "${name}". Available: ${offered.join(', ')}`, isError: true };
   }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
@@ -201,6 +230,15 @@ async function execute(name, input, ctx) {
   if (chatView && tool.mutates) {
     return { output: `DENIED CHAT_VIEW_READ_ONLY: ${name} changes things, and the Chat view only reads and plans. Put it in the plan; the Coding view implements it.`, isError: true, denied: true };
   }
+  // ---- A DECLARED READ-ONLY TASK: THE WRITE IS REFUSED, NOT THE TASK --------
+  //
+  // readonly.js. Structural, like the Chat view above: whatever model asked,
+  // a change — a file write, a non-inspecting command, a recorded
+  // architecture/wiring/vocabulary entry — is refused here, and the refusal
+  // says what remains available so the investigation carries on.
+  const roSession = (ctx && ctx.app && ctx.app.session) || (ctx && ctx.session) || null;
+  const roDenied = require('../readonly').denies(name, input, roSession, Boolean(tool.mutates));
+  if (roDenied) return { output: roDenied, isError: true, denied: true };
   const order = ctx && ctx.workOrder;
   if (order && order.bounded) {
     const guard = require('../workorderguard');

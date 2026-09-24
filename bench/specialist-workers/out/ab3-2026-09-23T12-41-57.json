@@ -1,0 +1,151 @@
+{
+  "model": "ollama-cloud/gpt-oss:120b",
+  "base": "http://127.0.0.1:4570/v1",
+  "route": "LainRouter (native connection, key from the person's LAIN config)",
+  "effort": "unset for every arm (LainRouter refuses reasoning_effort for this model: UNSUPPORTED_REASONING_EFFORT)",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button, a row of fake metrics with pill badges, a card nested inside a card, oversized rounded corners. Make it match DESIGN.md.\n2. Geometry: the send button in the note composer and the avatar in the top bar are the wrong size and position; the composer's side margins are unequal; the form controls are different heights (see DESIGN.md).\n3. On a phone-sized screen (375 px) the page scrolls sideways.\n4. After saving settings, the page shows the old values again until the API server is restarted.\n5. The top bar shows \"undefined\" instead of the user's name.\n6. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n7. The API log is noisy by default and prints passwords.\n8. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser (desktop and phone width) before you finish.",
+  "price": {
+    "inputPerM": 0.15,
+    "cachedPerM": 0.014,
+    "outputPerM": 0.6,
+    "source": "ollama.com/pricing, gpt-oss:120b Standard, observed 2026-09-23 (Off-Peak is half; not applied — the off-peak window was not verified)"
+  },
+  "budgets": {
+    "perArm": 60,
+    "global": 181,
+    "maxStepsPerRun": 58,
+    "maxTheoretical": 181
+  },
+  "requestsSpent": {
+    "probe": 1,
+    "control": 21,
+    "total": 22
+  },
+  "stopped": null,
+  "label": "EXPLORATORY unless every compared arm has ≥ 3 valid runs",
+  "rows": [
+    {
+      "arm": "control",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 398044,
+      "stopReason": "end",
+      "valid": false,
+      "invalid": [
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "live|ollama-cloud/gpt-oss:120b"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "arm": "control",
+        "uses": [],
+        "unloaded": []
+      },
+      "flagship": {
+        "requests": 21,
+        "withReceipt": 21,
+        "cacheReportedRequests": 21,
+        "inputTokens": 348175,
+        "cachedInputTokens": 334352,
+        "uncachedInputTokens": 13823,
+        "outputTokens": 4936,
+        "cacheHitRate": 0.96,
+        "averageInputPerRequest": 16580,
+        "peakInputRequest": 18514,
+        "providerWallMs": 395097,
+        "failedRequests": 0,
+        "toolSchemaChars": {
+          "median": 55837,
+          "total": 1172577
+        },
+        "geometryToolOfferedOnRequests": 0,
+        "costUSD": {
+          "uncachedInput": 0.002073,
+          "cachedInput": 0.004681,
+          "output": 0.002962,
+          "total": 0.009716
+        }
+      },
+      "llmFromSession": {
+        "providerRequests": 21,
+        "steps": 21,
+        "retries": 0
+      },
+      "tools": {
+        "total": 20,
+        "byName": {
+          "print_tree": 1,
+          "list_dir": 3,
+          "discover_tests": 1,
+          "glob": 2,
+          "search": 1,
+          "run_tests": 1,
+          "grep": 3,
+          "locate": 1,
+          "read_file": 7
+        },
+        "fileReads": 7,
+        "repeatedReads": 0,
+        "symbolReads": 1,
+        "browserChecks": 0,
+        "testRuns": 1,
+        "exploreBeforeFirstEdit": 16,
+        "uniqueFilesRead": 7
+      },
+      "laya": null,
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 31
+        },
+        "finalSmoke": false,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S7.noFakeMetrics",
+          "S8.noNestedCards",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "R1.narrowNoOverflow",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "4/23",
+        "responsive": "0/2",
+        "backend": "0/6",
+        "diff": {
+          "files": 0,
+          "added": 0,
+          "removed": 0
+        }
+      }
+    }
+  ]
+}

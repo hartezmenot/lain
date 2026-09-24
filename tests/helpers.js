@@ -233,6 +233,9 @@ function prepareCli(o = {}) {
     // the top of tests/run.js makes that argument at length; this is the same
     // argument about the second directory LAIN writes to.
     LAIN_HOME: path.join(configDir, 'supervisor-home'),
+    // AND THE TEMP-WORKSPACE ROOT (src/tempworkspaces.js): a spawned LAIN's
+    // retained workspaces stay inside this test's own directory, never %TEMP%.
+    LAIN_TEMP_ROOT: path.join(configDir, 'temp-workspaces'),
     ...(process.env.LAIN_SUPERVISOR_BIN ? { LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN } : {}),
     ...(process.env.LAIN_SUPERVISOR_LEASE_PORT ? { LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT } : {}),
     LAIN_NO_COLOR: '1',
@@ -350,8 +353,19 @@ function isRuleRow(line) { return /^─{4}/.test(String(line || '')); }
 /** The index of the header rule in a list of drawn rows, or -1. */
 function ruleRowIndex(rows) { return rows.findIndex((l) => isRuleRow(l)); }
 
+/**
+ * A file of the VISUAL HARNESS, which is its own package since 2026-09-23
+ * (lain-harness; found through src/harnesslocation.js). Tests that read the
+ * page or the native host go through this, never through a hard-coded path.
+ */
+function harnessPath(...parts) {
+  const root = require('../src/harnesslocation').root();
+  if (!root) throw new Error('LAIN Harness is not installed next to this checkout (../lain-harness) — set LAIN_HARNESS_DIR');
+  return path.join(root, ...parts);
+}
+
 module.exports = {
-  ROOT, BIN, test, results, setFile, tmpdir, runCli, prepareCli, writeScript,
+  ROOT, BIN, test, results, setFile, tmpdir, runCli, prepareCli, writeScript, harnessPath,
   frames, rowsOf, lastFrameRows,
   headerMark, isRuleRow, ruleRowIndex,
   assertIncludes, assertNotIncludes,

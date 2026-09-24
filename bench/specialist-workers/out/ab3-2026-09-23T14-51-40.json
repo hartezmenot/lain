@@ -1,0 +1,551 @@
+{
+  "model": "ollama-cloud/gpt-oss:120b",
+  "base": "http://127.0.0.1:4570/v1",
+  "route": "LainRouter (native connection, key from the person's LAIN config)",
+  "effort": "unset for every arm (LainRouter refuses reasoning_effort for this model: UNSUPPORTED_REASONING_EFFORT)",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button, a row of fake metrics with pill badges, a card nested inside a card, oversized rounded corners. Make it match DESIGN.md.\n2. Geometry: the send button in the note composer and the avatar in the top bar are the wrong size and position; the composer's side margins are unequal; the form controls are different heights (see DESIGN.md).\n3. On a phone-sized screen (375 px) the page scrolls sideways.\n4. After saving settings, the page shows the old values again until the API server is restarted.\n5. The top bar shows \"undefined\" instead of the user's name.\n6. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n7. The API log is noisy by default and prints passwords.\n8. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser (desktop and phone width) before you finish.",
+  "price": {
+    "inputPerM": 0.15,
+    "cachedPerM": 0.014,
+    "outputPerM": 0.6,
+    "source": "ollama.com/pricing, gpt-oss:120b Standard, observed 2026-09-23 (Off-Peak is half; not applied — the off-peak window was not verified)"
+  },
+  "budgets": {
+    "perArm": 60,
+    "global": 181,
+    "maxStepsPerRun": 58,
+    "maxTheoretical": 181
+  },
+  "requestsSpent": {
+    "probe": 1,
+    "control": 60,
+    "laya": 58,
+    "laya+violetto": 59,
+    "total": 178
+  },
+  "stopped": null,
+  "label": "EXPLORATORY unless every compared arm has ≥ 3 valid runs",
+  "rows": [
+    {
+      "arm": "control",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 914848,
+      "stopReason": "max-steps",
+      "valid": false,
+      "invalid": [
+        "request budget reached before completion",
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "live|ollama-cloud/gpt-oss:120b"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "arm": "control",
+        "uses": [],
+        "unloaded": []
+      },
+      "flagship": {
+        "requests": 60,
+        "withReceipt": 58,
+        "cacheReportedRequests": 57,
+        "inputTokens": 1295323,
+        "cachedInputTokens": 1235744,
+        "uncachedInputTokens": null,
+        "outputTokens": 25901,
+        "cacheHitRate": null,
+        "averageInputPerRequest": 22333,
+        "peakInputRequest": 34952,
+        "providerWallMs": 883414,
+        "failedRequests": 2,
+        "toolSchemaChars": {
+          "median": 55837,
+          "total": 3350220
+        },
+        "geometryToolOfferedOnRequests": 0,
+        "costUSD": null
+      },
+      "llmFromSession": {
+        "providerRequests": 60,
+        "steps": 58,
+        "retries": 2
+      },
+      "tools": {
+        "total": 57,
+        "byName": {
+          "run_bash": 4,
+          "grep": 10,
+          "open_file": 1,
+          "list_dir": 4,
+          "read_file": 22,
+          "apply_patch": 12,
+          "write_file": 1,
+          "run_background": 2,
+          "job_status": 1
+        },
+        "fileReads": 22,
+        "repeatedReads": 7,
+        "symbolReads": 0,
+        "browserChecks": 0,
+        "testRuns": 3,
+        "exploreBeforeFirstEdit": 3,
+        "uniqueFilesRead": 14
+      },
+      "laya": null,
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 9,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S7.noFakeMetrics",
+          "S8.noNestedCards",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "R1.narrowNoOverflow",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "5/23",
+        "responsive": "0/2",
+        "backend": "3/6",
+        "diff": {
+          "files": 5,
+          "added": 19,
+          "removed": 7
+        }
+      }
+    },
+    {
+      "arm": "laya",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 312821,
+      "stopReason": "max-steps",
+      "valid": false,
+      "invalid": [
+        "request budget reached before completion",
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "live|ollama-cloud/gpt-oss:120b"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "arm": "laya",
+        "uses": [
+          "laya"
+        ],
+        "unloaded": [],
+        "laya": {
+          "wasState": "UNLOADED",
+          "alreadyHot": false,
+          "prepWaitMs": 91328,
+          "hostLoadMs": 90751,
+          "residentMB": 1985,
+          "state": "HOT_IDLE",
+          "reloads": 0,
+          "embeddingMemoCleared": 0,
+          "projectIndex": {
+            "items": 31,
+            "ms": 5181,
+            "tokens": 680,
+            "ok": true
+          }
+        }
+      },
+      "flagship": {
+        "requests": 58,
+        "withReceipt": 58,
+        "cacheReportedRequests": 58,
+        "inputTokens": 1461754,
+        "cachedInputTokens": 1395856,
+        "uncachedInputTokens": 65898,
+        "outputTokens": 46760,
+        "cacheHitRate": 0.955,
+        "averageInputPerRequest": 25203,
+        "peakInputRequest": 34989,
+        "providerWallMs": 305455,
+        "failedRequests": 0,
+        "toolSchemaChars": {
+          "median": 55837,
+          "total": 3238546
+        },
+        "geometryToolOfferedOnRequests": 0,
+        "costUSD": {
+          "uncachedInput": 0.009885,
+          "cachedInput": 0.019542,
+          "output": 0.028056,
+          "total": 0.057483
+        }
+      },
+      "llmFromSession": {
+        "providerRequests": 58,
+        "steps": 58,
+        "retries": 0
+      },
+      "tools": {
+        "total": 58,
+        "byName": {
+          "glob": 1,
+          "run_tests": 2,
+          "grep": 5,
+          "read_file": 30,
+          "apply_patch": 14,
+          "run_background": 1,
+          "job_stop": 1,
+          "run_bash": 1,
+          "edit_file": 2,
+          "delete_range": 1
+        },
+        "fileReads": 30,
+        "repeatedReads": 11,
+        "symbolReads": 0,
+        "browserChecks": 0,
+        "testRuns": 2,
+        "exploreBeforeFirstEdit": 18,
+        "uniqueFilesRead": 15
+      },
+      "laya": {
+        "invoked": true,
+        "servedBy": "laya",
+        "bypass": null,
+        "timedOut": false,
+        "calls": 1,
+        "inferences": 1,
+        "cacheHits": 0,
+        "cacheMisses": 1,
+        "tokensIn": 151,
+        "tokensEquiv": 828,
+        "outputChars": 435,
+        "outputTokens": "none — Laya scores items; it generates no tokens",
+        "warmInferenceMs": 479,
+        "coldLoadMs": 90751,
+        "alreadyHot": false,
+        "residentMB": 1985,
+        "projectIndex": {
+          "items": 31,
+          "ms": 5181,
+          "tokens": 680,
+          "ok": true
+        },
+        "compression": {
+          "rawEvidenceChars": 2227,
+          "layaInputChars": 2795,
+          "sliceChars": 118,
+          "flagshipPacketChars": 290,
+          "ratio": 7.7
+        },
+        "slice": [
+          "server/ratelimit.js",
+          "src/api.js",
+          "src/lib/format.js",
+          "server/auth.js",
+          "DESIGN.md",
+          "src/lib/dates.js",
+          "server/billing.js",
+          "README.md"
+        ],
+        "falseNarrowing": {
+          "sliceSize": 8,
+          "touched": 15,
+          "hits": 3,
+          "missed": [
+            "package.json",
+            "src/main.js",
+            "server/store.js",
+            "src/user.js",
+            "server/app.js",
+            "index.html",
+            "server/routes.js",
+            "src/styles.css",
+            "server/log.js",
+            "src/session.js",
+            "server/index.js",
+            "tests/api.test.js"
+          ],
+          "missedReadCalls": 27,
+          "missedReadChars": 28520
+        }
+      },
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 16,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B5 auth: /api/login exists and checks the password",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.centerY",
+          "S3.noGradients",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "11/23",
+        "responsive": "1/2",
+        "backend": "3/6",
+        "diff": {
+          "files": 8,
+          "added": 24,
+          "removed": 31
+        }
+      }
+    },
+    {
+      "arm": "laya+violetto",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 321292,
+      "stopReason": "max-steps",
+      "valid": false,
+      "invalid": [
+        "request budget reached before completion",
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "live|ollama-cloud/gpt-oss:120b"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "arm": "laya+violetto",
+        "uses": [
+          "laya",
+          "violetto"
+        ],
+        "unloaded": [],
+        "laya": {
+          "wasState": "HOT_IDLE",
+          "alreadyHot": true,
+          "prepWaitMs": 537,
+          "hostLoadMs": 90751,
+          "residentMB": 2024,
+          "state": "HOT_IDLE",
+          "reloads": 0,
+          "embeddingMemoCleared": 33,
+          "projectIndex": {
+            "items": 31,
+            "ms": 2703,
+            "tokens": 680,
+            "ok": true
+          }
+        },
+        "violetto": {
+          "wasState": "UNLOADED",
+          "alreadyHot": false,
+          "prepWaitMs": 12389,
+          "hostLoadMs": 11731,
+          "residentMB": 1431,
+          "state": "HOT_IDLE",
+          "reloads": 0
+        }
+      },
+      "flagship": {
+        "requests": 59,
+        "withReceipt": 58,
+        "cacheReportedRequests": 58,
+        "inputTokens": 1405216,
+        "cachedInputTokens": 1358352,
+        "uncachedInputTokens": 46864,
+        "outputTokens": 40901,
+        "cacheHitRate": 0.967,
+        "averageInputPerRequest": 24228,
+        "peakInputRequest": 30985,
+        "providerWallMs": 284838,
+        "failedRequests": 1,
+        "toolSchemaChars": {
+          "median": 56539,
+          "total": 3335801
+        },
+        "geometryToolOfferedOnRequests": 59,
+        "costUSD": {
+          "uncachedInput": 0.00703,
+          "cachedInput": 0.019017,
+          "output": 0.024541,
+          "total": 0.050588
+        }
+      },
+      "llmFromSession": {
+        "providerRequests": 59,
+        "steps": 58,
+        "retries": 1
+      },
+      "tools": {
+        "total": 58,
+        "byName": {
+          "list_dir": 4,
+          "run_tests": 3,
+          "grep": 4,
+          "read_file": 28,
+          "service_start": 3,
+          "apply_patch": 15,
+          "python_run": 1
+        },
+        "fileReads": 28,
+        "repeatedReads": 2,
+        "symbolReads": 0,
+        "browserChecks": 0,
+        "testRuns": 3,
+        "exploreBeforeFirstEdit": 16,
+        "uniqueFilesRead": 15
+      },
+      "laya": {
+        "invoked": true,
+        "servedBy": "laya",
+        "bypass": null,
+        "timedOut": false,
+        "calls": 1,
+        "inferences": 1,
+        "cacheHits": 0,
+        "cacheMisses": 1,
+        "tokensIn": 151,
+        "tokensEquiv": 828,
+        "outputChars": 435,
+        "outputTokens": "none — Laya scores items; it generates no tokens",
+        "warmInferenceMs": 451,
+        "coldLoadMs": 90751,
+        "alreadyHot": true,
+        "residentMB": 2024,
+        "projectIndex": {
+          "items": 31,
+          "ms": 2703,
+          "tokens": 680,
+          "ok": true
+        },
+        "compression": {
+          "rawEvidenceChars": 2227,
+          "layaInputChars": 2795,
+          "sliceChars": 118,
+          "flagshipPacketChars": 290,
+          "ratio": 7.7
+        },
+        "slice": [
+          "server/ratelimit.js",
+          "src/api.js",
+          "src/lib/format.js",
+          "server/auth.js",
+          "DESIGN.md",
+          "src/lib/dates.js",
+          "server/billing.js",
+          "README.md"
+        ],
+        "falseNarrowing": {
+          "sliceSize": 8,
+          "touched": 15,
+          "hits": 3,
+          "missed": [
+            "package.json",
+            "src/styles.css",
+            "server/store.js",
+            "src/main.js",
+            "server/log.js",
+            "server/routes.js",
+            "index.html",
+            "src/user.js",
+            "src/session.js",
+            "server/app.js",
+            "server/index.js",
+            "data/workspace.json"
+          ],
+          "missedReadCalls": 25,
+          "missedReadChars": 20268
+        }
+      },
+      "violetto": {
+        "available": true,
+        "invoked": false,
+        "notInvokedReason": "the flagship did not call geometry_specialist — it solved the geometry itself (deterministic arithmetic / browser measurement)",
+        "calls": 0,
+        "cacheHits": 0,
+        "questions": [],
+        "tokensIn": 0,
+        "tokensOut": 0,
+        "coldLoadMs": 11731,
+        "residentMB": 1431
+      },
+      "quality": {
+        "acceptance": {
+          "pass": 14,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S3.noGradients",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "10/23",
+        "responsive": "1/2",
+        "backend": "2/6",
+        "diff": {
+          "files": 4,
+          "added": 12,
+          "removed": 20
+        }
+      }
+    }
+  ]
+}

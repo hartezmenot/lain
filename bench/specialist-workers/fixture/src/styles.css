@@ -1,0 +1,127 @@
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --text: #1d2126;
+  --muted: #5b6570;
+  --line: #d9dee3;
+  --accent: #2b6cb0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.5 system-ui, sans-serif;
+  color: var(--text);
+  background: #f6f7f9;
+  padding-bottom: 120px;
+}
+
+.topbar {
+  height: 56px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { font-weight: 600; line-height: 56px; }
+
+.who { display: flex; gap: var(--space-2); align-items: flex-start; }
+.who span { line-height: 56px; }
+
+.avatar {
+  width: 32px;
+  height: 28px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.hero {
+  padding: 48px 24px;
+  background: linear-gradient(135deg, #7f5af0 0%, #c084fc 50%, #f472b6 100%);
+  color: #fff;
+  text-align: center;
+  border-radius: 24px;
+  margin: 24px;
+  box-shadow: 0 20px 60px rgba(127, 90, 240, 0.45);
+}
+.hero h1 { font-size: 44px; margin: 0 0 12px; }
+
+.card {
+  background: #fff;
+  margin: var(--space-5);
+  padding: 17px 23px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.card label { display: block; margin: var(--space-3) 0; }
+.card input { height: 40px; padding: 0 var(--space-2); }
+.card select { height: 32px; }
+.inner { margin: 0; padding: 40px; border-radius: 20px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 240px);
+  gap: var(--space-5);
+  margin: var(--space-5);
+}
+.stat { margin: 0; padding: 40px; border-radius: 20px; text-align: center; }
+.stat strong { display: block; font-size: 40px; }
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #fde68a;
+  font-size: 12px;
+}
+
+.btn {
+  padding: 11px 26px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+}
+.btn-primary {
+  background: linear-gradient(90deg, #7f5af0, #f472b6);
+  color: #fff;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.composer-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 40px var(--space-5) var(--space-5);
+}
+
+.composer {
+  height: 64px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 var(--space-3);
+}
+.composer input { flex: 1; border: 0; height: 100%; font: inherit; outline: none; }
+
+.send {
+  width: 44px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}

@@ -83,7 +83,9 @@ function pushDiff(said, ctx, turn, path, landedAt = 0, auto = true) {
   if (!full && all.length === 1 && /^\s*\(no difference/.test(all[0])) return;
   const body = all.slice(0, full ? FULL_LINES : AUTO_LINES);
   const got = arrived(body.length, landedAt, ctx.now);
-  body.forEach((l, i) => said.push({ kind: 'diff', text: i < got ? l : '', diffOf: { turn, path } }));
+  // `full` travels beside the visible `text`: a side-by-side layout pairs rows
+  // before they have all arrived (panes.diffSplit).
+  body.forEach((l, i) => said.push({ kind: 'diff', text: i < got ? l : '', full: l, diffOf: { turn, path } }));
   const rest = all.length - body.length;
   if (rest > 0 && got >= body.length) {
     said.push({ kind: 'diffmore', text: `… ${rest} more line${rest === 1 ? '' : 's'}   [Show all]`, diff: { turn, path, full: true } });
@@ -234,10 +236,17 @@ function renderSpecial(entries, i, out, width, P) {
   }
   if (e.kind !== 'diff') return null;
   out.hunkAt[out.length] = e.diffOf;
+  const panes = require('./panes');
   let j = i;
-  while (j < entries.length && entries[j].kind === 'diff') {
-    out.push(' ' + require('./panes').diffRow(String(entries[j].text || ''), Math.max(16, width - 1), P));
-    j += 1;
+  while (j < entries.length && entries[j].kind === 'diff') j += 1;
+  const block = entries.slice(i, j);
+  // WIDE: side by side (old | new). Otherwise unified. Same hunks either way.
+  if (width >= panes.SPLIT_MIN) {
+    const lines = block.map((b) => String(b.full != null ? b.full : b.text || ''));
+    const visible = block.map((b) => Boolean(b.text) || b.full == null);
+    for (const row of panes.diffSplit(lines, width - 3, visible)) out.push('   ' + row);
+  } else {
+    for (const b of block) out.push(' ' + panes.diffRow(String(b.text || ''), Math.max(16, width - 1), P));
   }
   return { next: j - 1, kind: 'diff' };
 }

@@ -68,4 +68,41 @@ function tree(app) {
   return app._tree;
 }
 
-module.exports = { scan, isEmpty, tree };
+/**
+ * WHAT KIND OF PROJECT THIS IS — from evidence, never from LAIN's own records.
+ *
+ *   EMPTY               essentially no source or project structure
+ *   EXISTING_UNINDEXED  a real project; LAIN has recorded no architecture,
+ *                       vocabulary or wiring for it
+ *   EXISTING_INDEXED    a real project with recorded LAIN intelligence
+ *
+ * The distinction the Toralink runs lacked (2026-09-24): a real project whose
+ * `.lain/` holds an empty architecture record is EXISTING, and the absence of a
+ * DECLARED architecture is not evidence that it has none. A record counts only
+ * when it holds something — `{"nodes":{}}` is nothing recorded.
+ */
+function state(app) {
+  if (isEmpty(app)) return 'EMPTY';
+  const store = require('./lainstore');
+  const root = app.session.cwd;
+  const holds = (v) => (Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? Object.values(v).some(holds) : v != null && v !== '' && v !== 0 && v !== false);
+  const recorded = ['architecture', 'wiring', 'concepts'].some((slot) => {
+    const body = store.read(root, slot, null);
+    if (!body || typeof body !== 'object') return false;
+    const { updatedAt: _u, version: _v, ...rest } = body;
+    return holds(rest);
+  });
+  return recorded ? 'EXISTING_INDEXED' : 'EXISTING_UNINDEXED';
+}
+
+const STATE_LINE = {
+  EMPTY: 'Project state: EMPTY — no source or project structure here yet.',
+  EXISTING_UNINDEXED: 'Project state: EXISTING_UNINDEXED — real source is present and LAIN has recorded no architecture, vocabulary or wiring for it. '
+    + 'No DECLARED architecture is not no architecture: derive what is OBSERVED from the source itself.',
+  EXISTING_INDEXED: 'Project state: EXISTING_INDEXED — real source plus recorded LAIN architecture/vocabulary/wiring; the source stays the authority when they disagree.',
+};
+function stateLine(app) {
+  try { return STATE_LINE[state(app)] || ''; } catch { return ''; }
+}
+
+module.exports = { scan, isEmpty, tree, state, stateLine };

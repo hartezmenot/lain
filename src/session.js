@@ -518,6 +518,7 @@ class Session {
       decisions: Array.isArray(this.decisions) ? this.decisions.slice(-20) : [],
       bgResults: Array.isArray(this._bgResults) ? this._bgResults.slice(-20) : [],
       taskClassVerdict: this.taskClassVerdict || null,
+      ...require('./readonly').toJSON(this),
       actors: this.actors,
       // THE RECORD THAT SOMETHING LEFT THIS MACHINE. Summaries only — see
       // externalstate.ExternalLedger.toJSON for why the packet itself is not
@@ -540,6 +541,7 @@ class Session {
       inflight: this.inflight || null,
       bgJobs: Array.isArray(this.bgJobs) ? this.bgJobs.slice(-20) : [],
       workerLedger: Array.isArray(this.workerLedger) ? this.workerLedger.slice(-200) : [],   // workers.js
+      workerStats: this.workerStats && typeof this.workerStats === 'object' ? this.workerStats : null,   // workerruntime.stats, per process
     };
   }
 
@@ -597,6 +599,8 @@ class Session {
     s.decisions = Array.isArray(data.decisions) ? data.decisions : [];
     s._bgResults = Array.isArray(data.bgResults) ? data.bgResults : [];
     s.taskClassVerdict = data.taskClassVerdict || null;
+    // A declared read-only task stays read-only across a resume, and holds its project again.
+    require('./readonly').fromJSON(s, data); require('./readonly').restore(s);
     // The other voices come back with the rest of the story. A session written
     // before this existed simply has none, which is the true answer for it.
     s.actors = Array.isArray(data.actors) ? data.actors : [];
@@ -616,6 +620,7 @@ class Session {
     s.inflight = data.inflight && typeof data.inflight === 'object' ? data.inflight : null;
     s.bgJobs = Array.isArray(data.bgJobs) ? data.bgJobs : [];
     s.workerLedger = Array.isArray(data.workerLedger) ? data.workerLedger : [];
+    s.workerStats = data.workerStats && typeof data.workerStats === 'object' ? data.workerStats : null;
     try {
       const inf = require('./inflight');
       const r = s.inflight ? inf.recover(s) : null;

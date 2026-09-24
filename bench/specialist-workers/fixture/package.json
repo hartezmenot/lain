@@ -1,0 +1,16 @@
+{
+  "name": "teamdesk",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "description": "TeamDesk: workspace settings and team notes. Vite frontend, small Node API.",
+  "scripts": {
+    "dev": "vite",
+    "server": "node server/index.js",
+    "test": "node --test",
+    "seed": "node scripts/seed.js"
+  },
+  "devDependencies": {
+    "vite": "8.3.0"
+  }
+}

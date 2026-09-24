@@ -150,6 +150,22 @@ module.exports = async function () {
     assert.strictEqual(w.asksForAction("Don't refactor anything, just fix the bug"), true);
   });
 
+  await test('WAKE: an EMPTY closing reply on a change request is woken once even after a passing check — then BLOCKED', () => {
+    // Live, 2026-09-23 (gpt-oss:120b): the untouched project's tests pass at
+    // step 5, fifteen reads, then a reasoning-only last step with no text and
+    // no tool call — which ended as a success with nothing changed.
+    const w = require('../../src/wakeup');
+    const rec = () => ({ userInput: 'TeamDesk has a batch of reported problems. Fix all of them.', toolCalls: 20, mutations: [],
+      actions: [{ name: 'run_tests', ok: true }, { name: 'read_file', ok: true }] });
+    const r = rec();
+    assert.strictEqual(w.decide(r, '', { required: true, cls: 'PROJECT_IMPLEMENTATION' }), 'wake');
+    assert.match(w.noteFor(r), /no answer and no tool call/);
+    assert.strictEqual(w.decide(rec(), '   ', { required: true, cls: 'PROJECT_IMPLEMENTATION', wakeups: 1 }), 'no-progress', 'a second empty reply is BLOCKED, never DONE');
+    // Still ends: the same turn saying why no change is needed, or having changed something.
+    assert.strictEqual(w.decide(rec(), 'No change needed: the tests pass and the reported behaviour is already correct.', { required: true, cls: 'PROJECT_IMPLEMENTATION' }), null);
+    assert.strictEqual(w.decide({ ...rec(), mutations: ['src/api.js'] }, '', { required: true, cls: 'PROJECT_IMPLEMENTATION' }), null);
+  });
+
   await test('WAKE: a fix request that only READ and then stopped is not done — reads do not excuse the missing change', () => {
     // Live acceptance, 2026-09-18: "Find and fix these bugs" → 5 reads → "Found
     // both bugs: …" → finish stop → ✓ DONE with nothing changed.

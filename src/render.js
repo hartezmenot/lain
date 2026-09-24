@@ -18,6 +18,7 @@ const useColor = () => (Boolean(process.stdout.isTTY) || process.env.LAIN_FORCE_
 // only linear writer in the program, which is exactly why the filter lives
 // there rather than at each of the dozens of callers. See src/redact.js.
 const redact = require('./redact');
+const PAL = require('./ui/palette');
 
 const MAX_TRANSCRIPT = 400;
 
@@ -65,7 +66,7 @@ const C = {
    * without 256 colours degrades it to the nearest grey it has, which is the
    * honest failure mode: quieter, or the same — never louder.
    */
-  faint: (s) => (useColor() ? `\x1b[38;5;244m${s}\x1b[39m` : s),
+  faint: (s) => (useColor() ? `\x1b[${PAL.sgr('faint')}m${s}\x1b[39m` : s),
   /**
    * A SUBTLE BACKGROUND, for a region that should read as a separate surface.
    *
@@ -80,18 +81,23 @@ const C = {
   // row with one dim or reverse-video run in it lost its ground from that run
   // onwards and the panel came apart down the middle. Every reset inside the
   // row re-opens the ground behind it.
-  onGray: (s) => (useColor()
-    ? `\x1b[48;5;236m${String(s).replace(/\x1b\[0m/g, '\x1b[0m\x1b[48;5;236m')}\x1b[49m`
-    : s),
+  onGray: (s) => ground('raised2', s),
   bold: (s) => (useColor() ? `\x1b[1m${s}\x1b[0m` : s),
-  green: (s) => (useColor() ? `\x1b[32m${s}\x1b[0m` : s),
-  yellow: (s) => (useColor() ? `\x1b[33m${s}\x1b[0m` : s),
-  red: (s) => (useColor() ? `\x1b[31m${s}\x1b[0m` : s),
-  cyan: (s) => (useColor() ? `\x1b[36m${s}\x1b[0m` : s),
-  blue: (s) => (useColor() ? `\x1b[34m${s}\x1b[0m` : s),
+  // THE LAIN PALETTE (ui/palette.js, 2026-09-23): the named colours keep their
+  // names and meanings; their VALUES are the palette's. Blue is identity, cyan
+  // a command or tool, violet the model working; green/red/amber are semantic.
+  green: (s) => tint('ok', s),
+  yellow: (s) => tint('warn', s),
+  red: (s) => tint('bad', s),
+  cyan: (s) => tint('tool', s),
+  blue: (s) => tint('accent', s),
+  violet: (s) => tint('violet', s),
   // Reserved for the EXTERNAL model, so "who said this" is answerable at a
   // glance when two models are working on one problem. See ui/paint.js.
-  magenta: (s) => (useColor() ? `\x1b[35m${s}\x1b[0m` : s),
+  magenta: (s) => tint('external', s),
+  /** Any palette token as a foreground / as a row ground. */
+  fg: (token, s) => tint(token, s),
+  bg: (token, s) => ground(token, s),
   /**
    * CODE BEING WRITTEN RIGHT NOW — the third state a diff line can be in.
    *
@@ -101,7 +107,7 @@ const C = {
    * file's `blue` is, which ui/paint.js already rejected as illegible on a dark
    * terminal) belongs to exactly one meaning: THIS TEXT IS APPEARING.
    */
-  brightBlue: (s) => (useColor() ? `\x1b[94m${s}\x1b[0m` : s),
+  brightBlue: (s) => tint('violetHi', s),   // "this text is appearing" — violet, the edit emphasis
   /**
    * STRUCK THROUGH — code being taken out, while it is still on screen.
    *
@@ -127,9 +133,21 @@ const C = {
     // too, so a row with one red word in it lost its surface from that word
     // onwards and the panel came apart down the middle. Every reset inside the
     // row re-opens the ground behind it. See ui/paint.js on nesting.
-    ? `\x1b[48;5;240m${String(s).replace(/\x1b\[0m/g, '\x1b[0m\x1b[48;5;240m')}\x1b[49m`
+    ? ground('raised', s)
     : s),
 };
+
+/** A foreground from the palette, closed with a full reset (as every tint here is). */
+function tint(token, s) { return useColor() ? `\x1b[${PAL.sgr(token)}m${s}\x1b[0m` : s; }
+/**
+ * A ROW GROUND from the palette. It survives a foreground inside it: every
+ * inner full reset re-opens the ground (see onGray's note above).
+ */
+function ground(token, s) {
+  if (!useColor()) return s;
+  const open = `\x1b[${PAL.sgr(token, 48)}m`;
+  return `${open}${String(s).replace(/\x1b\[0m/g, `\x1b[0m${open}`)}\x1b[49m`;
+}
 
 /**
  * ONE output owner, two strategies.

@@ -80,8 +80,9 @@ module.exports = async function () {
     // shipping them inside LAIN's own Windows installer — install.test.js
     // guards the first, and without them an installed copy cannot build
     // LAIN.exe offline at all.
-    assert.deepStrictEqual(payload.INSTALLER_EXTRAS, ['native/vendor/']);
-    assert.ok(!pkg.files.includes('native/vendor/'), 'and npm still does not publish it');
+    // (The SDK moved with the host into lain-harness, 2026-09-23.)
+    assert.deepStrictEqual(payload.INSTALLER_EXTRAS, ['harness/native/vendor/']);
+    assert.ok(!pkg.files.includes('native/vendor/') && !pkg.files.includes('harness/native/vendor/'), 'and npm still does not publish it');
     assert.ok(a.payloadFiles > 300, `${a.payloadFiles} files is not a whole product`);
   });
 

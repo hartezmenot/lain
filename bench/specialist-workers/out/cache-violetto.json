@@ -1,0 +1,61 @@
+{
+  "worker": "violetto",
+  "loaded": true,
+  "coldLoadMs": 12704,
+  "memoryMB": 1431,
+  "wallToReadyMs": 13149,
+  "truth": {
+    "P1": "width=40, x=1204, y=732",
+    "P2": "width=32, x=1232, y=12"
+  },
+  "firstInference": {
+    "ms": 221103,
+    "answer": "Now, is the width of the button indeed 64? The problem says \"A square send button 64 px wide\". That is explicit. So width = 64. If there were any hidden trick, maybe \"64 px wide\" is not the button wid",
+    "finish": "length",
+    "tokensIn": 121,
+    "tokensOut": 6000,
+    "cached": false,
+    "output": "VIOLETTO · experimental, UNVERIFIED · 221s · 6000 tokens · length"
+  },
+  "warmInference": {
+    "ms": 227523,
+    "answer": "But the problem statement: \"A square -32 px wide is vertically centred in a top bar 56 px tall whose top edge is at y=0 and right edge at x=1280, with a 16 px right inset. Give its width and top-left ",
+    "finish": "length",
+    "tokensIn": 104,
+    "tokensOut": 6000,
+    "cached": false,
+    "output": "VIOLETTO · experimental, UNVERIFIED · 228s · 6000 tokens · length"
+  },
+  "resultCache": {
+    "ms": 1,
+    "answer": "But the problem statement: \"A square -32 px wide is vertically centred in a top bar 56 px tall whose top edge is at y=0 and right edge at x=1280, with a 16 px right inset. Give its width and top-left ",
+    "finish": "length",
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cached": true,
+    "output": "VIOLETTO · experimental, UNVERIFIED · cached result",
+    "inferencesDuring": 0,
+    "lookupUs": 4.2
+  },
+  "invalidation": {
+    "ms": 226126,
+    "answer": "Thus answer: width = 32 px (given), top-left corner = (1224, 12) (units px). But the problem asks \"Give its width and top-left corner.\" Maybe they want width as a coordinate? Or maybe they want the wi",
+    "finish": "length",
+    "tokensIn": 104,
+    "tokensOut": 6000,
+    "cached": false,
+    "output": "VIOLETTO · experimental, UNVERIFIED · 226s · 6000 tokens · length",
+    "inferencesDuring": 1,
+    "truth": "width=32, x=1224, y=12"
+  },
+  "totals": {
+    "calls": 4,
+    "inferences": 3,
+    "cacheHits": 1,
+    "cacheMisses": 3,
+    "tokensIn": 329,
+    "tokensOut": 18000,
+    "totalInferenceMs": 674748
+  },
+  "at": "2026-09-23T06:41:21.013Z"
+}

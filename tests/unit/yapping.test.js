@@ -223,9 +223,8 @@ module.exports = async function () {
     // the record of what actually happened.
     // In the CHANGE section now (ui/turnsections.js): one row per changed file.
     assert.ok(/CHANGE .*src\/serializer\.js/.test(prose), 'the edit must still be reported');
-    // `verb · subject`, and the verb of a shell command is its PROGRAM - the word
-    // `Ran` said only that something ran, which every row on the screen shares.
-    // See ui/phrasing.js.
-    assert.ok(/npm · test/.test(prose), 'the command must still be reported');
+    // A shell command is `› command` since 2026-09-23 (ui/shellrow.js); other
+    // tools keep `verb · subject` (ui/phrasing.js).
+    assert.ok(/› npm test/.test(prose), 'the command must still be reported');
   });
 };

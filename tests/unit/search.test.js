@@ -55,6 +55,18 @@ module.exports = async function () {
     assert.ok(!/\.js:/.test(r.output), r.output);
   });
 
+  await test('SEARCH: an include written from the project root still applies under a narrower path', async () => {
+    // The live shape (gpt-oss, 2026-09-23): path "src" + include "src/**/*.js"
+    // was NO FILES IN SCOPE nine times in one run.
+    const r = await run('grep', { pattern: 'login', path: 'src', include: 'src/**/*.js' }, root);
+    assert.doesNotMatch(r.output, /NO FILES IN SCOPE/, r.output);
+    assert.match(r.output, /login\.js/);
+    const rel = await run('grep', { pattern: 'login', path: 'src', include: '**/*.js' }, root);
+    assert.match(rel.output, /login\.js/, 'the path-relative reading still works');
+    const none = await run('grep', { pattern: 'login', path: 'src', include: 'docs/**/*.js' }, root);
+    assert.match(none.output, /NO FILES IN SCOPE|no match/, 'a glob that names neither reading still excludes');
+  });
+
   await test('SEARCH: no match is a RESULT, not an error, and says how much was searched', async () => {
     const r = await run('grep', { pattern: 'zzz-nothing-matches-this' }, root);
     assert.ok(!r.isError, 'a search that found nothing is not a failed search');

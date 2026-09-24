@@ -1,0 +1,457 @@
+{
+  "stamp": "2026-09-23T12-10-39",
+  "model": "ollama-cloud/gpt-oss:120b",
+  "base": "http://127.0.0.1:4570/v1",
+  "transport": "OpenAI-compatible /v1/chat/completions via LainRouter → ollama.com/v1",
+  "cap": 40,
+  "text": {
+    "route": {
+      "protocol": "chat",
+      "model": "ollama-cloud/gpt-oss:120b",
+      "baseUrl": "http://127.0.0.1:4570/v1",
+      "ctx": 128000,
+      "maxTokens": 4096
+    },
+    "streamed": true,
+    "textChunks": 14,
+    "reasoningChunks": 7,
+    "firstChunkMs": 17672,
+    "lastChunkMs": 17912,
+    "totalMs": 17990,
+    "livenessStates": [
+      {
+        "at": 17672,
+        "state": "{\"word\":\"THINKING\",\"detail\":\"reasoning ·"
+      },
+      {
+        "at": 17743,
+        "state": "{\"word\":\"STREAMING\",\"detail\":\"the model "
+      }
+    ],
+    "finish": "stop",
+    "usage": {
+      "type": "usage",
+      "inputTokens": 84,
+      "outputTokens": 113,
+      "cacheReadTokens": 48,
+      "cacheCreationTokens": 0,
+      "cacheReported": true
+    }
+  },
+  "tools": {
+    "exit": 0,
+    "wallMs": 68820,
+    "stopReason": "end",
+    "requests": 4,
+    "routes": [
+      "lainrouter|ollama-cloud/gpt-oss:120b"
+    ],
+    "perRequest": [
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17162,
+        "receipt": {
+          "inputTokens": 14279,
+          "outputTokens": 108,
+          "cacheReadTokens": 64,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17484,
+        "receipt": {
+          "inputTokens": 14333,
+          "outputTokens": 82,
+          "cacheReadTokens": 13952,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 16631,
+        "receipt": {
+          "inputTokens": 14369,
+          "outputTokens": 96,
+          "cacheReadTokens": 14000,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17104,
+        "receipt": {
+          "inputTokens": 14440,
+          "outputTokens": 72,
+          "cacheReadTokens": 14048,
+          "cacheCreationTokens": 0
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "name": "read_file",
+        "argBytes": 51,
+        "error": true
+      },
+      {
+        "name": "list_dir",
+        "argBytes": 12,
+        "error": false
+      },
+      {
+        "name": "read_file",
+        "argBytes": 43,
+        "error": false
+      }
+    ],
+    "finalText": "HELIOTROPE-42",
+    "stderrTail": ""
+  },
+  "largeArgs": {
+    "exit": 0,
+    "wallMs": 57422,
+    "stopReason": "end",
+    "requests": 3,
+    "routes": [
+      "lainrouter|ollama-cloud/gpt-oss:120b"
+    ],
+    "perRequest": [
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 21111,
+        "receipt": {
+          "inputTokens": 16377,
+          "outputTokens": 2440,
+          "cacheReadTokens": 13888,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17729,
+        "receipt": {
+          "inputTokens": 18521,
+          "outputTokens": 196,
+          "cacheReadTokens": 16048,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 18131,
+        "receipt": {
+          "inputTokens": 18709,
+          "outputTokens": 203,
+          "cacheReadTokens": 18192,
+          "cacheCreationTokens": 0
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "name": "write_file",
+        "argBytes": 8279,
+        "error": false
+      },
+      {
+        "name": "understand",
+        "argBytes": 2,
+        "error": false
+      }
+    ],
+    "finalText": "**Clarification needed** – Which part of the project should I implement or modify? Please specify the feature, component, or surface (e.g., a button, command, API endpoint) you want me to work on.",
+    "stderrTail": "",
+    "fileLines": 150,
+    "exact": true,
+    "expectedBytes": 8099
+  },
+  "structured": {
+    "status": 200,
+    "ms": 16731,
+    "content": "**France**  \n- **Capital:** Paris  \n- **Population:** 67 million (rounded to the nearest whole million)",
+    "parsed": null,
+    "usage": {
+      "prompt_tokens": 81,
+      "completion_tokens": 78,
+      "total_tokens": 159,
+      "prompt_tokens_details": {
+        "cached_tokens": 48
+      }
+    },
+    "error": null
+  },
+  "effort": {
+    "low": {
+      "status": 400,
+      "ms": 15289,
+      "reasoningChars": 0,
+      "answer": "",
+      "error": {
+        "message": "ollama-cloud · lain: no eligible account for this request (requested reasoning effort is unavailable).",
+        "type": "invalid_request_error",
+        "code": "UNSUPPORTED_REASONING_EFFORT",
+        "field": "reasoning_effort",
+        "requested": "low",
+        "supported": [],
+        "owner": "provider",
+        "router_health": "healthy",
+        "physical_attempts": 0,
+        "provider": "ollama-cloud · lain",
+        "providerId": 47,
+        "model": "gpt-oss:120b",
+        "skipped": [
+          {
+            "account": "lain",
+            "reason": "effort_not_supported",
+            "detail": "requested reasoning effort is unavailable",
+            "available_at": null
+          },
+          {
+            "account": "abd11",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          },
+          {
+            "account": "aswaja",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          },
+          {
+            "account": "main",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          }
+        ],
+        "earliest_reset_at": null,
+        "retry_after_ms": 30000,
+        "router_request_id": "req_z3rD-IUDuI7hS7JP"
+      }
+    },
+    "high": {
+      "status": 400,
+      "ms": 14557,
+      "reasoningChars": 0,
+      "answer": "",
+      "error": {
+        "message": "ollama-cloud · lain: no eligible account for this request (requested reasoning effort is unavailable).",
+        "type": "invalid_request_error",
+        "code": "UNSUPPORTED_REASONING_EFFORT",
+        "field": "reasoning_effort",
+        "requested": "high",
+        "supported": [],
+        "owner": "provider",
+        "router_health": "healthy",
+        "physical_attempts": 0,
+        "provider": "ollama-cloud · lain",
+        "providerId": 47,
+        "model": "gpt-oss:120b",
+        "skipped": [
+          {
+            "account": "lain",
+            "reason": "effort_not_supported",
+            "detail": "requested reasoning effort is unavailable",
+            "available_at": null
+          },
+          {
+            "account": "abd11",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          },
+          {
+            "account": "aswaja",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          },
+          {
+            "account": "main",
+            "reason": "account_disabled",
+            "detail": "switched off for routing",
+            "available_at": null
+          }
+        ],
+        "earliest_reset_at": null,
+        "retry_after_ms": 30000,
+        "router_request_id": "req_v_mqGGNx2jDX4ZLB"
+      }
+    }
+  },
+  "subagent": {
+    "exit": 0,
+    "wallMs": 175048,
+    "stopReason": "max-steps",
+    "requests": 10,
+    "routes": [
+      "lainrouter|ollama-cloud/gpt-oss:120b"
+    ],
+    "perRequest": [
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17702,
+        "receipt": {
+          "inputTokens": 14293,
+          "outputTokens": 236,
+          "cacheReadTokens": 13888,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17535,
+        "receipt": {
+          "inputTokens": 14367,
+          "outputTokens": 206,
+          "cacheReadTokens": 13968,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17331,
+        "receipt": {
+          "inputTokens": 14431,
+          "outputTokens": 325,
+          "cacheReadTokens": 14032,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17167,
+        "receipt": {
+          "inputTokens": 14505,
+          "outputTokens": 178,
+          "cacheReadTokens": 14096,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 18660,
+        "receipt": {
+          "inputTokens": 14579,
+          "outputTokens": 415,
+          "cacheReadTokens": 14176,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 16969,
+        "receipt": {
+          "inputTokens": 14664,
+          "outputTokens": 248,
+          "cacheReadTokens": 14256,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17985,
+        "receipt": {
+          "inputTokens": 14771,
+          "outputTokens": 402,
+          "cacheReadTokens": 14336,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17256,
+        "receipt": {
+          "inputTokens": 14172,
+          "outputTokens": 104,
+          "cacheReadTokens": 13936,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 16636,
+        "receipt": {
+          "inputTokens": 14225,
+          "outputTokens": 40,
+          "cacheReadTokens": 14144,
+          "cacheCreationTokens": 0
+        }
+      },
+      {
+        "ok": true,
+        "status": 0,
+        "ms": 17253,
+        "receipt": {
+          "inputTokens": 14895,
+          "outputTokens": 132,
+          "cacheReadTokens": 14448,
+          "cacheCreationTokens": 0
+        }
+      }
+    ],
+    "toolCalls": [
+      {
+        "name": "delegate",
+        "argBytes": 102,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 122,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 169,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 174,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 241,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 303,
+        "error": true
+      },
+      {
+        "name": "delegate",
+        "argBytes": 296,
+        "error": false
+      },
+      {
+        "name": "file_info",
+        "argBytes": 19,
+        "error": false
+      }
+    ],
+    "finalText": "",
+    "stderrTail": ""
+  },
+  "requestsSpent": 21
+}

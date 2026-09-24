@@ -131,7 +131,7 @@ module.exports = async function () {
       assert.ok(rows.length >= 6, 'need enough history to have tiers');
 
       const toneOf = (row) => (/\x1b\[2m[^\x1b]*read/.test(row) ? 'dim'
-        : /\x1b\[38;5;244m[^\x1b]*read/.test(row) ? 'faint' : 'plain');
+        : new RegExp(`\x1b\\[${require('../../src/ui/palette').sgr('faint')}m[^\x1b]*read`).test(row) ? 'faint' : 'plain');
       const tones = rows.map(toneOf);
 
       // Oldest recedes furthest; the one that just finished is still warm.

@@ -117,6 +117,13 @@ class ArtifactStore {
 
   dirFor(taskId) { return lainstore.taskDir(this.root, taskId); }
 
+  /** A declared read-only task holds the project's `.lain/` (lainstore.hold): no record is written. */
+  _held() {
+    if (!lainstore.held(this.root)) return false;
+    this.lastError = 'the project .lain/ is held by a read-only task; nothing was written';
+    return true;
+  }
+
   /**
    * KEEP SOMETHING. Returns the artifact record, or null if it could not land.
    *
@@ -125,6 +132,7 @@ class ArtifactStore {
    * 40KB of replacement characters.
    */
   put(taskId, { kind, name, body, note = '' } = {}) {
+    if (this._held()) return null;
     const k = String(kind || KIND.LOG);
     const area = AREA_OF[k];
     if (!area) { this.lastError = `unknown artifact kind "${k}"`; return null; }
@@ -187,6 +195,7 @@ class ArtifactStore {
   }
 
   _appendIndex(taskId, rec) {
+    if (this._held()) return false;
     const file = path.join(this.dirFor(taskId), 'artifacts.json');
     const all = this.index(taskId);
     all.push(rec);
@@ -221,6 +230,7 @@ class ArtifactStore {
    * now", that one is "how did it get here".
    */
   saveTask(task) {
+    if (this._held()) return false;
     const file = path.join(this.dirFor(task.id), 'task.json');
     try {
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -307,6 +317,7 @@ class ArtifactStore {
    * costs the last line, not the file.
    */
   appendEvent(taskId, ev) {
+    if (this._held()) return false;
     const file = path.join(this.dirFor(taskId), 'events.jsonl');
     try {
       const line = `${JSON.stringify(ev)}\n`;

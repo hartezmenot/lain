@@ -159,7 +159,7 @@ module.exports = async function () {
       stdin: 'run it' + NL + '/exit' + NL, script, timeoutMs: 90000,
     });
     const rows = lastRows(probe.out);
-    const idx = rows.findIndex((r) => /node · /.test(r));
+    const idx = rows.findIndex((r) => /› node |node · /.test(r));   // `› command` since 2026-09-23
     assert.ok(idx >= 0, 'the command row must be drawn');
 
     const r = await runCli([], {

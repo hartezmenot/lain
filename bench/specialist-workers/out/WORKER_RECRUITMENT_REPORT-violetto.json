@@ -1,0 +1,185 @@
+{
+  "candidate": "Limite 1B Violetto",
+  "model": "paradigma-inc/limite-1b-violetto (community GGUF Tdamre/limite-1b-violetto-GGUF-LiteRT, Q4_K_M)",
+  "sha256": "e306eafbaa49e03b05adb1fa21211296833f8aa6cf2f7b717ca340a5cebd5fe7",
+  "license": "Apache-2.0",
+  "contract": "geometry_solver",
+  "geometryEval": {
+    "cases": 6,
+    "correctWithinHalfPx": 3,
+    "deterministicSolver": "6/6 in < 0.2 ms",
+    "finishedWithinBudget": 0
+  },
+  "residencyAndCache": {
+    "coldLoadMs": 12704,
+    "residentMB": 1431,
+    "firstInference": {
+      "ms": 221103,
+      "answer": "Now, is the width of the button indeed 64? The problem says \"A square send button 64 px wide\". That is explicit. So width = 64. If there were any hidden trick, maybe \"64 px wide\" is not the button wid",
+      "finish": "length",
+      "tokensIn": 121,
+      "tokensOut": 6000,
+      "cached": false,
+      "output": "VIOLETTO · experimental, UNVERIFIED · 221s · 6000 tokens · length"
+    },
+    "warmInference": {
+      "ms": 227523,
+      "answer": "But the problem statement: \"A square -32 px wide is vertically centred in a top bar 56 px tall whose top edge is at y=0 and right edge at x=1280, with a 16 px right inset. Give its width and top-left ",
+      "finish": "length",
+      "tokensIn": 104,
+      "tokensOut": 6000,
+      "cached": false,
+      "output": "VIOLETTO · experimental, UNVERIFIED · 228s · 6000 tokens · length"
+    },
+    "resultCache": {
+      "ms": 1,
+      "answer": "But the problem statement: \"A square -32 px wide is vertically centred in a top bar 56 px tall whose top edge is at y=0 and right edge at x=1280, with a 16 px right inset. Give its width and top-left ",
+      "finish": "length",
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cached": true,
+      "output": "VIOLETTO · experimental, UNVERIFIED · cached result",
+      "inferencesDuring": 0,
+      "lookupUs": 4.2
+    },
+    "invalidation": {
+      "ms": 226126,
+      "answer": "Thus answer: width = 32 px (given), top-left corner = (1224, 12) (units px). But the problem asks \"Give its width and top-left corner.\" Maybe they want width as a coordinate? Or maybe they want the wi",
+      "finish": "length",
+      "tokensIn": 104,
+      "tokensOut": 6000,
+      "cached": false,
+      "output": "VIOLETTO · experimental, UNVERIFIED · 226s · 6000 tokens · length",
+      "inferencesDuring": 1,
+      "truth": "width=32, x=1224, y=12"
+    },
+    "truth": {
+      "P1": "width=40, x=1204, y=732",
+      "P2": "width=32, x=1232, y=12"
+    }
+  },
+  "ab": {
+    "flagshipRoute": "kr/claude-sonnet-4.5",
+    "effort": "default (unset) for every arm",
+    "budgets": {
+      "perArm": 40,
+      "global": 120,
+      "maxStepsPerRun": 38
+    },
+    "requestsSpent": {
+      "probe": 1,
+      "control": 16,
+      "laya": 8,
+      "violetto": 24,
+      "total": 49
+    },
+    "stopped": null,
+    "control": {
+      "runs": 1,
+      "flagship": {
+        "calls": 16,
+        "attempts": 16,
+        "steps": 16,
+        "retries": 0,
+        "inputTokens": 571659,
+        "cachedInputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReported": false,
+        "outputTokens": 3575,
+        "totalTokens": 575234,
+        "averageInputPerCall": 35729,
+        "peakContext": 41762
+      },
+      "tools": {
+        "total": 46,
+        "fileReads": 13,
+        "exploreBeforeFirstEdit": 13,
+        "testRuns": 2,
+        "domReads": 1
+      },
+      "quality": {
+        "acceptance": {
+          "pass": 27,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "browser": "21/23",
+        "responsive": "2/2",
+        "backend": "4/6",
+        "diff": {
+          "files": 8,
+          "added": 96,
+          "removed": 81
+        },
+        "unexpectedFiles": []
+      },
+      "wallMs": 393677
+    },
+    "violetto": {
+      "runs": 1,
+      "flagship": {
+        "calls": 24,
+        "attempts": 24,
+        "steps": 24,
+        "retries": 0,
+        "inputTokens": 919254,
+        "cachedInputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReported": false,
+        "outputTokens": 5481,
+        "totalTokens": 924735,
+        "averageInputPerCall": 38302,
+        "peakContext": 45377
+      },
+      "tools": {
+        "total": 44,
+        "fileReads": 16,
+        "exploreBeforeFirstEdit": 15,
+        "testRuns": 3,
+        "domReads": 1
+      },
+      "quality": {
+        "acceptance": {
+          "pass": 28,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "browser": "21/23",
+        "responsive": "2/2",
+        "backend": "5/6",
+        "diff": {
+          "files": 8,
+          "added": 105,
+          "removed": 70
+        },
+        "unexpectedFiles": []
+      },
+      "wallMs": 566189
+    },
+    "delta": {
+      "flagshipInputPct": 60.8,
+      "flagshipCallsPct": 50,
+      "flagshipOutputPct": 53.3,
+      "acceptance": "28 vs 27 of 31",
+      "wallPct": 43.8,
+      "conclusive": false,
+      "label": "EXPLORATORY (n=1 vs n=1; 3 per arm required)"
+    },
+    "worker": {
+      "calls": 0,
+      "inferences": 0,
+      "coldLoadMs": 11619,
+      "residentMB": 1431,
+      "questions": []
+    },
+    "toolSchemaOverhead": {
+      "schemaChars": 701,
+      "requests": 24,
+      "approxTokens": 4206
+    },
+    "decisionQuality": "the flagship was offered the geometry tool and never called it: it solved the geometry itself (CSS arithmetic + browser check). The arm paid only costs: cold load, resident memory, the tool schema on every request."
+  },
+  "verdict": "REJECT",
+  "why": "offline: 3/6 within ±0.5 px, ~228 s and 6,000 tokens per answer, final lines unusable in the cache bench; end to end: offered, never used by the flagship; a deterministic solver answers exactly in microseconds",
+  "policy": "installed; off by policy; the geometry_specialist tool exists only when forced on (/workers violetto on)"
+}

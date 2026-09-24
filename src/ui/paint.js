@@ -33,7 +33,18 @@ const P = {
   ok: (s) => C.green(s),
   warn: (s) => C.yellow(s),
   bad: (s) => C.red(s),
-  info: (s) => C.cyan(s),
+  // LAIN'S OWN VOICE AND STATUS: the identity blue (ui/palette.js, 2026-09-23).
+  info: (s) => C.blue(s),
+  accent: (s) => C.blue(s),
+  /** The model working — thinking, streaming, an edit arriving. */
+  violet: (s) => C.violet(s),
+  /** Diff roles (ui/panes.js diffRow): foreground on its own row ground. */
+  diffAdd: (s) => C.bg('addBg', C.fg('addFg', s)),
+  diffDel: (s) => C.bg('delBg', C.fg('delFg', s)),
+  diffCtx: (s) => C.bg('raised', C.fg('ctx', s)),
+  diffGap: (s) => C.bg('raised', C.fg('separator', s)),
+  lineNo: (s) => C.fg('lineNo', s),
+  separator: (s) => C.fg('separator', s),
   // CYAN, as the table above has always said. It was `C.blue` — SGR 34, which
   // on a dark terminal is a navy so close to the background that a changed
   // path was the least legible thing in a view whose whole job is naming
@@ -41,7 +52,7 @@ const P = {
   // the one place where the answer disagreed with itself.
   path: (s) => C.cyan(s),
   cmd: (s) => C.cyan(s),
-  head: (s) => C.bold(C.cyan(s)),
+  head: (s) => C.bold(C.blue(s)),
   key: (s) => C.bold(s),
   meta: (s) => C.dim(s),
   /**

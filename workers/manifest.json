@@ -1,0 +1,62 @@
+{
+  "note": "Specialist capabilities. The repository holds adapters, identities and evaluation contracts only; weights and runtimes live in the local model store (outside every git repository). Machine paths are per user: cfg.workers.<id>.python / .hfHome / .baseUrl.",
+  "workers": {
+    "laya": {
+      "contract": "evidence_narrower",
+      "role": "evidence narrowing: rank candidates (files, UI nodes, DOM elements) against the request",
+      "model": "convaiinnovations/laya",
+      "package": "laya==0.3.6",
+      "license": "Apache-2.0",
+      "params": "421M (ModernBERT-large decision model)",
+      "adapter": "workers/laya/server.py",
+      "runtime": "python",
+      "defaultStore": "E:\\AI\\models\\laya",
+      "defaultPython": "E:\\AI\\runtime\\specialists\\Scripts\\python.exe",
+      "enabled": "auto",
+      "gates": {
+        "file_locate": {
+          "pass": false,
+          "bench": "bench/specialist-workers/locate/gate.js",
+          "detail": "451 LAIN source files, 24 labelled queries: lexical hit@8 0.708 · Laya cosine 0.083 · Laya choice 0.083 (13/24 confidently wrong) · fused 0.667 — Laya makes the shortlist worse"
+        },
+        "ui_control": {
+          "pass": false,
+          "bench": "bench/specialist-workers/locate/ui-gate.js",
+          "detail": "41 real controls, 20 queries: lexical hit@5 0.35 · fused 0.45 (+2/20, hit@1 unchanged) · choice head 11/20 confidently wrong — inconclusive, not recruited"
+        }
+      },
+      "verdict": "REJECT for automatic use: both gates failed; end-to-end A/B v2 (n=1, EXPLORATORY) cannot promote it — its run also skipped verification and its shortlist named 3/10 of the files used. Installed, auto uses it nowhere; /workers laya on forces it for experiments."
+    },
+    "violetto": {
+      "contract": "geometry_solver",
+      "role": "numeric consequences of a geometric UI change",
+      "model": "paradigma-inc/limite-1b-violetto (community GGUF Tdamre/limite-1b-violetto-GGUF-LiteRT, Q4_K_M)",
+      "sha256": "e306eafbaa49e03b05adb1fa21211296833f8aa6cf2f7b717ca340a5cebd5fe7",
+      "license": "Apache-2.0",
+      "runtime": "llama-server",
+      "runtimeBuild": "llama-server built from ggml-org/llama.cpp@58367713 + limite.patch (CPU, MSVC)",
+      "server": "E:\\AI\\runtime\\llama.cpp-limite\\build\\bin\\Release\\llama-server.exe",
+      "gguf": "E:\\AI\\models\\violetto\\limite-1b-violetto-Q4_K_M.gguf",
+      "port": 8093,
+      "ctx": 16384,
+      "threads": 8,
+      "maxTokens": 6000,
+      "defaultStore": "E:\\AI\\models\\violetto",
+      "enabled": "off",
+      "gates": {
+        "geometry": {
+          "pass": false,
+          "bench": "bench/specialist-workers/geometry/run.js",
+          "detail": "6 UI geometry changes vs the deterministic GUG solver (6/6, <0.2 ms): Violetto 3/6 within ±0.5 px, median 228 s and 6,000 tokens per answer (every answer hit the length cap)"
+        }
+      },
+      "verdict": "REJECT: 3/6 offline within ±0.5 px at ~228 s and 6,000 tokens per answer; final lines unusable in the cache bench; offered end to end (A/B v2) and never called by the flagship. A deterministic solver answers exactly. The geometry_specialist tool exists only when forced on."
+    },
+    "jev": {
+      "contract": "decision_intent",
+      "status": "EXCLUDED",
+      "reason": "Official Jev (TypeSafe jev-1.13) is a hosted, proprietary API with no local weights. On this machine its free tier refuses non-OpenCode clients (403 FreeTierError) and the paid route had no funds (402). Laya is described by its authors as an open reproduction of Jev, but it is NOT Jev and is not presented as Jev.",
+      "enabled": "off"
+    }
+  }
+}

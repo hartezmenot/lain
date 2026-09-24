@@ -83,7 +83,10 @@ function beginTurn(app, verdict, text) {
   // deterministically and for free, when the input arrived. A task that is
   // already open carries on regardless — a question asked in the middle of real
   // work is part of that work.
-  const chatty = verdict.mode === modeId.KIND.CHAT || verdict.mode === modeId.KIND.EXPLAIN;
+  // A DECLARED READ-ONLY task opens no record either: the person said not to
+  // write to `.lain/`, and its project is held (readonly.js, lainstore.hold).
+  const chatty = verdict.mode === modeId.KIND.CHAT || verdict.mode === modeId.KIND.EXPLAIN
+    || require('./readonly').active(app.session);
   if (chatty && !existing(app)) return null;
 
   let h;

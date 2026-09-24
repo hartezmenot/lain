@@ -121,6 +121,7 @@ function summary(session) {
     s.calls += 1; s.rawChars += r.rawChars || 0; s.inChars += r.inChars || 0; s.outChars += r.outChars || 0;
     s.ms += r.ms || 0; s.abstain += r.abstain ? 1 : 0; s.escalated += r.escalated ? 1 : 0; s.cacheHits += r.cacheHit ? 1 : 0;
     s.rereadChars += r.reread || 0;
+    s.missed = (s.missed || 0) + (Array.isArray(r.missed) ? r.missed.length : 0); s.touched = (s.touched || 0) + (r.touched || 0);
   }
   for (const s of Object.values(by)) {
     // WHAT THE FLAGSHIP DID NOT HAVE TO READ, minus what false narrowing made it read anyway.

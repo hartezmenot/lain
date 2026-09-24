@@ -12,8 +12,9 @@ const finishMod = require('./finish');
  *   { type:'usage_live', inputTokens, outputTokens }   the input side, while it is still open
  *                        NEVER added to a total — see the note at message_start.
  *
- * Two wire protocols are implemented: Anthropic `/v1/messages` and the
- * OpenAI-compatible `/chat/completions`. A third "provider", `mock`, is selected
+ * Three wire protocols are implemented: Anthropic `/v1/messages`, the
+ * OpenAI-compatible `/chat/completions`, and the OpenAI Responses API
+ * `/responses` (connection `protocol: 'responses'`). A fourth "provider", `mock`, is selected
  * by LAIN_PROVIDER=mock and exists so the REAL binary can be smoke-tested
  * without credentials or token spend — it replaces this file's network call and
  * nothing else.
@@ -27,7 +28,7 @@ const progress = require('./streamprogress');
 const { routeHeaders } = require('./routeheaders');
 const errors = require('./errors');
 
-const PROTOCOL = Object.freeze({ ANTHROPIC: 'anthropic', CHAT: 'chat', MOCK: 'mock' });
+const PROTOCOL = Object.freeze({ ANTHROPIC: 'anthropic', CHAT: 'chat', RESPONSES: 'responses', MOCK: 'mock' });
 
 /**
  * Resolve which endpoint serves this turn.
@@ -66,6 +67,7 @@ function resolve(cfg = {}) {
           model: r.upstreamId,
           canonicalModel: r.model,
           effort: r.effort,
+          reasoningEffort: cfg.effort || null,   // a request FIELD on the Responses API (responsesapi.js)
           baseUrl: conn.baseUrl,
           apiKey: conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''),
           ctx: conn.ctx || 128000,
@@ -218,7 +220,7 @@ function deadline(signal, ms) {
   return state;
 }
 
-async function postSSE(url, headers, body, signal) {
+async function postSSE(url, headers, body, signal, route = null) {
   const d = deadline(signal, TTFB_TIMEOUT_MS);
   let res;
   try {
@@ -243,6 +245,9 @@ async function postSSE(url, headers, body, signal) {
   } finally {
     d.clear();
   }
+  // THE ACCOUNT'S OWN USAGE READING, from the rate-limit headers the provider
+  // sent with this response — refusals included. See src/usagewindows.js.
+  if (route) require('./usagewindows').observe(route, res.headers);
   if (!res.ok) {
     let detail = '';
     try { detail = (await res.text()).slice(0, 600); } catch { /* body already consumed */ }
@@ -462,14 +467,14 @@ async function* anthropicChat(pc, messages, opts) {
     'anthropic-version': '2023-06-01',
     ...routeHeaders(pc, opts),
     ...pc.headers,
-  }, payload, opts.signal);
+  }, payload, opts.signal, pc);
 
   const acc = [];
   // cacheReadTokens/cacheCreationTokens are the diagnostic that answers "is the
   // cache actually working": a healthy tool-heavy turn should show cache reads
   // climbing step over step while input tokens (the uncached remainder) stay
   // small and roughly flat, rather than growing with the conversation.
-  let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheReported: false };
   let stopRaw = null;
   const live = opts.live || null;
   for await (const j of sseLines(res, opts.signal, live)) {
@@ -490,6 +495,7 @@ async function* anthropicChat(pc, messages, opts) {
       usage.inputTokens = u.input_tokens || 0;
       usage.cacheReadTokens = u.cache_read_input_tokens || 0;
       usage.cacheCreationTokens = u.cache_creation_input_tokens || 0;
+      usage.cacheReported = u.cache_read_input_tokens != null || u.cache_creation_input_tokens != null;
       // ---- THE ONLY GENUINELY LIVE NUMBER IN A REQUEST --------------------
       //
       // The input side is complete HERE, at the first frame, before a single
@@ -549,12 +555,12 @@ async function* openaiChat(pc, messages, opts) {
   }
   const res = await postSSE(`${pc.baseUrl}/chat/completions`, {
     authorization: `Bearer ${pc.apiKey}`, ...routeHeaders(pc, opts), ...pc.headers,
-  }, payload, opts.signal);
+  }, payload, opts.signal, pc);
 
   const acc = [];
   const inline = new (require('./inlinethink').InlineThink)();
   let stopRaw = null;
-  let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  let usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, cacheReported: false };
   const live = opts.live || null;
   for await (const j of sseLines(res, opts.signal, live)) {
     if (j.usage) {
@@ -567,6 +573,7 @@ async function* openaiChat(pc, messages, opts) {
       const c = promptcache.usageFrom(j.usage);
       usage.cacheReadTokens = c.cacheReadTokens || usage.cacheReadTokens || 0;
       usage.cacheCreationTokens = c.cacheCreationTokens || usage.cacheCreationTokens || 0;
+      usage.cacheReported = usage.cacheReported || c.reported;
       // ---- LIVE ONLY IF IT GENUINELY ARRIVED EARLY ------------------------
       //
       // This shape has no `message_start`, so there is no guaranteed moment at
@@ -646,6 +653,7 @@ async function* chat(pc, messages, opts = {}) {
     model: pc.model || '',
     connection: pc.connectionId || pc.provider || '',
   });
+  reqtrace.sized(rec, messages, opts.tools);
   // THE RECEIPT THIS ATTEMPT RETURNED, or null — the last `usage` event the
   // provider streamed. Captured here because this is the one funnel every
   // protocol passes through, and given to the ledger so it can ride the
@@ -659,7 +667,9 @@ async function* chat(pc, messages, opts = {}) {
         ? anthropicChat(pc, messages, opts)
         : pc.protocol === PROTOCOL.CHAT
           ? openaiChat(pc, messages, opts)
-          : null;
+          : pc.protocol === PROTOCOL.RESPONSES
+            ? require('./responsesapi').responsesChat(pc, messages, opts)
+            : null;
     if (!inner) {
       const e = new Error(`no protocol for provider '${pc.provider}'`);
       e.status = 400;
@@ -684,4 +694,4 @@ async function* chat(pc, messages, opts = {}) {
 // the tail of the wire never produces two consecutive user turns, which this
 // protocol refuses with a 400. The alternative was a test that skipped itself
 // when the symbol was missing — a guarantee that quietly stops being checked.
-module.exports = { PROTOCOL, resolve, chat, credentialHint, routeHeaders, classify: errors.classify, sseLines, toAnthropic };
+module.exports = { PROTOCOL, resolve, chat, credentialHint, routeHeaders, classify: errors.classify, sseLines, toAnthropic, postSSE };

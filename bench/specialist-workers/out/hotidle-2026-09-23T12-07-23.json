@@ -1,0 +1,541 @@
+{
+  "stamp": "2026-09-23T12-07-23",
+  "hostDir": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-hotidle\\2026-09-23T12-07-23\\workerhost",
+  "machine": {
+    "cpus": 16,
+    "cpu": "AMD Ryzen 7 5700G with Radeon Graphics         ",
+    "totalMB": 32636
+  },
+  "openComparison": [
+    {
+      "laya": "off",
+      "cliReadyMs": 3209,
+      "wallMs": 5252,
+      "timeouts": []
+    },
+    {
+      "laya": "on",
+      "cliReadyMs": 3205,
+      "wallMs": 5290,
+      "timeouts": []
+    }
+  ],
+  "session1": {
+    "timeouts": [],
+    "cliReadyMs": 3206,
+    "layaLoadingSeenMs": 3610,
+    "layaHotIdleMs": 99602,
+    "note": "ms since the bench launched the terminal driver (the driver spawn adds a little before LAIN itself starts)",
+    "turn1": {
+      "doneMs": 3464,
+      "locate": {
+        "tier": "deterministic",
+        "ms": 4,
+        "bypass": "UNLOADED",
+        "timedOut": false,
+        "cacheHit": false,
+        "rawChars": 2227,
+        "outChars": 286,
+        "slice": [
+          "src/styles.css",
+          "data/workspace.json",
+          "src/api.js",
+          "server/store.js",
+          "server/http.js",
+          "server/mailer.js",
+          "src/main.js",
+          "scripts/seed.js"
+        ],
+        "warmWaitMs": 0,
+        "at": 1790165259237
+      }
+    },
+    "turn2": {
+      "doneMs": 115645,
+      "locate": {
+        "tier": "deterministic",
+        "ms": 2003,
+        "bypass": null,
+        "timedOut": true,
+        "cacheHit": false,
+        "rawChars": 2227,
+        "outChars": 283,
+        "slice": [
+          "server/routes.js",
+          "server/auth.js",
+          "DESIGN.md",
+          "server/app.js",
+          "server/billing.js",
+          "server/http.js",
+          "server/index.js",
+          "server/log.js"
+        ],
+        "warmWaitMs": 0,
+        "at": 1790165371435
+      }
+    },
+    "turn3": {
+      "doneMs": 117837,
+      "locate": {
+        "tier": "deterministic",
+        "ms": 2004,
+        "bypass": null,
+        "timedOut": true,
+        "cacheHit": false,
+        "rawChars": 2227,
+        "outChars": 286,
+        "slice": [
+          "src/styles.css",
+          "data/workspace.json",
+          "src/api.js",
+          "server/store.js",
+          "server/http.js",
+          "server/mailer.js",
+          "src/main.js",
+          "scripts/seed.js"
+        ],
+        "warmWaitMs": 0,
+        "at": 1790165373637
+      }
+    },
+    "workerStats": {
+      "laya": {
+        "calls": 3,
+        "inferences": 0,
+        "cacheHits": 0,
+        "cacheMisses": 3,
+        "cacheLookupUs": [
+          28.3,
+          3.8,
+          5.5
+        ],
+        "coldLoadMs": null,
+        "memoryMB": null,
+        "inferenceMs": [],
+        "totalInferenceMs": 0,
+        "tokensIn": 0,
+        "tokensOut": 0,
+        "outputChars": 0,
+        "failures": 2,
+        "bypasses": 1,
+        "bypassStates": [
+          "UNLOADED"
+        ],
+        "timeouts": 2
+      }
+    },
+    "firstLayaServedMs": null
+  },
+  "hostAfterSession1": {
+    "id": "laya",
+    "state": "HOT_IDLE",
+    "runtime": "python",
+    "pid": 8692,
+    "loads": 1,
+    "reloads": 0,
+    "loadMs": 95989,
+    "loadingForMs": null,
+    "residentMB": 1992,
+    "inferences": 0,
+    "pending": 0,
+    "idleMs": 1076,
+    "idleSpans": [
+      0
+    ],
+    "unloads": [],
+    "failures": 0,
+    "recentFailures": 0,
+    "lastError": null
+  },
+  "session2": {
+    "timeouts": [],
+    "hardkilled": true,
+    "cliReadyMs": 3208,
+    "hotPrompt": {
+      "tier": "laya",
+      "ms": 8,
+      "layaMs": 5,
+      "bypass": null,
+      "timedOut": false,
+      "cacheHit": false,
+      "usage": {
+        "embedded": 0,
+        "tokens_in": 0,
+        "tokens_equiv": 696,
+        "input_chars": 2286,
+        "output_chars": 434
+      },
+      "rawChars": 2227,
+      "outChars": 305,
+      "slice": [
+        "src/styles.css",
+        "server/ratelimit.js",
+        "server/mailer.js",
+        "data/workspace.json",
+        "src/components/toast.js",
+        "scripts/seed.js",
+        "src/api.js",
+        "index.html"
+      ],
+      "warmWaitMs": 0,
+      "at": 1790165378606
+    },
+    "sameStateAgain": {
+      "tier": "laya",
+      "ms": 1,
+      "layaMs": 0,
+      "bypass": null,
+      "timedOut": false,
+      "cacheHit": true,
+      "usage": {
+        "embedded": 0,
+        "tokens_in": 0,
+        "tokens_equiv": 696,
+        "input_chars": 2286,
+        "output_chars": 434
+      },
+      "rawChars": 2227,
+      "outChars": 305,
+      "slice": [
+        "src/styles.css",
+        "server/ratelimit.js",
+        "server/mailer.js",
+        "data/workspace.json",
+        "src/components/toast.js",
+        "scripts/seed.js",
+        "src/api.js",
+        "index.html"
+      ],
+      "warmWaitMs": 0,
+      "at": 1790165378765
+    },
+    "editTurn": {
+      "tier": "laya",
+      "ms": 204,
+      "layaMs": 202,
+      "bypass": null,
+      "timedOut": false,
+      "cacheHit": false,
+      "usage": {
+        "embedded": 1,
+        "tokens_in": 14,
+        "tokens_equiv": 691,
+        "input_chars": 2244,
+        "output_chars": 438
+      },
+      "rawChars": 2227,
+      "outChars": 314,
+      "slice": [
+        "tests/server.test.js",
+        "server/store.js",
+        "server/auth.js",
+        "server/mailer.js",
+        "server/app.js",
+        "src/components/toast.js",
+        "tests/api.test.js",
+        "server/billing.js"
+      ],
+      "warmWaitMs": 0,
+      "at": 1790165379176
+    },
+    "ledgerRows": 3,
+    "workerStats": null
+  },
+  "hostAfterCrash": {
+    "state": "HOT_IDLE",
+    "loads": 1,
+    "pid": 8692,
+    "residentMB": 1994,
+    "inferences": 3
+  },
+  "failure": {
+    "workerKilled": {
+      "pid": 8692,
+      "stateAfterKill": "FAILED",
+      "run": {
+        "exit": 0,
+        "wallMs": 3210,
+        "finished": true,
+        "locate": {
+          "tier": "deterministic",
+          "ms": 8,
+          "bypass": "FAILED",
+          "timedOut": false,
+          "cacheHit": false,
+          "rawChars": 2276,
+          "outChars": 286,
+          "slice": [
+            "src/styles.css",
+            "data/workspace.json",
+            "src/api.js",
+            "server/store.js",
+            "server/http.js",
+            "server/mailer.js",
+            "src/main.js",
+            "scripts/seed.js"
+          ],
+          "warmWaitMs": 0,
+          "at": 1790165384232
+        }
+      },
+      "stateAfterRun": {
+        "state": "LOADING",
+        "loads": 2,
+        "recentFailures": 1
+      }
+    },
+    "hostKilled": {
+      "hostPid": 30404,
+      "run": {
+        "exit": 0,
+        "wallMs": 3219,
+        "finished": true,
+        "locate": {
+          "tier": "deterministic",
+          "ms": 12,
+          "bypass": "UNAVAILABLE",
+          "timedOut": false,
+          "cacheHit": false,
+          "rawChars": 2276,
+          "outChars": 286,
+          "slice": [
+            "src/styles.css",
+            "data/workspace.json",
+            "src/api.js",
+            "server/store.js",
+            "server/http.js",
+            "server/mailer.js",
+            "src/main.js",
+            "scripts/seed.js"
+          ],
+          "warmWaitMs": 0,
+          "at": 1790165388754
+        }
+      },
+      "after": {
+        "newHostPid": 26380,
+        "state": "LOADING"
+      }
+    }
+  },
+  "timeline": [
+    {
+      "t": 3610,
+      "state": "LOADING",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 99602,
+      "state": "HOT_IDLE",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 113809,
+      "state": "INFERENCING",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 118207,
+      "state": "HOT_IDLE",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 123325,
+      "state": "INFERENCING",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 123530,
+      "state": "HOT_IDLE",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 124445,
+      "state": "INFERENCING",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 124649,
+      "state": "HOT_IDLE",
+      "loads": 1,
+      "pid": 8692
+    },
+    {
+      "t": 127474,
+      "state": "FAILED",
+      "loads": 1,
+      "pid": null
+    },
+    {
+      "t": 129517,
+      "state": "LOADING",
+      "loads": 2,
+      "pid": 13440
+    },
+    {
+      "t": 133189,
+      "state": "LOADING",
+      "loads": 1,
+      "pid": 8024
+    }
+  ],
+  "hostEvents": [
+    {
+      "at": "2026-09-23T12:07:39.108Z",
+      "hostPid": 30404,
+      "hostStarted": "\\\\.\\pipe\\lain-workerhost-e881e7a34cf1",
+      "graceMs": 120000,
+      "minFreeMB": 1024
+    },
+    {
+      "at": "2026-09-23T12:07:39.151Z",
+      "hostPid": 30404,
+      "leaseStarted": 31136
+    },
+    {
+      "at": "2026-09-23T12:07:39.235Z",
+      "hostPid": 30404,
+      "leaseStarted": 2732
+    },
+    {
+      "at": "2026-09-23T12:07:39.247Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "UNLOADED",
+      "to": "LOADING",
+      "why": "first load"
+    },
+    {
+      "at": "2026-09-23T12:09:15.236Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "LOADING",
+      "to": "HOT_IDLE",
+      "loadMs": 95989
+    },
+    {
+      "at": "2026-09-23T12:09:29.434Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "HOT_IDLE",
+      "to": "INFERENCING"
+    },
+    {
+      "at": "2026-09-23T12:09:33.888Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "INFERENCING",
+      "to": "HOT_IDLE"
+    },
+    {
+      "at": "2026-09-23T12:09:34.112Z",
+      "hostPid": 30404,
+      "leaseEnded": 2732
+    },
+    {
+      "at": "2026-09-23T12:09:38.452Z",
+      "hostPid": 30404,
+      "leaseStarted": 11740
+    },
+    {
+      "at": "2026-09-23T12:09:38.600Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "HOT_IDLE",
+      "to": "INFERENCING"
+    },
+    {
+      "at": "2026-09-23T12:09:38.604Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "INFERENCING",
+      "to": "HOT_IDLE"
+    },
+    {
+      "at": "2026-09-23T12:09:38.974Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "HOT_IDLE",
+      "to": "INFERENCING"
+    },
+    {
+      "at": "2026-09-23T12:09:39.174Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "INFERENCING",
+      "to": "HOT_IDLE"
+    },
+    {
+      "at": "2026-09-23T12:09:40.124Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "HOT_IDLE",
+      "to": "INFERENCING"
+    },
+    {
+      "at": "2026-09-23T12:09:40.350Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "INFERENCING",
+      "to": "HOT_IDLE"
+    },
+    {
+      "at": "2026-09-23T12:09:43.187Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "HOT_IDLE",
+      "to": "FAILED",
+      "why": "exited 1"
+    },
+    {
+      "at": "2026-09-23T12:09:44.111Z",
+      "hostPid": 30404,
+      "leaseEnded": 11740
+    },
+    {
+      "at": "2026-09-23T12:09:44.226Z",
+      "hostPid": 30404,
+      "leaseStarted": 4596
+    },
+    {
+      "at": "2026-09-23T12:09:44.228Z",
+      "hostPid": 30404,
+      "worker": "laya",
+      "from": "FAILED",
+      "to": "LOADING",
+      "why": "reload #1"
+    },
+    {
+      "at": "2026-09-23T12:09:48.799Z",
+      "hostPid": 26380,
+      "hostStarted": "\\\\.\\pipe\\lain-workerhost-e881e7a34cf1",
+      "graceMs": 120000,
+      "minFreeMB": 1024
+    },
+    {
+      "at": "2026-09-23T12:09:48.822Z",
+      "hostPid": 26380,
+      "leaseStarted": 28076
+    },
+    {
+      "at": "2026-09-23T12:09:48.825Z",
+      "hostPid": 26380,
+      "worker": "laya",
+      "from": "UNLOADED",
+      "to": "LOADING",
+      "why": "first load"
+    },
+    {
+      "at": "2026-09-23T12:09:48.905Z",
+      "hostPid": 26380,
+      "leaseStarted": 31136
+    }
+  ]
+}

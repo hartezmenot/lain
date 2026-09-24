@@ -140,7 +140,9 @@ module.exports = async () => {
     assert.strictEqual(g.jobRows, 0, 'nothing is in the background, so it costs nothing');
     assert.strictEqual(g.panelRows, 0, 'no panel is open');
     // Everything that is left belongs to the conversation.
-    assert.strictEqual(g.headerRows + g.workspace + g.statusRows + g.inputRows, 30,
+    // + the one-row footer of live key hints under the composer (ui/footer.js).
+    assert.strictEqual(g.footerRows, 1, 'a 30-row terminal with no panel has the footer');
+    assert.strictEqual(g.headerRows + g.workspace + g.statusRows + g.inputRows + g.footerRows, 30,
       'the regions must tile the terminal exactly');
     assert.ok(g.workspace >= 20, `the conversation should get most of the screen, got ${g.workspace}`);
   });

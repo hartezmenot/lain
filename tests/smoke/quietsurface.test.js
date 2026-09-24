@@ -36,10 +36,11 @@ const NL = String.fromCharCode(10);
 function lastSurface(out) {
   const all = frames(out);
   for (let i = all.length - 1; i >= 0; i--) {
-    const rows = rowsOf(String(all[i]).split('\x1b[?1049l')[0]);
+    // The composer's `▌` edge stands where its pad space was (ui/inputbox.js): read as the pad.
+    const rows = rowsOf(String(all[i]).split('\x1b[?1049l')[0]).map((l) => l.replace(/^(\s*)▌/, '$1 '));
     if (rows.some((l) => l.includes('Ask LAIN'))) return rows;
   }
-  return lastFrameRows(out);
+  return lastFrameRows(out).map((l) => l.replace(/^(\s*)▌/, '$1 '));
 }
 
 /** A workspace with two small python files to be busy about. */
@@ -171,8 +172,9 @@ module.exports = async function () {
         assert.ok(!row.includes(glyph), 'box drawing beside the composer: ' + JSON.stringify(row));
       }
     }
-    // AND IT IS THE LAST THING ON THE SCREEN, with a row of air under the caret.
-    assert.ok(at >= rows.length - 2, 'the composer is the bottom anchor');
+    // AND ONLY AIR AND THE FOOTER'S KEY HINTS ARE UNDER IT (ui/footer.js, 2026-09-23).
+    const under = rows.slice(at + 1).filter((l) => l.trim());
+    assert.ok(under.length <= 1 && under.every((l) => /\/ commands · @ files/.test(l)), 'the composer is the bottom anchor: ' + JSON.stringify(under));
   });
 
   await test('QUIET: a diagram survives the renderer with its shape intact', async () => {

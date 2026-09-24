@@ -44,12 +44,18 @@ const WHOLE_PROJECT = /^(?:\*\*?|\.\/?|\*\*\/\*|\/)?$/;
  */
 function validate(c = {}, { parentTask = '' } = {}) {
   const role = String(c.role || '').toUpperCase();
-  if (!ROLES[role]) return { ok: false, why: `role must be one of ${Object.keys(ROLES).join(', ')}` };
   const need = ['objective', 'expectedOutput', 'verification', 'completion'];
-  for (const k of need) if (!String(c[k] || '').trim()) return { ok: false, why: `${role} contract is missing ${k}` };
   const readScope = (Array.isArray(c.readScope) ? c.readScope : []).map(String).filter(Boolean);
   const writeScope = (Array.isArray(c.writeScope) ? c.writeScope : []).map(String).filter(Boolean);
-  if (!readScope.length) return { ok: false, why: `${role} contract needs a readScope — "help with this project" is not a scope` };
+  // EVERY MISSING FIELD IN ONE REFUSAL. Naming one at a time cost a live run
+  // (gpt-oss via Ollama Cloud, 2026-09-23) six refused calls — six full
+  // flagship requests — to learn a six-field contract field by field.
+  const missing = need.filter((k) => !String(c[k] || '').trim());
+  if (!readScope.length) missing.push('readScope (the files or globs it may read — "help with this project" is not a scope)');
+  if (!ROLES[role]) {
+    return { ok: false, why: `role must be one of ${Object.keys(ROLES).join(', ')}${missing.length ? `; the contract is also missing: ${missing.join(', ')}` : ''}` };
+  }
+  if (missing.length) return { ok: false, why: `${role} contract is missing: ${missing.join(', ')}` };
   if (!ROLES[role].write && writeScope.length) return { ok: false, why: `${role} is read-only and may not hold a writeScope` };
   if (ROLES[role].write && !writeScope.length) return { ok: false, why: `${role} needs a writeScope naming the files or globs it owns` };
   const unbounded = writeScope.find((e) => WHOLE_PROJECT.test(e.trim()));
@@ -146,6 +152,8 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
   app.jobs.changed();
   const text = brief(c, { stage, of, inputs });
   let record = null;
+  // WHAT BECOMES OF THE WORKSPACE is decided by its lifecycle from this (tempworkspaces.js).
+  let fate = { failed: true, why: 'the child did not finish', candidate: null };
   try {
     if (runner) record = await runner({ contract: c, session, order, brief: text, stage });
     else {
@@ -166,6 +174,7 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
     // HARVESTED BEFORE ANY VERDICT: even a failed child's changes are a candidate
     // the main agent can inspect — never something already applied.
     const candidate = ws ? cands.harvest(app, ws, c, { role: c.role, claim: output }) : null;
+    fate = { failed: false, why: '', candidate };
     job.resultSummary = output.slice(0, 200);
     // A WORKER WHOSE TURN DID NOT END NATURALLY DID NOT FINISH. Any returned
     // record used to be DONE — a worker cut off by a provider failure, a stall,
@@ -174,18 +183,26 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
     const unfinished = (stop && stop !== 'end') ? `its turn ended ${stop}${record.providerFailure && record.providerFailure.message ? ` (${String(record.providerFailure.message).slice(0, 120)})` : ''}`
       : require('./wakeup').statesBlocker(output) ? 'it stated a blocker' : null;
     if (unfinished) {
+      fate = { failed: true, why: unfinished, candidate };
       job._finish('FAILED', { error: unfinished });
       return { ok: false, role: c.role, stage, why: `${unfinished}${output ? ` — what it said: ${output.slice(-400)}` : ''}`, mutations: ws ? [] : (record && record.mutations) || [], candidate, holder };
     }
     job._finish('SUCCEEDED', { result: record });
     return { ok: true, role: c.role, stage, output, mutations: ws ? [] : (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, candidate, holder };
   } catch (e) {
+    fate = { failed: true, why: (e && e.message) || String(e), candidate: null };
     job._finish('FAILED', { error: (e && e.message) || String(e) });
     return { ok: false, role: c.role, stage, why: (e && e.message) || String(e), holder };
   } finally {
     leases.release(holder);
-    // NO WORKSPACE OUTLIVES THE CALL, and the temporary trust goes with it.
-    if (ws) cands.dispose(ws);
+    // THE WORKSPACE BELONGS TO ITS LIFECYCLE NOW, not to this call. A child that
+    // proposed nothing is cleaned at once; a candidate waits for its resolution
+    // (integration + verification, or rejection); a failure is RETAINED as
+    // evidence. The temporary trust goes with the call either way.
+    if (ws && ws.temp) {
+      const tw = require('./tempworkspaces');
+      try { tw.candidateReady(ws.temp, fate.candidate, { failed: fate.failed, why: fate.why }); tw.attempt(ws.temp, app); } catch { /* retained: the lifecycle reconciles it at the next start */ }
+    } else if (ws) cands.dispose(ws);
     if (trust && app.cfg && Array.isArray(app.cfg.trustedPaths)) app.cfg.trustedPaths = app.cfg.trustedPaths.filter((t) => t !== trust);
     app.jobs.changed();
     // AGENT COMPLETE · Role · result — a transient operation note, then gone:
@@ -257,7 +274,7 @@ function report(out) {
   }
   const cands = out.results.filter((r) => r.candidate && r.candidate.files.length);
   if (cands.length) {
-    lines.push('', 'NOTHING WAS WRITTEN TO THE PROJECT. Each change above is a CANDIDATE built in an isolated workspace (now removed). '
+    lines.push('', 'NOTHING WAS WRITTEN TO THE PROJECT. Each change above is a CANDIDATE built in an isolated workspace (kept until the candidate is integrated and verified, or rejected). '
       + 'Inspect it, then integrate_candidate {id} (optionally only some files) — you are the integrator: wire the parts together, '
       + 'remove duplicate concepts, then run the integration test and the final smoke. A subagent pass is not a project pass.');
   }

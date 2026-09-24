@@ -249,7 +249,7 @@ async function* runTurn(session, userInput, opts = {}) {
       // promptparts.js; absent for a caller that does not split, which then
       // behaves exactly as before.
       live: [(step > 0 && typeof opts.liveContinuing === 'string' ? opts.liveContinuing : opts.live) || '', wakeNote,
-        typeof opts.sideContext === 'function' ? opts.sideContext() : ''].filter(Boolean).join('\n\n'),
+        typeof opts.sideContext === 'function' ? await opts.sideContext(step) : ''].filter(Boolean).join('\n\n'),
       cfg,
       surface: COMPACT_SURFACE,
       // The schemas are part of the payload and a tenth of it; accounting that
@@ -585,7 +585,7 @@ async function* runTurn(session, userInput, opts = {}) {
       if (cut === 'continue') { wakeNote = require('./finish').continueNote(finish); continue; } else if (cut) { record.stopReason = cut; break; }
       // AN EXECUTION TURN THAT WENT IDLE gets ONE hidden wake-up on the
       // framed tail, never a user message. See wakeup.js.
-      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution), wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd) });
+      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution), wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd), readOnly: require('./readonly').active((opts.app && opts.app.session) || session) });
       if (idle === 'wake') { record.wakeups = (record.wakeups || 0) + 1; wakeNote = require('./wakeup').noteFor(record); continue; }
       if (idle === 'no-progress') record.stopReason = 'no-progress';
       record.stopReason = record.stopReason || 'end';

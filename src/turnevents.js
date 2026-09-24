@@ -183,6 +183,7 @@ function apply(app, ev, ctx) {
 
     case 'tool_start':
       app.render.toolStart(ev.name, ev.input);
+      (ctx.startedAt = ctx.startedAt || {})[ev.id] = Date.now();   // a shell row says how long it took
       // THE PROSE THAT PRECEDED THIS CALL ENTERS THE FEED NOW, not at its result
       // (2026-09-23). The activity box quotes it while it streams; waiting for
       // the result made it vanish for the length of the call and come back —
@@ -224,6 +225,8 @@ function apply(app, ev, ctx) {
         name: ev.name,
         target: describeTarget(ev.name, ev.input),
         ok: !ev.isError,
+        exitCode: ev.exitCode == null ? null : ev.exitCode,
+        ms: ctx.startedAt && ctx.startedAt[ev.id] ? Date.now() - ctx.startedAt[ev.id] : 0,
         // ---- THE ONE FIRST-LINE RULE, NOT A SECOND COPY OF IT -----------
         //
         // This was an inline `split/map/find` — the same idea as describe.js's
@@ -235,6 +238,8 @@ function apply(app, ev, ctx) {
         // exactly as long as the turn lasted.
         note: describe.firstLine(out),
         brief: out.length <= BRIEF,
+        // The tail of a command's output, the same rule as the settled row (describe.outputTail).
+        ...(SHELL_TOOLS.has(ev.name) ? describe.outputTail(out) : {}),
         file: Boolean(ev.input && ev.input.path),
         // Whether this call's result went to the OUTPUT surface, so Context can
         // point at it instead of repeating it.

@@ -12,6 +12,156 @@ Tiers: `unit` → UNIT-VERIFIED · `integration` → INTEGRATION-VERIFIED ·
 `smoke` (spawns the real binary) → LIVE-VERIFIED · `live` (contacts a real
 provider, self-skipping) → LIVE PROVIDER VERIFIED.
 
+## Laya project readiness, persistent project index, GPT-6 Luna A/B (2026-09-24, latest)
+
+Details: `docs/WORKERS.md` §J. Evidence (gitignored): `bench/out/readonly-diagnostic/luna-*`,
+`bench/out/laya-index/`, `compare-luna-control-vs-luna-laya.json`.
+
+| Item | What / owner | Tests | Label |
+|---|---|---|---|
+| Laya hot but 0 inferences: the ranking embedded the whole project inside the 2 s task deadline | `src/layaindex.js` (items, content+text keying, plan, store, cosine) + `src/workerhostmain.js` (per-project index state ABSENT/BUILDING/READY/STALE_PARTIAL/FAILED, background build at attach, `rank_project` = query embedding only, bypass while building, refresh after the answer) + adapter `embed` op and embedding identity | `layaindex` ×8 (real host, fake Laya) | UNIT |
+| Index persisted per project in `<LAIN home>/workercache/laya/`, never the project | restore 2 ms / 0 embedded on reopen; 1 file edited → 1 re-embed; deleted file removed; rename re-embeds; changed identity or tampered vectors rejected; read-only project byte-identical | `layaindex`; real model: `bench/readonly-diagnostic/laya-index.js` | UNIT + LIVE (local model) |
+| `/workers status`: model state, project index state/progress, generation, last build, ready for task | `src/workerscommand.js` | — | built |
+| Lexical fallback ranked tests first | `src/locateassist.js`: intent text without negations, query tf, project name ignored, test/docs/config priors, layer prior, one-hop imports, 40 bounded candidates | `layaindex`, `workerhost`, `specialistworkers` | UNIT |
+| No Responses API; effort could not reach a route with no catalog variants | `src/responsesapi.js`, `protocol: 'responses'`, `reasoning.effort`, cache writes and the SERVED effort from the receipt | `responsesapi` ×4; live smoke (2 requests) | UNIT + LIVE PROVIDER |
+| CONTROL vs LAYA, `cx/gpt-6-luna` via 9router, Responses, effort max (the route serves max whatever is asked), n=1 each | both complete, trace 7/7, zero mutations; LAYA valid (1 real inference, 297 ms); LAYA: input +22.1 %, uncached −2.6 %, output +32.8 %, calls 14→17, cost $0.0347→$0.0412 (+18.7 %), wall +47 %; slice held 4 of 15 needed files | `compare.js` | LIVE PROVIDER (EXPLORATORY) |
+
+Verdict: infrastructure PASS; observed Laya effect WORSE (n=1); Laya stays
+REJECT for automatic use. ~76 GPT-6 Luna requests, 40 of them a CONTROL run
+lost to the harness's own timeout (INVALID, kept).
+
+Tests on the final code: unit 3,294/0 · integration 216/0 · workflow 4/0 ·
+CLI smoke 498/2 on the full pass — `interrupt` (a timing test; the pass ran
+while the LAYA arm loaded Laya on the same CPU) and `workerhost-cli` (its fake
+Laya spoke the old adapter protocol; fixture updated) — both files then 4/4,
+run twice. No Harness source or Harness-read contract changed; Harness smoke
+not run.
+
+## Toralink read-only failure — ownership proven on the wire, fixed at the owners (2026-09-24)
+
+A pasted "READ-ONLY PROJECT INSPECTION" brief ended in "I'm unable to fulfill
+this request because it requires making code changes". Method: a logging proxy
+in front of LainRouter (raw router bytes vs LAIN's normalized and executed
+calls), four isolation cases with the exact prompt on hashed project copies,
+and a canned zero-quota capture of the assembled request. Kit:
+`bench/readonly-diagnostic/`; evidence (gitignored): `bench/out/readonly-diagnostic/2026-09-24/`.
+
+| Case (pre-fix) | Route | Req | Result |
+|---|---|---|---|
+| A workers OFF | gpt-oss:120b / LainRouter | 10 | IMPLEMENT framing; model: "the latest message asks for an implementation change" → ends asking what to implement |
+| B Laya+Violetto registered, 0 inference | same | 4 | refusal, nearly verbatim the original |
+| C Laya forced (hot) | same | 13 | Laya invoked 1×, 0 inferences (2 s deadline, cold index → deterministic tier); wake-up "the request asks for a change… make the change" → refusal |
+| D workers OFF | claude-haiku-4.5 / LainRouter | 3 | same conflict, named by the model: "the later `<lain-context>`" |
+
+RAW = NORMALIZED on all 85 calls of the six live runs (the one textual
+difference: an empty argument string `""` read as `{}`). LainRouter passes bodies through
+(model alias only) and relays SSE frames verbatim; LAIN's adapter altered no
+name or argument. Registered-but-idle workers changed no instruction: the
+request diff (A vs B) is only the `geometry_specialist` schema (+733 chars) and
+the locate shortlist (lexical fallback; it ranked tests above `App.tsx`/`api.ts`).
+
+| Symptom | Raw origin | Owner | Fix | Tests |
+|---|---|---|---|---|
+| Read-only brief framed "This is an implementation request … Final smoke: npm test" | LAIN | `mode.js`: a paste with no task to join inherited `activeMode ‖ IMPLEMENT` | a paste that STARTS a task is classified by its words (`joinsActiveTask`); an explicit declaration (`declaresReadOnly`, clause-bounded) forces a read-only mode | `readonly`, `mode` | 
+| Wake-up "the request asks for a change" | LAIN | `wakeup.js`: `NEGATED` stopped at the newline, so every item under "Do not:" read as a request | negated LISTS stripped; a declared read-only task is decided whole: its report ends it; silence or a "cannot modify code" refusal gets one wake-up saying no change was requested | `readonly` |
+| Read-only was prompt text only | LAIN | no mask existed | `src/readonly.js`: task-scoped CAPABILITY MASK — writers not offered, writes / non-inspecting shell / `architecture declare`, `wiring connect`, `concept define`, `scratch promote`, `delegate` refused at `tools.execute` ("refuses the WRITE, not the task"); lifted only by a typed request for a change; persisted with the session | `readonly`, `readonly-task` |
+| `.lain/` written during read-only work (task records, index, scratch; empty `architecture/skeleton.json` at 00:47) | LAIN | every `.lain` writer | `lainstore.hold`: while the mask is on, every `.lain` door returns its read-only-checkout answer (store, index, scratch → memory, schema, harness records); no task record opened | `readonly` |
+| "No declared architecture" read as none | LAIN | no project-state fact | `projectcache.state`: EMPTY / EXISTING_UNINDEXED / EXISTING_INDEXED in the grounding block; `{"nodes":{}}` counts as nothing recorded | `readonly` |
+| `list_dir web` → ENOTDIR | model (root listing showed `web`, a file) | LAIN recovery | "web is a FILE (4,151 bytes) … read it with read_file" | `readonly` |
+| `print_tree` ×2; `functions/grep`, `functions/symbols`; `search {query}` | model (raw bytes) | LAIN recovery | `src/toolalias.js`: foreign namespace stripped when the rest is ours; `print_tree` → bounded recursive `list_dir`; `open_file` → `read_file`; `search` → `grep` with the query ESCAPED. Nothing fuzzier. The catalogue is sent once per turn | `readonly` |
+| `SearchView\.tsx` | not reproduced in 6 live runs; the recorded run's argument was `SearchView.tsx` (the tool echoes its input) | LAIN recovery | a missing path reports the nearest existing folder's real entries; a regex escape is REPORTED with the literal file (only if it exists), never rewritten | `readonly` |
+
+**Acceptance (fixed code, same pasted prompt, gpt-oss:120b, no step cap):** 30
+requests (811,731 in · 772,864 cached · 38,867 uncached · 8,478 out), AUDIT /
+PROJECT_DIAGNOSTIC, mask READ_ONLY, 29 calls, `stop=end`, 0 wake-ups; the
+13.5k-char report traces App.tsx `runSearch` → `api.search` → `/api/search` →
+`searchTorrents` → `searchAll` → `SearchView` → `download`. Project copy
+byte-identical afterwards, `.lain/` included. `web` was listed once and not
+again; `run_tests` refused and the run continued. Laya/Violetto: not enabled
+(the person's `workers.policy` is `off`), 0 calls. Earlier fixed run with a
+28-step cap stopped at the cap, before its report (the cap was the
+diagnostic's; LAIN's default is unbounded). Real Toralink: 161 files unchanged.
+
+Spend: 88 live requests (gpt-oss 85, Haiku 3) + 5 canned (0 quota).
+
+Tests on the final code: unit 3,269/0 (new `readonly` ×11) · integration 216/0
+(new `readonly-task` ×2: the pasted brief through the real turn loop with the
+mock provider) · workflow 7/0 · CLI smoke 500/0 (real TTY, `LAIN_TTY_PYTHON`).
+Harness source and every contract it reads are unchanged; Harness smoke not run.
+
+Not changed, stated: `grep` still answers an invalid regex (`search(`) with the
+engine's error, by design; the AUDIT guidance's own report outline competes
+with a brief's requested format (the acceptance report used LAIN's headings);
+the lexical locate shortlist ranked the wrong files for this brief, and Laya
+cannot rank a cold project index inside its 2 s deadline — worker quality was
+out of scope here.
+
+## Hot-idle worker host, Ollama Cloud route, A/B v3 (2026-09-23)
+
+Details: `docs/WORKERS.md` §I.
+
+| Item | What / owner | Regression | Evidence |
+|---|---|---|---|
+| Laya lived inside each LAIN process; the first turn WAITED for its cold load (up to 90 s, measured 32 s and 85 s) | `src/workerhost.js` + `src/workerhostmain.js`: a detached, LAIN-owned host per home on a named pipe (no port). States UNLOADED/LOADING/HOT_IDLE/INFERENCING/FAILED/UNLOADING. Lease/grace, memory-pressure and bounded-restart policy; events log | `workerhost` ×10 (fake worker) | UNIT |
+| FAST: a loading worker lengthened the turn | `workerruntime.call`: 100 ms availability deadline, then BYPASS (also for UNLOADED/FAILED/unreachable host) and a load for the next decision. 2 s deadline for a warm Laya ranking. The 90 s wait in `locateassist.take` removed. Same rule in-process (`LAIN_WORKERHOST=off`) and in `geometry_specialist` | `workerhost`, `workerhost-cli` (real binary, 30 s fake load: run not delayed; next process served hot) | UNIT + LIVE |
+| Hot-idle acceptance, real Laya | prompt usable at 3.2 s (same as Laya off); HOT_IDLE at 30.7 s; request while LOADING bypassed in 102 ms; new process served in 7 ms; result cache 0 inferences, invalidated by an edit; survives a LAIN crash; worker or host killed → run finishes, bounded restart | `bench/specialist-workers/hotidle.js` | REAL TTY (mock flagship) |
+| Per-turn shortlist memo keyed by words only: a later turn with the same words got a stale slice | memo keyed by the turn (user-message count); step-0 replays reuse it | `specialistworkers` | UNIT |
+| Ollama Cloud gpt-oss:120b via LainRouter | provider 47 `ollama-cloud · lain` pinned. Streaming, tools, continuation and large tool arguments ✓; structured output ignored; `reasoning_effort` refused by LainRouter; subagent SUPPORTED; LainRouter adds ~16 s per request (not LAIN) | `bench/specialist-workers/ollama-route.js` (21 requests) | LIVE PROVIDER |
+| "Cache not reported" was recorded as 0 | `cacheReported` on receipts; `reqtrace` omits cache figures when not reported; `reqtrace.sized` records message and tool-schema chars under `LAIN_REQTRACE` | unit (promptcache/reqtrace/provider) | UNIT + LIVE |
+| Delegate contract refused one missing field per round trip (6 requests live) | `subagents.validate` names every missing field at once | `subagents` | UNIT |
+| `grep` include written from the project root matched nothing under a narrower `path` (9× in one live run) | `tools/search.js` `inScope`: either reading of the glob | `search` | UNIT + LIVE |
+| An empty closing reply ended a fix turn as success after an early passing check | `wakeup.decide`: an empty reply on a change request gets the one wake-up, then `no-progress` | `wakeupbg` | UNIT |
+| read_file's line-number gutter copied into `expect`/`old` (27/27 patches rejected in one live run) | `tools/gutter.js` used by `apply_patch` and `edit_file`; `edit_file` `$`-pattern write-back fixed | `edittools` | UNIT |
+| A/B v3 runner | three arms on one route; warm protocol (cold load recorded apart, embedding memo cleared, index warmed on a twin copy); hard validity (tests, browser, final smoke, route, step cap, cache leak); cached/uncached/output/cost per arm; worker pools apart | `--mock` | measured |
+| A/B v3 pass 3 (gpt-oss:120b, n=1/arm) | 0 valid runs: every arm hit 58 steps; CONTROL 1.33M in / $0.044 · LAYA 1.38M / $0.052 (0 of 27 patches applied: gutter) · LAYA+VIOLETTO 1.47M / $0.049 (Violetto AVAILABLE, NOT INVOKED) | — | LIVE PROVIDER (EXPLORATORY) |
+| Live runner inherited the tests' 1 ms retry backoff (a 16 s router restart burned 10 retries in ~30 ms, pass 4) | `ab.js` passes `LAIN_BACKOFF_MS=''` (LAIN's real schedule); requests with no usage counted apart (`flagship.js`) | pass 5 survived `fetch failed` and `terminated` | LIVE PROVIDER |
+| A/B v3 pass 5 (all fixes, n=1/arm) | 0 valid runs: every arm hit its step budget and none checked a browser. CONTROL 1.30M in / 95.4% cached / $0.042, 9/31 · LAYA 1.46M / $0.057, 16/31 (slice named 3 of 15 files used; top pick a distractor) · LAYA+VIOLETTO 1.41M / $0.051, 14/31 (Violetto NOT INVOKED). Fixes engaged live: 4 gutter repairs, 1 empty-reply wake | — | LIVE PROVIDER (EXPLORATORY) |
+| Final CLI verification on the final code | unit 3,258/0 · workflow 4/0 · CLI smoke 500/0 (real TTY, `LAIN_TTY_PYTHON`). No Harness source changed and no contract the Harness reads, so Harness smoke was not run | — | UNIT + LIVE + REAL TTY |
+
+## Temp-workspace lifecycle, specialist A/B v2, cache and token accounting (2026-09-23)
+
+Details: `docs/CLI.md` §6–7 (workspaces), `docs/WORKERS.md` §H (experiment).
+
+| Item | What / owner | Regression | Evidence |
+|---|---|---|---|
+| Temp workspaces were deleted unconditionally at the end of every delegate/A-B call, even on failure | `src/tempworkspaces.js` (Core) owns them: registered at creation, durable states, removal only when every condition is proven (resolved, integrated with a receipt, targeted test after integration, final smoke after the last change, not in use), then a receipt; failures retained; `reconcile` at start; hard path guard | `tempworkspaces` ×10 with real git: success, failure, conflict, busy job/process, crash before and after removal, rejection / nothing proposed, orphan / unknown, path guard, A/B | UNIT |
+| Explicit candidate rejection | `integrate_candidate {reject}` → `candidates.reject` (record archived; lifecycle decides removal) | same | UNIT |
+| `/workspaces [clean <id>\|reconcile]` | diagnostic; the person's removal of a retained workspace | — | UNIT (purge path) |
+| Violetto wired, experiment-only | llama-server runtime in `workerruntime.js`; `geometry_specialist` tool offered only when forced on | `specialistworkers` (gating) | LIVE (cache bench, A/B) |
+| Worker result cache (C), kept apart from residency (B) | `workerruntime.call` `cacheKey`; stats per worker (cold load, tree memory, warm ms, tokens, hits/misses) persisted as `session.workerStats` | `specialistworkers` (fake worker: zero inference on a hit, re-evaluation on a new state) | UNIT + measured |
+| Found by the new isolation check: its comment-stripping regex treated `http://` as a comment, making a URL check vacuous | the strip spares `://` and the test asserts it sees the loopback URL | same | UNIT |
+| Laya tokenizer counts | adapter reports `tokens_in` (what ran) and `tokens_equiv` (the whole request) with the model's own tokenizer | cache bench | measured |
+| Benchmark budgets | `ab.js` v2: per-arm 40 and global 120 budgets, LAIN's step cap per run, no retries, stop on route failure or limit, route-consistency check, `--mock` for zero-quota plumbing | mock A/B (4 arms valid) | measured |
+| Found by the full CLI tier: `WS: activity shows…` failed on every run at 30 rows | The footer row plus a three-row `/exit` notice (the scripted `/exit` lands during the final-smoke continuation) pushed the first narration above the fold. The test now uses 40 rows; nothing was missing from the account | `workspace` 3/3 | REAL TTY |
+| Found while running the tiers: unit tests left 32 retained workspaces in the real `%TEMP%\lain-workspaces`. Their registries lived in throwaway config homes, so the directories were unregistered and never cleaned | `tests/run.js` gives every run its own `LAIN_TEMP_ROOT`, and `runCli` gives every spawned LAIN one inside its test home. The 32 leftovers were removed | unit re-run: 0 directories in the default root | UNIT |
+| Found by full CLI runs (the overlay Esc-timing test failed under load twice): the specialist gate did disk work on the hot path. `tools.active` → `uses()` → `info()` re-read the manifest and ran `existsSync` against the model store on `E:\` on every tool lookup and at every session adopt | manifest cached for 5 s and existence checks for 30 s; `uses()` answers from the switches and recorded gates before any disk access. Default LAIN now makes **0** `E:\` accesses (instrumented: startup, 20 tool lookups, prewarm) | `specialistworkers` | UNIT + instrumented |
+| A/B v2 (`kr/claude-sonnet-4.5`, n=1 per arm) | CONTROL 16 calls / 572K in · LAYA 8 / 256K (but no tests or browser check run) · VIOLETTO 24 / 919K (the tool was never called) · combined not run; 49 requests | — | LIVE PROVIDER (EXPLORATORY) |
+
+## Relocation, Harness separation, specialist lab, CLI UX (2026-09-23, later)
+
+Details: `docs/LAYOUT.md` (where things live), `docs/WORKERS.md` §G
+(specialists, gates, A/B), `docs/CLI.md` §1.1 (palette, split Diff, command
+rows, footer).
+
+| Item | What / owner | Regression | Evidence |
+|---|---|---|---|
+| Canonical repo moved to `D:\lain` | moved with `.git` (same history, HEAD `90d0a50`); npm junction, Desktop `launch.json` and the trusted path switched over (config backed up); old checkout holds only `MOVED.txt` | distribution 48/48 (`hostEnv` fixed a `:`-separated fake PATH) | LIVE (supervisor executable path checked via `Win32_Process`) |
+| Harness separated to `D:\lain-harness` | `page/`, `native/host.cs`, `native/vendor.js` moved; Core keeps routes/state/IPC/build; `src/harnesslocation.js` contract 1 | harness tier, `desktop-real` | UNIT + LIVE (host built from the Harness source, page served by Core) |
+| Model store outside git | `E:\AI\models` (weights), `E:\AI\runtime` (venv, patched llama.cpp); `workers/manifest.json` = identity + gates + verdict | `specialistworkers` manifest | measured (sha256 verified) |
+| Specialists as optional capabilities | `src/workerruntime.js` (warm process, bounded call, null on failure, stopped at teardown); `/workers status\|auto\|off\|locate\|laya` (`src/workerscommand.js`) | `specialistworkers` ×8 (switches, broken runtime → null, isolation grep) | UNIT |
+| Found by the new test: a runtime that is not an executable threw `spawn EFTYPE` into the caller | `spawn` wrapped; the worker is null | same | UNIT |
+| Laya | adapter `workers/laya/server.py`; file gate FAIL (fused hit@8 0.667 < lexical 0.708; 13/24 confidently wrong); UI gate FAIL (inconclusive) | gates in `bench/specialist-workers/locate` | measured |
+| Violetto | built and run locally; 3/6 geometry cases within ±0.5 px vs a deterministic solver at 6/6; about 228 s per answer | `geometry/run.js` | measured |
+| Jev | EXCLUDED: hosted, proprietary, 403/402 here | manifest | — |
+| Locate shortlist (`src/locateassist.js`) | deterministic tail section, false narrowing measured at turn close; **opt-in** because the A/B measured no saving | `specialistworkers` | UNIT |
+| A/B bench (`bench/specialist-workers`) | fixture with 24 hidden checks, final smoke in Edge, reset/snapshot/request budget, recruitment reports | reference 24/24, baseline 5/24 | LIVE PROVIDER (partial: n=2 CONTROL, n=1 per specialist; Kiro quota exhausted; see WORKERS §G.4) |
+| Found live: `kr/claude-haiku-4.5` returns HTTP 200 with a 0-byte body for some conversations (deterministic, content-dependent) | router/upstream defect; LAIN's empty-response handling is correct | — | wire capture + replay |
+| CLI palette, split Diff, violet activity, blue composer edge | `src/ui/palette.js`, `panes.diffSplit`, `activitybox`, `inputbox` | `closure-cli` U1/U2 | REAL TTY |
+| Command rows with output tail | `›` + last 4 lines + `(N earlier lines)` + `Command completed in … · exit code …` (`ui/shellrow.js`, `describe.outputTail`) | `cliux` ×2, `closure-cli` U3 | UNIT + REAL TTY |
+| Found by U3: folding counted rows, so one command with output was folded to `✓ ran` | `ui/compact.js` counts calls (a row with a verb plus its detail rows) | U3 | REAL TTY |
+| Restrained footer of live key hints | `src/ui/footer.js`, `geometry.footerRows` (hidden with a panel open or under 20 rows) | `cliux` ×2, `resize`, `onesurface`, `ui`, U3 | UNIT + REAL TTY |
+| Found by the full CLI tier: 24 real-terminal assertions still assumed the old surface | The earlier palette pass was verified on a subset, and these were missed. Fixed in the tests, not the product: the composer's `▌` edge stands in its pad cell (text column unchanged), so the helpers read it as padding; the frames checks take their codes from `ui/palette.js` (truecolor or 256); the "bottom anchor" checks allow the footer under the composer; loose `/commands/i` and `sleep 3` frame filters now select by the panel title / live row | inputux, multiline, paste-literal, quietsurface, frames, geometry-rails, ghoststate | REAL TTY |
+
 ## Stabilization, specialist workers, subagent isolation, CLI closure (2026-09-23)
 
 Worker architecture, contracts, the recruitment gate and its measurements are

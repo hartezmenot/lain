@@ -1,0 +1,1048 @@
+{
+  "summary": {
+    "at": "2026-09-23T00:38:10.368Z",
+    "root": "D:\\lain",
+    "prefix": "src/",
+    "items": 451,
+    "layaLoadMs": 85945,
+    "layaFirstEmbedMs": 65636,
+    "all": {
+      "lexical": {
+        "n": 24,
+        "hit@1": 0.458,
+        "hit@5": 0.667,
+        "hit@8": 0.708,
+        "mrr": 0.56,
+        "medianMs": 6
+      },
+      "laya-cos": {
+        "n": 24,
+        "hit@1": 0,
+        "hit@5": 0.083,
+        "hit@8": 0.083,
+        "mrr": 0.043,
+        "medianMs": 165
+      },
+      "laya-choice": {
+        "n": 24,
+        "hit@1": 0.083,
+        "hit@5": 0.083,
+        "hit@8": 0.083,
+        "mrr": 0.083,
+        "medianMs": 594
+      },
+      "fused": {
+        "n": 24,
+        "hit@1": 0.417,
+        "hit@5": 0.625,
+        "hit@8": 0.667,
+        "mrr": 0.49,
+        "medianMs": 10
+      }
+    },
+    "lexicalQueries": {
+      "lexical": {
+        "n": 12,
+        "hit@1": 0.833,
+        "hit@5": 0.917,
+        "hit@8": 0.917,
+        "mrr": 0.879,
+        "medianMs": 6
+      },
+      "laya-cos": {
+        "n": 12,
+        "hit@1": 0,
+        "hit@5": 0.167,
+        "hit@8": 0.167,
+        "mrr": 0.063,
+        "medianMs": 139
+      },
+      "laya-choice": {
+        "n": 12,
+        "hit@1": 0.167,
+        "hit@5": 0.167,
+        "hit@8": 0.167,
+        "mrr": 0.167,
+        "medianMs": 571
+      },
+      "fused": {
+        "n": 12,
+        "hit@1": 0.75,
+        "hit@5": 0.917,
+        "hit@8": 0.917,
+        "mrr": 0.819,
+        "medianMs": 10
+      }
+    },
+    "paraphrase": {
+      "lexical": {
+        "n": 12,
+        "hit@1": 0.083,
+        "hit@5": 0.417,
+        "hit@8": 0.5,
+        "mrr": 0.242,
+        "medianMs": 6
+      },
+      "laya-cos": {
+        "n": 12,
+        "hit@1": 0,
+        "hit@5": 0,
+        "hit@8": 0,
+        "mrr": 0.024,
+        "medianMs": 171
+      },
+      "laya-choice": {
+        "n": 12,
+        "hit@1": 0,
+        "hit@5": 0,
+        "hit@8": 0,
+        "mrr": 0,
+        "medianMs": 614
+      },
+      "fused": {
+        "n": 12,
+        "hit@1": 0.083,
+        "hit@5": 0.333,
+        "hit@8": 0.417,
+        "mrr": 0.161,
+        "medianMs": 9
+      }
+    },
+    "choiceConfidentWrong": 13
+  },
+  "rows": [
+    {
+      "q": "rate limit backoff after a 429 from the provider",
+      "kind": "lexical",
+      "targets": [
+        "src/ratelimit.js",
+        "src/backoff.js",
+        "src/providerlimits.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 10
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 205
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 2298,
+        "abstain": false,
+        "top": 0.9258
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 12,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "side by side split diff rendering",
+      "kind": "lexical",
+      "targets": [
+        "src/ui/panes.js",
+        "src/ui/turnsections.js"
+      ],
+      "lexical": {
+        "rank": 20,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 167
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 594,
+        "abstain": false,
+        "top": 0.4209
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 10,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "colour palette tokens and truecolor detection",
+      "kind": "lexical",
+      "targets": [
+        "src/ui/palette.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 195
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 571,
+        "abstain": false,
+        "top": 0.591
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 12,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "git working tree snapshot prefetch",
+      "kind": "lexical",
+      "targets": [
+        "src/gitsnapshot.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 8
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 154
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 646,
+        "abstain": true,
+        "top": 0.2631
+      },
+      "fused": {
+        "rank": 2,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 11,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "shell command row with exit code",
+      "kind": "lexical",
+      "targets": [
+        "src/ui/shellrow.js"
+      ],
+      "lexical": {
+        "rank": 2,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 7
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 181
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 615,
+        "abstain": false,
+        "top": 0.8124
+      },
+      "fused": {
+        "rank": 3,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 10,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "where the harness package location is resolved",
+      "kind": "lexical",
+      "targets": [
+        "src/harnesslocation.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 139
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 563,
+        "abstain": false,
+        "top": 0.9236
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the /goal command",
+      "kind": "lexical",
+      "targets": [
+        "src/goalcommand.js",
+        "src/goal.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": 4,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 128
+      },
+      "laya-choice": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 547,
+        "abstain": false,
+        "top": 0.9999
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 8,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "provider failover between connections",
+      "kind": "lexical",
+      "targets": [
+        "src/failover.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 133
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 553,
+        "abstain": true,
+        "top": 0.1796
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 11,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "redact secrets",
+      "kind": "lexical",
+      "targets": [
+        "src/redact.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 137
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 584,
+        "abstain": true,
+        "top": 0.2303
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "folder trust prompt",
+      "kind": "lexical",
+      "targets": [
+        "src/trust.js",
+        "src/trustask.js",
+        "src/trustcommand.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": 2,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 128
+      },
+      "laya-choice": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 566,
+        "abstain": false,
+        "top": 0.53
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 10,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the activity box",
+      "kind": "lexical",
+      "targets": [
+        "src/ui/activitybox.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 139
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 569,
+        "abstain": false,
+        "top": 0.6727
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 12,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "final smoke before finishing",
+      "kind": "lexical",
+      "targets": [
+        "src/finalsmoke.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 128
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 559,
+        "abstain": false,
+        "top": 0.8095
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 10,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "when the API says slow down, wait before trying again",
+      "kind": "paraphrase",
+      "targets": [
+        "src/ratelimit.js",
+        "src/backoff.js",
+        "src/providerlimits.js"
+      ],
+      "lexical": {
+        "rank": 2,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": 29,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 171
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 628,
+        "abstain": false,
+        "top": 0.7385
+      },
+      "fused": {
+        "rank": 3,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 12,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "hide API keys and passwords before they are printed or logged",
+      "kind": "paraphrase",
+      "targets": [
+        "src/redact.js"
+      ],
+      "lexical": {
+        "rank": 45,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": 35,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 179
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 634,
+        "abstain": false,
+        "top": 0.8276
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 11,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the model keeps calling the same tool over and over",
+      "kind": "paraphrase",
+      "targets": [
+        "src/looping.js"
+      ],
+      "lexical": {
+        "rank": 67,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 7
+      },
+      "laya-cos": {
+        "rank": 22,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 180
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 614,
+        "abstain": false,
+        "top": 0.5044
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "put the files back the way they were before the last edit",
+      "kind": "paraphrase",
+      "targets": [
+        "src/undo.js",
+        "src/checkpoint.js"
+      ],
+      "lexical": {
+        "rank": 58,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 177
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 579,
+        "abstain": false,
+        "top": 0.4134
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the text box at the bottom where the person types",
+      "kind": "paraphrase",
+      "targets": [
+        "src/ui/inputbox.js",
+        "src/lineedit.js"
+      ],
+      "lexical": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 162
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 586,
+        "abstain": false,
+        "top": 0.5821
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "talking to LAIN from a phone messenger",
+      "kind": "paraphrase",
+      "targets": [
+        "src/botcommand.js",
+        "src/botconnect.js",
+        "src/bot/telegram.js",
+        "src/bot/service.js"
+      ],
+      "lexical": {
+        "rank": 12,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 142
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 594,
+        "abstain": false,
+        "top": 0.6807
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "turning raw terminal escape bytes into key presses",
+      "kind": "paraphrase",
+      "targets": [
+        "src/keydecode.js",
+        "src/heldkeys.js"
+      ],
+      "lexical": {
+        "rank": 2,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": 18,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 149
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 586,
+        "abstain": false,
+        "top": 0.4999
+      },
+      "fused": {
+        "rank": 4,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the conversation got too long for the model, shrink it",
+      "kind": "paraphrase",
+      "targets": [
+        "src/contextfit.js",
+        "src/compactcommand.js",
+        "src/msgfold.js"
+      ],
+      "lexical": {
+        "rank": 6,
+        "hit1": false,
+        "hit5": false,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": 14,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 162
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 617,
+        "abstain": false,
+        "top": 0.3833
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 10,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "which colours the red and green lines of a change use",
+      "kind": "paraphrase",
+      "targets": [
+        "src/ui/panes.js",
+        "src/ui/paint.js",
+        "src/ui/palette.js"
+      ],
+      "lexical": {
+        "rank": 3,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 167
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 623,
+        "abstain": true,
+        "top": 0.3179
+      },
+      "fused": {
+        "rank": 5,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 11,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "how long a command took and whether it succeeded, shown after it runs",
+      "kind": "paraphrase",
+      "targets": [
+        "src/ui/shellrow.js"
+      ],
+      "lexical": {
+        "rank": 74,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 6
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 178
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 611,
+        "abstain": false,
+        "top": 0.9924
+      },
+      "fused": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 9,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "the web page you open in a browser to watch LAIN, and its login",
+      "kind": "paraphrase",
+      "targets": [
+        "src/dash.js",
+        "src/dashauth.js",
+        "src/dashpage.js"
+      ],
+      "lexical": {
+        "rank": 4,
+        "hit1": false,
+        "hit5": true,
+        "hit8": true,
+        "ms": 7
+      },
+      "laya-cos": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 165
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 627,
+        "abstain": false,
+        "top": 0.6952
+      },
+      "fused": {
+        "rank": 7,
+        "hit1": false,
+        "hit5": false,
+        "hit8": true,
+        "ms": 11,
+        "by": "laya"
+      }
+    },
+    {
+      "q": "what the tokens in each request cost and where they went",
+      "kind": "paraphrase",
+      "targets": [
+        "src/tokenaudit.js",
+        "src/tokencommand.js"
+      ],
+      "lexical": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 5
+      },
+      "laya-cos": {
+        "rank": 18,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 173
+      },
+      "laya-choice": {
+        "rank": null,
+        "hit1": false,
+        "hit5": false,
+        "hit8": false,
+        "ms": 614,
+        "abstain": false,
+        "top": 0.4508
+      },
+      "fused": {
+        "rank": 1,
+        "hit1": true,
+        "hit5": true,
+        "hit8": true,
+        "ms": 9,
+        "by": "laya"
+      }
+    }
+  ]
+}

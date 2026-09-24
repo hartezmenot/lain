@@ -47,7 +47,33 @@ const NEEDS_ACTION_WORDS = new Set(['PROJECT_IMPLEMENTATION', 'PROJECT_DIAGNOSTI
  * 2026-09-18). The negated clause is removed before looking for an action.
  */
 const NEGATED = /\b(?:do\s+not|don'?t|dont|never|without|avoid|no\s+need\s+to|must\s+not|mustn'?t|shouldn'?t|should\s+not)\b[^.,;!?\n]*/gi;
-function asksForAction(text) { return ACTION_RE.test(String(text || '').replace(NEGATED, ' ')); }
+/**
+ * …AND A NEGATED LIST IS A LIST OF CONSTRAINTS. "Do not:" on its own line,
+ * then "- fix findings / - add tests / - change backend", is one prohibition
+ * spread over lines, and the clause rule above stopped at the newline — so
+ * every item read as a request (Toralink, 2026-09-24: a read-only brief was
+ * woken with "the request asks for a change… make the change"). The items under
+ * a negation header are removed with it, up to the blank line that ends them.
+ */
+const NEGATION_HEADER = /^\W{0,3}(?:do\s+not|don'?t|dont|never|avoid|must\s+not|mustn'?t|should\s+not|shouldn'?t)\b[^.!?\n]{0,60}:\s*$/i;
+const LIST_ITEM = /^(?:[-*•+]|\d+[.)])\s+/;
+function stripNegated(text) {
+  const out = [];
+  let inList = false;
+  let items = 0;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const t = line.trim();
+    if (inList) {
+      if (!t) { if (items) inList = false; out.push(''); continue; }
+      if (LIST_ITEM.test(t)) { items += 1; out.push(''); continue; }
+      inList = false;
+    }
+    if (NEGATION_HEADER.test(t)) { inList = true; items = 0; out.push(''); continue; }
+    out.push(line);
+  }
+  return out.join('\n').replace(NEGATED, ' ');
+}
+function asksForAction(text) { return ACTION_RE.test(stripNegated(text)); }
 
 const NOTE = '# Runtime state\n'
   + 'The current task is still pending. The last step produced text only: no tool call, no change, '
@@ -66,8 +92,19 @@ function requiresExecution({ taskClass = null, execMode = 'AUTO', readOnly = fal
  * What to do when a step ends with no tool calls.
  * @returns {'wake'|'no-progress'|null}
  */
-function decide(record, text, { required = false, wakeups = 0, cls = null, smoke = null } = {}) {
+function decide(record, text, { required = false, wakeups = 0, cls = null, smoke = null, readOnly = false } = {}) {
   if (!required || !record) return null;
+  // A DECLARED READ-ONLY TASK (readonly.js) is decided here, whole: it ends
+  // with its REPORT (or a named gap) — never with silence, and never with "I
+  // cannot do this because I cannot modify code", since nobody asked it to
+  // modify anything (Toralink, 2026-09-24). Either gets ONE wake-up saying so;
+  // any other answer is the report, and the turn ends.
+  if (readOnly) {
+    const said = String(text || record.text || '').trim();
+    if (said && !REFUSES_FOR_WRITES.test(said)) return null;
+    record.wakeFor = said ? 'readonly-refusal' : 'report';
+    return wakeups < MAX_WAKEUPS ? 'wake' : 'no-progress';
+  }
   // The request that started THIS turn must itself ask for action (see ACTION_RE).
   if ((cls === null || NEEDS_ACTION_WORDS.has(cls)) && record.userInput != null && !asksForAction(record.userInput)) return null;
   if ((record.mutations || []).length) {
@@ -94,15 +131,31 @@ function decide(record, text, { required = false, wakeups = 0, cls = null, smoke
   // ends the turn; reads do not.
   const wantsChange = (cls === null || cls === 'PROJECT_IMPLEMENTATION') && record.userInput != null && asksForChange(record.userInput);
   const checked = (record.actions || []).some(isPassingCheck);
-  if (record.toolCalls > 0 && (!wantsChange || checked)) return null;
   const said = String(text || record.text || '').trim();
+  // AN EMPTY CLOSING REPLY IS NOT AN ANSWER. Live, 2026-09-23 (gpt-oss:120b via
+  // Ollama Cloud): "Fix all of them" → the untouched project's own tests pass
+  // at step 5 → fifteen reads → a last step of 872 reasoning tokens ending
+  // "Let's inspect src/styles.css." with NO text and NO tool call. The early
+  // passing check excused the turn, which ended as a success with nothing
+  // changed and nothing said. A check run before the work is not proof that
+  // no change was needed when the turn never says so; an empty reply on a
+  // change request gets the one wake-up, and a second one is no-progress.
+  if (!said && wantsChange) { record.wakeFor = 'empty'; return wakeups < MAX_WAKEUPS ? 'wake' : 'no-progress'; }
+  if (record.toolCalls > 0 && (!wantsChange || checked)) return null;
   if (said && (ASKS.test(said.slice(-240)) || BLOCKER.test(said))) return null;
   return wakeups < MAX_WAKEUPS ? 'wake' : 'no-progress';
 }
 
+/**
+ * "I can't fulfil / proceed with this because it requires code changes" — a
+ * refusal on the grounds that writing is not allowed. Judged only for a
+ * declared read-only task, where no write was ever asked for.
+ */
+const REFUSES_FOR_WRITES = /\b(?:can(?:no|')t|cannot|unable to|not able to|won'?t be able to)\b[^.\n]{0,60}\b(?:fulfil+|proceed|comply|complete|implement|modify|make (?:the |any )?(?:code )?changes?|change (?:the )?code|help with (?:that|this))\b|\b(?:requires?|would require) (?:making )?(?:code )?(?:changes|modifications)\b/i;
+
 /** A request for a CHANGE to the project, negated clauses removed (see NEGATED). */
 const CHANGE_RE = /\b(?:fix|repair|patch|implement|add|build|create|write|change|update|edit|refactor|rename|remove|delete|migrate|wire|hook up|install|upgrade|bump|port|convert|replace|move)\b/i;
-function asksForChange(text) { return CHANGE_RE.test(String(text || '').replace(NEGATED, ' ')); }
+function asksForChange(text) { return CHANGE_RE.test(stripNegated(text)); }
 /** A passing one of these is evidence that no change was needed. */
 const CHECKS = new Set(['run_tests', 'validate']);
 /**
@@ -129,6 +182,15 @@ function noteFor(record) {
     return '# Runtime state\nThe FINAL SMOKE failed. Repair the reopened step (the failing test result names it), run that step\'s targeted test, '
       + 'then run the final smoke again as the last step. Completed steps stand; do not redo them.';
   }
+  if (record && (record.wakeFor === 'report' || record.wakeFor === 'readonly-refusal')) {
+    return '# Runtime state\nThis task is READ-ONLY and nothing is to be changed — no modification was requested, so none is missing. '
+      + 'It is finished by its report: continue the investigation with the read tools if evidence is still needed, then report what you found '
+      + 'from the evidence gathered. If something genuinely cannot be established, say exactly what remains unknown.';
+  }
+  if (record && record.wakeFor === 'empty') {
+    return '# Runtime state\nThe last step ended with no answer and no tool call. The task is still pending and no file has been changed. '
+      + 'Take the next concrete action with a tool call. If something genuinely blocks you, or no change is needed, say exactly why.';
+  }
   if (!record || !(record.toolCalls > 0)) return NOTE;
   return '# Runtime state\n'
     + 'The current task is still pending. The request asks for a change, and this turn has changed no file and run no passing check — '
@@ -145,4 +207,4 @@ function noteFor(record) {
 const STATED_BLOCKER = /\b(?:blocker|blocked(?: by| on)?|cannot proceed|can'?t proceed|unable to (?:proceed|continue|complete|finish))\b|\bI (?:cannot|can'?t|am unable to|was unable to|could not|couldn'?t) (?:proceed|continue|complete|perform|interact|access|reach|do (?:this|that|it))\b/i;
 function statesBlocker(text) { const t = String(text || '').trim(); return Boolean(t) && STATED_BLOCKER.test(t.slice(-500)); }
 
-module.exports = { isPassingCheck, NOTE, MAX_WAKEUPS, REQUIRES_EXECUTION, ACTION_RE, asksForAction, asksForChange, requiresExecution, decide, noteFor, statesBlocker };
+module.exports = { stripNegated, isPassingCheck, NOTE, MAX_WAKEUPS, REQUIRES_EXECUTION, ACTION_RE, asksForAction, asksForChange, requiresExecution, decide, noteFor, statesBlocker };

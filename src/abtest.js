@@ -56,7 +56,8 @@ function baseCommit(root) {
 }
 
 function addWorktree(root, base, label) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `lain-ab-${label}-`));
+  // UNDER THE LAIN TEMP ROOT, where the workspace lifecycle (tempworkspaces.js) owns it.
+  const dir = fs.mkdtempSync(path.join(require('./tempworkspaces').tempRoot(), `lain-ab-${label}-`));
   fs.rmdirSync(dir);
   const r = git(root, ['worktree', 'add', '--detach', dir, base]);
   return r.ok ? { ok: true, dir } : { ok: false, why: r.err };
@@ -137,14 +138,20 @@ async function run(app, { problem, verifyCommand, candidates = [], scope = [], t
   }
   const dirs = [];
   const trusted = app.cfg.trustedPaths;
+  // EACH WORKTREE IS REGISTERED WITH ITS LIFECYCLE (tempworkspaces.js), which
+  // decides its removal: the loser once its patch is archived, the winner once
+  // integrated, verified and past the final smoke, a failure never at once.
+  const tw = require('./tempworkspaces');
+  const out = [];
   try {
-    const out = [];
     for (const [i, cand] of candidates.entries()) {
       const label = i === 0 ? 'A' : 'B';
       const wt = addWorktree(root, base.base, label);
       if (!wt.ok) return { ok: false, why: `could not isolate candidate ${label}: ${wt.why}` };
       dirs.push(wt.dir);
-      out.push({ label, dir: wt.dir, approach: String(cand.approach || cand || '') });
+      let temp = null;
+      try { temp = tw.register({ kind: 'worktree', dir: wt.dir, root, base: base.base }, { sessionId: app.session.id, holder, label: `ab-${label}` }).id; } catch { temp = null; }
+      out.push({ label, dir: wt.dir, approach: String(cand.approach || cand || ''), temp, cid: `ab${base.base.slice(0, 8)}${label}${Date.now().toString(36)}` });
     }
     app.cfg.trustedPaths = [...(Array.isArray(trusted) ? trusted : []), ...dirs.map((d) => ({ path: d, level: 'TRUSTED' }))];
     const impl = runCandidate || ((c) => require('./subagents').runOne(app, {
@@ -160,6 +167,12 @@ async function run(app, { problem, verifyCommand, candidates = [], scope = [], t
       c.change = changeOf(c.dir, base.base);
       c.command = verifyCommand;
       c.verify = verify(c.dir, verifyCommand, timeoutMs);
+      if (c.temp) {
+        // THE PATCH IS ARCHIVED FIRST — it is the only record of this candidate.
+        tw.archive(c.temp, c.change.patch);
+        tw.candidateReady(c.temp, { id: c.cid, role: `A/B ${c.label}`, files: c.change.files.map((p) => ({ path: p, status: 'M' })), verdict: { ok: true }, stored: false },
+          { failed: !c.ran || !c.verify.ok, why: !c.ran ? 'the candidate did not finish' : `its verification failed (exit ${c.verify.code})` });
+      }
     }
     const [a, b] = out;
     let pick = select(a, b);
@@ -174,12 +187,17 @@ async function run(app, { problem, verifyCommand, candidates = [], scope = [], t
     const record = { kind: 'ab', at: new Date().toISOString(), problem: String(problem).slice(0, 200), selected: pick.winner, reason: pick.reason,
       candidates: out.map((c) => ({ label: c.label, approach: c.approach.slice(0, 120), pass: c.verify.ok, lines: c.change.lines, ms: c.verify.ms })) };
     if (!pick.winner) {
+      for (const c of out) if (c.verify.ok) tw.rejected(c.cid, pick.reason);
       remember(app, record);
       return { ok: false, integrated: false, record, why: pick.reason, candidates: out.map(strip) };
     }
     const win = pick.winner === 'A' ? a : b;
+    const lose = win === a ? b : a;
+    if (lose.verify.ok) tw.rejected(lose.cid, `not selected: ${pick.reason}`);
+    tw.integrating(win.cid);
     const applied = git(root, ['apply', '--whitespace=nowarn', '-'], { input: win.change.patch });
     if (!applied.ok) {
+      tw.integrated(win.cid, { conflicts: [`the patch did not apply: ${applied.err.slice(0, 160)}`], proposed: win.change.files });
       record.reason += `; integration failed: ${applied.err.slice(0, 200)}`;
       remember(app, record);
       return { ok: false, integrated: false, record, why: `the winning patch did not apply to the canonical tree: ${applied.err}`, candidates: out.map(strip) };
@@ -187,17 +205,27 @@ async function run(app, { problem, verifyCommand, candidates = [], scope = [], t
     const canonical = verify(root, verifyCommand, timeoutMs);
     if (!canonical.ok) {
       git(root, ['apply', '-R', '--whitespace=nowarn', '-'], { input: win.change.patch });
+      tw.integrated(win.cid, { failed: [`canonical verification failed (exit ${canonical.code}); reverted`], proposed: win.change.files });
       record.reason += `; canonical verification failed (exit ${canonical.code}) and the change was reverted`;
       remember(app, record);
       return { ok: false, integrated: false, record, why: 'the winner did not verify on the canonical tree; it was reverted', canonical, candidates: out.map(strip) };
     }
     record.files = win.change.files;
+    // THE RECEIPT, and the canonical run that just passed is its TARGETED verification.
+    tw.integrated(win.cid, { done: win.change.files, proposed: win.change.files });
+    tw.noteRun(app.session, { test: true, ok: true, command: verifyCommand });
     remember(app, record);
     return { ok: true, integrated: true, record, canonical, candidates: out.map(strip) };
   } finally {
     app.cfg.trustedPaths = trusted;
     if (writeScope) leases.release(holder);
-    cleanup(root, dirs);
+    for (const c of out) {
+      if (!c.temp) { cleanup(root, [c.dir]); continue; }
+      const rec = tw.read(c.temp);
+      if (rec && rec.state === tw.STATE.ACTIVE) tw.candidateReady(c.temp, null, { failed: true, why: 'the A/B run did not complete' });
+      tw.attempt(c.temp, app);   // removed only where its lifecycle allows; otherwise retained
+    }
+    for (const d of dirs) if (!out.some((c) => c.dir === d)) cleanup(root, [d]);
   }
 }
 

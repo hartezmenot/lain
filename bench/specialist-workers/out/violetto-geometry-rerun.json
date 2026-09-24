@@ -1,0 +1,32 @@
+{
+  "summary": {
+    "at": "2026-09-23T00:33:19.414Z",
+    "model": "limite-1b-violetto Q4_K_M (patched llama.cpp, CPU)",
+    "cases": 1,
+    "violettoCorrect": 0,
+    "violettoMedianMs": 227393,
+    "violettoTokens": 6000,
+    "deterministicCorrect": 1,
+    "deterministicMaxUs": 117.5
+  },
+  "rows": [
+    {
+      "case": "input 15% narrower, same left inset, centred",
+      "truth": {
+        "width": 510,
+        "x": 24,
+        "y": 52.7
+      },
+      "deterministicUs": 117.5,
+      "violetto": {
+        "width": 510,
+        "x": 0,
+        "y": null,
+        "correct": false,
+        "ms": 227393,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    }
+  ]
+}

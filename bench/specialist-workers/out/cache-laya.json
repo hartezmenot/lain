@@ -1,0 +1,54 @@
+{
+  "worker": "laya",
+  "items": 31,
+  "loaded": true,
+  "coldLoadMs": 30182,
+  "memoryMB": 1984,
+  "wallToReadyMs": 30646,
+  "firstInference": {
+    "ms": 2755,
+    "layaMs": 2750,
+    "usage": {
+      "embedded": 32,
+      "tokens_in": 689,
+      "tokens_equiv": 689,
+      "input_chars": 2247,
+      "output_chars": 434
+    },
+    "note": "embeds every item once (the project index)"
+  },
+  "warmInference": {
+    "ms": 153,
+    "layaMs": 151,
+    "usage": {
+      "embedded": 1,
+      "tokens_in": 12,
+      "tokens_equiv": 689,
+      "input_chars": 2253,
+      "output_chars": 424
+    },
+    "note": "items already embedded; only the new query runs"
+  },
+  "resultCache": {
+    "ms": 1,
+    "cached": true,
+    "inferencesDuring": 0,
+    "lookupUs": 4.8
+  },
+  "invalidation": {
+    "ms": 172,
+    "cached": false,
+    "inferencesDuring": 1,
+    "note": "one new file in the listing → a new state key → re-evaluated"
+  },
+  "totals": {
+    "calls": 4,
+    "inferences": 3,
+    "cacheHits": 1,
+    "cacheMisses": 3,
+    "tokensIn": 718,
+    "tokensOut": 0,
+    "totalInferenceMs": 3071
+  },
+  "at": "2026-09-23T06:29:46.116Z"
+}

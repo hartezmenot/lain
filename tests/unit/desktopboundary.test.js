@@ -26,7 +26,7 @@ const ROOT = path.join(__dirname, '..', '..');
 
 module.exports = async function () {
   await test('DESKTOP: the host decides nothing — it forwards a route and interprets none', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+    const src = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
 
     // NO SECOND RUNTIME. A host that knew about sessions, tasks, permissions or
     // models would be duplicating an authority that already exists.
@@ -74,9 +74,19 @@ module.exports = async function () {
     // it onward.
     assert.match(src, /JSON\.stringify\(\{ host: String\(verb\) \}\)/,
       'a host message carries a verb and nothing else');
-    const host = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+    const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
     const verbs = [...host.matchAll(/verb ==+ "([a-z]+)"/g)].map((m) => m[1]).sort();
     assert.deepStrictEqual(verbs, ['exit', 'hide', 'show'], `a closed vocabulary: ${verbs.join(', ')}`);
+    // ---- RENDERER→HOST IS A SECOND CLOSED VOCABULARY, FOR PRESENTATION ONLY --
+    //
+    // The page asks the host for three things only a window can do: the system
+    // folder picker, the tray tooltip, and hiding itself. None of them grants
+    // anything — a picked folder still goes to Core's /api/project/open, which
+    // checks it like a typed path — and none of them is forwarded to Core.
+    const asks = [...host.matchAll(/ask == "([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
+    assert.deepStrictEqual(asks, ['hide', 'pickFolder', 'trayTip'], `a closed renderer vocabulary: ${asks.join(', ')}`);
+    const handler = host.slice(host.indexOf('void HostVerbFromRenderer('), host.indexOf('ToRenderer(new JavaScriptSerializer().Serialize(reply));'));
+    assert.ok(handler.length > 0 && !/core\.Send/.test(handler), 'a renderer verb is answered by the host and never sent on to Core');
     // AND A HOST MESSAGE NEVER REACHES THE PAGE.
     assert.match(host, /if \(verb != null\) \{[\s\S]*?return;\s*\}\s*ToRenderer\(json\);/,
       'a host verb is acted on and never forwarded to the renderer');
@@ -157,7 +167,7 @@ module.exports = async function () {
   });
 
   await test('DESKTOP: a debugging port is development-only, and gated twice', () => {
-    const host = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+    const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
     const js = fs.readFileSync(path.join(ROOT, 'src', 'desktop.js'), 'utf8');
     // THE HOST REFUSES IT WITHOUT --dev …
     assert.match(host, /args\.Has\("dev"\)\s*&&\s*!String\.IsNullOrEmpty\(debugPort\)/,
@@ -171,7 +181,7 @@ module.exports = async function () {
   });
 
   await test('DESKTOP: the window cannot navigate away from the application', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+    const src = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
     assert.match(src, /NavigationStarting/, 'navigation is inspected');
     assert.match(src, /e\.Cancel = true;/, 'and anything unexpected is cancelled');
     assert.match(src, /NewWindowRequested/, 'a popup is not a second application window');
@@ -210,7 +220,7 @@ module.exports = async function () {
     // REPL; the host started with no pipe starts Core itself.
     const cli = fs.readFileSync(path.join(ROOT, 'src', 'cli.js'), 'utf8');
     assert.match(cli, /opts\.desktop/, 'the CLI has a launch flag');
-    const host = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+    const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
     assert.match(host, /Launcher\.Start\(\)/, 'and a double-clicked host starts Core rather than refusing');
 
     // AND IT NEVER FALLS BACK TO A BROWSER. A native failure that quietly

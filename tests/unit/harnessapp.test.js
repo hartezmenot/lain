@@ -22,7 +22,7 @@ const { test, tmpdir } = require('../helpers');
 
 const state = require('../../src/harnessapp/state');
 const routes = require('../../src/harnessapp/routes');
-const page = require('../../src/harnessapp/page');
+const page = require(require('../helpers').harnessPath('page', 'page'));
 
 function appAt(cwd) {
   const { App } = require('../../src/app');

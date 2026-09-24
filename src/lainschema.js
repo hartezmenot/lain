@@ -209,6 +209,9 @@ function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT
   const r = path.resolve(String(root));
   const key = process.platform === 'win32' ? r.toLowerCase() : r;
   if (ensured.has(key) && !force) return { ok: true, from: target, to: target, cached: true };
+  // A HELD project (declared read-only task) is neither backed up nor migrated
+  // now; it is not marked ensured either, so the first touch after the hold does it.
+  if (require('./lainstore').held(r)) { const v = detect(r); return { ok: true, from: v, to: v, held: true }; }
   ensured.add(key);
   const from = detect(r);
   if (from === 0) return { ok: true, from: 0, to: 0, note: 'no .lain yet — it is created at the current schema when first written' };
@@ -243,6 +246,7 @@ function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT
 
 /** A `.lain/` created fresh is created at the current schema. */
 function stampNew(root) {
+  if (require('./lainstore').held(root)) return false;
   if (detect(root) === 0 || fs.existsSync(schemaPath(root))) return false;
   try { writeSchema(root, CURRENT, []); return true; } catch { return false; }
 }

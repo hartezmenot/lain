@@ -65,7 +65,15 @@ function dirOf(root, sessionId) { return lainstore.scratchDir(root, sessionId); 
 
 function manifestPath(root, sessionId) { return path.join(dirOf(root, sessionId), MANIFEST); }
 
+// A HELD project (a declared read-only task — lainstore.hold) keeps its
+// scratch manifest here, in this process, instead of in `.lain/scratch/`:
+// notes still work for the turn; nothing is written to the project.
+const heldManifests = new Map();
+const heldKey = (root, sessionId) => `${path.resolve(String(root)).toLowerCase()}|${sessionId}`;
+
 function readManifest(root, sessionId) {
+  const k = heldKey(root, sessionId);
+  if (heldManifests.has(k)) return heldManifests.get(k);
   try {
     const j = JSON.parse(fs.readFileSync(manifestPath(root, sessionId), 'utf8'));
     if (!j || typeof j !== 'object') return null;
@@ -76,6 +84,7 @@ function readManifest(root, sessionId) {
 }
 
 function writeManifest(root, sessionId, m) {
+  if (lainstore.held(root)) { heldManifests.set(heldKey(root, sessionId), m); return true; }
   const file = manifestPath(root, sessionId);
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -139,7 +148,7 @@ function notes(root, sessionId) {
 function file(root, sessionId, name) {
   const safe = String(name || 'file').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80) || 'file';
   const dir = dirOf(root, sessionId);
-  try { fs.mkdirSync(dir, { recursive: true }); } catch { /* read-only project */ }
+  if (!lainstore.held(root)) { try { fs.mkdirSync(dir, { recursive: true }); } catch { /* read-only project */ } }
   return path.join(dir, safe);
 }
 

@@ -221,6 +221,17 @@ function editSize(checkpoints, checkpoint) {
  * It costs no tokens: every field is a description of something that has
  * already run.
  */
+const SHELLISH = /^(?:run_(?:bash|powershell|cmd)|python_run|process_run)$/;
+const TAIL_LINES = 4;
+
+/** The last few output lines of a command, minus LAIN's own bracket markers. */
+function outputTail(out) {
+  const lines = String(out || '').split(/\r?\n/).map((l) => l.replace(/\s+$/, ''))
+    // The `[via …]` stamp is for the model (see firstLine); LAIN's bracket markers are not output.
+    .filter((l) => l.trim() && !/^\[via /.test(l.trim()) && !/^\[(?:exit -?\d+|no output|no match|stderr|stdout)\]:?$/i.test(l.trim()));
+  return { tail: lines.slice(-TAIL_LINES).map((l) => l.slice(0, 200)), lines: lines.length };
+}
+
 function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 0, removed = 0 } = {}) {
   const out = String(result && result.output == null ? '' : result.output);
   return {
@@ -233,11 +244,16 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
     ...(result && result.artifact && !result.isError ? { artifact: true } : {}),
     step,                      // which model step this call belonged to
     ms,
+    exitCode: result && result.exitCode != null ? result.exitCode : null,   // a shell row says it (ui/feed.js)
     reused: Boolean(reused),
     // In TTY mode raw tool output no longer streams to stdout (the Screen owns
     // it), so without this a person could see THAT a tool ran but never what
     // it said.
     note: firstLine(result && result.output),
+    // A COMMAND'S LAST WORDS: the tail of its output and how many lines came
+    // before it, so the row can show what the command said at the end
+    // (ui/shellrow.js). Shell-like calls only; a file's contents never go here.
+    ...(SHELLISH.test(call.name) ? outputTail(out) : {}),
     // A SHORT result is a message to the user ("The user chose: Beta", "no such
     // file"); a long one is data for the model (a file's contents). Only the
     // first kind is worth putting on screen, and the length is the honest test
@@ -262,4 +278,4 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
   };
 }
 
-module.exports = { describeTarget, firstLine, actionRecord, editSize, EMPTY_ANSWER, BRIEF_RESULT };
+module.exports = { outputTail, describeTarget, firstLine, actionRecord, editSize, EMPTY_ANSWER, BRIEF_RESULT };

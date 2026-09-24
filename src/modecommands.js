@@ -104,27 +104,14 @@ function register({ define, C }) {
   // DIAGNOSTIC ONLY (workers.js): the narrow workers, whether any model is
   // recruited, and what they measurably saved. Never shown during normal work.
   define('/workers', {
-    surface: true, desc: 'Diagnostics: narrow workers (Jev/Laya/Violetto contracts), recruitment gate, what they saved',
-    run(app) {
-      const workers = require('./workers');
-      const w = (s) => app.render.write(s);
-      const gates = gateResults();
-      w('\n' + C.bold('Workers') + C.dim('  — deterministic first; a model joins only through bench/workergate\n'));
-      for (const c of Object.values(workers.CONTRACTS)) {
-        const b = workers.binding(app.cfg, c.id);
-        const tier = b ? `model ${b.model}` : c.deterministic ? `deterministic (${c.deterministic})` : 'not built';
-        w(`  ${c.worker.padEnd(9)} ${c.id.padEnd(18)} ${tier}\n`);
-        for (const g of gates.filter((x) => x.contract === c.id)) w(C.dim(`            gate ${g.pass ? 'PASS' : 'FAIL'} · ${g.model} · ${g.detail}\n`));
-      }
-      const sum = workers.summary(app.session);
-      const keys = Object.keys(sum);
-      w('\n' + (keys.length ? '' : C.dim('  No worker ran in this session.\n')));
-      for (const k of keys) {
-        const s = sum[k];
-        w(`  ${k.padEnd(18)} ${s.calls} call(s) · raw ${s.rawChars} → out ${s.outChars} chars${s.compression ? ` (×${s.compression})` : ''}`
-          + ` · re-read ${s.rereadChars} · abstain ${s.abstain} · cache ${s.cacheHits} · ~${s.avoidedTokens} flagship tokens avoided\n`);
-      }
-    },
+    surface: true, args: '[status|auto|off|locate on|off|laya [auto|on|off]]',
+    desc: 'Diagnostics: specialist workers (Laya/Violetto/Jev) — installed, switched, gated, what they saved',
+    run(app, { args }) { return require('./workerscommand').run(app, args || [], { C, gateResults }); },
+  });
+  define('/workspaces', {
+    surface: true, args: '[clean <id>|reconcile]',
+    desc: 'Diagnostics: temporary subagent/A-B workspaces — state, what cleanup waits for, retained failures',
+    run(app, { args }) { return require('./workspacecommand').run(app, args || [], { C }); },
   });
   define('/browser', {
     surface: true, args: '[current|tabs|connect|disconnect]',

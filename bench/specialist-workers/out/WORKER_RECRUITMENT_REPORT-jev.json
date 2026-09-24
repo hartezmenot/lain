@@ -1,0 +1,9 @@
+{
+  "candidate": "Jev",
+  "model": "TypeSafe jev-1.13 (hosted, proprietary)",
+  "contract": "decision_intent",
+  "availability": "Official Jev (TypeSafe jev-1.13) is a hosted, proprietary API with no local weights. On this machine its free tier refuses non-OpenCode clients (403 FreeTierError) and the paid route had no funds (402). Laya is described by its authors as an open reproduction of Jev, but it is NOT Jev and is not presented as Jev.",
+  "status": "EXCLUDED",
+  "verdict": "REJECT",
+  "why": "no legitimately usable implementation here; excluded from the benchmark; no substitute presented as Jev"
+}

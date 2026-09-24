@@ -212,7 +212,7 @@ module.exports = async function () {
           assert.ok(T.width(seen) <= s.rowMap.contentWidth,
             'the anchor crossed the frame at ' + cols);
           // ITS OWN GROUND, and only the logical row — the rule picks up after it.
-          assert.match(body, /\x1b\[48;5;236m/, 'the anchor has a subtle ground');
+          assert.ok(body.includes(`\x1b[${require('../../src/ui/palette').sgr('raised2', 48)}m`), 'the anchor has a subtle ground');
           assert.ok(/─/.test(seen), 'and the rule continues past it');
         } finally { s.leave(); }
       }

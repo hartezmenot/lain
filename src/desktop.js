@@ -37,10 +37,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const vendor = require('../native/vendor');
+// THE HARNESS IS ITS OWN PACKAGE (lain-harness, 2026-09-23): the page, the host
+// source and the SDK vendoring are found through harnesslocation.js only.
+const harness = () => require('./harnesslocation').load();
+const vendor = { references: () => { const h = harness(); return h.ok ? h.vendor().references() : { ok: false, why: h.why }; },
+  have: () => { const h = harness(); return h.ok ? h.vendor().have() : { ok: false, why: h.why }; } };
 
 const ROOT = path.join(__dirname, '..');
-const SOURCE = path.join(ROOT, 'native', 'host.cs');
+/** The host source's path, or '' when the Harness is not installed. */
+const SOURCE = (() => { const h = harness(); return h.ok ? h.hostSource : ''; })();
 
 /** Where a built host and its packaged assets live, outside the source tree. */
 function homeDir() {
@@ -72,7 +77,9 @@ function compiler() {
  */
 function writeAssets(dir) {
   fs.mkdirSync(dir, { recursive: true });
-  const html = require('./harnessapp/page').html();
+  const h = harness();
+  if (!h.ok) throw new Error(h.why);
+  const html = h.html();
   const file = path.join(dir, 'index.html');
   fs.writeFileSync(file, html);
   return { dir, file, bytes: Buffer.byteLength(html) };
@@ -86,7 +93,9 @@ function writeAssets(dir) {
 function build({ quiet = true } = {}) {
   if (process.platform !== 'win32') return { ok: false, why: 'LAIN Desktop is Windows-only for now' };
   let src;
-  try { src = fs.readFileSync(SOURCE, 'utf8'); } catch (e) { return { ok: false, why: `the host source is missing: ${e.message}` }; }
+  const h = harness();
+  if (!h.ok) return { ok: false, why: h.why };
+  try { src = fs.readFileSync(h.hostSource, 'utf8'); } catch (e) { return { ok: false, why: `the host source is missing: ${e.message}` }; }
 
   const sdk = vendor.references();
   if (!sdk.ok) return { ok: false, why: sdk.why };
@@ -124,7 +133,7 @@ function build({ quiet = true } = {}) {
     '/reference:System.Windows.Forms.dll',
     '/reference:System.Web.Extensions.dll',
     ...sdk.refs.map((r) => `/reference:${r}`),
-    SOURCE,
+    h.hostSource,
   ];
   const r = require('child_process').spawnSync(csc, args, { encoding: 'utf8', windowsHide: true });
   if (r.status !== 0 || !fs.existsSync(exe)) {

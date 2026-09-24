@@ -209,6 +209,7 @@ function read(root, slot, fallback = null) {
  *   state, not an exception.
  */
 function write(root, slot, body) {
+  if (held(root)) return false;
   const file = pathOf(root, slot);
   const created = !fs.existsSync(dirFor(root));
   if (!created) schemaFirst(root);
@@ -267,11 +268,41 @@ function survey(root) {
  * directory that can be emptied by a passing caller is not memory.
  */
 function forget(root, slot) {
+  if (held(root)) return false;
   try { fs.unlinkSync(pathOf(root, slot)); return true; } catch { return false; }
+}
+
+// ---- A HELD PROJECT IS NOT WRITTEN -------------------------------------------
+//
+// A person who declared a task read-only said "do not write to .lain" as much
+// as "do not modify any file" (readonly.js). While any session holds a project,
+// every door into its `.lain/` — this module's `write`, the project index
+// cache, scratch manifests, the schema stamp, task records — returns what it
+// returns for a checkout that cannot be written: false, and the caller carries
+// on with what it has in memory. That degrade path already existed; the hold
+// only chooses it. Keyed by project AND session so one session's read-only task
+// ends its own hold and nobody else's.
+const holds = new Map();
+const keyOf = (root) => path.resolve(String(root || '.')).toLowerCase();
+function hold(root, sessionId, on) {
+  const k = keyOf(root);
+  const who = holds.get(k) || new Set();
+  if (on) who.add(String(sessionId || '-')); else who.delete(String(sessionId || '-'));
+  if (who.size) holds.set(k, who); else holds.delete(k);
+}
+/** Is this project's `.lain/` held? Also true for any path inside a held project. */
+function held(root) {
+  if (!holds.size || !root) return false;
+  let k = keyOf(root);
+  const d = `${path.sep}${DIR}`.toLowerCase();
+  const at = k.indexOf(`${d}${path.sep}`);
+  if (at >= 0) k = k.slice(0, at);
+  else if (k.endsWith(d)) k = k.slice(0, -d.length);
+  return holds.has(k);
 }
 
 module.exports = {
   DIR, SLOTS, VERSION, SCRATCH, TASKS, AREAS,
   dirFor, pathOf, scratchDir, scratchRoot, tasksRoot, taskDir, taskFile,
-  read, write, has, updatedAt, survey, forget,
+  read, write, has, updatedAt, survey, forget, hold, held,
 };

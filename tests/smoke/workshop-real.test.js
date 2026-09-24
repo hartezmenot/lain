@@ -70,7 +70,10 @@ module.exports = async function () {
     try {
       await d.until("!document.getElementById('app').hidden && !document.getElementById('gate')");
 
-      // OPEN THE WORKSHOP: dev server + project-bound preview.
+      // OPEN THE WORKSHOP: dev server + project-bound preview. Its control is
+      // the IDE's Preview button, one tab away from wherever the window opened.
+      await d.js("LAIN.nav.go('ide')");
+      await d.until("!document.getElementById('main').hidden", 15000);
       await d.click('#wsPill');
       try {
         await d.until("!document.getElementById('workshop').hidden && document.getElementById('wsShot') && document.getElementById('wsShot').naturalWidth > 0", 120000);

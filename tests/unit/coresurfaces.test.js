@@ -127,7 +127,7 @@ module.exports = async function () {
   });
 
   await test('SURFACES: X, hide and Quit are three different things', () => {
-    const host = read('native', 'host.cs');
+    const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
     // A USER CLOSE IS CANCELLED AND HIDDEN — the window's lifetime is not LAIN's.
     assert.match(host, /CloseReason\.UserClosing[\s\S]{0,140}Hide\(\);/, 'X hides');
     // QUIT IS A SEPARATE, CONFIRMED ACTION THAT ASKS CORE.

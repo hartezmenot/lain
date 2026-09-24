@@ -50,7 +50,18 @@ const ROOT = path.join(__dirname, '..');
  * source URL and SHA-256 it was fetched under. The RUNTIME is part of Windows
  * and is not shipped by anybody.
  */
-const INSTALLER_EXTRAS = ['native/vendor/'];
+const INSTALLER_EXTRAS = ['harness/native/vendor/'];
+
+/**
+ * THE HARNESS IS ITS OWN PACKAGE (lain-harness, 2026-09-23). An installed build
+ * carries it as <install>/harness, where src/harnesslocation.js looks first
+ * after an explicit override. Its OWN allowlist decides what travels.
+ */
+function sourceOf(entry, root) {
+  if (!entry.startsWith('harness/')) return path.join(root, entry);
+  const h = require('../src/harnesslocation').root();
+  return h ? path.join(h, entry.slice('harness/'.length)) : path.join(root, entry);
+}
 
 /** The allowlist, plus the manifest the runtime reads its own version from. */
 function entries() {
@@ -63,7 +74,21 @@ function copyInto(dest, { root = ROOT } = {}) {
   let bytes = 0;
   const missing = [];
   for (const entry of entries()) {
-    const src = path.join(root, entry);
+    if (entry === 'harness/') {
+      const h = require('../src/harnesslocation');
+      const hr = h.root();
+      if (!hr) { missing.push(entry); continue; }
+      for (const e of h.packageFiles(hr)) {
+        const s2 = path.join(hr, e);
+        if (!fs.existsSync(s2)) { missing.push(`harness/${e}`); continue; }
+        const d2 = path.join(dest, 'harness', e);
+        fs.mkdirSync(path.dirname(d2), { recursive: true });
+        if (fs.statSync(s2).isDirectory()) fs.cpSync(s2, d2, { recursive: true });
+        else fs.copyFileSync(s2, d2);
+      }
+      continue;
+    }
+    const src = sourceOf(entry, root);
     if (!fs.existsSync(src)) { missing.push(entry); continue; }
     const dst = path.join(dest, entry);
     fs.mkdirSync(path.dirname(dst), { recursive: true });

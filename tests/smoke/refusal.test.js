@@ -63,11 +63,12 @@ module.exports = async function () {
     // the successful call must not be wearing the provider's refusal.
     // The action vocabulary is `✓ <verb> · <subject>` — `✓ echo · LINE1470`
     // for this command — so the row is found by its subject, not by a verb.
-    const i = last.indexOf('· LINE1470');
+    // Since 2026-09-23 a shell command draws as `› echo LINE1470` (ui/shellrow.js).
+    const i = Math.max(last.indexOf('· LINE1470'), last.indexOf('› echo LINE1470'));
     assert.ok(i >= 0, `the tool call must be on screen:
 ${last.slice(-400)}`);
     const region = last.slice(Math.max(0, i - 60), i + 200);
-    assert.match(region, /✓ \S+ · LINE1470/, `the command succeeded and must say so: ${region}`);
+    assert.match(region, /✓ \S+ · LINE1470|› echo LINE1470[\s\S]*Command completed/, `the command succeeded and must say so: ${region}`);
     assert.ok(!/✗ 413/.test(region),
       `the provider's refusal is wearing the tool's failure mark: ${region}`);
   });

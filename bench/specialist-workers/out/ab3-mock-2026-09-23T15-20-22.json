@@ -1,0 +1,317 @@
+{
+  "model": "",
+  "base": "http://127.0.0.1:4570/v1",
+  "route": "bridge",
+  "effort": "unset for every arm (LainRouter refuses reasoning_effort for this model: UNSUPPORTED_REASONING_EFFORT)",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button, a row of fake metrics with pill badges, a card nested inside a card, oversized rounded corners. Make it match DESIGN.md.\n2. Geometry: the send button in the note composer and the avatar in the top bar are the wrong size and position; the composer's side margins are unequal; the form controls are different heights (see DESIGN.md).\n3. On a phone-sized screen (375 px) the page scrolls sideways.\n4. After saving settings, the page shows the old values again until the API server is restarted.\n5. The top bar shows \"undefined\" instead of the user's name.\n6. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n7. The API log is noisy by default and prints passwords.\n8. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser (desktop and phone width) before you finish.",
+  "price": {
+    "inputPerM": 0.15,
+    "cachedPerM": 0.014,
+    "outputPerM": 0.6,
+    "source": "ollama.com/pricing, gpt-oss:120b Standard, observed 2026-09-23 (Off-Peak is half; not applied — the off-peak window was not verified)"
+  },
+  "budgets": {
+    "perArm": 40,
+    "global": 121,
+    "maxStepsPerRun": 38,
+    "maxTheoretical": 81
+  },
+  "requestsSpent": {
+    "probe": 0,
+    "control": 5,
+    "laya+violetto": 6,
+    "total": 11
+  },
+  "stopped": null,
+  "label": "EXPLORATORY unless every compared arm has ≥ 3 valid runs",
+  "rows": [
+    {
+      "arm": "control",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 3263,
+      "stopReason": "end",
+      "valid": false,
+      "invalid": [
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "mock|mock-model"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "mock": true
+      },
+      "flagship": {
+        "requests": 5,
+        "withReceipt": 5,
+        "usageNotReportedRequests": 0,
+        "cacheReportedRequests": 0,
+        "inputTokens": 410,
+        "cachedInputTokens": null,
+        "uncachedInputTokens": null,
+        "outputTokens": 85,
+        "cacheHitRate": null,
+        "averageInputPerRequest": 82,
+        "peakInputRequest": 100,
+        "providerWallMs": 14,
+        "failedRequests": 0,
+        "toolSchemaChars": {
+          "median": 55837,
+          "total": 279185
+        },
+        "geometryToolOfferedOnRequests": 0,
+        "costUSD": null
+      },
+      "llmFromSession": {
+        "providerRequests": 5,
+        "steps": 5,
+        "retries": 0
+      },
+      "tools": {
+        "total": 3,
+        "byName": {
+          "read_file": 1,
+          "edit_file": 1,
+          "run_bash": 1
+        },
+        "fileReads": 1,
+        "repeatedReads": 0,
+        "symbolReads": 0,
+        "browserChecks": 0,
+        "testRuns": 1,
+        "exploreBeforeFirstEdit": 1,
+        "uniqueFilesRead": 1
+      },
+      "laya": null,
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 6,
+          "total": 31
+        },
+        "finalSmoke": false,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S7.noFakeMetrics",
+          "S8.noNestedCards",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "R1.narrowNoOverflow",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "5/23",
+        "responsive": "0/2",
+        "backend": "0/6",
+        "diff": {
+          "files": 1,
+          "added": 2,
+          "removed": 2
+        }
+      }
+    },
+    {
+      "arm": "laya+violetto",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 3205,
+      "stopReason": "end",
+      "valid": false,
+      "invalid": [
+        "browser verification required but skipped"
+      ],
+      "routeOk": true,
+      "routes": [
+        "mock|mock-model"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "prep": {
+        "mock": true
+      },
+      "flagship": {
+        "requests": 6,
+        "withReceipt": 6,
+        "usageNotReportedRequests": 0,
+        "cacheReportedRequests": 0,
+        "inputTokens": 510,
+        "cachedInputTokens": null,
+        "uncachedInputTokens": null,
+        "outputTokens": 105,
+        "cacheHitRate": null,
+        "averageInputPerRequest": 85,
+        "peakInputRequest": 100,
+        "providerWallMs": 16,
+        "failedRequests": 0,
+        "toolSchemaChars": {
+          "median": 56539,
+          "total": 339234
+        },
+        "geometryToolOfferedOnRequests": 6,
+        "costUSD": null
+      },
+      "llmFromSession": {
+        "providerRequests": 6,
+        "steps": 6,
+        "retries": 0
+      },
+      "tools": {
+        "total": 4,
+        "byName": {
+          "read_file": 1,
+          "geometry_specialist": 1,
+          "edit_file": 1,
+          "run_bash": 1
+        },
+        "fileReads": 1,
+        "repeatedReads": 0,
+        "symbolReads": 0,
+        "browserChecks": 0,
+        "testRuns": 1,
+        "exploreBeforeFirstEdit": 1,
+        "uniqueFilesRead": 1
+      },
+      "laya": {
+        "invoked": true,
+        "servedBy": "deterministic",
+        "bypass": "UNAVAILABLE",
+        "timedOut": false,
+        "calls": 1,
+        "inferences": 0,
+        "cacheHits": 0,
+        "cacheMisses": 1,
+        "tokensIn": null,
+        "tokensEquiv": null,
+        "outputChars": null,
+        "outputTokens": "none — Laya scores items; it generates no tokens",
+        "warmInferenceMs": null,
+        "coldLoadMs": null,
+        "alreadyHot": null,
+        "residentMB": null,
+        "projectIndex": null,
+        "compression": {
+          "rawEvidenceChars": 2227,
+          "layaInputChars": null,
+          "sliceChars": 112,
+          "flagshipPacketChars": 277,
+          "ratio": 8
+        },
+        "slice": [
+          "src/api.js",
+          "DESIGN.md",
+          "README.md",
+          "src/user.js",
+          "server/auth.js",
+          "server/http.js",
+          "server/log.js",
+          "docs/ADR-001-api-shape.md"
+        ],
+        "falseNarrowing": {
+          "sliceSize": 8,
+          "touched": 2,
+          "hits": 1,
+          "missed": [
+            "src/styles.css"
+          ],
+          "missedReadCalls": 0,
+          "missedReadChars": 0
+        }
+      },
+      "violetto": {
+        "available": true,
+        "invoked": true,
+        "notInvokedReason": null,
+        "calls": 1,
+        "cacheHits": 0,
+        "questions": [
+          {
+            "problem": "A square send button 40 px wide sits in a composer 64 px tall whose top edge is at y=720 and right edge at x=1256 (y grows downward), 12 px inside the right edge and vertically centred. Give its width and top-left corner.",
+            "answer": null,
+            "finish": "failed",
+            "ms": 0,
+            "bypass": "LOADING",
+            "tokensIn": 0,
+            "tokensOut": 0,
+            "cached": false
+          }
+        ],
+        "tokensIn": 0,
+        "tokensOut": 0,
+        "coldLoadMs": null,
+        "residentMB": null
+      },
+      "quality": {
+        "acceptance": {
+          "pass": 6,
+          "total": 31
+        },
+        "finalSmoke": false,
+        "smokeRan": true,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole",
+          "S7.noFakeMetrics",
+          "S8.noNestedCards",
+          "S9.radius",
+          "G4.controls36",
+          "G3.composer.symmetric",
+          "R1.narrowNoOverflow",
+          "G3.composer.symmetric375"
+        ],
+        "browser": "5/23",
+        "responsive": "0/2",
+        "backend": "0/6",
+        "diff": {
+          "files": 1,
+          "added": 2,
+          "removed": 2
+        }
+      }
+    }
+  ]
+}

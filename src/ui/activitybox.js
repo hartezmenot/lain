@@ -146,7 +146,7 @@ function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   return Math.min(want, room);
 }
 
-const TONE = { BLOCKED: 'bad', STALLED: 'warn', 'RATE LIMITED': 'warn', WAITING: 'warn', TESTING: 'info', VERIFYING: 'info' };
+const TONE = { BLOCKED: 'bad', STALLED: 'warn', 'RATE LIMITED': 'warn', WAITING: 'warn', TESTING: 'cmd', VERIFYING: 'cmd' };
 
 /** Word-wrap the commentary into at most `n` rows of `w` cells (ellipsis on the last). */
 function wrapCommentary(text, w, n) {
@@ -170,7 +170,9 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   const s = summary(state, now);
   if (!s) return new Array(height).fill(T.fit('', width));
   // An open request that has not answered yet is not a warning — only STALLED is.
-  const paint = P[(s.model && s.kind === 'WAITING') ? 'info' : (TONE[s.kind] || 'plain')] || P.plain;
+  // THE PALETTE (2026-09-23): the model working is VIOLET; a tool acting is
+  // CYAN; STALLED / BLOCKED / RATE LIMITED keep their semantic tones.
+  const paint = P[TONE[s.kind] && !(s.model && s.kind === 'WAITING') ? TONE[s.kind] : s.model ? 'violet' : 'cmd'] || P.plain;
   if (height < 2) {
     const one = T.fit(' ' + paint(T.clip(`${s.kind} · ${s.line}${s.agents ? '  ·  ' + s.agents : ''}`, Math.max(10, width - 2))), width);
     return [one];

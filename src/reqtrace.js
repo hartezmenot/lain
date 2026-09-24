@@ -148,8 +148,10 @@ function end(r, { ok = true, status = 0, failure = '', receipt = null } = {}) {
       // Present only when the provider said one — null/undefined mean "nobody
       // mentioned a cache", which is a different fact from zero. See the same
       // distinction in guardian.js `noteUsage`.
-      ...(receipt.cacheReadTokens != null ? { cacheReadTokens: Number(receipt.cacheReadTokens) || 0 } : {}),
-      ...(receipt.cacheCreationTokens != null ? { cacheCreationTokens: Number(receipt.cacheCreationTokens) || 0 } : {}),
+      // A receipt that says `cacheReported: false` (provider.js: the usage
+      // object carried no cache field at all) records neither figure.
+      ...(receipt.cacheReported !== false && receipt.cacheReadTokens != null ? { cacheReadTokens: Number(receipt.cacheReadTokens) || 0 } : {}),
+      ...(receipt.cacheReported !== false && receipt.cacheCreationTokens != null ? { cacheCreationTokens: Number(receipt.cacheCreationTokens) || 0 } : {}),
     };
   } else {
     r.receipt = null;
@@ -172,6 +174,21 @@ function end(r, { ok = true, status = 0, failure = '', receipt = null } = {}) {
  * The in-memory ledger stays the only authority: the sink is a projection of
  * it, never a second count.
  */
+/**
+ * WHAT WAS SENT, by size — only when a benchmark asked for the trace
+ * (LAIN_REQTRACE). The tool schemas are counted apart, because a tool that is
+ * offered on every request but never called is pure input cost.
+ */
+function sized(r, messages, tools) {
+  if (!r || !process.env.LAIN_REQTRACE) return r;
+  try {
+    r.messageChars = JSON.stringify(messages || []).length;
+    r.toolSchemaChars = JSON.stringify(tools || []).length;
+    r.tools = (tools || []).map((t) => t && t.name).filter(Boolean);
+  } catch { /* measurement only */ }
+  return r;
+}
+
 function sink(r) {
   const p = process.env.LAIN_REQTRACE;
   if (!p) return;
@@ -226,4 +243,4 @@ function explain(turnId) {
 /** Forget everything. For the tests only. */
 function reset() { ledger.length = 0; seq = 0; }
 
-module.exports = { REASON, begin, end, forStep, all, forTurn, last, explain, reset, MAX };
+module.exports = { REASON, begin, end, sized, forStep, all, forTurn, last, explain, reset, MAX };

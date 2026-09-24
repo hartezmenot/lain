@@ -60,12 +60,11 @@ module.exports = async function () {
     const trace = (what) => { if (process.env.LAIN_SMOKE_TRACE) process.stdout.write(`    [${Date.now() - t0}ms] ${what}\n`); };
     const c = (expr) => d.js(`(async () => { const C = window.LAIN.contract; ${expr} })()`);
     try {
-      // ---- the shell, both lanes, the sessions ---------------------------
-      trace("the shell, both lanes, the sessions");
+      // ---- the shell, the workspace tabs, the sessions --------------------
+      trace("the shell, the workspace tabs, the sessions");
       await d.until("!!document.getElementById('app') && !document.getElementById('app').hidden", 40000);
-      const text = await d.js('document.body.innerText');
-      assert.match(text, /Chat \/ Coding/);
-      assert.match(text, /Cowork \/ Bot/);
+      const text = await d.js("document.getElementById('tabs').innerText");
+      for (const t of ['HOME', 'IDE', 'CHAT', 'BOT', 'MODEL', 'SESSION', 'SETTINGS']) assert.ok(text.toUpperCase().includes(t), `the ${t} tab: ${text}`);
       assert.ok(await d.js('!!(window.LAIN && window.LAIN.contract)'), 'the contract client is loaded in the renderer');
       await c("window.__events = []; C.on('session.status', function (e) { window.__events.push(e); }); return true;");
 

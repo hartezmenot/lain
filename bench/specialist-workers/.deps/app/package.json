@@ -1,0 +1,1 @@
+{ "name": "bench-app-deps", "private": true, "dependencies": { "vite": "8.3.0" } }

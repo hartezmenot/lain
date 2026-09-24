@@ -91,8 +91,13 @@ module.exports = async function () {
     // so the model's prose from the top of a multi-call turn is legitimately
     // above the fold there. The WHOLE account has one home and this is it —
     // asking the landing pane for it was the test's mistake, not the pane's.
+    // 40 ROWS: "is the whole account there" is asked of ONE frame, so the
+    // account has to fit in it. At 30, the footer row (ui/footer.js) plus the
+    // three-row "/exit can't run while a turn is in flight" notice (the /exit
+    // lands during the final-smoke continuation) pushed the first narration
+    // just above the fold — a viewport limit, not a missing record.
     const r = await runCli([], {
-      cwd: project(), env: tui, script: workScript,
+      cwd: project(), env: { ...tui, LINES: '40' }, script: workScript,
       stdinSteps: [`fix the login bug${CR}`, `/exit${CR}`],
       stepDelayMs: 800, timeoutMs: 45000,
     });
@@ -111,7 +116,7 @@ module.exports = async function () {
     // verdict the turn ended on.
     // The finished turn's CHANGE section names the written file (ui/turnsections.js).
     assert.ok(/CHANGE[\s\S]*src\/auth\/login\.js[\s\S]*\[(?:× )?Diff\]/.test(f), `the write is the record: ${f.slice(0, 700)}`);
-    assert.ok(/echo · tests passed/.test(f), 'and the command that ran');
+    assert.ok(/echo · tests passed|› echo tests passed/.test(f), 'and the command that ran');
     assert.ok(!/read · src\/auth\/login\.js/.test(f),
       'a routine read must not take a row in the conversation');
     assert.ok(!/\d+ms/.test(f), 'no per-call timings in the default view');

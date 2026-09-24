@@ -465,7 +465,13 @@ function build({ cwd, platform, model, mode = null, session = null, checkpoints 
   const taskClass = session && session.taskClassVerdict;
   if (taskClass) {
     const extra = CLASS_GUIDANCE[taskClass.cls];
+    // WHAT KIND OF PROJECT (EMPTY / EXISTING, recorded or not) — projectcache.state —
+    // and, for a declared read-only task, what it may change (readonly.js).
+    const projectLine = app && /^PROJECT_/.test(String(taskClass.cls || '')) ? require('./projectcache').stateLine(app) : '';
+    const maskLine = require('./readonly').statusLine(session);
     live += `${live ? '\n\n' : ''}# Grounding\n${require('./taskclass').statusLine(taskClass)}`
+      + (projectLine ? `\n${projectLine}` : '')
+      + (maskLine ? `\n${maskLine}` : '')
       + (extra ? `\n${extra}` : '');
   }
   // ---- IS THIS A HANDOVER, OR AN ORDINARY CONTINUATION? -------------------

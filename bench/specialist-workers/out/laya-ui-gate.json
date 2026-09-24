@@ -1,0 +1,690 @@
+{
+  "summary": {
+    "at": "2026-09-23T00:39:10.727Z",
+    "controls": 41,
+    "queries": 20,
+    "lexical": {
+      "hit@1": 0.35,
+      "hit@3": 0.35,
+      "hit@5": 0.35,
+      "mrr": 0.35,
+      "medianMs": 0
+    },
+    "laya-cos": {
+      "hit@1": 0.1,
+      "hit@3": 0.2,
+      "hit@5": 0.25,
+      "mrr": 0.181,
+      "medianMs": 179
+    },
+    "laya-choice": {
+      "hit@1": 0.25,
+      "hit@3": 0.25,
+      "hit@5": 0.25,
+      "mrr": 0.265,
+      "medianMs": 610,
+      "confidentWrong": 11,
+      "abstained": 3
+    },
+    "laya-choice-all": {
+      "hit@1": 0.05,
+      "hit@3": 0.2,
+      "hit@5": 0.2,
+      "mrr": 0.154,
+      "medianMs": 696,
+      "confidentWrong": 0,
+      "abstained": 17
+    },
+    "fused": {
+      "hit@1": 0.35,
+      "hit@3": 0.35,
+      "hit@5": 0.45,
+      "mrr": 0.37,
+      "medianMs": 2
+    }
+  },
+  "rows": [
+    {
+      "q": "the gear that opens preferences",
+      "targets": [
+        "settingsBtn"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 2
+      },
+      "laya-cos": {
+        "rank": 34,
+        "ms": 1182,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 543,
+        "top": 0.9229,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 13,
+        "ms": 662,
+        "top": 0.0746,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 3
+      }
+    },
+    {
+      "q": "make the picture bigger",
+      "targets": [
+        "ivIn"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 11,
+        "ms": 147,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 7,
+        "ms": 611,
+        "top": 0.2513,
+        "abstain": true
+      },
+      "laya-choice-all": {
+        "rank": 1,
+        "ms": 803,
+        "top": 0.1168,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 3
+      }
+    },
+    {
+      "q": "halt what it is doing right now",
+      "targets": [
+        "crumbStop"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 1
+      },
+      "laya-cos": {
+        "rank": 38,
+        "ms": 262,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 610,
+        "top": 0.9993,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 30,
+        "ms": 892,
+        "top": 0.4269,
+        "abstain": false
+      },
+      "fused": {
+        "rank": null,
+        "ms": 2
+      }
+    },
+    {
+      "q": "the box where I type my question",
+      "targets": [
+        "ask"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 26,
+        "ms": 164,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 561,
+        "top": 0.743,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 30,
+        "ms": 685,
+        "top": 0.0813,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 3
+      }
+    },
+    {
+      "q": "preview at iPad width",
+      "targets": [
+        "button27"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 1
+      },
+      "laya-cos": {
+        "rank": 25,
+        "ms": 179,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 579,
+        "top": 0.9785,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 21,
+        "ms": 740,
+        "top": 0.103,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 2
+      }
+    },
+    {
+      "q": "take a screenshot before my change",
+      "targets": [
+        "wsBefore"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 3,
+        "ms": 222,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 1,
+        "ms": 604,
+        "top": 0.9333,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 2,
+        "ms": 700,
+        "top": 0.2327,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "point at a component on the page to ask about it",
+      "targets": [
+        "wsPick",
+        "wsAttach"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 1
+      },
+      "laya-cos": {
+        "rank": 1,
+        "ms": 197,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 1,
+        "ms": 638,
+        "top": 0.5963,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 32,
+        "ms": 819,
+        "top": 0.1363,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "submit my message",
+      "targets": [
+        "send"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 37,
+        "ms": 152,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 681,
+        "top": 0.6963,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 35,
+        "ms": 765,
+        "top": 0.3902,
+        "abstain": false
+      },
+      "fused": {
+        "rank": null,
+        "ms": 1
+      }
+    },
+    {
+      "q": "jump to a file by typing its name",
+      "targets": [
+        "quickQ"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 14,
+        "ms": 175,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 644,
+        "top": 0.1846,
+        "abstain": true
+      },
+      "laya-choice-all": {
+        "rank": 31,
+        "ms": 714,
+        "top": 0.1154,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 2
+      }
+    },
+    {
+      "q": "attach a document to the conversation",
+      "targets": [
+        "attachPill",
+        "attachFile"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 1,
+        "ms": 191,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 1,
+        "ms": 719,
+        "top": 0.3739,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 3,
+        "ms": 681,
+        "top": 0.0843,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 1
+      }
+    },
+    {
+      "q": "check the page at every screen size",
+      "targets": [
+        "wsVerify"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 27,
+        "ms": 159,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 603,
+        "top": 0.6513,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 33,
+        "ms": 657,
+        "top": 0.4414,
+        "abstain": false
+      },
+      "fused": {
+        "rank": null,
+        "ms": 2
+      }
+    },
+    {
+      "q": "the list of my earlier conversations",
+      "targets": [
+        "railBtn"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 27,
+        "ms": 196,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 705,
+        "top": 0.9986,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 33,
+        "ms": 713,
+        "top": 0.1448,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 2
+      }
+    },
+    {
+      "q": "save the file I edited",
+      "targets": [
+        "srcSave"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 15,
+        "ms": 185,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 609,
+        "top": 0.3577,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 24,
+        "ms": 653,
+        "top": 0.1825,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "search inside the open source file",
+      "targets": [
+        "srcFindBtn"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 3,
+        "ms": 178,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 1,
+        "ms": 555,
+        "top": 0.9113,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 7,
+        "ms": 677,
+        "top": 0.1599,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 5,
+        "ms": 2
+      }
+    },
+    {
+      "q": "view the image in the Windows photo app",
+      "targets": [
+        "ivExternal"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 31,
+        "ms": 164,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 631,
+        "top": 0.2892,
+        "abstain": true
+      },
+      "laya-choice-all": {
+        "rank": 33,
+        "ms": 718,
+        "top": 0.2133,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "shrink the image",
+      "targets": [
+        "ivOut"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 19,
+        "ms": 163,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 626,
+        "top": 0.9973,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 17,
+        "ms": 696,
+        "top": 0.1857,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 1
+      }
+    },
+    {
+      "q": "change which AI model answers",
+      "targets": [
+        "modelPill"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 1
+      },
+      "laya-cos": {
+        "rank": 27,
+        "ms": 184,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 613,
+        "top": 0.9447,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 37,
+        "ms": 683,
+        "top": 0.0749,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "restart the preview dev server",
+      "targets": [
+        "wsRestart"
+      ],
+      "lexical": {
+        "rank": 1,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 8,
+        "ms": 180,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 1,
+        "ms": 601,
+        "top": 1,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 2,
+        "ms": 689,
+        "top": 0.0714,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 1,
+        "ms": 2
+      }
+    },
+    {
+      "q": "refresh the preview page",
+      "targets": [
+        "wsReload"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 5,
+        "ms": 148,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": 6,
+        "ms": 483,
+        "top": 0.8305,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 30,
+        "ms": 567,
+        "top": 0.2398,
+        "abstain": true
+      },
+      "fused": {
+        "rank": 5,
+        "ms": 2
+      }
+    },
+    {
+      "q": "add another folder to work in",
+      "targets": [
+        "addProjectBtn"
+      ],
+      "lexical": {
+        "rank": null,
+        "ms": 0
+      },
+      "laya-cos": {
+        "rank": 24,
+        "ms": 161,
+        "top": null,
+        "abstain": false
+      },
+      "laya-choice": {
+        "rank": null,
+        "ms": 468,
+        "top": 0.9885,
+        "abstain": false
+      },
+      "laya-choice-all": {
+        "rank": 14,
+        "ms": 567,
+        "top": 0.1129,
+        "abstain": true
+      },
+      "fused": {
+        "rank": null,
+        "ms": 1
+      }
+    }
+  ]
+}

@@ -157,7 +157,7 @@ module.exports = async function () {
   });
 
   // ---------------------------------------------------------------------
-  await test('DESKTOP: the window shows both lanes and this session, rendered from Core', async () => {
+  await test('DESKTOP: the window shows the workspace tabs and this session, rendered from Core', async () => {
     const d = await desktop();
     if (d.skipped) return note(d.skipped);
     try {
@@ -171,8 +171,10 @@ module.exports = async function () {
       assert.ok(state.body.state.current, 'and a current session exists');
 
       const html = fs.readFileSync(d.win.status().assets, 'utf8');
-      assert.match(html, /Chat \/ Coding/, 'the Chat/Coding lane');
-      assert.match(html, /Cowork \/ Bot/, 'the Cowork/Bot lane');
+      // THE SEVEN PRIMARY SURFACES, each a tab that never goes away.
+      for (const t of ['Home', 'Ide', 'Chat', 'Bot', 'Model', 'Session', 'Settings']) {
+        assert.match(html, new RegExp(`id="tab${t}"`), `the ${t} tab`);
+      }
       assert.match(html, /id="workshop"/, 'the Frontend Workshop surface');
       assert.match(html, /computerCard/, 'the Computer surface');
     } finally { await d.close(); }
@@ -277,12 +279,14 @@ module.exports = async function () {
       assert.ok(await js("!!window.chrome && !!window.chrome.webview"),
         'the page is talking to a native host, not an origin');
 
-      // BOTH LANES ARE THERE.
-      const lanes = await js("Array.from(document.querySelectorAll('.lane,[data-lane],nav button')).map(function(n){return n.textContent.trim();}).join('|')");
-      assert.match(String(lanes), /Chat \/ Coding/, `the Chat/Coding lane: ${lanes}`);
-      assert.match(String(lanes), /Cowork \/ Bot/, `the Cowork/Bot lane: ${lanes}`);
+      // THE WORKSPACE TABS ARE THERE, and LAIN opens on Home.
+      const tabs = await js("Array.from(document.querySelectorAll('#tabs .gtab')).map(function(n){return n.textContent.trim();}).join('|')");
+      assert.strictEqual(String(tabs), 'Home|IDE|Chat|Bot|Model|Session|Settings', `the primary tabs: ${tabs}`);
+      assert.strictEqual(await js("LAIN.nav.tab()"), 'home', 'LAIN opens on Home');
 
-      // A TURN, SENT FROM THE WINDOW.
+      // A TURN, SENT FROM THE WINDOW — from Chat, one tab away.
+      await js("document.getElementById('tabChat').click()");
+      assert.ok(await until("document.getElementById('chatHost').contains(document.getElementById('ask'))", 10000), 'Chat holds the composer');
       await js("(function(){var a=document.getElementById('ask');a.value='what does a.js export?';a.dispatchEvent(new Event('input',{bubbles:true}));return 1;})()");
       await js("document.getElementById('send').click()");
       assert.ok(await until("document.getElementById('stream').innerText.indexOf('exports the number 1')>=0", 90000),
@@ -486,7 +490,7 @@ module.exports = async function () {
       const routes = require(path.join(ROOT, 'src', 'harnessapp', 'routes'));
       // THE ROUTE EXISTS AND IS THE HOST'S — the tray sends it; nothing else does.
       assert.ok(routes.ROUTES['POST /api/desktop/quit'], 'the tray has a way to ask Core to quit');
-      const host = fs.readFileSync(path.join(ROOT, 'native', 'host.cs'), 'utf8');
+      const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
       assert.match(host, /api\/desktop\/quit/, 'and the tray is what sends it');
       // X AND QUIT ARE DIFFERENT GESTURES, in the host itself.
       assert.match(host, /CloseReason\.UserClosing[\s\S]{0,120}e\.Cancel = true;[\s\S]{0,40}Hide\(\);/,

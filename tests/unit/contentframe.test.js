@@ -302,7 +302,7 @@ module.exports = async function () {
         const rows = screen.panel.render(screen.rowMap.contentWidth, screen.rowMap.panelRows);
         // The highlighted row is the one carrying the reading surface. Its
         // PAINTED span must be the menu's width, not the frame's.
-        const hit = rows.find((l) => l.includes('48;5;'));
+        const hit = rows.find((l) => /\x1b\[48;[25];/.test(l));   // any row ground (palette, 2026-09-23)
         assert.ok(hit, 'a row is highlighted');
         const plain = T.strip(hit).replace(/\s+$/, '');
         assert.ok(plain.length < screen.rowMap.contentWidth,

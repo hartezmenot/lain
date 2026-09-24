@@ -140,6 +140,8 @@ function close(session, life, record) {
   accountTo(life, record);
   remember(session, record);
   settleScratch(session, record);
+  try { require('./locateassist').settleRecord(session, record); } catch { /* a measurement, never a failure */ }
+  try { require('./tempworkspaces').sweep(null, session.id); } catch { /* retained; reconciled at the next start */ }
   tellRuntime(session, record);
   require('./inflight').end(session);   // ended by a route LAIN saw — nothing to recover
   return record;

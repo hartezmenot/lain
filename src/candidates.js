@@ -42,7 +42,6 @@
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
@@ -111,19 +110,28 @@ function isolate(app, label, contract = {}) {
     // THE CANONICAL BYTES OF EVERYTHING IN SCOPE, NOW — what integration compares
     // against. Not the git blob: with autocrlf the working file differs from it.
     const scoped = manifest(root, (rel) => inScopeOf(contract, prefix, rel));
-    return { ok: true, kind: 'worktree', root, base: base.base, dir: wt.dir, cwd: path.join(wt.dir, prefix), prefix, scoped };
+    return registered(app, label, { ok: true, kind: 'worktree', root, base: base.base, dir: wt.dir, cwd: path.join(wt.dir, prefix), prefix, scoped });
   }
   // NOT A GIT PROJECT: a snapshot copy of what the manifest covers.
   const root = cwd;
   const before = manifest(root);
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `lain-sub-${label}-`));
+  const dir = fs.mkdtempSync(path.join(require('./tempworkspaces').tempRoot(), `lain-sub-${label}-`));
   for (const rel of before.keys()) {
     const dst = path.join(dir, rel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(path.join(root, rel), dst);
   }
   linkDeps(root, dir);
-  return { ok: true, kind: 'snapshot', root, base: null, dir, cwd: dir, manifest: before, prefix: '', scoped: before };
+  return registered(app, label, { ok: true, kind: 'snapshot', root, base: null, dir, cwd: dir, manifest: before, prefix: '', scoped: before });
+}
+
+/**
+ * EVERY WORKSPACE IS REGISTERED THE MOMENT IT EXISTS (tempworkspaces.js): from
+ * here its removal belongs to the lifecycle, never to the caller.
+ */
+function registered(app, label, ws) {
+  try { ws.temp = require('./tempworkspaces').register(ws, { sessionId: app.session.id, label }).id; } catch { ws.temp = null; }
+  return ws;
 }
 
 /** The base content hash of a canonical path, to detect a canonical change before integration. */
@@ -327,7 +335,10 @@ async function integrate(ctx, id, { only = null } = {}) {
   if (!c) return { ok: false, why: `no candidate "${id}" in this session` };
   if (!c.verdict.ok) return { ok: false, why: `candidate ${id} was REJECTED: ${c.verdict.reasons.join('; ')}` };
   if (c.state === 'INTEGRATED') return { ok: false, why: `candidate ${id} is already integrated` };
+  if (c.state === 'REJECTED') return { ok: false, why: `candidate ${id} was rejected by the main agent` };
   const toolstep = require('./toolstep');
+  const tw = require('./tempworkspaces');
+  tw.integrating(c.id);   // written BEFORE any canonical write (crash-safe: see tempworkspaces.js)
   const want = only && only.length ? new Set(only.map(norm)) : null;
   const done = []; const conflicts = []; const failed = []; const mutated = [];
   const cwdRel = (rel) => path.relative(ctx.session.cwd, path.join(c.root, rel)) || rel;
@@ -354,7 +365,28 @@ async function integrate(ctx, id, { only = null } = {}) {
   c.state = conflicts.length || failed.length ? (done.length ? 'PARTIAL' : c.state) : 'INTEGRATED';
   c.integrated = [...new Set([...(c.integrated || []), ...done])];
   try { fs.writeFileSync(path.join(store(app.session.id), `${c.id}.json`), JSON.stringify(c), 'utf8'); } catch { /* memory copy stands */ }
+  // THE INTEGRATION RECEIPT: what landed, what was left out, the canonical bytes.
+  tw.integrated(c.id, { done, conflicts, failed, proposed: c.files.map((f) => f.path) });
   return { ok: !conflicts.length && !failed.length, done, conflicts, failed, mutated, state: c.state };
+}
+
+/**
+ * THE MAIN AGENT REJECTS A CANDIDATE. The record stays archived on disk (its
+ * files and their content are the preserved patch); the workspace becomes
+ * eligible for the lifecycle's cleanup. Nothing here deletes anything itself.
+ */
+function reject(app, id, reason = '') {
+  const c = load(app, id);
+  if (!c) return { ok: false, why: `no candidate "${id}" in this session` };
+  if (c.state === 'INTEGRATED') return { ok: false, why: `candidate ${id} is already integrated` };
+  c.state = 'REJECTED';
+  c.rejectedReason = String(reason || '').slice(0, 300);
+  try { fs.mkdirSync(store(app.session.id), { recursive: true }); fs.writeFileSync(path.join(store(app.session.id), `${c.id}.json`), JSON.stringify(c), 'utf8'); } catch { /* memory copy stands */ }
+  if (app._candidates) app._candidates.set(c.id, c);
+  const tw = require('./tempworkspaces');
+  const rec = tw.rejected(c.id, reason);
+  const cleaned = rec ? tw.attempt(rec.id, app) : null;
+  return { ok: true, state: c.state, workspace: rec ? (cleaned && cleaned.ok ? 'DELETED' : `retained: ${(cleaned && cleaned.why || []).join('; ')}`) : 'none' };
 }
 
 function list(app) {
@@ -367,4 +399,4 @@ function list(app) {
   return [...seen.values()];
 }
 
-module.exports = { isolate, harvest, dispose, check, integrate, describe, load, list, manifest, LINKED, MAX_LINES, MAX_FILES };
+module.exports = { isolate, harvest, dispose, reject, check, integrate, describe, load, list, manifest, LINKED, MAX_LINES, MAX_FILES };

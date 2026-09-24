@@ -137,6 +137,81 @@ module.exports = async function () {
     assert.ok(snap.fg[y].some(greenish), `the + row is green: ${JSON.stringify(snap.fg[y])}`);
   });
 
+  // ---- U — the 2026-09-23 visual direction, in a real terminal ---------------
+  const src = Array.from({ length: 12 }, (_, i) => `export const v${i} = ${i};`).join('\n') + '\n';
+  const edited = src.replace('export const v5 = 5;', 'export const v5 = 500;');
+  const run = async (cols, tag) => {
+    const cwd = require('../helpers').tmpdir('ux-');
+    fs.writeFileSync(path.join(cwd, 'vals.js'), src);
+    return tty.runTty({
+      cols, rows: 40, cwd,
+      script: [
+        { text: '', tool_calls: [{ name: 'read_file', input: { path: 'vals.js' } }] },
+        { text: 'Streaming a little before the edit so the rectangle is visible for a moment.', chunkDelayMs: 90,
+          tool_calls: [{ name: 'edit_file', input: { path: 'vals.js', old: 'export const v5 = 5;', new: 'export const v5 = 500;' } }] },
+        { text: `Done ${tag}.` },
+      ],
+      steps: [
+        { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
+        { send: 'change v5\r' },
+        { until: 'STREAMING', timeout: 20000 }, { snap: 'stream', settle: 300 },
+        { until: `Done ${tag}`, timeout: 30000 }, { snap: 'done', settle: 2000 },
+      ],
+    });
+  };
+  const wide = await run(170, 'wide');
+  const narrow = await run(100, 'narrow');
+  const hexOf = (snap, y, re) => y >= 0 && (snap.fg[y] || []).some((c) => re.test(String(c)));
+  await test('CLI U1: a WIDE terminal draws the Diff side by side (old │ new), a narrow one unified', () => {
+    assert.strictEqual(fs.readFileSync(path.join(wide.cwd, 'vals.js'), 'utf8'), edited, 'the edit landed');
+    const w = vis(wide.byName.done);
+    assert.match(w, /6 export const v5 = 5;\s+│\s+6 export const v5 = 500;/, `split row:\n${w}`);
+    const n = vis(narrow.byName.done);
+    assert.match(n, /6 - export const v5 = 5;/, n);
+    assert.match(n, /6 \+ export const v5 = 500;/);
+    assert.ok(!/│\s+6 export const v5 = 500;/.test(n), 'narrow is not split');
+  });
+  await test('CLI U2: the palette — blue composer edge, violet model activity, teal added row; heads not the old cyan', () => {
+    const idle = wide.byName.idle;
+    const y = idle.text.findIndex((t) => /▌\s*Ask LAIN/.test(t));
+    assert.ok(y >= 0, `the composer carries its edge:\n${vis(idle)}`);
+    assert.ok(hexOf(idle, y, /4da3ff/i), `blue edge: ${JSON.stringify(idle.fg[y])}`);
+    const st = wide.byName.stream;
+    const sy = st.text.findIndex((t) => /STREAMING/.test(t));
+    assert.ok(hexOf(st, sy, /9b8cff/i), `violet activity: ${JSON.stringify(st.fg[sy])}`);
+    const d = wide.byName.done;
+    const ay = d.text.findIndex((t) => /export const v5 = 500;/.test(t));
+    assert.ok(hexOf(d, ay, /72e6a2/i), `teal-green added text: ${JSON.stringify(d.fg[ay])}`);
+    const hy = d.text.findIndex((t) => /^\s*CHANGE\b/.test(t));
+    assert.ok(hy < 0 || !hexOf(d, hy, /^cyan$|67c7f7/i), 'section heads are identity blue, not the old cyan');
+  });
+
+  // ---- U3 — the command row's output tail and the footer (2026-09-23) --------
+  const sh = await tty.runTty({
+    cols: 120, rows: 36,
+    script: [
+      { text: 'Running the listing now, streaming slowly so the running footer is visible.', chunkDelayMs: 90,
+        tool_calls: [{ name: 'run_bash', input: { command: 'node -e "for (let i = 1; i <= 7; i++) console.log(\'line \' + i)"' } }] },
+      { text: 'Done footer.' },
+    ],
+    steps: [
+      { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
+      { send: 'list them\r' },
+      { until: 'STREAMING', timeout: 20000 }, { snap: 'busy', settle: 300 },
+      { until: 'Done footer', timeout: 30000 }, { snap: 'done', settle: 1500 },
+    ],
+  });
+  await test('CLI U3: `› cmd`, (N earlier lines), the output tail, the completion; a footer of live key hints', () => {
+    const d = vis(sh.byName.done);
+    assert.match(d, /› node -e/, d);
+    assert.match(d, /\(3 earlier lines\)\s*\n[│\s]*line 4\s*\n[│\s]*line 5\s*\n[│\s]*line 6\s*\n[│\s]*line 7/, `the tail under the command:\n${d}`);
+    assert.match(d, /Command completed in \d+(\.\d)?s · exit code 0/);
+    const last = (snap) => snap.text.filter((t) => t.trim()).pop() || '';
+    assert.match(last(sh.byName.idle), /\/ commands · @ files · shift\+tab mode\s*$/, `idle footer: ${last(sh.byName.idle)}`);
+    assert.match(last(sh.byName.busy), /ctrl\+c interrupt · ctrl\+o activity · shift\+tab mode\s*$/, `running footer: ${last(sh.byName.busy)}`);
+    assert.match(last(sh.byName.done), /\/ commands/, 'idle again once the turn ends');
+  });
+
   // ---- P — profile toggles ------------------------------------------------------
   const seq = ['/fast', '/fast', '/eco', '/eco', '/fast', '/eco', '/normal'];
   const want = ['FAST', null, 'ECO', null, 'FAST', 'ECO', null];

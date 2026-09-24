@@ -240,4 +240,28 @@ module.exports = async function () {
     assert.match(by.append_file, /instead of reading a file/i);
     assert.match(by.file_info, /without reading it/i);
   });
+
+  await test('EDIT: read_file line-number prefixes copied into expect/old are removed — only when that is the one reading that fits', async () => {
+    // Live (gpt-oss:120b, 2026-09-23): 27 of 27 patches in one run carried
+    // "    5\t…" from read_file and were rejected; the run changed nothing.
+    const dir = project({ 'store.js': ['// Workspace settings.', 'const cache = load();', '', 'export function get() { return cache; }', ''].join(NL) });
+    const view = (await run('read_file', { path: 'store.js' }, dir)).output;
+    const copied = view.split(NL).filter((l) => /^ *[12]\t/.test(l)).join(NL);
+    assert.match(copied, /^ {4}1\t\/\/ Workspace/, 'the fixture reproduces the read_file view');
+    const p = await run('apply_patch', { path: 'store.js', expect: copied, replace: '    1\t// Workspace settings, kept fresh.' + NL + '    2\tlet cache = load();' }, dir);
+    assert.ok(!p.isError, p.output);
+    assert.match(p.output, /line-number prefixes were removed/);
+    assert.match(read(dir, 'store.js'), /^\/\/ Workspace settings, kept fresh\.\nlet cache = load\(\);\n/, 'the replacement lost its prefixes too');
+    const e = await run('edit_file', { path: 'store.js', old: '    4\texport function get() { return cache; }', new: 'export function get() { return { ...cache, cost: "$\'" }; }' }, dir);
+    assert.ok(!e.isError, e.output);
+    assert.match(read(dir, 'store.js'), /cost: "\$'"/, 'a $-sequence in the new text is written literally');
+    // Text that really contains a number and a tab is matched as written, never stripped.
+    const tsv = project({ 'data.tsv': ['id\tname', '1\talpha', '2\tbeta', ''].join(NL) });
+    const t = await run('apply_patch', { path: 'data.tsv', expect: '1\talpha', replace: '1\tALPHA' }, tsv);
+    assert.ok(!t.isError, t.output);
+    assert.strictEqual(read(tsv, 'data.tsv'), ['id\tname', '1\tALPHA', '2\tbeta', ''].join(NL));
+    // Not every line prefixed → left exactly as sent (and rejected as before).
+    const mixed = await run('apply_patch', { path: 'store.js', expect: '    1\t// Workspace settings, kept fresh.' + NL + 'nope', replace: 'x' }, dir);
+    assert.ok(mixed.isError);
+  });
 };

@@ -17,7 +17,7 @@ const path = require('path');
 const { test } = require('../helpers');
 
 const source = require('../../src/harnessapp/source');
-const pagesource = require('../../src/harnessapp/pagesource');
+const pagesource = require(require('../helpers').harnessPath('page', 'pagesource'));
 
 /** The emitted client script, evaluated the way a browser would. */
 function client() {

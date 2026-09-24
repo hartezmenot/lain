@@ -1,0 +1,122 @@
+{
+  "summary": {
+    "at": "2026-09-23T00:29:08.615Z",
+    "model": "limite-1b-violetto Q4_K_M (patched llama.cpp, CPU)",
+    "cases": 6,
+    "violettoCorrect": 3,
+    "violettoMedianMs": 228738,
+    "violettoTokens": 30000,
+    "deterministicCorrect": 6,
+    "deterministicMaxUs": 97.9
+  },
+  "rows": [
+    {
+      "case": "submit 10% smaller, square, centred, same right inset",
+      "truth": {
+        "width": 39.6,
+        "x": 1150.4,
+        "y": 912.2
+      },
+      "deterministicUs": 97.9,
+      "violetto": {
+        "width": 39.6,
+        "x": 1150.4,
+        "y": 912.2,
+        "correct": true,
+        "ms": 215924,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    },
+    {
+      "case": "icon 25% larger, centred both ways",
+      "truth": {
+        "width": 40,
+        "x": 240,
+        "y": 270
+      },
+      "deterministicUs": 26.6,
+      "violetto": {
+        "width": 40,
+        "x": 240,
+        "y": 270,
+        "correct": true,
+        "ms": 249380,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    },
+    {
+      "case": "input 15% narrower, same left inset, centred",
+      "truth": {
+        "width": 510,
+        "x": 24,
+        "y": 52.7
+      },
+      "deterministicUs": 29.8,
+      "violetto": {
+        "width": null,
+        "x": null,
+        "y": null,
+        "correct": false,
+        "ms": 0,
+        "tokens": 0,
+        "finish": "error"
+      }
+    },
+    {
+      "case": "avatar 20% smaller, right inset 16, centred",
+      "truth": {
+        "width": 32,
+        "x": 1392,
+        "y": 20
+      },
+      "deterministicUs": 31.6,
+      "violetto": {
+        "width": 32,
+        "x": 1392,
+        "y": 36,
+        "correct": false,
+        "ms": 265911,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    },
+    {
+      "case": "dialog button 12% wider, centred horizontally",
+      "truth": {
+        "width": 134.4,
+        "x": 652.8,
+        "y": 500
+      },
+      "deterministicUs": 30.2,
+      "violetto": {
+        "width": 134.4,
+        "x": 652.8,
+        "y": 500,
+        "correct": true,
+        "ms": 222137,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    },
+    {
+      "case": "badge 50% larger, square, right inset 16, centred",
+      "truth": {
+        "width": 24,
+        "x": 490,
+        "y": 622
+      },
+      "deterministicUs": 17.8,
+      "violetto": {
+        "width": 30,
+        "x": 30,
+        "y": 610,
+        "correct": false,
+        "ms": 228738,
+        "tokens": 6000,
+        "finish": "length"
+      }
+    }
+  ]
+}

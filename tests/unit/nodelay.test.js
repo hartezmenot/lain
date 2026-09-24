@@ -87,7 +87,7 @@ module.exports = async function () {
       'and every write route — creating a session, selecting one, starting a turn');
 
     // THE RENDERER ACTS ON IT IMMEDIATELY, with no timer in between.
-    const script = require('../../src/harnessapp/pagescript').js();
+    const script = require(require('../helpers').harnessPath('page', 'pagescript')).js();
     assert.match(script, /if \(m\.wake\) \{ poll\(\); return; \}/,
       'a wake polls at once — a debounce here would be the delay this removes');
   });
@@ -139,12 +139,12 @@ module.exports = async function () {
     // A sweep for the SHAPE rather than for a name: a timer whose callback
     // reveals state is a delayed reveal however it is spelled.
     const suspects = [
-      ['src/harnessapp/pagescript.js', /setTimeout\([^)]*render\(\)/],
-      ['src/harnessapp/pagecowork.js', /setTimeout\([^)]*render\(\)/],
+      [require('../helpers').harnessPath('page', 'pagescript.js'), /setTimeout\([^)]*render\(\)/],
+      [require('../helpers').harnessPath('page', 'pagecowork.js'), /setTimeout\([^)]*render\(\)/],
       ['src/ui/index.js', /setTimeout\([^)]*refresh\(\)/],
     ];
     for (const [file, re] of suspects) {
-      assert.ok(!re.test(read(...file.split('/'))), `${file} defers a render behind a timer`);
+      assert.ok(!re.test(require('path').isAbsolute(file) ? fs.readFileSync(file, 'utf8') : read(...file.split('/'))), `${file} defers a render behind a timer`);
     }
   });
 };

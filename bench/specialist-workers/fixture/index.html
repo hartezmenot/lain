@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TeamDesk ✨ Supercharge Your Team 🚀</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">🚀 TeamDesk</div>
+      <div class="who">
+        <span id="userName"></span>
+        <img id="avatar" class="avatar" alt="" src="/avatar.svg" />
+      </div>
+    </header>
+    <main>
+      <section class="hero">
+        <h1>✨ Unleash Your Team's Full Potential ✨</h1>
+        <p>Seamlessly supercharge collaboration with our cutting-edge, AI-powered, next-generation settings experience. 🎉</p>
+      </section>
+      <section class="stats">
+        <div class="card stat"><span class="pill">🔥 Hot</span><strong>10x</strong><span>faster onboarding</span></div>
+        <div class="card stat"><span class="pill">✨ New</span><strong>99.9%</strong><span>uptime guaranteed</span></div>
+        <div class="card stat"><span class="pill">🚀 Pro</span><strong>2,847</strong><span>teams trust us</span></div>
+      </section>
+      <section class="card" id="settingsCard">
+        <h2>⚙️ Workspace Settings</h2>
+        <div class="card inner">
+        <form id="settingsForm">
+          <label>Workspace name <input id="wsName" name="workspaceName" /></label>
+          <label>Digest email
+            <select id="digest" name="digest">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <button class="btn btn-primary" type="submit">💾 Save Changes!</button>
+        </form>
+        </div>
+        <p id="status" role="status"></p>
+      </section>
+      <section class="composer-wrap">
+        <form class="composer" id="composer">
+          <input id="note" placeholder="Leave a note for the team" />
+          <button id="send" class="send" type="submit" aria-label="Send">➤</button>
+        </form>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -282,14 +282,14 @@ module.exports = async function () {
         return seen;
       };
 
-      const last = statesFor(/console\.log\(3\)|node · /);
+      const last = statesFor(/console\.log\(3\)|node · |› node /);
       assert.ok(last.length >= 3,
         `the final operation collapsed to ${last.length} state(s) — it teleported:${CR}${last.join(CR)}`);
       // And it really does pass through a RUNNING state before its result, which
       // is the difference between animating and appearing finished.
       assert.ok(last.some((s) => /RUNNING/i.test(s)),
         'the last operation must be seen running, not only completed');
-      assert.ok(last.some((s) => /node · -e "console\.log\(3\)"/.test(s)),
+      assert.ok(last.some((s) => /(?:node · |› node )-e "console\.log\(3\)"/.test(s)),
         'and must be seen completed');
     })();
   });

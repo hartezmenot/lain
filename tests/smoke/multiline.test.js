@@ -60,7 +60,8 @@ function boxShowing(out, needle) {
   // now that the composer centres its text, is the row the text is ON.
   while ((m = re.exec(raw))) {
     const row = Number(m[1]);
-    const text = m[2].replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').trimEnd();
+    // The composer's `▌` edge (ui/inputbox.js) stands where its pad space was: geometry, not text.
+    const text = m[2].replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/^(\s*)▌/, '$1 ').trimEnd();
     if (!text.trim() && rows[row] !== undefined) continue;
     rows[row] = text;
   }

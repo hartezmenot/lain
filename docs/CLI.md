@@ -100,6 +100,86 @@ Retry scheduling now has one owner.
   shows an old red rate-limit warning. History keeps the event (dimmed as
   `earlier ·`).
 
+### 1.1 Palette, Diff and command rows (2026-09-23)
+
+Same JS renderer, same single column. Colour only changed where it carries
+meaning; no framework was introduced.
+
+* **Palette** (`src/ui/palette.js`): one table of tokens, painted as 24-bit SGR
+  where the terminal supports it and as the nearest xterm-256 colour where it
+  does not. Truecolor is on for Windows consoles, Windows Terminal
+  (`WT_SESSION`) and `COLORTERM=truecolor|24bit`; `LAIN_TRUECOLOR=0|1`
+  overrides.
+
+  | Role | Token | Hex |
+  |---|---|---|
+  | base / raised / raised 2 | `base` `raised` `raised2` | `#090B0D` `#0E1113` `#121517` |
+  | border | `border` | `#242A2E` |
+  | text / muted / faint | `text` `muted` `faint` | `#D8DDE2` `#777F87` `#5A6168` |
+  | accent (focus, headings, composer edge) | `accent` | `#4DA3FF` |
+  | tools and commands | `tool` | `#67C7F7` |
+  | the model's own activity | `violet` → `violetHi` | `#9B8CFF` → `#B69BFF` |
+  | success / failure / caution | `ok` `bad` `warn` | `#6CCB8F` `#F2777A` `#E5B567` |
+
+  The earlier identity was cyan headings; they are blue now, and cyan is kept
+  for tools only.
+* **Diff colours**: removed `#FF7E88` on `#35171D` (word highlight `#4A2028`),
+  added `#72E6A2` on `#103638` (highlight `#12494A`), context `#BEC5CB`, line
+  numbers `#747D84`, separators `#293035`.
+* **Split Diff** (`src/ui/panes.js` `diffSplit`): at ≥ 150 columns an open
+  `[Diff]` is drawn side by side (old │ new), paired line by line and rebuilt
+  from the same hunks; narrower terminals keep the unified view
+  (`src/ui/turnsections.js`). Opening, closing and scroll restoration are
+  unchanged.
+* **ACTIVITY box**: the model's own states (WAITING, THINKING, STREAMING,
+  PREPARING TOOL) carry the violet accent, tools are cyan, and STALLED /
+  BLOCKED / RATE LIMITED use the semantic colours. Every word still comes from
+  runtime facts.
+* **Composer**: the same minimal input line, with a blue `▌` edge.
+* **Command rows** (`src/ui/shellrow.js`): a finished shell/python/process
+  call is drawn as
+
+  ```
+  › git status --short
+      (3 earlier lines)
+      M  src/app.js
+      ?? tests/streaming.test.js
+      Command completed in 0.4s · exit code 0
+  ```
+
+  - The last four lines of what the command printed are shown in the text
+    colour, with a muted count of the lines before them
+    (`describe.outputTail`).
+  - LAIN's own `[via …]` stamp and bracket markers are not output, so they are
+    not shown.
+  - `✗›` and `Command failed in …` are used when the exit code is non-zero.
+  - The duration comes from the tool's start and end events (`turnevents.js`),
+    and the exit code from the tool's own result. Nothing is guessed.
+
+  **A defect fixed on the way:** folding (`ui/compact.js`) counted rows, not
+  calls. One command with four output lines looked like a flood and was folded
+  to `✓ ran`, so it is now counted as one call.
+* **Footer** (`src/ui/footer.js`): one restrained row under the composer, with
+  only the keys that work right now. It says nothing the header already says.
+
+  ```
+                         ctrl+c interrupt · ctrl+o activity · shift+tab mode     (a turn is running)
+                                    / commands · @ files · shift+tab mode     (idle)
+  ```
+
+  It is hidden while a panel is open (the panel sits in its place) and on
+  terminals shorter than 20 rows.
+* Checked in a real terminal (ConPTY + pyte, `tests/smoke/closure-cli.test.js`):
+  - U1: the Diff is split at 170 columns and unified at 100.
+  - U2: the `#4da3ff` composer edge, the violet activity accent, the `#72e6a2`
+    added lines, and headings that are no longer cyan.
+  - U3: the command row with its output tail and completion line, and the
+    footer both while running and idle.
+* **The reference mock-up** (2026-09-23) used an orange brand accent and
+  composer edge. The written brief says a blue edge, and blue is what is built.
+  If orange is wanted, change the `accent` token in `ui/palette.js`. That also
+  recolours headings and focus, which share the token.
+
 ## 2. Modes and preferences
 
 | | |
@@ -265,7 +345,35 @@ door, with a write lease on the canonical scope.
   agent sees it. Writes outside the writeScope, deletions not declared in
   ownedFiles, renames from outside the scope, binary changes and oversized
   patches are **REJECTED**.
-- The workspace is removed at harvest. No worktree outlives the call.
+- **The workspace belongs to its lifecycle, not to the call**
+  (`src/tempworkspaces.js`, 2026-09-23).
+  - It is registered at creation under the LAIN temp root
+    (`%TEMP%\lain-workspaces`).
+  - A child that proposed nothing is removed at once.
+  - A candidate waits until it is resolved:
+    - **integrated**, with a receipt of the canonical hashes, then a passing
+      targeted test after the integration, then the final smoke after the last
+      canonical change (where the project has one);
+    - or **rejected** (`integrate_candidate {id, reject: true}`), with the
+      record archived first.
+  - Only then is it removed. A git worktree goes through `git worktree remove`
+    and `prune`, and a compact receipt stays under
+    `~/.lain-v2/workspaces/receipts/`.
+  - FAILED / BLOCKED / CONFLICTED / ORPHANED workspaces are **retained** for
+    inspection (`TEMP RETAINED · failure evidence` in `/workspaces`). They are
+    removed by the person (`/workspaces clean <id>`) or after 7 days, never at
+    once.
+  - A directory a job or process is still using is never removed.
+  - A crash between the smoke and the removal is finished once at the next
+    start (`reconcile`), and the integration is never repeated.
+  - Unregistered directories are reported as UNKNOWN and left alone.
+- **Hard path guard** on every removal:
+  - the target must be the registered directory, a direct `lain-*` child of
+    the temp root;
+  - it must not be, contain, or sit inside any of: the canonical project, the
+    LAIN repository, the Harness, the home folder, the model store or the LAIN
+    home.
+  - No tool, model or worker can name a directory to delete.
 - **`integrate_candidate {id, files?}`** is the main agent's act. Each file goes
   through the normal write door (checkpoint, undo, live Diff), anchored on the
   bytes the candidate was built from. A canonical file that moved since then
@@ -311,8 +419,13 @@ door, with a write lease on the canonical scope.
 seeded from the exact working state (no ref, branch or stash created), one
 verification command for both, deterministic selection (pass > fail, then a
 materially smaller change, then materially faster), integration of the winner,
-verification on the canonical tree (reverted if it fails), then every worktree
-removed. The person is asked only when the evidence does not decide. One small
+verification on the canonical tree (reverted if it fails). The worktrees go
+through the same lifecycle (§6):
+- the loser's patch is archived, then its worktree is removed;
+- the winner's worktree is removed after the final smoke;
+- a failed candidate's worktree is retained.
+
+The person is asked only when the evidence does not decide. One small
 record survives on the session: `Selected B — …`.
 
 ## 8. Browser and Computer

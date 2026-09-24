@@ -122,6 +122,20 @@ function resolveRoot(cwd, p) {
   return path.isAbsolute(p) ? p : path.resolve(base, p);
 }
 
+/**
+ * IS THIS FILE INSIDE `include`? The glob may be written relative to the
+ * search `path` ("**\/*.js") OR to the project ("src/**\/*.js" — the shape the
+ * schema's own example shows). Matching only the first made
+ * `{path:"src", include:"src/**\/*.js"}` match nothing: a live gpt-oss run
+ * (2026-09-23) sent exactly that nine times and was told NO FILES IN SCOPE
+ * every time. Either reading of the glob now counts.
+ */
+function inScope(includeRe, f, cwd) {
+  if (!includeRe || includeRe.test(f.rel)) return true;
+  const fromProject = path.relative(cwd || process.cwd(), f.abs).replace(/\\/g, '/');
+  return !fromProject.startsWith('..') && includeRe.test(fromProject);
+}
+
 const tools = {
   grep: {
     mutates: false,
@@ -175,7 +189,7 @@ const tools = {
       let skipped = 0;
 
       for (const f of files) {
-        if (includeRe && !includeRe.test(f.rel)) continue;
+        if (!inScope(includeRe, f, ctx && ctx.cwd)) continue;
         let st;
         try { st = fs.statSync(f.abs); } catch { continue; }
         if (st.size > MAX_FILE_BYTES) { skipped += 1; continue; }
@@ -461,7 +475,7 @@ tools.dependents = {
 
     for (const f of walk(root)) {
       if (f.rel === targetRel) continue;
-      if (includeRe && !includeRe.test(f.rel)) continue;
+      if (!inScope(includeRe, f, ctx && ctx.cwd)) continue;
       let st;
       try { st = fs.statSync(f.abs); } catch { continue; }
       if (st.size > MAX_FILE_BYTES) continue;
@@ -557,7 +571,7 @@ tools.symbols = {
     let skipped = 0;
 
     for (const f of walk(root)) {
-      if (includeRe && !includeRe.test(f.rel)) continue;
+      if (!inScope(includeRe, f, ctx && ctx.cwd)) continue;
       let st;
       try { st = fs.statSync(f.abs); } catch { continue; }
       if (st.size > MAX_FILE_BYTES) { skipped += 1; continue; }

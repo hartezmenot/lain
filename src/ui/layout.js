@@ -590,6 +590,8 @@ class Screen {
     }
     buf.push(...require('./inputbox').draw(this, { row, cols: box.width, textRows: g.textRows, col: col0 }));
     row += g.textRows;
+    // THE FOOTER: live key hints, one restrained row (ui/footer.js). Zero rows with a panel open.
+    if (g.footerRows > 0) buf.push(L(at(row++, col0) + views.clip(require('./footer').line(this, box.width, P), box.width)));
 
     // ---- THE PANEL, DIRECTLY BELOW THE INPUT --------------------------------
     //

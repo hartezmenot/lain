@@ -132,7 +132,7 @@ module.exports = async function () {
       const { screen } = draw(80, rows);
       const g = screen.geometry();
       const total = g.headerRows + g.workspace + g.statusRows + g.inputRows + g.panelRows
-        + g.pendingRows + g.jobRows;
+        + g.pendingRows + g.jobRows + g.footerRows;
       assert.strictEqual(total, rows,
         `at ${rows} rows the regions total ${total}: ${JSON.stringify(g)}`);
       assert.ok(g.workspace >= 1, `the conversation vanished at ${rows} rows`);
@@ -228,7 +228,7 @@ module.exports = async function () {
         s.draw();
         const g = s.geometry();
         assert.strictEqual(
-          g.headerRows + g.workspace + g.statusRows + g.inputRows + g.panelRows + g.pendingRows + g.jobRows,
+          g.headerRows + g.workspace + g.statusRows + g.inputRows + g.panelRows + g.pendingRows + g.jobRows + g.footerRows,
           Math.max(8, r), `the regions stopped tiling after a resize to ${c}x${r}`,
         );
       }

@@ -352,10 +352,27 @@ function reattachProject(app) {
   try { exists = require('fs').statSync(root).isDirectory(); } catch { exists = false; }
   app._projectMissing = !exists;
   if (!exists) return;
+  // RUNNING IS A STATE THE WINDOW SHOWS ("Understanding project"), so it is
+  // recorded before the walk starts, and what the walk found replaces it — the
+  // counts come from the index it just built, never from a second walk.
+  const startedAt = Date.now();
+  app._projectSync = { root, running: true, startedAt };
   Promise.resolve()
     .then(() => require('./projectsync').open(root))
-    .then((r) => { app._projectSync = { at: Date.now(), verdict: r && r.verdict }; })
-    .catch((e) => { app._projectSync = { at: Date.now(), why: (e && e.message) || String(e) }; });
+    .then((r) => {
+      let cov = null;
+      try { cov = r && r.index ? require('./projectindex').coverage(root, { index: r.index }) : null; } catch { cov = null; }
+      app._projectSync = {
+        root, running: false, startedAt, at: Date.now(), verdict: r && r.verdict,
+        state: cov ? cov.state : null,
+        files: cov ? cov.discovered : null,
+        code: cov ? cov.code : null,
+        scanned: cov ? cov.scanned : null,
+        symbols: cov ? cov.symbols : null,
+        truncated: Boolean(r && r.refresh && r.refresh.truncated),
+      };
+    })
+    .catch((e) => { app._projectSync = { root, running: false, startedAt, at: Date.now(), why: (e && e.message) || String(e) }; });
 }
 
 /**

@@ -87,9 +87,9 @@ module.exports = async function () {
         width: 90,
       });
       const ext = lines.find((l) => /EXTERNAL/.test(T.strip(l)));
-      assert.match(ext, /\x1b\[35m/, 'the EXTERNAL label must carry the external colour');
+      assert.ok(ext.includes(`\x1b[${require('../../src/ui/palette').sgr('external')}m`), 'the EXTERNAL label must carry the external colour');
       const lain = lines.find((l) => /LAIN speaking\./.test(T.strip(l)));
-      assert.ok(lain && !/\x1b\[35m/.test(lain), 'magenta belongs to the external model alone');
+      assert.ok(lain && !lain.includes(`\x1b[${require('../../src/ui/palette').sgr('external')}m`), 'magenta belongs to the external model alone');
     } finally {
       delete process.env.LAIN_FORCE_COLOR;
       if (saved.no !== undefined) process.env.NO_COLOR = saved.no;

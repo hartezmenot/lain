@@ -58,6 +58,15 @@ module.exports = async function () {
     assert.match(subagents.validate(good({ role: 'WIZARD' })).why, /role/);
   });
 
+  await test('SUBAGENT: one refusal names EVERY missing field — never one field per round trip', () => {
+    // The live shape that cost six flagship requests: just a sentence, no role.
+    const bare = subagents.validate({ contract: 'Read data.txt and report the number of lines' });
+    for (const k of ['role', 'objective', 'expectedOutput', 'verification', 'completion', 'readScope']) assert.match(bare.why, new RegExp(k), `${k} named: ${bare.why}`);
+    const half = subagents.validate({ role: 'SCOUT', objective: 'count lines' });
+    for (const k of ['expectedOutput', 'verification', 'completion', 'readScope']) assert.match(half.why, new RegExp(k));
+    assert.doesNotMatch(half.why, /objective/, 'a field that is present is not named');
+  });
+
   await test('SUBAGENT: parallel runs need disjoint write ownership', () => {
     const a = subagents.validate(good({ writeScope: ['backend/auth/**'] })).contract;
     const b = subagents.validate(good({ writeScope: ['frontend/auth/**'] })).contract;
@@ -128,6 +137,15 @@ module.exports = async function () {
     assert.match(out.record.reason, /B passes/);
     assert.match(fs.readFileSync(path.join(root, 'retry.js'), 'utf8'), /2 \*\* n/, 'the winner is in the canonical tree');
     assert.ok(out.canonical.ok, 'and verified there');
+    // THE WINNER is removed by its lifecycle (integrated + verified; this project
+    // has no final suite). THE FAILED LOSER is RETAINED as evidence until the
+    // person clears it (tempworkspaces.js).
+    const tw = require('../../src/tempworkspaces');
+    assert.ok(!fs.existsSync(worktrees[1]), 'the verified winner worktree was removed');
+    assert.ok(fs.existsSync(worktrees[0]), 'the failed candidate is kept for inspection');
+    const failed = tw.all().find((r) => r.dir === tw.all().find((x) => x.label === 'ab-A' && x.sessionId === app.session.id).dir);
+    assert.strictEqual(failed.state, 'FAILED');
+    assert.ok(tw.purge(failed.id, app).ok);
     for (const w of worktrees) assert.ok(!fs.existsSync(w), `worktree ${w} deleted`);
     assert.ok(!/lain-ab-/.test(g('worktree', 'list').stdout), 'no worktree registered');
     assert.strictEqual(g('branch', '--list').stdout.trim().split('\n').length, 1, 'no temporary branch');

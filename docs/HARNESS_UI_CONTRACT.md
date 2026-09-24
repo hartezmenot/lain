@@ -275,3 +275,25 @@ this window — there is no "authorize a tab" action here by design.
 - "Project Files", not "Source". "Chat model" / "Coding model", not provider ids.
 - Use the `LAIN` wordmark (text). No logo.
 - `host: Chromium …` and other `diagnostics.environment` data belong in diagnostics only.
+
+## 12. Workspace shell (contract 2, 2026-09-24)
+
+The window is one workspace with seven primary tabs — HOME, IDE, CHAT, BOT,
+MODEL, SESSION, SETTINGS. Entering IDE or CHAT on an engineering session calls
+`POST /api/view/select` (`coding` / `chat`); the tabs are UI state, the view is Core's.
+
+| Read / action | Route | Owner |
+|---|---|---|
+| Per-role usage, last route used (polled) | `state.usage` | `usagewindows.js` (provider rate-limit headers), `availability.js` |
+| Providers, routes, usage, roles, orchestration mode | `POST /api/accounts`, `POST /api/accounts/refresh {force}` | `harnessapp/accounts.js` |
+| MCP servers (built-in Computer + `cfg.mcp.servers`) | `POST /api/mcp/servers` | `mcp.js`, `computermcp.js` |
+| Skills | `POST /api/skills` → `{supported:false}` in this build | — |
+| Open a folder as the IDE's project | `POST /api/project/open {path}` | attach in place, else `session/new {project}` |
+| New Project | `POST /api/project/create {parent, name}` | creates the folder, then open |
+| Project understanding | `state.workspace.project.sync {running, state, files, code, scanned, symbols}` | `sessionpool.reattachProject` → `projectsync` / `projectindex` |
+| BOT-requested navigation | `state.navigate {seq, surface, section}` | `tools/lainself.js` (`lain_workspace` action `open`) |
+| Session time | `state.sessions.*[].at` | `sessionindex.js` |
+
+- A usage percentage exists only when a provider stated one; otherwise `reading: null` and the window shows `n/a`.
+- CHAT → IDE is the plan handoff of §5 (`/api/plan/draft` when no draft exists, then `/api/plan/accept`).
+- The BOT answers questions about LAIN with `lain_workspace` (`describe`: models, quota, providers, mcp, bot, where) from the same `accounts.js` projection.

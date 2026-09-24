@@ -66,7 +66,8 @@ function inputRow(frame) {
   // ANY COLUMN: the content frame moved every region off column 1.
   const at = new RegExp(`\\x1b\\[${row};\\d+H([^\\x1b]*(?:\\x1b\\[[0-9;?]*[A-Za-z][^\\x1b]*)*?)\\x1b\\[K`).exec(frame);
   if (!at) return '';
-  return at[1].replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').trimEnd();
+  // THE COMPOSER'S EDGE (`▌`, ui/inputbox.js, 2026-09-23) is geometry, not content.
+  return at[1].replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/^(\s*)▌/, '$1').trimEnd();
 }
 
 /** Every distinct value the INPUT row held, in order. */
@@ -478,7 +479,8 @@ module.exports = async function () {
       timeoutMs: 45000,
     });
     assert.strictEqual(r.code, 0);
-    const withPalette = frames(r.out).filter((f) => f.match(/commands/i));
+    // BY THE PANEL'S TITLE ROW: the footer's `/ commands` hint is in every idle frame.
+    const withPalette = frames(r.out).filter((f) => hasPanel(f, 'Commands'));
     assert.ok(withPalette.length, 'the palette was drawn');
     const f = withPalette[withPalette.length - 1];
     // THE SURFACE IS STILL THERE UNDERNEATH. A panel opening must cost the

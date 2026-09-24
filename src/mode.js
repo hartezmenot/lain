@@ -168,6 +168,44 @@ const LOCATE_RE = /\b(?:where(?:'s| is| are| does| do)|which file|what (?:contro
 const QUESTION_RE = /^[^.!]*\?\s*$/;
 
 /**
+ * THE PERSON SAID, IN SO MANY WORDS, THAT NOTHING IS TO CHANGE.
+ *
+ * Not a guess about intent — a declaration: "READ-ONLY PROJECT INSPECTION",
+ * "read only please", "Do not modify any file". Live, 2026-09-24 (Toralink):
+ * exactly that brief, pasted, fell to IMPLEMENT through the paste rule, and the
+ * model was told "This is an implementation request … give the new behaviour
+ * its own test … Final smoke: npm test". It then refused the task it had been
+ * asked for ("I'm unable to proceed with that implementation request because
+ * the session is limited to read-only inspection"). The words were right there.
+ *
+ * DELIBERATELY NARROW. "read-only" is also an ordinary OBJECT of work ("make the
+ * config read-only", "fix the read-only flag"), so only its use as a statement
+ * about THIS task counts: the message opening with it, "read-only
+ * inspection/review/…", "this is / keep it / stay read-only", or an explicit
+ * prohibition on changing any file or making any change. Unlike every other
+ * rule in this file it is NOT advisory — it sets the task's capability mask
+ * (readonly.js) — which is why it recognises declarations and nothing else.
+ */
+// A prohibition is a DECLARATION only when it ends its clause: "Do not modify
+// any file." is; "…any file in src/legacy", "…anything else", "…any changes to
+// the API" are constraints on work that IS a change, and must not mask it.
+const CLAUSE_END = String.raw`(?=\s*(?:[.,;:!?)\n—]|$))`;
+const READ_ONLY_DECLARED_RE = new RegExp([
+  // Opens with it, standing alone: "READ-ONLY.", "Read only please", "read-only:".
+  String.raw`^\W{0,3}read[- ]?only(?:\s+(?:please|pls))?\s*(?:[.!:;—\n]|$)`,
+  // "READ-ONLY PROJECT INSPECTION", "a read-only review/trace/task".
+  String.raw`\bread[- ]?only\s+(?:project\s+)?(?:task|inspection|investigation|review|audit|analysis|exploration|pass|trace|report|diagnostic|diagnosis)\b`,
+  String.raw`\b(?:this (?:task )?is|keep (?:this|it)|stay|remain|strictly|purely)\s+read[- ]?only\b`,
+  String.raw`\b(?:do not|don'?t|never|must not)\s+(?:modify|change|edit|touch|alter|write to)\s+(?:any|a single)\s+(?:file|files|code|source(?: files?)?)${CLAUSE_END}`,
+  String.raw`\b(?:do not|don'?t|never)\s+(?:modify|change|edit|touch|alter)\s+anything${CLAUSE_END}`,
+  String.raw`\b(?:do not|don'?t)\s+make\s+(?:any\s+)?(?:changes|edits|modifications)${CLAUSE_END}`,
+  String.raw`\bwithout\s+(?:changing|modifying|editing|touching)\s+(?:anything|any (?:file|files|code))${CLAUSE_END}`,
+].join('|'), 'i');
+
+/** Does the text DECLARE this task read-only? See READ_ONLY_DECLARED_RE. */
+function declaresReadOnly(text) { return READ_ONLY_DECLARED_RE.test(String(text == null ? '' : text)); }
+
+/**
  * Classify a request into a workflow mode.
  *
  * @param {string} text
@@ -176,14 +214,16 @@ const QUESTION_RE = /^[^.!]*\?\s*$/;
  *   taskKind    the verdict from task.js, so a continuation stays a continuation
  *   activeMode  the mode already running, inherited by a continuation
  *   projectEmpty  no recognisable project here — "build a bot" then means a new one
- * @returns {{ mode, reason, readOnly, deterministic: true }}
+ *   joinsActiveTask  false when this input STARTS a new task (task.js said so);
+ *                 a paste is only "content" when there is work for it to join
+ * @returns {{ mode, reason, readOnly, declaredReadOnly, deterministic: true }}
  */
 function classify(text, ctx = {}) {
   const raw = String(text == null ? '' : text);
   const s = raw.trim();
   const one = s.replace(/\s+/g, ' ');
 
-  const decide = (mode, reason) => ({ mode, reason, readOnly: READ_ONLY.has(mode), deterministic: true });
+  const decide = (mode, reason) => ({ mode, reason, readOnly: READ_ONLY.has(mode), declaredReadOnly: false, deterministic: true });
 
   // 1. A CONTINUATION KEEPS ITS MODE. "continue" says nothing about what kind
   //    of work this is — the work already running decides that. Re-classifying
@@ -192,14 +232,37 @@ function classify(text, ctx = {}) {
     return decide(ctx.activeMode || KIND.RESUME, 'continuing the active task');
   }
 
-  // 2. A PASTE IS CONTENT. The terminal told us structurally. A pasted stack
-  //    trace is full of "error" and "failed" and is not a bug report — it is
-  //    evidence attached to whatever is already being worked on.
-  if (ctx.isPaste) {
+  // 2. A PASTE THAT JOINS WORK IS CONTENT. The terminal told us structurally. A
+  //    pasted stack trace is full of "error" and "failed" and is not a bug
+  //    report — it is evidence attached to whatever is already being worked on.
+  //
+  //    BUT ONLY WHEN THERE IS WORK TO JOIN. With no active task, task.js makes
+  //    the paste a NEW task — the paste IS the request — and this rule used to
+  //    answer it anyway, with no active mode to inherit, so every pasted brief
+  //    became IMPLEMENT: a pasted "READ-ONLY PROJECT INSPECTION" was framed to
+  //    the model as an implementation request (Toralink, 2026-09-24). A paste
+  //    that starts a task is classified by its words, like anything typed.
+  if (ctx.isPaste && ctx.joinsActiveTask !== false) {
     return decide(ctx.activeMode || KIND.IMPLEMENT, 'pasted content, not a new request');
   }
 
   if (!one) return decide(KIND.CHAT, 'empty input');
+
+  const v = byWords(one, ctx, decide);
+  // 2b. A DECLARED READ-ONLY TASK IS READ-ONLY, whatever else its words match.
+  //     A brief that says "do not modify any file" and then lists what must not
+  //     be done ("do not: fix findings, add tests, change the backend") is full
+  //     of change verbs; none of them is a request. See READ_ONLY_DECLARED_RE.
+  if (declaresReadOnly(s)) {
+    if (READ_ONLY.has(v.mode) && v.mode !== KIND.CHAT) return { ...v, reason: `${v.reason}; declared read-only`, declaredReadOnly: true };
+    const explain = EXPLAIN_RE.test(one) || LOCATE_RE.test(one);
+    return { ...decide(explain ? KIND.EXPLAIN : KIND.AUDIT, 'declared read-only: nothing is to change'), declaredReadOnly: true };
+  }
+  return v;
+}
+
+/** The word rules, in precedence order. Split out so a declaration can overrule their answer. */
+function byWords(one, ctx, decide) {
 
   // 3. Pleasantries. Cheap to detect and it stops "thanks!" scanning a repo.
   if (CHAT_RE.test(one)) return decide(KIND.CHAT, 'conversational');
@@ -315,4 +378,4 @@ function namesSomething(text) {
   return false;
 }
 
-module.exports = { KIND, READ_ONLY, classify, namesSomething };
+module.exports = { KIND, READ_ONLY, classify, namesSomething, declaresReadOnly };

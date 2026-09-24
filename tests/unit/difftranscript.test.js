@@ -156,9 +156,13 @@ module.exports = async function () {
       const add = panes.diffRow('   1 + new', 40, P);
       const del = panes.diffRow('   1 - old', 40, P);
       const ctx = panes.diffRow('   1   same', 40, P);
-      assert.ok(add.includes(P.ok('   1 + new').slice(0, 8)), 'green');
-      assert.ok(del.includes(P.bad('   1 - old').slice(0, 8)), 'red');
-      assert.ok(ctx.includes('\x1b[48;5;236m'), 'dark-grey ground');
+      // THE LAIN DIFF PALETTE (ui/palette.js, 2026-09-23).
+      const pal = require('../../src/ui/palette');
+      const has = (row, tok, layer) => row.includes(`\x1b[${pal.sgr(tok, layer)}m`);
+      assert.ok(has(add, 'addBg', 48) && has(add, 'addFg', 38), 'added: teal-green on dark teal');
+      assert.ok(has(del, 'delBg', 48) && has(del, 'delFg', 38), 'removed: rose on dark red');
+      assert.ok(has(ctx, 'raised', 48) && has(ctx, 'ctx', 38), 'context: neutral on the raised ground');
+      for (const r of [add, del, ctx]) assert.ok(has(r, 'lineNo', 38), 'a muted line number on every row');
     } finally { if (prev === undefined) delete process.env.LAIN_FORCE_COLOR; else process.env.LAIN_FORCE_COLOR = prev; }
   });
 
@@ -189,7 +193,7 @@ module.exports = async function () {
       const { P } = require('../../src/ui/paint');
       const quiet = { ...P, meta: P.faint, path: P.faint, plain: P.faint };
       const row = require('../../src/ui/rowpaint').paintMark('✓ edited · a.js   +3 -2   [Diff]', quiet);
-      assert.ok(row.includes('\x1b[38;5;244m'), 'the row recedes');
+      assert.ok(row.includes(`\x1b[${require('../../src/ui/palette').sgr('faint')}m`), 'the row recedes');
       assert.ok(row.includes(P.ok('+3')) && row.includes(P.bad('-2')), 'the counts do not');
     } finally { if (prev === undefined) delete process.env.LAIN_FORCE_COLOR; else process.env.LAIN_FORCE_COLOR = prev; }
   });

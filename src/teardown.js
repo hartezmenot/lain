@@ -92,6 +92,7 @@ async function shutdown(viewApp, { why = 'the session ended', closeWindow = true
   await step('the harness services', () => require('./harnesslink').shutdown(app));
   await step('the computer bridge', () => { if (app._desktop) app._desktop.bridge.close(why); });
   await step('the control window', () => require('./controlwindow').close(app));
+  await step('the specialist workers', () => require('./workerruntime').settle(app));
 
   // THE NATIVE WINDOW AND ITS CHANNEL. Awaited, because "closed" has to mean the
   // process is gone: a `close` that fired a kill and reported success left two

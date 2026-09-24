@@ -78,6 +78,8 @@ const tools = {
         properties: {
           id: { type: 'string', description: 'the candidate id from the delegate report, e.g. "c1x2y3"' },
           files: { type: 'array', items: { type: 'string' }, description: 'optional: only these files of the candidate' },
+          reject: { type: 'boolean', description: 'reject this candidate instead of integrating it; its record is archived and its workspace is released to the cleanup lifecycle' },
+          reason: { type: 'string', description: 'with reject: why' },
         },
         required: ['id'],
       },
@@ -85,6 +87,11 @@ const tools = {
     async run(input, ctx) {
       if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: 'DENIED: a subagent never integrates — its work is a candidate for the main agent.', isError: true, denied: true };
       if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a LAIN session.', isError: true };
+      if (input.reject) {
+        // A RESOLUTION, NOT A DELETION: the workspace's lifecycle decides its removal.
+        const j = require('../candidates').reject(ctx.app, String(input.id || ''), input.reason || '');
+        return j.ok ? { output: `REJECTED ${input.id} · record archived · workspace ${j.workspace}` } : { output: `NOT REJECTED: ${j.why}`, isError: true };
+      }
       const r = await require('../candidates').integrate(ctx, String(input.id || ''), { only: input.files || null });
       if (r.why) return { output: `NOT INTEGRATED: ${r.why}`, isError: true };
       const lines = [`INTEGRATED ${r.done.length} file(s) from ${input.id} · ${r.state}`];
@@ -101,7 +108,7 @@ const tools = {
       name: 'ab_compare',
       description: 'For a DIFFICULT implementation or bug fix with two credible approaches: build candidate A and candidate B in isolated git worktrees, '
         + 'run the SAME verification command in each, select the winner from the evidence (passes, then smaller change, then faster), '
-        + 'integrate only the winner into this tree, verify it here, and delete every temporary worktree. Asks the person only when the evidence does not decide.',
+        + 'integrate only the winner into this tree and verify it here. Its temporary worktrees are removed by LAIN once resolved (a failed one is kept for inspection). Asks the person only when the evidence does not decide.',
       parameters: {
         type: 'object',
         properties: {

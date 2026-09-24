@@ -150,11 +150,67 @@ function groupChanges(files) {
  * too (see ui/paint.js on nesting).
  */
 function diffRow(line, width, P) {
+  // THE LAIN DIFF PALETTE (ui/palette.js, 2026-09-23): an added row is teal-green
+  // on dark teal, a removed row rose on dark red, context neutral on the raised
+  // ground; the line number is muted on every row.
+  const { C } = require('../render');
   const mark = line.slice(5, 6);
+  const gap = /^\s{5}…/.test(line);
   const body = clip(line, Math.max(8, width - 4));
-  const tone = mark === '+' ? P.ok : mark === '-' ? P.bad : P.meta;
   const padded = body + ' '.repeat(Math.max(0, width - 4 - T.width(body)));
-  return '  ' + P.surface(tone(padded));
+  if (gap) return '  ' + C.bg('raised', C.fg('separator', padded));
+  const tok = mark === '+' ? ['addBg', 'addFg'] : mark === '-' ? ['delBg', 'delFg'] : ['raised', 'ctx'];
+  return '  ' + C.bg(tok[0], C.fg('lineNo', padded.slice(0, 4)) + C.fg(tok[1], padded.slice(4)));
+}
+
+/** At or above this width a diff is drawn side by side; below it, unified. */
+const SPLIT_MIN = 150;
+
+/**
+ * THE SAME HUNKS, SIDE BY SIDE — old on the left, new on the right — built from
+ * the unified rows `unified()` produced, so there is one diff and two layouts.
+ * Old line numbers of context rows come from the running (adds − dels) offset.
+ * `visible[i]` says whether source row i has arrived (the arrival animation);
+ * a pair shows once all of its sources have.
+ *
+ * @returns {string[]} painted rows, each exactly `width` cells
+ */
+function diffSplit(lines, width, visible = null) {
+  const { C } = require('../render');
+  const half = Math.floor((width - 3) / 2);
+  const side = (cell, tok) => {
+    if (!cell) return C.bg('raised', ' '.repeat(half));
+    const num = String(cell.n == null ? '' : cell.n).padStart(4);
+    const text = clip(cell.t, Math.max(4, half - 5));
+    const pad = ' '.repeat(Math.max(0, half - 5 - T.width(text)));
+    return C.bg(tok[0], C.fg('lineNo', num) + C.fg(tok[1], ` ${text}${pad}`));
+  };
+  const parse = (l) => ({ n: Number(l.slice(0, 4)) || null, mark: l.slice(5, 6), t: l.slice(7) });
+  const rows = [];
+  let d = 0;
+  for (let i = 0; i < lines.length;) {
+    const l = String(lines[i] || '');
+    if (/^\s{5}…/.test(l)) { rows.push({ gap: l.trim(), src: [i] }); i += 1; continue; }
+    const p = parse(l);
+    if (p.mark !== '+' && p.mark !== '-') { rows.push({ l: { n: p.n == null ? null : p.n - d, t: p.t }, r: { n: p.n, t: p.t }, src: [i] }); i += 1; continue; }
+    const dels = []; const adds = [];
+    while (i < lines.length && /^[+-]$/.test(String(lines[i] || '').slice(5, 6))) {
+      const q = parse(String(lines[i])); (q.mark === '-' ? dels : adds).push({ ...q, i }); i += 1;
+    }
+    for (let k = 0; k < Math.max(dels.length, adds.length); k++) {
+      rows.push({ l: dels[k] || null, r: adds[k] || null, del: true, src: [dels[k], adds[k]].filter(Boolean).map((x) => x.i) });
+    }
+    d += adds.length - dels.length;
+  }
+  const bar = C.fg('separator', ' │ ');
+  return rows.map((r) => {
+    const shown = !visible || r.src.every((i) => visible[i]);
+    if (!shown) return C.bg('raised', ' '.repeat(half)) + bar + C.bg('raised', ' '.repeat(width - 3 - half));
+    if (r.gap) return C.bg('raised', C.fg('separator', T.fit(`     ${r.gap}`, width)));
+    const left = r.del ? side(r.l, ['delBg', 'delFg']) : side(r.l, ['raised', 'ctx']);
+    const right = r.del ? side(r.r, ['addBg', 'addFg']) : side(r.r, ['raised', 'ctx']);
+    return left + bar + T.fit(right, width - 3 - half);
+  });
 }
 
 function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 400 }) {
@@ -479,7 +535,7 @@ function outputView({ outputs = [], width = 80, running = null }) {
 }
 
 module.exports = {
-  changedFiles, countChanges, linesOf, groupChanges, diffView, diffRow, unified, filesView, scanTree, outputView,
+  changedFiles, countChanges, linesOf, groupChanges, diffView, diffRow, diffSplit, SPLIT_MIN, unified, filesView, scanTree, outputView,
   // EXPORTED so `/image` can offer the images LAIN has actually seen mentioned
   // without keeping a second list of them. One record of a thing, read both by
   // the pane that draws it and by the command that opens it — see imageview.js.

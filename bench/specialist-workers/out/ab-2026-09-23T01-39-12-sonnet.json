@@ -1,0 +1,921 @@
+{
+  "model": "kr/claude-sonnet-4.5",
+  "base": "http://127.0.0.1:20129/v1",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button. Make it match DESIGN.md.\n2. The send button in the note composer and the avatar in the top bar are the wrong size and position (see the geometry section of DESIGN.md).\n3. After saving settings, the page shows the old values again until the API server is restarted.\n4. The top bar shows \"undefined\" instead of the user's name.\n5. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n6. The API log is noisy by default and prints passwords.\n7. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser before you finish.",
+  "arms": [
+    "control",
+    "lexical",
+    "laya"
+  ],
+  "reps": 3,
+  "summary": {
+    "control": {
+      "runs": 2,
+      "requests": {
+        "median": 24.5,
+        "min": 18,
+        "max": 31
+      },
+      "inputTokens": {
+        "median": 883584.5,
+        "min": 645556,
+        "max": 1121613
+      },
+      "outputTokens": {
+        "median": 3893,
+        "min": 3667,
+        "max": 4119
+      },
+      "toolCalls": {
+        "median": 52.5,
+        "min": 51,
+        "max": 54
+      },
+      "exploreBeforeFirstEdit": {
+        "median": 17.5,
+        "min": 17,
+        "max": 18
+      },
+      "uniqueFilesRead": {
+        "median": 13.5,
+        "min": 13,
+        "max": 14
+      },
+      "acceptance": {
+        "median": 21,
+        "min": 20,
+        "max": 22
+      },
+      "finalSmokePass": 2,
+      "wallMs": {
+        "median": 387905.5,
+        "min": 311903,
+        "max": 463908
+      },
+      "worker": {
+        "ms": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "warmWaitMs": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "compression": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "sliceHitRate": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "missed": {
+          "median": null,
+          "min": null,
+          "max": null
+        }
+      }
+    },
+    "lexical": {
+      "runs": 1,
+      "requests": {
+        "median": 25,
+        "min": 25,
+        "max": 25
+      },
+      "inputTokens": {
+        "median": 912386,
+        "min": 912386,
+        "max": 912386
+      },
+      "outputTokens": {
+        "median": 4103,
+        "min": 4103,
+        "max": 4103
+      },
+      "toolCalls": {
+        "median": 61,
+        "min": 61,
+        "max": 61
+      },
+      "exploreBeforeFirstEdit": {
+        "median": 15,
+        "min": 15,
+        "max": 15
+      },
+      "uniqueFilesRead": {
+        "median": 13,
+        "min": 13,
+        "max": 13
+      },
+      "acceptance": {
+        "median": 21,
+        "min": 21,
+        "max": 21
+      },
+      "finalSmokePass": 1,
+      "wallMs": {
+        "median": 388496,
+        "min": 388496,
+        "max": 388496
+      },
+      "worker": {
+        "ms": {
+          "median": 2,
+          "min": 2,
+          "max": 2
+        },
+        "warmWaitMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0
+        },
+        "compression": {
+          "median": 8,
+          "min": 8,
+          "max": 8
+        },
+        "sliceHitRate": {
+          "median": 0.462,
+          "min": 0.462,
+          "max": 0.462
+        },
+        "missed": {
+          "median": 7,
+          "min": 7,
+          "max": 7
+        }
+      }
+    },
+    "laya": {
+      "runs": 1,
+      "requests": {
+        "median": 22,
+        "min": 22,
+        "max": 22
+      },
+      "inputTokens": {
+        "median": 765667,
+        "min": 765667,
+        "max": 765667
+      },
+      "outputTokens": {
+        "median": 3444,
+        "min": 3444,
+        "max": 3444
+      },
+      "toolCalls": {
+        "median": 45,
+        "min": 45,
+        "max": 45
+      },
+      "exploreBeforeFirstEdit": {
+        "median": 18,
+        "min": 18,
+        "max": 18
+      },
+      "uniqueFilesRead": {
+        "median": 13,
+        "min": 13,
+        "max": 13
+      },
+      "acceptance": {
+        "median": 21,
+        "min": 21,
+        "max": 21
+      },
+      "finalSmokePass": 1,
+      "wallMs": {
+        "median": 353990,
+        "min": 353990,
+        "max": 353990
+      },
+      "worker": {
+        "ms": {
+          "median": 32660,
+          "min": 32660,
+          "max": 32660
+        },
+        "warmWaitMs": {
+          "median": 32239,
+          "min": 32239,
+          "max": 32239
+        },
+        "compression": {
+          "median": 7.7,
+          "min": 7.7,
+          "max": 7.7
+        },
+        "sliceHitRate": {
+          "median": 0.357,
+          "min": 0.357,
+          "max": 0.357
+        },
+        "missed": {
+          "median": 9,
+          "min": 9,
+          "max": 9
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "arm": "control",
+      "rep": "1",
+      "exit": 0,
+      "wallMs": 463908,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 31,
+        "attempts": 31,
+        "steps": 31,
+        "retries": 0,
+        "inputTokens": 1121613,
+        "outputTokens": 3667,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 54,
+        "byName": {
+          "read_file": 13,
+          "check_symbols": 3,
+          "list_dir": 1,
+          "glob": 1,
+          "plan_write": 1,
+          "edit_file": 14,
+          "apply_patch": 4,
+          "plan_step_done": 9,
+          "run_tests": 2,
+          "service_start": 2,
+          "request_browser": 1,
+          "grep": 1,
+          "job_stop": 2
+        },
+        "exploreBeforeFirstEdit": 18,
+        "fileReads": 13,
+        "uniqueFilesRead": 13
+      },
+      "worker": [],
+      "quality": {
+        "acceptance": {
+          "pass": 22,
+          "total": 24
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "end"
+    },
+    {
+      "arm": "lexical",
+      "rep": "1",
+      "exit": 0,
+      "wallMs": 388496,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 25,
+        "attempts": 25,
+        "steps": 25,
+        "retries": 0,
+        "inputTokens": 912386,
+        "outputTokens": 4103,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 61,
+        "byName": {
+          "read_file": 13,
+          "locate": 1,
+          "glob": 1,
+          "plan_write": 1,
+          "edit_file": 6,
+          "apply_patch": 15,
+          "plan_step_done": 9,
+          "run_tests": 3,
+          "service_start": 2,
+          "request_browser": 1,
+          "run_bash": 7,
+          "grep": 2
+        },
+        "exploreBeforeFirstEdit": 15,
+        "fileReads": 13,
+        "uniqueFilesRead": 13
+      },
+      "worker": [
+        {
+          "by": "deterministic",
+          "ms": 2,
+          "warmWaitMs": 0,
+          "rawChars": 2225,
+          "outChars": 277,
+          "compression": 8,
+          "slice": [
+            "src/api.js",
+            "DESIGN.md",
+            "README.md",
+            "src/user.js",
+            "server/auth.js",
+            "server/http.js",
+            "server/log.js",
+            "docs/ADR-001-api-shape.md"
+          ],
+          "touched": 13,
+          "hits": 6,
+          "missed": [
+            "src/main.js",
+            "index.html",
+            "src/styles.css",
+            "server/routes.js",
+            "server/store.js",
+            "tests/api.test.js",
+            "tests/server.test.js"
+          ]
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 21,
+          "total": 24
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B3b race: an older save that answers last does not win",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "end"
+    },
+    {
+      "arm": "laya",
+      "rep": "1",
+      "exit": 0,
+      "wallMs": 353990,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 22,
+        "attempts": 22,
+        "steps": 22,
+        "retries": 0,
+        "inputTokens": 765667,
+        "outputTokens": 3444,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 45,
+        "byName": {
+          "read_file": 13,
+          "check_symbols": 4,
+          "glob": 1,
+          "apply_patch": 17,
+          "insert_at": 1,
+          "run_tests": 1,
+          "run_background": 2,
+          "service_check": 1,
+          "job_status": 2,
+          "request_browser": 1,
+          "job_stop": 2
+        },
+        "exploreBeforeFirstEdit": 18,
+        "fileReads": 13,
+        "uniqueFilesRead": 13
+      },
+      "worker": [
+        {
+          "by": "laya",
+          "ms": 32660,
+          "warmWaitMs": 32239,
+          "rawChars": 2225,
+          "outChars": 289,
+          "compression": 7.7,
+          "slice": [
+            "server/ratelimit.js",
+            "src/api.js",
+            "server/auth.js",
+            "index.html",
+            "DESIGN.md",
+            "src/components/toast.js",
+            "server/mailer.js",
+            "README.md"
+          ],
+          "touched": 14,
+          "hits": 5,
+          "missed": [
+            "package.json",
+            "server/routes.js",
+            "src/main.js",
+            "src/styles.css",
+            "server/store.js",
+            "server/log.js",
+            "src/user.js",
+            "tests/api.test.js",
+            "tests/server.test.js"
+          ]
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 21,
+          "total": 24
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B3b race: an older save that answers last does not win",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "end"
+    },
+    {
+      "arm": "control",
+      "rep": "2",
+      "exit": 0,
+      "wallMs": 311903,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 18,
+        "attempts": 18,
+        "steps": 18,
+        "retries": 0,
+        "inputTokens": 645556,
+        "outputTokens": 4119,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 51,
+        "byName": {
+          "read_file": 16,
+          "list_dir": 1,
+          "grep": 4,
+          "glob": 1,
+          "apply_patch": 20,
+          "run_tests": 1,
+          "service_start": 2,
+          "request_browser": 1,
+          "run_bash": 5
+        },
+        "exploreBeforeFirstEdit": 17,
+        "fileReads": 16,
+        "uniqueFilesRead": 14
+      },
+      "worker": [],
+      "quality": {
+        "acceptance": {
+          "pass": 20,
+          "total": 24
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3b race: an older save that answers last does not win",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "end"
+    }
+  ],
+  "invalid": [
+    {
+      "arm": "lexical",
+      "rep": "2",
+      "exit": 0,
+      "wallMs": 56851,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 6,
+        "attempts": 6,
+        "steps": 6,
+        "retries": 0,
+        "inputTokens": 140615,
+        "outputTokens": 162,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 16,
+        "byName": {
+          "read_file": 14,
+          "list_dir": 1,
+          "glob": 1
+        },
+        "exploreBeforeFirstEdit": 16,
+        "fileReads": 14,
+        "uniqueFilesRead": 14
+      },
+      "worker": [
+        {
+          "by": "deterministic",
+          "ms": 3,
+          "warmWaitMs": 0,
+          "rawChars": 2225,
+          "outChars": 277,
+          "compression": 8,
+          "slice": [
+            "src/api.js",
+            "DESIGN.md",
+            "README.md",
+            "src/user.js",
+            "server/auth.js",
+            "server/http.js",
+            "server/log.js",
+            "docs/ADR-001-api-shape.md"
+          ],
+          "touched": 13,
+          "hits": 6,
+          "missed": [
+            "server/routes.js",
+            "server/store.js",
+            "index.html",
+            "src/styles.css",
+            "src/main.js",
+            "tests/api.test.js",
+            "tests/server.test.js"
+          ]
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 24
+        },
+        "finalSmoke": false,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "provider"
+    },
+    {
+      "arm": "lexical",
+      "rep": "2-a2",
+      "exit": 0,
+      "wallMs": 3247,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 1,
+        "attempts": 1,
+        "steps": 1,
+        "retries": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 0,
+        "byName": {},
+        "exploreBeforeFirstEdit": 0,
+        "fileReads": 0,
+        "uniqueFilesRead": 0
+      },
+      "worker": [
+        {
+          "by": "deterministic",
+          "ms": 1,
+          "warmWaitMs": 0,
+          "rawChars": 2225,
+          "outChars": 277,
+          "compression": 8,
+          "slice": [
+            "src/api.js",
+            "DESIGN.md",
+            "README.md",
+            "src/user.js",
+            "server/auth.js",
+            "server/http.js",
+            "server/log.js",
+            "docs/ADR-001-api-shape.md"
+          ],
+          "touched": 0,
+          "hits": 0,
+          "missed": []
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 24
+        },
+        "finalSmoke": false,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "provider"
+    },
+    {
+      "arm": "lexical",
+      "rep": "2-a3",
+      "exit": 0,
+      "wallMs": 3225,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 1,
+        "attempts": 1,
+        "steps": 1,
+        "retries": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 0,
+        "byName": {},
+        "exploreBeforeFirstEdit": 0,
+        "fileReads": 0,
+        "uniqueFilesRead": 0
+      },
+      "worker": [
+        {
+          "by": "deterministic",
+          "ms": 2,
+          "warmWaitMs": 0,
+          "rawChars": 2225,
+          "outChars": 277,
+          "compression": 8,
+          "slice": [
+            "src/api.js",
+            "DESIGN.md",
+            "README.md",
+            "src/user.js",
+            "server/auth.js",
+            "server/http.js",
+            "server/log.js",
+            "docs/ADR-001-api-shape.md"
+          ],
+          "touched": 0,
+          "hits": 0,
+          "missed": []
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 24
+        },
+        "finalSmoke": false,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "provider"
+    },
+    {
+      "arm": "laya",
+      "rep": "2",
+      "exit": 0,
+      "wallMs": 44215,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 1,
+        "attempts": 1,
+        "steps": 1,
+        "retries": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 0,
+        "byName": {},
+        "exploreBeforeFirstEdit": 0,
+        "fileReads": 0,
+        "uniqueFilesRead": 0
+      },
+      "worker": [
+        {
+          "by": "laya",
+          "ms": 32386,
+          "warmWaitMs": 31962,
+          "rawChars": 2225,
+          "outChars": 289,
+          "compression": 7.7,
+          "slice": [
+            "server/ratelimit.js",
+            "src/api.js",
+            "server/auth.js",
+            "index.html",
+            "DESIGN.md",
+            "src/components/toast.js",
+            "server/mailer.js",
+            "README.md"
+          ],
+          "touched": 0,
+          "hits": 0,
+          "missed": []
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 24
+        },
+        "finalSmoke": false,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "provider"
+    },
+    {
+      "arm": "laya",
+      "rep": "2-a2",
+      "exit": 0,
+      "wallMs": 37235,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 1,
+        "attempts": 1,
+        "steps": 1,
+        "retries": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 0,
+        "byName": {},
+        "exploreBeforeFirstEdit": 0,
+        "fileReads": 0,
+        "uniqueFilesRead": 0
+      },
+      "worker": [
+        {
+          "by": "laya",
+          "ms": 32413,
+          "warmWaitMs": 31974,
+          "rawChars": 2225,
+          "outChars": 289,
+          "compression": 7.7,
+          "slice": [
+            "server/ratelimit.js",
+            "src/api.js",
+            "server/auth.js",
+            "index.html",
+            "DESIGN.md",
+            "src/components/toast.js",
+            "server/mailer.js",
+            "README.md"
+          ],
+          "touched": 0,
+          "hits": 0,
+          "missed": []
+        }
+      ],
+      "quality": {
+        "acceptance": {
+          "pass": 5,
+          "total": 24
+        },
+        "finalSmoke": false,
+        "ownTests": true,
+        "failed": [
+          "B1 stale settings: a saved value is what the next GET returns",
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3a retry: 503 is retried, 400 is not",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "B5 auth: /api/login exists and checks the password",
+          "SMOKE.userName",
+          "G1.send.size",
+          "G1.send.centerY",
+          "G1.send.rightInset",
+          "G2.avatar.size",
+          "G2.avatar.centerY",
+          "S1.noEmoji",
+          "S2.noHype",
+          "S3.noGradients",
+          "S4.headings",
+          "S5.button",
+          "S6.spacingTokens",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "provider"
+    }
+  ]
+}

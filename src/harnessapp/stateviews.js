@@ -44,7 +44,12 @@ function panels(app, S) {
     openPanel: v.panel.open,
     width: v.panel.width,
     file: v.panel.file,
-    project: { attached: proj.attached, root: proj.root, name: proj.name, missing: proj.missing },
+    project: {
+      attached: proj.attached, root: proj.root, name: proj.name, missing: proj.missing,
+      // PROJECT UNDERSTANDING, as the index walk reported it (sessionpool.js
+      // reattachProject) — running, or what it found. Only for THIS root.
+      sync: app._projectSync && proj.attached && app._projectSync.root === proj.root ? app._projectSync : null,
+    },
     pins: v.pins,
     panels: [
       { id: 'PROJECT_FILES', label: 'Project Files', available: true, badge: v.pins.length ? `${v.pins.length} pinned` : null, needsProject: !proj.attached },
@@ -58,10 +63,42 @@ function panels(app, S) {
   };
 }
 
+/**
+ * WHAT EACH ROLE'S ACCOUNT HAS USED — in-memory readings only, so it is cheap
+ * enough to poll. The percentage is whatever the provider's own headers said
+ * on the last response through that route (usagewindows.js); a route that has
+ * said nothing is `reading: null`, and the window shows "not reported".
+ */
+function usage(app) {
+  const uw = require('../usagewindows');
+  const inv = require('../modelinventory');
+  const avail = (id) => {
+    // NEVER CREATES AN ENTRY: a route nobody has called has no availability
+    // to report, and a poll must not register one as a side effect.
+    if (!id || !app.availability || !(app.availability.state instanceof Map) || !app.availability.state.has(id)) return null;
+    try {
+      const a = app.availability.get(id);
+      return { status: a.status, reason: a.reason || '', rateLimited: app.availability.limitActive(id), resumeAt: a.resumeAt || null };
+    } catch { return null; }
+  };
+  const role = (sel, source) => {
+    const reading = source === 'lain' ? uw.forSelection(sel.connectionId, sel.modelId) : null;
+    const connectionId = sel.connectionId || (reading && reading.connectionId) || null;
+    const base = reading ? reading.connectionId : connectionId;
+    return { source, modelId: sel.modelId || null, connectionId, scope: sel.scope || null, reading, availability: avail(base) || avail(connectionId) };
+  };
+  let chat = null;
+  let coding = null;
+  try { const c = inv.chatSelection(app); chat = role(c, c.source); } catch { chat = null; }
+  try { coding = role(inv.codingSelection(app), 'lain'); } catch { coding = null; }
+  const last = uw.last();
+  return { chat, coding, last: last ? { ...last, reading: uw.forConnection(last.connectionId) } : null };
+}
+
 /** Everything a Chat/Coding engineering session adds to the read model. */
 function project(app, S) {
   const s = app.session;
-  if (s.cowork) return { header: header(app, S), views: null, plans: null, composer: null, workspace: null, models: null };
+  if (s.cowork) return { header: header(app, S), views: null, plans: null, composer: null, workspace: null, models: null, usage: usage(app) };
   const sv = require('../sessionviews');
   const plans = require('../planhandoff').project(s);
   const draft = plans.draft ? plans.plans.find((p) => p.id === plans.draft) : null;
@@ -91,6 +128,7 @@ function project(app, S) {
     },
     workspace: panels(app, S),
     models: require('../modelinventory').selections(app),
+    usage: usage(app),
   };
 }
 
@@ -104,4 +142,4 @@ function devServer(app) {
   } catch { return null; }
 }
 
-module.exports = { project, header, panels, devServer };
+module.exports = { project, header, panels, devServer, usage };

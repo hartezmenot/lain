@@ -94,7 +94,10 @@ function turnOptions(app, { session, signal, from = null, typed = false, ask = n
     onStatus,
     steer,
     // BACKGROUND RESULTS REJOIN HERE, on the framed tail — see bgdetach.js.
-    sideContext: () => require('./bgdetach').takeContext(session),
+    // So does the locate-assist shortlist: ranked once at the first step,
+    // repeated for the turn's later steps (locateassist.js).
+    sideContext: async (step = 0) => [require('./bgdetach').takeContext(session),
+      await require('./locateassist').take(app, session, step)].filter(Boolean).join('\n\n'),
     taskClass: (session.taskClassVerdict && session.taskClassVerdict.cls) || null,
     // WHETHER AN IDLE REPLY GETS ONE HIDDEN WAKE-UP — see wakeup.js.
     requiresExecution: require('./wakeup').requiresExecution({

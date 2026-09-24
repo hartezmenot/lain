@@ -251,8 +251,12 @@ function draw(screen, { row: startRow, cols, textRows: totalRows, col: startCol 
    * of the screen read as very slightly narrower than the top. One column is
    * not much to look at and it is exactly enough to make a screen look crooked.
    */
+  // THE ACTIVE EDGE (2026-09-23): the inset cell carries a blue `▌`, LAIN's
+  // identity colour — one cell, exactly the PAD it replaces, so every caret and
+  // click column is unchanged. Without colour it is still a plain bar.
+  const edge = PAD ? (P.accent ? P.accent('▌') : '▌') + ' '.repeat(PAD - 1) : '';
   const ground = (body, visible) => P.surface(
-    ' '.repeat(PAD) + body + ' '.repeat(Math.max(0, width - visible)),
+    edge + body + ' '.repeat(Math.max(0, width - visible)),
   );
 
   const view = shown(screen);

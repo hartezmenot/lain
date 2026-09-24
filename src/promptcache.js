@@ -177,11 +177,14 @@ function applyToChat(messages) {
  * whole file exists to make possible.
  */
 function usageFrom(u) {
-  if (!u || typeof u !== 'object') return { cacheReadTokens: 0, cacheCreationTokens: 0 };
+  if (!u || typeof u !== 'object') return { cacheReadTokens: 0, cacheCreationTokens: 0, reported: false };
   const d = u.prompt_tokens_details || u.input_tokens_details || {};
   const read = d.cached_tokens || u.cached_tokens || u.cache_read_input_tokens || 0;
   const made = d.cache_creation_tokens || u.cache_creation_input_tokens || 0;
-  return { cacheReadTokens: Number(read) || 0, cacheCreationTokens: Number(made) || 0 };
+  // WHETHER THE PROVIDER SAID ANYTHING ABOUT CACHING AT ALL. A receipt with no
+  // cache field is "not reported", which is not "cached = 0" (reqtrace.end).
+  const reported = [d.cached_tokens, u.cached_tokens, u.cache_read_input_tokens, d.cache_creation_tokens, u.cache_creation_input_tokens].some((v) => v != null);
+  return { cacheReadTokens: Number(read) || 0, cacheCreationTokens: Number(made) || 0, reported };
 }
 
 module.exports = { needsExplicitCache, applyToChat, usageFrom, mark, EXPLICIT };

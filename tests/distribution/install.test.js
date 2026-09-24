@@ -71,6 +71,17 @@ function fakeEnv(initial = '/usr/bin:/bin', sep = ':') {
   };
 }
 
+/**
+ * A fake PATH in THIS platform's own shape, for tests that put a real temp
+ * directory on it. Found on the move to D:\lain (2026-09-23): with ':' as the
+ * separator a Windows temp dir `C:\...\bin` split into `C` and `\...\bin`, and
+ * `\...\bin` resolved against whatever DRIVE the test ran from. It passed on C:
+ * by coincidence and failed on D:.
+ */
+function hostEnv() {
+  return fakeEnv(process.platform === 'win32' ? 'C:\\Windows;C:\\Windows\\System32' : '/usr/bin:/bin', path.delimiter);
+}
+
 module.exports = async function () {
   // ------------------------------------------------------------- the PATH --
 
@@ -165,13 +176,13 @@ module.exports = async function () {
 
   await test('INSTALL: it is idempotent — twice is the same as once', () => {
     const dir = tmpBin();
-    const env = fakeEnv();
+    const env = hostEnv();
     install.install({ dir, env, desktop: false });
     const writes = env.state.writes;
     const second = install.install({ dir, env, desktop: false });
     assert.strictEqual(second.ok, true);
     assert.strictEqual(env.state.writes, writes, 'the second install must not write PATH again');
-    assert.strictEqual(pathenv.entries(env.get(), ':').filter((e) => pathenv.samePath(e, dir)).length, 1,
+    assert.strictEqual(pathenv.entries(env.get(), path.delimiter).filter((e) => pathenv.samePath(e, dir)).length, 1,
       'exactly one entry, however many times it is run');
   });
 
@@ -227,13 +238,14 @@ module.exports = async function () {
 
   await test('UNINSTALL: it removes what it wrote and the PATH entry', () => {
     const dir = tmpBin();
-    const env = fakeEnv();
+    const env = hostEnv();
     install.install({ dir, env, desktop: false });
     assert.ok(fs.readdirSync(dir).length > 0);
+    assert.strictEqual(pathenv.contains(env.get(), dir, path.delimiter), true, 'the install really put it on PATH');
     const r = uninstall.uninstall({ dir, env });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(fs.readdirSync(dir).length, 0, 'every launcher must be gone');
-    assert.strictEqual(pathenv.contains(env.get(), dir, ':'), false, 'and the PATH entry with them');
+    assert.strictEqual(pathenv.contains(env.get(), dir, path.delimiter), false, 'and the PATH entry with them');
   });
 
   await test('UNINSTALL: it never touches a file it did not write', () => {
@@ -584,10 +596,16 @@ module.exports = async function () {
     // never build the application; and it must NOT carry `native/vendor/`,
     // which is fetched, pinned and hashed per machine. Publishing those DLLs
     // would put a third party's binaries inside LAIN's own package.
-    for (const needed of ['native/host.cs', 'native/vendor.js']) {
-      assert.ok(pkg.files.includes(needed), `the package must ship ${needed} — LAIN Desktop is built from it`);
+    // SINCE 2026-09-23 the host source lives in the lain-harness package and
+    // travels as `harness/` — whose OWN allowlist carries native/host.cs and
+    // native/vendor.js and never native/vendor/.
+    assert.ok(pkg.files.includes('harness/'), 'the package must ship the Harness — LAIN Desktop is built from it');
+    const hpkg = JSON.parse(fs.readFileSync(require('../helpers').harnessPath('package.json'), 'utf8'));
+    for (const needed of ['native/host.cs', 'native/vendor.js', 'page/']) {
+      assert.ok(hpkg.files.includes(needed), `the Harness package must ship ${needed}`);
     }
     for (const banned of ['native/', 'native/vendor/', 'native/vendor']) {
+      assert.ok(!hpkg.files.includes(banned), `harness ${banned} would publish vendored binaries`);
       assert.ok(!pkg.files.includes(banned), `${banned} would publish vendored binaries`);
     }
   });

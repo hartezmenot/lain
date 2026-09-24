@@ -128,9 +128,14 @@ module.exports = async function () {
     // is the whole defect it was written for. Caught by deliberately breaking
     // the fix and watching the test stay green.
     //
-    // The composer is drawn last and lowest, so the greatest painted row IS it,
-    // and it must reach the rail exactly.
-    const bottom = rows.reduce((a, x) => (x.row > a.row ? x : a), rows[0]);
+    // The composer's rows are the ones carrying its `▌` edge; the lowest of them
+    // must reach the rail exactly. (Only the footer's key hints, ui/footer.js,
+    // sit under it now — right-aligned text, not a ground.)
+    const ground = rows.filter((x) => /▌/.test(x.text));
+    assert.ok(ground.length, 'the composer drew its edge');
+    const bottom = ground.reduce((a, x) => (x.row > a.row ? x : a), ground[0]);
+    assert.ok(rows.filter((x) => x.row > bottom.row).every((x) => /\/ commands · @ files/.test(x.text)),
+      'nothing but the footer is under the composer');
     assert.strictEqual(bottom.end, right,
       `the bottom-most region (row ${bottom.row}, "${bottom.text}") ends at column ${bottom.end}, `
       + `not the right rail ${right}`);

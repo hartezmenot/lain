@@ -319,7 +319,11 @@ module.exports = async function () {
     // The LAST run of calls is the work in hand and keeps its weight;
     // everything before it recedes one step (ui/paint.js `faint`). Nothing is
     // dropped and nothing moves — only the emphasis changes.
-    const FAINT = ESC + '[38;5;244m';
+    // FROM THE PALETTE (ui/palette.js, 2026-09-23): 24-bit where the terminal has it,
+    // the xterm-256 fallback otherwise — either spelling of `faint` counts.
+    const PAL = require('../../src/ui/palette');
+    const FAINTS = [`${ESC}[${PAL.sgr('faint')}m`, ESC + '[38;5;244m'];
+    const isFaint = (r) => FAINTS.some((x) => r.indexOf(x) >= 0);
     let sawFaint = false;
     let sawNormalRun = false;
     for (const rows of readFrames) {
@@ -327,8 +331,8 @@ module.exports = async function () {
       // program, and `Ran` is gone (ui/phrasing.js).
       const calls = rows.filter((r) => /✓ [a-z_]+ · /.test(plain(r)));
       if (calls.length < 2) continue;
-      if (calls.some((r) => r.indexOf(FAINT) >= 0)) sawFaint = true;
-      if (calls.some((r) => r.indexOf(FAINT) < 0)) sawNormalRun = true;
+      if (calls.some(isFaint)) sawFaint = true;
+      if (calls.some((r) => !isFaint(r))) sawNormalRun = true;
     }
     assert.ok(sawFaint, 'earlier completed work is drawn quieter than the current run');
     assert.ok(sawNormalRun, 'and the current run is not faded with it');
@@ -423,7 +427,9 @@ module.exports = async function () {
         if (label && marked[marked.length - 1] !== label) marked.push(label);
         // THE WHOLE ROW IS ON THE SURFACE, not just the words: a highlight that
         // stops at the text reads as an artefact rather than a selection.
-        assert.ok(r.indexOf(ESC + '[48;5;236m') >= 0,
+        const PALG = require('../../src/ui/palette');
+        const grounds = [`${ESC}[${PALG.sgr('raised2', 48)}m`, `${ESC}[${PALG.sgr('raised', 48)}m`, ESC + '[48;5;236m'];
+        assert.ok(grounds.some((g) => r.indexOf(g) >= 0),
           `the selected row is drawn on the reading surface: ${t}`);
       }
     }

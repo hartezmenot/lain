@@ -293,7 +293,7 @@ module.exports = async function () {
     // workspace and the input. Every row of the terminal is still accounted for
     // by exactly one region — which is the property this test exists to hold.
     assert.ok(g.statusRows >= 1, 'the live status strip has a row on a normal terminal');
-    assert.strictEqual(g.headerRows + g.workspace + g.statusRows + g.inputRows, 30);
+    assert.strictEqual(g.headerRows + g.workspace + g.statusRows + g.inputRows + g.footerRows, 30);
   });
 
   await test('LAYOUT: an open panel shrinks the workspace, never the input', () => {
@@ -315,7 +315,7 @@ module.exports = async function () {
       const g = s.geometry();
       assert.ok(g.workspace >= 1, `workspace kept at ${rows} rows`);
       assert.ok(g.inputRows >= 1, 'input preserved');
-      assert.ok(g.headerRows + g.workspace + g.statusRows + g.inputRows + g.panelRows <= rows);
+      assert.ok(g.headerRows + g.workspace + g.statusRows + g.inputRows + g.panelRows + g.footerRows <= rows);
     }
   });
 
@@ -365,7 +365,7 @@ module.exports = async function () {
       const paint = require('../../src/ui/paint');
       const P = paint.P || paint;
       const painted = P.path('src/added.js');
-      assert.ok(painted.includes('\x1b[36m'), `a path must be cyan, got ${JSON.stringify(painted)}`);
+      assert.ok(painted.includes(`\x1b[${require('../../src/ui/palette').sgr('tool')}m`), `a path must be the tool cyan, got ${JSON.stringify(painted)}`);
       assert.ok(!painted.includes('\x1b[34m'), 'SGR 34 is the unreadable navy this replaced');
     } finally {
       if (savedNo !== undefined) process.env.NO_COLOR = savedNo;

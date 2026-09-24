@@ -117,6 +117,9 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
       project: s.cwd ? path.basename(s.cwd) : '',
       cwd: s.cwd || '',
       when: s.when && s.when.text ? s.when.text : '',
+      // WHEN IT WAS LAST TOUCHED, as a time — the Session view groups by day,
+      // and a sentence like "2 hours ago" cannot be grouped.
+      at: s.lastActivity || s.mtimeMs || null,
       turns: s.turns || 0,
       current: s.id === current,
       // LIVE IN THIS PROCESS, and what it is doing. `null` means it is a
@@ -422,6 +425,10 @@ async function read(app) {
     // THE DESKTOP, only when there is one. `existing` never creates it, so
     // polling the application does not connect anything. See computermcp.js.
     computer: computer(app),
+    // WHERE THE BOT ASKED THE WINDOW TO GO — "open the MCP settings". Set by
+    // the lain_workspace tool on the shared root App; the window applies each
+    // `seq` once. UI navigation only: it opens a view, it changes nothing.
+    navigate: ((app && app._sibling) || app)._uiNavigate || null,
   };
   // THE ENGINEERING SESSION CONTRACT — header, Chat/Coding views, plans and
   // handoff, composer prefill, workspace panels, per-view models. Reshaped by

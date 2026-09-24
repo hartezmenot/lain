@@ -110,6 +110,12 @@ def main():
 
     env = dict(scenario.get("env", {}))
     proc = PtyProcess.spawn(scenario["argv"], cwd=scenario.get("cwd"), env=env, dimensions=(rows, cols))
+    # ELAPSED TIME since the child was spawned, in ms, on every snapshot and on
+    # every `until` that matched (out["marks"]) — for latency acceptance tests.
+    t_spawn = time.time()
+
+    def elapsed():
+        return int((time.time() - t_spawn) * 1000)
 
     done = {"flag": False}
 
@@ -132,7 +138,7 @@ def main():
     t = threading.Thread(target=pump, daemon=True)
     t.start()
 
-    out = {"snaps": [], "timeouts": [], "exit": None}
+    out = {"snaps": [], "timeouts": [], "marks": [], "exit": None}
     for step in scenario.get("steps", []):
         if "wait" in step:
             time.sleep(step["wait"] / 1000.0)
@@ -149,6 +155,8 @@ def main():
                 time.sleep(0.05)
             if not hit:
                 out["timeouts"].append(step["until"])
+            else:
+                out["marks"].append({"until": step["until"], "at": elapsed()})
         elif "send" in step:
             proc.write(step["send"])
         elif "key" in step:
@@ -161,7 +169,9 @@ def main():
         elif "snap" in step:
             time.sleep(step.get("settle", 250) / 1000.0)
             with lock:
-                out["snaps"].append(snapshot(screen, step["snap"]))
+                snap = snapshot(screen, step["snap"])
+                snap["at"] = elapsed()
+                out["snaps"].append(snap)
         elif "hardkill" in step:
             # A CRASH, not a close: TerminateProcess on the child itself. No
             # Ctrl+C, no console-close event, no chance to save anything.

@@ -87,7 +87,8 @@ gate.then((r) => {
     environment.enterCli(app, 'e2e: task complete');
     st = environment.describe(app);
     assert.strictEqual(st.isProbe, false);
-    return tools.execute('read_file', { path: 'C:/Users/Hartezmenot/Documents/lain-v2/src/mode.js' }, { app, cwd: 'C:/Users/Hartezmenot/Documents/lain-v2' }).then((r2) => {
+    // The checkout wherever it lives (it moved to D:\lain on 2026-09-23).
+    return tools.execute('read_file', { path: require('path').join(__dirname, 'src', 'mode.js') }, { app, cwd: __dirname }).then((r2) => {
       assert.ok(!r2.isError, 'after exit, CLI tools are ordinary again');
       console.log('[7] exit restores CLI; read_file succeeds again');
 

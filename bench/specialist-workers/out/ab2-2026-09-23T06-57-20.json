@@ -1,0 +1,320 @@
+{
+  "model": "kr/claude-sonnet-4.5",
+  "base": "http://127.0.0.1:20128/v1",
+  "effort": "default (unset) for every arm",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button, a row of fake metrics with pill badges, a card nested inside a card, oversized rounded corners. Make it match DESIGN.md.\n2. Geometry: the send button in the note composer and the avatar in the top bar are the wrong size and position; the composer's side margins are unequal; the form controls are different heights (see DESIGN.md).\n3. On a phone-sized screen (375 px) the page scrolls sideways.\n4. After saving settings, the page shows the old values again until the API server is restarted.\n5. The top bar shows \"undefined\" instead of the user's name.\n6. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n7. The API log is noisy by default and prints passwords.\n8. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser (desktop and phone width) before you finish.",
+  "budgets": {
+    "perArm": 40,
+    "global": 120,
+    "maxStepsPerRun": 38
+  },
+  "requestsSpent": {
+    "probe": 1,
+    "control": 16,
+    "laya": 8,
+    "violetto": 24,
+    "total": 49
+  },
+  "stopped": null,
+  "label": "EXPLORATORY unless every arm has ≥ 3 valid runs",
+  "rows": [
+    {
+      "arm": "control",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 393677,
+      "stopReason": "end",
+      "valid": true,
+      "routeOk": true,
+      "routes": [
+        "live|kr/claude-sonnet-4.5"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "flagship": {
+        "calls": 16,
+        "attempts": 16,
+        "steps": 16,
+        "retries": 0,
+        "inputTokens": 571659,
+        "cachedInputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReported": false,
+        "outputTokens": 3575,
+        "totalTokens": 575234,
+        "averageInputPerCall": 35729,
+        "peakContext": 41762
+      },
+      "tools": {
+        "total": 46,
+        "byName": {
+          "read_file": 13,
+          "glob": 2,
+          "plan_write": 1,
+          "edit_file": 14,
+          "write_file": 1,
+          "plan_step_done": 9,
+          "run_tests": 2,
+          "service_start": 2,
+          "request_browser": 1,
+          "grep": 1
+        },
+        "fileReads": 13,
+        "wholeFileReads": 12,
+        "repeatedReads": 1,
+        "symbolReads": 0,
+        "domReads": 1,
+        "uiaNodes": 0,
+        "screenshots": 0,
+        "ocrCalls": 0,
+        "processQueries": 0,
+        "testRuns": 2,
+        "exploreBeforeFirstEdit": 13,
+        "uniqueFilesRead": 11
+      },
+      "laya": null,
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 27,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3b race: an older save that answers last does not win",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ],
+        "browser": "21/23",
+        "responsive": "2/2",
+        "backend": "4/6",
+        "diff": {
+          "files": 8,
+          "added": 96,
+          "removed": 81
+        },
+        "unexpectedFiles": []
+      }
+    },
+    {
+      "arm": "laya",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 270261,
+      "stopReason": "end",
+      "valid": true,
+      "routeOk": true,
+      "routes": [
+        "live|kr/claude-sonnet-4.5"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "flagship": {
+        "calls": 8,
+        "attempts": 8,
+        "steps": 8,
+        "retries": 0,
+        "inputTokens": 256430,
+        "cachedInputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReported": false,
+        "outputTokens": 2410,
+        "totalTokens": 258840,
+        "averageInputPerCall": 32054,
+        "peakContext": 36792
+      },
+      "tools": {
+        "total": 23,
+        "byName": {
+          "read_file": 10,
+          "locate": 1,
+          "list_dir": 1,
+          "glob": 1,
+          "apply_patch": 8,
+          "write_file": 2
+        },
+        "fileReads": 10,
+        "wholeFileReads": 10,
+        "repeatedReads": 0,
+        "symbolReads": 1,
+        "domReads": 0,
+        "uiaNodes": 0,
+        "screenshots": 0,
+        "ocrCalls": 0,
+        "processQueries": 0,
+        "testRuns": 0,
+        "exploreBeforeFirstEdit": 13,
+        "uniqueFilesRead": 10
+      },
+      "laya": {
+        "calls": 1,
+        "inferences": 1,
+        "cacheHits": 0,
+        "cacheMisses": 1,
+        "coldLoadMs": 76896,
+        "memoryMB": 1983,
+        "totalInferenceMs": 447,
+        "tokensIn": 151,
+        "tokensOut": 0,
+        "outputChars": 496,
+        "failures": 0,
+        "coldEmbed": {
+          "ms": 5109,
+          "items": 31,
+          "tokens": 680
+        },
+        "warmInferenceMedianMs": 447,
+        "compression": {
+          "rawEvidenceChars": 2227,
+          "layaInputChars": 2795,
+          "sliceChars": 118,
+          "flagshipPacketChars": 290
+        },
+        "falseNarrowing": {
+          "sliceSize": 8,
+          "touched": 10,
+          "hits": 3,
+          "missed": [
+            "server/routes.js",
+            "server/store.js",
+            "server/log.js",
+            "index.html",
+            "src/styles.css",
+            "src/main.js",
+            "src/user.js"
+          ],
+          "missedReadCalls": 7,
+          "missedReadChars": 10402
+        },
+        "warmWaitMs": 84696
+      },
+      "violetto": null,
+      "quality": {
+        "acceptance": {
+          "pass": 28,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B3b race: an older save that answers last does not win",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ],
+        "browser": "21/23",
+        "responsive": "2/2",
+        "backend": "5/6",
+        "diff": {
+          "files": 8,
+          "added": 95,
+          "removed": 68
+        },
+        "unexpectedFiles": []
+      }
+    },
+    {
+      "arm": "violetto",
+      "rep": 1,
+      "exit": 0,
+      "wallMs": 566189,
+      "stopReason": "end",
+      "valid": true,
+      "routeOk": true,
+      "routes": [
+        "live|kr/claude-sonnet-4.5"
+      ],
+      "fixture": {
+        "ok": true,
+        "hash": "46dd1cd348e5da73",
+        "files": 34
+      },
+      "flagship": {
+        "calls": 24,
+        "attempts": 24,
+        "steps": 24,
+        "retries": 0,
+        "inputTokens": 919254,
+        "cachedInputTokens": 0,
+        "cacheWriteTokens": 0,
+        "cacheReported": false,
+        "outputTokens": 5481,
+        "totalTokens": 924735,
+        "averageInputPerCall": 38302,
+        "peakContext": 45377
+      },
+      "tools": {
+        "total": 44,
+        "byName": {
+          "read_file": 16,
+          "check_symbols": 1,
+          "list_dir": 2,
+          "apply_patch": 12,
+          "write_file": 1,
+          "run_tests": 3,
+          "service_start": 2,
+          "request_browser": 1,
+          "grep": 4,
+          "verify_task": 2
+        },
+        "fileReads": 16,
+        "wholeFileReads": 14,
+        "repeatedReads": 0,
+        "symbolReads": 0,
+        "domReads": 1,
+        "uiaNodes": 0,
+        "screenshots": 0,
+        "ocrCalls": 0,
+        "processQueries": 0,
+        "testRuns": 3,
+        "exploreBeforeFirstEdit": 15,
+        "uniqueFilesRead": 14
+      },
+      "laya": null,
+      "violetto": {
+        "calls": 0,
+        "inferences": 0,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "coldLoadMs": 11619,
+        "memoryMB": 1431,
+        "totalInferenceMs": 0,
+        "tokensIn": 0,
+        "tokensOut": 0,
+        "outputChars": 0,
+        "failures": 0,
+        "warmInferenceMedianMs": null,
+        "questions": []
+      },
+      "quality": {
+        "acceptance": {
+          "pass": 28,
+          "total": 31
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B3b race: an older save that answers last does not win",
+          "D1.quietConsole",
+          "G3.composer.symmetric"
+        ],
+        "browser": "21/23",
+        "responsive": "2/2",
+        "backend": "5/6",
+        "diff": {
+          "files": 8,
+          "added": 105,
+          "removed": 70
+        },
+        "unexpectedFiles": []
+      }
+    }
+  ]
+}

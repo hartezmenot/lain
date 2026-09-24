@@ -271,8 +271,8 @@ module.exports = async function () {
       const lines = panes.diffView({ checkpoints, cwd: dir, width: 70 });
       const minus = lines.find((l) => /-\s*before/.test(T.strip(l)));
       const plus = lines.find((l) => /\+\s*after/.test(T.strip(l)));
-      assert.ok(minus && /\x1b\[31m/.test(minus), 'a removed line is red');
-      assert.ok(plus && /\x1b\[32m/.test(plus), 'an added line is green');
+      assert.ok(minus && minus.includes(`\x1b[${require('../../src/ui/palette').sgr('delFg')}m`), 'a removed line is red');
+      assert.ok(plus && plus.includes(`\x1b[${require('../../src/ui/palette').sgr('addFg')}m`), 'an added line is green');
     } finally {
       delete process.env.LAIN_FORCE_COLOR;
       if (saved.no !== undefined) process.env.NO_COLOR = saved.no;

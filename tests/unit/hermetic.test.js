@@ -70,7 +70,7 @@ module.exports = async function () {
     // NO_COLOR, and a program that ignores it under some other flag is broken
     // in a way no test in this repository would otherwise notice.
     const forced = colourUnder({ LAIN_FORCE_COLOR: '1', NO_COLOR: '' });
-    assert.ok(forced.includes('\x1b[48;5;236m'), `forced colour produced none: ${JSON.stringify(forced)}`);
+    assert.ok(forced.includes(`\x1b[${require('../../src/ui/palette').sgr('raised2', 48)}m`), `forced colour produced none: ${JSON.stringify(forced)}`);
     const suppressed = colourUnder({ LAIN_FORCE_COLOR: '1', NO_COLOR: '1' });
     assert.strictEqual(suppressed, 'x', 'NO_COLOR must win over LAIN_FORCE_COLOR');
   });

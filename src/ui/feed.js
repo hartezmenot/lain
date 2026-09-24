@@ -68,6 +68,8 @@ function quoteRun(rows, P) {
 }
 
 function pushAction(out, a) {
+  const shell = require('./shellrow');   // `› command` rows (2026-09-23)
+  if (shell.is(a)) return shell.push(out, a);
   out.push({
     kind: 'action',
     // WHAT THE ROW IS ABOUT, for the one word in it that carries an accent. The

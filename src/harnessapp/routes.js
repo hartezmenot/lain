@@ -609,5 +609,7 @@ Object.assign(ROUTES, require('./botroutes').ROUTES);
 Object.assign(ROUTES, require('./chromeroutes').ROUTES);
 // Settings: a schema, validated updates — settingsroutes via src/settings.js.
 Object.assign(ROUTES, require('../settings').ROUTES);
+// The workspace shell: accounts and usage, MCP, skills, opening a project.
+Object.assign(ROUTES, require('./workspaceroutes').ROUTES);
 
 module.exports = { dispatch, ROUTES, ACTION_TIMEOUT_MS };

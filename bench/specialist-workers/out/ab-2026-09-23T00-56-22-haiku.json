@@ -1,0 +1,139 @@
+{
+  "model": "kr/claude-haiku-4.5",
+  "base": "http://127.0.0.1:20129/v1",
+  "prompt": "TeamDesk has a batch of reported problems. Fix all of them; DESIGN.md is the spec.\n1. The settings page reads like generic AI marketing: emoji everywhere, a purple gradient hero, hype copy, a shouty button. Make it match DESIGN.md.\n2. The send button in the note composer and the avatar in the top bar are the wrong size and position (see the geometry section of DESIGN.md).\n3. After saving settings, the page shows the old values again until the API server is restarted.\n4. The top bar shows \"undefined\" instead of the user's name.\n5. Saving twice quickly can leave the older value as the current settings, and the client retries requests that can never succeed.\n6. The API log is noisy by default and prints passwords.\n7. Signing in: the client posts to /api/login and gets a 404, and any non-empty password is accepted.\nKeep existing behaviour working. Run the project's tests, and check the page in a browser before you finish.",
+  "arms": [
+    "control"
+  ],
+  "reps": 1,
+  "summary": {
+    "control": {
+      "runs": 1,
+      "requests": {
+        "median": 34,
+        "min": 34,
+        "max": 34
+      },
+      "inputTokens": {
+        "median": 1274342,
+        "min": 1274342,
+        "max": 1274342
+      },
+      "outputTokens": {
+        "median": 3424,
+        "min": 3424,
+        "max": 3424
+      },
+      "toolCalls": {
+        "median": 62,
+        "min": 62,
+        "max": 62
+      },
+      "exploreBeforeFirstEdit": {
+        "median": 17,
+        "min": 17,
+        "max": 17
+      },
+      "uniqueFilesRead": {
+        "median": 13,
+        "min": 13,
+        "max": 13
+      },
+      "acceptance": {
+        "median": 19,
+        "min": 19,
+        "max": 19
+      },
+      "finalSmokePass": 1,
+      "wallMs": {
+        "median": 274152,
+        "min": 274152,
+        "max": 274152
+      },
+      "worker": {
+        "ms": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "warmWaitMs": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "compression": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "sliceHitRate": {
+          "median": null,
+          "min": null,
+          "max": null
+        },
+        "missed": {
+          "median": null,
+          "min": null,
+          "max": null
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "arm": "control",
+      "rep": "1",
+      "exit": 0,
+      "wallMs": 274152,
+      "fixture": {
+        "ok": true,
+        "hash": "1eab7ba639947841",
+        "files": 32
+      },
+      "flagship": {
+        "requests": 34,
+        "attempts": 34,
+        "steps": 34,
+        "retries": 0,
+        "inputTokens": 1274342,
+        "outputTokens": 3424,
+        "cacheReadTokens": 0
+      },
+      "tools": {
+        "total": 62,
+        "byName": {
+          "read_file": 19,
+          "check_symbols": 2,
+          "list_dir": 3,
+          "run_bash": 1,
+          "run_powershell": 10,
+          "edit_file": 21,
+          "service_start": 2,
+          "service_check": 3,
+          "request_browser": 1
+        },
+        "exploreBeforeFirstEdit": 17,
+        "fileReads": 19,
+        "uniqueFilesRead": 13
+      },
+      "worker": [],
+      "quality": {
+        "acceptance": {
+          "pass": 19,
+          "total": 24
+        },
+        "finalSmoke": true,
+        "ownTests": true,
+        "failed": [
+          "B2 API mapping: snake_case user becomes the UI shape",
+          "B3b race: an older save that answers last does not win",
+          "B4 diagnostics: default level prints no debug and never a password",
+          "G1.send.rightInset",
+          "D1.quietConsole"
+        ]
+      },
+      "stopReason": "end"
+    }
+  ],
+  "invalid": []
+}

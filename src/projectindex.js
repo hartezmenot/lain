@@ -98,6 +98,9 @@ function load(root) {
 }
 
 function save(root, index) {
+  // A HELD project (a declared read-only task — lainstore.hold) keeps the index
+  // in memory for this process and writes nothing, like a read-only checkout.
+  if (require('./lainstore').held(root)) return false;
   try {
     const created = !fs.existsSync(dirFor(root));
     fs.mkdirSync(dirFor(root), { recursive: true });
@@ -174,7 +177,7 @@ function scanOne(abs, rel, stamp) {
  * caller that cannot see the difference between "nothing changed" and "the
  * budget ran out" cannot report honestly either.
  */
-function refresh(root, { budgetMs = BUDGET_MS, index = null } = {}) {
+function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = {}) {
   const started = Date.now();
   const ix = index || load(root);
   const before = ix.files || {};
@@ -246,7 +249,10 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null } = {}) {
     refreshedAt: Date.now(),
     files,
   };
-  const persisted = save(root, next);
+  // `persist: false` — an IN-MEMORY refresh for machine-local consumers (the Laya
+  // project index, layaindex.js) that must never write the project's `.lain/`:
+  // they may run at attach, before anyone has said whether the task is read-only.
+  const persisted = persist ? save(root, next) : false;
   return {
     index: next,
     scanned,

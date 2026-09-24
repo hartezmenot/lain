@@ -75,7 +75,13 @@ module.exports = async function () {
     assert.ok(c && c.verdict.ok, 'an in-scope change is ACCEPTABLE');
     assert.deepStrictEqual(c.files.map((f) => [f.status, f.path]), [['M', 'backend/api.js']]);
     assert.strictEqual(fs.readFileSync(path.join(root, 'backend', 'api.js'), 'utf8'), 'module.exports = 1;\n', 'main was not written');
-    assert.ok(!fs.existsSync(seenCwd), 'the workspace was removed');
+    // THE WORKSPACE NOW WAITS FOR ITS CANDIDATE'S RESOLUTION (tempworkspaces.js):
+    // kept while unresolved, removed by its lifecycle once rejected here.
+    assert.ok(fs.existsSync(seenCwd), 'the workspace is kept while the candidate is unresolved');
+    const tw = require('../../src/tempworkspaces');
+    assert.strictEqual(tw.byCandidate(c.id).state, 'CANDIDATE_READY');
+    assert.ok(cands.reject(app, c.id, 'test').ok);
+    assert.ok(!fs.existsSync(seenCwd), 'the workspace was removed once the candidate was resolved');
     assert.ok(fs.existsSync(path.join(root, 'node_modules', 'dep', 'index.js')), 'the real node_modules survived the worktree removal');
     assert.ok(!/lain-ab-/.test(g('worktree', 'list').stdout), 'no worktree registered');
     assert.strictEqual(g('branch', '--list').stdout.trim().split('\n').length, 1, 'no branch created');
@@ -171,6 +177,8 @@ module.exports = async function () {
     assert.strictEqual(new Set(dirs).size, 2);
     assert.deepStrictEqual(out.results.map((r) => r.candidate.files.map((f) => f.path)), [['backend/api.js'], ['frontend/ui.js']]);
     assert.strictEqual(fs.readFileSync(path.join(root, 'backend', 'api.js'), 'utf8'), 'module.exports = 1;\n');
+    // Each kept for its own candidate's resolution; rejected here, then removed.
+    for (const r of out.results) assert.ok(cands.reject(app, r.candidate.id, 'test').ok);
     for (const d of dirs) assert.ok(!fs.existsSync(d));
   });
 

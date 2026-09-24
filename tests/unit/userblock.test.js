@@ -161,7 +161,7 @@ module.exports = async function () {
       const first = screen.rowMap.feedStart;
       const gray = [];
       for (let r = first; r < first + screen.rowMap.feedRows; r++) {
-        if (String(rows[r] || '').includes('\x1b[48;5;236m')) gray.push(T.strip(rows[r]));
+        if (String(rows[r] || '').includes(`\x1b[${require('../../src/ui/palette').sgr('raised2', 48)}m`)) gray.push(T.strip(rows[r]));
       }
       assert.strictEqual(gray.length, 1, 'exactly the one message the user sent');
       assert.match(gray[0], /fix the stalling engine/);

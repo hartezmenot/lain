@@ -96,6 +96,7 @@ function finalStep(session, call, result, toolCtx) {
   const plan = session && session.plan;
   const cwd = (toolCtx && toolCtx.cwd) || (session && session.cwd);
   if (Array.isArray(result.mutated) && result.mutated.length) fsm.noteMutation(plan, result.mutated);
+  tempFacts(session, call, result, toolCtx, fsm, cwd);
   if (!/^run_/.test(call.name) || result.denied || !fsm.isFinal(cwd, call.name, call.input || {})) return;
   result.finalSmoke = true;
   const detached = Boolean(result.detached || (result.meta && result.meta.detached));
@@ -109,6 +110,26 @@ function finalStep(session, call, result, toolCtx) {
     const said = fsm.reopen(plan, result.output);
     if (said) result.output = `${String(result.output || '')}\n\n${said}`;
   }
+}
+
+/**
+ * THE FACTS A TEMPORARY WORKSPACE'S LIFECYCLE WAITS FOR (tempworkspaces.js): a
+ * canonical change, a passing test run (the targeted verification) and a
+ * passing final smoke. When one lands, the session's resolved workspaces are
+ * swept — removed only if every condition now holds. Silent otherwise.
+ */
+const TEST_RUN = /\b(?:test|tests|jest|pytest|vitest|mocha|cargo test|go test|node --test|npm (?:run )?test)\b/i;
+function tempFacts(session, call, result, toolCtx, fsm, cwd) {
+  try {
+    const tw = require('./tempworkspaces');
+    if (Array.isArray(result.mutated) && result.mutated.length) tw.noteRun(session, { mutated: true });
+    if (!/^run_/.test(call.name) || result.denied || result.detached) return;
+    const command = String((call.input && (call.input.command || call.input.which)) || call.name);
+    const final = fsm.isFinal(cwd, call.name, call.input || {});
+    const test = call.name === 'run_tests' || TEST_RUN.test(command);
+    if (!test && !final) return;
+    if (tw.noteRun(session, { test, final, ok: !result.isError, command }).length) tw.sweep(toolCtx && toolCtx.app, session.id);
+  } catch { /* a lifecycle fact is never a failure of the call */ }
 }
 
 /**

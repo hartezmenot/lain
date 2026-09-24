@@ -170,7 +170,9 @@ module.exports = async function () {
       ],
       timeoutMs: 60000,
     });
-    const inFlight = frames(r.out).filter((f) => /RUNNING/i.test(f) && /sleep 3/.test(f));
+    // BY THE LIVE ROW ITSELF: a finished command's `› sleep 3` row (ui/shellrow.js)
+    // also says "sleep 3", so the frame must be one where it is still RUNNING.
+    const inFlight = frames(r.out).filter((f) => /RUNNING/i.test(f) && rowsOf(f).some((l) => /\bRunning\b/.test(l) && /sleep 3/.test(l)));
     assert.ok(inFlight.length,
       'the live row must name the slow command while it runs — otherwise the screen looks frozen');
     // AND IT IS ONE ROW, not a region that grew back. The live state appears

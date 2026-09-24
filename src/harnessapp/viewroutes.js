@@ -200,7 +200,10 @@ const ROUTES = {
     let rows = [];
     try { rows = require('../sessionindex').summaries({ limit: 200 }) || []; } catch { rows = []; }
     const seen = new Map();
-    const own = sv.lainOwnDirs();
+    // NOT A PROJECT: LAIN's own folders, and the empty placeholder a session
+    // with no project sits in — offering that as a "recent project" would
+    // attach nothing to nothing.
+    const own = [...sv.lainOwnDirs(), require('path').resolve(sv.unattachedDir()).toLowerCase()];
     for (const r of rows) {
       if (!r.cwd || seen.has(r.cwd.toLowerCase())) continue;
       if (own.includes(require('path').resolve(r.cwd).toLowerCase())) continue;

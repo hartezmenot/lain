@@ -25,7 +25,7 @@ const path = require('path');
 const { test } = require('../helpers');
 
 module.exports = async function () {
-  await test('HARNESS REAL UI: lanes, sessions, source picker, questions, Cowork objects and reload', async () => {
+  await test('HARNESS REAL UI: tabs, sessions, source picker, questions, file-work objects and reload', async () => {
     const drv = require('../harness/appdriver');
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-realui-'));
     fs.writeFileSync(path.join(proj, 'a.js'), 'module.exports = 1;\n');
@@ -48,7 +48,10 @@ module.exports = async function () {
       await d.until("!document.getElementById('app').hidden && !document.getElementById('gate')");
       assert.ok(!(await d.js("document.body.innerText.includes('password')")), 'no password prompt anywhere');
 
-      // CHAT.
+      // HOME IS WHERE LAIN OPENS; CHAT IS ONE TAB AWAY, NOT THROUGH HOME.
+      await d.until("LAIN.nav.tab() === 'home' && !document.getElementById('vHome').hidden");
+      await d.click('#tabChat');
+      await d.until("LAIN.nav.tab() === 'chat' && LAIN.ui().mode === 'chat'");
       await d.type('#ask', 'explain what a.js does');
       await d.click('#send');
       await d.until("document.getElementById('stream').innerText.includes('dispatches by path prefix')", 30000);
@@ -57,9 +60,12 @@ module.exports = async function () {
       await d.click('#srcPill');
       await d.until("document.getElementById('pop') && /ChatGPT\\.com/.test(document.getElementById('pop').innerText) && /Gemini\\.google\\.com/.test(document.getElementById('pop').innerText)", 8000);
       await d.js("document.getElementById('pop').remove()");
-      await d.click('#codePill');
-      await d.until("!document.getElementById('srcPanel').hidden", 8000);
-      await d.click('#codePill');
+      // THE IDE, straight from Chat: the attached project's tree and the BOT beside it.
+      await d.click('#tabIde');
+      await d.until("!document.getElementById('main').hidden && document.getElementById('srcTree').innerText.includes('a.js')", 10000);
+      await d.until("document.getElementById('ideBotHost').contains(document.getElementById('ask'))", 5000);
+      await d.click('#tabChat');
+      await d.until("document.getElementById('chatHost').contains(document.getElementById('ask'))", 5000);
 
       // A QUESTION THE WINDOW-STARTED TURN ASKS IS ANSWERED IN THE WINDOW.
       await d.type('#ask', 'change the export style');
@@ -69,10 +75,11 @@ module.exports = async function () {
       await d.until("document.getElementById('stream').innerText.includes('Keeping CommonJS as you chose')", 30000);
       assert.ok(await d.js("document.getElementById('askCard').hidden"), 'the card goes when answered');
 
-      // COWORK: empty lane → new session → attachment → a real artifact.
-      await d.click('#laneCo');
-      await d.until("!document.getElementById('laneEmpty').hidden && getComputedStyle(document.querySelector('.composer')).display === 'none'", 8000);
-      await d.click('#laneEmptyGo');
+      // FILE WORK: a new chat → Attach binds it to Cowork → attachment → a real artifact.
+      await d.click('#newChat');
+      await d.until("LAIN.state().current.lane === 'engineering' && !LAIN.state().conversation.length && !document.getElementById('attachPill').hidden", 10000);
+      const bound = await d.js("LAIN.api('/api/cowork/bind', {})");
+      assert.ok(bound.ok, bound.why);
       await d.until("LAIN.state().current.lane === 'cowork' && !document.getElementById('attachPill').hidden", 10000);
       const csv = Buffer.from('region,amount\nnorth,10\nnorth,10\nsouth,5\n').toString('base64');
       const staged = await d.js(`LAIN.api('/api/cowork/attachment', { name: 'sales.csv', mime: 'text/csv', data: '${csv}' })`);
@@ -89,18 +96,19 @@ module.exports = async function () {
       const sent = await d.js("LAIN.state().conversation.filter((m) => m.role === 'user').map((m) => m.text).join('\\n')");
       assert.match(sent, /sales\.csv/, 'the staged file reached the model with the request');
       assert.ok(!(await d.js("/input\\s*sales\\.csv/i.test(document.getElementById('coworkObjects').innerText)")), 'and is not still staged');
-      assert.ok(await d.js("document.getElementById('sessions').innerText.includes('clean this spreadsheet')"), 'the Cowork session is listed in its own lane');
+      assert.ok(await d.js("document.getElementById('sessions').innerText.includes('clean this spreadsheet')"), 'the file-work conversation is listed with the others');
       await d.shot(path.join(os.tmpdir(), 'lain-realui-cowork.png'));
 
-      // BACK TO THE ENGINEERING SESSION, FROM THE LIST.
-      await d.click('#laneEng');
-      await d.until("document.querySelectorAll('#sessions .sess').length >= 1", 8000);
-      await d.js("document.querySelector('#sessions .sess').click()");
+      // BACK TO THE FIRST CONVERSATION, FROM THE RAIL.
+      await d.until("document.querySelectorAll('#sessions .sess').length >= 2", 8000);
+      await d.js("Array.from(document.querySelectorAll('#sessions .sess')).find((b) => b.innerText.includes('explain what a.js does')).click()");
       await d.until("LAIN.state().current.lane === 'engineering' && document.getElementById('stream').innerText.includes('Keeping CommonJS')", 10000);
 
       // RELOAD KEEPS THE SESSION AND THE CONVERSATION.
       await d.reload();
-      await d.until("!document.getElementById('app').hidden && document.getElementById('stream').innerText.includes('Keeping CommonJS')", 30000);
+      await d.until("!document.getElementById('app').hidden && LAIN.state()", 30000);
+      await d.js("LAIN.nav.go('chat')");
+      await d.until("document.getElementById('stream').innerText.includes('Keeping CommonJS')", 30000);
       assert.deepStrictEqual(errors, [], 'the page threw nothing');
     } finally {
       await d.close();
@@ -112,7 +120,9 @@ module.exports = async function () {
     const again = await drv.open({ cwd: proj, resume: sessionId, script: [{ text: 'After the restart.' }] });
     if (again.skipped) return;
     try {
-      await again.until("!document.getElementById('app').hidden && document.getElementById('stream').innerText.includes('Keeping CommonJS')", 30000);
+      await again.until("!document.getElementById('app').hidden && LAIN.state()", 30000);
+      await again.js("LAIN.nav.go('chat')");
+      await again.until("document.getElementById('stream').innerText.includes('Keeping CommonJS')", 30000);
       assert.ok(await again.js("document.getElementById('sessions').innerText.includes('explain what a.js does')"), 'the session list survives the restart');
       await again.type('#ask', 'and after a restart?');
       await again.click('#send');
@@ -141,7 +151,8 @@ module.exports = async function () {
     const d = await drv.open({ cwd: proj, script: [{ text: 'ok.' }] });
     if (d.skipped) { process.stdout.write(`    (skipped: ${d.skipped})\n`); return; }
     try {
-      await d.until("!document.getElementById('app').hidden", 30000);
+      await d.until("!document.getElementById('app').hidden && LAIN.state()", 30000);
+      await d.js("LAIN.nav.go('chat')");
 
       const at = async (w, h, scale) => {
         await d.page.conn.send('Emulation.setDeviceMetricsOverride',
@@ -153,8 +164,8 @@ module.exports = async function () {
                 return r.width > 40 && r.right <= window.innerWidth + 2; })(),
           send: (function(){ var e=document.getElementById('send'); var r=e.getBoundingClientRect();
                  return r.width > 0 && r.right <= window.innerWidth + 2; })(),
-          railBtn: (function(){ var e=document.getElementById('railBtn'); var r=e.getBoundingClientRect();
-                    return r.width > 0; })(),
+          sessionTab: (function(){ var r=document.getElementById('tabSession').getBoundingClientRect();
+                       return r.width > 0 && r.right <= window.innerWidth + 2; })(),
           railShown: (function(){ var e=document.querySelector('#sessions .sess') || document.querySelector('#sessions .empty');
                       return !!e && e.getBoundingClientRect().width > 0; })()
         })`));
@@ -167,23 +178,19 @@ module.exports = async function () {
         assert.ok(v.send, `${w}x${h} @${scale}x: Send is off the window`);
       }
 
-      // WIDE: the rail is a column and the button is not there to be pressed.
+      // WIDE: the conversation rail is a column beside the chat.
       const wide = await at(1280, 820, 1);
-      assert.ok(wide.railShown, 'the session rail is a column at a normal width');
-      assert.ok(!wide.railBtn, 'and the narrow-width Sessions button is not taking header space');
+      assert.ok(wide.railShown, 'the conversation rail is a column at a normal width');
 
-      // NARROW: the rail is out of the way, AND still reachable. A narrow window
-      // that simply dropped the session list would be one you cannot leave the
-      // session you are in — the defect the session pool exists to prevent.
+      // NARROW: the rail steps aside for the conversation, AND every session is
+      // still one click away — the Session tab is in the tab bar at every width.
+      // A narrow window that simply dropped the list would be one you cannot
+      // leave the session you are in.
       const narrow = await at(520, 700, 1);
-      assert.ok(!narrow.railShown, 'at 520px the rail is not taking half the window');
-      assert.ok(narrow.railBtn, 'but there is a Sessions button');
-      const opened = await d.js(`(function(){
-        document.getElementById('railBtn').click();
-        var e = document.querySelector('#sessions .sess') || document.querySelector('#sessions .empty');
-        return !!e && e.getBoundingClientRect().width > 0;
-      })()`);
-      assert.strictEqual(opened, true, 'and pressing it brings the sessions back');
+      assert.ok(!narrow.railShown, 'at 520px the rail is not taking the window');
+      assert.ok(narrow.sessionTab, 'but the Session tab is on screen');
+      await d.click('#tabSession');
+      await d.until("document.querySelectorAll('#sessList .srow').length >= 1 && document.querySelector('#sessList .srow').getBoundingClientRect().width > 0", 8000);
     } finally {
       await d.close();
     }

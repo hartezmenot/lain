@@ -146,16 +146,20 @@ function compactRuns(entries, keep = KEEP) {
     // and in the DIFF and OUTPUT panes.
     const room = i === lastActionRun ? keep : KEEP_OLD;
     // Only whole successful call rows count towards a flood; a wrapped detail
-    // line is part of the row above it and must travel with it.
-    if (run.length <= room + 2) { for (const e of run) out.push(e); i = j; continue; }
-    const head = run.slice(0, run.length - room);
-    const kept = run.slice(run.length - room);
+    // line is part of the row above it and must travel with it. So the run is
+    // counted in CALLS — a row with a verb and the detail rows under it (a
+    // command's output tail, ui/shellrow.js) — never in raw rows.
+    const units = [];
+    for (const e of run) { if (e.verb || !units.length) units.push([e]); else units[units.length - 1].push(e); }
+    if (units.length <= room + 2) { for (const e of run) out.push(e); i = j; continue; }
+    const head = units.slice(0, units.length - room);
+    const kept = units.slice(units.length - room);
     // Failures inside the compacted head survive verbatim, above the summary.
-    const failed = head.filter((e) => e.failed);
-    const summary = summarise(head.filter((e) => !e.failed));
+    const failed = head.filter((u) => u[0].failed);
+    const summary = summarise(head.filter((u) => !u[0].failed).map((u) => u[0]));
     if (summary) out.push({ kind: 'action', text: summary, compacted: true });
-    for (const e of failed) out.push(e);
-    for (const e of kept) out.push(e);
+    for (const u of failed) for (const e of u) out.push(e);
+    for (const u of kept) for (const e of u) out.push(e);
     i = j;
   }
   return out;

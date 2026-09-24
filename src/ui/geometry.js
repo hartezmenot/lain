@@ -125,6 +125,9 @@ function regions(screen) {
   // happening this second, next to the caret, and the account of what already
   // happened is the region above it.
   let statusRows = 1;
+  // THE FOOTER (ui/footer.js): one row of live key hints under the composer,
+  // only with room to spare and never while a panel sits in its place.
+  let footerRows = !panel && rows >= 20 ? 1 : 0;
   // WHAT IS GIVEN UP FIRST, in order: the header's rule, then background, then
   // pending, then the live row itself. The conversation keeps at least one row
   // and the INPUT is never touched. A region that refused to shrink pushed the
@@ -148,7 +151,8 @@ function regions(screen) {
       // THE DIFF IS PRIMARY while it arrives in the feed, or while one is expanded.
       minimal: Boolean(screen.openDiff) || require('./turnsections').arriving((screen.state && screen.state.liveActions) || []),
     });
-  const left = () => rows - headerRows - inputRows - panel - statusRows - pendingRows - jobRows - activityRows;
+  const left = () => rows - headerRows - inputRows - panel - footerRows - statusRows - pendingRows - jobRows - activityRows;
+  while (footerRows > 0 && left() < 4) footerRows = 0;   // given up first
   if (left() < 1) headerRows = 1;
   while (activityRows > 0 && left() < 1) activityRows = 0;
   // GIVEN UP FIRST. A steer you have typed and not yet sent is more urgent than
@@ -158,7 +162,7 @@ function regions(screen) {
   while (statusRows > 0 && left() < 1) statusRows -= 1;
   const workspace = Math.max(1, left());
   return {
-    headerRows, workspace, statusRows, inputRows, textRows, hintRows, panelRows: panel, pendingRows, jobRows, activityRows,
+    headerRows, workspace, statusRows, inputRows, textRows, hintRows, panelRows: panel, footerRows, pendingRows, jobRows, activityRows,
     // KEPT AS A NAME, not as a second layout. Nothing branches on them any
     // more — the header has one shape — but callers and tests read the object
     // and a missing key reads as `undefined` rather than as "no frame".

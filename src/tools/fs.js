@@ -30,6 +30,68 @@ function rel(cwd, abs) {
 }
 
 /**
+ * A PATH THAT IS NOT THERE — say what IS there, from the nearest folder that
+ * exists, instead of inviting the next speculative, deeper guess.
+ *
+ * A missing path invalidates that candidate; the recovery is the nearest
+ * KNOWN-existing ancestor (the file's folder, else its parent, else the root)
+ * and its real entries — filesystem truth, not a suggestion engine.
+ *
+ * PATHS ARE LITERAL, NOT PATTERNS. A path that carries a regular-expression
+ * escape (`SearchView\.tsx`) is a search pattern leaking into a filesystem
+ * argument; on Windows the backslash is also a separator, so it silently names
+ * a different path. It is REPORTED — with the literal file, only when that
+ * file actually exists — and never rewritten: stripping backslashes blindly
+ * would break a genuine `src\.eslintrc`.
+ */
+const REGEX_ESCAPE = /\\([.()[\]{}*+?^$|])/g;
+function missing(cwd, p, kind) {
+  const shown = String(p || '');
+  const lines = [`no such ${kind}: ${shown}`];
+  const exists = (q) => { try { fs.statSync(resolve(cwd, q)); return true; } catch { return false; } };
+  const literal = shown.replace(REGEX_ESCAPE, '$1');
+  if (literal !== shown && exists(literal)) {
+    lines.push(`The path contains a regular-expression escape; tool paths are literal, not patterns. The literal path "${literal}" exists.`);
+  }
+  let dir = path.dirname(resolve(cwd, shown) || cwd);
+  for (;;) {
+    try { if (fs.statSync(dir).isDirectory()) break; } catch { /* keep climbing */ }
+    const up = path.dirname(dir);
+    if (up === dir) { dir = null; break; }
+    dir = up;
+  }
+  if (dir) {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { /* unreadable */ }
+    const base = path.basename(literal).toLowerCase();
+    const same = entries.find((e) => e.name.toLowerCase() === base && e.name !== path.basename(literal));
+    const where = rel(cwd, dir) || '.';
+    const list = entries.slice(0, 40).map((e) => (e.isDirectory() ? `${e.name}/` : e.name));
+    lines.push(`Nearest existing folder: ${where === cwd ? where : `${where}${where.endsWith('/') ? '' : '/'}`} — contains: ${list.join(', ') || '[empty]'}${entries.length > 40 ? `, … (${entries.length} entries)` : ''}`);
+    if (same) lines.push(`A differently-cased entry exists there: ${same.name}`);
+  }
+  return lines.join('\n');
+}
+
+/** A bounded recursive listing — the print_tree recovery (toolalias.js). */
+const TREE_SKIP = new Set(['node_modules', '.git', '.lain', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv', 'target']);
+function tree(root, depth, max = 300) {
+  const out = [];
+  (function walk(d, level, prefix) {
+    let entries = [];
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (out.length >= max) return;
+      const isDir = e.isDirectory();
+      out.push(`${prefix}${e.name}${isDir ? '/' : ''}`);
+      if (isDir && level < depth && !TREE_SKIP.has(e.name)) walk(path.join(d, e.name), level + 1, `${prefix}${e.name}/`);
+    }
+  })(root, 1, '');
+  if (out.length >= max) out.push(`… (stopped at ${max} entries)`);
+  return out.join('\n');
+}
+
+/**
  * BELOW THIS, A FILE IS SMALL ENOUGH THAT REWRITING IT WHOLE IS ORDINARY.
  *
  * A 200-byte config replaced by a 40-byte one is somebody editing a config. A
@@ -91,7 +153,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'read_file needs a path', isError: true };
       let st;
-      try { st = fs.statSync(abs); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { st = fs.statSync(abs); } catch { return { output: missing(ctx.cwd, input.path, 'file'), isError: true }; }
       if (st.isDirectory()) return { output: `${input.path} is a directory — use list_dir`, isError: true };
       if (st.size > MAX_READ_BYTES && !input.limit) {
         return { output: `${input.path} is ${st.size} bytes. Read a range with offset/limit.`, isError: true };
@@ -265,16 +327,21 @@ const tools = {
       if (!abs) return { output: 'edit_file needs a path', isError: true };
       let text;
       try { text = fs.readFileSync(abs, 'utf8'); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
-      const oldStr = String(input.old);
-      if (!oldStr) return { output: 'edit_file needs a non-empty `old`', isError: true };
+      if (!String(input.old)) return { output: 'edit_file needs a non-empty `old`', isError: true };
+      // read_file's line-number gutter copied into `old` (see gutter.js).
+      const g = require('./gutter').resolve(text, String(input.old), String(input.new));
+      const oldStr = g.old;
+      const newStr = g.replacement;
       const count = text.split(oldStr).length - 1;
       if (count === 0) return { output: `\`old\` not found in ${input.path}`, isError: true };
       if (count > 1 && !input.replace_all) {
         return { output: `\`old\` appears ${count} times in ${input.path} — pass replace_all or use a longer unique string`, isError: true };
       }
-      const next = input.replace_all ? text.split(oldStr).join(String(input.new)) : text.replace(oldStr, String(input.new));
+      // A FUNCTION REPLACER: a string one reads `$&`, `$'` and `$1` in the new
+      // text as patterns, so code containing them was written back altered.
+      const next = input.replace_all ? text.split(oldStr).join(newStr) : text.replace(oldStr, () => newStr);
       try { fs.writeFileSync(abs, next, 'utf8'); } catch (e) { return { output: `could not write ${input.path}: ${e.message}`, isError: true }; }
-      return { output: `edited ${rel(ctx.cwd, abs)} (${count} replacement${count === 1 ? '' : 's'})`, mutated: [abs] };
+      return { output: `edited ${rel(ctx.cwd, abs)} (${count} replacement${count === 1 ? '' : 's'})${g.stripped ? ` ${require('./gutter').NOTE}` : ''}`, mutated: [abs] };
     },
   },
 
@@ -294,9 +361,22 @@ const tools = {
       parameters: { type: 'object', properties: { path: { type: 'string' } } },
     },
     async run(input, ctx) {
-      const abs = resolve(ctx.cwd, input.path || '.');
+      const shown = input.path || '.';
+      const abs = resolve(ctx.cwd, shown);
+      let st = null;
+      try { st = fs.statSync(abs); } catch { /* reported below */ }
+      // A FILE IS NOT A FOLDER, and saying which it is ends the guess. Live
+      // (Toralink, 2026-09-24): the root listing showed `web` — a 4 KB file,
+      // no trailing slash — the model listed it as a folder and got a bare
+      // ENOTDIR back, which says what failed and nothing about what is there.
+      if (st && !st.isDirectory()) {
+        return { output: `${shown} is a FILE (${st.size.toLocaleString('en-US')} bytes), not a directory — read it with read_file. In a listing, folders end with "/".`, isError: true };
+      }
+      if (!st) return { output: missing(ctx.cwd, shown, 'directory'), isError: true };
+      const depth = Math.max(1, Math.min(3, Number(input.depth) || 1));
+      if (depth > 1) return { output: tree(abs, depth) || '[empty directory]' };
       let entries;
-      try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch (e) { return { output: `could not list ${input.path || '.'}: ${e.message}`, isError: true }; }
+      try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch (e) { return { output: `could not list ${shown}: ${e.message}`, isError: true }; }
       const rows = entries.slice(0, 500).map((e) => (e.isDirectory() ? `${e.name}/` : e.name));
       return { output: rows.join('\n') || '[empty directory]' };
     },

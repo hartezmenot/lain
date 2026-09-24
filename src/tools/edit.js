@@ -372,7 +372,10 @@ const tools = {
       // patch that is correct in every way except invisible bytes.
       const norm = (s) => s.replace(/\r\n/g, '\n');
       const hay = norm(text);
-      const needle = norm(input.expect);
+      // read_file's line-number gutter copied into `expect` (see gutter.js).
+      const g = require('./gutter').resolve(hay, norm(input.expect), input.replace);
+      const needle = g.old;
+      const replacement = g.replacement;
       const first = hay.indexOf(needle);
 
       if (first < 0) {
@@ -405,12 +408,12 @@ const tools = {
 
       const before = hay.slice(0, first).split('\n').length;
       const removed = needle.split('\n').length;
-      const added = input.replace ? norm(input.replace).split('\n').length : 0;
-      const out = hay.slice(0, first) + norm(input.replace) + hay.slice(first + needle.length);
+      const added = replacement ? norm(replacement).split('\n').length : 0;
+      const out = hay.slice(0, first) + norm(replacement) + hay.slice(first + needle.length);
       const crlf = /\r\n/.test(text);
       fs.writeFileSync(abs, crlf ? out.replace(/\n/g, '\r\n') : out, 'utf8');
       return {
-        output: `patched ${at(ctx.cwd, abs, before)} — ${removed} line(s) replaced by ${added}`,
+        output: `patched ${at(ctx.cwd, abs, before)} — ${removed} line(s) replaced by ${added}${g.stripped ? ` ${require('./gutter').NOTE}` : ''}`,
         mutated: [abs],
       };
     },
