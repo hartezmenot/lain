@@ -471,7 +471,45 @@ class Shell : Form {
   void OnRendererMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e) {
     string json;
     try { json = e.WebMessageAsJson; } catch { return; }
+    // ---- THE HOST'S OWN THREE VERBS, AND NOTHING ELSE ---------------------
+    //
+    // A folder picker, the tray tooltip and hiding the window are operating-
+    // system PRESENTATION: they need the window, and Core has none. They grant
+    // nothing — a picked path still goes to Core's /api/project/open, which
+    // checks it like a typed one. Every other message is forwarded untouched,
+    // and an unknown verb is answered as unknown rather than guessed at.
+    Dictionary<string, object> m = null;
+    try { m = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>; } catch { m = null; }
+    if (m != null && m.ContainsKey("host") && m.ContainsKey("id")) { HostVerbFromRenderer(m); return; }
     core.Send(json);
+  }
+
+  void HostVerbFromRenderer(Dictionary<string, object> m) {
+    string ask = Convert.ToString(m["host"], CultureInfo.InvariantCulture);
+    var body = new Dictionary<string, object>();
+    body["host"] = ask;
+    if (ask == "pickFolder") {
+      string title = m.ContainsKey("title") ? Convert.ToString(m["title"], CultureInfo.InvariantCulture) : "Choose a folder";
+      string picked = FolderPicker.Pick(this, title);
+      body["ok"] = true;
+      body["cancelled"] = picked == null;
+      body["path"] = picked;
+    } else if (ask == "trayTip") {
+      string text = m.ContainsKey("text") ? Convert.ToString(m["text"], CultureInfo.InvariantCulture) : "LAIN";
+      // NotifyIcon.Text is capped at 63 characters by Windows.
+      if (tray != null) { try { tray.Text = String.IsNullOrEmpty(text) ? "LAIN" : (text.Length > 63 ? text.Substring(0, 63) : text); } catch { } }
+      body["ok"] = true;
+    } else if (ask == "hide") {
+      Hide();
+      body["ok"] = true;
+    } else {
+      body["ok"] = false;
+      body["why"] = "the host has no verb \"" + ask + "\"";
+    }
+    var reply = new Dictionary<string, object>();
+    reply["id"] = m["id"];
+    reply["body"] = body;
+    ToRenderer(new JavaScriptSerializer().Serialize(reply));
   }
 
   /**
@@ -630,8 +668,7 @@ class Shell : Form {
   void BuildTray() {
     var menu = new ContextMenuStrip();
     menu.Items.Add("Open LAIN", null, (s, e) => ShowWindow());
-    menu.Items.Add("New Chat / Coding session", null, (s, e) => NewSession("engineering"));
-    menu.Items.Add("New Cowork session", null, (s, e) => NewSession("cowork"));
+    menu.Items.Add("New Chat", null, (s, e) => NewSession("engineering"));
     menu.Items.Add(new ToolStripSeparator());
     menu.Items.Add("Status", null, (s, e) => ShowStatus());
     menu.Items.Add(new ToolStripSeparator());
@@ -734,6 +771,87 @@ class Shell : Form {
     }
     if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
     core.Stop();
+  }
+}
+
+/**
+ * THE SYSTEM FOLDER PICKER — the one Explorer shows, not a tree in a box.
+ *
+ * The modern dialog (IFileOpenDialog with FOS_PICKFOLDERS) is what every
+ * Windows application uses to choose a folder; the .NET Framework's
+ * FolderBrowserDialog is the old tree-only one. The modern one is tried first
+ * and the old one is the fallback, so a picker always appears.
+ *
+ * Returns the chosen folder's full path, or null when the person cancelled.
+ */
+static class FolderPicker {
+  [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")]
+  class FileOpenDialogCom { }
+
+  [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("42f85136-db7e-439c-85f1-e4075d135fc8"),
+   System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+  interface IFileDialog {
+    [System.Runtime.InteropServices.PreserveSig] int Show(IntPtr parent);
+    void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+    void SetFileTypeIndex(uint iFileType);
+    void GetFileTypeIndex(out uint piFileType);
+    void Advise(IntPtr pfde, out uint pdwCookie);
+    void Unadvise(uint dwCookie);
+    void SetOptions(uint fos);
+    void GetOptions(out uint pfos);
+    void SetDefaultFolder(IShellItem psi);
+    void SetFolder(IShellItem psi);
+    void GetFolder(out IShellItem ppsi);
+    void GetCurrentSelection(out IShellItem ppsi);
+    void SetFileName([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszName);
+    void GetFileName([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] out string pszName);
+    void SetTitle([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszTitle);
+    void SetOkButtonLabel([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszText);
+    void SetFileNameLabel([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string pszLabel);
+    void GetResult(out IShellItem ppsi);
+  }
+
+  [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"),
+   System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+  interface IShellItem {
+    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+    void GetParent(out IShellItem ppsi);
+    void GetDisplayName(uint sigdnName, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] out string ppszName);
+    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+    void Compare(IShellItem psi, uint hint, out int piOrder);
+  }
+
+  const uint FOS_PICKFOLDERS = 0x20, FOS_FORCEFILESYSTEM = 0x40, FOS_PATHMUSTEXIST = 0x800;
+  const uint SIGDN_FILESYSPATH = 0x80058000;
+  const int ERROR_CANCELLED = unchecked((int)0x800704C7);
+
+  public static string Pick(IWin32Window owner, string title) {
+    try {
+      var dlg = (IFileDialog)new FileOpenDialogCom();
+      try {
+        uint opts;
+        dlg.GetOptions(out opts);
+        dlg.SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+        dlg.SetTitle(title);
+        dlg.SetOkButtonLabel("Select Folder");
+        int hr = dlg.Show(owner == null ? IntPtr.Zero : owner.Handle);
+        if (hr == ERROR_CANCELLED) return null;
+        if (hr != 0) throw new System.Runtime.InteropServices.COMException("the folder dialog failed", hr);
+        IShellItem item;
+        dlg.GetResult(out item);
+        string path;
+        item.GetDisplayName(SIGDN_FILESYSPATH, out path);
+        return String.IsNullOrEmpty(path) ? null : path;
+      } finally {
+        System.Runtime.InteropServices.Marshal.ReleaseComObject(dlg);
+      }
+    } catch {
+      using (var old = new FolderBrowserDialog()) {
+        old.Description = title;
+        old.ShowNewFolderButton = true;
+        return old.ShowDialog(owner) == DialogResult.OK ? old.SelectedPath : null;
+      }
+    }
   }
 }
 

@@ -342,7 +342,11 @@ LAIN.terminal = (function () {
       pump();
     }
 
-    if (T.procs === null) { body.appendChild(el('div', 'obs', 'Reading the project\\u2019s processes\\u2026')); terminalRefresh().then(render); return; }
+    // ONE READ IN FLIGHT, AND RENDER ONLY WHEN IT LANDS. While a read is
+    // running, terminalRefresh() returns an already-settled promise, and
+    // chaining render onto that re-entered this line forever: a microtask loop
+    // that froze the window the first time the panel opened before its list.
+    if (T.procs === null) { body.appendChild(el('div', 'obs', 'Reading the project\\u2019s processes\\u2026')); if (!T.busy) terminalRefresh().then(render); return; }
     if (!T.procs.length) {
       body.appendChild(el('div', 'obs', 'Nothing is running in this project. Commands LAIN starts in the background, and any dev server it owns, appear here.'));
       return;

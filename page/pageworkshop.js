@@ -33,6 +33,57 @@
  * finished task and never says it is.
  */
 
+/** The preview, as a split beside the editor. Shown only while it is the open panel. */
+const HTML = `
+<section class="workshop" id="workshop" hidden>
+  <div class="ws-head">
+    <span class="ws-title">Preview</span>
+    <span class="spacer"></span>
+    <button class="btn small" id="wsClose">Close</button>
+  </div>
+  <div class="ws-server" id="wsServer" hidden>
+    <span class="sdot" id="wsServerDot"></span>
+    <span id="wsServerText"></span>
+    <span class="url" id="wsUrl"></span>
+    <span class="spacer"></span>
+    <button class="btn small" id="wsRestart">Reload</button>
+  </div>
+  <div class="ws-bar">
+    <button class="vp" data-vp="desktop" aria-selected="true">Desktop</button>
+    <button class="vp" data-vp="tablet" aria-selected="false">Tablet</button>
+    <button class="vp" data-vp="mobile" aria-selected="false">Mobile</button>
+    <span class="spacer"></span>
+    <button class="btn small" id="wsPick">Select element</button>
+    <button class="btn small" id="wsReload">Reload</button>
+  </div>
+  <div class="ws-body" id="wsBody"></div>
+  <div class="ws-foot">
+    <button class="btn small" id="wsBefore">Capture before</button>
+    <button class="btn small" id="wsAfter">Capture after</button>
+    <button class="btn small go" id="wsVerify">Verify all viewports</button>
+    <button class="btn small" id="wsAttach" disabled>Ask about selection</button>
+  </div>
+</section>`;
+
+const CSS = `
+.workshop{border-left:1px solid var(--line);display:grid;grid-template-rows:auto auto auto 1fr auto;min-height:0;min-width:0;background:var(--panel)}
+.ws-head{display:flex;align-items:center;gap:10px;padding:0 12px;height:35px;border-bottom:1px solid var(--line)}
+.ws-title{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.ws-server{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--dim)}
+.ws-server .sdot{font-size:9px}
+.ws-server .url{color:var(--faint);font-family:var(--mono);font-size:11px;margin-left:2px}
+.ws-bar{display:flex;align-items:center;gap:4px;padding:6px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.vp{padding:2px 9px;border-radius:var(--radius-s);font-size:12px;color:var(--dim)}
+.vp[aria-selected=true]{background:var(--raise);color:var(--ink)}
+.ws-body{overflow:auto;padding:12px;min-height:0}
+.shot{width:100%;border:1px solid var(--line);border-radius:var(--radius-s);display:block;background:#fff}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ba figcaption{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-family:var(--mono);font-size:12px;margin:8px 0}
+.kv dt{color:var(--faint)} .kv dd{margin:0;color:var(--ink);word-break:break-all}
+.ws-foot{border-top:1px solid var(--line);padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap}
+`;
+
 function js() {
   return `
 LAIN.workshop = (function () {
@@ -371,4 +422,4 @@ LAIN.workshop = (function () {
 `;
 }
 
-module.exports = { js };
+module.exports = { HTML, CSS, js };

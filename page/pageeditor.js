@@ -1,0 +1,542 @@
+'use strict';
+
+/**
+ * THE IDE'S EDITOR — Monaco, the editor VS Code is built on, in LAIN's colours.
+ *
+ * ------------------------------------------------------------------------
+ * WHO OWNS WHAT.
+ *
+ *   buffers, tabs, the tree, save     pagesource.js (LAIN.source) — unchanged
+ *                                     owner; it asks this module to DRAW a file
+ *   the bytes, encoding, line ending  Core (source.js) — decided from content
+ *   definitions                       Core's project index + declaration scan
+ *   problems                          Monaco's language services for the file
+ *                                     in front, and Core's syntax checker for
+ *                                     what was saved (diagnostics.js)
+ *   what the person is looking at     reported to Core (POST /api/ide/context)
+ *                                     so the BOT sees it without pasting
+ *
+ * ------------------------------------------------------------------------
+ * VENDORED, NOT FETCHED BY THE PAGE. Monaco lives in `vendor/monaco` beside
+ * index.html (webvendor.js fetched it once, pinned and verified). When it is
+ * absent, `active()` is false and pagesource's built-in editor keeps working.
+ */
+
+const HTML = `
+<div class="edsurface" id="edMonaco" hidden></div>
+<div class="edimage" id="edImage" hidden><div class="ei-bar" id="edImageBar"></div><div class="ei-stage"><img id="edImageImg" alt=""></div></div>`;
+
+const CSS = `
+.srcEdit{position:relative}
+.edsurface{position:absolute;inset:0;z-index:3}
+.edimage{position:absolute;inset:0;z-index:3;display:grid;grid-template-rows:auto 1fr;background:var(--bg)}
+.ei-bar{padding:6px 14px;font-size:11.5px;color:var(--faint);border-bottom:1px solid var(--line)}
+.ei-stage{overflow:auto;display:grid;place-items:center;background:repeating-conic-gradient(#15171b 0 25%,#1b1d22 0 50%) 0 0/16px 16px}
+.ei-stage img{max-width:96%;max-height:96%;image-rendering:auto;box-shadow:0 0 0 1px var(--line2)}
+.srcRow.dim .nm{opacity:.55}
+.srcRow.drop{background:var(--accent-weak);box-shadow:inset 0 0 0 1px var(--accent-line)}
+.monaco-editor .lain-hit{background:#8f9bff22}
+.monaco-editor .lain-hit-gutter{border-left:2px solid var(--accent)}
+`;
+
+/* eslint-disable no-var, prefer-arrow-callback, func-names, prefer-template -- renderer ES5 style */
+function client() {
+  var L = window.LAIN;
+  var $ = L.$, el = L.el;
+  var M = null;               // the monaco namespace, once loaded
+  var ed = null;              // the one editor instance
+  var state = 'unloaded';     // unloaded | loading | ready | absent
+  var models = {};            // path -> { model, view, rev, sub }
+  var shown = null;           // path in front
+  var hitDeco = [];
+  var ctxTimer = 0;
+  var lintOwner = 'lain';
+  var coreMarkers = {};       // path -> markers from Core's syntax check
+
+  function src() { return L.source; }
+  function root() { var S = L.state(); return S && S.workspace && S.workspace.project ? S.workspace.project.root : ''; }
+
+  // ---- loading ----------------------------------------------------------------------
+  function load() {
+    if (state !== 'unloaded') return;
+    state = 'loading';
+    var probe = new XMLHttpRequest();
+    probe.open('GET', 'vendor/monaco/VERSION');
+    probe.onload = function () {
+      if (probe.status !== 200) { state = 'absent'; return; }
+      var s = document.createElement('script');
+      s.src = 'vendor/monaco/vs/loader.js';
+      s.onerror = function () { state = 'absent'; };
+      s.onload = function () {
+        window.require.config({ paths: { vs: 'vendor/monaco/vs' } });
+        window.require(['vs/editor/editor.main'], function () { M = window.monaco; init(); }, function () { state = 'absent'; });
+      };
+      document.head.appendChild(s);
+    };
+    probe.onerror = function () { state = 'absent'; };
+    probe.send();
+  }
+
+  function theme() {
+    M.editor.defineTheme('lain-dark', {
+      base: 'vs-dark', inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6b7080', fontStyle: 'italic' },
+        { token: 'keyword', foreground: '9aa6ff' },
+        { token: 'string', foreground: 'a6d69a' },
+        { token: 'number', foreground: 'e0a86b' },
+        { token: 'type', foreground: '7fd4c4' },
+        { token: 'type.identifier', foreground: '7fd4c4' },
+        { token: 'delimiter', foreground: '9da1ab' },
+        { token: 'tag', foreground: 'd7a0e8' },
+        { token: 'attribute.name', foreground: '9aa6ff' },
+        { token: 'variable', foreground: 'e5e7ec' },
+      ],
+      colors: {
+        'editor.background': '#0d0e11', 'editor.foreground': '#e5e7ec',
+        'editorLineNumber.foreground': '#4d515b', 'editorLineNumber.activeForeground': '#9da1ab',
+        'editor.lineHighlightBackground': '#15171c', 'editor.lineHighlightBorder': '#15171c',
+        'editor.selectionBackground': '#3b4270', 'editor.inactiveSelectionBackground': '#2a2f4d',
+        'editorCursor.foreground': '#8f9bff', 'editorIndentGuide.background1': '#1f2229',
+        'editorWidget.background': '#131419', 'editorWidget.border': '#2d3039',
+        'editorSuggestWidget.background': '#131419', 'editorSuggestWidget.selectedBackground': '#20232a',
+        'input.background': '#191b21', 'focusBorder': '#8f9bff59',
+        'scrollbarSlider.background': '#2a2d3680', 'minimap.background': '#0d0e11',
+        'editorGutter.background': '#0d0e11', 'editorError.foreground': '#d9675f', 'editorWarning.foreground': '#d8a650',
+      },
+    });
+  }
+
+  function init() {
+    theme();
+    var host = $('edMonaco');
+    ed = M.editor.create(host, {
+      theme: 'lain-dark', automaticLayout: true, fontFamily: '"Cascadia Code","Cascadia Mono",Consolas,monospace',
+      fontSize: Number((function () { try { return localStorage.getItem('lain.editorSize') || '13'; } catch (e) { return '13'; } })()),
+      fontLigatures: true, minimap: { enabled: true, scale: 1, renderCharacters: false }, scrollBeyondLastLine: false,
+      renderWhitespace: 'selection', smoothScrolling: false, cursorBlinking: 'smooth', bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: 'active' }, stickyScroll: { enabled: true }, tabSize: 2, detectIndentation: true, model: null,
+    });
+    // VS CODE'S KEYS, where the editor would otherwise swallow them.
+    var K = M.KeyMod, C = M.KeyCode;
+    ed.addCommand(K.CtrlCmd | C.KeyS, function () { src().save(false); });
+    ed.addCommand(K.CtrlCmd | K.Shift | C.KeyS, function () { saveAs(); });
+    ed.addCommand(K.CtrlCmd | C.KeyP, function () { src().quickOpen(); });
+    ed.addCommand(K.CtrlCmd | K.Shift | C.KeyP, function () { L.search.palette('>'); });
+    ed.addCommand(K.CtrlCmd | C.KeyW, function () { closeActive(); });
+    ed.addCommand(K.CtrlCmd | C.Tab, function () { cycle(1); });
+    ed.addCommand(K.CtrlCmd | K.Shift | C.Tab, function () { cycle(-1); });
+    ed.addCommand(K.CtrlCmd | C.KeyB, function () { L.ide.toggleSide(); });
+    ed.addCommand(K.CtrlCmd | C.KeyJ, function () { L.ide.togglePanel(); });
+    ed.addCommand(K.CtrlCmd | C.Backquote, function () { L.ide.showPanel('TERMINAL'); });
+    ed.addCommand(K.CtrlCmd | K.Shift | C.KeyF, function () { L.ide.showPane('search'); });
+    ed.addCommand(K.CtrlCmd | K.Alt | C.KeyB, function () { L.ide.toggleBot(); });
+    ed.onDidChangeCursorSelection(function () { status(); report(); });
+    registerProviders();
+    M.editor.onDidChangeMarkers(function () { if (L.ide && L.ide.problemsChanged) L.ide.problemsChanged(); report(); });
+    state = 'ready';
+    src().renderEditor();
+  }
+
+  // ---- languages: definitions and references from Core ------------------------------
+  function relOf(uri) { return decodeURIComponent(String(uri.path || '').replace(/^\//, '')); }
+  function uriOf(rel) { return M.Uri.from({ scheme: 'file', path: '/' + rel }); }
+
+  function registerProviders() {
+    var langs = M.languages.getLanguages().map(function (l) { return l.id; });
+    // OPENING ANOTHER FILE from a peek or a Go to Definition goes through the
+    // IDE's own buffers, so the tab, the tree and the save token stay right.
+    if (M.editor.registerEditorOpener) {
+      M.editor.registerEditorOpener({
+        openCodeEditor: function (source, resource, where) {
+          var line = where && (where.startLineNumber || where.lineNumber);
+          src().openFile(relOf(resource), { line: line || 1 });
+          return true;
+        },
+      });
+    }
+    langs.forEach(function (id) {
+      M.languages.registerDefinitionProvider(id, {
+        provideDefinition: async function (model, pos) {
+          var w = model.getWordAtPosition(pos);
+          if (!w) return [];
+          var r = await L.api('/api/ide/definition', { name: w.word });
+          if (!r || !r.ok) return [];
+          var out = [];
+          for (var i = 0; i < r.locations.length; i++) {
+            var loc = r.locations[i];
+            await ensureModel(loc.path);
+            out.push({ uri: uriOf(loc.path), range: new M.Range(loc.line, 1, loc.line, 1) });
+          }
+          return out;
+        },
+      });
+      M.languages.registerReferenceProvider(id, {
+        provideReferences: async function (model, pos) {
+          var w = model.getWordAtPosition(pos);
+          if (!w) return [];
+          var r = await L.api('/api/files/search', { query: w.word, wholeWord: true, caseSensitive: true });
+          if (!r || !r.ok) return [];
+          var out = [];
+          for (var i = 0; i < r.files.length && out.length < 300; i++) {
+            var f = r.files[i];
+            await ensureModel(f.path);
+            f.hits.forEach(function (h) { out.push({ uri: uriOf(f.path), range: new M.Range(h.line, h.col, h.line, h.col + h.len) }); });
+          }
+          return out;
+        },
+      });
+    });
+  }
+
+  /** A model for a file not open in a tab, for peeks. Read-only until opened. */
+  async function ensureModel(rel) {
+    var uri = uriOf(rel);
+    if (M.editor.getModel(uri)) return;
+    var r = await L.api('/api/files/open', { path: rel });
+    if (!r || !r.ok || r.kind !== 'text') return;
+    if (!M.editor.getModel(uri)) M.editor.createModel(r.body, r.mode || undefined, uri);
+  }
+
+  // ---- drawing a file ------------------------------------------------------------------
+  function active() { return state === 'ready'; }
+
+  function hideSurfaces() { $('edMonaco').hidden = true; $('edImage').hidden = true; }
+
+  /** Draw `f`, or say this module does not (pagesource then uses its fallback). */
+  function render(f) {
+    if (state === 'unloaded') load();
+    if (!f) { hideSurfaces(); shown = null; if (ed) ed.setModel(null); status(); report(); return active(); }
+    if (f.kind === 'image') { showImage(f); return true; }
+    if (!active()) { hideSurfaces(); return false; }
+    $('edImage').hidden = true;
+    $('edMonaco').hidden = false;
+    var cur = models[f.path];
+    if (!cur) {
+      var uri = uriOf(f.path);
+      var existing = M.editor.getModel(uri);
+      var model = existing || M.editor.createModel(f.body, f.mode || undefined, uri);
+      if (existing) { if (existing.getValue() !== f.body) existing.setValue(f.body); if (f.mode) M.editor.setModelLanguage(existing, f.mode); }
+      cur = models[f.path] = { model: model, view: null, rev: f.rev || 0 };
+      cur.sub = model.onDidChangeContent(function () {
+        var buf = src().state().open.filter(function (x) { return x.path === f.path; })[0];
+        if (!buf) return;
+        buf.body = model.getValue();
+        var dirty = buf.body !== buf.saved;
+        if (dirty !== buf.dirty) { buf.dirty = dirty; src().renderTabs(); }
+        report();
+      });
+    } else if ((f.rev || 0) !== cur.rev) {
+      // THE FILE MOVED ON DISK (LAIN edited it) and the buffer was clean: the
+      // model follows, as one undoable edit rather than a reset.
+      cur.rev = f.rev || 0;
+      cur.model.pushEditOperations([], [{ range: cur.model.getFullModelRange(), text: f.body }], function () { return null; });
+    }
+    if (shown !== f.path) {
+      if (shown && models[shown]) models[shown].view = ed.saveViewState();
+      ed.setModel(cur.model);
+      if (cur.view) ed.restoreViewState(cur.view);
+      shown = f.path;
+      touched(f.path);
+    }
+    status();
+    report();
+    return true;
+  }
+
+  async function showImage(f) {
+    $('edMonaco').hidden = true;
+    $('edImage').hidden = false;
+    shown = f.path;
+    var img = $('edImageImg');
+    if (img.dataset.path === f.path) return;
+    img.dataset.path = f.path;
+    img.removeAttribute('src');
+    $('edImageBar').textContent = f.path + ' \u00b7 reading\u2026';
+    var r = await L.api('/api/files/raw', { path: f.path });
+    if (!r || !r.ok) { $('edImageBar').textContent = f.path + ' \u00b7 ' + ((r && r.why) || 'cannot preview'); return; }
+    img.onload = function () { $('edImageBar').textContent = f.path + ' \u00b7 ' + img.naturalWidth + '\u00d7' + img.naturalHeight + ' \u00b7 ' + Math.max(1, Math.round(r.size / 1024)) + ' KB'; };
+    img.src = 'data:' + r.mime + ';base64,' + r.data;
+  }
+
+  function dispose(p) {
+    var m = models[p];
+    if (!m) return;
+    if (m.sub) m.sub.dispose();
+    if (shown === p && ed) { ed.setModel(null); shown = null; }
+    m.model.dispose();
+    delete models[p];
+    delete coreMarkers[p];
+  }
+
+  function hits(f, lines) {
+    if (!ed || !models[f.path]) return;
+    hitDeco = ed.deltaDecorations(hitDeco, (lines || []).map(function (n) {
+      return { range: new M.Range(n + 1, 1, n + 1, 1), options: { isWholeLine: true, className: 'lain-hit', linesDecorationsClassName: 'lain-hit-gutter' } };
+    }));
+    if (lines && lines.length) ed.revealLineInCenterIfOutsideViewport(lines[0] + 1);
+  }
+
+  function reveal(n) {
+    if (!ed) return;
+    var line = Math.max(1, Number(n) || 1);
+    ed.revealLineInCenter(line);
+    ed.setPosition({ lineNumber: line, column: 1 });
+    ed.focus();
+  }
+
+  function cursor() {
+    if (!ed || !ed.getModel()) return null;
+    var p = ed.getPosition();
+    return p ? { line: p.lineNumber, col: p.column } : null;
+  }
+
+  function find(replace) {
+    if (!ed) return;
+    ed.focus();
+    var a = ed.getAction(replace ? 'editor.action.startFindReplaceAction' : 'actions.find');
+    if (a) a.run();
+  }
+
+  // ---- tabs --------------------------------------------------------------------------------
+  function closeActive() { var st = src().state(); if (st.active >= 0) src().close(st.active); }
+  function cycle(d) {
+    var st = src().state();
+    if (!st.open.length) return;
+    src().activate((st.active + d + st.open.length) % st.open.length);
+  }
+
+  // ---- recent files, per project -------------------------------------------------------
+  function recentKey() { return 'lain.recent.' + root().toLowerCase(); }
+  function recent() { try { return JSON.parse(localStorage.getItem(recentKey()) || '[]'); } catch (e) { return []; } }
+  function touched(p) {
+    if (!root()) return;
+    var list = recent().filter(function (x) { return x !== p; });
+    list.unshift(p);
+    try { localStorage.setItem(recentKey(), JSON.stringify(list.slice(0, 30))); } catch (e) { /* storage unavailable */ }
+  }
+
+  // ---- status bar facts ----------------------------------------------------------------
+  function status() {
+    var f = src().current();
+    var c = cursor();
+    var sel = ed && ed.getSelection();
+    var n = sel && !sel.isEmpty() && ed.getModel() ? ed.getModel().getValueInRange(sel).length : 0;
+    var pos = $('sbPos');
+    if (pos) pos.textContent = f && f.kind === 'text' && c ? 'Ln ' + c.line + ', Col ' + c.col + (n ? ' (' + n + ' selected)' : '') : '';
+  }
+
+  // ---- problems ----------------------------------------------------------------------------
+  function sev(s) { return s === 8 ? 'error' : s === 4 ? 'warning' : s === 2 ? 'info' : 'hint'; }
+  /** Every problem LAIN knows about, file by file. */
+  function problems() {
+    var out = [];
+    if (M) {
+      M.editor.getModelMarkers({}).forEach(function (m) {
+        var rel = relOf(m.resource);
+        if (!models[rel]) return;
+        out.push({ path: rel, line: m.startLineNumber, col: m.startColumn, severity: sev(m.severity), message: m.message, source: m.owner === lintOwner ? 'LAIN' : (m.source || m.owner) });
+      });
+    }
+    Object.keys(coreMarkers).forEach(function (p) {
+      if (M && models[p]) return;
+      (coreMarkers[p] || []).forEach(function (m) { out.push(m); });
+    });
+    var rank = { error: 0, warning: 1, info: 2, hint: 3 };
+    return out.sort(function (a, b) { return (rank[a.severity] - rank[b.severity]) || (a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line); });
+  }
+
+  /** After a save: Core's syntax check of what is on disk. */
+  async function checkSaved(p) {
+    var r = await L.api('/api/files/check', { path: p });
+    if (!r || !r.ok || r.inconclusive) { coreMarkers[p] = []; }
+    else coreMarkers[p] = r.clean ? [] : [{ path: p, line: r.line || 1, col: 1, severity: 'error', message: r.message, source: 'LAIN' }];
+    if (M && models[p]) {
+      M.editor.setModelMarkers(models[p].model, lintOwner, coreMarkers[p].map(function (m) {
+        return { severity: M.MarkerSeverity.Error, message: m.message, startLineNumber: m.line, startColumn: 1, endLineNumber: m.line, endColumn: 1000 };
+      }));
+    }
+    if (L.ide && L.ide.problemsChanged) L.ide.problemsChanged();
+  }
+
+  // ---- what the BOT should know is on screen -------------------------------------
+  function report() {
+    clearTimeout(ctxTimer);
+    ctxTimer = setTimeout(function () {
+      var S = L.state();
+      if (!S || !S.workspace || !S.workspace.project || !S.workspace.project.attached) return;
+      var f = src().current();
+      var sel = ed && ed.getSelection();
+      var model = ed && ed.getModel();
+      var selection = null;
+      if (sel && model && !sel.isEmpty()) selection = { text: model.getValueInRange(sel).slice(0, 6000), startLine: sel.startLineNumber, endLine: sel.endLineNumber };
+      else if (!active() && f) {
+        var t = $('srcText');
+        if (t && t.selectionStart !== t.selectionEnd) {
+          var before = t.value.slice(0, t.selectionStart);
+          selection = { text: t.value.slice(t.selectionStart, t.selectionEnd).slice(0, 6000), startLine: before.split('\n').length, endLine: before.split('\n').length + t.value.slice(t.selectionStart, t.selectionEnd).split('\n').length - 1 };
+        }
+      }
+      L.api('/api/ide/context', {
+        file: f ? f.path : null, language: f ? (f.mode || f.language) : null, cursor: f ? cursor() : null, selection: selection,
+        tabs: src().state().open.map(function (x) { return x.path; }),
+        diagnostics: problems().slice(0, 40),
+        terminal: L.terminal && L.terminal.state ? L.terminal.state.id : null,
+      }).catch(function () { /* the next change reports again */ });
+    }, 700);
+  }
+
+  // ---- explorer: menu, drag to move, new file, Save As ------------------------------
+  function parentOf(p) { var i = String(p).lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); }
+  async function askPath(title, value, ok) {
+    var v = await L.dialog({ title: title, fields: [{ key: 'p', label: 'Path in the project', value: value }], ok: ok || 'OK' });
+    return v && v.p && v.p.trim() ? v.p.trim().split('\\').join('/') : null;
+  }
+  async function afterChange(dir) { await src().reloadDir(dir || '.'); if (L.poll) L.poll(); }
+
+  async function newFile(dir) {
+    var p = await askPath('New File', dir ? dir + '/' : '', 'Create');
+    if (!p) return;
+    var r = await L.api('/api/files/create', { path: p, body: '' });
+    if (!r.ok) return L.toast(r.why, true);
+    await afterChange(parentOf(r.path));
+    src().openFile(r.path);
+  }
+  async function newFolder(dir) {
+    var p = await askPath('New Folder', dir ? dir + '/' : '', 'Create');
+    if (!p) return;
+    var r = await L.api('/api/files/mkdir', { path: p });
+    if (!r.ok) return L.toast(r.why, true);
+    await afterChange(parentOf(r.path));
+  }
+  async function renameEntry(e) {
+    var p = await askPath('Rename', e.path, 'Rename');
+    if (!p || p === e.path) return;
+    await move(e, p);
+  }
+  async function move(e, to) {
+    var dirty = src().state().open.filter(function (f) { return f.dirty && (f.path === e.path || f.path.indexOf(e.path + '/') === 0); });
+    if (dirty.length) return L.toast('Save or close ' + dirty[0].path + ' before moving it.', true);
+    var r = await L.api('/api/files/rename', { from: e.path, to: to });
+    if (!r.ok) return L.toast(r.why, true);
+    // OPEN BUFFERS FOLLOW THE FILE: closed at the old path, reopened at the new.
+    var st = src().state();
+    var reopen = [];
+    for (var i = st.open.length - 1; i >= 0; i--) {
+      var f = st.open[i];
+      if (f.path === e.path || f.path.indexOf(e.path + '/') === 0) { reopen.push(r.path + f.path.slice(e.path.length)); dispose(f.path); st.open.splice(i, 1); }
+    }
+    if (st.active >= st.open.length) st.active = st.open.length - 1;
+    src().renderTabs(); src().renderEditor();
+    await afterChange('.');
+    reopen.forEach(function (p) { src().openFile(p); });
+  }
+  async function removeEntry(e) {
+    var yes = await L.confirm('Delete ' + e.path + '? It goes to the Recycle Bin.', { ok: 'Move to Recycle Bin', danger: true });
+    if (!yes) return;
+    var r = await L.api('/api/files/delete', { path: e.path });
+    if (!r.ok) return L.toast(r.why, true);
+    var st = src().state();
+    for (var i = st.open.length - 1; i >= 0; i--) {
+      var f = st.open[i];
+      if (f.path === e.path || f.path.indexOf(e.path + '/') === 0) { dispose(f.path); st.open.splice(i, 1); }
+    }
+    if (st.active >= st.open.length) st.active = st.open.length - 1;
+    src().renderTabs(); src().renderEditor();
+    await afterChange(parentOf(e.path));
+  }
+  function copy(text) { L.api('/api/clipboard/write', { text: text }).then(function (r) { if (r && !r.ok) L.toast(r.why, true); }); }
+
+  function treeMenu(e, ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    var dir = e.dir ? e.path : parentOf(e.path);
+    var items = [
+      ['New File\u2026', function () { newFile(dir); }],
+      ['New Folder\u2026', function () { newFolder(dir); }],
+      null,
+      ['Rename\u2026', function () { renameEntry(e); }],
+      ['Delete', function () { removeEntry(e); }],
+      null,
+      ['Copy Path', function () { copy(root() ? root().replace(/[\\/]$/, '') + '\\' + e.path.split('/').join('\\') : e.path); }],
+      ['Copy Relative Path', function () { copy(e.path); }],
+    ];
+    var m = $('ctxMenu');
+    m.textContent = '';
+    items.forEach(function (it) {
+      if (!it) { m.appendChild(el('div', 'sep')); return; }
+      var b = el('button', '', it[0]);
+      b.type = 'button';
+      b.onclick = function () { m.hidden = true; it[1](); };
+      m.appendChild(b);
+    });
+    m.hidden = false;
+    var r = m.getBoundingClientRect();
+    m.style.left = Math.min(ev.clientX, window.innerWidth - r.width - 6) + 'px';
+    m.style.top = Math.min(ev.clientY, window.innerHeight - r.height - 6) + 'px';
+  }
+
+  var dragging = null;
+  function decorateRow(row, e) {
+    row.addEventListener('contextmenu', function (ev) { treeMenu(e, ev); });
+    row.draggable = true;
+    row.addEventListener('dragstart', function (ev) { dragging = e; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', e.path); } catch (x) { /* fine */ } });
+    row.addEventListener('dragend', function () { dragging = null; });
+    if (e.dir) {
+      row.addEventListener('dragover', function (ev) { if (dragging && dragging.path !== e.path) { ev.preventDefault(); row.classList.add('drop'); } });
+      row.addEventListener('dragleave', function () { row.classList.remove('drop'); });
+      row.addEventListener('drop', function (ev) {
+        ev.preventDefault();
+        row.classList.remove('drop');
+        var d = dragging;
+        dragging = null;
+        if (!d || d.path === e.path || e.path.indexOf(d.path + '/') === 0) return;
+        move(d, e.path + '/' + d.name);
+      });
+    }
+  }
+
+  async function saveAs() {
+    var f = src().current();
+    if (!f || f.kind !== 'text') return;
+    var p = await askPath('Save As', f.path, 'Save');
+    if (!p || p === f.path) return;
+    var r = await L.api('/api/files/saveas', { path: p, body: f.body, encoding: f.encoding });
+    if (!r.ok && r.exists) {
+      if (!(await L.confirm(p + ' already exists. Replace it?', { ok: 'Replace', danger: true }))) return;
+      r = await L.api('/api/files/saveas', { path: p, body: f.body, encoding: f.encoding, overwrite: true });
+    }
+    if (!r.ok) return L.toast(r.why, true);
+    await afterChange(parentOf(r.path));
+    src().openFile(r.path);
+  }
+
+  L.editor = {
+    active: active, render: render, dispose: dispose, hits: hits, reveal: reveal, cursor: cursor, find: find,
+    recent: recent, touched: touched, decorateRow: decorateRow, problems: problems, checkSaved: checkSaved,
+    saveAs: saveAs, newFile: newFile, newFolder: newFolder, report: report, load: load,
+    state: function () { return state; }, focus: function () { if (ed) ed.focus(); },
+    monaco: function () { return M; }, editor: function () { return ed; },
+  };
+
+  L.onBoot(function () {
+    var box = $('srcEdit');
+    var holder = document.createElement('div');
+    holder.innerHTML = HTML_PLACEHOLDER;
+    while (holder.firstChild) box.appendChild(holder.firstChild);
+    document.addEventListener('keydown', function (e) {
+      if (L.nav.tab() !== 'ide') return;
+      var ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.shiftKey && (e.key === 'S' || e.key === 's')) { e.preventDefault(); saveAs(); }
+      else if (ctrl && !e.shiftKey && (e.key === 'h' || e.key === 'H')) { e.preventDefault(); find(true); }
+      else if (ctrl && e.key === 'Tab') { e.preventDefault(); cycle(e.shiftKey ? -1 : 1); }
+    });
+    L.nav.onShow('ide', function () { load(); });
+  });
+}
+
+function js() {
+  return `(${client.toString().replace('HTML_PLACEHOLDER', JSON.stringify(HTML))})();`;
+}
+
+module.exports = { HTML, CSS, js, client };

@@ -1,0 +1,5 @@
+node_modules/
+# The WebView2 SDK is fetched on first build (native/vendor.js); never committed.
+native/vendor/
+# Monaco is fetched on first build (webvendor.js); never committed.
+vendor/

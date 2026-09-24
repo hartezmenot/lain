@@ -27,40 +27,19 @@
  */
 
 const CSS = `
-/* THE WORK COLUMN FLOWS: cards and object rows appear above the stream as they
-   are needed, so a fixed grid of rows would hand the stretch to whichever card
-   happened to be second. The stream is the one thing that grows. */
-section.work{display:flex;flex-direction:column;min-height:0}
-section.work .stream{flex:1;min-height:0}
-.lane-empty{display:grid;place-items:center;flex:1;min-height:0;padding:40px}
-.lane-empty .in{max-width:420px;text-align:left}
-.lane-empty h2{font:600 15px/1.3 var(--sans);margin:0 0 8px}
-.lane-empty p{color:var(--dim);margin:0 0 16px}
 .objects{display:flex;flex-wrap:wrap;gap:8px;padding:10px 22px 0}
-.obj{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius);background:var(--surface);max-width:320px}
-.obj .k{color:var(--faint);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.obj{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);max-width:320px}
+.obj .k{color:var(--faint);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
 .obj .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .obj img{width:36px;height:36px;object-fit:cover;border-radius:4px}
 .obj button{color:var(--accent);font-size:12px}
-/* A CARD, NOT A COLOURED FLAG. The old left border read the whole objects lane
-   as a warning strip even for an ordinary approval question; a plain surface
-   with a small status dot in the heading carries the same information without
-   painting every card amber. */
-.card{margin:10px 22px 0;padding:12px 14px;border-radius:var(--radius);background:var(--surface)}
+.card{margin:10px 22px 0;padding:12px 14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line)}
 .card h4{margin:0 0 4px;font:600 13px/1.3 var(--sans);display:flex;align-items:center;gap:7px}
 .card h4::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--warn);flex:none}
 .card p{margin:0 0 10px;color:var(--dim);white-space:pre-wrap}
 .card .choices{display:flex;gap:8px;flex-wrap:wrap}
-.btn.primary{background:var(--accent);color:#0a1620}
 .job{display:flex;gap:10px;align-items:center;padding:4px 22px;color:var(--dim);font-size:13px}
 .job b{color:var(--ink);font-weight:500}
-.aside-new{float:right;color:var(--accent);font-size:12px;letter-spacing:0;text-transform:none}
-.pill{white-space:nowrap}
-main.lane-mismatch .stream,main.lane-mismatch .composer,main.lane-mismatch .drawers,
-main.lane-mismatch .drawer,main.lane-mismatch .act,main.lane-mismatch .objects{display:none!important}
-/* ---- the computer, while LAIN is using it ---------------------------- */
-/* Its own status dot is drawn in .head (colour reflects authorized/not) - the
-   generic .card h4 dot would double up on it, so it is switched off here. */
 .card.computer h4::before{content:none}
 .card.computer .head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .card.computer .steps{margin:0 0 10px;color:var(--dim);font-size:13px}
@@ -71,20 +50,8 @@ main.lane-mismatch .drawer,main.lane-mismatch .act,main.lane-mismatch .objects{d
 .card.computer img{max-width:100%;border-radius:var(--radius);margin-bottom:10px}
 `;
 
-/** Placed inside section.work, above the stream. */
-const HTML = `
-      <div class="lane-empty" id="laneEmpty" hidden>
-        <div class="in">
-          <h2 id="laneEmptyTitle"></h2>
-          <p id="laneEmptyText"></p>
-          <button class="btn primary" id="laneEmptyGo"></button>
-        </div>
-      </div>
-      <div id="askCard" class="card" hidden></div>
-      <div id="computerCard" class="card computer" hidden></div>
-      <div id="coworkObjects" class="objects" hidden></div>
-      <div id="coworkJobs" hidden></div>
-`;
+/** The cards and object rows live in the conversation block (pagescript.js). */
+const HTML = '';
 
 function js() {
   return `
@@ -217,33 +184,6 @@ LAIN.cowork = (function () {
   }
 
   /**
-   * WHICH WORK AREA THE LANE SHOWS. The conversation belongs to the CURRENT
-   * session; when the lane being looked at is not that session's lane, the work
-   * area says so and offers the one action that makes sense, instead of showing
-   * an engineering conversation under a Cowork heading.
-   */
-  function renderLane(S, ui) {
-    var cur = S.current.lane;
-    var mismatch = ui.lane !== cur;
-    var empty = $('laneEmpty');
-    // ONE SWITCH, ONE PLACE: the stream and the composer belong to the CURRENT
-    // session, so on the other lane they are withheld — a prompt typed there
-    // would silently land in a session of the wrong kind. Toggled on a class
-    // rather than on each element's hidden flag, which their own renderers own.
-    $('main').classList.toggle('lane-mismatch', mismatch);
-    if (!mismatch) { empty.hidden = true; return; }
-    empty.hidden = false;
-    var co = ui.lane === 'cowork';
-    $('laneEmptyTitle').textContent = co ? 'Cowork' : 'Chat / Coding';
-    $('laneEmptyText').textContent = co
-      ? 'Work on things — a spreadsheet to clean, an image to edit, an email to answer. Start a Cowork session, attach what you want worked on, and ask.'
-      : 'An engineering session on this project: questions, code changes, verification. Start one, or open one from the list.';
-    var go = $('laneEmptyGo');
-    go.textContent = co ? 'New Cowork session' : 'New engineering session';
-    go.onclick = function () { newSession(ui.lane); };
-  }
-
-  /**
    * THE COMPUTER, WHILE LAIN IS USING IT.
    *
    * What it is doing and what it has done, with two things a person may want:
@@ -295,13 +235,20 @@ LAIN.cowork = (function () {
     card.appendChild(row2);
   }
 
+  /** An engineering conversation with nothing in it yet can become a file-work one. */
+  function bindable(S) {
+    return S.current.lane === 'engineering' && !(S.conversation || []).length && !(S.workspace && S.workspace.project && S.workspace.project.attached);
+  }
+
   function render(S, ui) {
-    renderLane(S, ui);
     renderAsk(S);
     renderComputer(S);
     renderObjects(S);
+    // ATTACH IS FOR CHAT'S FILE WORK. It shows on a Cowork conversation, and on
+    // an empty chat — where the first attachment binds it to Cowork through
+    // Core's own route, so nobody has to choose a "lane" before starting.
     var attach = $('attachPill');
-    if (attach) attach.hidden = !(S.cowork && S.cowork.active && ui.lane === 'cowork');
+    if (attach) attach.hidden = !(ui.mode === 'chat' && ((S.cowork && S.cowork.active) || bindable(S)));
   }
 
   function stage(file) {
@@ -321,7 +268,15 @@ LAIN.cowork = (function () {
     api = apiFn; notice = noticeFn; poll = pollFn; uiOf = uiFn;
     var attach = $('attachPill'), picker = $('attachFile');
     if (attach && picker) {
-      attach.onclick = function () { picker.click(); };
+      attach.onclick = async function () {
+        var S = LAIN.state();
+        if (S && S.current.lane === 'engineering') {
+          var r = await api('/api/cowork/bind', {});
+          if (!r.ok) return notice(r.why, true);
+          await poll();
+        }
+        picker.click();
+      };
       picker.onchange = async function () {
         for (var i = 0; i < picker.files.length; i++) await stage(picker.files[i]);
         picker.value = '';

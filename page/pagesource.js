@@ -38,97 +38,98 @@
 
 /** The Source Workspace's own styles. */
 const CSS = `
-.src{display:grid;grid-template-columns:230px 1fr;min-height:0;border-left:1px solid var(--line)}
-.srcTree{border-right:1px solid var(--line);overflow:auto;padding:8px 0;font-size:12.5px}
-.srcRow{display:flex;align-items:center;gap:6px;padding:3px 10px;cursor:pointer;white-space:nowrap;color:var(--dim)}
-.srcRow:hover{background:#12161c;color:var(--ink)}
+.srcTree{overflow:auto;padding:2px 0 8px;font-size:12.5px;height:100%}
+.srcRow{display:flex;align-items:center;gap:6px;padding:2px 10px;cursor:pointer;white-space:nowrap;color:var(--dim);line-height:20px}
+.srcRow:hover{background:var(--raise);color:var(--ink)}
+.srcRow.on{background:var(--accent-weak);color:var(--ink)}
 .srcRow.dir{color:var(--ink)}
-.srcRow .tw{width:10px;color:var(--faint);flex:none}
+.srcRow .tw{width:10px;color:var(--faint);flex:none;font-size:10px}
 .srcRow .nm{overflow:hidden;text-overflow:ellipsis}
 .srcRow .ch{width:6px;height:6px;border-radius:50%;background:var(--warn);flex:none;margin-left:auto}
-.srcPane{display:grid;grid-template-rows:auto auto 1fr;min-height:0}
-.srcTabs{display:flex;gap:2px;padding:6px 8px 0;overflow-x:auto;border-bottom:1px solid var(--line)}
-.srcTab{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:var(--radius) var(--radius) 0 0;
-        color:var(--dim);font-size:12.5px;white-space:nowrap;border:1px solid transparent;border-bottom:0}
-.srcTab[aria-selected=true]{background:var(--grey);color:var(--ink)}
-.srcTab .dot{width:6px;height:6px;border-radius:50%;background:var(--warn)}
-.srcTab .x{color:var(--faint);font-size:14px;line-height:1}
-.srcTab .x:hover{color:var(--bad)}
-.srcBar{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--faint)}
-.srcBar input{background:var(--grey);border-radius:var(--radius);padding:3px 8px;width:200px;flex:none}
+.srcPane{display:grid;grid-template-rows:auto auto 1fr;min-height:0;min-width:0;background:var(--bg)}
+/* EDITOR TABS ARE BOXES WITH A CLOSE CONTROL — deliberately unlike the
+   global tabs above them, which are underlined words. */
+.srcTabs{display:flex;gap:0;overflow-x:auto;background:var(--chrome);border-bottom:1px solid var(--line);min-height:35px}
+.srcTabs:empty{min-height:0;border-bottom:0}
+.srcTab{display:flex;align-items:center;gap:7px;padding:0 10px 0 14px;height:35px;color:var(--faint);font-size:12.5px;white-space:nowrap;border-right:1px solid var(--line);cursor:pointer;background:var(--chrome)}
+.srcTab:hover{color:var(--dim)}
+.srcTab[aria-selected=true]{background:var(--bg);color:var(--ink);box-shadow:inset 0 1px 0 var(--accent)}
+.srcTab .dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.srcTab .x{color:var(--faint);font-size:14px;line-height:1;width:18px;height:18px;border-radius:4px;display:grid;place-items:center}
+.srcTab .x:hover{color:var(--ink);background:var(--raise)}
+.srcBar{display:flex;align-items:center;gap:10px;padding:0 12px;height:26px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--faint)}
 .srcBar .sp{flex:1}
-.srcBar button{padding:3px 10px;border-radius:var(--radius);border:1px solid var(--line);color:var(--dim);font-size:12px}
-.srcBar button:hover{color:var(--ink);border-color:#2b3542}
-.srcBar button.act{background:var(--accent);color:#04121d;border-color:var(--accent);font-weight:600}
+.srcBar button{padding:1px 8px;border-radius:var(--radius-s);color:var(--dim);font-size:11.5px}
+.srcBar button:hover{color:var(--ink);background:var(--raise)}
+.srcBar button.act{color:var(--accent)}
 .srcEdit{position:relative;overflow:auto;background:var(--bg);min-height:0}
 .srcEdit .wrap{position:relative;min-height:100%;display:flex}
-.srcGut{flex:none;padding:10px 8px 10px 12px;text-align:right;color:var(--faint);
-        font:12.5px/1.55 var(--mono);user-select:none;background:var(--bg);position:sticky;left:0;z-index:2}
+.srcGut{flex:none;padding:10px 10px 10px 14px;text-align:right;color:var(--faint);min-width:52px;
+        font:13px/1.6 var(--mono);user-select:none;background:var(--bg);position:sticky;left:0;z-index:2}
 .srcGut div.hit{color:var(--accent)}
 .srcCode{position:relative;flex:1;min-width:0}
-.srcCode pre,.srcCode textarea{margin:0;padding:10px 12px;font:12.5px/1.55 var(--mono);
+.srcCode pre,.srcCode textarea{margin:0;padding:10px 14px;font:var(--editor-size,13px)/1.6 var(--mono);
         white-space:pre;tab-size:2;border:0;overflow:visible}
+.srcGut{font-size:var(--editor-size,13px)}
 .srcCode pre{pointer-events:none;color:var(--ink)}
 .srcCode textarea{position:absolute;inset:0;color:transparent;background:transparent;caret-color:var(--accent);
         resize:none;width:100%;height:100%;outline:0}
-.srcCode textarea::selection{background:#2a4a63;color:transparent}
+.srcCode textarea::selection{background:#3b4270;color:transparent}
 .srcCode .ln{display:block}
-.srcCode .ln.hit{background:#182430}
-.tk-c{color:#5b6675;font-style:italic}
-.tk-s{color:#9ad39a}
-.tk-n{color:#d9a05b}
-.tk-k{color:#7cb6ff}
-.tk-t{color:#c99ad9}
-.srcEmpty{padding:40px 22px;color:var(--faint);font-size:13px;line-height:1.7}
-.srcNote{padding:8px 12px;font-size:12px;color:var(--warn);border-bottom:1px solid var(--line)}
+.srcCode .ln.hit{background:#1c2033}
+.tk-c{color:#6b7080;font-style:italic}
+.tk-s{color:#a6d69a}
+.tk-n{color:#e0a86b}
+.tk-k{color:#9aa6ff}
+.tk-t{color:#d7a0e8}
+.srcEmpty{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);font-size:13px;line-height:1.9;text-align:center}
+.srcEmpty .kb{display:grid;grid-template-columns:auto auto;gap:4px 18px;text-align:left;margin-top:10px}
+.srcEmpty .kb span:nth-child(odd){text-align:right;color:var(--dim)}
+.srcNote{padding:8px 14px;font-size:12px;color:var(--warn);border-bottom:1px solid var(--line);background:var(--panel)}
 .srcNote.bad{color:var(--bad)}
 .srcNote button{margin-left:10px;color:var(--accent);text-decoration:underline}
-.srcFind{position:absolute;top:8px;right:16px;z-index:5;background:var(--panel);border:1px solid var(--line);
-         border-radius:var(--radius);padding:6px 8px;display:flex;gap:8px;align-items:center;font-size:12px}
-.srcFind input{width:160px;background:var(--grey);border-radius:3px;padding:2px 6px}
-.quick{position:fixed;inset:0;background:#0008;z-index:40;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
-.quick .box{width:min(560px,90vw);background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.quick input{padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line)}
-.quick .hits{max-height:50vh;overflow:auto}
-.quick .hit{padding:7px 14px;font-size:12.5px;color:var(--dim);cursor:pointer;font-family:var(--mono)}
-.quick .hit:hover,.quick .hit[aria-selected=true]{background:var(--grey);color:var(--ink)}
+.quick{position:fixed;inset:0;background:#0008;z-index:60;display:flex;align-items:flex-start;justify-content:center;padding-top:11vh}
+.quick .box{width:min(600px,90vw);background:var(--panel);border:1px solid var(--line2);border-radius:10px;overflow:hidden;box-shadow:var(--shadow);padding:0}
+.quick input{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--line)}
+.quick .hits{max-height:50vh;overflow:auto;padding:6px}
+.quick .hit{padding:6px 10px;font-size:12.5px;color:var(--dim);cursor:pointer;font-family:var(--mono);border-radius:var(--radius-s)}
+.quick .hit:hover,.quick .hit[aria-selected=true]{background:var(--accent-weak);color:var(--ink)}
 `;
 
-/** The markup. Sits beside the Workshop as the third column. */
-const HTML = `
-<section class="src" id="srcPanel" hidden>
-  <div class="srcTree" id="srcTree"></div>
-  <div class="srcPane">
-    <div class="srcTabs" id="srcTabs"></div>
-    <div class="srcBar">
-      <span id="srcPath">no file open</span>
-      <span class="sp"></span>
-      <span id="srcLang"></span>
-      <button id="srcFindBtn">Find</button>
-      <button id="srcSave" class="act">Save</button>
+/** The markup, in two parts: the tree goes in the IDE's explorer, the pane in its editor area. */
+const TREE_HTML = `<div class="srcTree" id="srcTree"></div>`;
+const PANE_HTML = `
+<section class="srcPane" id="srcPanel">
+  <div class="srcTabs" id="srcTabs"></div>
+  <div class="srcBar">
+    <span id="srcPath">no file open</span>
+    <span class="sp"></span>
+    <span id="srcLang"></span>
+    <button id="srcFindBtn" title="Find in file (Ctrl+F)">Find</button>
+    <button id="srcSave" class="act" title="Save (Ctrl+S)">Save</button>
+  </div>
+  <div class="srcEdit" id="srcEdit">
+    <div class="srcNote" id="srcNote" hidden></div>
+    <div class="wrap">
+      <div class="srcGut" id="srcGut"></div>
+      <div class="srcCode" id="srcCode">
+        <pre id="srcHi"></pre>
+        <textarea id="srcText" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+      </div>
     </div>
-    <div class="srcEdit" id="srcEdit">
-      <div class="srcNote" id="srcNote" hidden></div>
-      <div class="wrap">
-        <div class="srcGut" id="srcGut"></div>
-        <div class="srcCode" id="srcCode">
-          <pre id="srcHi"></pre>
-          <textarea id="srcText" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
-        </div>
-      </div>
-      <div class="srcEmpty" id="srcEmpty">
-        Open a file from the tree, or press Ctrl+P.
-      </div>
+    <div class="srcEmpty" id="srcEmpty">
+      <div>No file is open.<div class="kb"><span>Open file</span><span>Ctrl+P</span><span>Search LAIN</span><span>Ctrl+K</span><span>Toggle panel</span><span>Ctrl+J</span><span>Terminal</span><span>Ctrl+&#96;</span></div></div>
     </div>
   </div>
 </section>
 <div class="quick" id="quick" hidden>
   <div class="box">
-    <input id="quickQ" placeholder="Open file..." autocomplete="off">
+    <input id="quickQ" placeholder="Open file by name" autocomplete="off">
     <div class="hits" id="quickHits"></div>
   </div>
 </div>
 `;
+const HTML = PANE_HTML;
 
 /**
  * THE BEHAVIOUR.
@@ -310,8 +311,21 @@ window.LAIN.source = (function () {
   // ---- rendering --------------------------------------------------------
   function current() { return st.active >= 0 ? st.open[st.active] : null; }
 
+  // THE EDITOR SURFACE. LAIN.editor (pageeditor.js) takes a file when it can —
+  // Monaco for text, a preview for an image — and this built-in editor is the
+  // fallback when Monaco is not installed.
+  function editorOwns() { return Boolean(window.LAIN && LAIN.editor && LAIN.editor.active()); }
   function renderEditor() {
     var f = current();
+    var E = window.LAIN && LAIN.editor;
+    if (E && E.render(f)) {
+      $('srcEmpty').hidden = Boolean(f);
+      $('srcGut').hidden = true;
+      $('srcCode').hidden = true;
+      $('srcPath').textContent = f ? f.path : 'no file open';
+      $('srcLang').textContent = f ? (f.mode || f.language || '') : '';
+      return;
+    }
     $('srcEmpty').hidden = Boolean(f);
     $('srcGut').hidden = !f;
     $('srcCode').hidden = !f;
@@ -325,12 +339,16 @@ window.LAIN.source = (function () {
   function paint() {
     var f = current();
     if (!f) return;
+    if (editorOwns()) { LAIN.editor.hits(f, st.hits); return; }
+    if (f.kind === 'image') return;
     var lines = f.body.split('\\n');
     var hit = {};
     st.hits.forEach(function (n) { hit[n] = true; });
     $('srcHi').innerHTML = lines.map(function (l, i) {
       return '<span class="ln' + (hit[i] ? ' hit' : '') + '">' + (highlight(l, f.language) || ' ') + '</span>';
-    }).join('\\n');
+    // JOINED WITH NOTHING: each line is already a block, so a newline between
+    // them drew every line twice as tall as the textarea's and the gutter's.
+    }).join('');
     $('srcGut').innerHTML = lines.map(function (l, i) {
       return '<div' + (hit[i] ? ' class="hit"' : '') + '>' + (i + 1) + '</div>';
     }).join('');
@@ -347,7 +365,8 @@ window.LAIN.source = (function () {
       var n = document.createElement('span');
       n.textContent = f.path.split('/').pop();
       n.title = f.path;
-      n.onclick = function () { st.active = i; st.hits = []; renderTabs(); renderEditor(); };
+      t.onclick = function () { st.active = i; st.hits = []; renderTabs(); renderEditor(); renderTree(); };
+      t.title = f.path;
       t.appendChild(n);
       var x = document.createElement('span');
       x.className = 'x';
@@ -360,10 +379,14 @@ window.LAIN.source = (function () {
 
   function close(i) {
     var f = st.open[i];
-    if (f && f.dirty && !window.confirm(f.path + ' has unsaved changes. Close it?')) return;
-    st.open.splice(i, 1);
-    if (st.active >= st.open.length) st.active = st.open.length - 1;
-    renderTabs(); renderEditor();
+    var go = function () {
+      if (window.LAIN && LAIN.editor && f) LAIN.editor.dispose(f.path);
+      st.open.splice(i, 1);
+      if (st.active >= st.open.length) st.active = st.open.length - 1;
+      renderTabs(); renderEditor(); renderTree();
+    };
+    if (f && f.dirty) { LAIN.confirm(f.path + ' has unsaved changes. Close it without saving?', { ok: 'Close without saving', danger: true }).then(function (yes) { if (yes) go(); }); return; }
+    go();
   }
 
   function renderTree() {
@@ -373,7 +396,8 @@ window.LAIN.source = (function () {
       var entries = st.tree[dirPath] || [];
       entries.forEach(function (e) {
         var row = document.createElement('div');
-        row.className = 'srcRow' + (e.dir ? ' dir' : '');
+        var cur = current();
+        row.className = 'srcRow' + (e.dir ? ' dir' : '') + (!e.dir && cur && cur.path === e.path ? ' on' : '');
         row.style.paddingLeft = (10 + depth * 12) + 'px';
         var tw = document.createElement('span');
         tw.className = 'tw';
@@ -384,10 +408,12 @@ window.LAIN.source = (function () {
         nm.textContent = e.name;
         row.appendChild(nm);
         if (e.changed) { var c = document.createElement('span'); c.className = 'ch'; c.title = 'changed this session'; row.appendChild(c); }
+        if (e.dim) row.className += ' dim';
         row.onclick = function () {
-          if (e.dir) { toggle(e.path, depth); } else if (e.text) { openFile(e.path); }
-          else notice(e.name + ' is not a text file');
+          if (e.dir) { toggle(e.path, depth); } else { openFile(e.path); }
         };
+        // THE EXPLORER'S MENU AND DRAG TO MOVE live in pageeditor.js.
+        if (window.LAIN && LAIN.editor) LAIN.editor.decorateRow(row, e);
         box.appendChild(row);
         if (e.dir && st.expanded[e.path]) draw(e.path, depth + 1);
       });
@@ -418,12 +444,12 @@ window.LAIN.source = (function () {
     if (at >= 0) {
       st.active = at;
       st.hits = [];
-      renderTabs(); renderEditor();
+      renderTabs(); renderEditor(); renderTree();
       if (opts && opts.line != null) gotoLine(opts.line);
       return true;
     }
     var r = await api('/api/files/open', { path: p });
-    if (!r.ok) { notice(r.why, true); return false; }
+    if (!r.ok) { if (window.LAIN && LAIN.toast) LAIN.toast(r.why, true); else notice(r.why, true); return false; }
     // A FEW TABS, NOT DOZENS. The blueprint asks for "several open tabs, not
     // dozens": past eight, the oldest CLEAN one goes, because a dirty buffer
     // is unsaved work and closing it silently would destroy it.
@@ -432,13 +458,19 @@ window.LAIN.source = (function () {
       st.open.forEach(function (f, i) { if (victim < 0 && !f.dirty) victim = i; });
       if (victim >= 0) st.open.splice(victim, 1);
     }
+    // THE BUILT-IN EDITOR IS A TEXTAREA, which turns CRLF into LF on its own;
+    // it edits LF and the save writes the file's own line ending back. Monaco
+    // keeps the file's line endings itself.
+    var body = r.kind === 'image' ? '' : (editorOwns() || r.eol !== 'CRLF' ? r.body : String(r.body).split('\\r\\n').join('\\n'));
     st.open.push({
-      path: r.path, body: r.body, saved: r.body, hash: r.hash, mtimeMs: r.mtimeMs,
-      language: r.language, dirty: false,
+      path: r.path, body: body, saved: body, hash: r.hash, mtimeMs: r.mtimeMs,
+      language: r.language, mode: r.mode || null, kind: r.kind || 'text', mime: r.mime || null,
+      encoding: r.encoding || 'utf8', eol: r.eol || 'LF', dirty: false, rev: 0,
     });
+    if (window.LAIN && LAIN.editor) LAIN.editor.touched(r.path);
     st.active = st.open.length - 1;
     st.hits = [];
-    renderTabs(); renderEditor();
+    renderTabs(); renderEditor(); renderTree();
     if (opts && opts.line != null) gotoLine(opts.line);
     return true;
   }
@@ -446,6 +478,7 @@ window.LAIN.source = (function () {
   function gotoLine(n) {
     var f = current();
     if (!f) return;
+    if (editorOwns()) { LAIN.editor.reveal(n); return; }
     var idx = Math.max(0, Math.min(f.body.split('\\n').length - 1, Number(n) - 1));
     st.hits = [idx];
     paint();
@@ -469,9 +502,10 @@ window.LAIN.source = (function () {
 
   async function save(force) {
     var f = current();
-    if (!f) return;
+    if (!f || f.kind === 'image') return;
+    var out = editorOwns() || f.eol !== 'CRLF' ? f.body : String(f.body).split('\\r\\n').join('\\n').split('\\n').join('\\r\\n');
     var r = await api('/api/files/save', {
-      path: f.path, body: f.body, hash: f.hash, mtimeMs: f.mtimeMs, force: Boolean(force),
+      path: f.path, body: out, hash: f.hash, mtimeMs: f.mtimeMs, force: Boolean(force), encoding: f.encoding,
     });
     if (r.stale) {
       // THE INTERESTING CASE, and the one this product creates constantly:
@@ -479,14 +513,17 @@ window.LAIN.source = (function () {
       // person decides. Nothing is overwritten by default.
       note(r.why, true, {
         label: 'Reload from disk',
-        run: function () { f.body = r.current; f.saved = r.current; f.hash = r.hash; f.mtimeMs = r.mtimeMs; f.dirty = false; note(''); renderTabs(); renderEditor(); },
+        run: function () { f.body = r.current; f.saved = r.current; f.hash = r.hash; f.mtimeMs = r.mtimeMs; f.dirty = false; f.rev = (f.rev || 0) + 1; note(''); renderTabs(); renderEditor(); },
       });
       return;
     }
     if (r.truncation) { note(r.why, true, { label: 'Save anyway', run: function () { save(true); } }); return; }
     if (!r.ok) { note(r.why || 'could not save', true); return; }
     f.saved = f.body; f.hash = r.hash; f.mtimeMs = r.mtimeMs; f.dirty = false;
+    if (r.encoding) f.encoding = r.encoding;
     note('');
+    // WHAT WAS SAVED IS CHECKED, by the same checker a model's edit gets.
+    if (window.LAIN && LAIN.editor) LAIN.editor.checkSaved(f.path);
     renderTabs();
     if (poll) poll();
   }
@@ -524,7 +561,7 @@ window.LAIN.source = (function () {
       // NOT TOKEN-BY-TOKEN TYPING. This renders a real write event that already
       // happened, once, when it happened.
       var patch = diff(f.body, fresh.body);
-      f.body = fresh.body; f.saved = fresh.body; f.hash = fresh.hash; f.mtimeMs = fresh.mtimeMs;
+      f.body = fresh.body; f.saved = fresh.body; f.hash = fresh.hash; f.mtimeMs = fresh.mtimeMs; f.rev = (f.rev || 0) + 1;
       st.patch = { path: f.path, at: Date.now(), lines: patch.changed, removed: patch.removed, added: patch.added };
       if (i === st.active) {
         st.hits = patch.changed;
@@ -616,7 +653,20 @@ window.LAIN.source = (function () {
       box.appendChild(d);
     });
   }
-  function openQuick() { $('quick').hidden = false; $('quickQ').value = ''; $('quickHits').textContent = ''; $('quickQ').focus(); }
+  function openQuick() {
+    $('quick').hidden = false; $('quickQ').value = ''; $('quickHits').textContent = ''; $('quickQ').focus();
+    // RECENTLY OPENED FIRST, like every editor's Ctrl+P before anything is typed.
+    var recent = (window.LAIN && LAIN.editor) ? LAIN.editor.recent() : [];
+    st.quickSel = 0;
+    recent.slice(0, 20).forEach(function (p, i) {
+      var d = document.createElement('div');
+      d.className = 'hit';
+      d.setAttribute('aria-selected', String(i === 0));
+      d.textContent = p;
+      d.onclick = function () { closeQuick(); openFile(p); };
+      $('quickHits').appendChild(d);
+    });
+  }
   function closeQuick() { $('quick').hidden = true; }
 
   // ---- wiring -----------------------------------------------------------
@@ -646,14 +696,12 @@ window.LAIN.source = (function () {
         this.dispatchEvent(new Event('input'));
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(false); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F') && !e.shiftKey) { e.preventDefault(); findPrompt(); }
     });
+    // THE STATUS BAR'S Ln/Col follows the caret; it is painted by the IDE.
+    ['keyup', 'click'].forEach(function (ev) { $('srcText').addEventListener(ev, function () { var sb = $('sbPos'); var c = cursor(); if (sb) sb.textContent = c ? 'Ln ' + c.line + ', Col ' + c.col : ''; }); });
     $('srcSave').onclick = function () { save(false); };
-    $('srcFindBtn').onclick = function () {
-      var q = window.prompt('Find in this file');
-      if (q == null) return;
-      var n = find(q);
-      notice(n ? n + ' match(es)' : 'no match');
-    };
+    $('srcFindBtn').onclick = findPrompt;
     $('quickQ').addEventListener('input', function () { quick(this.value); });
     $('quickQ').addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeQuick();
@@ -663,35 +711,74 @@ window.LAIN.source = (function () {
       }
     });
     document.addEventListener('keydown', function (e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') { e.preventDefault(); openQuick(); }
+      // CTRL+P IS THE IDE'S, and only while a project is open in front of you.
+      var inIde = LAIN.nav && LAIN.nav.tab() === 'ide' && loadedRoot;
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'p' || e.key === 'P') && inIde) { e.preventDefault(); openQuick(); }
       if (e.key === 'Escape' && !$('quick').hidden) closeQuick();
     });
     $('quick').addEventListener('click', function (e) { if (e.target === this) closeQuick(); });
   }
 
   /**
-   * SHOW OR HIDE THIS PANEL. The open flag is S.workspace.openPanel ===
-   * PROJECT_FILES — Core-held, per docs/HARNESS_UI_CONTRACT.md section 7 —
-   * never a local flag this module keeps for itself. Called on every
-   * render(); loadRoot() runs once per opening, not once per poll.
+   * THE IDE SAYS WHETHER THE EDITOR IS SHOWING, AND FOR WHICH PROJECT ROOT.
+   * The root is Core's (S.workspace.project.root). A different root is a
+   * different project: its tree is read fresh and the previous project's
+   * buffers are closed — their paths are relative to a folder that is no
+   * longer the one a save would write into. The IDE asks about unsaved work
+   * before it opens another project, so nothing dirty reaches this point
+   * unannounced.
    */
-  var wasOpen = false;
-  function sync(open) {
-    $('srcPanel').hidden = !open;
-    $('main').classList.toggle('with-source', open);
-    $('codePill').setAttribute('aria-selected', String(open));
-    if (open && !wasOpen) loadRoot();
-    wasOpen = open;
+  var loadedRoot = null;
+  function sync(open, root) {
+    if (root && root !== loadedRoot) {
+      st.open = []; st.active = -1; st.tree = {}; st.expanded = {}; st.hits = [];
+      renderTabs(); renderEditor(); renderTree();
+      loadedRoot = null;
+    }
+    if (open && root && loadedRoot !== root) { loadedRoot = root; loadRoot(); }
+  }
+
+  /** Line and column of the caret in the open file, 1-based, or null. */
+  function cursor() {
+    var f = current();
+    if (!f) return null;
+    if (editorOwns()) return LAIN.editor.cursor();
+    if (f.kind === 'image') return null;
+    var body = String(f.body == null ? '' : f.body);
+    var t = $('srcText');
+    var at = Math.min(t.selectionStart || 0, body.length);
+    var before = body.slice(0, at);
+    var nl = before.lastIndexOf('\\n');
+    return { line: before.split('\\n').length, col: at - nl };
+  }
+
+  function closeActive() { if (st.active >= 0) close(st.active); }
+
+  function findPrompt() {
+    if (!current()) return;
+    if (editorOwns()) { LAIN.editor.find(false); return; }
+    LAIN.dialog({ title: 'Find in ' + current().path.split('/').pop(), fields: [{ key: 'q', label: 'Find', value: '' }], ok: 'Find' }).then(function (v) {
+      if (!v || !v.q) return;
+      var n = find(v.q);
+      note(n ? n + ' line' + (n === 1 ? '' : 's') + ' match “' + v.q + '”' : 'no match for “' + v.q + '”', !n);
+      window.clearTimeout(st.patchTimer);
+      st.patchTimer = window.setTimeout(function () { note(''); }, 6000);
+    });
   }
 
   return {
     boot: boot, loadRoot: loadRoot, openFile: openFile, gotoLine: gotoLine,
     refresh: refresh, renderTree: renderTree, find: find, save: save, diff: diff,
     state: function () { return st; },
-    highlight: highlight, sync: sync,
+    highlight: highlight, sync: sync, cursor: cursor, closeActive: closeActive,
+    findPrompt: findPrompt, quickOpen: function () { openQuick(); },
+    current: current, renderTabs: renderTabs, renderEditor: renderEditor, note: note,
+    reloadDir: function (p) { var d = p && p !== '.' ? p : '.'; if (d === '.') return loadRoot(); st.expanded[d] = false; return toggle(d, 0); },
+    activate: function (i) { if (i >= 0 && i < st.open.length) { st.active = i; st.hits = []; renderTabs(); renderEditor(); renderTree(); } },
+    close: close,
   };
 })();
 `;
 }
 
-module.exports = { CSS, HTML, js };
+module.exports = { CSS, HTML, TREE_HTML, PANE_HTML, js };

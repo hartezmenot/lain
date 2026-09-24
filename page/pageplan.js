@@ -34,7 +34,7 @@ LAIN.plan = (function () {
     var prompt = plans.prompt;
     var doc = (plans.plans || []).filter(function (p) { return p.id === prompt.planId; })[0] || null;
     var card = el('div', 'plancard');
-    card.appendChild(el('div', 'ph', 'Plan ready \\u2014 Continue to Coding?'));
+    card.appendChild(el('div', 'ph', 'Plan ready \\u2014 continue in the IDE?'));
 
     if (editingPlan === prompt.planId) {
       var box = el('div', '');
@@ -54,10 +54,11 @@ LAIN.plan = (function () {
         var r = await api('/api/plan/edit', { id: prompt.planId, text: ta.value });
         if (!r.ok) return notice(r.why, true);
         editingPlan = null;
+        LAIN.plan.dirty = true;
         poll();
       };
       var cancel = el('button', 'btn', 'Cancel');
-      cancel.onclick = function () { editingPlan = null; render(); };
+      cancel.onclick = function () { editingPlan = null; LAIN.plan.dirty = true; render(); };
       editActions.appendChild(save);
       editActions.appendChild(cancel);
       card.appendChild(editActions);
@@ -76,16 +77,17 @@ LAIN.plan = (function () {
     }
 
     var actions = el('div', 'actions');
-    var yes = el('button', 'btn go', 'Yes');
+    var yes = el('button', 'btn primary', 'Open in IDE');
     yes.onclick = async function () {
       yes.disabled = true;
       var r = await api('/api/plan/accept', { id: prompt.planId });
       yes.disabled = false;
       if (!r.ok) return notice(r.why, true);
-      poll();
+      await poll();
+      if (LAIN.nav) LAIN.nav.go('ide');
     };
     var editBtn = el('button', 'btn', 'Edit plan');
-    editBtn.onclick = function () { editingPlan = prompt.planId; render(); };
+    editBtn.onclick = function () { editingPlan = prompt.planId; LAIN.plan.dirty = true; render(); };
     var not = el('button', 'btn', 'Not yet');
     not.onclick = async function () {
       var r = await api('/api/plan/defer', { id: prompt.planId });
@@ -117,7 +119,7 @@ LAIN.plan = (function () {
     api = apiFn; notice = noticeFn; poll = pollFn; render = renderFn;
   }
 
-  return { boot: boot, buildCard: buildCard, applyPrefill: applyPrefill };
+  return { boot: boot, buildCard: buildCard, applyPrefill: applyPrefill, dirty: false };
 })();
 `;
 }
