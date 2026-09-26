@@ -25,11 +25,13 @@ const HTML = `
     <div class="cr-top">
       <button class="btn primary block" id="newChat"><span id="newChatIc"></span>New chat</button>
       <input id="chatFilter" class="cr-filter" placeholder="Filter conversations" autocomplete="off" spellcheck="false">
+      <button class="btn small block" id="chatSchedBtn">Schedules</button>
     </div>
     <div class="cr-list" id="sessions"></div>
     <div class="cr-foot" id="chatProjects"></div>
   </aside>
   <div class="chat-main" id="chatHost"></div>
+  <div class="chat-sched" id="chatSched" hidden></div>
 </section>`;
 
 const CSS = `
@@ -67,6 +69,16 @@ function client() {
   var L = window.LAIN;
   var $ = L.$, el = L.el;
   var recent = null;
+  // CHAT › SCHEDULES — the assistant's one task store (pageassistant.js), in place of the conversation.
+  var sched = false;
+  function showSchedules(on, opts) {
+    sched = Boolean(on);
+    $('chatHost').hidden = sched;
+    $('chatSched').hidden = !sched;
+    $('chatSchedBtn').setAttribute('aria-pressed', String(sched));
+    $('chatSchedBtn').textContent = sched ? 'Back to conversation' : 'Schedules';
+    if (sched && L.assistant) { $('chatSched').textContent = ''; L.assistant.schedules($('chatSched'), opts || {}); L.assistant.load(); }
+  }
 
   function dayGroup(ms) {
     if (!ms) return 'Earlier';
@@ -104,7 +116,7 @@ function client() {
       var w = [s.project && s.lane === 'engineering' ? s.project : (s.lane === 'cowork' ? 'files & tasks' : ''), s.state && s.state.state && s.state.state !== 'IDLE' ? s.state.state.toLowerCase() : s.when].filter(Boolean).join(' · ');
       b.appendChild(el('div', 'w', w));
       b.title = s.current ? 'The conversation you are viewing' : 'Open this conversation';
-      b.onclick = function () { if (!s.current) L.sessions.select(s.id); };
+      b.onclick = function () { if (sched) showSchedules(false); if (!s.current) L.sessions.select(s.id); };
       row.appendChild(b);
       if (s.live && !s.current) {
         var x = el('button', 'sessx', '×');
@@ -201,13 +213,15 @@ function client() {
     btn.hidden = true;
     btn.onclick = continueInIde;
     head.insertBefore(btn, $('crumbStop'));
-    L.nav.onShow('chat', function () {
+    $('chatSchedBtn').onclick = function () { showSchedules(!sched); };
+    L.nav.onShow('chat', function (o) {
+      if (o && o.section === 'schedules') showSchedules(true, o); else if (sched && !(o && o.section)) { /* stays where the person left it */ }
       L.api('/api/project/recent', {}).then(function (r) { if (r && r.ok) { recent = r; renderProjects(); } }, function () {});
       setTimeout(function () { $('ask').focus(); }, 0);
     });
   });
   L.onRender(function (S) {
-    if (L.nav.tab() === 'chat') { L.mountConvo($('chatHost'), 'chat'); renderRail(S); }
+    if (L.nav.tab() === 'chat') { if (!sched) L.mountConvo($('chatHost'), 'chat'); renderRail(S); }
     renderToIde(S);
   });
 }

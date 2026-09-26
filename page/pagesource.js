@@ -355,6 +355,7 @@ window.LAIN.source = (function () {
   }
 
   function renderTabs() {
+    if (window.LAIN && LAIN.groups && LAIN.groups.count() > 1) LAIN.groups.refresh();
     var bar = $('srcTabs');
     bar.textContent = '';
     st.open.forEach(function (f, i) {
@@ -468,6 +469,8 @@ window.LAIN.source = (function () {
       encoding: r.encoding || 'utf8', eol: r.eol || 'LF', dirty: false, rev: 0,
     });
     if (window.LAIN && LAIN.editor) LAIN.editor.touched(r.path);
+    // A SPLIT EDITOR GROUP (pagegroups.js) opens the buffer without taking group 1's tab.
+    if (opts && opts.background) { renderTabs(); return true; }
     st.active = st.open.length - 1;
     st.hits = [];
     renderTabs(); renderEditor(); renderTree();
@@ -500,12 +503,13 @@ window.LAIN.source = (function () {
     }
   }
 
-  async function save(force) {
-    var f = current();
+  async function save(force, target) {
+    var f = target || current();
     if (!f || f.kind === 'image') return;
     var out = editorOwns() || f.eol !== 'CRLF' ? f.body : String(f.body).split('\\r\\n').join('\\n').split('\\n').join('\\r\\n');
     var r = await api('/api/files/save', {
       path: f.path, body: out, hash: f.hash, mtimeMs: f.mtimeMs, force: Boolean(force), encoding: f.encoding,
+      origin: window.LAIN && LAIN.editor && LAIN.editor.saveOrigin ? LAIN.editor.saveOrigin(f.path) : 'USER',
     });
     if (r.stale) {
       // THE INTERESTING CASE, and the one this product creates constantly:
@@ -524,6 +528,7 @@ window.LAIN.source = (function () {
     note('');
     // WHAT WAS SAVED IS CHECKED, by the same checker a model's edit gets.
     if (window.LAIN && LAIN.editor) LAIN.editor.checkSaved(f.path);
+    if (window.LAIN && LAIN.prov) LAIN.prov.refresh(true);
     renderTabs();
     if (poll) poll();
   }
@@ -535,12 +540,20 @@ window.LAIN.source = (function () {
    * person is watching, which is the feature. A DIRTY one is never touched;
    * it says so and waits, because the alternative is discarding typing.
    */
-  async function refresh() {
-    if (!st.open.length) return;
-    var r = await api('/api/files/freshness', {
-      open: st.open.map(function (f) { return { path: f.path, hash: f.hash, mtimeMs: f.mtimeMs }; }),
-    });
-    if (!r.ok || !r.files) return;
+  // ONE QUESTION IN FLIGHT, AT MOST ONE A SECOND. Renders come in bursts (every
+  // poll, every wake); the answer does not change that fast.
+  var freshBusy = false, freshAt = 0;
+  async function refresh(force) {
+    if (!st.open.length || freshBusy) return;
+    if (!force && Date.now() - freshAt < 1000) return;
+    freshBusy = true; freshAt = Date.now();
+    var r;
+    try {
+      r = await api('/api/files/freshness', {
+        open: st.open.map(function (f) { return { path: f.path, hash: f.hash, mtimeMs: f.mtimeMs }; }),
+      });
+    } finally { freshBusy = false; }
+    if (!r || !r.ok || !r.files) return;
     var repainted = false;
     for (var i = 0; i < r.files.length; i++) {
       var info = r.files[i];
@@ -776,6 +789,8 @@ window.LAIN.source = (function () {
     reloadDir: function (p) { var d = p && p !== '.' ? p : '.'; if (d === '.') return loadRoot(); st.expanded[d] = false; return toggle(d, 0); },
     activate: function (i) { if (i >= 0 && i < st.open.length) { st.active = i; st.hits = []; renderTabs(); renderEditor(); renderTree(); } },
     close: close,
+    /** Save one buffer by path (a split editor group's Ctrl+S). */
+    saveFile: function (p) { var f = st.open.filter(function (x) { return x.path === p; })[0]; return f ? save(false, f) : null; },
   };
 })();
 `;

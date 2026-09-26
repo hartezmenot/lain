@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE WORKSPACE SHELL — the menubar, the seven primary tabs, the quota bar.
+ * THE WORKSPACE SHELL — the menubar, the eight primary tabs, the quota bar.
  *
  * ------------------------------------------------------------------------
  * SEVEN SURFACES, ALWAYS ONE CLICK AWAY.
@@ -42,6 +42,7 @@ const HTML = `
   <button class="quota" id="quota" aria-haspopup="dialog">
     <span class="q-model" id="quotaModel">—</span>
     <span class="q-bar"><span class="q-fill" id="quotaFill"></span></span>
+    <span class="q-kind" id="quotaKind"></span>
     <span class="q-pct" id="quotaPct">—</span>
   </button>
 </header>
@@ -51,6 +52,7 @@ const HTML = `
   <button class="gtab" role="tab" data-tab="chat" id="tabChat">Chat</button>
   <button class="gtab" role="tab" data-tab="bot" id="tabBot">Bot</button>
   <button class="gtab" role="tab" data-tab="model" id="tabModel">Model</button>
+  <button class="gtab" role="tab" data-tab="usage" id="tabUsage">Usage</button>
   <button class="gtab" role="tab" data-tab="session" id="tabSession">Session</button>
   <button class="gtab" role="tab" data-tab="settings" id="tabSettings">Settings</button>
 </nav>
@@ -102,6 +104,8 @@ const CSS = `
 .q-fill.warn{background:var(--warn)} .q-fill.bad{background:var(--bad)}
 .q-pct{min-width:30px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
 .q-pct.unknown{color:var(--faint)}
+.q-kind{font-size:10.5px;color:var(--faint);white-space:nowrap}
+.q-kind:empty{display:none}
 .qpop{width:400px;max-width:400px;padding:12px 14px}
 .qpop h4{margin:0 0 10px}
 .qpop .qsec{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:12px 0 6px}
@@ -120,7 +124,7 @@ const CSS = `
 function client() {
   var L = window.LAIN;
   var $ = L.$, el = L.el;
-  var TABS = ['home', 'ide', 'chat', 'bot', 'model', 'session', 'settings'];
+  var TABS = ['home', 'ide', 'chat', 'bot', 'model', 'usage', 'session', 'settings'];
   var tab = 'home';
   var shows = {};
   var navSeq = null;
@@ -169,6 +173,7 @@ function client() {
     (shows[tab] || []).forEach(function (fn) { try { fn(opts || {}); } catch (e) { if (window.console) console.error(e); } });
     L.render();
   }
+  L.quotaWindowName = windowName;
   L.nav = {
     go: go,
     tab: function () { return tab; },
@@ -193,6 +198,22 @@ function client() {
     return id;
   }
   function headlineOf(reading) { return reading && reading.headline ? reading.headline : null; }
+  // WHAT A PERCENTAGE IS A PERCENTAGE OF (Core's usagewindows.js KIND). A plan
+  // running out and this minute's request limit are different facts, and the
+  // same "63%" must not be able to mean either.
+  function windowName(h) {
+    if (!h) return 'usage not reported';
+    var k = h.kind || (h.subscription ? 'SUBSCRIPTION' : 'RATE_LIMIT');
+    if (k === 'SUBSCRIPTION') return h.label + ' subscription window';
+    if (k === 'REQUEST_WINDOW') return 'request rate limit' + (h.label && h.label !== 'requests' ? ' (' + h.label + ')' : '');
+    if (k === 'TOKEN_WINDOW') return 'token rate limit' + (h.label && h.label !== 'tokens' ? ' (' + h.label + ')' : '');
+    return 'rate limit (the provider did not say of what)';
+  }
+  function kindTag(h) {
+    if (!h) return '';
+    var k = h.kind || (h.subscription ? 'SUBSCRIPTION' : 'RATE_LIMIT');
+    return k === 'SUBSCRIPTION' ? h.label : k === 'REQUEST_WINDOW' ? 'requests' : k === 'TOKEN_WINDOW' ? 'tokens' : 'rate limit';
+  }
   function levelOf(pct, avail) {
     if (avail && avail.rateLimited) return 'bad';
     if (pct == null) return '';
@@ -205,17 +226,18 @@ function client() {
     fill.className = 'q-fill ' + levelOf(pct, avail);
     pctEl.textContent = pct == null ? (avail && avail.rateLimited ? 'limit' : 'n/a') : pct + '%';
     pctEl.className = 'q-pct' + (pct == null ? ' unknown' : '');
-    return { pct: pct, window: h ? h.label : null };
+    return { pct: pct, window: h ? windowName(h) : null, tag: pct == null ? '' : kindTag(h) };
   }
   function renderQuota(S) {
     var f = roleInFront(S);
     var btn = $('quota');
-    if (!f) { $('quotaModel').textContent = 'no model'; paintBar($('quotaFill'), $('quotaPct'), null, null); btn.title = 'No model is selected'; return; }
+    if (!f) { $('quotaModel').textContent = 'no model'; paintBar($('quotaFill'), $('quotaPct'), null, null); $('quotaKind').textContent = ''; btn.title = 'No model is selected'; return; }
     $('quotaModel').textContent = L.fmt.model(f.model) || 'no model';
     var reading = f.u.reading || null;
     var shown = paintBar($('quotaFill'), $('quotaPct'), reading, f.u.availability);
+    $('quotaKind').textContent = shown.tag;
     var why = shown.pct != null
-      ? shown.pct + '% of the ' + shown.window + ' window used, as the provider reported ' + minutesAgo(reading.at)
+      ? shown.pct + '% of the ' + shown.window + ' used, as the provider reported ' + minutesAgo(reading.at)
       : (f.u.availability && f.u.availability.rateLimited ? 'Rate limited' + (f.u.availability.resumeAt ? ', clears ' + L.fmt.until(f.u.availability.resumeAt) : '')
         : 'This provider has not reported usage on a response yet');
     btn.title = (f.running ? 'Running now: ' : '') + (f.model || '') + ' — ' + why;
@@ -243,7 +265,7 @@ function client() {
     if (avail && avail.rateLimited) return 'rate limited' + (avail.resumeAt ? ' · clears ' + L.fmt.until(avail.resumeAt) : '');
     var h = headlineOf(reading);
     if (!h) return 'usage not reported';
-    return h.label + ' window' + (h.resetAt ? ' · resets ' + L.fmt.until(h.resetAt) : '') + ' · ' + minutesAgo(reading.at);
+    return windowName(h) + (h.resetAt ? ' · resets ' + L.fmt.until(h.resetAt) : '') + ' · ' + minutesAgo(reading.at);
   }
 
   function openQuota() {
@@ -278,18 +300,31 @@ function client() {
           pop.appendChild(qrow(g.label, c.id + ' · ' + windowSub(c.usage, c.availability), c.usage, c.availability));
           ((c.usage && c.usage.windows) || []).filter(function (w) { return w.percent != null && (!c.usage.headline || w.name !== c.usage.headline.name); }).forEach(function (w) {
             var fake = { at: c.usage.at, headline: w };
-            pop.appendChild(qrow(' ' + w.label, w.resetAt ? 'resets ' + L.fmt.until(w.resetAt) : '', fake, null));
+            pop.appendChild(qrow(' ' + windowName(w), w.resetAt ? 'resets ' + L.fmt.until(w.resetAt) : '', fake, null));
           });
         });
       });
       if (!any) pop.appendChild(el('div', 'qnote', 'No provider routes are configured.'));
     }
-    pop.appendChild(el('div', 'qnote', 'Percentages are what each provider stated in its rate-limit headers on the last response through that route. A route that never states them shows —.'));
+    // RUNTIME ACCOUNTS (a Codex sign-in per account): each account's own windows, the one in front first.
+    var I = L.instances ? L.instances.get() : null;
+    var rts = ((I && I.data && I.data.instances) || []).filter(function (v) { return v.source_type === 'runtime' && v.limits && (v.limits.windows || []).length; });
+    if (rts.length) {
+      pop.appendChild(el('div', 'qsec', 'Runtime accounts'));
+      rts.forEach(function (v) {
+        v.limits.windows.forEach(function (w) {
+          var exp = w.expired || (w.resetsAt && Date.now() >= w.resetsAt);
+          var reading = { at: v.limits.observedAt, headline: { percent: exp ? null : w.usedPercent, name: w.label, label: w.label } };
+          pop.appendChild(qrow(v.display_name + ' · ' + w.label, exp ? 'reset expected — not confirmed' : (w.resetsAt ? 'resets ' + L.fmt.until(new Date(w.resetsAt).toISOString()) : ''), reading, null));
+        });
+      });
+    }
+    pop.appendChild(el('div', 'qnote', 'Percentages are what each provider stated on the last response through that route — a subscription window (the plan) or a rate limit (requests or tokens per window), named on each row. Nothing is estimated: a route that never states usage shows n/a.'));
     var foot = el('div', 'qfoot');
     foot.appendChild(el('span', '', A.at ? 'Last refreshed ' + L.fmt.time(A.at) : 'Not refreshed yet'));
     foot.appendChild(el('span', 'spacer'));
-    var m = el('button', 'btn small', 'Open Model');
-    m.onclick = function () { L.closePop(); go('model'); };
+    var m = el('button', 'btn small', 'All limits');
+    m.onclick = function () { L.closePop(); go('usage', { section: 'limits' }); };
     var rf = el('button', 'btn small primary', A.loading ? 'Refreshing…' : 'Refresh');
     rf.disabled = A.loading;
     rf.onclick = function () { L.accounts.refresh(true); };
@@ -387,7 +422,7 @@ function client() {
   function keys(e) {
     var k = e.key;
     var ctrl = e.ctrlKey || e.metaKey;
-    if (e.altKey && !ctrl && /^[1-7]$/.test(k)) { e.preventDefault(); go(TABS[Number(k) - 1]); return; }
+    if (e.altKey && !ctrl && /^[1-8]$/.test(k)) { e.preventDefault(); go(TABS[Number(k) - 1]); return; }
     if (ctrl && !e.shiftKey && (k === 'k' || k === 'K')) { e.preventDefault(); L.search.palette(''); return; }
     if (ctrl && e.shiftKey && (k === 'P' || k === 'p')) { e.preventDefault(); L.search.palette('>'); return; }
     if (ctrl && e.shiftKey && (k === 'N' || k === 'n')) { e.preventDefault(); L.ide.newProject(); return; }
@@ -432,8 +467,16 @@ function client() {
     lastState = st;
     // THE BOT ASKED THE WINDOW TO GO SOMEWHERE — applied once per request.
     var n = S.navigate;
-    if (navSeq === null) navSeq = n ? n.seq : 0;
-    else if (n && n.seq > navSeq) { navSeq = n.seq; go(n.surface, { section: n.section }); }
+    // A WINDOW OPENED BY THE REQUEST (/account add from the terminal) honours it
+    // once if it is seconds old; an older one is history, not a request.
+    var fresh = n && n.at && Date.now() - n.at < 15000;
+    if (navSeq === null && !fresh) navSeq = n ? n.seq : 0;
+    else if (n && n.seq > (navSeq || 0)) {
+      navSeq = n.seq;
+      // A DOOR (Core's house.js) runs the same handler the window's own menus
+      // run (pagehouse.js); a plain surface is a tab and a section.
+      if (!(n.capability && L.house && L.house.run(n.capability, n.args || {}))) go(n.surface, Object.assign({}, n.args || {}, { section: n.section }));
+    }
   });
 }
 

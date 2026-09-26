@@ -71,7 +71,7 @@ function client() {
     var box = $('sessList');
     var q = ($('sessFilter').value || '').trim().toLowerCase();
     var rows = L.sessions.all().filter(function (s) { return !q || ((s.title || '') + ' ' + (s.project || '') + ' ' + (s.source || '')).toLowerCase().indexOf(q) >= 0; });
-    if (!selected || !rows.some(function (s) { return s.id === selected; })) {
+    if (selected !== NATIVE && (!selected || !rows.some(function (s) { return s.id === selected; }))) {
       var cur = rows.filter(function (s) { return s.current; })[0];
       selected = cur ? cur.id : (rows[0] ? rows[0].id : null);
     }
@@ -79,6 +79,15 @@ function client() {
     if (box.dataset.sig === sig) return rows;
     box.dataset.sig = sig;
     box.textContent = '';
+    // NATIVE SESSIONS other runtimes own (Codex, Claude Code) — seen, never taken.
+    var nb = el('button', 'srow');
+    nb.setAttribute('aria-selected', String(selected === NATIVE));
+    nb.setAttribute('data-native', '1');
+    nb.appendChild(el('span', 't', ''));
+    var nm = el('span', 'm'); nm.appendChild(el('b', '', 'Native sessions')); nm.appendChild(el('span', '', 'Codex, Claude Code — owned by their runtimes')); nb.appendChild(nm);
+    nb.appendChild(el('span', 'r', ''));
+    nb.onclick = function () { selected = NATIVE; native = null; draw(); };
+    box.appendChild(nb);
     if (!rows.length) box.appendChild(el('div', 'empty', q ? 'No session matches.' : 'No sessions yet.'));
     var group = null;
     rows.forEach(function (s) {
@@ -102,10 +111,65 @@ function client() {
     return rows;
   }
 
+  var NATIVE = '__native__', native = null, nativeLoading = false;
+  function nativeDetail(pane) {
+    pane.textContent = '';
+    pane.dataset.sig = '';
+    pane.appendChild(el('h2', '', 'Native sessions'));
+    pane.appendChild(el('div', 'sub', 'Sessions Codex and Claude Code keep themselves. LAIN lists them; it does not change them. Resume one where it lives, or continue it as a new LAIN session.'));
+    if (!native) {
+      pane.appendChild(el('div', 'missing', 'Reading…'));
+      if (!nativeLoading) { nativeLoading = true; L.api('/api/external/sessions', {}).then(function (r) { nativeLoading = false; native = r && r.ok ? r : { sessions: [], adapters: {}, errors: [{ why: (r && r.why) || 'could not read' }] }; if (selected === NATIVE) nativeDetail(pane); }); }
+      return;
+    }
+    (native.errors || []).forEach(function (e) { pane.appendChild(el('div', 'note bad', (e.runtime || '') + ': ' + e.why)); });
+    if (!native.sessions.length) pane.appendChild(el('div', 'missing', 'None visible. Codex sessions appear once a Codex account is signed in (Model › Accounts); OpenCode sessions for the open project appear once OpenCode is detected (Model › Runtimes).'));
+    native.sessions.slice(0, 100).forEach(function (x) {
+      var card = el('div', 'route');
+      card.setAttribute('data-origin', x.origin);
+      var h = el('div', 'rh'); h.appendChild(el('b', '', x.title)); card.appendChild(h);
+      card.appendChild(el('div', 'missing', [x.runtime + (x.unofficial ? ' (unofficial listing)' : ''), x.cwd, x.updatedAt ? new Date(x.updatedAt).toLocaleString() : null, x.holder ? 'being written by ' + x.holder : null].filter(Boolean).join(' · ')));
+      var acts = el('div', 'sd-actions');
+      var acct = x.compatibleAccounts[0];
+      if (x.compatibleAccounts.length > 1) {
+        var sel = document.createElement('select');
+        x.compatibleAccounts.forEach(function (a) { var o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+        sel.onchange = function () { acct = sel.value; };
+        acts.appendChild(sel);
+      }
+      var ro = el('button', 'btn small', x.runtime === 'opencode' ? 'Resume in OpenCode' : 'Resume original');
+      ro.onclick = async function () {
+        var r = await L.api('/api/external/resume', { origin: x.origin, account: acct, cwd: x.cwd });
+        if (!r.ok) return L.toast(r.why, true);
+        var envs = Object.keys(r.env || {}).map(function (k) { return k + '=' + r.env[k]; }).join('  ');
+        L.dialog({ title: 'Resume in ' + r.runtime, pre: (r.cwd ? 'cd "' + r.cwd + '"\n' : '') + (envs ? envs + '\n' : '') + r.command, text: 'Run this in a terminal — it ' + r.note + '.', ok: 'Close', cancel: 'Close' });
+      };
+      acts.appendChild(ro);
+      if (x.runtime === 'codex' || x.runtime === 'opencode') {
+        var ci = el('button', 'btn small primary', 'Continue in LAIN');
+        ci.onclick = async function () {
+          ci.disabled = true;
+          var r = await L.api('/api/external/continue', { origin: x.origin, account: acct, cwd: x.cwd });
+          ci.disabled = false;
+          if (!r.ok) return L.toast(r.why, true);
+          L.toast('A new LAIN session continues it (' + r.turns + ' turn(s) imported' + (r.truncated ? ', the earliest trimmed' : '') + '). The ' + (x.runtime === 'opencode' ? 'OpenCode session' : 'Codex thread') + ' is unchanged.');
+          L.poll(); selected = r.session;
+        };
+        acts.appendChild(ci);
+      }
+      card.appendChild(acts);
+      pane.appendChild(card);
+    });
+    var ad = native.adapters || {};
+    pane.appendChild(el('div', 'missing', Object.keys(ad).map(function (k) { return k + ': ' + ad[k].level.toLowerCase() + ' (' + ad[k].via + ')'; }).join(' · ')));
+  }
   function detail(S, rows) {
     var pane = $('sessPane');
+    if (selected === NATIVE) { if (!pane.dataset.native) { pane.dataset.native = '1'; nativeDetail(pane); } return; }
+    pane.dataset.native = '';
     var s = rows.filter(function (x) { return x.id === selected; })[0];
-    var sig = JSON.stringify([s, s && s.current ? [S.changes, S.plan, S.models, S.harness && S.harness.verification, S.workspace && S.workspace.project] : null]);
+    var sp = S.journey || {};
+    var sig = JSON.stringify([s, s && s.current ? [S.changes, S.plan, S.models, S.harness && S.harness.verification, S.workspace && S.workspace.project, sp.route, sp.agentTask && sp.agentTask.id, (sp.path || []).length] : null]);
     if (pane.dataset.sig === sig) return;
     pane.dataset.sig = sig;
     pane.textContent = '';
@@ -128,8 +192,24 @@ function client() {
       if (h) put('Handoff', h.state.toLowerCase());
       var v = S.harness && S.harness.verification;
       if (v) put('Verification', v.verdict.toLowerCase() + (v.passed ? ' · ' + v.passed + ' passed' : '') + (v.failed ? ' · ' + v.failed + ' failed' : ''));
+      // ONE WORKING SESSION, ITS PATH (Core's journey.js): Chat → Agent → IDE →
+      // a hand edit → BOT … — not seven separate sessions.
+      if (sp.agentTask) put('Agent task', sp.agentTask.objective + ' · ' + String(sp.agentTask.state || '').toLowerCase() + (sp.agentTask.origin ? ' · began in ' + sp.agentTask.origin : ''));
+      if (sp.route && sp.route.length) put('Path', sp.route.join(' → '));
     }
     pane.appendChild(dl);
+    if (s.current && sp.path && sp.path.length) {
+      var WORD = { surface: 'went to', bot: 'BOT answered', proposed: 'BOT asked: move to Agent?', moved: 'moved to the Agent', stayed: 'stayed with the BOT', 'agent.start': 'Coding Agent started', 'agent.end': 'Coding Agent finished', 'user.edit': 'you edited', focus: 'entered /focus', capability: 'BOT opened' };
+      pane.appendChild(el('h3', '', 'What happened'));
+      var tl = el('div', 'sd-files');
+      sp.path.slice(-14).reverse().forEach(function (e) {
+        var r = el('div', 'row');
+        r.appendChild(el('span', 'at', new Date(e.at).toLocaleTimeString()));
+        r.appendChild(el('span', 'path', (WORD[e.kind] || e.kind) + (e.surface ? ' ' + e.surface + (e.pane ? ' (' + e.pane + ')' : '') : '') + (e.path ? ' ' + e.path + (e.lines ? ':' + e.lines : '') : '') + (e.capability ? ' ' + e.capability : '') + (e.via ? ' · from ' + e.via : '')));
+        tl.appendChild(r);
+      });
+      pane.appendChild(tl);
+    }
     var acts = el('div', 'sd-actions');
     var restore = el('button', 'btn primary', s.current ? 'Go to it' : 'Restore session');
     restore.onclick = function () { open(s); };
@@ -165,12 +245,13 @@ function client() {
     if (L.nav.tab() !== 'session') return;
     detail(S, list(S));
   }
-  function draw() { var S = L.state(); if (S) { $('sessList').dataset.sig = ''; render(S); } }
+  function draw() { var S = L.state(); if (S) { $('sessList').dataset.sig = ''; $('sessPane').dataset.native = ''; render(S); } }
 
   L.sessionView = { open: open };
   L.onBoot(function () {
     $('sessFilter').addEventListener('input', draw);
-    L.nav.onShow('session', draw);
+    // A SESSION NAMED BY THE HOUSE (house.js session.open): shown, not switched to.
+    L.nav.onShow('session', function (o) { if (o && o.id) selected = o.id; draw(); });
   });
   L.onRender(render);
 }

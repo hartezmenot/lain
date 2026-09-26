@@ -11,7 +11,7 @@
  * modules, each owning one surface:
  *
  *   pagescript    transport, poll, render loop, the one conversation block
- *   pageshell     menubar, the seven primary tabs, the quota bar
+ *   pageshell     menubar, the eight primary tabs, the quota bar
  *   pagehome      Home and the search over everything
  *   pageide       the IDE (with pagesource, pageworkshop, pageterminal)
  *   pagechat      Chat, and the handoff to the IDE (with pageplan)
@@ -101,6 +101,11 @@ body.compact .sess,body.compact .srow,body.compact .hrow{padding-top:4px;padding
 
 /* ---- popovers, menus, dialogs, toasts ------------------------------------------- */
 .pop{position:fixed;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:6px;min-width:270px;max-width:420px;max-height:64vh;overflow-y:auto;z-index:65;box-shadow:var(--shadow)}
+.pop{max-width:min(420px,calc(100vw - 16px));min-width:min(270px,calc(100vw - 16px))}
+.pop.sub{box-shadow:var(--shadow),0 0 0 1px var(--accent-line)}
+.pop .pgroup{margin:8px 8px 3px;font-size:10.5px;color:var(--faint);letter-spacing:.04em}
+.pop .srcfoot{border-top:1px solid var(--line);margin-top:6px;border-radius:0}
+.msg .focuslink{margin-top:8px}
 .pop h4{margin:6px 8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600}
 .pop .psearch{margin:2px 4px 6px;padding:6px 9px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--radius-s)}
 .opt{display:block;width:100%;text-align:left;padding:6px 9px;border-radius:var(--radius-s);font-size:13px;color:var(--dim)}
@@ -142,6 +147,8 @@ body.compact .sess,body.compact .srow,body.compact .hrow{padding-top:4px;padding
 .msg .who .at{letter-spacing:0;font-weight:400;margin-left:auto}
 .msg.user{margin-left:auto}
 .msg.user .body{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+.msg.user.handoff .body{background:var(--accent-weak);border-color:var(--accent-line);font-size:12.5px}
+.msg.user.handoff{margin-left:0}
 .msg.user .who{justify-content:flex-end}
 .msg.user .who .at{margin-left:0}
 .prose{white-space:pre-wrap;overflow-wrap:anywhere}
@@ -189,10 +196,24 @@ ${require('./pagehome').CSS}
 ${require('./pageide').CSS}
 ${require('./pagesource').CSS}
 ${require('./pageeditor').CSS}
+${require('./pagegroups').CSS}
+${require('./pagedebug').CSS}
+${require('./pagedevsettings').CSS}
+${require('./pageidepanes').CSS}
+${require('./pagecomposer').CSS}
+${require('./pagexterm').CSS}
+${require('./pagekeys').CSS}
+${require('./pagequick').CSS}
+${require('./pageprov').CSS}
+${require('./pageextensions').CSS}
 ${require('./pageworkshop').CSS}
 ${require('./pagechat').CSS}
 ${require('./pagebot').CSS}
+${require('./pageassistant').CSS}
+${require('./pageaccounts').CSS}
+${require('./pagefabric').CSS}
 ${require('./pagemodel').CSS}
+${require('./pageusage').CSS}
 ${require('./pagesession').CSS}
 ${require('./pagesettings').CSS}
 ${require('./pagecowork').CSS}
@@ -242,6 +263,7 @@ ${require('./pageide').HTML}
 ${require('./pagechat').HTML}
 ${require('./pagebot').HTML}
 ${require('./pagemodel').HTML}
+${require('./pageusage').HTML}
 ${require('./pagesession').HTML}
 ${require('./pagesettings').HTML}
 ${require('./pageimage').HTML}
@@ -260,15 +282,31 @@ ${require('./pagemenu').HTML}
 <script>${require('./pageworkshop').js()}</script>
 <script>${require('./pagesource').js()}</script>
 <script>${require('./pageeditor').js()}</script>
+<script>${require('./pagegroups').js()}</script>
+<script>${require('./pagedebug').js()}</script>
+<script>${require('./pagedevsettings').js()}</script>
+<script>${require('./pageidepanes').js()}</script>
+<script>${require('./pagecomposer').js()}</script>
 <script>${require('./pagecowork').js()}</script>
 <script>${require('./pageterminal').js()}</script>
+<script>${require('./pagexterm').js()}</script>
+<script>${require('./pagekeys').js()}</script>
+<script>${require('./pagequick').js()}</script>
+<script>${require('./pagehouse').js()}</script>
+<script>${require('./pageprov').js()}</script>
+<script>${require('./pageprofile').js()}</script>
+<script>${require('./pageextensions').js()}</script>
 <script>${require('./pageimage').SCRIPT}</script>
 <script>${require('./pagemenu').SCRIPT}</script>
 <script>${require('./pagehome').js()}</script>
 <script>${require('./pageide').js()}</script>
+<script>${require('./pageassistant').js()}</script>
 <script>${require('./pagechat').js()}</script>
 <script>${require('./pagebot').js()}</script>
+<script>${require('./pageaccounts').js()}</script>
+<script>${require('./pagefabric').js()}</script>
 <script>${require('./pagemodel').js()}</script>
+<script>${require('./pageusage').js()}</script>
 <script>${require('./pagesession').js()}</script>
 <script>${require('./pagesettings').js()}</script>
 <script>${GLUE}</script>

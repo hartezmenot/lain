@@ -43,17 +43,7 @@ const HTML = `
     <div class="stream" id="stream"></div>
     <div id="notice" hidden></div>
     <div class="act" id="act" hidden><span class="dot" id="actDot"></span><span id="actText"></span><span class="clock" id="actClock"></span></div>
-    <div class="composer">
-      <div class="box"><textarea id="ask" rows="1" placeholder="Ask LAIN…"></textarea></div>
-      <div class="tools">
-        <button class="pill" id="attachPill" hidden title="Attach files to this conversation">Attach</button>
-        <input type="file" id="attachFile" multiple hidden>
-        <button class="pill" id="srcPill" title="Where the BOT answers from"><span class="st" id="srcDot"></span><span id="srcName">LAIN</span></button>
-        <button class="pill" id="modelPill" title="The model answering here"><b id="modelName">no model</b></button>
-        <span class="spacer"></span>
-        <span class="hint" id="composerHint"></span>
-        <button class="send" id="send">Send</button>
-      </div>
+    <div class="composer">${require('./pagecomposer').HTML}
     </div>
   </div>
 </div>`;
@@ -113,6 +103,8 @@ function client() {
       var m = ev.data;
       if (!m || typeof m !== 'object') return;
       if (m.wake) { poll(); return; }
+      // A CLICKED ASSISTANT NOTIFICATION (native/host.cs Remind): navigation only.
+      if (m.nav && typeof m.nav === 'object') { try { if (window.LAIN.nav) window.LAIN.nav.go(m.nav.tab || 'bot', { section: m.nav.section, task: m.nav.task }); } catch (e) { /* the page is still loading */ } return; }
       if (m.id == null) return;
       var done = waiting[m.id];
       if (!done) return;
@@ -168,26 +160,196 @@ function client() {
   }
 
   // ---- popovers and dialogs --------------------------------------------
+  //
+  // A STACK, ANCHORED TO LIVE ELEMENTS. A popover used to replace whatever was
+  // open before it measured its anchor — so a chooser opened FROM a row inside
+  // the ⚙ popover measured a button that had just been removed from the page.
+  // A detached element's rectangle is all zeros, and the clamp then put the
+  // chooser at (8, 6): the upper-left corner of the window.
+  //
+  // Now a popover opened from inside another one is a CHILD level: the parent
+  // stays, the child sits beside it at the row it came from, and closing the
+  // child returns to the parent. Every level keeps its anchor and is re-placed
+  // on resize; a level whose anchor has left the page closes rather than
+  // guessing a position. The root level keeps the id `pop`.
+  var pops = [];         // [{ p, anchor, build, opts, rect }]
+  var lastRect = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function rectOf(anchor) {
+    if (anchor && anchor.isConnected) {
+      var r = anchor.getBoundingClientRect();
+      if (r.width || r.height) { if (lastRect) lastRect.set(anchor, r); return r; }
+    }
+    return lastRect && anchor ? lastRect.get(anchor) || null : null;
+  }
+  function levelHolding(node) {
+    for (var i = pops.length - 1; i >= 0; i--) if (pops[i].p.contains(node)) return i;
+    return -1;
+  }
+  /** Where a level goes: beside its parent for a child, above/below its anchor for a root. */
+  function place(lv, depth) {
+    var p = lv.p, M = 8, G = 6;
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var r = rectOf(lv.anchor);
+    p.style.maxHeight = '';
+    if (!r) return false;
+    var w = p.offsetWidth, h = p.offsetHeight, left, top;
+    if (depth > 0 && pops[depth - 1]) {
+      // A CHILD: beside the parent popover, level with the row it came from.
+      var pr = pops[depth - 1].p.getBoundingClientRect();
+      left = pr.right + G;
+      if (left + w > vw - M) left = pr.left - G - w;
+      if (left < M) left = Math.max(M, Math.min(pr.left, vw - w - M));
+      if (h > vh - 2 * M) { p.style.maxHeight = (vh - 2 * M) + 'px'; h = p.offsetHeight; }
+      top = r.top;
+      if (top + h > vh - M) top = vh - M - h;
+    } else {
+      // A ROOT: below the anchor when it fits, above when that has more room.
+      var above = r.top - G - M, below = vh - r.bottom - G - M;
+      var up = lv.opts.prefer === 'above' ? (h <= above || above >= below) : (h > below && above > below);
+      var room = up ? above : below;
+      if (h > room) { p.style.maxHeight = Math.max(120, room) + 'px'; h = p.offsetHeight; }
+      top = up ? r.top - G - h : r.bottom + G;
+      left = lv.opts.alignRight ? r.right - w : r.left;
+    }
+    p.style.left = Math.max(M, Math.min(left, vw - w - M)) + 'px';
+    p.style.top = Math.max(M, Math.min(top, vh - h - M)) + 'px';
+    p.dataset.side = depth > 0 ? 'beside' : (top < r.top ? 'above' : 'below');
+    return true;
+  }
   function popover(anchor, build, opts) {
-    closePop();
-    var p = el('div', 'pop' + (opts && opts.cls ? ' ' + opts.cls : ''));
-    p.id = 'pop';
+    opts = opts || {};
+    // A TOGGLE: the anchor that opened the root level closes it again.
+    if (opts.toggle && pops.length && pops[0].anchor === anchor) { closePop(); return null; }
+    // WHICH LEVEL THIS IS. The same anchor again replaces its own level (a
+    // picker's "searching…" becoming its results); an anchor inside an open
+    // popover opens the next level; anything else starts a new stack.
+    var depth = -1;
+    for (var i = 0; i < pops.length; i++) if (pops[i].anchor === anchor) depth = i;
+    if (depth < 0) { var inside = anchor && anchor.isConnected ? levelHolding(anchor) : -1; depth = inside >= 0 ? inside + 1 : 0; }
+    closeFrom(depth);
+    var p = el('div', 'pop' + (depth ? ' sub' : '') + (opts.cls ? ' ' + opts.cls : ''));
+    p.id = depth ? 'pop-' + depth : 'pop';
+    p.setAttribute('role', 'dialog');
     build(p);
     document.body.appendChild(p);
-    var r = anchor.getBoundingClientRect();
-    var below = r.top < window.innerHeight / 2;
-    var left = opts && opts.alignRight ? r.right - p.offsetWidth : r.left;
-    p.style.left = Math.max(8, Math.min(left, window.innerWidth - p.offsetWidth - 8)) + 'px';
-    p.style.top = (below ? Math.min(r.bottom + 6, window.innerHeight - p.offsetHeight - 8) : Math.max(8, r.top - p.offsetHeight - 6)) + 'px';
-    setTimeout(function () { document.addEventListener('mousedown', onAway, true); }, 0);
+    var lv = { p: p, anchor: anchor, build: build, opts: opts };
+    pops.push(lv);
+    if (!place(lv, depth)) {
+      // NO ANCHOR TO MEASURE — never a corner. Centre it, where it is at least
+      // plainly a question, and say so for the tests.
+      p.style.left = Math.max(8, (window.innerWidth - p.offsetWidth) / 2) + 'px';
+      p.style.top = Math.max(8, (window.innerHeight - p.offsetHeight) / 3) + 'px';
+      p.dataset.side = 'unanchored';
+    }
+    if (anchor && anchor.setAttribute) anchor.setAttribute('aria-expanded', 'true');
+    watch();
     return p;
   }
-  function onAway(e) { var p = $('pop'); if (p && !p.contains(e.target)) closePop(); }
-  function closePop() {
-    var p = $('pop');
-    if (p) p.remove();
-    document.removeEventListener('mousedown', onAway, true);
+  function closeFrom(depth) {
+    while (pops.length > Math.max(0, depth)) {
+      var lv = pops.pop();
+      lv.p.remove();
+      if (lv.anchor && lv.anchor.setAttribute) lv.anchor.setAttribute('aria-expanded', 'false');
+    }
+    if (!pops.length) clearInterval(watchTimer);
   }
+  // POINTERDOWN, NOT MOUSEDOWN: Monaco cancels the pointer event, and a
+  // cancelled pointerdown suppresses the compatibility mousedown — so a click
+  // in the editor never reached a mousedown listener and the popover stayed.
+  //
+  // ONE LISTENER, FOR THE LIFE OF THE WINDOW. It used to be added when a
+  // popover opened (deferred a tick, so the opening click did not close it)
+  // and removed when the last one closed — and a close/open pair inside one
+  // tick could leave it removed while a popover was showing (seen: the ⚙
+  // popover stayed open over a click in the editor). Now it is always there
+  // and acts only when something is open. A press on the root level's own
+  // anchor is left to that anchor's click, which toggles.
+  function onAway(e) {
+    if (!pops.length) return;
+    if (levelHolding(e.target) >= 0) return;
+    var a = pops[0].anchor;
+    if (a && a.contains && a.contains(e.target)) return;
+    closePop();
+  }
+  window.addEventListener('pointerdown', onAway, true);
+  function closePop() { closeFrom(0); }
+  /** Close the top level only — a choice made in a child returns to its parent. */
+  function popBack(focusAnchor) {
+    var lv = pops[pops.length - 1];
+    if (!lv) return;
+    closeFrom(pops.length - 1);
+    if (focusAnchor !== false && lv.anchor && lv.anchor.isConnected && lv.anchor.focus) lv.anchor.focus();
+  }
+  /** Redraw the levels that asked to follow state (the ⚙ popover after a choice). */
+  function popRefresh() {
+    pops.forEach(function (lv, i) {
+      if (!lv.opts.refresh) return;
+      lv.p.textContent = '';
+      lv.build(lv.p);
+      place(lv, i);
+    });
+  }
+  // ---- SURVIVING A RESIZE, A ZOOM AND A DISPLAY-SCALE CHANGE -------------------
+  //
+  // An anchor moves for more reasons than a window resize: the display scale
+  // changes (dragging the window to another monitor, Windows scaling, WebView
+  // zoom), the BOT panel changes width, a layout media query flips. None of
+  // those is guaranteed to fire `resize` on the element that matters. So while
+  // a popover is open its anchor is WATCHED — its rectangle, the viewport and
+  // the device pixel ratio — and every level is re-placed when any of them
+  // moves. An anchor the layout has hidden (zero size) closes its level rather
+  // than leaving a popover pointing at nothing.
+  function replaceAll() {
+    for (var i = 0; i < pops.length; i++) {
+      var a = pops[i].anchor;
+      if (!a || !a.isConnected) { closeFrom(i); return; }
+      var r = a.getBoundingClientRect();
+      if (!r.width && !r.height) { closeFrom(i); return; }
+      place(pops[i], i);
+    }
+  }
+  var watchKey = '', watchTimer = 0;
+  function watchSig() {
+    var a = pops.length ? pops[0].anchor : null;
+    var r = a && a.isConnected ? a.getBoundingClientRect() : null;
+    return [window.innerWidth, window.innerHeight, window.devicePixelRatio,
+      r ? [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)].join(',') : 'x'].join('|');
+  }
+  function watch() {
+    clearInterval(watchTimer);
+    if (!pops.length) return;
+    watchKey = watchSig();
+    watchTimer = setInterval(function () {
+      if (!pops.length) { clearInterval(watchTimer); return; }
+      var k = watchSig();
+      if (k !== watchKey) { watchKey = k; replaceAll(); }
+    }, 150);
+  }
+  window.addEventListener('resize', replaceAll);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', replaceAll);
+  // A DPI change: the media query for the CURRENT ratio stops matching.
+  (function dpr() {
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia('(resolution: ' + window.devicePixelRatio + 'dppx)');
+    var once = function () { replaceAll(); dpr(); };
+    if (mq.addEventListener) mq.addEventListener('change', once, { once: true });
+  }());
+  // THE KEYBOARD: Escape closes one level and returns focus to what opened it;
+  // the arrows move between a popover's choices.
+  document.addEventListener('keydown', function (e) {
+    if (!pops.length) return;
+    var lv = pops[pops.length - 1];
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); popBack(); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (document.activeElement && document.activeElement.tagName === 'INPUT' && e.key === 'ArrowUp') return;
+    var items = Array.prototype.filter.call(lv.p.querySelectorAll('button:not([disabled])'), function (b) { return b.offsetParent !== null; });
+    if (!items.length) return;
+    var at = items.indexOf(document.activeElement);
+    if (at < 0 && !lv.p.contains(document.activeElement)) return;
+    e.preventDefault();
+    var next = e.key === 'ArrowDown' ? (at + 1) % items.length : (at <= 0 ? items.length - 1 : at - 1);
+    items[next].focus();
+  }, true);
 
   /**
    * AN IN-WINDOW DIALOG. A browser prompt() is a foreign grey box in a native
@@ -201,6 +363,13 @@ function client() {
       box.setAttribute('role', 'dialog');
       box.appendChild(el('h3', '', o.title || 'LAIN'));
       if (o.text) box.appendChild(el('p', '', o.text));
+      // A READ DOOR'S ANSWER (the focus packet, who changed what): text to read, as it came.
+      if (o.pre) {
+        var pre = el('pre', 'dlg-pre', o.pre);
+        pre.style.cssText = 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:11.5px;line-height:1.45;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;margin:8px 0';
+        box.appendChild(pre);
+        box.style.width = 'min(860px,92vw)';
+      }
       var inputs = {};
       (o.fields || []).forEach(function (f) {
         var row = el('label', 'dlg-field');
@@ -286,12 +455,43 @@ function client() {
   }
 
   // ---- the conversation ----------------------------------------------------
-  /** Which thread a surface shows: the IDE shows Coding, Chat shows Chat. */
+  /**
+   * WHAT A SURFACE SHOWS. Chat: its own thread, and the Coding Agent's work
+   * asked for from Chat (`via: 'chat'`). The IDE: the Coding thread, split
+   * between the BOT and AGENT sub-tabs by who the message went to or came from.
+   */
+  function isAgentMsg(m) { return m.to === 'agent' || m.by === 'agent' || m.by === 'handoff'; }
+  function pane() { return ui.mode === 'ide' && L.botpane ? (L.botpane.current() || 'bot') : null; }
   function visibleMessages() {
     var all = (S && S.conversation) || [];
     if (!S || S.current.lane === 'cowork') return all;
-    var want = ui.mode === 'ide' ? 'coding' : 'chat';
-    return all.filter(function (m) { return (m.thread || 'coding') === want; });
+    if (ui.mode !== 'ide') return all.filter(function (m) { return (m.thread || 'coding') === 'chat' || (m.via === 'chat' && isAgentMsg(m)); });
+    var p = pane();
+    return all.filter(function (m) { return (m.thread || 'coding') === 'coding' && (p === 'agent' ? isAgentMsg(m) : !isAgentMsg(m)); });
+  }
+
+  /** "This requires code changes. Move to Agent?" — Core's proposal, answered once. */
+  function proposalCard(pr) {
+    var c = el('div', 'card propose');
+    c.id = 'proposeCard';
+    c.appendChild(el('p', 'pq', 'This requires code changes. Move to Agent?'));
+    c.appendChild(el('p', 'pt', pr.task || pr.text));
+    var row = el('div', 'choices');
+    var go = el('button', 'btn primary', 'Move to Agent');
+    var stay = el('button', 'btn', 'Stay with BOT');
+    var answer = async function (accept) {
+      go.disabled = stay.disabled = true;
+      var r = await api('/api/agent/proposal', { id: pr.id, accept: accept });
+      if (!r.ok) { go.disabled = stay.disabled = false; notice(r.why, true); return; }
+      if (accept && L.botpane) L.botpane.show('agent');
+      poll();
+    };
+    go.onclick = function () { answer(true); };
+    stay.onclick = function () { answer(false); };
+    row.appendChild(go);
+    row.appendChild(stay);
+    c.appendChild(row);
+    return c;
   }
 
   /** Prose with fenced code blocks drawn as code. Text only; never markup. */
@@ -314,28 +514,47 @@ function client() {
     var box = $('stream');
     var atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
     var msgs = visibleMessages();
-    var sig = JSON.stringify([ui.mode, S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, S.plans && S.plans.prompt]);
+    var pr = S.journey && S.journey.proposal;
+    var showPr = pr && ui.mode === 'ide' && pane() === 'bot' ? pr : null;
+    var sig = JSON.stringify([ui.mode, pane(), S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, S.plans && S.plans.prompt, showPr && showPr.id, S.journey && S.journey.agent && S.journey.agent.running]);
     if (box.dataset.sig === sig && !L.plan.dirty) return;
     box.dataset.sig = sig;
     box.textContent = '';
     if (!msgs.length) {
       var empty = el('div', 'stream-empty');
       var other = ((S.conversation || []).length - msgs.length);
-      empty.appendChild(el('div', 'se-title', ui.mode === 'ide' ? 'Ask the BOT about this project, or tell it what to build.' : 'Ask LAIN anything.'));
+      var ag = pane() === 'agent';
+      empty.appendChild(el('div', 'se-title', ag ? 'The Coding Agent carries out changes here.' : ui.mode === 'ide' ? 'Ask the BOT about this project, or tell it what to build.' : 'Ask LAIN anything.'));
       empty.appendChild(el('div', 'se-sub', other > 0
         ? other + ' earlier message' + (other === 1 ? ' is' : 's are') + ' in the ' + (ui.mode === 'ide' ? 'Chat' : 'IDE') + ' thread of this session.'
-        : (ui.mode === 'ide' ? 'Questions are answered; implementation work is done by the Coding Agent in this project.' : 'Research, planning, discussion, files. When a plan is ready, continue it in the IDE.')));
+        : (ag ? 'Describe the change and press \u25b6 \u2014 it edits, runs and tests in this project. The BOT tab stays available.' : ui.mode === 'ide' ? 'Questions are answered here; for code changes the BOT asks before moving the work to the Agent.' : 'Research, planning, discussion. Asking for a code change here runs the Coding Agent on the attached project.')));
       box.appendChild(empty);
     }
-    msgs.forEach(function (m) {
+    var lastAgent = -1;
+    msgs.forEach(function (m, i) { if (m.role === 'assistant' && m.by === 'agent') lastAgent = i; });
+    msgs.forEach(function (m, i) {
       var wrap = el('div', 'msg ' + m.role);
-      var who = el('div', 'who', m.role === 'user' ? 'You' : 'BOT');
+      var chat = ui.mode !== 'ide';
+      var name = m.role === 'user' ? (m.by === 'handoff' ? 'BOT \u2192 Coding Agent' : 'You')
+        : m.by === 'agent' ? 'Coding Agent' : (chat ? 'LAIN' : 'BOT');
+      var who = el('div', 'who', name);
+      if (m.by === 'handoff') wrap.className += ' handoff';
+      if (m.by === 'agent') wrap.className += ' agent';
       if (m.provenance) who.appendChild(el('span', 'prov', m.provenance.label));
       if (m.at) who.appendChild(el('span', 'at', timeOf(m.at)));
       wrap.appendChild(who);
       wrap.appendChild(body(m.text));
+      // CHAT CODED: the same task continues in the IDE, not a copy of it.
+      if (chat && i === lastAgent) {
+        var fo = el('button', 'btn small focuslink', 'Open in /focus \u2192');
+        fo.title = 'Continue this task in the IDE: its project, the AGENT tab and the files it changed';
+        // THROUGH CORE'S DOOR (house.js ide.enter_focus): the move is recorded as a transfer, then the window follows.
+        fo.onclick = function () { api('/api/house/run', { id: 'ide.enter_focus' }).then(function () { poll(); }, function () { L.focus.enter({}); }); };
+        wrap.appendChild(fo);
+      }
       box.appendChild(wrap);
     });
+    if (showPr) box.appendChild(proposalCard(showPr));
     var plan = ui.mode === 'chat' ? L.plan.buildCard(S) : null;
     if (plan) box.appendChild(plan);
     L.plan.dirty = false;
@@ -384,16 +603,11 @@ function client() {
     var ide = ui.mode === 'ide';
     var c = eng && S.composer ? S.composer[ide ? 'coding' : 'chat'] : null;
     $('ask').placeholder = ide ? ((c && c.placeholder) || 'Ask the BOT, or describe the change…') : (eng ? 'Ask, discuss or plan…' : 'Ask LAIN, or attach files to work on…');
-    // THE SOURCE/MODEL PILLS BELONG TO CHAT. In the IDE the models are set in
-    // the BOT panel's own header, and a second pair here would be a second
-    // place to change the same thing.
-    $('srcPill').hidden = ide;
-    $('modelPill').hidden = ide;
     $('composerHint').textContent = ide && c && !c.canSend ? 'open a project to start coding' : '';
   }
 
   // ---- sending -------------------------------------------------------------
-  async function send(textOverride) {
+  async function send(textOverride, extraIn) {
     var t = (textOverride != null ? String(textOverride) : $('ask').value).trim();
     if (!t || ui.busy || !S) return;
     ui.busy = true;
@@ -401,6 +615,9 @@ function client() {
     notice('');
     var bodyOut = { text: t };
     if (S.current.lane === 'engineering') bodyOut.view = ui.mode === 'ide' ? 'coding' : 'chat';
+    // WHAT THE INPUT BAR ADDS: in the IDE, that it came from the IDE, the
+    // routing mode and which context chips were closed (pagecomposer.js).
+    if (L.composer) Object.assign(bodyOut, L.composer.extra(), extraIn || {});
     var r;
     try { r = await api('/api/turn', bodyOut); } catch (e) { r = { ok: false, why: e.message }; }
     ui.busy = false;
@@ -410,6 +627,7 @@ function client() {
       return notice(r.why, true);
     }
     if (textOverride == null) { $('ask').value = ''; $('ask').style.height = 'auto'; }
+    if (L.composer) L.composer.afterSend();
     poll();
   }
 
@@ -441,7 +659,6 @@ function client() {
   }
 
   function boot() {
-    $('send').onclick = function () { send(); };
     $('ask').addEventListener('input', function () {
       this.style.height = 'auto';
       this.style.height = Math.min(200, this.scrollHeight) + 'px';
@@ -472,7 +689,7 @@ function client() {
     state: function () { return S; },
     ui: function () { return ui; },
     poll: poll, render: render, notice: notice, el: el, $: $,
-    popover: popover, closePop: closePop, dialog: dialog, confirm: confirmBox, toast: toast,
+    popover: popover, closePop: closePop, popBack: popBack, popRefresh: popRefresh, popDepth: function () { return pops.length; }, dialog: dialog, confirm: confirmBox, toast: toast,
     onRender: function (fn) { renderers.push(fn); },
     onBoot: function (fn) { L.boots.push(fn); },
     send: send, mountConvo: mountConvo,

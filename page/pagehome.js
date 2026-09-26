@@ -16,6 +16,9 @@
  *   MCP servers, skills       LAIN.tools (POST /api/mcp/servers, /api/skills)
  *   providers, models, roles  LAIN.accounts (POST /api/accounts)
  *   bot channels              LAIN.bot (POST /api/bot/connections)
+ *   accounts, runtimes        LAIN.instances (POST /api/instances)
+ *   usage views, limits       the USAGE tab's sections
+ *   installed extensions      POST /api/extensions/list (read once, on demand)
  *   projects                  POST /api/project/recent
  *   sessions                  S.sessions
  *   files                     POST /api/files/find, when a project is open
@@ -141,14 +144,16 @@ function client() {
 
   var SURFACES = [
     ['home', 'Home', 'launcher search start'], ['ide', 'IDE', 'editor code project explorer files terminal'],
-    ['chat', 'Chat', 'conversation research plan discuss'], ['bot', 'Bot', 'identity channels telegram discord whatsapp permissions allowlist capabilities'],
-    ['model', 'Model', 'providers accounts oauth api quota usage models roles orchestration'], ['session', 'Session', 'history previous work restore'],
+    ['chat', 'Chat', 'conversation research plan discuss'], ['bot', 'Bot', 'identity channels telegram discord whatsapp permissions allowlist capabilities assistant reminders schedules'],
+    ['model', 'Model', 'providers accounts oauth api quota models roles orchestration runtimes codex'], ['usage', 'Usage', 'tokens cost limits quota cache consumption metrics'], ['session', 'Session', 'history previous work restore'],
     ['settings', 'Settings', 'preferences configuration mcp skills notifications privacy'],
   ];
   var SETTINGS_PAGES = [
     ['general', 'General'], ['appearance', 'Appearance', 'theme density'], ['editor', 'Editor', 'font size tab'], ['shortcuts', 'Shortcuts', 'keyboard keys'],
     ['notifications', 'Notifications'], ['mcp', 'MCP', 'model context protocol servers tools computer'], ['skills', 'Skills'],
     ['integrations', 'Integrations', 'chrome extension'], ['storage', 'Storage', 'paths folders node sessions'], ['privacy', 'Privacy', 'trusted folders security'], ['about', 'About'],
+    ['extensions', 'Extensions', 'vscode extension host compatibility'], ['servers', 'Language Servers', 'lsp typescript pyright rust'],
+    ['runtime', 'Runtime Processes', 'processes owned leak orphan supervisor'], ['focus', 'Focus', 'context tokens evidence metrics'], ['debugging', 'Debugging', 'debugger dap debugpy adapter'],
   ];
 
   function commands() {
@@ -161,8 +166,80 @@ function client() {
       { title: 'Open File', sub: 'IDE · Ctrl+P', icon: 'files', kw: 'quick open', run: function () { L.nav.go('ide'); L.ide.quickOpen(); } },
       { title: 'Toggle Terminal', sub: 'IDE · Ctrl+`', icon: 'terminal', kw: 'shell console', run: function () { L.nav.go('ide'); L.ide.showPanel('TERMINAL'); } },
       { title: 'Keyboard shortcuts', sub: 'Settings', icon: 'settings', kw: 'keys', run: function () { L.nav.go('settings', { section: 'shortcuts' }); } },
+    ].concat(viewCommands(), lainCommands(), editorCommands(), extensionCommands());
+  }
+
+  // ---- editor groups (pagegroups.js) ------------------------------------------------
+  function viewCommands() {
+    if (!L.groups) return [];
+    var g = function (f) { return function () { L.nav.go('ide'); setTimeout(f, 0); }; };
+    return [
+      { title: 'View: Split Editor Right', sub: 'IDE \u00b7 Ctrl+\\', icon: 'panel', kw: 'split group side by side', run: g(L.groups.splitRight) },
+      { title: 'View: Split Editor Down', sub: 'IDE', icon: 'panel', kw: 'split group below', run: g(L.groups.splitDown) },
+      { title: 'View: Move Editor into Next Group', sub: 'IDE', icon: 'panel', kw: 'move tab group', run: g(L.groups.moveToNext) },
+      { title: 'View: Focus Next Editor Group', sub: 'IDE', icon: 'panel', kw: 'focus group', run: g(L.groups.focusNext) },
+      { title: 'View: Close Editor Group', sub: 'IDE', icon: 'close', kw: 'close group split', run: g(L.groups.closeGroup) },
     ];
   }
+
+  // ---- "LAIN:" — Core's house doors, the same ones the BOT walks through -------
+  function currentFile() { var f = L.source && L.source.current && L.source.current(); return f ? f.path : null; }
+  function showRead(title, r) { if (r && r.ok !== false && r.text != null) L.dialog({ title: title, pre: String(r.text), ok: 'Close', cancel: 'Copy' }).then(function (v) { if (v === false && navigator.clipboard) navigator.clipboard.writeText(String(r.text)).catch(function () {}); }); }
+  function lainCommands() {
+    var inv = function (id, args) { return L.house.invoke(id, args); };
+    return [
+      { title: 'LAIN: Ask BOT About Selection', sub: 'Focus', icon: 'chat', kw: 'bot question explain selection this', run: function () { inv('focus.ask_bot'); } },
+      { title: 'LAIN: Move to Agent', sub: 'Focus', icon: 'spark', kw: 'coding agent pane task', run: function () { inv('focus.move_to_agent'); } },
+      { title: 'LAIN: Pick UI Element', sub: 'Focus · preview', icon: 'preview', kw: 'workshop select element visual picker', run: function () { inv('focus.pick_element'); } },
+      { title: 'LAIN: Who Changed This?', sub: 'Focus · provenance', icon: 'files', kw: 'provenance who wrote lines blame user agent', run: function () {
+        var p = currentFile();
+        inv('changes.who', p ? { path: p } : {}).then(function (r) { showRead(p ? 'Who changed ' + p : 'Who changed what', r); });
+      } },
+      { title: 'LAIN: Open Task in Chat', sub: 'Chat · same session', icon: 'chat', kw: 'conversation task continue', run: function () { inv('chat.open'); } },
+      { title: 'LAIN: Open in /focus', sub: 'IDE · same task', icon: 'ide', kw: 'focus workspace task files', run: function () { inv('ide.enter_focus'); } },
+      { title: 'LAIN: Show Focus Context', sub: 'Focus · what the Agent would get', icon: 'files', kw: 'packet context selection tokens narrow', run: function () {
+        var box = document.getElementById('ask');
+        inv('focus.context', { task: box && box.value ? box.value : '' }).then(function (r) {
+          if (!r || r.ok === false) return;
+          var m = r.metrics || {};
+          var head = 'kind ' + m.kind + ' · ' + (m.filesSelected != null ? m.filesSelected : '?') + ' of ' + (m.projectFiles != null ? m.projectFiles : '?') + ' project files · ~' + m.approxTokens + ' tokens (chars/4)'
+            + (m.selection ? ' · selection ' + m.selection.id + ' (' + m.selection.served + ')' : '') + (m.artifact ? ' · artifact ' + m.artifact.state : '') + (m.lsp ? ' · ' + m.lsp.via : '');
+          showRead('Focus context', { text: head + '\n\n' + r.text });
+        });
+      } },
+      { title: 'LAIN: Restart Language Server', sub: 'IDE', icon: 'refresh', kw: 'lsp typescript pyright rust analyzer restart', run: function () {
+        var p = currentFile();
+        if (!p) { if (L.toast) L.toast('Open a file first — its language decides which server restarts.', true); return; }
+        inv('lsp.restart', { path: p }).then(function (r) { if (r && r.ok !== false && L.toast) L.toast(r.text || 'restarted'); });
+      } },
+      { title: 'LAIN: Reconcile Project', sub: 'Architecture vs disk', icon: 'check', kw: 'architecture drift missing damaged reconcile', run: function () { inv('project.reconcile').then(function (r) { showRead('Reconcile project', r); }); } },
+    ];
+  }
+
+  // ---- the editor's own commands (Monaco), when the IDE has an editor ----------
+  function editorCommands() {
+    var ed = L.editor && L.editor.editor && L.editor.editor();
+    if (!ed || !ed.getSupportedActions || L.nav.tab() !== 'ide') return [];
+    return ed.getSupportedActions().filter(function (a) { return a.label; }).slice(0, 400).map(function (a) {
+      return { title: a.label, sub: 'Editor', icon: 'ide', kw: 'editor ' + a.id, run: function () { L.editor.focus(); a.run(); } };
+    });
+  }
+
+  // ---- commands of extensions that are RUNNING in the extension host -------------
+  var extCmds = [];
+  function refreshExtCommands() {
+    L.api('/api/exthost/status', {}).then(function (r) {
+      extCmds = [];
+      ((r && r.extensions) || []).forEach(function (x) {
+        if (x.state !== 'RUNNING') return;
+        (x.commands || []).forEach(function (id) {
+          extCmds.push({ title: (x.commandTitles && x.commandTitles[id]) || id, sub: 'Extension · ' + (x.name || x.id), icon: 'plug', kw: 'extension command ' + id,
+            run: function () { L.api('/api/exthost/command', { id: id, args: [] }).then(function (o) { if (o && o.ok === false && L.toast) L.toast(o.why, true); }); } });
+        });
+      });
+    }, function () { extCmds = []; });
+  }
+  function extensionCommands() { return extCmds.slice(0, 200); }
 
   function entries() {
     var S = L.state() || {};
@@ -203,9 +280,52 @@ function client() {
     ((A.data && A.data.sources) || []).filter(function (s) { return s.kind === 'WEB'; }).forEach(function (s) {
       out.push({ group: 'Model', title: s.label, sub: 'Model › Website accounts · ' + String(s.state).toLowerCase().replace(/_/g, ' '), icon: 'model', kw: 'account web sign in', run: function () { L.nav.go('model', { section: 'accounts' }); } });
     });
+    var bd = L.bot && L.bot.get ? L.bot.get() : null;
     ['Telegram', 'Discord', 'WhatsApp'].forEach(function (p) {
-      out.push({ group: 'Bot', title: p, sub: 'Bot › Connections', icon: 'bot', kw: 'channel messaging integration', run: function () { L.nav.go('bot', { section: 'connections' }); } });
+      var row = bd && (bd.platforms || []).filter(function (x) { return x.platform === p.toLowerCase(); })[0];
+      var st = row ? (row.status || row.state || '').toLowerCase().replace(/_/g, ' ') : '';
+      out.push({ group: 'Bot', title: p, sub: 'Bot › Connections' + (st ? ' · ' + st : ''), icon: 'bot', kw: 'channel messaging integration ' + st, run: function () { L.nav.go('bot', { section: 'connections' }); } });
     });
+    // ACCOUNTS AND RUNTIMES (accountinstances.js), each on its own row — never merged.
+    var I = L.instances ? L.instances.get() : null;
+    if (I && !I.data && !I.loading && L.instances.load) L.instances.load();
+    ((I && I.data && I.data.instances) || []).forEach(function (v) {
+      var who = v.identity ? (v.identity.email || v.identity.kind || '') : (v.credential && v.credential.masked ? 'key ' + v.credential.masked : '');
+      out.push({ group: 'Accounts', title: v.display_name, sub: 'Model › Accounts · ' + [v.provider, v.source_type, who].filter(Boolean).join(' · '), icon: 'link',
+        kw: 'account ' + [v.id, v.driver_id, v.provider, who, (v.capabilities || []).join(' ')].join(' '),
+        run: function () { if (L.instances.select) L.instances.select(v.id); L.nav.go('model', { section: 'instances' }); } });
+      ((v.limits && v.limits.windows) || []).forEach(function (w) {
+        out.push({ group: 'Usage', title: v.display_name + ' · ' + (w.label || w.name) + ' limit', sub: 'Usage › Limits · ' + (w.usedPercent != null ? Math.round(w.usedPercent) + '% used' : w.percent != null ? Math.round(w.percent) + '% used' : 'not reported'), icon: 'usage', kw: 'quota limit window reset ' + v.provider,
+          run: function () { L.nav.go('usage', { section: 'limits' }); } });
+      });
+    });
+    ((I && I.data && I.data.drivers) || []).forEach(function (d) {
+      out.push({ group: 'Accounts', title: d.displayName + ' runtime', sub: 'Model › Runtimes · ' + (d.connection || d.sourceType), icon: 'terminal', kw: 'runtime install cli ' + d.id, run: function () { L.nav.go('model', { section: 'runtimes' }); } });
+    });
+    // THE MODEL FABRIC (pagefabric.js): local models, runtimes, plans and chat sources — found by name.
+    var F = L.fabric ? L.fabric.get().data : null;
+    if (!F && L.fabric && !L.fabric.get().loading) L.fabric.load();
+    ((F && F.groups) || []).forEach(function (g) {
+      g.rows.forEach(function (r) {
+        var grp = r.kind === 'local' ? 'Local models' : r.kind === 'chat' ? 'Chat sources' : r.kind === 'api' ? 'Accounts' : 'Runtimes & plans';
+        var extra = r.kind === 'chat' ? ' CHAT ONLY ' + (r.modelId || '') : r.key === 'zcode:start-plan' ? ' GLM Start Plan ZCode Z.ai glm-5.3-flash plan' : r.key === 'freebuff' ? ' credits reset' : '';
+        out.push({ group: grp, title: r.label + (r.capabilityLabel ? ' · ' + r.capabilityLabel : ''), sub: 'Model · ' + r.via + (r.account ? ' · ' + r.account : ''), icon: r.kind === 'local' ? 'files' : r.kind === 'chat' ? 'chat' : 'model',
+          kw: 'model ' + [r.label, r.via, r.account, r.provider, r.modelId, (r.roles || []).join(' '), r.kind === 'local' ? 'local gguf' : ''].join(' ') + extra,
+          run: function () { L.nav.go('model', { section: r.kind === 'local' ? 'local' : 'models' }); if (L.fabric) L.fabric.select(r.key); } });
+      });
+    });
+    ((F && F.runtimes) || []).forEach(function (rt) {
+      out.push({ group: 'Runtimes & plans', title: rt.label, sub: 'Model › Runtimes · ' + rt.state, icon: 'terminal', kw: 'runtime ' + rt.id + ' ' + rt.label + ' ' + rt.state, run: function () { L.nav.go('model', { section: rt.kind === 'local' ? 'local' : 'runtimes' }); } });
+    });
+    [['overview', 'Usage overview'], ['tokens', 'Token usage by project, session, model, account'], ['limits', 'Provider limits'], ['cost', 'Cost'], ['efficiency', 'Context efficiency — cache']].forEach(function (u) {
+      out.push({ group: 'Usage', title: u[1], sub: 'Usage', icon: 'usage', kw: 'usage consumption ' + u[0], run: function () { L.nav.go('usage', { section: u[0] }); } });
+    });
+    if (!extList && !extLoading) { extLoading = true; L.api('/api/extensions/list', {}).then(function (r) { extList = (r && r.ok && r.extensions) || []; extLoading = false; }, function () { extLoading = false; }); }
+    (extList || []).forEach(function (e) {
+      out.push({ group: 'Extensions', title: e.name, sub: 'IDE › Extensions · ' + e.id + ' ' + e.version + (e.enabled ? '' : ' · disabled'), icon: 'plug', kw: 'extension ' + e.id + ' ' + e.publisher, run: function () { L.nav.go('ide'); if (L.ide && L.ide.showPane) L.ide.showPane('extensions'); } });
+    });
+    // THE ASSISTANT (pageassistant.js): reminders, schedules, watches, its settings.
+    if (L.assistant) L.assistant.searchEntries().forEach(function (e) { out.push(e); });
     out.push({ group: 'Bot', title: 'Allowlist', sub: 'Bot › Permissions', icon: 'shield', kw: 'permissions approved users security access', run: function () { L.nav.go('bot', { section: 'permissions' }); } });
     ((recent && recent.recent) || []).forEach(function (p) {
       out.push({ group: 'Projects', title: p.name, sub: p.root, icon: 'folder', kw: p.root, run: function () { L.ide.open(p.root); } });
@@ -218,7 +338,8 @@ function client() {
     return out;
   }
 
-  var GROUP_ORDER = ['Go to', 'Commands', 'Settings', 'MCP', 'Model', 'Models', 'Bot', 'Projects', 'Sessions', 'Files'];
+  var extList = null, extLoading = false;
+  var GROUP_ORDER = ['Go to', 'Commands', 'Assistant', 'Accounts', 'Usage', 'Settings', 'MCP', 'Model', 'Models', 'Bot', 'Extensions', 'Projects', 'Sessions', 'Files'];
   function search(q, onlyCommands) {
     var all = entries();
     if (onlyCommands) all = all.filter(function (e) { return e.group === 'Commands' || e.group === 'Go to'; });
@@ -324,6 +445,7 @@ function client() {
   var palFlat = [];
   function palette(prefix) {
     warm();
+    refreshExtCommands();
     $('palette').hidden = false;
     var q = $('paletteQ');
     q.value = prefix || '';

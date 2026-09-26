@@ -37,7 +37,7 @@ module.exports = {
   // Directories served beside index.html ({url, dir}), e.g. vendor/monaco.
   assetDirs: () => require('./webvendor').assetDirs(),
   // Fetch vendored web code (Monaco) once; resolves {ok, why?}. Never required.
-  ensureVendor: () => require('./webvendor').ensureMonaco(),
+  ensureVendor: () => require('./webvendor').ensureAll(),
   hostSource: path.join(__dirname, 'native', 'host.cs'),
   vendor: () => require('./native/vendor'),
 };

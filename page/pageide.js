@@ -47,8 +47,10 @@ const HTML = `
   <div class="ide" id="main" hidden>
     <nav class="activity" id="activity" aria-label="IDE">
       <button class="act-btn" data-pane="explorer" title="Explorer (Ctrl+Shift+E)"></button>
-      <button class="act-btn" data-pane="search" title="Search files (Ctrl+Shift+F)"></button>
-      <button class="act-btn" data-pane="changes" title="Changes"><span class="act-badge" id="chgBadge" hidden></span></button>
+      <button class="act-btn" data-pane="search" title="Search (Ctrl+Shift+F)"></button>
+      <button class="act-btn" data-pane="scm" title="Source Control (Ctrl+Shift+G)"><span class="act-badge" id="chgBadge" hidden></span></button>
+      <button class="act-btn" data-pane="run" title="Run (tasks and scripts)"></button>
+      <button class="act-btn" data-pane="extensions" title="Extensions (Ctrl+Shift+X)"></button>
       <button class="act-btn" id="wsPill" title="Preview (Workshop)"></button>
       <span class="spacer"></span>
       <button class="act-btn" id="botToggle" title="BOT panel (Ctrl+Alt+B)"></button>
@@ -59,11 +61,10 @@ const HTML = `
       <div class="side-body" id="paneExplorer">
         ${require('./pagesource').TREE_HTML}
       </div>
-      <div class="side-body" id="paneSearch" hidden>
-        <div class="sp-search"><input id="fileSearch" placeholder="Search files by name" autocomplete="off" spellcheck="false"></div>
-        <div id="fileSearchHits" class="hits"></div>
-      </div>
-      <div class="side-body" id="paneChanges" hidden><div id="changesList" class="hits"></div></div>
+      <div class="side-body" id="paneSearch" hidden></div>
+      <div class="side-body" id="paneScm" hidden></div>
+      <div class="side-body" id="paneRun" hidden></div>
+      <div class="side-body" id="paneExtensions" hidden></div>
     </aside>
     <div class="editor-col">
       <div class="editor-area" id="editorArea">
@@ -77,25 +78,28 @@ const HTML = `
     </div>
     <aside class="botpanel" id="ideBot">
       <div class="bp-head">
-        <span class="bp-title">BOT</span>
+        <div class="bp-sub" role="tablist" aria-label="BOT and Agent">
+          <button class="bp-tab" role="tab" id="paneBot" data-pane="bot" aria-selected="true" title="BOT — answers, explains, walks LAIN for you">BOT</button>
+          <button class="bp-tab" role="tab" id="paneAgent" data-pane="agent" aria-selected="false" hidden title="AGENT — the Coding Agent carrying out the task">AGENT<span class="bp-run" id="agentRun" hidden></span></button>
+        </div>
+        <span class="bp-state" id="botState"></span>
         <span class="spacer"></span>
         <button class="iconbtn" id="botMore" title="More"></button>
-        <button class="iconbtn" id="botGear" title="Models"></button>
-      </div>
-      <div class="bp-models" id="botModels">
-        <button class="mrow" id="botModelBtn"><span class="ml">BOT Model</span><span class="mv" id="botModelVal">\u2014</span><span class="ms" id="botModelScope"></span></button>
-        <button class="mrow" id="codeModelBtn"><span class="ml">Coding Agent</span><span class="mv" id="codeModelVal">\u2014</span><span class="ms" id="codeModelScope"></span></button>
       </div>
       <div class="bp-convo" id="ideBotHost"></div>
     </aside>
   </div>
   <footer class="statusbar" id="ideStatus" hidden>
     <span class="sb-item" id="sbProject"></span>
+    <button class="sb-item sb-btn" id="sbBranch" title="Source Control"></button>
+    <button class="sb-item sb-btn" id="sbProblems" title="Problems"></button>
     <span class="sb-item" id="sbUnderstand"></span>
     <span class="spacer"></span>
     <span class="sb-item" id="sbPos"></span>
+    <span class="sb-item" id="sbEnc"></span>
+    <span class="sb-item" id="sbEol"></span>
     <span class="sb-item" id="sbLang"></span>
-    <span class="sb-item sb-model" id="sbModel"></span>
+    <button class="sb-item sb-btn sb-model" id="sbModel" title="Coding Agent model"></button>
   </footer>
 </section>`;
 
@@ -155,6 +159,20 @@ const CSS = `
 .botpanel{display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border-left:1px solid var(--line)}
 .bp-head{display:flex;align-items:center;gap:2px;height:34px;padding:0 6px 0 14px}
 .bp-title{font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--ink)}
+/* BOT | AGENT — sub-tabs of the right panel, never global tabs. */
+.bp-sub{display:flex;align-items:stretch;gap:2px;height:100%}
+.bp-tab{position:relative;display:flex;align-items:center;gap:6px;padding:0 9px;font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--faint)}
+.bp-tab:hover{color:var(--ink)}
+.bp-tab[aria-selected=true]{color:var(--ink)}
+.bp-tab[aria-selected=true]::after{content:'';position:absolute;left:6px;right:6px;bottom:0;height:2px;border-radius:2px;background:var(--accent)}
+.bp-run{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:bprun 1.2s ease-in-out infinite}
+@keyframes bprun{50%{opacity:.35}}
+.bp-head{padding:0 6px 0 6px;border-bottom:1px solid var(--line)}
+/* "This requires code changes. Move to Agent?" */
+.card.propose{border:1px solid var(--accent-line);margin:6px 0 10px}
+.card.propose .pq{font-weight:600;margin:0 0 4px}
+.card.propose .pt{font-size:12.5px;color:var(--dim);margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
+.card.propose .choices{display:flex;gap:8px;flex-wrap:wrap}
 .bp-models{padding:0 8px 8px;border-bottom:1px solid var(--line)}
 .bp-models.collapsed{display:none}
 .mrow{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;padding:5px 8px;border-radius:var(--radius-s);text-align:left;font-size:12.5px}
@@ -177,6 +195,11 @@ const CSS = `
 .sb-bar{display:inline-block;position:relative;width:90px;height:5px;border-radius:3px;background:var(--surface);overflow:hidden;box-shadow:inset 0 0 0 1px var(--line2)}
 .sb-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
 .sb-model{color:var(--dim)}
+.sb-btn{height:100%;border-radius:0}
+.sb-btn:hover{background:var(--raise);color:var(--ink)}
+.sb-err{color:var(--bad)} .sb-warn{color:var(--warn)}
+.bp-state{margin-left:8px;font-size:11px;color:var(--faint)}
+.bp-state.work{color:var(--accent)}
 /* ---- the handoff card: a task that arrived from Chat ------------------------ */
 .card.handoff{border:1px solid var(--accent-line)}
 .card.handoff h4::before{background:var(--accent)}
@@ -193,7 +216,7 @@ function client() {
   var $ = L.$, el = L.el;
   var pane = 'explorer';
   var recent = null;
-  var DRAWER_IDS = ['CHANGES', 'PLAN', 'TERMINAL', 'VERIFICATION'];
+  var DRAWER_IDS = ['PROBLEMS', 'TERMINAL', 'CHANGES', 'PLAN', 'VERIFICATION', 'DEBUG'];
   var lastPanel = 'TERMINAL';
   function pref(k, d) { try { var v = localStorage.getItem('lain.ide.' + k); return v == null ? d : v === '1'; } catch (e) { return d; } }
   function setPref(k, v) { try { localStorage.setItem('lain.ide.' + k, v ? '1' : '0'); } catch (e) { /* private window */ } }
@@ -271,22 +294,41 @@ function client() {
   }
 
   // ---- panes, panels, columns --------------------------------------------------
-  function showPane(p) {
-    if (pane === p && !$('main').classList.contains('side-off')) { toggleSide(); return; }
+  var PANES = { explorer: ['paneExplorer', 'Explorer'], search: ['paneSearch', 'Search'], scm: ['paneScm', 'Source Control'], run: ['paneRun', 'Run'], extensions: ['paneExtensions', 'Extensions'] };
+  var mounted = {};
+  /** Show a side pane; clicking the one already showing hides the side bar, as in VS Code. */
+  function showPane(p, force) {
+    if (!PANES[p]) return;
+    if (!force && pane === p && !$('main').classList.contains('side-off')) { toggleSide(); return; }
     pane = p;
     $('main').classList.remove('side-off');
     setPref('side', true);
     drawPane();
   }
   function drawPane() {
-    $('paneExplorer').hidden = pane !== 'explorer';
-    $('paneSearch').hidden = pane !== 'search';
-    $('paneChanges').hidden = pane !== 'changes';
-    $('sideTitle').textContent = pane === 'search' ? 'Search' : pane === 'changes' ? 'Changes' : 'Explorer';
+    Object.keys(PANES).forEach(function (k) { $(PANES[k][0]).hidden = pane !== k; });
+    $('sideTitle').textContent = PANES[pane][1];
+    $('sideRefresh').hidden = pane === 'search';
     Array.prototype.forEach.call(document.querySelectorAll('.act-btn[data-pane]'), function (b) {
       b.setAttribute('aria-selected', String(b.getAttribute('data-pane') === pane && !$('main').classList.contains('side-off')));
     });
-    if (pane === 'search') setTimeout(function () { $('fileSearch').focus(); }, 0);
+    if (!attached()) return;
+    if (pane === 'search') {
+      if (!mounted.search) { mounted.search = true; L.panes.mountSearch($('paneSearch')); }
+      setTimeout(function () { var q = $('paneSearchQ'); if (q) { q.focus(); q.select(); } }, 0);
+    } else if (pane === 'scm') {
+      if (!mounted.scm) { mounted.scm = true; L.panes.mountScm($('paneScm')); } else L.panes.refreshScm();
+    } else if (pane === 'run') {
+      L.panes.mountRun($('paneRun'));
+    } else if (pane === 'extensions' && L.extensions) {
+      L.extensions.mount($('paneExtensions'));
+    }
+  }
+  function refreshPane() {
+    if (pane === 'explorer') L.source.loadRoot();
+    else if (pane === 'scm') L.panes.refreshScm();
+    else if (pane === 'run') L.panes.mountRun($('paneRun'));
+    else if (pane === 'extensions' && L.extensions) L.extensions.mount($('paneExtensions'));
   }
   function toggleSide() { var off = $('main').classList.toggle('side-off'); setPref('side', !off); drawPane(); }
   function toggleBot() {
@@ -331,12 +373,24 @@ function client() {
     var x = el('button', 'iconbtn'); x.appendChild(L.icon('close', 14)); x.title = 'Close panel (Ctrl+J)';
     x.onclick = function () { togglePanel(open); };
     bar.appendChild(x);
-    // THE TERMINAL IS THE ONE PANEL THAT PAINTS ITSELF, and repainting it on
-    // every poll would throw away the line being typed into it.
+    // THE TERMINAL PAINTS ITSELF. With xterm (pagexterm.js) its screen is one
+    // DOM that must survive every poll; the built-in view only needs the line
+    // being typed protected.
+    if (open === 'TERMINAL' && L.xterm && L.xterm.available()) {
+      if (body.dataset.panel !== 'TERMINAL' || !body.contains(L.xterm.host())) { body.dataset.panel = 'TERMINAL'; L.xterm.mount(body); }
+      return;
+    }
+    if (L.xterm) L.xterm.unmount(body);
     if (open === 'TERMINAL' && body.dataset.panel === 'TERMINAL' && document.activeElement && body.contains(document.activeElement)) return;
+    // THE DEBUG PANEL keeps a watch or console line being typed.
+    if (open === 'DEBUG' && body.dataset.panel === 'DEBUG' && L.debug && L.debug.busy(body)) return;
     body.dataset.panel = open;
     body.textContent = '';
-    if (open === 'CHANGES') {
+    if (open === 'DEBUG') {
+      if (L.debug) L.debug.renderPanel(body);
+    } else if (open === 'PROBLEMS') {
+      L.panes.problemsPanel(body);
+    } else if (open === 'CHANGES') {
       if (!(s.changes || []).length) body.appendChild(el('div', 'obs', 'Nothing has changed in this session yet.'));
       (s.changes || []).forEach(function (c) {
         var r = el('button', 'row linkrow');
@@ -367,65 +421,98 @@ function client() {
     }
   }
 
-  function renderChanges(s) {
-    var list = s.changes || [];
+  /** The Source Control badge: git's own count of changed files. */
+  function renderScmBadge() {
+    var g = L.panes && L.panes.git();
+    var n = g && g.ok && g.repo ? g.files.length : 0;
     var badge = $('chgBadge');
-    badge.hidden = !list.length;
-    badge.textContent = list.length > 99 ? '99+' : String(list.length);
-    if (pane !== 'changes') return;
-    var box = $('changesList');
-    var sig = JSON.stringify(list);
-    if (box.dataset.sig === sig) return;
-    box.dataset.sig = sig;
-    box.textContent = '';
-    if (!list.length) { box.appendChild(el('div', 'none', 'No files changed in this session.')); return; }
-    list.forEach(function (c) {
-      var b = el('button', 'hit', c.path.split('/').pop());
-      b.appendChild(el('small', '', c.path));
-      if (c.added) b.appendChild(el('span', 'add', '+' + c.added));
-      if (c.removed) b.appendChild(el('span', 'del', ' -' + c.removed));
-      b.onclick = function () { L.source.openFile(c.path); };
-      box.appendChild(b);
-    });
+    badge.hidden = !n;
+    badge.textContent = n > 99 ? '99+' : String(n);
   }
 
-  var findSeq = 0;
-  function fileSearch() {
-    var q = $('fileSearch').value.trim();
-    var box = $('fileSearchHits');
-    var mine = ++findSeq;
-    if (!q) { box.textContent = ''; return; }
-    L.api('/api/files/find', { q: q }).then(function (r) {
-      if (mine !== findSeq) return;
-      box.textContent = '';
-      var rows = (r && r.matches) || [];
-      if (!rows.length) box.appendChild(el('div', 'none', 'No file matches.'));
-      rows.slice(0, 200).forEach(function (m) {
-        var b = el('button', 'hit', m.path.split('/').pop());
-        b.appendChild(el('small', '', m.path));
-        b.onclick = function () { L.source.openFile(m.path); };
-        box.appendChild(b);
-      });
-    }, function () {});
+  // ---- BOT | AGENT ------------------------------------------------------------------
+  //
+  // TWO SUB-TABS OF ONE PANEL, over one session and one task. The BOT tab is
+  // the conversation; the AGENT tab is the Coding Agent's execution. Which one
+  // is in front is paint state (kept per session in this window); what each
+  // shows is Core's — the messages carry `to`/`by` (botroute.js). The AGENT
+  // tab appears once the Agent has something: a message, a running turn, the
+  // task it carries, or the person choosing it. Switching tabs never stops
+  // anything; only Stop does.
+  var pane = 'bot', agentOpened = {};
+  function sid() { var s = S(); return s && s.current ? s.current.id : ''; }
+  function agentHas(s) {
+    var sp = s.journey || {};
+    if (agentOpened[sid()] || (sp.agent && sp.agent.running) || sp.agentTask) return true;
+    return (s.conversation || []).some(function (m) { return (m.thread || 'coding') === 'coding' && (m.to === 'agent' || m.by === 'agent' || m.by === 'handoff'); });
   }
+  function showBotPane(which) {
+    if (which !== 'agent') which = 'bot';
+    if (which === 'agent') agentOpened[sid()] = true;
+    if (pane === which) { paintPane(S()); return; }
+    pane = which;
+    try { sessionStorage.setItem('lain.pane.' + sid(), pane); } catch (e) { /* storage unavailable */ }
+    paintPane(S());
+    $('stream').dataset.sig = '';
+    L.render();
+    setTimeout(function () { var a = $('ask'); if (a && L.nav.tab() === 'ide') a.focus(); }, 0);
+  }
+  var paneSid = null;
+  function paintPane(s) {
+    if (!s) return;
+    if (paneSid !== sid()) {
+      paneSid = sid();
+      var kept = null;
+      try { kept = sessionStorage.getItem('lain.pane.' + paneSid); } catch (e) { kept = null; }
+      pane = kept === 'agent' ? 'agent' : 'bot';
+    }
+    var has = agentHas(s);
+    if (!has && pane === 'agent') pane = 'bot';
+    $('paneAgent').hidden = !has;
+    $('paneBot').setAttribute('aria-selected', String(pane === 'bot'));
+    $('paneAgent').setAttribute('aria-selected', String(pane === 'agent'));
+    var sp = s.journey || {};
+    $('agentRun').hidden = !(sp.agent && sp.agent.running);
+    $('ideBot').setAttribute('data-pane', pane);
+  }
+  L.botpane = { current: function () { return L.nav.tab() === 'ide' ? pane : null; }, show: function (w) { showBotPane(w); }, has: function () { return agentHas(S() || {}); } };
 
   // ---- the BOT panel ---------------------------------------------------------------
-  function renderModels(s) {
-    var m = s.models || {};
-    var chat = m.chat || {}, code = m.coding || {};
-    var chatLabel = chat.source && chat.source !== 'lain' ? (chat.label || chat.source) + (chat.modelId ? ' \u00b7 ' + L.fmt.model(chat.modelId) : '') : L.fmt.model(chat.modelId) || 'LAIN default';
-    $('botModelVal').textContent = chatLabel;
-    $('botModelBtn').title = 'BOT Model \u2014 conversation, questions and planning (Chat, and the bot\u2019s channels). ' + (chat.modelId || chat.source || '');
-    $('botModelScope').textContent = chat.scope === 'session' ? 'session' : 'default';
-    $('codeModelVal').textContent = L.fmt.model(code.modelId) || 'not set';
-    $('codeModelBtn').title = 'Coding Agent \u2014 work in this project: implementation, debugging, tests. ' + (code.modelId || '');
-    $('codeModelScope').textContent = code.scope === 'session' ? 'session' : 'default';
+  /** The BOT panel's own line: what it is doing, never a dashboard. */
+  function renderBotState(s) {
+    var st = s.header && s.header.status;
+    var b = $('botState');
+    var working = st && (st.state === 'RUNNING' || st.state === 'VERIFYING');
+    b.className = 'bp-state' + (working ? ' work' : '');
+    b.textContent = working ? (st.summary || 'working\u2026') : '';
+  }
+
+  /** Put a question to the BOT from elsewhere in the IDE (a menu, F2). */
+  function askBot(text, route) {
+    L.nav.go('ide');
+    if ($('main').classList.contains('bot-off')) toggleBot();
+    var a = $('ask');
+    a.value = text;
+    a.dispatchEvent(new Event('input', { bubbles: true }));
+    L.send(undefined, route ? { route: route } : undefined);
+  }
+  function askAboutSelection() {
+    var E = L.editor && L.editor.editor && L.editor.editor();
+    var sel = E && E.getSelection();
+    var a = $('ask');
+    if ($('main').classList.contains('bot-off')) toggleBot();
+    a.value = sel && !sel.isEmpty() ? 'Explain what the selected code does.' : 'Explain what this file does.';
+    a.dispatchEvent(new Event('input', { bubbles: true }));
+    a.focus();
+    a.setSelectionRange(0, a.value.length);
   }
 
   function botMore() {
     L.popover($('botMore'), function (p) {
       var item = function (label, run) { var b = el('button', 'opt', label); b.onclick = function () { L.closePop(); run(); }; p.appendChild(b); };
       item('Continue in Chat', continueInChat);
+      item('Show the AGENT tab', function () { showBotPane('agent'); });
+      item('Who changed what', function () { if (L.prov) L.prov.history(); });
       item('Open this session in Session', function () { L.nav.go('session'); });
       item('Model settings', function () { L.nav.go('model', { section: 'roles' }); });
     }, { alignRight: true });
@@ -525,9 +612,20 @@ function client() {
     }
     var f = L.source.state();
     var cur = f.active >= 0 ? f.open[f.active] : null;
-    $('sbLang').textContent = cur ? cur.language : '';
+    var text = cur && cur.kind === 'text';
+    $('sbLang').textContent = cur ? (cur.mode || cur.language || '') : '';
+    $('sbEnc').textContent = text ? ({ utf8: 'UTF-8', utf8bom: 'UTF-8 with BOM', utf16le: 'UTF-16 LE', utf16be: 'UTF-16 BE', latin1: 'Latin-1' }[cur.encoding] || 'UTF-8') : '';
+    $('sbEol').textContent = text ? (cur.eol || 'LF') : '';
     var pos = L.source.cursor();
-    $('sbPos').textContent = cur && pos ? 'Ln ' + pos.line + ', Col ' + pos.col : '';
+    $('sbPos').textContent = text && pos ? 'Ln ' + pos.line + ', Col ' + pos.col : '';
+    var g = L.panes && L.panes.git();
+    $('sbBranch').textContent = '';
+    if (g && g.ok && g.repo) { $('sbBranch').appendChild(L.icon('changes', 13)); $('sbBranch').appendChild(el('span', '', (g.branch || '(no branch)') + (g.files.length ? '*' : ''))); }
+    $('sbBranch').hidden = !(g && g.ok && g.repo);
+    var c = L.panes ? L.panes.counts() : { errors: 0, warnings: 0 };
+    $('sbProblems').textContent = '';
+    $('sbProblems').appendChild(el('span', c.errors ? 'sb-err' : '', '\u2715 ' + c.errors));
+    $('sbProblems').appendChild(el('span', c.warnings ? 'sb-warn' : '', '\u26a0 ' + c.warnings));
     var code2 = s.models && s.models.coding;
     $('sbModel').textContent = '';
     $('sbModel').appendChild(L.icon('model', 13));
@@ -535,8 +633,12 @@ function client() {
   }
 
   // ---- the frame -----------------------------------------------------------------------------
+  var gitAsked = false;
+  var gitRoot = null;
   function render(s) {
     var showing = L.nav.tab() === 'ide';
+    var rootNow = attached() ? s.workspace.project.root : null;
+    if (rootNow !== gitRoot) { gitRoot = rootNow; gitAsked = false; mounted = {}; }
     var ws = attached();
     $('ideStart').hidden = ws;
     $('main').hidden = !ws;
@@ -556,13 +658,15 @@ function client() {
       return;
     }
     L.mountConvo($('ideBotHost'), 'ide');
+    paintPane(s);
     $('sideProj').textContent = s.workspace.project.name;
     $('sideProj').title = s.workspace.project.root;
-    renderModels(s);
+    renderBotState(s);
     renderPanel(s);
-    renderChanges(s);
+    renderScmBadge();
     renderHandoff(s);
     renderStatus(s);
+    if (!gitAsked) { gitAsked = true; L.panes.refreshScm(); drawPane(); }
   }
 
   L.ide = {
@@ -571,6 +675,23 @@ function client() {
     closeEditor: function () { L.source.closeActive(); },
     find: function () { L.source.findPrompt(); },
     toggleSide: toggleSide, togglePanel: function () { return togglePanel(null); }, toggleBot: toggleBot, showPanel: showPanel,
+    showPane: showPane, askBot: askBot, askAboutSelection: askAboutSelection,
+    searchFor: function (q, o) { L.panes.searchFor(q, o); },
+    /** The debugger's state moved (pagedebug.js): redraw its panel if it is the open one. */
+    rerenderPanel: function () {
+      var s = S();
+      if (!s || !s.workspace || s.workspace.openPanel !== 'DEBUG' || !L.debug || L.debug.busy($('drawer'))) return;
+      $('drawer').dataset.panel = 'DEBUG';
+      $('drawer').textContent = '';
+      L.debug.renderPanel($('drawer'));
+    },
+    problemsChanged: function () {
+      var s = S();
+      if (!s || L.nav.tab() !== 'ide' || !attached()) return;
+      if (s.workspace && s.workspace.openPanel === 'PROBLEMS') L.panes.problemsPanel($('drawer'));
+      renderStatus(s);
+    },
+    gitChanged: function () { renderScmBadge(); var s = S(); if (s && attached()) renderStatus(s); },
   };
 
   L.onBoot(function () {
@@ -579,7 +700,7 @@ function client() {
     $('ideOpenIc').appendChild(L.icon('folder', 19));
     $('ideNew').onclick = newProject;
     $('ideOpen').onclick = openProject;
-    var icons = { explorer: 'files', search: 'search', changes: 'changes' };
+    var icons = { explorer: 'files', search: 'search', scm: 'changes', run: 'play', extensions: 'ext' };
     Array.prototype.forEach.call(document.querySelectorAll('.act-btn[data-pane]'), function (b) {
       b.insertBefore(L.icon(icons[b.getAttribute('data-pane')], 20), b.firstChild);
       b.onclick = function () { showPane(b.getAttribute('data-pane')); };
@@ -588,17 +709,16 @@ function client() {
     $('botToggle').appendChild(L.icon('bot', 20));
     $('botToggle').onclick = toggleBot;
     $('sideRefresh').appendChild(L.icon('refresh', 14));
-    $('sideRefresh').onclick = function () { L.source.loadRoot(); };
-    $('botGear').appendChild(L.icon('gear', 15));
+    $('sideRefresh').onclick = refreshPane;
     $('botMore').appendChild(L.icon('chevron', 15));
-    $('botGear').onclick = function () { var c = $('botModels').classList.toggle('collapsed'); setPref('models', !c); };
     $('botMore').onclick = botMore;
-    $('botModelBtn').onclick = function () { L.models.pickBot($('botModelBtn')); };
-    $('codeModelBtn').onclick = function () { L.models.pickCoding($('codeModelBtn')); };
-    $('fileSearch').addEventListener('input', fileSearch);
+    $('paneBot').onclick = function () { showBotPane('bot'); };
+    $('paneAgent').onclick = function () { showBotPane('agent'); };
+    $('sbBranch').onclick = function () { showPane('scm', true); };
+    $('sbProblems').onclick = function () { showPanel('PROBLEMS'); };
+    $('sbModel').onclick = function () { L.models.pickCoding($('sbModel')); };
     if (!pref('side', true)) $('main').classList.add('side-off');
     if (!pref('bot', true)) $('main').classList.add('bot-off');
-    if (!pref('models', true)) $('botModels').classList.add('collapsed');
     $('botToggle').setAttribute('aria-selected', String(pref('bot', true)));
     drawPane();
     L.nav.onShow('ide', function () { loadRecent(); });
@@ -610,7 +730,10 @@ function client() {
       else if (ctrl && e.key === '`') { e.preventDefault(); togglePanel('TERMINAL'); }
       else if (ctrl && e.altKey && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); toggleBot(); }
       else if (ctrl && e.shiftKey && (e.key === 'E' || e.key === 'e')) { e.preventDefault(); showPane('explorer'); }
-      else if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); showPane('search'); }
+      else if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); showPane('search', true); }
+      else if (ctrl && e.shiftKey && (e.key === 'G' || e.key === 'g')) { e.preventDefault(); showPane('scm', true); }
+      else if (ctrl && e.shiftKey && (e.key === 'X' || e.key === 'x')) { e.preventDefault(); showPane('extensions', true); }
+      else if (ctrl && e.shiftKey && (e.key === 'M' || e.key === 'm')) { e.preventDefault(); showPanel('PROBLEMS'); }
       else if (ctrl && !e.shiftKey && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); L.source.closeActive(); }
     });
   });

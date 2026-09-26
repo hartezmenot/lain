@@ -160,6 +160,12 @@ LAIN.terminal = (function () {
             else { ln.length = 0; state.col = 0; }
           } else if (fin === 'J') {               // erase in display
             state.lines = [[]]; state.col = 0;
+          } else if (fin === 'G') {               // column (the pseudoconsole's redraws)
+            state.col = Math.max(0, (parseInt(args, 10) || 1) - 1);
+          } else if (fin === 'C') {               // (absolute position, H, is ignored: a log has no rows to place it on)
+            state.col += parseInt(args, 10) || 1;
+          } else if (fin === 'D') {
+            state.col = Math.max(0, state.col - (parseInt(args, 10) || 1));
           }
           i = j;
           continue;

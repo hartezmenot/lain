@@ -107,8 +107,44 @@ function client() {
     });
   }
 
+  /**
+   * TYPESCRIPT / JAVASCRIPT AS A PROJECT WOULD HAVE IT: Node resolution, JSX,
+   * JS allowed. Package types in node_modules are not loaded into the editor,
+   * so "cannot find module 'react'" (2307/2792/7016) is not reported — a
+   * missing RELATIVE module is still seen, because the files a file imports are
+   * loaded as models (see `imports`).
+   */
+  function typescript() {
+    var ts = M.languages.typescript;
+    if (!ts) return;
+    [ts.typescriptDefaults, ts.javascriptDefaults].forEach(function (d) {
+      d.setCompilerOptions({
+        target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.NodeJs,
+        allowJs: true, checkJs: false, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, allowSyntheticDefaultImports: true,
+        allowNonTsExtensions: true, skipLibCheck: true, resolveJsonModule: true,
+      });
+      d.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false, diagnosticCodesToIgnore: [2307, 2792, 7016] });
+      d.setEagerModelSync(true);
+    });
+  }
+
+  /** Load the project files this file imports, so types resolve across files. */
+  var importsDone = {};
+  async function imports(f) {
+    if (!/^(typescript|javascript)$/.test(f.mode || '') || importsDone[f.path]) return;
+    importsDone[f.path] = true;
+    var specs = [];
+    var re = /(?:from\s+|import\s*\(\s*|require\s*\(\s*|import\s+)['"](\.{1,2}\/[^'"]+)['"]/g;
+    var m;
+    while ((m = re.exec(f.body)) && specs.length < 30) specs.push(m[1]);
+    if (!specs.length) return;
+    var r = await L.api('/api/ide/resolve', { from: f.path, specs: specs });
+    ((r && r.files) || []).forEach(function (x) { ensureModel(x.path); });
+  }
+
   function init() {
     theme();
+    typescript();
     var host = $('edMonaco');
     ed = M.editor.create(host, {
       theme: 'lain-dark', automaticLayout: true, fontFamily: '"Cascadia Code","Cascadia Mono",Consolas,monospace',
@@ -131,11 +167,51 @@ function client() {
     ed.addCommand(K.CtrlCmd | C.Backquote, function () { L.ide.showPanel('TERMINAL'); });
     ed.addCommand(K.CtrlCmd | K.Shift | C.KeyF, function () { L.ide.showPane('search'); });
     ed.addCommand(K.CtrlCmd | K.Alt | C.KeyB, function () { L.ide.toggleBot(); });
+    // NAVIGATION IS LAIN'S OWN ACTIONS — F12, Shift+F12, F2 — so they work for
+    // every language, not only the ones with a Monaco service, and so they open
+    // files through the IDE's buffers. They appear in F1 and the context menu.
+    ed.addAction({ id: 'lain.goToDefinition', label: 'Go to Definition', keybindings: [C.F12], contextMenuGroupId: 'navigation', contextMenuOrder: 1, run: function () { goToDefinition(); } });
+    ed.addAction({ id: 'lain.findReferences', label: 'Find All References', keybindings: [K.Shift | C.F12], contextMenuGroupId: 'navigation', contextMenuOrder: 2, run: function () { findReferences(); } });
+    ed.addAction({ id: 'lain.renameSymbol', label: 'Rename Symbol', keybindings: [C.F2], contextMenuGroupId: '1_modification', contextMenuOrder: 1, run: function () { renameSymbol(); } });
+    ed.addAction({ id: 'lain.askBot', label: 'Ask BOT about Selection', keybindings: [K.CtrlCmd | K.Shift | C.KeyL], contextMenuGroupId: 'lain', contextMenuOrder: 1, run: function () { if (L.ide && L.ide.askAboutSelection) L.ide.askAboutSelection(); } });
+    ed.addAction({
+      id: 'lain.formatDocument', label: 'Format Document', keybindings: [K.Shift | K.Alt | C.KeyF], contextMenuGroupId: '1_modification', contextMenuOrder: 2,
+      run: function () {
+        var a = ed.getAction('editor.action.formatDocument');
+        if (!a) return;
+        formatting = true;
+        return Promise.resolve(a.run()).then(function () { formatting = false; }, function () { formatting = false; });
+      },
+    });
     ed.onDidChangeCursorSelection(function () { status(); report(); });
     registerProviders();
     M.editor.onDidChangeMarkers(function () { if (L.ide && L.ide.problemsChanged) L.ide.problemsChanged(); report(); });
+    // THE PERSON'S EDITOR PROFILE (Core's editor.json — imported VS Code /
+    // Cursor settings, keys and snippets, plus extension snippets): pageprofile.js.
+    if (L.profile) L.profile.attach(M, ed);
+    extensionLanguages();
     state = 'ready';
     src().renderEditor();
+  }
+
+  /**
+   * LANGUAGES EXTENSIONS DECLARE (contributes.languages): their file associations
+   * reach the editor, so a .lt file opens as "lt". No grammar is applied — the
+   * compatibility report says so (Core: exthost/manager.js).
+   */
+  function extensionLanguages() {
+    L.api('/api/exthost/status', {}).then(function (r) {
+      var known = {};
+      M.languages.getLanguages().forEach(function (l) { known[l.id] = true; });
+      ((r && r.extensions) || []).forEach(function (x) {
+        if (!x.enabled) return;
+        (x.languages || []).forEach(function (l) {
+          if (known[l.id]) return;
+          known[l.id] = true;
+          M.languages.register({ id: l.id, extensions: l.extensions, filenames: l.filenames, aliases: l.aliases });
+        });
+      });
+    }, function () { /* no extensions: nothing to associate */ });
   }
 
   // ---- languages: definitions and references from Core ------------------------------
@@ -189,6 +265,98 @@ function client() {
     });
   }
 
+  // ---- F12 / Shift+F12 / F2 ------------------------------------------------------------
+  function tsWorkerFor(model) {
+    var ts = M.languages.typescript;
+    var lang = model.getLanguageId();
+    if (!ts || (lang !== 'typescript' && lang !== 'javascript')) return null;
+    return (lang === 'typescript' ? ts.getTypeScriptWorker : ts.getJavaScriptWorker)().then(function (get) { return get(model.uri); });
+  }
+  function lineAt(fileName, start) {
+    var m = M.editor.getModel(M.Uri.parse(fileName));
+    return m ? m.getPositionAt(start).lineNumber : 1;
+  }
+
+  async function goToDefinition() {
+    var model = ed.getModel();
+    var pos = ed.getPosition();
+    if (!model || !pos) return;
+    var w = model.getWordAtPosition(pos);
+    try {
+      var tw = tsWorkerFor(model);
+      if (tw) {
+        var worker = await tw;
+        var defs = await worker.getDefinitionAtPosition(model.uri.toString(), model.getOffsetAt(pos));
+        if (defs && defs.length && !/lib\..*\.d\.ts$/.test(defs[0].fileName)) {
+          var target = relOf(M.Uri.parse(defs[0].fileName));
+          await src().openFile(target, { line: lineAt(defs[0].fileName, defs[0].textSpan.start) });
+          return;
+        }
+      }
+    } catch (e) { /* fall through to the project index */ }
+    if (!w) return;
+    var r = await L.api('/api/ide/definition', { name: w.word });
+    var locs = (r && r.locations) || [];
+    if (!locs.length) { L.toast('No definition found for ' + w.word); return; }
+    if (locs.length === 1) { src().openFile(locs[0].path, { line: locs[0].line }); return; }
+    L.popover(document.getElementById('srcPath'), function (p) {
+      p.appendChild(el('h4', '', locs.length + ' definitions of ' + w.word));
+      locs.forEach(function (x) {
+        var b = el('button', 'opt', x.path + ':' + x.line);
+        b.onclick = function () { L.closePop(); src().openFile(x.path, { line: x.line }); };
+        p.appendChild(b);
+      });
+    });
+  }
+
+  function findReferences() {
+    var model = ed.getModel();
+    var pos = ed.getPosition();
+    var w = model && pos && model.getWordAtPosition(pos);
+    if (!w) return;
+    if (L.ide && L.ide.searchFor) L.ide.searchFor(w.word, { wholeWord: true, caseSensitive: true, regex: false });
+  }
+
+  /**
+   * RENAME: TypeScript/JavaScript through the language service, across every
+   * loaded file — the edits land in open buffers, marked unsaved, for the
+   * person to review and save. Other languages have no rename service here,
+   * and a text replace is not a rename, so the work is offered to the Coding
+   * Agent instead of guessed at.
+   */
+  async function renameSymbol() {
+    var model = ed.getModel();
+    var pos = ed.getPosition();
+    var w = model && pos && model.getWordAtPosition(pos);
+    if (!w) return;
+    var tw = tsWorkerFor(model);
+    if (!tw) {
+      var go = await L.confirm('Rename "' + w.word + '" across the project? This language has no rename service in the editor, so the Coding Agent will do it and show the changes.', { ok: 'Ask the Coding Agent' });
+      if (go && L.ide && L.ide.askBot) L.ide.askBot('Rename the symbol `' + w.word + '` (in ' + src().current().path + ') everywhere it is used in the project, and update all references.', 'agent');
+      return;
+    }
+    var v = await L.dialog({ title: 'Rename ' + w.word, fields: [{ key: 'n', label: 'New name', value: w.word }], ok: 'Rename' });
+    if (!v || !v.n || v.n === w.word) return;
+    var worker = await tw;
+    var locs = await worker.findRenameLocations(model.uri.toString(), model.getOffsetAt(pos), false, false, false);
+    if (!locs || !locs.length) { L.toast('This symbol cannot be renamed here.', true); return; }
+    var byFile = {};
+    locs.forEach(function (l) { (byFile[l.fileName] = byFile[l.fileName] || []).push(l); });
+    var files = Object.keys(byFile);
+    for (var i = 0; i < files.length; i++) {
+      var rel = relOf(M.Uri.parse(files[i]));
+      await src().openFile(rel);
+      var m = M.editor.getModel(M.Uri.parse(files[i]));
+      if (!m) continue;
+      var edits = byFile[files[i]].sort(function (a, b) { return b.textSpan.start - a.textSpan.start; }).map(function (l) {
+        var a = m.getPositionAt(l.textSpan.start), b = m.getPositionAt(l.textSpan.start + l.textSpan.length);
+        return { range: new M.Range(a.lineNumber, a.column, b.lineNumber, b.column), text: v.n };
+      });
+      m.pushEditOperations([], edits, function () { return null; });
+    }
+    L.toast('Renamed ' + locs.length + ' occurrence' + (locs.length === 1 ? '' : 's') + ' in ' + files.length + ' file' + (files.length === 1 ? '' : 's') + ' \u2014 review and save.');
+  }
+
   /** A model for a file not open in a tab, for peeks. Read-only until opened. */
   async function ensureModel(rel) {
     var uri = uriOf(rel);
@@ -200,10 +368,44 @@ function client() {
 
   // ---- drawing a file ------------------------------------------------------------------
   function active() { return state === 'ready'; }
+  var formatting = false;
+  /** How the save of this buffer is recorded: FORMATTER only when nothing but the formatter changed it. */
+  function saveOrigin(path) {
+    var buf = src().state().open.filter(function (x) { return x.path === path; })[0];
+    if (!buf) return 'USER';
+    var o = buf.formatted && !buf.typed ? 'FORMATTER' : 'USER';
+    buf.formatted = false; buf.typed = false;
+    return o;
+  }
 
   function hideSurfaces() { $('edMonaco').hidden = true; $('edImage').hidden = true; }
 
   /** Draw `f`, or say this module does not (pagesource then uses its fallback). */
+  /**
+   * THE ONE MODEL FOR A FILE, shared by every editor group (pagegroups.js): an
+   * edit typed in any group changes the one buffer. Created the way render()
+   * creates it, with the same change listener.
+   */
+  function modelFor(f) {
+    if (!M || !f) return null;
+    if (!models[f.path]) {
+      var uri = uriOf(f.path);
+      var existing = M.editor.getModel(uri);
+      var model = existing || M.editor.createModel(f.body, f.mode || undefined, uri);
+      var cur = models[f.path] = { model: model, view: null, rev: f.rev || 0 };
+      cur.sub = model.onDidChangeContent(function () {
+        var buf = src().state().open.filter(function (x) { return x.path === f.path; })[0];
+        if (!buf) return;
+        buf.body = model.getValue();
+        var dirty = buf.body !== buf.saved;
+        if (dirty) { if (formatting) buf.formatted = true; else buf.typed = true; }
+        if (dirty !== buf.dirty) { buf.dirty = dirty; src().renderTabs(); }
+        report();
+      });
+    }
+    return models[f.path].model;
+  }
+
   function render(f) {
     if (state === 'unloaded') load();
     if (!f) { hideSurfaces(); shown = null; if (ed) ed.setModel(null); status(); report(); return active(); }
@@ -223,6 +425,9 @@ function client() {
         if (!buf) return;
         buf.body = model.getValue();
         var dirty = buf.body !== buf.saved;
+        // WHO MADE THIS EDIT, for Core's provenance ledger: the formatter
+        // (while lain.formatDocument runs) or the person.
+        if (dirty) { if (formatting) buf.formatted = true; else buf.typed = true; }
         if (dirty !== buf.dirty) { buf.dirty = dirty; src().renderTabs(); }
         report();
       });
@@ -238,6 +443,7 @@ function client() {
       if (cur.view) ed.restoreViewState(cur.view);
       shown = f.path;
       touched(f.path);
+      imports(f);
     }
     status();
     report();
@@ -365,11 +571,14 @@ function client() {
     ctxTimer = setTimeout(function () {
       var S = L.state();
       if (!S || !S.workspace || !S.workspace.project || !S.workspace.project.attached) return;
-      var f = src().current();
-      var sel = ed && ed.getSelection();
-      var model = ed && ed.getModel();
+      // THE GROUP WITH FOCUS is what "this" refers to (pagegroups.js); group 1 otherwise.
+      var fg = L.groups && L.groups.focused ? L.groups.focused() : null;
+      var edx = fg ? fg.ed : ed;
+      var f = fg ? (src().state().open.filter(function (x) { return x.path === fg.path; })[0] || src().current()) : src().current();
+      var sel = edx && edx.getSelection();
+      var model = edx && edx.getModel();
       var selection = null;
-      if (sel && model && !sel.isEmpty()) selection = { text: model.getValueInRange(sel).slice(0, 6000), startLine: sel.startLineNumber, endLine: sel.endLineNumber };
+      if (sel && model && !sel.isEmpty()) selection = { text: model.getValueInRange(sel).slice(0, 6000), startLine: sel.startLineNumber, endLine: sel.endLineNumber, startCol: sel.startColumn, endCol: sel.endColumn };
       else if (!active() && f) {
         var t = $('srcText');
         if (t && t.selectionStart !== t.selectionEnd) {
@@ -381,7 +590,7 @@ function client() {
         file: f ? f.path : null, language: f ? (f.mode || f.language) : null, cursor: f ? cursor() : null, selection: selection,
         tabs: src().state().open.map(function (x) { return x.path; }),
         diagnostics: problems().slice(0, 40),
-        terminal: L.terminal && L.terminal.state ? L.terminal.state.id : null,
+        terminal: L.terminal && L.terminal.activeId ? L.terminal.activeId() : null,
       }).catch(function () { /* the next change reports again */ });
     }, 700);
   }
@@ -515,8 +724,9 @@ function client() {
     active: active, render: render, dispose: dispose, hits: hits, reveal: reveal, cursor: cursor, find: find,
     recent: recent, touched: touched, decorateRow: decorateRow, problems: problems, checkSaved: checkSaved,
     saveAs: saveAs, newFile: newFile, newFolder: newFolder, report: report, load: load,
+    goToDefinition: goToDefinition, findReferences: findReferences, renameSymbol: renameSymbol,
     state: function () { return state; }, focus: function () { if (ed) ed.focus(); },
-    monaco: function () { return M; }, editor: function () { return ed; },
+    monaco: function () { return M; }, editor: function () { return ed; }, saveOrigin: saveOrigin, modelFor: modelFor,
   };
 
   L.onBoot(function () {

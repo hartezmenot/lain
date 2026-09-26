@@ -53,8 +53,9 @@ const HTML = `
     <button class="vp" data-vp="tablet" aria-selected="false">Tablet</button>
     <button class="vp" data-vp="mobile" aria-selected="false">Mobile</button>
     <span class="spacer"></span>
-    <button class="btn small" id="wsPick">Select element</button>
-    <button class="btn small" id="wsReload">Reload</button>
+    <button class="btn small" id="wsExternal" title="Open this page in your own browser">Open externally</button>
+    <button class="btn small" id="wsPick" aria-pressed="false" title="Then click an element in the preview; LAIN opens the code that owns it">Pick element</button>
+    <button class="btn small" id="wsReload">Refresh</button>
   </div>
   <div class="ws-body" id="wsBody"></div>
   <div class="ws-foot">
@@ -82,6 +83,15 @@ const CSS = `
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-family:var(--mono);font-size:12px;margin:8px 0}
 .kv dt{color:var(--faint)} .kv dd{margin:0;color:var(--ink);word-break:break-all}
 .ws-foot{border-top:1px solid var(--line);padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap}
+#wsPick[aria-pressed=true]{background:var(--accent-weak);border-color:var(--accent-line);color:var(--ink)}
+.shotwrap{position:relative}
+.shotwrap.picking .shot{cursor:crosshair;outline:2px dashed var(--accent-line);outline-offset:2px}
+.pickbox{position:absolute;border:2px solid var(--accent);background:rgba(120,160,255,.14);pointer-events:none;border-radius:2px}
+.selsrc{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px}
+.selsrc button{text-align:left;font-family:var(--mono);font-size:12px;padding:4px 8px;border:1px solid var(--line2);border-radius:var(--radius-s);background:var(--surface);color:var(--ink)}
+.selsrc button:hover{border-color:var(--accent-line)}
+.selsrc .why{color:var(--faint);font-family:var(--sans,inherit);margin-left:6px}
+.selid{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin:2px 0 6px}
 `;
 
 function js() {
@@ -105,7 +115,8 @@ LAIN.workshop = (function () {
     // MISSING CONTRACT: a real restart-the-process route, distinct from
     // reloading the page a running server already serves.
     $('wsRestart').onclick = async function () { await api('/api/workshop/reload', {}); shoot(); };
-    $('wsPick').onclick = pick;
+    $('wsPick').onclick = togglePick;
+    $('wsExternal').onclick = external;
     $('wsBefore').onclick = function () { capture('before'); };
     $('wsAfter').onclick = function () { capture('after'); };
     $('wsVerify').onclick = verify;
@@ -144,7 +155,8 @@ LAIN.workshop = (function () {
   async function close() {
     await api('/api/workshop/close', {});
     await api('/api/workspace/panel', { action: 'close' });
-    W = { open: false, shot: null, before: null, after: null, picking: false, element: null, verify: null, vp: 'desktop' };
+    clearInterval(W.pollT);
+    W = { open: false, shot: null, before: null, after: null, picking: false, pickMode: false, pick: null, element: null, verify: null, vp: 'desktop' };
     layout();
     poll();
   }
@@ -202,27 +214,83 @@ LAIN.workshop = (function () {
     var r = await api('/api/workshop/pick', {});
     if (!r.ok) return notice(r.why, true);
     W.picking = true;
-    notice('Click the element in the preview window LAIN opened. Escape there cancels.');
     var tries = 0;
-    var t = setInterval(async function () {
+    clearInterval(W.pollT);
+    W.pollT = setInterval(async function () {
       tries += 1;
+      if (!W.pickMode) { clearInterval(W.pollT); W.picking = false; return; }
       var got = await api('/api/workshop/picked', {});
       if (got.ok && got.element) {
-        clearInterval(t);
+        clearInterval(W.pollT);
         W.picking = false;
-        W.element = got.element;
-        notice('');
-        $('wsAttach').disabled = false;
-        await api('/api/workshop/unpick', {});
         await shoot();
-        draw();
+        applyPick(got);
       } else if (tries > 120) {
-        clearInterval(t);
+        clearInterval(W.pollT);
         W.picking = false;
+        setPickMode(false);
         notice('');
       }
     }, 500);
   }
+
+  /**
+   * PICK ELEMENT — a mode, not a click handler that is always on. While it is
+   * on, a click on the preview (here, or in the preview window LAIN opened)
+   * selects that element; the answer is Core's canonical Selection and its one
+   * source binding, and the owning source opens in the editor.
+   */
+  function setPickMode(on) {
+    W.pickMode = Boolean(on);
+    $('wsPick').setAttribute('aria-pressed', String(W.pickMode));
+    var wrap = document.querySelector('#wsBody .shotwrap');
+    if (wrap) wrap.classList.toggle('picking', W.pickMode);
+  }
+  async function togglePick() {
+    if (W.pickMode) {
+      setPickMode(false);
+      clearInterval(W.pollT);
+      notice('');
+      await api('/api/workshop/unpick', {});
+      return;
+    }
+    setPickMode(true);
+    notice('Pick element: click the element in the preview. Escape or Pick element again cancels.');
+    pick();
+  }
+
+  /** The person's own browser, through the host's http(s)-only door. */
+  function external() {
+    var st = LAIN.state();
+    var url = st && st.workshop && st.workshop.url;
+    if (!url) return notice('The preview has no address yet \\u2014 start it first.', true);
+    if (!LAIN.openExternal) return notice('Opening your browser is not available in this window.', true);
+    LAIN.openExternal(url);
+  }
+
+  /**
+   * ONE ANSWER FOR BOTH PICK DOORS (Core: routes.js pickAnswer): the element,
+   * the canonical Selection id and generation, its binding, and the source to
+   * show. "this" now has an identity; nothing asks again.
+   */
+  function applyPick(r) {
+    W.element = r.element || null;
+    W.source = r.source || null;
+    W.pick = { selection: r.selection || null, generation: r.projectGeneration, open: r.open || null, alternatives: r.alternatives || [] };
+    setPickMode(false);
+    clearInterval(W.pollT);
+    api('/api/workshop/unpick', {}).catch(function () {});
+    $('wsAttach').disabled = !W.element;
+    if (r.open && LAIN.source && LAIN.source.openFile) {
+      LAIN.source.openFile(r.open.file, { line: r.open.line });
+      notice('Selected ' + (r.selection || '') + ' \\u2014 ' + r.open.why + ' opened: ' + r.open.file + ':' + r.open.line);
+    } else {
+      notice('Selected ' + (r.selection || 'the element') + ' \\u2014 no source file could be bound to it; say what it is and LAIN will look.');
+    }
+    draw();
+  }
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && W.pickMode) togglePick(); });
 
   async function capture(as) {
     var r = await api('/api/workshop/capture', { as: as });
@@ -242,13 +310,10 @@ LAIN.workshop = (function () {
     var r0 = img.getBoundingClientRect();
     var x = (ev.clientX - r0.left) * (img.naturalWidth / r0.width);
     var y = (ev.clientY - r0.top) * (img.naturalHeight / r0.height);
+    notice('Selecting\\u2026');
     var r = await api('/api/workshop/pick-at', { x: x, y: y });
     if (!r.ok) return notice(r.why, true);
-    W.element = r.element;
-    W.source = r.source || null;
-    $('wsAttach').disabled = !W.element;
-    notice('');
-    draw();
+    applyPick(r);
   }
 
   async function verify() {
@@ -304,11 +369,26 @@ LAIN.workshop = (function () {
       ba.appendChild(shotFig('After', W.after));
       body.appendChild(ba);
     } else if (W.shot) {
-      var live = shotFig((W.before ? 'Before captured \\u00b7 live' : 'Preview \\u00b7 ' + W.vp) + (W.reloaded ? '  \\u00b7  ' + W.reloaded : '') + '  \\u00b7  click to select', W.shot);
+      var live = shotFig((W.before ? 'Before captured \\u00b7 live' : 'Preview \\u00b7 ' + W.vp) + (W.reloaded ? '  \\u00b7  ' + W.reloaded : '') + (W.pickMode ? '  \\u00b7  click an element' : ''), W.shot);
       var img = live.querySelector('img');
-      img.style.cursor = 'crosshair';
       img.id = 'wsShot';
-      img.onclick = function (ev) { pickAtImage(img, ev); };
+      var wrap = el('div', 'shotwrap' + (W.pickMode ? ' picking' : ''));
+      img.parentNode.replaceChild(wrap, img);
+      wrap.appendChild(img);
+      img.onclick = function (ev) { if (W.pickMode) pickAtImage(img, ev); };
+      // THE PICKED ELEMENT, OUTLINED where the real browser measured it.
+      if (W.element && W.element.rect) {
+        var box = el('div', 'pickbox');
+        wrap.appendChild(box);
+        var place = function () {
+          if (!img.naturalWidth) return;
+          var k = img.clientWidth / img.naturalWidth;
+          var R = W.element.rect;
+          box.style.left = (R.x * k) + 'px'; box.style.top = (R.y * k) + 'px';
+          box.style.width = (R.w * k) + 'px'; box.style.height = (R.h * k) + 'px';
+        };
+        if (img.complete) place(); else img.onload = place;
+      }
       body.appendChild(live);
     }
 
@@ -316,6 +396,18 @@ LAIN.workshop = (function () {
     if (W.element) {
       var e = W.element;
       body.appendChild(el('div', 'ws-title', 'Selected element'));
+      if (W.pick && W.pick.selection) body.appendChild(el('div', 'selid', 'Selection ' + W.pick.selection + (W.pick.generation != null ? '  \\u00b7  project generation ' + W.pick.generation : '')));
+      if (W.pick && W.pick.alternatives && W.pick.alternatives.length) {
+        var srcs = el('div', 'selsrc');
+        W.pick.alternatives.forEach(function (a) {
+          var b = el('button', '');
+          b.appendChild(document.createTextNode(a.file + ':' + a.line));
+          b.appendChild(el('span', 'why', a.why));
+          b.onclick = function () { LAIN.source.openFile(a.file, { line: a.line }); };
+          srcs.appendChild(b);
+        });
+        body.appendChild(srcs);
+      }
       var dl = el('dl', 'kv');
       var put = function (k, v) { if (!v) return; dl.appendChild(el('dt', '', k)); dl.appendChild(el('dd', '', v)); };
       put('selector', e.selector);
@@ -417,7 +509,13 @@ LAIN.workshop = (function () {
     W.changeSig = sig;
   }
 
-  return { boot: boot, render: render, draw: draw };
+  /** THE focus.pick_element DOOR: open the preview if it is closed, then enter pick mode. */
+  async function startPick() {
+    if (!W.open) await toggle();
+    if (W.open && !W.pickMode) togglePick();
+  }
+
+  return { boot: boot, render: render, draw: draw, startPick: startPick };
 })();
 `;
 }

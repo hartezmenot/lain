@@ -456,11 +456,25 @@ class Shell : Form {
     ready = true;
   }
 
-  static void OpenExternally(string uri) {
-    if (String.IsNullOrEmpty(uri)) return;
-    if (!uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-      && !uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return;
-    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri) { UseShellExecute = true }); } catch { }
+  /**
+   * THE DEFAULT BROWSER, FOR A WEB ADDRESS AND NOTHING ELSE.
+   *
+   * ShellExecute on an arbitrary string is a program launcher: `file:`, a
+   * UNC path, `ms-settings:`, a custom protocol handler. So the string must
+   * PARSE as an absolute http(s) URI, carry no user:password (a phishing
+   * shape, and credentials in a URL end up in history), and be of sane length;
+   * what is handed to the shell is the parsed, normalised form, never the raw
+   * text. Returns why it refused, or null when the browser was asked.
+   */
+  static string OpenExternally(string raw) {
+    if (String.IsNullOrEmpty(raw) || raw.Length > 4096) return "not a web address";
+    Uri u;
+    if (!Uri.TryCreate(raw.Trim(), UriKind.Absolute, out u)) return "not a web address";
+    if (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp) return "only http and https addresses open in the browser";
+    if (!String.IsNullOrEmpty(u.UserInfo)) return "an address with a user name or password in it is not opened";
+    if (String.IsNullOrEmpty(u.Host) || u.IsUnc || u.IsFile) return "not a web address";
+    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true }); return null; }
+    catch (Exception e) { return "the browser could not be opened: " + e.Message; }
   }
 
   /**
@@ -471,12 +485,14 @@ class Shell : Form {
   void OnRendererMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e) {
     string json;
     try { json = e.WebMessageAsJson; } catch { return; }
-    // ---- THE HOST'S OWN THREE VERBS, AND NOTHING ELSE ---------------------
+    // ---- THE HOST'S OWN FIVE VERBS, AND NOTHING ELSE ----------------------
     //
-    // A folder picker, the tray tooltip and hiding the window are operating-
-    // system PRESENTATION: they need the window, and Core has none. They grant
-    // nothing — a picked path still goes to Core's /api/project/open, which
-    // checks it like a typed one. Every other message is forwarded untouched,
+    // A folder picker, a file picker, the tray tooltip, hiding the window and
+    // handing a web address to the default browser are operating-system
+    // PRESENTATION: they
+    // need the window, and Core has none. They grant nothing — a picked path
+    // still goes to Core's /api/project/open, which checks it like a typed one,
+    // and an address opens only if it is http(s). Every other message is forwarded untouched,
     // and an unknown verb is answered as unknown rather than guessed at.
     Dictionary<string, object> m = null;
     try { m = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>; } catch { m = null; }
@@ -502,6 +518,30 @@ class Shell : Form {
     } else if (ask == "hide") {
       Hide();
       body["ok"] = true;
+    } else if (ask == "pickFile") {
+      // A FILE TO HAND TO CORE (a .vsix to install). Like the folder picker it
+      // grants nothing: Core reads the path and checks it as if it were typed.
+      // The filter comes from a fixed list, never from the page.
+      string title = m.ContainsKey("title") ? Convert.ToString(m["title"], CultureInfo.InvariantCulture) : "Choose a file";
+      string kind = m.ContainsKey("kind") ? Convert.ToString(m["kind"], CultureInfo.InvariantCulture) : "";
+      using (var dlg = new OpenFileDialog()) {
+        dlg.Title = title;
+        dlg.Filter = kind == "vsix" ? "VS Code extension (*.vsix)|*.vsix" : "All files (*.*)|*.*";
+        dlg.CheckFileExists = true;
+        dlg.Multiselect = false;
+        bool chosen = dlg.ShowDialog(this) == DialogResult.OK;
+        body["ok"] = true;
+        body["cancelled"] = !chosen;
+        body["path"] = chosen ? dlg.FileName : null;
+      }
+    } else if (ask == "openExternal") {
+      // SIGN-IN AND "GET A KEY" PAGES OPEN IN THE PERSON'S OWN BROWSER — where
+      // their password manager, passkeys and MFA already are — never inside
+      // LAIN's page. See OpenExternally for what is and is not opened.
+      string url = m.ContainsKey("url") ? Convert.ToString(m["url"], CultureInfo.InvariantCulture) : "";
+      string why = OpenExternally(url);
+      body["ok"] = why == null;
+      if (why != null) body["why"] = why;
     } else {
       body["ok"] = false;
       body["why"] = "the host has no verb \"" + ask + "\"";
@@ -528,6 +568,7 @@ class Shell : Form {
       if (verb == "show") ShowWindow();
       else if (verb == "hide") Hide();
       else if (verb.StartsWith("notify:")) Notify(verb.Substring(7));
+      else if (verb.StartsWith("remind:")) Remind(verb.Substring(7));
       // CORE IS SHUTTING DOWN AND IS CLOSING ITS WINDOW. Asked rather than
       // killed, so `OnClosing` runs and the tray icon is DISPOSED — a killed
       // process leaves its icon in the notification area until somebody hovers
@@ -559,6 +600,36 @@ class Shell : Form {
       tray.BalloonTipIcon = ToolTipIcon.Info;
       tray.ShowBalloonTip(5000);
     } catch { /* a notification that cannot be shown is not worth failing over */ }
+  }
+
+  /**
+   * AN ASSISTANT DELIVERY — a reminder, a schedule's result, a watch that
+   * fired (src/assistant/delivery.js). Unlike a completion it is shown even
+   * when the window is in front: the person asked to be told at this moment.
+   * CLICKING IT OPENS LAIN WHERE IT BELONGS: the window is shown and the page
+   * is handed the navigation Core attached ({ nav: { tab, section, task } }) —
+   * navigation only, nothing runs.
+   */
+  string pendingNav;
+  void Remind(string json) {
+    if (tray == null || String.IsNullOrEmpty(json)) return;
+    try {
+      var o = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>;
+      if (o == null) return;
+      string title = o.ContainsKey("title") ? Convert.ToString(o["title"], CultureInfo.InvariantCulture) : "LAIN";
+      string text = o.ContainsKey("text") ? Convert.ToString(o["text"], CultureInfo.InvariantCulture) : "";
+      pendingNav = o.ContainsKey("nav") ? new JavaScriptSerializer().Serialize(o["nav"]) : null;
+      tray.BalloonTipTitle = title.Length > 63 ? title.Substring(0, 63) : title;
+      tray.BalloonTipText = String.IsNullOrEmpty(text) ? title : (text.Length > 240 ? text.Substring(0, 240) : text);
+      tray.BalloonTipIcon = ToolTipIcon.Info;
+      tray.ShowBalloonTip(10000);
+    } catch { /* a notification that cannot be shown is not worth failing over */ }
+  }
+  void RemindClicked() {
+    var nav = pendingNav;
+    pendingNav = null;
+    ShowWindow();
+    if (nav != null) ToRenderer("{\"nav\":" + nav + "}");
   }
 
   /**
@@ -680,6 +751,7 @@ class Shell : Form {
     tray.Visible = true;
     tray.ContextMenuStrip = menu;
     tray.DoubleClick += (s, e) => ShowWindow();
+    tray.BalloonTipClicked += (s, e) => RemindClicked();
   }
 
   /**

@@ -13,6 +13,7 @@
     "native/host.cs",
     "native/vendor.js",
     "webvendor.js",
-    "vendor/monaco/"
+    "vendor/monaco/",
+    "vendor/xterm/"
   ]
 }

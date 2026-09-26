@@ -208,6 +208,14 @@ function client() {
     });
     field(box, 'Font size', 'Cascadia Code, then Consolas.', seg);
     field(box, 'Unsaved edits', 'A file LAIN changes on disk while you have unsaved edits is never overwritten; the editor says so and waits.', el('span', 'val', 'Always protected'));
+    // AN IMPORTED PROFILE WINS OVER THE SIZE ABOVE (it is applied after), so say so.
+    var cur = L.profile && L.profile.current && L.profile.current();
+    var imp = cur && cur.profile && cur.profile.importedFrom;
+    var go = el('button', 'btn small', 'Open Extensions');
+    go.onclick = function () { L.nav.go('ide'); setTimeout(function () { L.ide.showPane('extensions', true); }, 0); };
+    field(box, 'VS Code / Cursor', imp
+      ? 'Imported from ' + imp.label + ' on ' + new Date(imp.at).toLocaleString() + ': ' + imp.settings + ' settings, ' + imp.keybindings + ' keybindings, ' + imp.snippets + ' snippets. Imported settings take precedence over the size above.'
+      : 'Import editor settings, keybindings and snippets from VS Code or Cursor in the IDE’s Extensions pane. Their files are only read.', go);
     pane.appendChild(box);
   }
   function shortcuts(pane) {
@@ -289,6 +297,8 @@ function client() {
   var NAV = [
     ['App', [['general', 'General', 'settings'], ['appearance', 'Appearance', 'spark'], ['editor', 'Editor', 'ide'], ['shortcuts', 'Shortcuts', 'arrow'], ['notifications', 'Notifications', 'ask']]],
     ['Tools', [['skills', 'Skills', 'spark'], ['mcp', 'MCP', 'plug'], ['integrations', 'Integrations', 'link']]],
+    // THE PROFESSIONAL TOOLING (pagedevsettings.js): its real state, from Core.
+    ['Development', function () { return (window.LAIN && LAIN.devSettings) ? LAIN.devSettings.PAGES : []; }],
     ['System', [['storage', 'Storage', 'folder'], ['privacy', 'Privacy', 'shield'], ['about', 'About', 'home']]],
   ];
   function nav() {
@@ -296,13 +306,13 @@ function client() {
     box.textContent = '';
     NAV.forEach(function (g) {
       box.appendChild(el('h5', '', g[0]));
-      g[1].forEach(function (it) {
+      (typeof g[1] === 'function' ? g[1]() : g[1]).forEach(function (it) {
         var b = el('button', 'snav');
         b.appendChild(L.icon(it[2], 15));
         b.appendChild(el('span', '', it[1]));
         if (it[0] === 'mcp' && tools) b.appendChild(el('span', 'sv', String(tools.servers.length)));
         b.setAttribute('aria-selected', String(page === it[0]));
-        b.onclick = function () { page = it[0]; openItem = null; draw(); };
+        b.onclick = function () { page = it[0]; openItem = null; if (L.devSettings) L.devSettings.invalidate(page); draw(); };
         box.appendChild(b);
       });
     });
@@ -335,6 +345,7 @@ function client() {
     else if (page === 'shortcuts') shortcuts(pane);
     else if (page === 'mcp') mcp(pane);
     else if (page === 'skills') skills(pane);
+    else if (L.devSettings && L.devSettings.draw(page, pane)) { /* drawn by pagedevsettings.js */ }
     else about(pane);
     pane.scrollTop = keep;
   }
@@ -347,7 +358,8 @@ function client() {
     L.nav.onShow('settings', function (o) {
       if (o && o.section) {
         var s = String(o.section).toLowerCase();
-        page = /mcp/.test(s) ? 'mcp' : /skill/.test(s) ? 'skills' : /short|key/.test(s) ? 'shortcuts' : /notif/.test(s) ? 'notifications' : /priv|trust|secur/.test(s) ? 'privacy'
+        page = /^ext/.test(s) ? 'extensions' : /lsp|language/.test(s) ? 'servers' : /runtime|process/.test(s) ? 'runtime' : /focus/.test(s) ? 'focus' : /debug/.test(s) ? 'debugging'
+          : /mcp/.test(s) ? 'mcp' : /skill/.test(s) ? 'skills' : /short|key/.test(s) ? 'shortcuts' : /notif/.test(s) ? 'notifications' : /priv|trust|secur/.test(s) ? 'privacy'
           : /path|stor|folder/.test(s) ? 'storage' : /integr|chrome|connect/.test(s) ? 'integrations' : /appear|theme/.test(s) ? 'appearance' : /editor/.test(s) ? 'editor' : /about/.test(s) ? 'about' : 'general';
         openItem = o.item || null;
       }

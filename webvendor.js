@@ -44,6 +44,71 @@ const PKG = Object.freeze({
   license: 'MIT',
 });
 
+/**
+ * THE TERMINAL EMULATOR — xterm.js, the one VS Code's terminal is, and its fit
+ * addon. Same rules: pinned, verified, only the browser build extracted.
+ */
+const XTERM = Object.freeze([
+  {
+    name: '@xterm/xterm', version: '5.5.0', dir: 'xterm',
+    url: 'https://registry.npmjs.org/@xterm/xterm/-/xterm-5.5.0.tgz',
+    integrity: 'sha512-hqJHYaQb5OptNunnyAnkHyM8aCjZ1MEIDTQu1iIbbTD/xops91NB5yq1ZK/dC2JDbVWtF23zUtl9JE2NqwT87A==',
+    keep: [/^package\/lib\/xterm\.js$/, /^package\/css\/xterm\.css$/],
+  },
+  {
+    name: '@xterm/addon-fit', version: '0.10.0', dir: 'xterm',
+    url: 'https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.10.0.tgz',
+    integrity: 'sha512-UFYkDm4HUahf2lnEyHvio51TNGiLK66mqP2JoATy7hRZeXaGMRDr00JiSF7m63vR5WKATF605yEggJKsw0JpMQ==',
+    keep: [/^package\/lib\/addon-fit\.js$/],
+  },
+]);
+const XTERM_DIR = path.join(VENDOR, 'xterm');
+
+function xtermDir() {
+  try { return fs.existsSync(path.join(XTERM_DIR, 'xterm.js')) && fs.existsSync(path.join(XTERM_DIR, 'addon-fit.js')) ? XTERM_DIR : null; } catch { return null; }
+}
+
+/** Fetch, verify and extract the kept files of one tarball into `into`. */
+async function fetchInto(pkg, into) {
+  const tgz = await download(pkg.url);
+  const got = crypto.createHash('sha512').update(tgz).digest('base64');
+  if (got !== pkg.integrity.slice('sha512-'.length)) throw new Error(`${pkg.name}@${pkg.version} failed its integrity check`);
+  const tar = zlib.gunzipSync(tgz);
+  let n = 0;
+  for (const e of tarEntries(tar)) {
+    if (e.type !== '0' && e.type !== '\0') continue;
+    if (!pkg.keep.some((re) => re.test(e.name))) continue;
+    fs.mkdirSync(into, { recursive: true });
+    fs.writeFileSync(path.join(into, path.posix.basename(e.name)), e.data);
+    n += 1;
+  }
+  if (!n) throw new Error(`${pkg.name} had none of the expected files`);
+  return n;
+}
+
+async function ensureXterm() {
+  if (xtermDir()) return { ok: true, dir: XTERM_DIR, fetched: false };
+  const staging = `${XTERM_DIR}.partial`;
+  fs.rmSync(staging, { recursive: true, force: true });
+  try {
+    for (const pkg of XTERM) await fetchInto(pkg, staging);
+    fs.writeFileSync(path.join(staging, 'VERSION'), XTERM.map((p) => `${p.name}@${p.version} (MIT)`).join('\n') + '\n');
+    fs.rmSync(XTERM_DIR, { recursive: true, force: true });
+    fs.renameSync(staging, XTERM_DIR);
+    return { ok: true, dir: XTERM_DIR, fetched: true };
+  } catch (e) {
+    fs.rmSync(staging, { recursive: true, force: true });
+    return { ok: false, why: e.message };
+  }
+}
+
+/** Everything the page vendors, fetched once. Never throws. */
+async function ensureAll() {
+  const a = await ensureMonaco().catch((e) => ({ ok: false, why: e.message }));
+  const b = await ensureXterm().catch((e) => ({ ok: false, why: e.message }));
+  return { ok: a.ok && b.ok, monaco: a, xterm: b, why: [a.why, b.why].filter(Boolean).join('; ') };
+}
+
 /** The directory to serve as `vendor/monaco`, or null when not vendored. */
 function monacoDir() {
   try { return fs.existsSync(path.join(MONACO, 'vs', 'loader.js')) ? MONACO : null; } catch { return null; }
@@ -139,7 +204,9 @@ function assetDirs() {
   const out = [];
   const m = monacoDir();
   if (m) out.push({ url: 'vendor/monaco', dir: m });
+  const x = xtermDir();
+  if (x) out.push({ url: 'vendor/xterm', dir: x });
   return out;
 }
 
-module.exports = { ensureMonaco, monacoDir, assetDirs, PKG, tarEntries };
+module.exports = { ensureMonaco, ensureXterm, ensureAll, monacoDir, xtermDir, assetDirs, PKG, XTERM, tarEntries };
