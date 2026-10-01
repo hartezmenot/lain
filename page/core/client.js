@@ -559,8 +559,9 @@ function client() {
     var supAt = function (x) { return typeof x.at === 'number' ? x.at : Date.parse(x.at || '') || 0; };
     var queue = sup.filter(function (x) { return !x.last; }).sort(function (a, b) { return supAt(a) - supAt(b); });
     var flushUntil = function (t) { while (queue.length && supAt(queue[0]) <= t) queue.shift().nodes.forEach(function (n) { box.appendChild(n); }); };
-    var lastAgent = -1;
-    msgs.forEach(function (m, i) { if (m.role === 'assistant' && m.by === 'agent') lastAgent = i; });
+    var lastAgent = -1; var lastUser = -1; var lastAsst = -1;
+    msgs.forEach(function (m, i) { if (m.role === 'assistant' && m.by === 'agent') lastAgent = i; if (m.role === 'user') lastUser = i; else lastAsst = i; });
+    var running = Boolean(S.header && S.header.status && /RUNNING|WAITING|QUEUED/.test(String(S.header.status.state || ''))) || Boolean(L.live && L.live.active());
     msgs.forEach(function (m, i) {
       flushUntil(Date.parse(m.at || '') || 0);
       var wrap = el('div', 'msg ' + m.role);
@@ -576,7 +577,12 @@ function client() {
       if (m.provenance) who.appendChild(el('span', 'prov', m.provenance.label));
       if (m.at) who.appendChild(el('span', 'at', timeOf(m.at)));
       wrap.appendChild(who);
-      wrap.appendChild(body(m.text));
+      // THE BODY AND ITS ACTIONS (chat/live.js): prose and code blocks; Copy · Edit · Retry · Continue on hover.
+      wrap.appendChild(L.live ? L.live.body(m.text) : body(m.text));
+      if (L.live) {
+        L.live.decorate(wrap, m, { lastUser: i === lastUser, lastAssistant: i === lastAsst && lastAsst > lastUser, running: running });
+        if (i === lastAsst && lastAsst > lastUser && !running) L.live.summaryFor(wrap);
+      }
       box.appendChild(wrap);
     });
     flushUntil(Infinity);
@@ -585,11 +591,15 @@ function client() {
     var plan = lane() === 'chat' ? L.plan.buildCard(S) : null;
     if (plan) box.appendChild(plan);
     L.plan.dirty = false;
+    // THE LIVE TURN goes last — the same node every time; it updates itself from Core's events (chat/live.js).
+    if (L.live) L.live.mount(box);
     if (atBottom) box.scrollTop = box.scrollHeight;
   }
 
   function renderActivity() {
     var h = S.harness, row = $('act');
+    // THE LIVE TURN ALREADY SAYS WHAT IS HAPPENING (chat/live.js): one place, never two lines for one fact.
+    if (L.live && L.live.active()) { row.hidden = true; return; }
     if (!h || !h.task) { row.hidden = true; return; }
     var a = h.activity || {};
     var state = String(a.state || h.task.state || '');

@@ -84,7 +84,7 @@ const STYLE = [
   'workbench/workshop', 'settings/bot', 'settings/assistant', 'model/local', 'model/model', 'usage/usage',
   'chat/sessions', 'settings/settings', 'chat/cowork', 'chat/image', 'shell/contextmenu',
   'shell/shell', 'shell/tracker', 'shell/update', 'chat/chat', 'chat/work', 'chat/plan', 'settings/prefs', 'settings/github', 'settings/storage', 'settings/feedback',
-  'mcp/mcp', 'settings/router', 'model/intel', 'model/dashboard', 'chat/stream',
+  'mcp/mcp', 'settings/router', 'model/intel', 'model/dashboard', 'chat/stream', 'chat/live',
 ];
 
 function css() {
@@ -95,7 +95,7 @@ function css() {
 
 /** Client scripts, in boot order: the runtime and the design system before any surface. */
 const SCRIPTS = [
-  'ui/icons', 'core/client', 'ui/tokens', 'ui/kit', 'core/keymap', 'core/contract', 'shell/shell', 'model/intel', 'shell/tracker', 'shell/update',
+  'ui/icons', 'core/client', 'ui/tokens', 'ui/kit', 'core/keymap', 'core/contract', 'chat/live', 'shell/shell', 'model/intel', 'shell/tracker', 'shell/update',
   'chat/plan', 'chat/work', 'workbench/workshop', 'workbench/source', 'workbench/editor', 'workbench/groups', 'workbench/debug',
   'workbench/devsettings', 'workbench/panes', 'chat/composer', 'chat/cowork', 'workbench/terminal', 'workbench/xterm', 'model/apikey',
   'shell/quick', 'shell/house', 'workbench/provenance', 'workbench/editorprofile', 'workbench/extensions', 'workbench/extpage', 'chat/image', 'shell/contextmenu',

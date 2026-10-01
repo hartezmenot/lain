@@ -96,6 +96,8 @@ function client() {
     if (L.nav.tab() !== 'model') return;
     // A MENU IS OPEN: a redraw would remove the control it is anchored to. The page is redrawn a moment after it closes.
     if (L.popDepth && L.popDepth() > 0) { clearTimeout(redrawLater); redrawLater = setTimeout(draw, 400); return; }
+    // A ROW IS BEING DRAGGED (dashboard.js wireDrag): the rows under the pointer stay until it is released.
+    if (L.dragging) { clearTimeout(redrawLater); redrawLater = setTimeout(draw, 250); return; }
     var pane = $('modelPane');
     var keep = pane.scrollTop;
     pane.textContent = '';

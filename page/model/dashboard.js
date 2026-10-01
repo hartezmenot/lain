@@ -58,6 +58,20 @@ const CSS = `
 .md-opt[data-method=api] .md-ic{background:var(--secondary-weak);color:var(--accent-secondary)}
 .md-t b{display:block;font-size:var(--fs-body);font-weight:600;color:var(--text-primary)}
 .md-t small{display:block;margin-top:3px;font-size:var(--fs-small);line-height:1.45;color:var(--text-secondary)}
+/* PRIORITY IS THE ORDER (2026-10-02): a quiet grip on the left; drag lifts the row and the others make room. */
+.dsh-rows .u-row{grid-template-columns:18px minmax(0,1fr) minmax(0,1.25fr) 28px;gap:6px 14px;position:relative;transition:transform var(--t-drop) var(--ease),opacity var(--t-hover) var(--ease)}
+.dsh-grip{width:18px;height:30px;display:grid;place-items:center;align-self:center;color:var(--text-muted);opacity:0;cursor:grab;touch-action:none;border-radius:var(--radius-sm);background:none;border:0;padding:0;transition:opacity var(--t-hover) var(--ease),color var(--t-hover) var(--ease)}
+.dsh-grip svg{width:14px;height:14px}
+.dsh-rows .u-row:hover .dsh-grip,.dsh-grip:focus-visible,.dsh-rows.dragging .dsh-grip{opacity:.8}
+.dsh-grip:hover{color:var(--text-primary)}
+.dsh-rows.dragging,.dsh-rows.dragging *{cursor:grabbing!important;user-select:none}
+.dsh-rows .u-row.lift{transition:none;z-index:3;background:var(--surface-raised);box-shadow:0 10px 28px rgba(0,0,0,.28),0 0 0 1px var(--border-subtle);border-radius:var(--radius-md)}
+.dsh-rows .u-row.lift + .u-row,.dsh-rows .u-row.lift{border-top-color:transparent}
+.u-row[data-enabled=false] .u-id,.u-row[data-enabled=false] .u-qs{opacity:.55}
+.dsh-new{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--accent-primary);padding:1px 6px;border-radius:999px;background:var(--accent-weak);margin-left:8px;vertical-align:middle}
+.dsh-gone .u-nm span{color:var(--text-muted)}
+.dsh-modelsnote{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-small);color:var(--accent-primary);margin-right:auto}
+@media (max-width:1000px){.dsh-rows .u-row{grid-template-columns:18px minmax(0,1fr) 28px}.dsh-rows .u-row .u-qs{grid-column:2 / -1}}
 `;
 
 /* eslint-disable no-var, prefer-arrow-callback, func-names, prefer-template -- renderer ES5 style */
@@ -132,7 +146,7 @@ function client() {
   function actions(sec) {
     if (sec === 'accts') {
       var c = counts();
-      var rf = U.button(D.refreshing ? 'Refreshing…' : 'Refresh', 'ghost', refresh, 'refresh'); rf.disabled = D.refreshing; rf.setAttribute('data-act', 'refresh'); rf.title = 'Discover accounts on this PC and re-read every provider’s reported quota';
+      var rf = U.button(D.refreshing ? 'Refreshing…' : 'Refresh all', 'ghost', refresh, 'refresh'); rf.disabled = D.refreshing; rf.setAttribute('data-act', 'refresh'); rf.title = 'Re-read every account (identity, health, quota) and every provider’s model list';
       var cn = U.button('Add account', 'pri', function () { go('connect'); }, 'plus'); cn.setAttribute('data-act', 'connect');
       // DAILY USE IS THE ACCOUNTS; migration and discovery live behind this menu.
       var more = U.overflow([
@@ -144,18 +158,48 @@ function client() {
       return [rf, cn, more];
     }
     if (sec === 'api') { var ad = U.button('Add API key', 'pri', addApi, 'plus'); ad.setAttribute('data-act', 'add-api'); return [ad]; }
+    if (sec === 'models') {
+      var out = [];
+      var nn = newModelCount();
+      if (nn) { var note = el('span', 'dsh-modelsnote', nn + ' new model' + (nn === 1 ? '' : 's')); note.setAttribute('data-newmodels', String(nn)); out.push(note); }
+      var rm = U.button(D.modelsRefreshing ? 'Refreshing…' : 'Refresh models', 'ghost', function () { refreshModels(null); }, 'refresh'); rm.disabled = Boolean(D.modelsRefreshing); rm.setAttribute('data-act', 'refresh-models'); rm.title = 'Ask every provider which models it serves now — nothing is selected for you';
+      out.push(rm);
+      return out;
+    }
     return [];
   }
+  /** REFRESH ALL — deliberately both: every account (identity, health, quota) and every provider's model list. */
   async function refresh() {
     if (D.refreshing) return;
     D.refreshing = true; redraw();
     try {
-      await Promise.all([L.api('/api/intel/refresh', {}).catch(function () { return null; }), loadDisc(true)]);
-      // THE PROVIDERS' MODEL CATALOGS are re-read by Core as well (appcatalog) — a new model appears without a restart.
-      await L.api('/api/accounts/refresh', { force: true }).catch(function () { return null; });
+      await Promise.all([L.api('/api/intel/refresh', { force: true }).catch(function () { return null; }), loadDisc(true)]);
+      var r = await L.api('/api/models/refresh', {}).catch(function () { return null; });
+      announceModels(r);
       await load(true);
     } finally { D.refreshing = false; redraw(); }
   }
+  /**
+   * REFRESH MODELS — one provider (`fid`) or all: the provider's own listing, as a new catalog generation. A model that
+   * appears is only made available: the default and every session keep what they had.
+   */
+  async function refreshModels(fid) {
+    if (D.modelsRefreshing) return;
+    D.modelsRefreshing = fid || 'all'; redraw();
+    try {
+      var r = await L.api('/api/models/refresh', fid ? { family: fid } : {}).catch(function (e) { return { ok: false, why: e.message }; });
+      if (!r || !r.ok) L.toast((r && r.why) || 'The model lists could not be read', true);
+      else announceModels(r, fid);
+      await load(true);
+    } finally { D.modelsRefreshing = null; redraw(); }
+  }
+  function announceModels(r, fid) {
+    if (!r || !r.ok) return;
+    var s = (r.summaries || []).filter(Boolean);
+    if (!s.length) { if (fid !== undefined) L.toast('Models are up to date' + (fid ? ' for ' + ((fam(fid) || {}).label || fid) : '') + '.'); return; }
+    L.toast(s.slice(0, 2).join('\n\n'));
+  }
+  function newModelCount() { return (D.fams || []).reduce(function (n, f) { return n + (f.newModels || 0); }, 0); }
 
   // ===============================================================================================================
   // ACCOUNTS — the connected accounts, one plane per provider. Nothing else.
@@ -222,9 +266,10 @@ function client() {
   function providerSection(f) {
     var n = f.accounts.length;
     var collapsed = Boolean(collapsedSet()[f.id]);
-    var limited = f.accounts.filter(function (a) { return a.limited; });
+    var limited = f.accounts.filter(function (a) { return a.limited && a.enabled !== false; });
+    var off = f.accounts.filter(function (a) { return a.enabled === false; }).length;
     var meta = el('span', '');
-    meta.appendChild(document.createTextNode(n + ' connected'));   // spec §57: "CODEX · 3 connected"
+    meta.appendChild(document.createTextNode(off ? (n - off) + ' enabled · ' + off + ' disabled' : plural(n, 'account', 'accounts')));
     if (limited.length) meta.appendChild(document.createTextNode(' · ' + limited.length + ' rate limited'));
     if (collapsed) {
       // COLLAPSED: the one thing worth reading — the account in use and its tightest window.
@@ -235,11 +280,13 @@ function client() {
     var acts = [];
     var pol = policySelect(f);
     acts.push(pol);
+    var rmb = U.button(D.modelsRefreshing === f.id ? 'Refreshing…' : 'Refresh models', 'ghost sm', function () { refreshModels(f.id); }, 'refresh'); rmb.disabled = Boolean(D.modelsRefreshing); rmb.setAttribute('data-refresh-models', f.id); rmb.title = 'Ask ' + f.label + ' which models it serves now';
+    acts.push(rmb);
     var add = U.button('Account', 'ghost sm', function () { connect(f.id); }, 'plus'); add.title = 'Add a ' + f.label + ' account'; add.setAttribute('data-add', f.id); acts.push(add);
     var owned = f.accounts.some(function (a) { return a.ownership === 'lain'; });
     acts.push(U.overflow([
       { label: 'Manage accounts', run: function () { providerSheet(f.id); } },
-      { label: 'Refresh all', run: function () { refreshFamily(f); } },
+      { label: 'Refresh accounts', note: 'identity, health and quota', run: function () { refreshFamily(f); } },
       { label: 'Change account policy', run: function () { setTimeout(function () { pol.click(); }, 0); } },
       { sep: true },
       { label: 'Detach all from Noema', danger: true, run: function () { detachAll(f, false); } },
@@ -259,11 +306,80 @@ function client() {
       limited.forEach(function (a) { var l = el('div', 'u-warnline', a.name + ' is rate limited' + (a.limited.until ? ' until ' + timeOf(a.limited.until) : '') + '.'); l.style.marginTop = 'var(--space-2)'; sec.appendChild(l); });
       return sec;
     }
-    var rows = el('div', 'u-rows');
+    var rows = el('div', 'u-rows dsh-rows'); rows.setAttribute('data-family-rows', f.id);
     f.accounts.forEach(function (a) { rows.appendChild(accountRow(f, a)); });
+    if (f.accounts.length > 1) wireDrag(rows, f);
     sec.appendChild(rows);
     var links = apiLinks(f); if (links) sec.appendChild(links);
     return sec;
+  }
+
+  // ---- PRIORITY BY DRAG (2026-10-02) ----------------------------------------------------------------------------
+  /**
+   * Hold the grip, move, release: the order IS the fallback priority (Core's fabric/store order — one mutation on
+   * release). The lifted row follows the pointer; the others make room with a short settle; nothing is redrawn.
+   */
+  function wireDrag(box, f) {
+    Array.prototype.forEach.call(box.querySelectorAll('.dsh-grip'), function (g) {
+      g.addEventListener('click', function (e) { e.stopPropagation(); });
+      g.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        var row = g.closest('.u-row');
+        var rows = Array.prototype.slice.call(box.children).filter(function (r) { return r.classList.contains('u-row'); });
+        var from = rows.indexOf(row);
+        if (from < 0 || rows.length < 2) return;
+        var rects = rows.map(function (r) { return r.getBoundingClientRect(); });
+        var h = rects[from].height;
+        var y0 = e.clientY; var to = from; var moved = false;
+        try { g.setPointerCapture(e.pointerId); } catch (x) { /* older engines */ }
+        function move(ev) {
+          var dy = Math.max(rects[0].top - rects[from].top, Math.min(rects[rows.length - 1].bottom - rects[from].bottom, ev.clientY - y0));
+          if (!moved && Math.abs(dy) < 3) return;
+          if (!moved) { moved = true; L.dragging = true; row.classList.add('lift'); box.classList.add('dragging'); }
+          row.style.transform = 'translateY(' + dy + 'px) scale(1.012)';
+          // THE LEADING EDGE decides: moving up, the row's top passing a neighbour's middle; moving down, its bottom.
+          var topEdge = rects[from].top + dy; var bottomEdge = rects[from].bottom + dy;
+          to = from;
+          for (var i = 0; i < rects.length; i++) {
+            var c = rects[i].top + rects[i].height / 2;
+            if (i < from && topEdge <= c && i < to) to = i;
+            if (i > from && bottomEdge >= c && i > to) to = i;
+          }
+          rows.forEach(function (r, i) {
+            if (i === from) return;
+            var s = (from < to && i > from && i <= to) ? -h : (from > to && i >= to && i < from) ? h : 0;
+            r.style.transform = s ? 'translateY(' + s + 'px)' : '';
+          });
+        }
+        function up() {
+          g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+          if (!moved) return;
+          setTimeout(function () { L.dragging = false; }, 200);
+          var target = to > from ? rects[to].bottom - rects[from].bottom : to < from ? rects[to].top - rects[from].top : 0;
+          row.classList.remove('lift');
+          row.style.transition = 'transform var(--t-drop) var(--ease)';
+          row.style.transform = 'translateY(' + target + 'px)';
+          setTimeout(function () {
+            rows.forEach(function (r) { r.style.transition = 'none'; r.style.transform = ''; });
+            if (to !== from) box.insertBefore(row, to > from ? rows[to].nextSibling : rows[to]);
+            void box.offsetHeight;   // the new order is laid out before transitions come back: no jump, no jitter
+            rows.forEach(function (r) { r.style.transition = ''; });
+            box.classList.remove('dragging');
+            if (to !== from) persistOrder(f, Array.prototype.map.call(box.querySelectorAll('.u-row'), function (r) { return r.getAttribute('data-account'); }));
+          }, 160);
+        }
+        g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+      });
+    });
+  }
+  /** One mutation, and the local order follows it — no reload, no redraw. */
+  async function persistOrder(f, ids) {
+    var by = {}; f.accounts.forEach(function (a) { by[a.id] = a; });
+    f.accounts = ids.map(function (id, i) { var a = by[id]; if (a) a.priority = i + 1; return a; }).filter(Boolean);
+    var r = await L.api('/api/intel/order', { family: f.id, order: ids }).catch(function (e) { return { ok: false, why: e.message }; });
+    if (!r || !r.ok) { L.toast((r && r.why) || 'The new order could not be saved', true); await load(true); redraw(); return; }
+    var n = by[ids[0]]; if (n) L.toast(n.name + ' is now first for ' + f.label);
   }
   /** THE PROVIDER FAMILY (Core's groups): the brand of this source, with every way it is reached. */
   function groupOf(f) { return (D.groups || []).filter(function (g) { return ['subscription', 'api', 'runtime', 'local'].some(function (k) { return (g[k] || []).indexOf(f.id) >= 0; }); })[0] || null; }
@@ -314,8 +430,9 @@ function client() {
   }
 
   function statusOf(a) {
-    if (a.inUse) return { dot: 'acc', text: 'In use by ' + a.inUse.by };
-    if (a.limited) return { dot: 'warn', text: 'Limited' + (a.limited.until ? ' until ' + timeOf(a.limited.until) : '') };
+    if (a.enabled === false) return { dot: '', text: 'Disabled' };
+    if (a.inUse) return { dot: 'acc', text: 'In use' };
+    if (a.limited) return { dot: 'warn', text: 'Rate limited' + (a.limited.until ? ' · resets ' + timeOf(a.limited.until) : '') };
     // SIGNED IN, NOT YET SHOWN TO ANSWER (Antigravity): its capabilities wait for a real message.
     if (a.verified === false) return { dot: 'warn', text: 'Not verified' };
     if (!a.usable) return { dot: 'warn', text: /models/i.test(a.why || '') ? 'Refresh to load models' : 'Not ready' };
@@ -333,7 +450,20 @@ function client() {
   }
   function accountRow(f, a) {
     var row = el('div', 'u-row click'); row.setAttribute('data-account', a.id); row.setAttribute('role', 'button'); row.tabIndex = 0;
+    row.setAttribute('data-enabled', String(a.enabled !== false));
     if (a.inUse) row.setAttribute('data-inuse', a.inUse.by);
+    // THE GRIP: the order is the priority. Quiet until hover; keyboard: ↑ / ↓ on the grip (and Move… in ⋯).
+    var grip = el('button', 'dsh-grip'); grip.type = 'button'; grip.setAttribute('data-grip', a.id);
+    grip.setAttribute('aria-label', 'Reorder ' + a.name + ' — priority ' + (a.priority || '') + ' of ' + f.accounts.length + '. Arrow keys move it.');
+    grip.title = f.accounts.length > 1 ? 'Drag to change the fallback order' : '';
+    grip.appendChild(L.icon('grip', 14));
+    grip.onkeydown = function (e) {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault(); e.stopPropagation();
+      moveTo(f, a, (a.priority || 1) - 1 + (e.key === 'ArrowUp' ? -1 : 1), true);
+    };
+    if (f.accounts.length < 2) grip.style.visibility = 'hidden';
+    row.appendChild(grip);
     var idc = el('div', 'u-id');
     var nm = el('div', 'u-nm'); nm.appendChild(el('span', '', a.name));
     var st = statusOf(a);
@@ -357,15 +487,21 @@ function client() {
       items.push({ label: 'Stop task…', run: function () { stopTask(a); } });
       items.push({ sep: true });
     }
+    var off = a.enabled === false;
     items.push({ label: 'Details', run: function () { accountSheet(f.id, a.id); } });
     items.push({ label: 'Rename…', run: function () { rename(f, a); } });
-    if (n > 1 && f.pinned !== a.id) items.push({ label: 'Use only this account', run: function () { pinOnly(f, a); } });
+    if (!off) items.push({ label: 'Refresh quota', run: function () { refreshAccount(f, a); } });
+    if (n > 1 && f.pinned !== a.id && !off) items.push({ label: 'Use only this account', run: function () { pinOnly(f, a); } });
+    items.push(off ? { label: 'Enable account', run: function () { setEnabled(f, a, true); } } : { label: 'Disable account', note: 'kept, never used for new requests', run: function () { setEnabled(f, a, false); } });
     if (n > 1) {
-      items.push({ label: 'Move priority earlier', disabled: a.priority <= 1, run: function () { moveIn(f, a, -1); } });
-      items.push({ label: 'Move priority later', disabled: a.priority >= n, run: function () { moveIn(f, a, 1); } });
+      var p = (a.priority || 1) - 1;
+      items.push({ sep: true });
+      items.push({ label: 'Move up', disabled: p <= 0, run: function () { moveTo(f, a, p - 1); } });
+      items.push({ label: 'Move down', disabled: p >= n - 1, run: function () { moveTo(f, a, p + 1); } });
+      items.push({ label: 'Move to top', disabled: p <= 0, run: function () { moveTo(f, a, 0); } });
+      items.push({ label: 'Move to bottom', disabled: p >= n - 1, run: function () { moveTo(f, a, n - 1); } });
     }
-    items.push({ label: 'Refresh quota', run: function () { refreshAccount(f, a); } });
-    if (a.verified === false) items.push({ label: 'Run a test message', disabled: used, run: function () { verifyAccount(f, a); } });
+    if (a.verified === false && !off) items.push({ label: 'Run a test message', disabled: used, run: function () { verifyAccount(f, a); } });
     items.push({ sep: true });
     items.push({ label: 'Detach from Noema', danger: true, disabled: used, run: function () { detach(f, a); } });
     if (a.ownership === 'lain') items.push({ label: 'Sign out', danger: true, disabled: used, run: function () { signOut(f, a); } });
@@ -377,17 +513,36 @@ function client() {
     await after(await L.api('/api/intel/alias', { id: a.id, name: v.n }), 'Renamed'); redraw();
   }
   async function pinOnly(f, a) { await after(await L.api('/api/intel/policy', { family: f.id, policy: 'pinned', pinned: a.id }), f.label + ': only ' + a.name); redraw(); }
-  async function moveIn(f, a, d) {
+  async function moveIn(f, a, d) { return moveTo(f, a, (a.priority || 1) - 1 + d); }
+  /** Keyboard parity with the drag: the same one mutation, then the grip keeps focus. */
+  async function moveTo(f, a, j, refocus) {
     var ids = f.accounts.map(function (x) { return x.id; });
-    var i = ids.indexOf(a.id), j = i + d; if (i < 0 || j < 0 || j >= ids.length) return;
-    var t = ids[i]; ids[i] = ids[j]; ids[j] = t;
-    await after(await L.api('/api/intel/order', { family: f.id, order: ids }), 'Priority saved'); redraw();
+    var i = ids.indexOf(a.id);
+    if (i < 0 || j < 0 || j >= ids.length || i === j) return;
+    ids.splice(i, 1); ids.splice(j, 0, a.id);
+    await persistOrder(f, ids);
+    redraw();
+    if (refocus) setTimeout(function () { var g = document.querySelector('[data-grip="' + a.id + '"]'); if (g) g.focus(); }, 0);
+  }
+  /**
+   * ENABLE / DISABLE: Core state. A disabled account keeps its sign-in, quota history, models and place; it is never
+   * chosen for a new request. One a request is using right now is disabled AFTER that request — never cut off.
+   */
+  async function setEnabled(f, a, on) {
+    if (!on && a.inUse) {
+      var y = await L.confirm(a.name + ' is serving a request for the ' + a.inUse.by + ' right now. Disable it after the current request? That request finishes where it is.', { ok: 'Disable after current request' });
+      if (!y) return;
+    }
+    var r = await L.api('/api/intel/enable', { id: a.id, enabled: on }).catch(function (e) { return { ok: false, why: e.message }; });
+    if (!r || !r.ok) { L.toast((r && r.why) || 'not changed', true); return; }
+    L.toast(on ? a.name + ' is enabled — back at its place in the order.' : (r.afterCurrent ? a.name + ' will not be used after the current request.' : a.name + ' is disabled — kept, not used.'));
+    await load(true); L.poll(); redraw();
   }
   async function refreshAccount(f, a) {
     L.toast('Asking for ' + a.name + '’s limits…');
-    if (a.instanceId) await after(await L.api('/api/instances/refresh', { id: a.instanceId }), 'Refreshed');
-    else { await L.api('/api/intel/refresh', { family: f.id }).catch(function () { return null; }); await load(true); }
-    redraw();
+    var r = await L.api('/api/intel/refresh', { family: f.id, id: a.id, force: true }).catch(function () { return null; });
+    await load(true); redraw();
+    if (r && r.ok) L.toast(a.name + ': quota read');
   }
   /** ONE SHORT REAL MESSAGE through this account. Only its answer makes Chat and Assistant available for it. */
   async function verifyAccount(f, a) {
@@ -397,7 +552,7 @@ function client() {
     L.toast(a.name + ' answered — Chat and Assistant are now available for it.');
     await load(true); L.poll(); redraw();
   }
-  async function refreshFamily(f) { L.toast('Reading ' + f.label + '’s reported quota…'); await L.api('/api/intel/refresh', { family: f.id }).catch(function () { return null; }); await load(true); redraw(); }
+  async function refreshFamily(f) { L.toast('Reading ' + f.label + '’s accounts…'); await L.api('/api/intel/refresh', { family: f.id, force: true }).catch(function () { return null; }); await load(true); redraw(); }
 
   // ---- REMOVING AN ACCOUNT: three different acts, never "delete account" ------------------------------------------------
   /** A refusal because a request is running through the account: said plainly, with the way out. */
@@ -993,6 +1148,16 @@ function client() {
           groups[fid].forEach(function (m) { rows.appendChild(modelRow(fid, f, m)); });
           sec.appendChild(rows); out.appendChild(sec);
         });
+        // NO LONGER REPORTED: kept, labelled, never chosen — a session that used one still reads.
+        (D.fams || []).forEach(function (f) {
+          if (D.filt.family && D.filt.family !== f.id) return;
+          var gone = (f.unavailable || []).filter(function (g) { return !D.q || (g.label + ' ' + g.id).toLowerCase().indexOf(D.q.toLowerCase()) >= 0; });
+          if (!gone.length) return;
+          var gs = U.section({ id: 'gone-' + f.id, title: f.label + ' · no longer reported', mark: f.id, meta: 'Kept for history — not offered' });
+          var gr = el('div', 'u-rows');
+          gone.forEach(function (g) { var r0 = el('div', 'u-row dsh-gone'); r0.setAttribute('data-gone', f.id + '|' + g.id); var i0 = el('div', 'u-id'); var n0 = el('div', 'u-nm'); n0.appendChild(el('span', '', g.label)); var s0 = el('span', 'u-st', 'Unavailable'); n0.appendChild(s0); i0.appendChild(n0); r0.appendChild(i0); gr.appendChild(r0); });
+          gs.appendChild(gr); out.appendChild(gs);
+        });
         if (!order.length) { var es = U.section({ id: 'none', title: '' }); es.appendChild(D.q || D.filt.family || D.filt.capability ? U.empty('No model matches', 'Try another word, or clear the filters.') : U.empty('No models yet', 'Add an account or an API key and its models appear here.', 'Add account', function () { go('connect'); })); out.appendChild(es); }
         if (r.total > r.models.length) out.appendChild(el('div', 'u-note', r.models.length + ' of ' + r.total + ' shown — narrow the search.'));
       });
@@ -1006,6 +1171,7 @@ function client() {
     if (lanes.coding && lanes.coding.family === fid && lanes.coding.model === m.id) on.push('Coding');
     var row = el('div', 'u-row click dsh-mrow'); row.setAttribute('data-model', fid + '|' + m.id); row.setAttribute('role', 'button'); row.tabIndex = 0;
     var idc = el('div', 'u-id'); var nm = el('div', 'u-nm'); nm.appendChild(el('span', '', m.label));
+    if (m.isNew) { var nb = el('b', 'dsh-new', 'NEW'); nb.title = 'Listed by ' + (f.label || fid) + ' since its last refresh — nothing was selected for you'; nm.appendChild(nb); row.setAttribute('data-new', '1'); }
     if (on.length) { var s = el('span', 'u-st'); s.appendChild(U.dot('acc')); s.appendChild(document.createTextNode('In use · ' + on.join(' · '))); nm.appendChild(s); }
     idc.appendChild(nm); row.appendChild(idc);
     var mid = el('div', 'u-qs');
