@@ -57,6 +57,24 @@ async function discover(app) {
 async function telemetry(app, { prev = null } = {}) {
   const bin = binary(app);
   if (!bin) return { ok: false, why: 'not installed' };
+  // ASKED, NOT RUN (claudecontrol.js): identity, the live model catalog and the plan windows from one status session in
+  // the person's own profile — Claude Code reads its sign-in; Noema reads none, and nothing is generated.
+  const a = await require('./claudecontrol').ask({ command: bin, args: [] }, {}, { usage: true });
+  if (a.ok) {
+    const models = (a.models && a.models.length ? a.models : ALIASES.map((x) => ({ id: x, label: `Claude ${x[0].toUpperCase()}${x.slice(1)}`, efforts: [] })))
+      .map((m) => ({ id: `${ID}/${m.id}`, alias: m.id, label: `${m.label} · Claude Code`, roles: ['CHAT', 'BOT', 'AGENT'], efforts: m.efforts || [], capabilities: m.capabilities || null, resolved: m.resolved || (prev && prev.resolved && prev.resolved[m.id]) || null }));
+    return {
+      ok: true, at: Date.now(), why: null,
+      identity: { signedIn: Boolean(a.signedIn), method: a.account.apiProvider || null, plan: a.account.plan || null, email: maskEmail(a.account.email), provider: a.account.apiProvider || null, org: a.account.organization ? 'organization present' : null },
+      models,
+      modelsAt: Date.now(),
+      limits: a.limits && a.limits.windows.length ? a.limits : (prev && prev.limits) || null,
+      quotaAskedAt: Date.now(),
+      resolved: (prev && prev.resolved) || {},
+      lastRun: prev && prev.lastRun ? prev.lastRun : null,
+    };
+  }
+  // AN OLDER CLAUDE CODE (no control protocol): its own `auth status`, identity only.
   const r = await cliexec.collect(bin, ['auth', 'status'], { timeoutMs: 20000, purpose: 'runtime-probe', label: 'claude auth status' }).catch((e) => ({ ok: false, lines: [], stderr: e.message }));
   let st = null;
   try { st = JSON.parse(r.lines.join('\n')); } catch { st = null; }
@@ -67,7 +85,7 @@ async function telemetry(app, { prev = null } = {}) {
   return {
     ok: Boolean(st), at: Date.now(), why: st ? null : 'claude auth status gave no readable answer',
     identity,
-    models: ALIASES.map((a) => ({ id: `${ID}/${a}`, alias: a, label: `Claude ${a[0].toUpperCase()}${a.slice(1)} · Claude Code`, roles: ['CHAT', 'BOT', 'AGENT'], resolved: (prev && prev.resolved && prev.resolved[a]) || null })),
+    models: ALIASES.map((x) => ({ id: `${ID}/${x}`, alias: x, label: `Claude ${x[0].toUpperCase()}${x.slice(1)} · Claude Code`, roles: ['CHAT', 'BOT', 'AGENT'], resolved: (prev && prev.resolved && prev.resolved[x]) || null })),
     limits: prev && prev.limits ? prev.limits : null,
     resolved: (prev && prev.resolved) || {},
     lastRun: prev && prev.lastRun ? prev.lastRun : null,
@@ -80,17 +98,33 @@ function execution(app, tele) {
   return { chat: { ok: true, how: 'claude -p (no tools)' }, agent: { ok: true, how: 'claude -p with its own tools, in the project folder' } };
 }
 
-/** Claude Code's `rate_limit_event` → provider windows (as reported, never averaged). */
+/**
+ * Claude Code's `rate_limit_event` → provider windows (as reported, never averaged). Two shapes exist (Claude Code
+ * 2.1.286 schema): `unifiedWindows` { five_hour, seven_day, … } when the response carried every unified header, else
+ * ONE window — `rateLimitType` with its own `utilization` and `resetsAt`. Utilization arrives as a fraction (0–1);
+ * a value above 1 is already a percentage.
+ */
+const LIMIT_LABEL = Object.freeze({ five_hour: '5-hour', seven_day: '7-day', seven_day_opus: '7-day (Opus)', seven_day_sonnet: '7-day (Sonnet)', seven_day_overage_included: '7-day (overage)' });
+const pctOf = (u) => (Number.isFinite(u) ? Math.round((u <= 1 ? u * 100 : u) * 10) / 10 : null);
+const secMs = (t) => (Number.isFinite(t) ? (t < 1e11 ? t * 1000 : t) : null);
 function limitsFrom(ev) {
   const info = ev && ev.rate_limit_info;
   if (!info) return null;
-  const wins = info.unifiedWindows || {};
-  const label = { five_hour: '5-hour', seven_day: 'weekly', seven_day_opus: 'weekly (Opus)', seven_day_sonnet: 'weekly (Sonnet)' };
-  return {
-    at: Date.now(), status: info.status || null, overage: info.isUsingOverage === true,
-    windows: Object.entries(wins).map(([k, w]) => ({ id: k, label: label[k] || k.replace(/_/g, ' '), usedPercent: Number.isFinite(w.utilization) ? Math.round(w.utilization * 1000) / 10 : null, resetsAt: Number.isFinite(w.resetsAt) ? w.resetsAt * 1000 : null })),
-    basis: 'reported by Claude Code (rate_limit_event)',
-  };
+  let windows = Object.entries(info.unifiedWindows || {}).map(([k, w]) => ({ id: k, label: LIMIT_LABEL[k] || k.replace(/_/g, ' '), usedPercent: pctOf(w && w.utilization), resetsAt: secMs(w && w.resetsAt) }));
+  if (!windows.length && info.rateLimitType && info.rateLimitType !== 'overage' && (Number.isFinite(info.utilization) || Number.isFinite(info.resetsAt))) {
+    windows = [{ id: info.rateLimitType, label: LIMIT_LABEL[info.rateLimitType] || String(info.rateLimitType).replace(/_/g, ' '), usedPercent: pctOf(info.utilization), resetsAt: secMs(info.resetsAt) }];
+  }
+  windows = windows.filter((w) => w.usedPercent != null || w.resetsAt);
+  return { at: Date.now(), status: info.status || null, overage: info.isUsingOverage === true, windows, basis: 'reported by Claude Code (rate_limit_event)' };
+}
+
+/** A traffic reading may carry ONE window: it updates that window and keeps the others it did not mention. */
+function mergeLimits(prev, next) {
+  if (!next || !next.windows || !next.windows.length) return prev || null;
+  if (!prev || !Array.isArray(prev.windows)) return next;
+  const byId = new Map(prev.windows.map((w) => [w.id, w]));
+  for (const w of next.windows) byId.set(w.id, w);
+  return { ...prev, ...next, windows: [...byId.values()] };
 }
 
 /** The instance a runtime route names: runtime:claude-code:<id>, else null (the person's own default profile). */
@@ -198,7 +232,7 @@ function remember(app, alias, m, instanceId = null) {
     const tid = instanceId ? `${ID}--${instanceId}` : ID;
     const prev = ra.cachedTelemetry(tid) || {};
     const next = { ...prev };
-    if (m.limits) next.limits = m.limits;
+    if (m.limits) next.limits = mergeLimits(prev.limits, m.limits);
     if (alias && m.resolvedModel) next.resolved = { ...(prev.resolved || {}), [alias]: m.resolvedModel };
     next.lastRun = { at: Date.now(), ok: !m.cancelled && m.result && m.result.subtype === 'success' && !m.result.is_error, cancelled: m.cancelled };
     ra.saveTelemetry(tid, next);
@@ -209,5 +243,5 @@ module.exports = {
   id: ID, label: 'Claude Code', provider: 'anthropic', kind: 'runtime', icon: 'anthropic',
   source: 'Claude Code Runtime', authentication: 'Claude app / runtime sign-in (kept by Claude Code)',
   install: { docs: 'https://docs.anthropic.com/en/docs/claude-code/setup' },
-  binary, discover, telemetry, execution, chat, agent, runStream, limitsFrom, maskEmail, ALIASES, instanceOf,
+  binary, discover, telemetry, execution, chat, agent, runStream, limitsFrom, mergeLimits, maskEmail, ALIASES, instanceOf,
 };

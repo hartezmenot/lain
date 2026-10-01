@@ -54,7 +54,6 @@ async function* run(app, text, verdict, { from = null, typed = false, signal = n
   record.lane = 'coding';
   record.runtime = t ? t.runtime : null;
   session.messages.push({ role: 'user', content: String(text), ts: new Date().toISOString() });
-  require('./guardian').turnBegin(session.id, { turnId: record.turnId, model: t ? t.modelId : '', provider: t ? t.runtime : '', connectionId: t ? t.connectionId : '' });
   if (!t) {
     record.stopReason = 'provider';
     yield { type: 'notice', level: 'warn', message: 'The Coding Agent is no longer a runtime agent — choose it again in the gear.' };
@@ -77,6 +76,9 @@ async function* run(app, text, verdict, { from = null, typed = false, signal = n
     for await (const ev of adapter.agent(app, { prompt: String(text), model: t.modelId, effort: t.effort, cwd: session.cwd, signal, instanceId: t.instanceId })) {
       if (!ev) continue;
       if (ev.type === 'text') { out += ev.chunk; yield { type: 'text', chunk: ev.chunk }; continue; }
+      // THE RUNTIME'S OWN TOOLS, as facts every surface reads (sessionjournal.js) — a real WebSearch is shown as one.
+      if (ev.type === 'runtime_tool') { try { const target = ev.input ? String(ev.input.query || ev.input.url || ev.input.file_path || ev.input.path || ev.input.pattern || ev.input.command || '').split('\n')[0].slice(0, 160) : ''; require('./sessionjournal').note(app, { type: 'tool.start', id: ev.id || null, name: ev.name, target, runtime: t.runtime }); } catch { /* a record */ } }
+      if (ev.type === 'runtime_tool_result') { try { require('./sessionjournal').note(app, { type: 'tool.end', id: ev.id || null, name: '', ok: !ev.isError, runtime: t.runtime }); } catch { /* a record */ } continue; }
       if (ev.type === 'runtime_tool') { tools++; yield { type: 'notice', level: 'info', message: `${adapter.label} · ${ev.name}${ev.input && (ev.input.file_path || ev.input.path || ev.input.command) ? ` ${String(ev.input.file_path || ev.input.path || ev.input.command).slice(0, 120)}` : ''}` }; continue; }
       if (ev.type === 'usage') receipt = ev;
     }

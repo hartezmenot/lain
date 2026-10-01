@@ -77,6 +77,8 @@ const ROUTES = {
   },
   'POST /api/surface/takeback': async (app) => {
     const r = require('../surfacehandoff').takeBack(app);
+    // A LIVE host is asked, not displaced: 202 — it hands the session over at its next idle moment.
+    if (!r.ok && r.pending) return { code: 202, body: { ok: false, pending: true, why: r.why } };
     return r.ok ? ok(r) : bad(r.why, 409);
   },
 

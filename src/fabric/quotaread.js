@@ -3,9 +3,7 @@
 /**
  * PROVIDER QUOTA, READ — never inferred, never paid for (2026-09-29).
  *
- *   Claude   GET <api.anthropic.com>/api/oauth/usage
- *            the account's OWN OAuth token, from a LAIN-owned Claude profile
- *            (never the person's own profile — that store is Claude Code's)
+ *   Claude   asked of Claude Code itself (drivers/claudecontrol.js, `get_usage`) — Noema reads no Claude token
  *   Z.ai     GET <origin>/api/monitor/usage/quota/limit
  *            the API key LAIN holds for the Z.ai API source
  *   Codex    `account/rateLimits/read` through the account's own app-server —
@@ -36,9 +34,7 @@ const fs = require('fs');
 const path = require('path');
 
 const TIMEOUT_MS = 10000;
-const CLAUDE_LABEL = Object.freeze({ five_hour: '5-hour', seven_day: 'weekly', seven_day_opus: 'weekly (Opus)', seven_day_sonnet: 'weekly (Sonnet)' });
 
-function managementBase() { return String(process.env.LAIN_ANTHROPIC_MANAGEMENT_BASE || 'https://api.anthropic.com').replace(/\/+$/, ''); }
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const isoMs = (v) => { if (typeof v === 'string' && v.trim()) { const t = Date.parse(v); return Number.isFinite(t) ? t : null; } const n = num(v); return n && n > 0 ? (n < 1e11 ? n * 1000 : n) : null; };
 
@@ -51,57 +47,6 @@ async function getJson(url, headers, fetchImpl = globalThis.fetch) {
     const json = await r.json().catch(() => null);
     return { ok: r.ok, status: r.status, json };
   } finally { clearTimeout(timer); }
-}
-
-/** The OAuth sign-in Claude Code keeps in a profile LAIN made (its `.credentials.json`), or why there is none. */
-function claudeToken(home) {
-  let d = null;
-  try { d = JSON.parse(fs.readFileSync(path.join(home, '.credentials.json'), 'utf8')); } catch { return { ok: false, why: 'not signed in' }; }
-  const o = d && d.claudeAiOauth;
-  if (!o || !o.accessToken) return { ok: false, why: 'this profile holds no Claude sign-in token' };
-  if (o.expiresAt && Number(o.expiresAt) <= Date.now()) return { ok: false, expired: true, why: 'the sign-in token expired — Claude Code renews it on its next run' };
-  return { ok: true, token: String(o.accessToken) };
-}
-
-function claudeHeaders(token, version) {
-  return { Authorization: `Bearer ${token}`, Accept: 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'oauth-2025-04-20', 'user-agent': `claude-code/${version || '2.1'}` };
-}
-
-/**
- * CLAUDE: this account's windows, from Anthropic's usage endpoint.
- * @returns {{ ok: true, limits: { at, windows: [{ id, label, usedPercent, resetsAt }], basis } } | { ok: false, why, status? }}
- */
-async function claudeUsage(home, { fetchImpl, version } = {}) {
-  const t = claudeToken(home);
-  if (!t.ok) return t;
-  let r;
-  try { r = await getJson(`${managementBase()}/api/oauth/usage`, claudeHeaders(t.token, version), fetchImpl); } catch (e) { return { ok: false, why: `the usage endpoint did not answer: ${String((e && e.message) || e).slice(0, 80)}` }; }
-  if (!r.ok) return { ok: false, status: r.status, why: r.status === 401 || r.status === 403 ? 'Anthropic refused this sign-in for usage' : `the usage endpoint answered HTTP ${r.status}` };
-  const root = r.json && typeof r.json === 'object' ? r.json : {};
-  const windows = [];
-  for (const [id, label] of Object.entries(CLAUDE_LABEL)) {
-    const w = root[id];
-    if (!w || typeof w !== 'object') continue;
-    const used = num(w.utilization) != null ? num(w.utilization) : num(w.used_percent);
-    const resetsAt = isoMs(w.resets_at != null ? w.resets_at : w.reset_at);
-    if (used == null && !resetsAt) continue;
-    windows.push({ id, label, usedPercent: used == null ? null : Math.round(Math.max(0, Math.min(100, used)) * 10) / 10, resetsAt });
-  }
-  return { ok: true, limits: { at: Date.now(), status: null, windows, basis: 'reported by Anthropic (OAuth usage)' } };
-}
-
-/** CLAUDE: who a sign-in belongs to, from Anthropic (a status read) — how a migrated sign-in is verified. */
-async function claudeIdentity(home, { fetchImpl, version } = {}) {
-  const t = claudeToken(home);
-  if (!t.ok) return t;
-  let r;
-  try { r = await getJson(`${managementBase()}/api/claude_cli/bootstrap`, claudeHeaders(t.token, version), fetchImpl); } catch (e) { return { ok: false, why: `Anthropic did not answer: ${String((e && e.message) || e).slice(0, 80)}` }; }
-  if (!r.ok) return { ok: false, status: r.status, why: r.status === 401 || r.status === 403 ? 'Anthropic refused this sign-in' : `Anthropic answered HTTP ${r.status}` };
-  const j = r.json || {};
-  const acct = j.account || j.oauth_account || j.user || {};
-  const email = j.email || acct.email || acct.account_email || null;
-  const plan = j.subscription_type || j.subscriptionType || j.plan || acct.plan || null;
-  return { ok: true, identity: { email: email ? String(email) : null, plan: plan ? String(plan) : null } };
 }
 
 /** Z.AI: one limit entry → a window, by the provider's own (unit, number) pair; else by `type`; else nothing. */
@@ -171,4 +116,4 @@ async function refreshApi(app) {
   return out;
 }
 
-module.exports = { claudeUsage, claudeIdentity, claudeToken, zaiQuota, refreshApi, isZai, zaiWindowOf, managementBase };
+module.exports = { zaiQuota, refreshApi, isZai, zaiWindowOf };

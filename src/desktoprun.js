@@ -154,6 +154,8 @@ async function main(opts = {}) {
   await app.prepare();
   require('./botconnect').resume(app).catch(() => {});
   try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
+  try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
   if (mode === 'preview') {
     const root = (() => { try { const p = require('./sessionviews').project(app.session); return p.attached && !p.missing ? p.root : null; } catch { return null; } })();

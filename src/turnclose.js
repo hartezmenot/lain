@@ -148,7 +148,6 @@ function close(session, life, record) {
   // transaction itself — mutation.js `consequences` — once per kept change.)
   try { require('./tempworkspaces').sweep(null, session.id); } catch { /* retained; reconciled at the next start */ }
   try { profileTurn(life, record); } catch { /* a measurement, never a failure */ }
-  tellRuntime(session, record);
   require('./inflight').end(session);   // ended by a route LAIN saw — nothing to recover
   return record;
 }
@@ -178,52 +177,6 @@ function profileTurn(life, record) {
     onOutcome: Boolean(d && (d.contract.outcome || d.contract.criteria.length)),
   });
   if (life) { life._completionRequests = 0; life._falseCompletions = 0; life._repeatsReported = repeats; }
-}
-
-/**
- * THE RUNTIME LEARNS THE TURN IS OVER — and how it ended, and what it cost.
- *
- * turnBegin (turn.js) declared this turn to the Guardian with the pid that owns
- * it; this is the pairing call, and without it the runtime's handover boundary
- * NEVER closes: guardian.rs holds a session in needs-handover until it sees a
- * `turn_end`, which is exactly the evidence this sends.
- *
- * `OUTCOME` IS A WORD MAP, NOT A JUDGEMENT — and the distinction is load-bearing.
- * guardian.rs decides what an ending MEANS (whether the next sentence is held);
- * all that happens here is vocabulary: turnrecord says `end`, the runtime's
- * contract says `completed`, and `rate-limited`/`rate_limited` differ by a
- * hyphen. Every other stop reason is already the runtime's own word and passes
- * through unread — including the ones the runtime treats as failure, which is
- * the runtime's call to make.
- *
- * The usage note is the FINAL receipt. The live input figures were sent as they
- * arrived (turnevents.js) and REPLACE on the far side; this one ACCUMULATES,
- * once per turn, and is the only note that carries output tokens — a figure no
- * provider states before the end.
- *
- * Fire-and-forget like every observation: a wedged or missing supervisor costs
- * this call nothing, and `tell` drops it rather than throwing.
- */
-const OUTCOME = {
-  end: 'completed',
-  'rate-limited': 'rate_limited',
-};
-
-function tellRuntime(session, record) {
-  if (!session) return;
-  try {
-    const guardian = require('./guardian');
-    const failure = record.providerFailure || {};
-    guardian.turnEnd(session.id, {
-      outcome: OUTCOME[record.stopReason] || String(record.stopReason || 'completed'),
-      kind: String(failure.kind || ''),
-      reason: String(failure.message || ''),
-    });
-    // NO USAGE NOTE HERE, by design: every request's own receipt rides its
-    // `request_end` (turn.js), and the runtime accumulates per request — a
-    // turn-total note here would count every token twice. Live input figures
-    // still arrive as readings (turnevents.js) and REPLACE, never add.
-  } catch { /* an observation must never take the closing path with it */ }
 }
 
 /**

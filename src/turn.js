@@ -179,8 +179,6 @@ async function* runTurn(session, userInput, opts = {}) {
   let foldedOnce = false;
   let emptyRetried = false;
   session.contextAuthority.touch({ reason: 'turn-started' });
-  // THE RUNTIME LEARNS THE TURN EXISTS — owner_pid is how guardian.rs detects a dead owner. turnclose ends it.
-  require('./guardian').turnBegin(session.id, { turnId: record.turnId, model: pc.model, provider: pc.provider, connectionId: connId });
 
   // CIRCUIT BREAKER, checked BEFORE any socket. A route already known to be
   // down — or that the user disabled or put in maintenance — is skipped
@@ -284,8 +282,10 @@ async function* runTurn(session, userInput, opts = {}) {
     // THE REQUEST BOUNDARY: the runtime admits BEFORE the wire; a denial means
     // the provider is never called. Retries re-enter here, so every real
     // provider attempt gets its own request lifecycle. See guardian.js.
-    const gate = await require('./guardian').requestBegin(session.id,
-      { turnId: record.turnId, model: pc.model, provider: pc.provider, connectionId: connId });
+    // A ROUTE ANOTHER PROCESS LEARNED IS RATE LIMITED stays shut here too (providerhealth.routeShut — a file read,
+    // no IPC). Nothing on the request path waits for another process.
+    const shut = require('./providerhealth').routeShut(connId);
+    const gate = shut ? { allow: false, reason: shut } : null;
     // ABORT, RECHECKED AFTER THE AWAIT — it is the window a cancel lands in
     // (measured: a cancelled job's suspended turn walked past it into the wire
     // and ate a later test's provider step). A cancelled turn issues NOTHING.
@@ -340,9 +340,7 @@ async function* runTurn(session, userInput, opts = {}) {
       // can show a provider's 429 as though LAIN had malfunctioned.
       failure = errors.explain(e);
     } finally {
-      // ONE END PER REAL ATTEMPT, carrying that attempt's receipt; the runtime
-      // accumulates per request, so no turn-total usage note is sent anywhere.
-      require('./guardian').requestEnd(session.id, (gate && gate.request_id) || '', { usage });
+      // (the attempt's receipt is the usage record — usage.js — and nothing else is told)
     }
 
     // AN EMPTY REPLY IS NOT AN ANSWER: it settled as DONE, so every next prompt

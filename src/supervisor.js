@@ -395,82 +395,6 @@ async function events({ after = 0, limit = 50 } = {}, opts = {}) {
 async function status(jobId, opts = {}) { return call({ op: 'status', job_id: jobId }, opts); }
 async function cancel(jobId, opts = {}) { return call({ op: 'cancel', job_id: jobId }, opts); }
 
-// ---------------------------------------------------------------------------
-// PROVIDER HEALTH — the second thing that must outlive a LAIN process.
-//
-// `availability.js` holds this in a Map on the App, under a comment saying it
-// is in-memory by design because "a restart legitimately knows nothing". That
-// is right about a circuit breaker and wrong about a rate limit: when a
-// provider says `retry in 4 hours` it has stated a fact with a future in it,
-// and a LAIN that restarts five minutes later calls the closed route, is
-// refused, and pays for the same discovery again — while the model picker, the
-// one screen where "which of these can I use right now" is asked, shows the
-// closed door as untried.
-//
-// So the durable copy lives with the supervisor and the Map becomes a hot
-// mirror in front of it. See rust/lain-supervisor/src/providers.rs.
-//
-// STILL ALWAYS OPTIONAL. Every function here returns `{ok:false}` rather than
-// throwing when no binary is built, and `availability.js` works exactly as it
-// did before in that case — see the hard rule at the top of this file.
-// ---------------------------------------------------------------------------
-
-/**
- * A REQUEST HAPPENED AND THIS IS HOW IT WENT.
- *
- * The only way a machine may change provider state, and it mirrors the single
- * call site in turn.js where health is already learned from requests that were
- * going to happen anyway. There is no ping loop on either side of the socket.
- *
- * `resetAt` is an absolute epoch-ms time and 0 means THE PROVIDER DID NOT SAY.
- * That distinction is carried all the way through: the supervisor stores it as
- * null and every reader is expected to print "unknown reset" rather than draw a
- * countdown to a number nobody supplied.
- */
-async function noteProvider({
-  connectionId, ok = false, kind = '', reason = '', provider = '', model = '',
-  resetAt = 0, failureThreshold = 0,
-} = {}, opts = {}) {
-  if (!connectionId) return { ok: false, error: 'noteProvider needs a connectionId' };
-  return call({
-    op: 'provider_note',
-    connection_id: String(connectionId),
-    ok: Boolean(ok),
-    kind: String(kind || ''),
-    reason: String(reason || '').slice(0, 300),
-    provider: String(provider || ''),
-    model: String(model || ''),
-    reset_at: Math.max(0, Math.floor(Number(resetAt) || 0)),
-    failure_threshold: Math.max(0, Math.floor(Number(failureThreshold) || 0)),
-  }, opts);
-}
-
-/**
- * EVERY ROUTE THIS MACHINE KNOWS ABOUT — the reconnect path for provider state.
- *
- * Asked once at startup: a brand-new LAIN is told which doors were shut while
- * it did not exist, and until when.
- */
-async function providers(opts = {}) { return call({ op: 'provider_list' }, opts); }
-
-/** A decision a PERSON made — `/provider disable`, `/provider maintenance`. */
-async function setProvider(connectionId, statusWord, reason = '', opts = {}) {
-  if (!connectionId) return { ok: false, error: 'setProvider needs a connectionId' };
-  return call({ op: 'provider_set', connection_id: String(connectionId), status: String(statusWord || 'UNKNOWN'), reason: String(reason || '') }, opts);
-}
-
-/**
- * `/provider retry` — back to knowing nothing about this route.
- *
- * `forget` removes the row outright, for a connection that has been deleted
- * from the config; without it the store would keep answering about routes that
- * no longer exist.
- */
-async function clearProvider(connectionId, { forget = false } = {}, opts = {}) {
-  if (!connectionId) return { ok: false, error: 'clearProvider needs a connectionId' };
-  return call({ op: 'provider_clear', connection_id: String(connectionId), forget: Boolean(forget) }, opts);
-}
-
 /**
  * Every job the supervisor knows about, optionally for one session.
  *
@@ -518,6 +442,5 @@ function build({ release = true } = {}) {
 module.exports = {
   probe, ensure, submit, status, cancel, list, events, shutdown, shutdownIn, build, home,
   call, callIfRunning, callManyIfRunning, sendMany, invalidate,
-  noteProvider, providers, setProvider, clearProvider,
   endpoint, binary, alive, stateDir, endpointFile, TIMEOUT_MS, cleanupOwned,
 };

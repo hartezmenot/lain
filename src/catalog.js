@@ -618,6 +618,8 @@ async function refreshAndReport(app, { only = null } = {}, { C } = {}) {
 
   const after = app.catalog();
   const d = diff(before, after, current);
+  // EACH CONNECTION'S OWN GENERATION (modelcatalog.js) — the same record the Harness's Refresh models writes.
+  try { require('./modelcatalog').observeApi(app, { only }); } catch { /* recorded on the next refresh */ }
   // WHICH ONES WERE NEW, remembered past the end of this sentence. The picker
   // marks them; selecting one, or the next refresh, retires the mark. See
   // newmodels.js for the rule.

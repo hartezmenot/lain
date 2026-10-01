@@ -196,7 +196,10 @@ module.exports = async function () {
     const ra = require('../../src/runtimeadapters');
     const now = Date.now();
     const H = 3600e3;
-    ra.saveTelemetry('claude-code', { ok: true, limits: { basis: 'reported by Claude Code (rate_limit_event)', windows: [{ id: 'five_hour', label: '5-hour', usedPercent: 62, resetsAt: now + 2 * H }, { id: 'seven_day', label: 'weekly', usedPercent: 71, resetsAt: now + 3 * 24 * H }] } });
+    // THE ACCOUNT MUST BE CONNECTED to have windows (fabric/quotaview.js): the fake Claude Code, then its reading.
+    await require('../harness/fabricfixtures').claudeRuntime(app, tmpdir('p8-claude-'));
+    ra.saveTelemetry('claude-code', { ...(ra.cachedTelemetry('claude-code') || {}), ok: true, limits: { at: Date.now() + 1, basis: 'reported by Claude Code (rate_limit_event)', windows: [{ id: 'five_hour', label: '5-hour', usedPercent: 62, resetsAt: now + 2 * H }, { id: 'seven_day', label: 'weekly', usedPercent: 71, resetsAt: now + 3 * 24 * H }] } });
+    require('../../src/appcatalog').invalidate(); app._acctMemo = null; app._catMemo = null; app._fabricMemo = null;
     const rec = (at, over) => usage.record({ id: `r${Math.random()}`, at, ok: true, transport: 'runtime', runtime: 'claude-code', model: 'claude-code/opus', connection: 'runtime:claude-code', receipt: { inputTokens: 1000, outputTokens: 200, cacheReadTokens: 500, cacheCreationTokens: 50, reasoningTokens: 30, ...over } });
     rec(now - 1 * H);            // current 5-hour window (started now-3h)
     rec(now - 2 * H, { inputTokens: 3000 });

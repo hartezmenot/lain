@@ -86,6 +86,8 @@ function apply(app, ev, ctx) {
   // watching for; waiting for the next poll made the application look slower
   // than the work. It carries no state — see harnessapp/ipc.js wake().
   try { require('./harnessapp/ipc').wake(); } catch { /* no window is connected */ }
+  // THE SAME EVENT, AS A FACT OTHER SURFACES READ (sessionjournal.js): to the window as a delta, to the journal.
+  try { const j = require('./sessionjournal'); const e = j.fromTurnEvent(ev, ctx); if (e) j.note(app, e); } catch { /* a record, never a turn failure */ }
   switch (ev.type) {
     case 'text':
       app.render.text(ev.chunk);
@@ -175,10 +177,6 @@ function apply(app, ev, ctx) {
         };
         app.ui.refresh();
       }
-      // AND TO THE RUNTIME, which is what lets a client that is not this
-      // terminal — /dash today, an adapter later — read the same figure without
-      // a second accounting path. Fire-and-forget; free with no supervisor.
-      require('./guardian').noteUsage(app.session.id, ev, { live: true });
       break;
 
     case 'tool_start':

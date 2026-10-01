@@ -52,7 +52,7 @@
  * steerqueue.js follow, and for the reason stated there.
  */
 
-const guardian = require('./guardian');
+const guard = require('./turnguard');
 
 /** How much of a hold reason a one-line notice will carry. */
 const MAX_REASON = 160;
@@ -89,15 +89,14 @@ async function admit(app, text, { from = null } = {}) {
   if (!id) return { held: false };
   // ONE WRITER PER SESSION ACROSS SURFACES (surfacehandoff.js): while the Harness or
   // the CLI holds it, a sentence here is held with the reason — never written twice.
-  const lease = require('./surfacehandoff').check(app);
-  if (!lease.ok) { try { app.render.notice('warn', lease.why); } catch { /* no renderer */ } return { held: true, result: { held: 'surface', why: lease.why } }; }
-  // THE CLI IS NOW THE EXECUTION HOST for this session: it holds the writer (with its pid) until it exits.
-  try { require('./surfacehandoff').claim(app); } catch { /* bookkeeping */ }
+  // TAKEN, NOT JUST CHECKED (sessionlease.js): this surface becomes the session's execution host until it exits or hands over.
+  const sh = require('./surfacehandoff');
+  if (!sh.claim(app)) { const lease = sh.check(app); const why = lease.why || 'another surface holds this session'; try { app.render.notice('warn', why); } catch { /* no renderer */ } return { held: true, result: { held: 'surface', why } }; }
 
-  const verdict = await guardian.offer(id, text, { kind: from || 'user' });
-  if (verdict.deliver) return { held: false };
-
-  return { held: true, result: await recover(app, verdict) };
+  // THE SAME JUDGEMENT THE GUARDIAN MADE, read from the session itself (turnguard.js) — no process to ask.
+  const reason = guard.held(app);
+  if (!reason) return { held: false };
+  return { held: true, result: await recover(app, { reason, input: [{ text, at: Date.now(), reason }] }) };
 }
 
 /**
@@ -162,8 +161,7 @@ async function recover(app, verdict) {
   // built yet, let alone sent; clearing the flag now would mean a crash between
   // this line and the request produced a session that had forgotten it was
   // recovering, with the user's sentence already out of the queue.
-  const { taken } = await guardian.deliver(id, { keepHandover: true });
-  const rows = taken.length ? taken : [];
+  const rows = Array.isArray(verdict.input) ? verdict.input : [];
   const intent = rows.map((h) => h.text).filter(Boolean).join('\n');
 
   if (!intent) {
@@ -220,48 +218,4 @@ async function recover(app, verdict) {
   }
 }
 
-/**
- * INPUT THAT ARRIVED WITH NOBODY AT THE PROMPT.
- *
- * ------------------------------------------------------------------------
- * THE SECOND DOOR, AND IT OPENS ONTO THE SAME ROOM.
- *
- * A message from Telegram has no caller holding it: `admit` answers a question
- * that a waiting `handle` asked, and there is no `handle` here. So the runtime
- * writes remote intent into the SAME held queue a refused sentence lands in,
- * and this drains it through `recover` — the same refresh, the same take, the
- * same submit, the same packet when one is owed.
- *
- * There is exactly one continuation in LAIN. This is a door onto it, not a
- * second implementation of it, and that is the whole reason the queue is in the
- * runtime rather than in either surface.
- *
- * CALLED ONLY WHEN NOTHING IS IN FLIGHT. Draining into a running turn would be a
- * steer the user did not aim at this turn, and would race the transcript against
- * itself. (The /rc-era watcher that called this from a timer was removed with
- * /rc; the door stays — the Harness that inherits remote control will open it
- * rather than build a second recovery.)
- *
- * @returns {Promise<object|null>} the turn record, or null when nothing waited.
- */
-async function drainQueued(app) {
-  const session = app && app.session;
-  const id = session && session.id;
-  if (!id) return null;
-  const state = await guardian.pending(id);
-  const held = (state && state.held) || [];
-  if (!held.length) return null;
-
-  // THE RUNTIME'S OWN REASON, unread and unedited. Whether this becomes a plain
-  // turn or a recovery is decided by `handover_pending` at THIS moment — not at
-  // the moment the message was sent, which may have been an hour ago and a rate
-  // limit ago.
-  const s = (state && state.state) || {};
-  return recover(app, {
-    reason: s.needs_handover ? String(s.handover_reason || '') : '',
-    state: s,
-    queued: true,
-  });
-}
-
-module.exports = { admit, recover, drainQueued, kindOf, SAY };
+module.exports = { admit, recover, kindOf, SAY };

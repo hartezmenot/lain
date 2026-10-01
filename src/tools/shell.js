@@ -422,12 +422,7 @@ function noteVerified(ctx, command, output) {
   if (!session || !session.id) return false;
   const c = require('../testing').counts(output);
   if (!c || !c.seen) return false;
-  require('../guardian').verified(session.id, {
-    label: String(command).slice(0, 60),
-    passed: c.passed,
-    failed: c.failed,
-    detail: c.skipped ? `${c.skipped} skipped` : '',
-  });
+  if (ctx.app) require('../sessionjournal').note(ctx.app, { type: 'verified', label: String(command).slice(0, 60), passed: c.passed, failed: c.failed, detail: c.skipped ? `${c.skipped} skipped` : '' });
   return true;
 }
 

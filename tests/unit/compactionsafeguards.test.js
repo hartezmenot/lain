@@ -197,6 +197,7 @@ module.exports = async function () {
       { text: 'looking', tool_calls: [{ name: 'list_dir', input: { path: '.' } }] },
       { text: 'done' },
     ]);
+    require('../../src/mockprovider')._reset();   // this test's own script, whatever ran before it
     try {
       const s = new Session({ cwd: tmpdir('open-cwd-') });
       const tails = [];

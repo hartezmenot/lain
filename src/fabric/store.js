@@ -11,6 +11,7 @@
  *     version: 1,
  *     families:     { <family>: { policy: 'auto'|'pinned'|'ask', pinned: <accountId>|null, order: [accountId…] } },
  *     aliases:      { <accountId>: 'Personal' }            display names — identity is never changed
+ *     disabled:     { <accountId>: { at } }                kept, signed in, never routed (2026-10-02)
  *     placeholders: { <id>: { family, label, identityHint, provenance, state, note, discoveredAt } }
  *     quota:        { <accountId>: { windows: [...], limited: {until, reason}|null, at } }
  *     defaults:     { <role>: { family, model, effort, execution, policy, pinned } }
@@ -31,7 +32,7 @@ const EVENTS_KEPT = 60;
 
 function file() { return path.join(require('../config').configDir(), 'fabric.json'); }
 
-function empty() { return { version: 1, families: {}, aliases: {}, placeholders: {}, quota: {}, defaults: {}, seen: {}, events: [] }; }
+function empty() { return { version: 1, families: {}, aliases: {}, placeholders: {}, quota: {}, defaults: {}, seen: {}, disabled: {}, events: [] }; }
 
 let memo = null;   // { file, sig, value }
 // ANOTHER PROCESS'S WRITE is seen within 200 ms: the file is stat'ed at most that often (a poll reads the registry
@@ -58,7 +59,7 @@ function read() {
     const d = JSON.parse(fs.readFileSync(f, 'utf8'));
     if (d && typeof d === 'object') value = { ...empty(), ...d };
   } catch { /* first run, or unreadable: an empty registry */ }
-  for (const k of ['families', 'aliases', 'placeholders', 'quota', 'defaults', 'seen']) if (!value[k] || typeof value[k] !== 'object') value[k] = {};
+  for (const k of ['families', 'aliases', 'placeholders', 'quota', 'defaults', 'seen', 'disabled']) if (!value[k] || typeof value[k] !== 'object') value[k] = {};
   if (!Array.isArray(value.events)) value.events = [];
   // GEMINI OAUTH IS ANTIGRAVITY (8.4.1): an old record is read under its real family — nothing is deleted or rewritten here.
   for (const p of Object.values(value.placeholders)) if (p && p.family === 'gemini') p.family = 'antigravity';
@@ -136,6 +137,20 @@ function setAlias(accountId, name) {
   return { ok: true };
 }
 
+/**
+ * ENABLED / DISABLED (2026-10-02). A disabled account keeps its sign-in, its quota history, its models and its place
+ * in the priority order — it is simply never chosen for a NEW request and never used as a fallback. Different from
+ * Detach (forget it), Sign out (end the sign-in) and Delete (remove what Noema made). A request already running on it
+ * finishes there: disabling changes the next choice, never the one in flight.
+ */
+function isEnabled(accountId) { return !read().disabled[String(accountId || '')]; }
+function setEnabled(accountId, enabled) {
+  const id = String(accountId || '');
+  if (!id) return { ok: false, why: 'which account?' };
+  update((d) => { if (enabled) delete d.disabled[id]; else d.disabled[id] = { at: Date.now() }; return d; });
+  return { ok: true, enabled: Boolean(enabled) };
+}
+
 // ----------------------------------------------------------------- quota --
 
 /**
@@ -196,7 +211,7 @@ function reset() { memo = null; stats.clear(); }
 
 module.exports = {
   POLICY, POLICY_LABEL, ROLES, file, read, update, generation, event, events,
-  familyState, setPolicy, setOrder, alias, setAlias,
+  familyState, setPolicy, setOrder, alias, setAlias, isEnabled, setEnabled,
   quotaOf, recordQuota, limitedNow,
   placeholders, putPlaceholder, dropPlaceholder, stampSeen, seenAt,
   roleDefault, setRoleDefault, reset,

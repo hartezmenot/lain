@@ -7,11 +7,14 @@ of them is a bug.
 
 | Domain | Authority | Node's role |
 |---|---|---|
-| Input admission / held input | Rust Guardian (`offer`/`deliver`) | asks, obeys, recovers (inputgate.js) |
-| Turn lifecycle truth | Rust Guardian (`turn_begin/phase/end`, owner-pid liveness) | reports facts; word-maps the outcome, judges nothing |
-| **Request admission** | **Rust Guardian (`request_begin/end`)** — wired since the request-admission pass | turn.js awaits begin BEFORE the wire; denial ⇒ zero provider calls; every retry its own request id |
-| Provider transport execution | Node adapter (provider.js) | sends what the runtime admitted; classified failures only |
-| Provider health / rate limits (durable) | Rust supervisor (providers.rs) | availability.js is a process-local cache, refreshed before failover decisions |
+| **Who executes a session** | **sessionlease.js** — one lease file per session (`sessions/.lease/<id>.json`), compare-and-swap, pid + heartbeat; surfacehandoff.js is the surface vocabulary on top | every turn claims it in App.submit; a live owner is only ever ASKED (`/takeover`, Take over) — 2026-10-02, replaced the Rust Guardian's owner_pid |
+| Input admission / held input | turnguard.js — how the last turn ended, kept WITH the session (`workbench.guard`) | inputgate.js briefs the next sentence after a failed/lost turn (2026-10-02, replaced Guardian `offer`/`deliver`) |
+| Turn lifecycle record | sessionjournal.js — per-session event journal (`sessions/.journal/<id>.jsonl`), the same events pushed live to the window | turnauthority.js writes begin/end; turnevents.js writes tools/text; reasoning content never recorded |
+| Request admission | Node: availability.js + providerhealth.routeShut (a rate limit any process learned, until its stated reset) | nothing on the request path waits for another process |
+| Provider transport execution | Node adapter (provider.js) | classified failures only |
+| Provider health / rate limits (durable) | routehealth.js (`route-health.json`) — 2026-10-02, moved from the Rust supervisor | availability.js is a process-local cache, hydrated from it once at start |
+| Account capacity: quota windows, priority, enabled | fabric/store.js (`fabric.json`) via adapters (accountinstances.refreshQuota; Claude Code's own `get_usage`); the newest reading wins | Accounts, Usage, the tracker, the tray and the CLI format fabric/quotaview.js — no second assembler |
+| What a provider serves (models, generations) | modelcatalog.js (`model-catalog.json`) — each provider's own listing, diffed per generation | NEW / no longer reported; nothing is ever selected for the person |
 | Compaction | Node ContextAuthority | the deliberate Node-side authority; Guardian owns lifecycle, not context |
 | Prompt construction / cache shape | Node (promptparts/promptcache) | stable prefix + volatile tail |
 | Tool implementation / dispatch | Node (tools/) | primitives stay; capability intent composes them |
@@ -25,7 +28,7 @@ of them is a bug.
 | Conversation | session transcript | compacted in place; nothing durable deleted |
 | Background shell jobs | supervisor (jobs.rs) | survive CLI death |
 | `/bg` agent jobs | Node process (forked session) | die with the process; scratch survives — see classification below |
-| Remote capability validation | Rust capability catalog (closed) + `unsupported_numbers` | brain.rs interprets, never commands |
+| Phone / Telegram | Rust supervisor polls Telegram ONLY while Noema's gateway (src/bot/) holds the mailbox | the gateway admits and answers; the legacy remote brain and capability catalog were removed 2026-10-02 |
 | LLM reasoning | the model | may propose; the runtime decides what is allowed to happen |
 
 ## STEER IS NOT ORDINARY USER INPUT
@@ -66,10 +69,9 @@ this layer — it is how machinery came to be reported as intelligence.
   questions a call graph would, refreshed against disk; wiring records the
   edges no import graph can express (WAKES/BLOCKS/SENDS). Persisting a derived
   view would add a second thing to age. Derived stays derived.
-- **Model switch: Guardian records intent, Node executes.** Rust owns the
-  durable boundary (requested_model, handover arming); the execution needs the
-  session's provider state that lives in Node. Adapter, not competing
-  authority.
+- **Model switch: the turn records say it.** handover.js names the previous
+  model from the session's own turn records; turnguard.js arms the briefing a
+  failed turn owes. No second process holds a copy (2026-10-02).
 - **Browser is CLI-process-owned CDP; `/bg` agent jobs
   are Node-process-owned.** Neither is a supervisor worker yet — both die with
   the CLI process (scratch and session files survive). Classified P3: moving

@@ -138,11 +138,12 @@ async function install(app, family, cred, { name = '' } = {}) {
     const signedIn = inst && /AUTHENTICATED|SIGNED_IN/i.test(String(inst.authentication_state || ''));
     const drop = async (why) => { await ai.disconnect(app, id, { logout: false, removeProfile: true }).catch(() => null); return { ok: false, reason: 'rejected', why: String(why).slice(0, 160) }; };
     if (!signedIn) return drop((v && v.why) || (inst && (inst.error || inst.authentication_state)) || 'no signed-in account');
-    // CLAUDE CODE'S `auth status` READS ITS OWN FILE: Anthropic itself must accept the sign-in (a status read, no model).
+    // ANTHROPIC ITSELF MUST ACCEPT THE SIGN-IN: Claude Code's own `get_usage` (a status read, no model) only answers
+    // for a sign-in Anthropic accepts — and Noema never reads the token it carries (claudecontrol.js).
     if (family === 'claude') {
-      const who = await require('./quotaread').claudeIdentity(require('../drivers/claudeaccount').homeFor(id));
-      if (!who.ok) return drop(who.why);
-      return { ok: true, id, identity: { ...(inst.identity || {}), ...(who.identity.email ? { email: who.identity.email } : {}) } };
+      const q = await ai.refreshQuota(app, id, { force: true });
+      if (!q || !q.ok || !q.live) return drop((q && (q.why || q.note)) || 'Anthropic did not accept this sign-in');
+      return { ok: true, id, identity: inst.identity || null };
     }
     return { ok: true, id, identity: inst.identity || null };
   } catch (e) {

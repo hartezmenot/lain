@@ -66,16 +66,17 @@ module.exports = async function () {
   });
 
   await test('CAPACITY: a live window records paired readings as the provider\'s % moves, and carries the estimate', () => {
-    const ai = require('../../src/accountinstances');
+    const qv = require('../../src/fabric/quotaview');
     const usage = require('../../src/usage');
-    const list0 = ai.list;
+    const list0 = qv.rows;
     const read0 = usage.read;
     const t0 = Date.now();
     const resetsAt = t0 + 2 * H;
     let used = 10;
     let rows = [];
-    ai.list = () => [{ id: 'codex:cap1', driver_id: 'codex', display_name: 'Cap', identity: { email: 'cap@example.com' },
-      limits: { reportedBy: 'provider', windows: [{ id: 'primary', label: '5h', usedPercent: used, resetsAt, windowMins: 300 }] } }];
+    // THE ONE PROJECTION (fabric/quotaview.js) is what the window arithmetic reads.
+    qv.rows = () => [{ id: 'codex:cap1', family: 'codex', name: 'Cap', instanceId: null, base: null, identity: { email: 'cap@example.com' }, quotaSource: 'provider',
+      windows: [{ id: 'primary', label: '5h', usedPercent: used, remainingPercent: 100 - used, resetsAt, mins: 300 }] }];
     usage.read = () => rows;
     const row = (n, tokens) => ({ id: `r${n}`, at: t0 - H + n * 1000, account: 'codex:cap1', input: tokens, output: 0 });
     try {
@@ -90,6 +91,6 @@ module.exports = async function () {
       assert.strictEqual(w.capacity.readings, 2);
       assert.strictEqual(w.capacity.tokens, 2000000, '160K tokens moved the % by 8 points');
       assert.strictEqual(w.capacity.confidence, 'Low');
-    } finally { ai.list = list0; usage.read = read0; }
+    } finally { qv.rows = list0; usage.read = read0; }
   });
 };

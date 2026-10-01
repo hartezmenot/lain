@@ -332,24 +332,6 @@ impl Remote {
         Self::write(&self.brain_file(), &v);
     }
 
-    /// WHICH LOCAL MODEL SPEAKS FOR LAIN. Chosen by `/rc` from the connections
-    /// the user already has.
-    pub fn set_brain(&mut self, base_url: &str, model: &str, key: &str) {
-        self.brain_base = base_url.trim().to_string();
-        self.brain_model = model.trim().to_string();
-        self.brain_key = key.trim().to_string();
-        self.save_brain();
-    }
-
-    /// The configuration the conversational layer needs, credential included.
-    /// Not reachable over the socket - see `snapshot`.
-    pub fn brain(&self) -> crate::brain::Cfg {
-        crate::brain::Cfg {
-            base_url: self.brain_base.clone(),
-            model: self.brain_model.clone(),
-            key: self.brain_key.clone(),
-        }
-    }
 
     pub fn note_notified(&mut self, runtime_seq: usize, jobs_seq: usize) {
         if runtime_seq > self.notified_runtime {
@@ -658,30 +640,6 @@ mod tests {
         // What it DOES carry is the identity, which is the part a person needs.
         assert!(text.contains("Lain Remote"));
         assert!(text.contains("\"configured\":true"));
-    }
-
-    #[test]
-    fn the_local_model_credential_is_no_more_visible_than_the_bot_token() {
-        let mut r = store("brainsecret");
-        r.connect(TOKEN, ident());
-        r.set_brain("http://127.0.0.1:11434/v1", "qwen2.5:3b", "sk-local-secret-value-12345");
-        let text = json::write(&r.snapshot());
-        assert!(!text.contains("sk-local-secret-value-12345"), "the model key leaked");
-        // The endpoint and model name ARE shown - a person must be able to see
-        // which model is answering for them.
-        assert!(text.contains("11434"));
-        assert!(text.contains("qwen2.5:3b"));
-        assert!(text.contains("\"brain_configured\":true"));
-    }
-
-    #[test]
-    fn disconnecting_telegram_keeps_the_local_model_choice() {
-        let mut r = store("brainkeep");
-        r.connect(TOKEN, ident());
-        r.set_brain("http://127.0.0.1:11434/v1", "qwen2.5:3b", "");
-        r.disconnect();
-        assert!(!r.configured(), "the bot credential is gone");
-        assert_eq!(r.brain_model, "qwen2.5:3b", "the model choice is not a Telegram credential");
     }
 
     #[test]

@@ -97,6 +97,23 @@ const ROUTES = {
     S().setOrder(f.id, order);
     return ok({ family: F().familyView(F().family(app, f.id)) });
   },
+  /**
+   * ENABLE / DISABLE AN ACCOUNT (2026-10-02). Core state (fabric/store): automatic fallback, the model picker and every
+   * lane read it. Disabling an account a request is working through never interrupts that request — it is excluded from
+   * the NEXT choice, and the answer says so (`afterCurrent`).
+   */
+  'POST /api/intel/enable': async (app, body = {}) => {
+    const id = String(body.id || '');
+    const known = F().families(app).some((f) => f.accounts.some((a) => a.id === id));
+    if (!known) return bad('no such account', 404);
+    const enabled = body.enabled !== false;
+    let busy = [];
+    try { busy = require('../accountwork').busyAccount(id); } catch { busy = []; }
+    S().setEnabled(id, enabled);
+    try { require('../appcatalog').invalidate(); const r = app._sibling || app; r._acctMemo = null; r._catMemo = null; } catch { /* rebuilt on the next read */ }
+    tray(app);
+    return ok({ id, enabled, afterCurrent: !enabled && busy.length > 0, usedBy: busy.length ? (busy[0].kind === 'agent' ? 'Coding Agent' : 'Chat') : null });
+  },
   'POST /api/intel/alias': async (app, body = {}) => {
     const id = String(body.id || '');
     const known = F().families(app).some((f) => f.accounts.some((a) => a.id === id) || f.setup.some((p) => p.id === id));
@@ -157,23 +174,47 @@ const ROUTES = {
     return ok({ role, value: S().roleDefault(role) });
   },
   'POST /api/intel/tray': async (app) => ok({ tray: require('../fabric/tray').summary(app) }),
+  /**
+   * REFRESH MODELS (2026-10-02) — the provider's own listing, as a new catalog generation (modelcatalog.js). All
+   * providers, or one (`family`: codex · claude · antigravity · api · api:<connection>). Distinct from Refresh account.
+   * Nothing is selected for anyone: a new model only becomes available.
+   */
+  'POST /api/models/refresh': async (app, body = {}) => {
+    const MC = require('../modelcatalog');
+    const r = await MC.refresh(app, { family: body.family ? String(body.family) : null });
+    tray(app);
+    return ok({ ...r, summaries: r.diffs.map((d) => MC.summarize(d)).filter(Boolean) });
+  },
+  /** What the last generations changed, for a subtle "2 new models" — no refresh is run. */
+  'POST /api/models/updates': async (app, body = {}) => {
+    const MC = require('../modelcatalog');
+    const since = Number(body.since) || 0;
+    return ok({ newCount: MC.newCount(), diffs: MC.diffs({ since }), summaries: MC.diffs({ since }).map((d) => MC.summarize(d)).filter(Boolean) });
+  },
+  /**
+   * REFRESH ACCOUNT — identity, health and quota (2026-10-02). One account (`id`), one provider (`family`), or all.
+   * `force` asks the provider even when the last reading is younger than its TTL (the person pressed Refresh); without
+   * it a fresh reading is served from the cache. A DISABLED account is skipped: nothing polls an account nothing uses.
+   * Models are a different act — `/api/models/refresh`.
+   */
   'POST /api/intel/refresh': async (app, body = {}) => {
     const fam = body.family ? String(body.family) : null;
+    const only = body.id ? String(body.id) : null;
+    const force = body.force !== false;
     const notes = [];
     const ai = require('../accountinstances');
-    if (!fam || fam === 'claude') {
+    const FAM = { 'claude-code': 'claude', codex: 'codex', antigravity: 'antigravity' };
+    const accts = (() => { try { return F().families(app).flatMap((f) => f.accounts); } catch { return []; } })();
+    const enabledInst = (instId) => { const a = accts.find((x) => x.instanceId === instId || x.id === instId); return !a || a.enabled !== false; };
+    if ((!fam || fam === 'claude') && !only) {
       try { await require('../runtimeadapters').report(app, 'claude-code', { refresh: true }); notes.push('Claude Code'); } catch (e) { notes.push(`Claude Code: ${e.message}`); }
-      // EACH CLAUDE ACCOUNT'S OWN WINDOWS (claudeaccount.refreshQuota): its last receipt, no process started — a running Claude is never touched.
-      for (const v of ai.list(app).filter((x) => x.driver_id === 'claude-code')) {
-        // eslint-disable-next-line no-await-in-loop -- in-memory reads
-        try { await ai.refreshQuota(app, v.id); notes.push(v.display_name); } catch (e) { notes.push(`${v.display_name}: ${e.message}`); }
-      }
     }
-    if (!fam || fam === 'codex') {
-      for (const v of ai.list(app).filter((x) => x.driver_id === 'codex')) {
-        // eslint-disable-next-line no-await-in-loop -- one account at a time, each its own process
-        try { await ai.refreshQuota(app, v.id); notes.push(v.display_name); } catch (e) { notes.push(`${v.display_name}: ${e.message}`); }
-      }
+    for (const v of ai.list(app)) {
+      const vf = FAM[v.driver_id];
+      if (!vf || (fam && fam !== vf) || (only && only !== v.id && !accts.some((a) => a.id === only && a.instanceId === v.id))) continue;
+      if (!enabledInst(v.id)) { notes.push(`${v.display_name}: disabled — not refreshed`); continue; }
+      // eslint-disable-next-line no-await-in-loop -- one account at a time, each in its own directory
+      try { await ai.refreshQuota(app, v.id, { force }); notes.push(v.display_name); } catch (e) { notes.push(`${v.display_name}: ${e.message}`); }
     }
     // API SOURCES WHOSE PROVIDER REPORTS QUOTA WITHOUT A MODEL CALL (Z.ai's monitor — fabric/quotaread.js).
     if (!fam || fam.startsWith('api:')) {

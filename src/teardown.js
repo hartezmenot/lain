@@ -118,6 +118,8 @@ async function shutdown(viewApp, { why = 'the session ended', closeWindow = true
   await step('the core lock', () => require('./corelock').release());
 
   await step('saving the session', () => app.session.save());
+  // AFTER the save: the next host reads what this one wrote. Unfinished work becomes a pause (sessionlease.js).
+  await step('the session leases', () => require('./surfacehandoff').releaseAll(app));
   return { ok: problems.length === 0, problems };
 }
 

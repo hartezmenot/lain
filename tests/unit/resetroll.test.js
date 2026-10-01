@@ -18,14 +18,19 @@ const H = 3600 * 1000;
 
 module.exports = async function () {
   const saved = process.env.LAIN_CONFIG_DIR;
+  let rows0 = null;
   process.env.LAIN_CONFIG_DIR = tmpdir('resetroll-');
   try {
     await test('RESET ROLL: past the provider reset the observed bucket starts again; the closed window is kept as previous', () => {
       const cfg = process.env.LAIN_CONFIG_DIR;
       const now = Date.now();
       const oldReset = now - 1 * H;          // the 5-hour window ended an hour ago
-      fs.mkdirSync(path.join(cfg, 'runtimes'), { recursive: true });
-      fs.writeFileSync(path.join(cfg, 'runtimes', 'claude-code.json'), JSON.stringify({ limits: { windows: [{ id: 'five_hour', label: '5-hour', usedPercent: 80, resetsAt: oldReset }] } }));
+      void cfg; void fs; void path;
+      // THE ONE PROJECTION (fabric/quotaview.js): the default Claude profile's 5-hour window, ended an hour ago.
+      const qv = require('../../src/fabric/quotaview');
+      rows0 = qv.rows;
+      qv.rows = () => [{ id: 'claude-code', family: 'claude', name: 'Claude', instanceId: null, base: null, identity: null, quotaSource: 'reported by Claude Code',
+        windows: [{ id: 'five_hour', label: '5-hour', usedPercent: 80, remainingPercent: 20, resetsAt: oldReset, mins: 300 }] }];
       const usage = require('../../src/usage');
       const mk = (id, at, input) => usage.record({ id, at, ok: true, runtime: 'claude-code', transport: 'runtime', model: 'claude', receipt: { inputTokens: input, outputTokens: 10 } });
       mk('before', oldReset - 2 * H, 1000);   // inside the window that closed
@@ -53,6 +58,7 @@ module.exports = async function () {
       assert.deepStrictEqual(q.windows.map((x) => [x.id, x.label]), [['five_hour', '5-hour'], ['seven_day', 'weekly']]);
     });
   } finally {
+    if (rows0) require('../../src/fabric/quotaview').rows = rows0;
     if (saved === undefined) delete process.env.LAIN_CONFIG_DIR; else process.env.LAIN_CONFIG_DIR = saved;
   }
 };

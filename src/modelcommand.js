@@ -31,11 +31,42 @@ const { search, displayName } = require('./catalog');
  * registers the two names; there is no second state machine, no second filter
  * and no second idea of what Enter means.
  */
+/** Print a refresh's generations: "Codex models updated / + GPT-6.1 Sol", or that nothing changed. */
+async function refreshModels(app, { family = null, C = null, write = null } = {}) {
+  const w = write || ((s) => app.render.write(s));
+  const c = C || { dim: (s) => s, green: (s) => s, yellow: (s) => s };
+  const MC = require('./modelcatalog');
+  w(c.dim(`  Refreshing models${family ? ` for ${family}` : ''}…\n`));
+  let r;
+  try { r = await MC.refresh(app, { family }); } catch (e) { w(c.yellow(`  Refresh failed: ${(e && e.message) || e}\n`)); return null; }
+  const lines = r.diffs.map((d) => MC.summarize(d)).filter(Boolean);
+  if (!lines.length) w(c.dim('  Up to date — no provider reported a new or removed model.\n'));
+  for (const block of lines) for (const [i, l] of block.split('\n').entries()) w(i === 0 ? c.green(`  ${l}\n`) : (l.startsWith('-') ? c.yellow(`    ${l}\n`) : c.dim(`    ${l}\n`)));
+  for (const n of r.notes || []) w(c.dim(`  ${n}\n`));
+  w(c.dim('  Nothing was selected for you: new models are available in /model.\n'));
+  return r;
+}
+
+/** `noema model refresh` — no session, no window: the Core refresh, printed, and the exit code. */
+async function refreshCli({ cwd = process.cwd() } = {}) {
+  const { App } = require('./app');
+  const app = new App({ cwd, interactive: false });
+  try { await app.prepare(); } catch { /* the refresh reports what it can reach */ }
+  const r = await refreshModels(app, { write: (s) => process.stdout.write(s) });
+  return r && r.ok ? 0 : 1;
+}
+
 async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refreshCatalog } = {}) {
     // `refresh` is accepted on all three of /api, /model and /models because
     // there is no way to guess which one a person will reach for, and they run
     // the same code — there is one registry.
-    if (rest.trim().toLowerCase() === 'refresh') { await refreshCatalog(app); return; }
+    // REFRESH MODELS — every provider's own listing (accounts and API connections), one Core act (modelcatalog.js).
+    // `/model refresh codex` scopes it to one provider; `/api refresh` still re-reads API catalogs alone.
+    if (/^refresh\b/i.test(rest.trim())) {
+      const fam = rest.trim().split(/\s+/)[1] || null;
+      await refreshModels(app, { family: fam, C });
+      return;
+    }
     // ---- ACCOUNT FIRST (Phase 8.2) -------------------------------------------
     //
     // `/model` chooses FOR THIS SESSION, on the lane the next turn runs on, from
@@ -419,4 +450,4 @@ async function pickSource(app, preset = null) {
   return 'web';
 }
 
-module.exports = { pickCommand, pickSource, externalSources };
+module.exports = { pickCommand, pickSource, externalSources, refreshModels, refreshCli };

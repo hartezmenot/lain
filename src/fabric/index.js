@@ -146,7 +146,9 @@ function inputs(app) {
   try { L = require('../accountcatalog').list(app); } catch { L = { accounts: [], byId: new Map() }; }
   let cat = null;
   try { cat = r.catalog(); } catch { cat = null; }
-  return { L, cat, gen: store.generation() };
+  let mc = '';
+  try { mc = require('../modelcatalog').generation(); } catch { mc = ''; }
+  return { L, cat, gen: `${store.generation()}|${mc}` };
 }
 
 function index(app) {
@@ -202,7 +204,7 @@ function normWindow(w) {
   const rem = w.remainingPercent == null ? null : Math.max(0, Math.min(100, Number(w.remainingPercent)));
   const usedPercent = used != null ? Math.round(used * 10) / 10 : rem != null ? Math.round((100 - rem) * 10) / 10 : null;
   const remainingPercent = rem != null ? Math.round(rem * 10) / 10 : used != null ? Math.round((100 - used) * 10) / 10 : null;
-  return { label: w.label, usedPercent, remainingPercent, reported: w.reported || (rem != null ? 'remaining' : used != null ? 'used' : null), resetsAt: w.resetsAt || null, credits: w.credits == null ? null : w.credits };
+  return { id: w.id || null, windowMins: Number(w.windowMins || w.mins) || null, label: w.label, usedPercent, remainingPercent, reported: w.reported || (rem != null ? 'remaining' : used != null ? 'used' : null), resetsAt: w.resetsAt || null, credits: w.credits == null ? null : w.credits };
 }
 
 function backing(a, famId, reg, priority) {
@@ -210,17 +212,25 @@ function backing(a, famId, reg, priority) {
   const email = a.identity && a.identity.email ? String(a.identity.email) : null;
   const q = reg.quota[a.id] || null;
   const limited = store.limitedNow(a.id);
-  // ONLY WHAT WAS REPORTED: the account's own windows (runtime telemetry), else the last reported ones LAIN kept.
-  const windows = (a.quota && a.quota.length ? a.quota : (q && q.windows) || []).map(normWindow);
+  // A DISABLED ACCOUNT stays in its place, keeps everything, and is never chosen (store.setEnabled).
+  const enabled = !(reg.disabled && reg.disabled[a.id]);
+  // ONLY WHAT WAS REPORTED, AND THE NEWEST READING WINS (2026-10-02): the account's own telemetry and the store
+  // (fabric/store.recordQuota — every adapter writes there) are two readings of ONE thing, never two answers.
+  const own = a.quota && a.quota.length ? a.quota : null;
+  const kept = q && Array.isArray(q.windows) && q.windows.length ? q.windows : null;
+  const useKept = kept && (!own || (q.at || 0) > (a.quotaAt || 0));
+  const windows = ((useKept ? kept : own) || []).map(normWindow);
+  const quotaAt = useKept ? (q.at || null) : (a.quotaAt || null);
+  const quotaSource = useKept ? (q.source || null) : (a.quotaBasis || null);
   return {
     id: a.id, family: famId, kind: a.kind, lifecycle: LIFECYCLE.CONNECTED, ownership: a.ownership || null,
     // A NAME A PERSON READS: what they called it, else the masked identity — never the raw address, never an internal id.
     name: aliasName || (email ? mask(email) : null) || friendly(a.name, famId),
     alias: aliasName, providerName: isId(a.name) ? null : a.name,
     identity: { email: email ? mask(email) : null, plan: (a.identity && a.identity.plan) || null },
-    state: limited ? 'LIMITED' : a.state, stateLabel: limited ? 'Limited' : a.stateLabel,
-    usable: a.usable !== false, why: a.why || '',
-    limited, quota: windows, quotaNote: windows.length ? null : (a.quotaNote || 'Not reported'),
+    state: !enabled ? 'DISABLED' : limited ? 'LIMITED' : a.state, stateLabel: !enabled ? 'Disabled' : limited ? 'Limited' : a.stateLabel,
+    enabled, usable: a.usable !== false && enabled, why: !enabled ? 'Disabled — kept, never used for new requests' : (a.why || ''),
+    limited, quota: windows, quotaAt, quotaSource, quotaNote: windows.length ? null : (a.quotaNote || 'Not reported'),
     priority, modelCount: 0, instanceId: a.instanceId || null, base: a.base || null, endpoint: a.endpoint || null,
     // null = nothing to verify; false = signed in, not yet shown to answer (its capabilities are not advertised); true = it answered.
     verified: a.verified === undefined ? null : a.verified,
@@ -345,6 +355,16 @@ function build(app, L, cat) {
         search: `${e.id} ${e.label}`.toLowerCase(),
       };
     }).sort((a, b) => a.label.localeCompare(b.label));
+    // WHAT THE PROVIDER'S OWN LISTING SAYS (modelcatalog.js): NEW since the last generation, or active. A model the
+    // provider stopped reporting is listed apart (`unavailable`), never routable — its sessions stay readable.
+    const MC = require('../modelcatalog');
+    const statusOf = (m) => {
+      if (!f.id.startsWith('api:')) return MC.status(f.id, m.id) || null;
+      for (const x of m.accounts) { const s = MC.status(`api:${x.base}`, x.upstreamId || x.catalogId || m.id); if (s) return s; }
+      return null;
+    };
+    for (const m of models) m.catalogStatus = statusOf(m);
+    const unavailable = f.id.startsWith('api:') ? [] : MC.gone(f.id).filter((g) => !models.some((m) => m.id === g.id || m.catalogIds.includes(g.id)));
     // A MODEL IS FOUND BY ITS LOGICAL ID and by any catalog spelling an older choice stored.
     const byModel = new Map(models.map((x) => [x.id, x]));
     for (const x of models) for (const c of x.catalogIds) if (!byModel.has(c)) byModel.set(c, x);
@@ -354,7 +374,7 @@ function build(app, L, cat) {
       id: f.id, label, kind: f.kind, endpoint: f.endpoint, brand, brandLabel: BRAND_LABEL[brand] || brand, source: sourceOf(f.kind),
       policy: st.policy, policyLabel: store.POLICY_LABEL[st.policy], pinned: st.pinned && accts.some((a) => a.id === st.pinned) ? st.pinned : null,
       accounts: accts, setup: f.setup, placeholders: f.setup.filter((p) => p.source === 'placeholder'),
-      models, byModel,
+      models, byModel, unavailable,
       usable: accts.some((a) => a.usable),
     });
   }
@@ -441,10 +461,10 @@ function search(app, { query = '', family: fam = null, kind = null, capability =
 // ----------------------------------------------------------------- views --
 
 function modelView(m) {
-  return { id: m.id, label: m.label, efforts: m.efforts, effortLabels: m.efforts.map(caps.label), defaultEffort: m.defaultEffort, chat: m.chat, coding: m.coding, accounts: m.accounts.map((x) => x.id) };
+  return { id: m.id, label: m.label, efforts: m.efforts, effortLabels: m.efforts.map(caps.label), defaultEffort: m.defaultEffort, chat: m.chat, coding: m.coding, accounts: m.accounts.map((x) => x.id), status: m.catalogStatus || 'active', isNew: m.catalogStatus === 'new' };
 }
 function accountView(a) {
-  return { id: a.id, name: a.name, alias: a.alias, providerName: a.providerName, lifecycle: a.lifecycle, ownership: a.ownership || null, instanceId: a.instanceId || null, identity: a.identity, state: a.state, stateLabel: a.stateLabel, usable: a.usable, why: a.why, limited: a.limited, quota: a.quota, quotaNote: a.quotaNote, priority: a.priority, modelCount: a.modelCount, kind: a.kind, endpoint: a.endpoint, instanceId: a.instanceId, verified: a.verified === undefined ? null : a.verified };
+  return { id: a.id, name: a.name, alias: a.alias, providerName: a.providerName, lifecycle: a.lifecycle, ownership: a.ownership || null, instanceId: a.instanceId || null, identity: a.identity, state: a.state, stateLabel: a.stateLabel, enabled: a.enabled !== false, usable: a.usable, why: a.why, limited: a.limited, quota: a.quota, quotaAt: a.quotaAt || null, quotaSource: a.quotaSource || null, quotaNote: a.quotaNote, priority: a.priority, modelCount: a.modelCount, kind: a.kind, endpoint: a.endpoint, instanceId: a.instanceId, verified: a.verified === undefined ? null : a.verified };
 }
 function familyView(f, { models = false } = {}) {
   return {
@@ -453,7 +473,10 @@ function familyView(f, { models = false } = {}) {
     setup: f.setup.map((p) => ({ id: p.id, lifecycle: p.lifecycle, source: p.source, name: p.name, state: p.state, note: p.note || '', ownership: p.ownership || null, obsolete: Boolean(p.obsolete), obsoleteWhy: p.obsoleteWhy || null, identityHint: p.identityHint ? (p.identityHint.includes('@') && !p.identityHint.includes('•') ? mask(p.identityHint) : p.identityHint) : null, instanceId: p.instanceId || null, discoveredAt: p.discoveredAt || null })),
     placeholders: f.placeholders.map((p) => ({ id: p.id, name: p.name, state: p.state, note: p.note || '', identityHint: p.identityHint ? mask(p.identityHint) : null, discoveredAt: p.discoveredAt || null })),
     modelCount: f.models.length, usable: f.usable,
+    enabledCount: f.accounts.filter((a) => a.enabled !== false).length, disabledCount: f.accounts.filter((a) => a.enabled === false).length,
+    newModels: f.models.filter((m) => m.catalogStatus === 'new').length,
     quotaSummary: quotaSummary(f),
+    unavailable: (f.unavailable || []).map((g) => ({ id: g.id, label: g.label, status: 'no-longer-reported', removedAt: g.removedAt })),
     ...(models ? { models: f.models.map(modelView) } : {}),
   };
 }

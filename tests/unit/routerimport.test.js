@@ -63,16 +63,7 @@ module.exports = async function () {
   const paths = { '9router': nine, omniroute: omni };
   const before = [hash(nine), hash(omni)];
 
-  // ANTHROPIC, FAKED for the Claude verification (bootstrap = who the sign-in is).
-  const server = http.createServer((req, res) => {
-    const tok = String(req.headers.authorization || '').replace(/^Bearer /, '');
-    if (tok !== 'sk-ant-oat01-fixture-bee') { res.writeHead(401); res.end('{}'); return; }
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(req.url === '/api/claude_cli/bootstrap' ? JSON.stringify({ oauth_account: { account_email: 'bee@example.com' }, subscription_type: 'max' }) : '{}');
-  });
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  const saved = process.env.LAIN_ANTHROPIC_MANAGEMENT_BASE;
-  process.env.LAIN_ANTHROPIC_MANAGEMENT_BASE = `http://127.0.0.1:${server.address().port}`;
+  // THE CLAUDE VERIFICATION is Claude Code's own `get_usage` (the fake answers it, and refuses a "not-accepted" token).
 
   const app = new App({ out, interactive: false, cwd: dir });
   app.cfg.accounts = { ...(app.cfg.accounts || {}), codex: { binary: { command: process.execPath, args: [fx.FAKE_CODEX] } } };
@@ -129,8 +120,6 @@ module.exports = async function () {
       assert.deepStrictEqual(require('../../src/fabric/routerimport').defaultPaths(), { '9router': null, omniroute: null });
     });
   } finally {
-    server.close();
-    if (saved === undefined) delete process.env.LAIN_ANTHROPIC_MANAGEMENT_BASE; else process.env.LAIN_ANTHROPIC_MANAGEMENT_BASE = saved;
     await fx.reset();
   }
 };

@@ -249,6 +249,8 @@ class App {
   /** One user message end-to-end. Returns the turn record. */
   async submit(text, { isPaste = false, forceMode = null, sameTask = false, from = null, typed = false } = {}) {
     require('./perfmark').reset(); if (!from || typed) this._lastInputAt = Date.now();   // perfmark: where this turn's ms went; the CLI self-updates only after a quiet minute (update/cli.js)
+    // ONE WRITER PER SESSION, on EVERY path into a turn (typed, Harness, auto-resume, messaging): sessionlease.js.
+    { const sh = require('./surfacehandoff'); if (!sh.claim(this)) { const why = sh.check(this).why || 'another surface holds this session'; try { this.render.notice('warn', why); } catch { /* no renderer */ } return { held: 'surface', why }; } }
     const verdict = this.identify(text, isPaste, forceMode, sameTask, from);
     if (process.env.LAIN_DEBUG_TASK) this.render.notice('info', `[task ${verdict.kind} · mode ${verdict.mode}] ${verdict.reason} · ${verdict.modeReason}`);
     // Elapsed time is measured from the start of the TASK, not the turn, and
@@ -460,11 +462,8 @@ class App {
     // slower than the work it was reporting. It carries no state — the window
     // still reads /api/state — see harnessapp/ipc.js wake().
     require('./sessionstatus').touch(this, { phase: p || null });   // records the phase, wakes, emits session.status
-    // A THIRD READING OF THE SAME FACT, not a third source of it: it buys the
-    // one thing the screen and `/jobs` cannot, a record of what the turn was
-    // doing that survives this process. Costs no request and no token.
-    if (p && p.phase) require('./guardian').turnPhase(this.session.id, p.phase);
-    // AND HOW FAR THROUGH, when something counted it. See reportProgress.
+    // AND THE JOURNAL (sessionjournal.js): the phase and how far through, recorded only when it changes — what a
+    // surface in another process, or the phone, reads. Costs no request and no token.
     require('./turnauthority').reportProgress(this, p);
     const job = this.jobs.primary();
     if (job && p) {
@@ -502,7 +501,7 @@ class App {
    * resume — leaves it off and gets the awaited turn it has always had, which
    * is why none of those paths had to change.
    */
-  async handle(text, { isPaste = false, from = null, background = false, forceMode = null, asText = false } = {}) {
+  async handle(text, { isPaste = false, from = null, background = false, forceMode = null, asText = false, sameTask = false } = {}) {
     let s = String(text == null ? '' : text);
     if (!s.trim()) return;
     // An outstanding question consumes this line as the ANSWER. It is not
@@ -545,7 +544,7 @@ class App {
       // NOT AWAITED, deliberately: `submit` mints `this.abort` before its first
       // await, so by the time this returns the ordinary "a turn is running"
       // signal is true and the counter below can safely go back down.
-      return this.submit(s, { isPaste, from, forceMode });
+      return this.submit(s, { isPaste, from, forceMode, sameTask });   // sameTask: asserted by Noema's own controls only
     } finally {
       this.dispatching -= 1;
     }

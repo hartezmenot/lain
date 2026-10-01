@@ -103,7 +103,7 @@ function submit(app, body = {}) {
   // THE EXECUTION CLASS of a Coding turn (changeclass.js) rides this turn only: DIRECT and NARROW are told to stay small.
   if (view === 'coding') require('../changeclass').begin(app, String(body.classText || text), { fromPreview: Boolean(body.fromPreview), via: body.from || 'harness' });
   const turnsBefore = (s.turns || []).length;
-  const run = () => app.handle(text, { from: 'harness-app', forceMode: view === 'chat' ? 'EXPLAIN' : null });
+  const run = () => app.handle(text, { from: 'harness-app', forceMode: view === 'chat' ? 'EXPLAIN' : null, sameTask: Boolean(body.sameTask) });
   Promise.resolve(require('./sessionroutes').withPort(app, run))
     .catch(() => {})
     .finally(() => {
@@ -127,6 +127,29 @@ function submit(app, body = {}) {
 }
 
 const ROUTES = {
+  /**
+   * EDIT & RESEND / RETRY THE LATEST MESSAGE (turnedit.js): the old wording and its replies become a kept branch, the
+   * new wording is an ordinary turn. In the Coding lane, files the replaced turns changed need a choice first
+   * (`files: 'undo' | 'keep'`) — the answer without it is `needsChoice`, and nothing has moved.
+   */
+  'POST /api/turn/edit': async (app, body = {}) => {
+    const view = body.view === 'coding' ? 'coding' : 'chat';
+    const text = String(body.text == null ? '' : body.text).trim();
+    if (!text) return bad('the edited message is empty');
+    const r = require('../turnedit').branch(app, { view, files: body.files === 'undo' || body.files === 'keep' ? body.files : null });
+    if (!r.ok) return r.needsChoice ? ok({ needsChoice: true, files: r.files, why: r.why }) : bad(r.why, 409);
+    const sent = submit(app, { view, text });
+    return { code: sent.code, body: { ...(sent.body || {}), edited: true, replaced: r.replaced, undone: r.undone, kept: r.kept } };
+  },
+  'POST /api/turn/retry': async (app, body = {}) => {
+    const view = body.view === 'coding' ? 'coding' : 'chat';
+    const p = require('../turnedit').plan(app, view);
+    if (!p.ok) return bad(p.why, 404);
+    const r = require('../turnedit').branch(app, { view, files: body.files === 'undo' || body.files === 'keep' ? body.files : null });
+    if (!r.ok) return r.needsChoice ? ok({ needsChoice: true, files: r.files, why: r.why }) : bad(r.why, 409);
+    const sent = submit(app, { view, text: p.text });
+    return { code: sent.code, body: { ...(sent.body || {}), retried: true, undone: r.undone, kept: r.kept } };
+  },
   /** Which view the session is shown in. Navigation only — nothing runs. */
   'POST /api/view/select': async (app, body = {}) => {
     if (app.session.cowork) return bad('a Cowork session has no Chat/Coding views', 409);

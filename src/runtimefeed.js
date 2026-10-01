@@ -49,7 +49,43 @@
  * event log already uses, because it is the same problem.
  */
 
-const guardian = require('./guardian');
+/**
+ * WHAT EACH SESSION IS DOING, from the stores that own it (2026-10-02): the session lease (who runs it, alive or not)
+ * and the session journal (its last turn). The shape is the one the Guardian used to answer, so readers are unchanged.
+ */
+function sessionRows({ limit = 50 } = {}) {
+  const fs = require('fs');
+  const path = require('path');
+  const lease = require('./sessionlease');
+  const journal = require('./sessionjournal');
+  const rows = [];
+  for (const id of lease.ids()) {
+    const r = lease.read(id);
+    if (!r) continue;
+    const live = Boolean(r.owner && lease.ownerAlive(r));
+    const j = journal.state(id);
+    const last = journal.read(id, { limit: 60 }).filter((e) => e.type === 'turn.begin' || e.type === 'turn.end');
+    const begin = [...last].reverse().find((e) => e.type === 'turn.begin');
+    const end = [...last].reverse().find((e) => e.type === 'turn.end');
+    const failed = end && end.outcome && !['completed', 'aborted', 'cancelled'].includes(end.outcome);
+    const lost = j.running && !live;
+    rows.push({
+      session: id,
+      state: j.running ? (live ? 'RUNNING' : 'LOST') : (end ? String(end.outcome || 'completed').toUpperCase() : 'IDLE'),
+      effective_state: lost ? 'LOST' : (j.running ? 'RUNNING' : 'IDLE'),
+      owner_pid: live ? r.owner.pid : 0,
+      surface: live ? r.owner.surface : null,
+      model: (begin && begin.model) || '',
+      needs_handover: Boolean(failed || lost),
+      handover_reason: lost ? 'TURN_LOST: the process running the last turn is gone' : failed ? `${String(end.outcome).toUpperCase()}: ${end.reason || 'the previous turn did not finish'}` : '',
+      held_count: 0,
+      usage: end && end.usage ? { input_tokens: end.usage.input, output_tokens: end.usage.output } : null,
+      at: Math.max(r.at || 0, r.beat || 0, (end && end.at) || 0),
+    });
+  }
+  rows.sort((a, b) => b.at - a.at);
+  return rows.slice(0, limit);
+}
 const supervisor = require('./supervisor');
 
 /** How many events one poll will carry. A batch, not a backlog dump. */
@@ -131,13 +167,12 @@ function headline(e) {
  */
 async function since(seq = 0, { limit = MAX_EVENTS } = {}) {
   const cursor = normalise(seq);
-  if (!guardian.running()) {
-    return { events: [], seq: cursor, available: false };
-  }
-  const [runtime, jobs] = await Promise.all([
-    guardian.events({ after: cursor.runtime, limit }).catch(() => []),
-    supervisor.events({ after: cursor.jobs, limit }).then((r) => (r && r.ok && Array.isArray(r.events) ? r.events : [])).catch(() => []),
-  ]);
+  // THE JOBS STREAM is the supervisor's (durable jobs outlive Noema); per-session activity lives in each session's
+  // journal (sessionjournal.js) and is read there. No supervisor running ⇒ no durable jobs to report.
+  let running = false;
+  try { running = Boolean(supervisor.probe().running); } catch { running = false; }
+  const runtime = [];
+  const jobs = running ? await supervisor.events({ after: cursor.jobs, limit }).then((r) => (r && r.ok && Array.isArray(r.events) ? r.events : [])).catch(() => []) : [];
   const rows = [];
   for (const e of runtime) rows.push({ ...e, stream: 'runtime' });
   for (const e of jobs) rows.push({ ...e, stream: 'jobs' });
@@ -152,7 +187,7 @@ async function since(seq = 0, { limit = MAX_EVENTS } = {}) {
   return {
     events: rows.slice(0, limit),
     seq: next,
-    available: true,
+    available: running,
     notable: rows.filter((e) => NOTABLE.has(e.kind)),
   };
 }
@@ -185,14 +220,12 @@ function normalise(seq) {
  *   providers  which routes are shut, and until when
  */
 async function state() {
-  if (!guardian.running()) {
-    return { available: false, sessions: [], jobs: [], providers: [] };
-  }
-  const [sessions, jobs, providers] = await Promise.all([
-    guardian.list().catch(() => []),
-    supervisor.list({}).then((r) => (r && r.ok && Array.isArray(r.jobs) ? r.jobs : [])).catch(() => []),
-    supervisor.providers().then((r) => (r && r.ok && Array.isArray(r.providers) ? r.providers : [])).catch(() => []),
-  ]);
+  const sessions = sessionRows();
+  let providers = [];
+  try { providers = require('./routehealth').list(); } catch { providers = []; }
+  let running = false;
+  try { running = Boolean(supervisor.probe().running); } catch { running = false; }
+  const jobs = running ? await supervisor.list({}).then((r) => (r && r.ok && Array.isArray(r.jobs) ? r.jobs : [])).catch(() => []) : [];
   return { available: true, sessions, jobs, providers };
 }
 
@@ -208,4 +241,4 @@ function needsAttention(state) {
   return rows.filter((s) => s && (s.needs_handover || s.held_count > 0 || s.effective_state === 'LOST'));
 }
 
-module.exports = { since, state, headline, needsAttention, normalise, NOTABLE, MAX_EVENTS };
+module.exports = { since, state, sessionRows, headline, needsAttention, normalise, NOTABLE, MAX_EVENTS };

@@ -109,58 +109,14 @@ function writeSnaps(s) {
 
 /** Every provider-reported window LAIN knows about now, with where it came from and which receipts belong to it. */
 function sources(app) {
-  const out = [];
-  // CLAUDE CODE — its own rate_limit_event, cached with its telemetry.
-  try {
-    const t = require('./runtimeadapters').cachedTelemetry('claude-code');
-    const ws = (t && t.limits && t.limits.windows) || [];
-    if (ws.length) {
-      out.push({ id: 'claude-code', family: 'claude', label: 'Claude Code', account: (t.identity && (t.identity.plan || t.identity.email)) || null, basis: (t.limits && t.limits.basis) || 'reported by Claude Code',
-        windows: ws.map((w) => ({ ...w, mins: NAMED[w.id] || null })),
-        match: (r) => r.runtime === 'claude-code' || r.via === 'Runtime · Claude Code' });
-    }
-  } catch { /* none */ }
-  // RUNTIME ACCOUNTS (Codex …) — each account's own snapshot.
-  try {
-    for (const v of require('./accountinstances').list(app)) {
-      const ws = (v.limits && v.limits.windows) || [];
-      if (!ws.length) continue;
-      out.push({ id: v.id, family: v.driver_id, label: (require('./fabric/store').alias(v.id) || v.display_name), account: v.identity ? (v.identity.email || v.identity.planType || null) : null, basis: v.limits.reportedBy || 'provider-reported',
-        windows: ws.map((w) => ({ ...w, mins: w.windowMins || NAMED[w.id] || null })),
-        credits: v.limits.resetCredits != null ? { available: v.limits.resetCredits } : null,
-        match: (r) => r.account === v.id || String(r.account || '').startsWith(`${v.id}:`) });
-    }
-  } catch { /* none */ }
-  // API CONNECTIONS WHOSE PROVIDER ANSWERS QUOTA ON REQUEST (Z.ai's monitor — fabric/quotaread.js), as last recorded
-  // (fabric/store.recordQuota). An API key is a connection type, not "no account information" (2026-10-01).
-  try {
-    const store = require('./fabric/store');
-    const known = new Set(out.map((s) => s.id));
-    const rows = require('./accountcatalog').list(app).accounts || [];
-    for (const [id, q] of Object.entries(store.read().quota || {})) {
-      if (known.has(id) || !q || !Array.isArray(q.windows) || !q.windows.length) continue;
-      const acct = rows.find((a) => a.id === id);
-      if (!acct || !acct.base) continue;   // runtime accounts come from their own snapshot above
-      out.push({ id, family: acct.family || 'api', label: acct.name || id, account: acct.base, basis: q.source ? `reported by ${q.source}` : 'provider-reported',
-        windows: q.windows.map((w) => ({ ...w, id: w.id || w.label, mins: w.windowMins || NAMED[w.id] || null })),
-        match: (r) => r.account === acct.base || String(r.account || '').startsWith(`${acct.base}:`) || r.account === id });
-    }
-  } catch { /* none */ }
-  // API ROUTES — rate-limit headers seen this process (usagewindows.js).
-  try {
-    const uw = require('./usagewindows');
-    for (const rd of uw.all()) {
-      if (!rd) continue;
-      const ws = rd.windows.filter((w) => w.subscription || /^\d+[hdm]$/.test(w.name)).map((w) => {
-        const d = uw.durationMs(w.name);
-        return { id: w.name, label: w.label, usedPercent: w.percent != null ? Math.round(w.percent * 10) / 10 : null, resetsAt: w.resetAt || null, mins: d ? Math.round(d / MIN) : null };
-      });
-      if (!ws.length) continue;
-      out.push({ id: rd.connectionId, family: 'api', label: rd.connectionId, account: rd.provider || null, basis: 'rate-limit headers on Noema’s own requests',
-        windows: ws, match: (r) => r.account === rd.connectionId || String(r.account || '').startsWith(`${rd.connectionId}:`) });
-    }
-  } catch { /* none */ }
-  return out;
+  // ONE PROJECTION (fabric/quotaview.js, 2026-10-02): the same windows the Accounts page shows — never a second reading.
+  const qv = require('./fabric/quotaview');
+  return qv.rows(app).filter((r) => r.windows.length).map((r) => ({
+    id: r.id, family: r.family, label: r.name, account: (r.identity && (r.identity.email || r.identity.plan)) || r.base || null,
+    basis: r.quotaSource || 'provider-reported',
+    windows: r.windows.map((w) => ({ ...w, mins: w.mins || NAMED[w.id] || null })),
+    match: qv.matcher(r),
+  }));
 }
 
 function sum(rows) {

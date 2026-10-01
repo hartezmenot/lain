@@ -36,7 +36,6 @@
  * background process to be up.
  */
 
-const supervisor = require('./supervisor');
 const projectindex = require('./projectindex');
 
 /** A local call should be instant; hanging is the failure. */
@@ -81,6 +80,17 @@ function digestOf(index) {
  *   `verdict` is the RUNTIME'S: NEW, UNCHANGED, MODIFIED, RESHAPED — or
  *   UNKNOWN when no supervisor answered, which is not an error and not a claim.
  */
+const fs = require('fs');
+const path = require('path');
+function bookFile() { return path.join(require('./config').configDir(), 'projects.json'); }
+function readBook() { try { const d = JSON.parse(fs.readFileSync(bookFile(), 'utf8')); if (d && d.projects) return d; } catch { /* first use */ } return { v: 1, projects: {} }; }
+function writeBook(d) {
+  const keys = Object.keys(d.projects).sort((a, b) => (d.projects[b].opened_at || 0) - (d.projects[a].opened_at || 0));
+  for (const k of keys.slice(500)) delete d.projects[k];
+  const f = bookFile(); fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(`${f}.${process.pid}.tmp`, JSON.stringify(d)); fs.renameSync(`${f}.${process.pid}.tmp`, f);
+}
+
 async function open(root, { budgetMs } = {}) {
   // ---- THE WORKER READS THE TREE ----------------------------------------
   //
@@ -96,49 +106,21 @@ async function open(root, { budgetMs } = {}) {
   const symbols = Object.values(refresh.index.files || {})
     .reduce((n, e) => n + ((e.symbols || []).length), 0);
 
+  // ---- WHAT THE LAST SESSION SAW (2026-10-02: a small Node record, no supervisor) ----------------
+  //
+  // Counts and a digest per project root, never the index: a symbol table here would be a second copy of the
+  // project's own. NEW → never opened; UNCHANGED → the same digest; MODIFIED → it moved; RESHAPED → the index format.
   let verdict = 'UNKNOWN';
   let project = null;
   try {
-    // NEVER STARTS A SUPERVISOR. Opening a project is not work whose
-    // continuity matters — it is bookkeeping, and a person who opens a
-    // directory and quits has not asked for a background process.
-    const opened = await supervisor.callIfRunning(
-      {
-        op: 'project_open',
-        path: root,
-        digest,
-        index_version: projectindex.VERSION,
-      },
-      { timeoutMs: TIMEOUT_MS },
-    );
-    if (opened && opened.ok) {
-      verdict = String(opened.verdict || 'UNKNOWN');
-      project = opened.project || null;
-      // ---- AND TELL IT WHAT THE WORKER ACTUALLY DID --------------------
-      //
-      // Counts and a digest. Never the index: a symbol table in the runtime's
-      // store would be a second copy of the project's own.
-      const result = refresh.added && !refresh.reused ? 'full'
-        : (refresh.changed + refresh.added + refresh.removed ? 'incremental' : 'unchanged');
-      const synced = await supervisor.callIfRunning(
-        {
-          op: 'project_synced',
-          path: root,
-          digest,
-          index_version: projectindex.VERSION,
-          files: Object.keys(refresh.index.files || {}).length,
-          symbols,
-          result,
-        },
-        { timeoutMs: TIMEOUT_MS },
-      );
-      if (synced && synced.ok) project = synced.project || project;
-    }
-  } catch {
-    // A runtime that cannot be reached is a STATE, not an exception — the rule
-    // guardian.js follows, for the reason given there.
-    verdict = 'UNKNOWN';
-  }
+    const book = readBook();
+    const key = path.resolve(root).toLowerCase();
+    const prev = book.projects[key] || null;
+    verdict = !prev ? 'NEW' : prev.index_version !== projectindex.VERSION ? 'RESHAPED' : prev.digest === digest ? 'UNCHANGED' : 'MODIFIED';
+    project = { path: root, digest, index_version: projectindex.VERSION, files: Object.keys(refresh.index.files || {}).length, symbols, opened_at: Date.now(), first_seen: prev ? prev.first_seen || prev.opened_at : Date.now() };
+    book.projects[key] = project;
+    writeBook(book);
+  } catch { verdict = 'UNKNOWN'; }
 
   return { verdict, digest, index: refresh.index, refresh, project, symbols };
 }
@@ -163,10 +145,9 @@ function say(verdict, refresh) {
     case 'RESHAPED':
       return 'The index format changed, so it was rebuilt.';
     default:
-      // NOT A GUESS. No supervisor answered, and the honest thing is to say
-      // what the worker did without claiming to know the history.
+      // NOT A GUESS: no record could be read, so say what the worker did without claiming the history.
       return `${refresh.reused} file(s) reused, ${rescanned} re-read `
-        + '(no runtime is running, so there is no record of the last session).';
+        + '(no record of the last session could be read).';
   }
 }
 

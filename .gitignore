@@ -27,3 +27,5 @@ native/vendor/
 # The built installer artifact. Rebuilt by `npm run dist`; never source.
 dist/
 .noema-test-cache.json
+
+rust/lain-supervisor/target-next/

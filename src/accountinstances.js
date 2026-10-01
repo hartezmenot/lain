@@ -93,6 +93,8 @@ function remember(app, rec, snap) {
     r.models = (snap.models || []).slice(0, 80); r.signedIn = Boolean(snap.identity); r.seenAt = snap.refreshedAt;
     rec.seenAt = snap.refreshedAt;
     write(d);
+    // A NEW GENERATION OF THIS PROVIDER'S CATALOG, if its listing moved (modelcatalog.js): NEW / no longer reported.
+    if (r.signedIn && r.models.length) { try { const fam = { 'claude-code': 'claude', codex: 'codex', antigravity: 'antigravity' }[rec.driver_id]; if (fam) require('./modelcatalog').observeFamily(app, fam); } catch { /* recorded on the next refresh */ } }
     require('./appcatalog').invalidate();
     const ro = root(app); if (ro) ro._acctMemo = null;
     // A SIGN-IN JUST COMPLETED (Phase 8.3): the safe completion event a waiting CLI reads, and an
@@ -103,7 +105,7 @@ function remember(app, rec, snap) {
       setImmediate(() => { try { require('./fabric/migrate').reconcile(app); require('./fabric/tray').changed(app); } catch { /* the next read reconciles */ } });
     }
     // WHAT THE ACCOUNT REPORTED about its windows is kept for every surface and the tray.
-    if (snap.limits && Array.isArray(snap.limits.windows)) { try { require('./fabric/store').recordQuota(rec.id, { windows: snap.limits.windows, source: 'codex' }); } catch { /* reported on the next read */ } }
+    if (snap.limits && Array.isArray(snap.limits.windows)) { try { require('./fabric/store').recordQuota(rec.id, { windows: snap.limits.windows, source: snap.limits.basis || snap.limits.reportedBy || rec.driver_id }); } catch { /* reported on the next read */ } }
   } catch { /* the registry stays as it was */ }
 }
 
@@ -269,11 +271,18 @@ async function refresh(app, id) {
  * answers quota on request (Z.ai's monitor — fabric/quotaread.js) is read with the key this module already projects;
  * the key goes to that one read and nowhere else (tests/unit/credentialguard.test.js).
  */
-async function refreshQuota(app, id) {
+async function refreshQuota(app, id, opts = {}) {
   const h = handle(app, id);
   if (!h) return refreshApiQuota(app, id);
   if (typeof h.refreshQuota === 'function') {
-    try { return { ...(await h.refreshQuota()), instance: get(app, id) }; } catch (e) { return { ok: false, why: String(e.message || e).slice(0, 200) }; }
+    try {
+      const r = await h.refreshQuota(opts);
+      // THE ONE QUOTA STORE (fabric/store): every surface — Accounts, Usage, the tray, the CLI — reads these windows.
+      if (r && r.ok && r.limits && Array.isArray(r.limits.windows) && r.limits.windows.length) {
+        try { require('./fabric/store').recordQuota(String(id), { windows: r.limits.windows, source: r.basis || r.limits.basis || null }); } catch { /* reported on the next read */ }
+      }
+      return { ...r, instance: get(app, id) };
+    } catch (e) { return { ok: false, why: String(e.message || e).slice(0, 200) }; }
   }
   return refresh(app, id);
 }

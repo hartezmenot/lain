@@ -26,56 +26,29 @@ const FILTERS = ['project', 'session', 'task', 'model', 'provider', 'account', '
 
 function root(app) { return (app && app._sibling) || app; }
 
-/** Every account's windows, as reported. Account view and window view (unchanged contract). */
+/**
+ * Every account's windows, as reported — THE SAME PROJECTION the Accounts page draws (fabric/quotaview.js). Usage owns
+ * history and analytics; current capacity is the account's, so this only formats it (2026-10-02).
+ */
 function limits(app) {
-  const accounts = [];
-  for (const v of require('../accountinstances').list(app)) {
-    const ws = (v.limits && v.limits.windows) || [];
-    accounts.push({
-      id: v.id, name: v.display_name, driver: v.driver_id, provider: v.provider, source: v.source_type,
-      identity: v.identity ? { email: v.identity.email || null, planType: v.identity.planType || null } : null,
-      reportedBy: v.limits ? v.limits.reportedBy || 'provider' : null, observedAt: v.limits ? v.limits.observedAt || null : null,
-      windows: ws.map((w) => ({ id: w.id, label: w.label || w.name || w.id, usedPercent: w.usedPercent != null ? w.usedPercent : (w.percent != null ? w.percent : null),
-        resetsAt: w.resetsAt || (w.resetAt ? Date.parse(w.resetAt) || null : null), expired: Boolean(w.expired), confirmed: false })),
-      notReported: !ws.length ? (v.limits_error || 'not reported by the provider') : null,
-    });
-  }
-  // CLAUDE CODE: the windows its runtime streamed on the last run (rate_limit_event).
-  const cc = require('../runtimeadapters').cachedTelemetry('claude-code');
-  if (cc && cc.limits && cc.limits.windows && cc.limits.windows.length) {
-    accounts.push({
-      id: 'runtime:claude-code', name: `Claude Code${cc.identity && cc.identity.plan ? ` · ${cc.identity.plan}` : ''}`, driver: 'claude-code', provider: 'anthropic', source: 'runtime',
-      identity: cc.identity ? { email: cc.identity.email || null, planType: cc.identity.plan || null } : null,
-      reportedBy: cc.limits.basis, observedAt: cc.limits.at,
-      windows: cc.limits.windows.map((w) => ({ id: w.id, label: w.label, usedPercent: w.usedPercent, resetsAt: w.resetsAt, expired: Boolean(w.resetsAt && w.resetsAt < Date.now()), confirmed: false })),
-      notReported: null,
-    });
-  }
+  const accounts = require('../fabric/quotaview').rows(app).map((r) => ({
+    id: r.id, name: r.name, driver: r.family, provider: r.brand || r.family, source: r.kind, enabled: r.enabled,
+    identity: r.identity ? { email: r.identity.email || null, planType: r.identity.plan || null } : null,
+    reportedBy: r.windows.length ? (r.quotaSource || 'provider') : null, observedAt: r.quotaAt,
+    windows: r.windows.map((w) => ({ id: w.id, label: w.label, usedPercent: w.usedPercent, remainingPercent: w.remainingPercent, resetsAt: w.resetsAt, expired: w.expired, confirmed: false })),
+    notReported: r.windows.length ? null : r.quotaNote,
+  }));
   const windows = [];
   for (const a of accounts) for (const w of a.windows) windows.push({ account: a.id, name: a.name, provider: a.provider, ...w });
   return { accounts, windows };
 }
 
-/** Limits grouped by what each source actually reports. */
+/** Limits grouped by what each source actually reports — from the same projection. */
 function grouped(app) {
   const base = limits(app);
   const active = base.accounts.filter((a) => a.windows.length);
   const none = base.accounts.filter((a) => !a.windows.length).map((a) => ({ id: a.id, name: a.name, provider: a.provider, why: a.notReported }));
-  // API routes: a live reading when a response carried rate-limit headers, else "none reported".
-  const uw = require('../usagewindows');
-  try {
-    for (const g of require('./accounts').providers(app)) {
-      for (const c of g.connections) {
-        const r = uw.forConnection(c.id);
-        if (r && r.windows && r.windows.length) {
-          active.push({ id: c.id, name: `${g.label} · ${c.id}`, driver: 'api', provider: g.provider, source: 'api', reportedBy: 'provider response headers', observedAt: r.at || null,
-            windows: r.windows.map((w) => ({ id: w.name || w.kind, label: w.label || w.name, usedPercent: w.percent != null ? w.percent : null, resetsAt: w.resetAt || null, expired: false, confirmed: false })) });
-        } else if (!none.some((x) => x.id === c.id)) none.push({ id: c.id, name: `${g.label} · ${c.id}`, provider: g.provider, why: 'no limit reported by this provider' });
-      }
-    }
-  } catch { /* no catalog */ }
   const plans = [];
-  // NO ZCODE START PLAN (2026-09-29): LAIN integrates Z.ai through its API only; its quota comes from Z.ai's monitor (fabric/quotaread.js).
   const local = [];
   try {
     for (const m of require('../local/modeldirs').list().models) local.push({ id: m.id, name: m.modelName || m.name, via: 'llama.cpp' });

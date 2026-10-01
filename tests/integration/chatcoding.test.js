@@ -130,7 +130,7 @@ module.exports = async () => {
       assert.strictEqual(back.body.running, true, 'returning to A: the same turn is still active');
       assert.strictEqual(require('../../src/sessionstatus').of(app.pool().live(a)).activeTurnId, turnId);
       await d('POST', '/api/session/select', { id: b });
-      assert.ok(await until(() => events.some((e) => e.session === a && e.status.state === 'DONE')), 'A\'s DONE was emitted while B was viewed');
+      assert.ok(await until(() => events.some((e) => e.type === 'session.status' && e.session === a && e.status.state === 'DONE')), 'A\'s DONE was emitted while B was viewed');
       const after = (await d('GET', '/api/state')).body.state.sessions.engineering.find((r) => r.id === a);
       assert.strictEqual(after.status, 'DONE');
     } finally {

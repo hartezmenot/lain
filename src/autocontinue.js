@@ -219,7 +219,7 @@ function scheduleRecovery(app) {
   if (!rec || rec.autoResumeDecided || rec.autoResumeScheduled) return null;
   const w = wb.of(s);
   const pause = (why) => {
-    w.surface = { ...(w.surface || {}), writer: null, pausedBy: 'host-crashed', at: Date.now() };
+    try { require('./surfacehandoff').notePause(app, 'host-crashed'); } catch { /* the lease is advisory here */ }
     if (why) w.strategy.pausedForReview = why;
     try { s.save(); } catch { /* in memory */ }
   };
@@ -231,7 +231,7 @@ function scheduleRecovery(app) {
     if (app.session !== s || app.abort || app.wantExit) return;
     const d = onRecovered(s);
     if (!d.continue) { pause(d.why); return; }
-    w.surface = { ...(w.surface || {}), pausedBy: null };
+    try { require('./surfacehandoff').notePause(app, null); } catch { /* the lease is advisory here */ }
     app._handover = { reason: `TURN_LOST: the process running this task stopped at step ${rec.step}${rec.during ? ` (during ${rec.during})` : ''}; Noema repaired the transcript from what happened on disk`, kind: 'TURN_LOST', state: null, input: [] };
     try { require('./ui/operation').say(app, 'Resuming the interrupted task'); } catch { /* no screen */ }
     try { await app.submit(d.prompt, { sameTask: true, from: 'auto-resume' }); } catch { pause('the resumed turn could not start'); } finally { app._handover = null; }

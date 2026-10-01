@@ -45,14 +45,8 @@ module.exports = async function () {
     await withMock([{ text: 'first answer' }, { text: 'carried on from step 3' }], async () => {
       const app = realApp();
       await app.submit('migrate the timer to the new clock');
-      const guardian = require('../../src/guardian');
-      const realDeliver = guardian.deliver;
-      guardian.deliver = async () => ({ taken: [{ text: 'continue', at: Date.now(), reason: 'turn-died' }] });
-      try {
-        await require('../../src/inputgate').recover(app, { reason: 'the previous turn did not finish', state: {} });
-      } finally {
-        guardian.deliver = realDeliver;
-      }
+      // THE HELD SENTENCE ARRIVES WITH THE VERDICT (turnguard.js) — no queue in another process to take it from.
+      await require('../../src/inputgate').recover(app, { reason: 'the previous turn did not finish', state: {}, input: [{ text: 'continue', at: Date.now(), reason: 'turn-died' }] });
       const last = app.session.turns[app.session.turns.length - 1];
       assert.strictEqual(last.userInput, 'continue');
       assert.strictEqual(last.typed, true);

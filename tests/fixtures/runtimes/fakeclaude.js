@@ -74,6 +74,33 @@ if (argv[0] === 'auth' && argv[1] === 'login') {
   let prompt = '';
   process.stdin.on('data', (d) => { prompt += d; });
   process.stdin.on('end', async () => {
+    // THE SDK CONTROL PROTOCOL (claudecontrol.js): a session that sends ONLY control requests generates nothing. It is
+    // answered from this profile's files — fake-models.json (the catalog) and fake-limits.json (0–1 used) — and logged
+    // to controls.jsonl so a test can prove no prompt ran.
+    const lines = prompt.split('\n').map((l) => l.trim()).filter(Boolean);
+    const reqs = lines.map((l) => { try { return JSON.parse(l); } catch { return null; } });
+    if (argv.includes('--input-format') && reqs.length && reqs.every((r) => r && r.type === 'control_request')) {
+      const where = CFG || HOME;
+      const cred = readCred();
+      const signed = CFG ? Boolean(cred) : true;
+      const who = CFG ? (cred || {}) : { email: 'person@example.com', subscriptionType: 'pro' };
+      const models = (() => { try { return JSON.parse(fs.readFileSync(path.join(where, 'fake-models.json'), 'utf8')); } catch { return null; } })()
+        || [{ value: 'opus', displayName: 'Opus', supportedEffortLevels: ['low', 'medium', 'high', 'max'] }, { value: 'sonnet', displayName: 'Sonnet', supportedEffortLevels: ['low', 'medium', 'high'] }, { value: 'haiku', displayName: 'Haiku' }, { value: 'fable', displayName: 'Fable', supportedEffortLevels: ['low', 'medium', 'high', 'max'] }];
+      const fl = (() => { try { return JSON.parse(fs.readFileSync(path.join(where, 'fake-limits.json'), 'utf8')); } catch { return null; } })() || { fiveHour: 0.25, sevenDay: 0.6 };
+      if (where) { try { fs.appendFileSync(path.join(where, 'controls.jsonl'), `${JSON.stringify({ pid: process.pid, at: Date.now(), subtypes: reqs.map((r) => r.request && r.request.subtype) })}\n`); } catch { /* best effort */ } }
+      for (const r of reqs) {
+        const sub = r.request && r.request.subtype;
+        if (sub === 'initialize') out({ type: 'control_response', response: { subtype: 'success', request_id: r.request_id, response: { models, account: signed ? { email: who.email, organization: 'Org', subscriptionType: who.subscriptionType || 'pro', apiProvider: 'firstParty' } : {} } } });
+        else if (sub === 'get_usage') {
+          // A SIGN-IN ANTHROPIC REFUSES (a migrated token marked "not-accepted"): Claude Code's own answer, verbatim-shaped.
+          const refused = signed && cred && cred.claudeAiOauth && /not-accepted/.test(String(cred.claudeAiOauth.accessToken || ''));
+          if (!signed) out({ type: 'control_response', response: { subtype: 'error', request_id: r.request_id, error: 'Not logged in' } });
+          else if (refused) out({ type: 'control_response', response: { subtype: 'error', request_id: r.request_id, error: 'Anthropic refused this sign-in' } });
+          else out({ type: 'control_response', response: { subtype: 'success', request_id: r.request_id, response: { rate_limits_available: true, subscription_type: who.subscriptionType || 'pro', rate_limits: { five_hour: { utilization: Math.round(fl.fiveHour * 100), resets_at: new Date(Date.now() + 3600_000).toISOString() }, seven_day: { utilization: Math.round(fl.sevenDay * 100), resets_at: new Date(Date.now() + 86400_000).toISOString() }, seven_day_opus: null, model_scoped: [] } } } });
+        } else out({ type: 'control_response', response: { subtype: 'error', request_id: r.request_id, error: `unknown subtype ${sub}` } });
+      }
+      process.exit(0);
+    }
     if (CFG && !readCred()) { out({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Not logged in. Run claude auth login.' }); process.exit(1); }
     // A LIMITED ACCOUNT (limited.json in ITS directory): the provider's own words, with a stated reset.
     if (CFG && exists(path.join(CFG, 'limited.json'))) { fs.appendFileSync(path.join(CFG, 'runs.jsonl'), `${JSON.stringify({ pid: process.pid, at: Date.now(), as: (readCred() || {}).email || null, limited: true })}

@@ -246,6 +246,8 @@ function roleGate(r, modelId, rt, L, A) {
  *   effort            must be a level the model declares ('auto' = its default)
  */
 async function choose(app, session, { lane: which = 'coding', family, account, model, effort, _apply = false } = {}) {
+  // CHOSEN, SO NO LONGER NEWS (modelcatalog.js): the NEW mark ends when the model is selected.
+  if (model && family) { try { require('./modelcatalog').seen(String(family).startsWith('api:') ? family : family, model); } catch { /* a marker */ } }
   const A = accountsMod();
   const F = fab();
   const r = root(app);

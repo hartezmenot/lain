@@ -109,6 +109,32 @@ function register({ define, C }) {
       app.render.write(r.ok ? '  Handed to the Harness — it picks this session up. This terminal stops writing to it.\n' : `  ${r.why}\n`);
     },
   });
+  // TAKE THE SESSION OVER (sessionlease.js): a free or reserved session now; a live host is ASKED and hands it over
+  // at its next idle moment — never displaced mid-turn.
+  define('/takeover', {
+    surface: true, args: '',
+    desc: 'Take this session over from the Harness (it hands over between turns)',
+    run(app) {
+      const sh = require('./surfacehandoff');
+      const r = sh.takeBack(app);
+      if (r.ok) { app.render.write('  This terminal now runs this session — reloaded as the other surface left it.\n'); return; }
+      app.render.write(`  ${r.why}\n`);
+      if (!r.pending) return;
+      const until = Date.now() + 120_000;
+      const t = setInterval(() => {
+        const v = sh.persisted(app.session.id);
+        if (v && v.writer === sh.surfaceOf(app) && !v.pid) {
+          clearInterval(t);
+          const r2 = sh.takeBack(app);
+          try { app.render.notice(r2.ok ? 'info' : 'warn', r2.ok ? 'Took over — this terminal now runs this session.' : r2.why); } catch { /* no renderer */ }
+        } else if (Date.now() > until) {
+          clearInterval(t);
+          try { app.render.notice('warn', 'The other surface did not hand this session over (it is still working). /takeover asks again.'); } catch { /* no renderer */ }
+        }
+      }, 1000);
+      if (t.unref) t.unref();
+    },
+  });
   // SUBAGENTS — one small setting, not a panel: AUTO (recommended) or OFF, and
   // how many may run at once. The counter itself lives in the run state.
   define('/subagents', {

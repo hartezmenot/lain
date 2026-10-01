@@ -53,6 +53,8 @@ async function start(app) {
   // The messaging the person connected comes back with LAIN (see desktoprun.js).
   require('./botconnect').resume(app).catch(() => {});
   try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
+  try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
   // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
   //

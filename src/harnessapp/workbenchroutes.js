@@ -32,8 +32,8 @@ function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, wh
 function save(app) { try { app.session.save(); } catch { /* in memory */ } }
 function running(app) { return Boolean(app.abort && !app.abort.signal.aborted); }
 
-function startCoding(app, text, from = null) {
-  return require('./viewroutes').submit(app, { view: 'coding', text, direct: true, ...(from ? { fromLabel: from } : {}) });
+function startCoding(app, text, from = null, { sameTask = false } = {}) {
+  return require('./viewroutes').submit(app, { view: 'coding', text, direct: true, sameTask, ...(from ? { fromLabel: from } : {}) });
 }
 function startChat(app, text) { return require('./viewroutes').submit(app, { view: 'chat', text }); }
 
@@ -75,7 +75,7 @@ async function answer(app, body = {}) {
       wb.of(s).strategy.pausedForReview = null;
       require('../autocontinue').reset(s, 'continue');
       const next = rs.nextPhasePrompt(s) || require('../autocontinue').instruction(s, { cause: 'continue' });
-      r = startCoding(app, next);
+      r = startCoding(app, next, null, { sameTask: true });   // the next phase of THIS plan, never a new task
     }
     else if (c === 'pause') wb.of(s).strategy.pausedForReview = 'paused by you';
     else if (c === 'discuss') sv.views(s).active = 'chat';
@@ -153,7 +153,8 @@ const ROUTES = {
       const text = require('../autocontinue').instruction(s2, { cause: was === 'host-crashed' ? 'auto-resume' : 'host-closed' });
       require('../sessionviews').views(s2).active = 'coding'; s2.thread = 'coding';
       wb.of(s2).strategy.pausedForReview = null;
-      const r2 = startCoding(app, text);
+      // ▶ CONTINUE IS THE SAME TASK by construction — never a new one that would discard the plan it continues.
+      const r2 = startCoding(app, text, null, { sameTask: true });
       save(app);
       return { code: r2.code, body: { ...(r2.body || {}), resumedFrom: was, sessionId: s2.id, workbench: sup.state(app) } };
     }
@@ -172,7 +173,7 @@ const ROUTES = {
     if (!next) return bad('the plan has no remaining phase', 409);
     for (const o of wb.openOffers(s)) if (o.kind === 'PHASE_REVIEW') wb.settleOffer(s, o.id, 'ANSWERED', 'continue');
     w.strategy.pausedForReview = null;
-    const r = startCoding(app, next);
+    const r = startCoding(app, next, null, { sameTask: true });   // the plan's next phase: the same task
     save(app);
     return { code: r.code, body: { ...(r.body || {}), workbench: sup.state(app) } };
   },
@@ -205,7 +206,8 @@ const ROUTES = {
     require('../plan').seedFromCore(s, { objective: acc.plan.title || 'Approved plan', remaining: acc.plan.steps || [] });
     wb.of(s).strategy.pausedForReview = null;
     const prompt = (acc.handoff && acc.handoff.prompt) || acc.plan.text;
-    const started = startCoding(app, prompt);
+    // THE SEEDED PLAN IS THE TASK: asserted by Noema's own control, so classification never discards it as "new".
+    const started = startCoding(app, prompt, null, { sameTask: true });
     save(app);
     return { code: started.code, body: { ...(started.body || {}), plan: acc.plan, workbench: sup.state(app) } };
   },

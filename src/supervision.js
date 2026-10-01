@@ -55,6 +55,13 @@ function phaseInfo(session) {
 /** Why a task can be paused for its host: a CLI closed, this Core closed mid-turn, or a host crashed (resumed by itself). */
 const HOST_PAUSES = new Set(['cli-closed', 'host-closed', 'host-crashed']);
 
+/** The session lease as surfaces draw it (sessionlease.js): { writer, pid, pausedBy, handoff, mine, request }. */
+function surfaceOf(app) {
+  const s = app && app.session;
+  if (!s || !s.id) return null;
+  try { return require('./sessionlease').view(s.id, { surface: require('./surfacehandoff').surfaceOf(app) }); } catch { return null; }
+}
+
 /** One line for the Agent's state: "Phase 2 · Implementing". */
 function statusLine(app) {
   const s = app.session;
@@ -63,7 +70,8 @@ function statusLine(app) {
   if (w.quota && w.quota.state === 'QUOTA_PAUSED') return `Paused · ${w.quota.provider || 'the provider'} limit reached`;
   // THE EXECUTION HOST (a CLI, or this window's own Core) closed while the task had work left — named for what closed
   // (spec §111: "Paused · CLI closed"); a Core that closed or a host that crashed mid-turn is the execution host.
-  if (w.surface && HOST_PAUSES.has(w.surface.pausedBy) && !agentRunning(app)) return w.surface.pausedBy === 'cli-closed' ? 'Paused · CLI closed' : 'Paused · execution host closed';
+  const lease = surfaceOf(app);
+  if (lease && HOST_PAUSES.has(lease.pausedBy) && !agentRunning(app)) return lease.pausedBy === 'cli-closed' ? 'Paused · CLI closed' : 'Paused · execution host closed';
   const cont = w.autoRun && w.autoRun.waiting;
   if (cont && cont.until > Date.now()) return `Restarting · ${cont.why || 'the provider failed'}`;
   if (agentRunning(app)) return ph.current ? `Phase ${ph.current.n}${ph.total ? ` of ${ph.total}` : ''} · Implementing` : 'Implementing';
@@ -255,8 +263,7 @@ function checkpoint(app, record) {
     for (const o of wb.openOffers(s)) if (o.kind === 'PHASE_REVIEW') wb.settleOffer(s, o.id, 'SUPERSEDED');
     return { phase, next: decision.prompt || require('./runstrategy').nextPhasePrompt(s), cause: decision.cause || 'phase-continue', delayMs: decision.delayMs || 0, compact: Boolean(decision.compact) };
   }
-  // A HOST THAT CLOSED MID-TURN (the window, a CLI's exit): the task is paused for the next host to resume.
-  if (cls.outcome === 'HOST_CRASH' && app.wantExit) w.surface = { ...(w.surface || {}), writer: null, pausedBy: w.surface && w.surface.pausedBy === 'cli-closed' ? 'cli-closed' : 'host-closed', at: Date.now() };
+  // A HOST THAT CLOSED MID-TURN is recorded by the lease release on its way out (sessionlease.js), not here.
   return { phase };
 }
 
@@ -316,10 +323,10 @@ function state(app) {
     strategy: { ...w.strategy, label: require('./runstrategy').LABEL[w.strategy.kind] },
     profile: prof.of(s, app.cfg), pendingProfile: w.pendingProfile,
     steers: w.steers.slice(-20), findings: w.findings.slice(-20), phases: w.phases.slice(-10), deltas: w.deltas.slice(-20),
-    offers: wb.openOffers(s), quota: w.quota, discussing: w.discussing || null, surface: w.surface, notes: (w.notes || []).slice(-20),
+    offers: wb.openOffers(s), quota: w.quota, discussing: w.discussing || null, surface: surfaceOf(app), notes: (w.notes || []).slice(-20),
     // THE LAST AUTOMATIC CONTINUATION (and a restart being waited out), with its cause — autocontinue.js.
     autoRun: { ...require('./autocontinue').view(s), waiting: (w.autoRun && w.autoRun.waiting && w.autoRun.waiting.until > Date.now()) ? w.autoRun.waiting : null },
-    hostPaused: Boolean(w.surface && HOST_PAUSES.has(w.surface.pausedBy)),
+    hostPaused: (() => { const l = surfaceOf(app); return Boolean(l && HOST_PAUSES.has(l.pausedBy)); })(),
   };
 }
 

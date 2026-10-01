@@ -26,13 +26,9 @@
  * drawn as `123…dsaw` rather than as itself.
  *
  * ------------------------------------------------------------------------
- * `capability` IS THE SAME DOOR THE PHONE USES.
- *
- * `/session` in the terminal and "what is still running?" on Telegram end up in
- * the same `capability::run` in the same process, and get the same text back.
- * That is the entire point of §20: one runtime, several windows. A view built
- * here out of `app.jobs` and `session.turns` would be a second truth, and on
- * the day the two disagreed there would be no way to say which was wrong.
+ * GATEWAY ONLY (2026-10-02). The supervisor keeps the Telegram poller and hands every message to Noema's own bot
+ * gateway (src/bot/). The legacy "remote brain" — a second model and a capability catalog inside the supervisor that
+ * answered a phone with Noema closed — was removed with the Rust Guardian it read from.
  */
 
 const supervisor = require('./supervisor');
@@ -99,24 +95,6 @@ async function connect(token) {
   return { ok: true, remote: r.remote || {}, pairingCode: r.pairing_code || '' };
 }
 
-/**
- * WHICH LOCAL MODEL SPEAKS FOR LAIN.
- *
- * A base URL and a model name, which is how LAIN has always described a place a
- * model lives — see connections.js. Nothing new is invented here and no second
- * provider system exists: the caller picks one of the connections the user
- * already has, and only a local one.
- */
-async function setBrain({ baseUrl, model, key = '' }) {
-  if (key) require('./redact').register(key);
-  const r = await ask(
-    { op: 'remote_brain', base_url: String(baseUrl || ''), model: String(model || ''), key: String(key || '') },
-    { start: true },
-  );
-  if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'no runtime answered' };
-  return { ok: true, remote: r.remote || {} };
-}
-
 /** GONE MEANS GONE: the credential and the authorizations are removed, not hidden. */
 async function disconnect() {
   const r = await ask({ op: 'remote_disconnect' });
@@ -139,35 +117,4 @@ async function pairCode() {
   return { ok: true, code: r.pairing_code || '', remote: r.remote || {} };
 }
 
-/**
- * ONE CAPABILITY, THROUGH THE SAME VALIDATION A CHAT GOES THROUGH.
- *
- * `readOnly` exists so a caller can drop its own authority deliberately. The
- * terminal does not: a local client on a loopback socket has already proved
- * more than any chat can — it is running as the user, on the user's machine.
- *
- * Returns `{ ok, text, result }`. `text` is the authoritative rendering, made
- * in the runtime alongside the data, so a terminal and a phone cannot end up
- * describing different runtimes.
- */
-async function capability(name, args = {}, { readOnly = false } = {}) {
-  const r = await ask({ op: 'capability', name: String(name), args, read_only: Boolean(readOnly) });
-  // ---- "NOTHING ANSWERED" IS NOT "THE ANSWER WAS NO" ----------------------
-  //
-  // THE DEFECT THIS FIXES, found by driving the real CLI: `callIfRunning`
-  // reports a missing supervisor as `{ok: false, error: 'no supervisor is
-  // running'}` — an OBJECT, and therefore truthy. The first version of this
-  // checked only `if (!r)`, so a machine with no runtime reported
-  // `available: true` with an empty answer, and `/session` drew its heading over
-  // nothing instead of saying it could not ask. Exactly the confusion between
-  // "quiet" and "not connected" that runtimefeed.js exists to prevent.
-  //
-  // THE SUPERVISOR ALWAYS ECHOES `op`. Its presence is the proof that a reply
-  // came from the runtime at all, which is a different question from whether the
-  // runtime agreed to what was asked.
-  const answered = Boolean(r && r.op);
-  if (!answered) return { ok: false, available: false, text: '', result: null };
-  return { ok: Boolean(r.ok), available: true, text: String(r.text || ''), result: r.result || null };
-}
-
-module.exports = { status, connect, setBrain, disconnect, reconnect, pairCode, capability, ABSENT };
+module.exports = { status, connect, disconnect, reconnect, pairCode, ABSENT };

@@ -71,7 +71,7 @@ module.exports = async function () {
     const s = require('../../src/usage').sum([row], {});
     assert.strictEqual(s.cost.actualRows, 0, 'a runtime’s computed cost is never billed cost'); assert.strictEqual(s.cost.runtimeRows, 1);
     const t = ra.cachedTelemetry('claude-code');
-    assert.deepStrictEqual(t.limits.windows.map((w) => [w.label, w.usedPercent]), [['5-hour', 25], ['weekly', 60]]);
+    assert.deepStrictEqual(t.limits.windows.map((w) => [w.label, w.usedPercent]), [['5-hour', 25], ['7-day', 60]]);
     assert.strictEqual(t.resolved.haiku, 'claude-haiku-fake-1');
     assert.strictEqual((await ra.report(app, 'claude-code')).state, 'Operational', 'after a successful run through Noema');
   });

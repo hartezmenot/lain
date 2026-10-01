@@ -153,6 +153,7 @@ function telemetry(id) { try { return require('./runtimeadapters').cachedTelemet
 function windowsOf(limits) {
   if (!limits || !Array.isArray(limits.windows)) return null;
   const w = limits.windows.filter((x) => x && (x.usedPercent != null || x.resetsAt)).map((x) => ({
+    id: x.id || null, windowMins: Number(x.windowMins || x.mins) || null,
     label: x.label || x.id || '', usedPercent: x.usedPercent == null ? null : Math.round(Number(x.usedPercent)), resetsAt: x.resetsAt || null, expired: Boolean(x.expired),
   }));
   return w.length ? w : null;
@@ -223,6 +224,8 @@ function build(app, conns, cat) {
     acct.identity = v.identity ? { email: v.identity.email || null, plan: v.identity.planType || null } : null;
     acct.state = stateOfInstance(v);
     acct.quota = windowsOf(v.limits);
+    acct.quotaAt = (v.limits && (v.limits.observedAt || v.limits.at)) || 0;
+    acct.quotaBasis = (v.limits && (v.limits.basis || v.limits.reportedBy)) || null;
     const who = claude ? 'Claude Code' : agy ? 'Antigravity' : 'Codex';
     acct.quotaNote = acct.quota ? null : (v.limits_error || `${who} has not reported limits yet`);
     // ITS ROUTE (runtime:<driver>:<id>) EXISTS once it is signed in and the runtime has listed its models.
@@ -277,7 +280,7 @@ function describe(app, id, route, base, adopted, nm) {
         auth: 'Runtime · Claude Code', source: 'Claude Code', base: base.id, pinned: true, adopted: true, ownership: 'external_native',
         identity: ident ? { email: ident.email || null, plan: ident.plan || null } : null,
         state: ident && ident.signedIn === false ? 'SIGN_IN' : 'READY',
-        quota: windowsOf(tele.limits), quotaNote: tele.limits ? null : require('./drivers/claudeaccount').QUOTA_NOTE,
+        quota: windowsOf(tele.limits), quotaAt: (tele.limits && tele.limits.at) || 0, quotaBasis: (tele.limits && tele.limits.basis) || null, quotaNote: tele.limits ? null : require('./drivers/claudeaccount').QUOTA_NOTE,
       };
     }
     if (rt === 'opencode') return { id, kind: KIND.RUNTIME, family: 'opencode', name: nm[id] || 'OpenCode', auth: 'Runtime · OpenCode', source: 'OpenCode', base: base.id, pinned: true, adopted: true, state: 'READY', quotaNote: 'OpenCode does not report limits for its models' };
@@ -308,7 +311,7 @@ function describe(app, id, route, base, adopted, nm) {
     // and chosen — with no key behind it. It stays listed in MODEL › API, with the reason; it is never routed.
     ...(st === 'KEY_NEEDED' ? { usable: false, why: 'no API key — add one in MODEL › API' } : {}),
     ...(st === 'KEY_REFUSED' ? { usable: false, why: 'the provider refused this key, or it expired — replace it in MODEL › API' } : {}),
-    quota: uw ? windowsOf(uw) : null, quotaNote: uw ? null : 'limits appear after the provider reports them on a response',
+    quota: uw ? windowsOf(uw) : null, quotaAt: (uw && uw.at) || 0, quotaBasis: uw ? 'provider response headers' : null, quotaNote: uw ? null : 'limits appear after the provider reports them on a response',
   };
 }
 
@@ -486,7 +489,7 @@ function view(a) {
   if (!a) return null;
   return {
     id: a.id, kind: a.kind, family: a.family, familyLabel: a.familyLabel, name: a.name, auth: a.auth, source: a.source,
-    identity: a.identity, state: a.state, stateLabel: a.stateLabel, quota: a.quota, quotaNote: a.quotaNote,
+    identity: a.identity, state: a.state, stateLabel: a.stateLabel, quota: a.quota, quotaAt: a.quotaAt || 0, quotaBasis: a.quotaBasis || null, quotaNote: a.quotaNote,
     pinned: a.pinned, note: a.note, adopted: a.adopted, usable: a.usable, why: a.why, modelCount: a.modelCount,
     prefix: a.prefix, base: a.base, endpoint: a.endpoint || null, instanceId: a.instanceId,
   };

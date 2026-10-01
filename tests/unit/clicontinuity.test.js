@@ -58,8 +58,8 @@ module.exports = async function () {
   await test('CLI KILLED: a writer held by a pid that no longer exists is reaped as the same pause', async () => {
     const cli = cliWithPlan();
     sh.claim(cli);
-    require('../../src/workbench').of(cli.session).surface.pid = 999999;   // a process that is gone
     cli.session.save();
+    require('../../src/sessionlease')._setOwnerPid(cli.session.id, 999999);   // a process that is gone
     const h = harnessFor(cli.session.id);
     const reaped = sh.reapDeadCli(h.session.id);
     assert.deepStrictEqual([reaped.writer, reaped.pausedBy], [null, 'cli-closed']);
@@ -69,7 +69,7 @@ module.exports = async function () {
   await test('CLI DIED MID-TURN: reaped as host-crashed (its in-flight turn is still in the file), not as a closed CLI', async () => {
     const cli = cliWithPlan();
     sh.claim(cli);
-    require('../../src/workbench').of(cli.session).surface.pid = 999999;
+    require('../../src/sessionlease')._setOwnerPid(cli.session.id, 999999);
     cli.session.inflight = { turnId: 'tx', pid: 999999, userInput: 'wire autostart', step: 2, tool: null, ledger: [], touchedAt: Date.now() };
     cli.session.save();
     const reaped = sh.reapDeadCli(cli.session.id);
@@ -97,7 +97,7 @@ module.exports = async function () {
       assert.strictEqual(r.body.resumedFrom, 'cli-closed');
       assert.strictEqual(h.session.id, id, 'the same session — not a new one');
       assert.strictEqual(h.session.plan.steps.length, 3, 'the same plan');
-      const lease = require('../../src/workbench').of(h.session).surface;
+      const lease = sh.persisted(h.session.id);
       assert.strictEqual(lease.writer, 'harness', 'the Harness is now the execution host');
       assert.ok(!lease.pausedBy);
       for (let i = 0; i < 100 && h.abort; i++) await new Promise((x) => setTimeout(x, 30));

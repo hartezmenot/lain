@@ -131,6 +131,8 @@ async function main(argv) {
       process.stdout.write(r.ok ? `${r.state === 'moved' ? 'Moved this project\'s .lain/ to .noema/.' : r.why}\n` : `noema: ${r.why}\n`);
       return r.ok ? 0 : 1;
     }
+    // REFRESH MODELS WITHOUT A WINDOW (2026-10-02): the same Core catalog refresh as MODEL › Refresh models.
+    if ((w0 === 'model' || w0 === 'models') && w1 === 'refresh') return require('./modelcommand').refreshCli({ cwd: opts.cwd });
     const DASH = { model: 'models', models: 'models', account: 'accounts', accounts: 'accounts', api: 'api', local: 'local', dashboard: 'accounts' };
     if (!w1 && DASH[w0]) return require('./desktoprun').main({ cwd: opts.cwd, mode: 'dashboard', section: DASH[w0] });
     if (!w1 && w0 === 'preview') return require('./desktoprun').main({ cwd: opts.cwd, mode: 'preview' });
