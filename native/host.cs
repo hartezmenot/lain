@@ -1,4 +1,4 @@
-// LAIN DESKTOP — the native application host.
+// NOEMA HARNESS — the native application host (renamed from LAIN Desktop).
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT.
@@ -54,6 +54,8 @@ static class Program {
   [STAThread]
   static void Main(string[] argv) {
     var args = Args.Parse(argv);
+    // WINDOWS' "OPEN WITH" CHANGED (src/winassoc.js registered or removed LAIN): tell Explorer, then leave.
+    if (args.Has("assoc-changed")) { AssocNotify.Changed(); return; }
     if (args.Get("pipe") == null) {
       // ---- LAUNCHER MODE: SOMEBODY DOUBLE-CLICKED LAIN -------------------
       //
@@ -65,7 +67,12 @@ static class Program {
       // application is the entry point, and the terminal is optional. Core then
       // opens the real window over its own private channel, which is why this
       // process exits rather than trying to become the window itself.
-      Launcher.Start();
+      //
+      // "OPEN WITH LAIN" / "OPEN FOLDER IN LAIN": Explorer passes the file or
+      // folder as the first plain argument. Core opens it (src/openpath.js) —
+      // in the LAIN that is already running, or in the one this starts.
+      // `--startup`: the Startup shortcut launched this at Windows sign-in (src/startup.js) — passed on to Core.
+      Launcher.Start(Target(argv), Array.IndexOf(argv, "--startup") >= 0);
       return;
     }
     // DPI: the UI is a rendered document and must be crisp on every monitor,
@@ -79,6 +86,22 @@ static class Program {
     Application.SetCompatibleTextRenderingDefault(false);
     Application.Run(new Shell(args));
   }
+
+  /** The first plain argument: a path Explorer handed over ("%1" / "%V"), or null. */
+  static string Target(string[] argv) {
+    foreach (var a in argv) {
+      if (String.IsNullOrEmpty(a) || a.StartsWith("--")) continue;
+      return a;
+    }
+    return null;
+  }
+}
+
+/** SHChangeNotify(SHCNE_ASSOCCHANGED): Explorer re-reads "Open with" and the context menus. */
+static class AssocNotify {
+  [System.Runtime.InteropServices.DllImport("shell32.dll")]
+  static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+  public static void Changed() { try { SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); } catch { } }
 }
 
 /**
@@ -106,7 +129,7 @@ static class Program {
  * regression this message exists to report.
  */
 static class Launcher {
-  public static void Start() {
+  public static void Start(string target = null, bool startup = false) {
     string dir = Path.GetDirectoryName(Application.ExecutablePath);
     string node = null, entry = null, why = null;
     try {
@@ -122,10 +145,10 @@ static class Launcher {
     } catch (Exception ex) { why = ex.Message; }
 
     if (String.IsNullOrEmpty(node) || !File.Exists(node)) node = Probe();
-    if (String.IsNullOrEmpty(node)) { Fail("LAIN could not find Node on this machine.", why); return; }
+    if (String.IsNullOrEmpty(node)) { Fail("Noema could not find Node on this machine.", why); return; }
     if (String.IsNullOrEmpty(entry) || !File.Exists(entry)) {
-      Fail("LAIN could not find its own program files.",
-        "launch.json did not name a readable entry point. Reinstall LAIN, or run `lain --desktop` once from a terminal to rewrite it.");
+      Fail("Noema could not find its own program files.",
+        "launch.json did not name a readable entry point. Reinstall Noema, or run `noema --desktop` once from a terminal to rewrite it.");
       return;
     }
 
@@ -136,13 +159,16 @@ static class Launcher {
       // and nowhere else.
       var psi = new System.Diagnostics.ProcessStartInfo();
       psi.FileName = node;
-      psi.Arguments = "\"" + entry + "\" --desktop";
+      psi.Arguments = "\"" + entry + "\" --desktop" + (startup ? " --startup" : "");
+      // A PATH FROM EXPLORER, quoted once. A trailing backslash (a drive root, "C:\") is doubled, or it would
+      // escape the closing quote under the C runtime's argument rules.
+      if (!String.IsNullOrEmpty(target)) psi.Arguments += " --open \"" + (target.EndsWith("\\") ? target + "\\" : target) + "\"";
       psi.UseShellExecute = false;
       psi.CreateNoWindow = true;              // no console flash, and none left behind
       psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
       System.Diagnostics.Process.Start(psi);
     } catch (Exception ex) {
-      Fail("LAIN could not start.", node + Environment.NewLine + ex.Message);
+      Fail("Noema could not start.", node + Environment.NewLine + ex.Message);
     }
   }
 
@@ -176,8 +202,8 @@ static class Launcher {
         + (String.IsNullOrEmpty(detail) ? "" : detail + Environment.NewLine + Environment.NewLine)
         + "Looked for node.exe in Program Files and on PATH."
         + Environment.NewLine
-        + "Install Node from https://nodejs.org, or set \"nodePath\" in your LAIN config.json.",
-      "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        + "Install Node from https://nodejs.org, or set \"nodePath\" in your Noema config.json.",
+      "Noema", MessageBoxButtons.OK, MessageBoxIcon.Error);
     Environment.Exit(2);
   }
 }
@@ -207,6 +233,72 @@ static class Caption {
     int on = 1;
     try { if (DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)) == 0) return; } catch { }
     try { DwmSetWindowAttribute(hwnd, 19, ref on, sizeof(int)); } catch { }
+  }
+}
+
+/**
+ * THE PAGE DRAWS THE TITLE BAR (2026-09-30).
+ *
+ * The system caption is removed and the page's own top bar takes its place:
+ * the brand, the usage tracker and the window buttons on one line, as the
+ * product's frame. What Windows owns stays Windows': WM_NCCALCSIZE removes only
+ * the CAPTION, so the side and bottom resize borders, the drop shadow, snapping,
+ * rounded corners and the system menu (Alt+Space) are the system's own. Moving
+ * the window, and resizing from the top edge, are started by the page (the
+ * "win" verb) and then performed by Windows' own move/size loop — so a drag to
+ * the screen edge snaps exactly like any other window.
+ *
+ * `--native-caption` (or LAIN_NATIVE_CAPTION=1) keeps the system caption.
+ */
+static class Frame {
+  public const int WM_NCCALCSIZE = 0x0083;
+  public const int WM_NCLBUTTONDOWN = 0x00A1;
+  public const int HTCAPTION = 2, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
+
+  [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+  public struct RECT { public int left, top, right, bottom; }
+  [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+  public struct NCCALCSIZE_PARAMS { public RECT r0, r1, r2; public IntPtr pos; }
+
+  [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ReleaseCapture();
+  [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+  [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern int GetSystemMetricsForDpi(int index, uint dpi);
+  [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr h);
+
+  /** The frame thickness a maximised window hangs off the screen by: resize frame + padded border, at the window's DPI. */
+  public static int FrameY(IntPtr hwnd) {
+    try { uint dpi = GetDpiForWindow(hwnd); if (dpi > 0) return GetSystemMetricsForDpi(33, dpi) + GetSystemMetricsForDpi(92, dpi); } catch { }
+    try { return GetSystemMetrics(33) + GetSystemMetrics(92); } catch { return 8; }
+  }
+
+  /**
+   * WM_NCCALCSIZE, in two halves around Windows' own calculation: remember where the window's
+   * top was, let Windows compute the frame, then give the caption back to the client area.
+   */
+  public static int TopBefore(IntPtr lParam) {
+    var p = (NCCALCSIZE_PARAMS)System.Runtime.InteropServices.Marshal.PtrToStructure(lParam, typeof(NCCALCSIZE_PARAMS));
+    return p.r0.top;
+  }
+  public static void TopAfter(ref Message m, int top) {
+    var p = (NCCALCSIZE_PARAMS)System.Runtime.InteropServices.Marshal.PtrToStructure(m.LParam, typeof(NCCALCSIZE_PARAMS));
+    // MAXIMISED, a window hangs its frame off every screen edge; the top one must come back or the page loses a strip.
+    p.r0.top = top + (IsZoomed(m.HWnd) ? FrameY(m.HWnd) : 0);
+    System.Runtime.InteropServices.Marshal.StructureToPtr(p, m.LParam, false);
+    m.Result = IntPtr.Zero;
+  }
+
+  /** Ask Windows to recompute the frame now (after the handle exists). */
+  public static void Refresh(IntPtr hwnd) {
+    // SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED
+    try { SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020); } catch { }
+  }
+
+  /** Hand the pressed mouse to Windows' own move (HTCAPTION) or size (HTTOP…) loop. */
+  public static void Begin(IntPtr hwnd, int hit) {
+    try { ReleaseCapture(); SendMessage(hwnd, WM_NCLBUTTONDOWN, new IntPtr(hit), IntPtr.Zero); } catch { }
   }
 }
 
@@ -282,19 +374,58 @@ class Shell : Form {
   // let Core go on would leave exactly the orphan this arrangement prevents.
   NotifyIcon tray;
   bool quitting;
+  // THE DETACHED PREVIEW (Phase 8.1): a second window on the same Core and the same WebView2 environment.
+  CoreWebView2Environment sharedEnv;
+  Satellite preview;
+
+  // THE PAGE'S OWN TITLE BAR (see Frame) unless the system caption was asked for.
+  readonly bool ownFrame;
+  // null (the Harness), "dashboard" or "preview" — see the constructor.
+  readonly string mode;
+  bool lastMax;
+  bool lastMin;
+
+  protected override void WndProc(ref Message m) {
+    if (ownFrame && m.Msg == Frame.WM_NCCALCSIZE && m.WParam != IntPtr.Zero) {
+      int top = Frame.TopBefore(m.LParam);
+      base.WndProc(ref m);
+      Frame.TopAfter(ref m, top);
+      return;
+    }
+    base.WndProc(ref m);
+  }
+
+  /** The window's state as the page draws it: maximised or not (the ▢ / ❐ button), and minimised (the page polls less). */
+  void WindowStateToPage() {
+    bool max = WindowState == FormWindowState.Maximized;
+    bool min = WindowState == FormWindowState.Minimized;
+    if (max == lastMax && min == lastMin) return;
+    lastMax = max;
+    lastMin = min;
+    ToRenderer("{\"win\":{\"max\":" + (max ? "true" : "false") + ",\"min\":" + (min ? "true" : "false") + ",\"own\":" + (ownFrame ? "true" : "false") + "}}");
+  }
 
   public Shell(Args a) {
     args = a;
+    ownFrame = !a.Has("native-caption") && Environment.GetEnvironmentVariable("LAIN_NATIVE_CAPTION") != "1";
     core = new Core(a.Get("pipe"), a.Get("secret"));
     stateFile = a.Get("window-state") ?? Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain-v2", "desktop-window.json");
+      Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema", "desktop-window.json");
 
-    Text = "LAIN";
+    // WHAT THIS WINDOW IS (`--mode`): the full Harness, or one of the two surfaces the Noema CLI opens on its own —
+    // the Model Dashboard (`noema model`) and the Preview (`noema preview`). A mode window has no tray: closing it
+    // closes it, and the CLI's Core that opened it ends with it (src/desktoprun.js).
+    mode = a.Get("mode");
+    if (mode != "dashboard" && mode != "preview") mode = null;
+    Text = mode == "dashboard" ? "Noema Model Dashboard" : mode == "preview" ? "Noema Preview" : "Noema";
+    try { Icon = TrayIcon(); } catch { /* the system icon */ }
     MinimumSize = new Size(880, 560);
     BackColor = Color.FromArgb(11, 13, 16);
     AllowDrop = true;
     StartPosition = FormStartPosition.Manual;
     RestoreWindow();
+    // STARTED MINIMIZED at Windows sign-in (src/startup.js): on the taskbar, not in front of the person.
+    if (a.Has("minimized")) WindowState = FormWindowState.Minimized;
 
     status.Dock = DockStyle.Top;
     status.Height = 26;
@@ -313,13 +444,32 @@ class Shell : Form {
     DragEnter += OnDragEnter;
     DragDrop += OnDragDrop;
     FormClosing += OnClosing;
-    BuildTray();
+    if (mode == null) BuildTray();
 
     core.Connected += () => BeginInvoke((Action)(() => Banner(null)));
-    core.Lost += why => BeginInvoke((Action)(() => Banner("LAIN Core is not responding — reconnecting. " + why)));
+    core.Lost += why => BeginInvoke((Action)(() => Banner("Noema Core is not responding — reconnecting. " + why)));
     core.Message += line => BeginInvoke((Action)(() => FromCore(line)));
 
-    HandleCreated += (s, e) => Caption.Dark(Handle);
+    // THE CORE THAT STARTED THIS WINDOW (`--core-pid`): when that process has ended, there is nothing left to show and
+    // nothing to reconnect to — the window closes rather than lingering as an orphan (and its tray icon with it).
+    int corePid;
+    if (int.TryParse(a.Get("core-pid") ?? "", NumberStyles.Integer, CultureInfo.InvariantCulture, out corePid) && corePid > 0) {
+      var coreWatch = new System.Windows.Forms.Timer();
+      coreWatch.Interval = 2000;
+      coreWatch.Tick += (s, e) => {
+        bool alive;
+        try { using (var p = System.Diagnostics.Process.GetProcessById(corePid)) alive = !p.HasExited; } catch { alive = false; }
+        if (alive) return;
+        coreWatch.Stop();
+        quitting = true;
+        if (tray != null) { tray.Visible = false; }
+        Application.Exit();
+      };
+      coreWatch.Start();
+    }
+
+    HandleCreated += (s, e) => { Caption.Dark(Handle); if (ownFrame) Frame.Refresh(Handle); };
+    Resize += (s, e) => WindowStateToPage();
     Load += async (s, e) => await Boot();
   }
 
@@ -349,7 +499,7 @@ class Shell : Form {
     var userData = args.Get("user-data");
     if (String.IsNullOrEmpty(userData)) {
       string home = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain-v2", "desktop");
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema", "desktop");
       userData = args.Has("dev") ? Path.Combine(home, "dev") : home;
     }
     Directory.CreateDirectory(userData);
@@ -363,7 +513,11 @@ class Shell : Form {
     // drives this application for real rather than testing a different build:
     // the port is chosen by the caller, bound to loopback by the renderer
     // itself, and absent from every release launch.
-    var browserArgs = "--disable-features=msSmartScreenProtection";
+    // AUTOPLAY WITHOUT A GESTURE: a model driving the Preview (src/tools/preview.js) clicks with synthesized events,
+    // which a browser does not count as a person's gesture — so a project's Play button would silently fail to play.
+    // The renderer only ever shows Noema's page and the project's own Preview, so this changes nothing elsewhere.
+    // Every window on this profile passes the same options (WebView2 requires it), so it is unconditional.
+    var browserArgs = "--disable-features=msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
     var debugPort = args.Get("debug-port");
     if (args.Has("dev") && !String.IsNullOrEmpty(debugPort)) {
       browserArgs += " --remote-debugging-port=" + debugPort;
@@ -373,6 +527,7 @@ class Shell : Form {
     try {
       env = await CoreWebView2Environment.CreateAsync(null, userData, opts);
       await view.EnsureCoreWebView2Async(env);
+      sharedEnv = env;
     } catch (Exception ex) {
       // ---- SAY WHICH FAILURE THIS IS -------------------------------------
       //
@@ -388,20 +543,20 @@ class Shell : Form {
       int hr = System.Runtime.InteropServices.Marshal.GetHRForException(ex);
       string headline, advice;
       if (hr == unchecked((int)0x8007139F)) {           // ERROR_INVALID_STATE
-        headline = "LAIN Desktop could not open a second window with different settings.";
-        advice = "Another LAIN Desktop window is already using this renderer profile."
-          + "\r\n\r\nQuit LAIN from the tray and open it again.";
+        headline = "Noema could not open a second window with different settings.";
+        advice = "Another Noema window is already using this renderer profile."
+          + "\r\n\r\nExit Noema from the tray and open it again.";
       } else if (hr == unchecked((int)0x80004005) || ex is DllNotFoundException) {
-        headline = "LAIN Desktop needs the Microsoft Edge WebView2 runtime, which is part of Windows.";
-        advice = "Install the WebView2 runtime from Microsoft, then open LAIN again.";
+        headline = "Noema needs the Microsoft Edge WebView2 runtime, which is part of Windows.";
+        advice = "Install the WebView2 runtime from Microsoft, then open Noema again.";
       } else {
-        headline = "LAIN Desktop could not start its renderer.";
+        headline = "Noema could not start its renderer.";
         advice = "The profile it uses is:\r\n" + userData;
       }
       MessageBox.Show(
         headline + "\r\n\r\n" + advice
           + "\r\n\r\n" + ex.Message + "  (0x" + hr.ToString("X8", CultureInfo.InvariantCulture) + ")",
-        "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        "Noema", MessageBoxButtons.OK, MessageBoxIcon.Error);
       Close();
       return;
     }
@@ -413,6 +568,8 @@ class Shell : Form {
     s.AreDevToolsEnabled = dev;
     s.IsStatusBarEnabled = false;
     s.AreBrowserAcceleratorKeysEnabled = dev;
+    // LAIN OWNS THE ZOOM (the "zoom" verb): persisted, stepped 80–200%, applied to every surface.
+    s.IsZoomControlEnabled = false;
     s.IsSwipeNavigationEnabled = false;
     s.IsGeneralAutofillEnabled = false;
     s.IsPasswordAutosaveEnabled = false;
@@ -451,7 +608,12 @@ class Shell : Form {
 
     core.Start();
 
-    var start = args.Get("url") ?? "https://lain.app/index.html";
+    // A MODE WINDOW loads the same page in that mode: the Model Dashboard (`#dashboard=<section>`) or the Preview
+    // alone (`#detached-preview`, the same surface the Harness detaches). `lain.app` is the page's internal virtual
+    // origin — never shown to the person and never on the network.
+    var start = args.Get("url") ?? ("https://lain.app/index.html"
+      + (mode == "dashboard" ? "#dashboard=" + Uri.EscapeDataString(args.Get("section") ?? "accounts")
+        : mode == "preview" ? "#detached-preview" : ""));
     view.Source = new Uri(start);
     ready = true;
   }
@@ -511,13 +673,70 @@ class Shell : Form {
       body["cancelled"] = picked == null;
       body["path"] = picked;
     } else if (ask == "trayTip") {
-      string text = m.ContainsKey("text") ? Convert.ToString(m["text"], CultureInfo.InvariantCulture) : "LAIN";
+      string text = m.ContainsKey("text") ? Convert.ToString(m["text"], CultureInfo.InvariantCulture) : "Noema";
       // NotifyIcon.Text is capped at 63 characters by Windows.
-      if (tray != null) { try { tray.Text = String.IsNullOrEmpty(text) ? "LAIN" : (text.Length > 63 ? text.Substring(0, 63) : text); } catch { } }
+      if (tray != null) { try { tray.Text = String.IsNullOrEmpty(text) ? "Noema" : (text.Length > 63 ? text.Substring(0, 63) : text); } catch { } }
       body["ok"] = true;
     } else if (ask == "hide") {
       Hide();
       body["ok"] = true;
+    } else if (ask == "win") {
+      // THE PAGE'S TITLE BAR (see Frame): state · min · max (toggles) · close (the system X: hides to
+      // the tray) · drag (Windows' own move loop) · resize from the top edge. Nothing else.
+      string act = m.ContainsKey("do") ? Convert.ToString(m["do"], CultureInfo.InvariantCulture) : "state";
+      if (act == "min") WindowState = FormWindowState.Minimized;
+      else if (act == "max") WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+      else if (act == "close") BeginInvoke((Action)(() => Close()));
+      else if (ownFrame && (act == "drag" || act == "resize")) {
+        string edge = m.ContainsKey("edge") ? Convert.ToString(m["edge"], CultureInfo.InvariantCulture) : "";
+        int hit = act == "drag" ? Frame.HTCAPTION : edge == "top" ? Frame.HTTOP : edge == "topleft" ? Frame.HTTOPLEFT : edge == "topright" ? Frame.HTTOPRIGHT : 0;
+        // AFTER this message returns, with the button still down: Windows' loop then owns the mouse until it is released.
+        if (hit != 0 && !(act == "resize" && WindowState == FormWindowState.Maximized)) BeginInvoke((Action)(() => Frame.Begin(Handle, hit)));
+      }
+      body["ok"] = true;
+      body["own"] = ownFrame;
+      body["max"] = WindowState == FormWindowState.Maximized;
+    } else if (ask == "zoom") {
+      // THE WHOLE INTERFACE'S SCALE (Settings › Appearance › Interface Scale, Ctrl+ / Ctrl- / Ctrl+0).
+      // The renderer's own zoom, so every surface — the editor included — scales together.
+      double f = 1.0;
+      try { f = Convert.ToDouble(m.ContainsKey("factor") ? m["factor"] : 1.0, CultureInfo.InvariantCulture); } catch { f = 1.0; }
+      if (f < 0.5) f = 0.5; if (f > 3.0) f = 3.0;
+      try { view.ZoomFactor = f; body["ok"] = true; body["factor"] = f; } catch (Exception ze) { body["ok"] = false; body["why"] = ze.Message; }
+    } else if (ask == "detach") {
+      // DETACH PREVIEW: the preview in its own window — the same Core, project, dev server,
+      // Selection and "Say something to change" (it is LAIN's own page in preview mode).
+      // Closing it stops nothing; the main window is untouched.
+      string mode = m.ContainsKey("mode") ? Convert.ToString(m["mode"], CultureInfo.InvariantCulture) : "preview";
+      if (mode != "preview" || sharedEnv == null) { body["ok"] = false; body["why"] = mode != "preview" ? "only the preview can be detached" : "the window is still starting"; }
+      else {
+        if (preview == null || preview.IsDisposed) {
+          preview = new Satellite(args, sharedEnv, "Noema \u2014 Preview", "https://lain.app/index.html#detached-preview");
+          preview.FormClosed += (o, e2) => { preview = null; };
+          preview.Show();
+        } else { preview.Activate(); }
+        body["ok"] = true;
+      }
+    } else if (ask == "capture") {
+      // A PICTURE OF THE WINDOW, for a feedback report — only when the person ticked it.
+      // Asynchronous: the capture completes on the UI thread's own loop, then the reply is sent.
+      var ms = new System.IO.MemoryStream();
+      object capId = m["id"];
+      view.CoreWebView2.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png, ms).ContinueWith(t => {
+        var cb = new Dictionary<string, object>();
+        cb["host"] = "capture";
+        if (t.IsFaulted) { cb["ok"] = false; cb["why"] = t.Exception.GetBaseException().Message; }
+        else { cb["ok"] = true; cb["png"] = "data:image/png;base64," + Convert.ToBase64String(ms.ToArray()); }
+        ms.Dispose();
+        var crep = new Dictionary<string, object>();
+        crep["id"] = capId;
+        crep["body"] = cb;
+        var ser = new JavaScriptSerializer();
+        ser.MaxJsonLength = int.MaxValue;
+        string json = ser.Serialize(crep);
+        BeginInvoke((Action)(() => ToRenderer(json)));
+      });
+      return;
     } else if (ask == "pickFile") {
       // A FILE TO HAND TO CORE (a .vsix to install). Like the folder picker it
       // grants nothing: Core reads the path and checks it as if it were typed.
@@ -569,6 +788,9 @@ class Shell : Form {
       else if (verb == "hide") Hide();
       else if (verb.StartsWith("notify:")) Notify(verb.Substring(7));
       else if (verb.StartsWith("remind:")) Remind(verb.Substring(7));
+      // THE TRAY'S QUOTA SUMMARY (Phase 8.3, Core's fabric/tray.js): text lines and one percentage.
+      // Presentation data only — drawn into the tooltip, the menu and the icon; never run, never forwarded.
+      else if (verb.StartsWith("tray:")) TrayUpdate(verb.Substring(5));
       // CORE IS SHUTTING DOWN AND IS CLOSING ITS WINDOW. Asked rather than
       // killed, so `OnClosing` runs and the tray icon is DISPOSED — a killed
       // process leaves its icon in the notification area until somebody hovers
@@ -595,7 +817,7 @@ class Shell : Form {
     if (tray == null || String.IsNullOrEmpty(text)) return;
     if (Visible && WindowState != FormWindowState.Minimized && ContainsFocus) return;
     try {
-      tray.BalloonTipTitle = "LAIN";
+      tray.BalloonTipTitle = "Noema";
       tray.BalloonTipText = text.Length > 240 ? text.Substring(0, 240) : text;
       tray.BalloonTipIcon = ToolTipIcon.Info;
       tray.ShowBalloonTip(5000);
@@ -616,7 +838,7 @@ class Shell : Form {
     try {
       var o = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>;
       if (o == null) return;
-      string title = o.ContainsKey("title") ? Convert.ToString(o["title"], CultureInfo.InvariantCulture) : "LAIN";
+      string title = o.ContainsKey("title") ? Convert.ToString(o["title"], CultureInfo.InvariantCulture) : "Noema";
       string text = o.ContainsKey("text") ? Convert.ToString(o["text"], CultureInfo.InvariantCulture) : "";
       pendingNav = o.ContainsKey("nav") ? new JavaScriptSerializer().Serialize(o["nav"]) : null;
       tray.BalloonTipTitle = title.Length > 63 ? title.Substring(0, 63) : title;
@@ -724,34 +946,159 @@ class Shell : Form {
   }
 
   /**
-   * THE TRAY ICON AND ITS MENU.
+   * THE TRAY — LAIN's intelligence health and quota (Phase 8.3).
    *
-   * DELIBERATELY THREE ITEMS. A tray menu is not a dashboard: it is the handful
-   * of things a person wants when LAIN has no window on screen — bring it back,
-   * check it is alive, end it. Everything else is in the application, which is
-   * one click away.
+   * HOVER shows the provider/account quota summary Core sends (fabric/tray.js):
+   * only windows a provider reported. CLICK opens a compact panel — those lines,
+   * then Open LAIN · Models & Accounts · Usage · Active Tasks · Pause/Continue
+   * task · Exit. A tray menu is not a dashboard: everything else is one click
+   * away in the application.
    *
-   * The two session items are there because "start a new conversation" is the
-   * one action worth having before the window is even up; they open the window
-   * and ask Core for the session, so the window and the tray cannot end up with
-   * two different ideas of what a new session is.
+   * THE HOST NEVER ASKS FOR ANY OF THIS. Core pushes the summary when it changes
+   * (a receipt, an account change, a fallback, a known reset); the host only
+   * draws it — no timer here, no polling, nothing at idle.
    */
-  void BuildTray() {
-    var menu = new ContextMenuStrip();
-    menu.Items.Add("Open LAIN", null, (s, e) => ShowWindow());
-    menu.Items.Add("New Chat", null, (s, e) => NewSession("engineering"));
-    menu.Items.Add(new ToolStripSeparator());
-    menu.Items.Add("Status", null, (s, e) => ShowStatus());
-    menu.Items.Add(new ToolStripSeparator());
-    menu.Items.Add("Quit LAIN", null, (s, e) => QuitLain());
+  List<string> trayLines = new List<string>();
+  string trayNote = null;
+  string trayWork = null;
+  IntPtr trayIconHandle = IntPtr.Zero;
 
+  [System.Runtime.InteropServices.DllImport("user32.dll")]
+  static extern bool DestroyIcon(IntPtr handle);
+
+  void BuildTray() {
     tray = new NotifyIcon();
     tray.Icon = TrayIcon();
-    tray.Text = "LAIN";
+    tray.Text = "Noema";
     tray.Visible = true;
-    tray.ContextMenuStrip = menu;
+    RebuildTrayMenu();
     tray.DoubleClick += (s, e) => ShowWindow();
+    // A LEFT CLICK opens the same compact panel a right click does.
+    tray.MouseUp += (s, e) => {
+      if (e.Button != MouseButtons.Left) return;
+      try {
+        var show = typeof(NotifyIcon).GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (show != null) show.Invoke(tray, null);
+      } catch { /* the right-click menu still works */ }
+    };
     tray.BalloonTipClicked += (s, e) => RemindClicked();
+  }
+
+  void RebuildTrayMenu() {
+    if (tray == null) return;
+    var menu = new ContextMenuStrip();
+    // THE QUOTA LINES (the first is the "Noema" title — the menu does not repeat it).
+    for (int i = 1; i < trayLines.Count && i < 24; i++) {
+      var line = new ToolStripMenuItem(trayLines[i]);
+      line.Enabled = false;
+      menu.Items.Add(line);
+    }
+    if (!String.IsNullOrEmpty(trayNote)) { var n = new ToolStripMenuItem(trayNote); n.Enabled = false; menu.Items.Add(n); }
+    if (menu.Items.Count > 0) menu.Items.Add(new ToolStripSeparator());
+    menu.Items.Add("Open Noema", null, (s, e) => ShowWindow());
+    menu.Items.Add("Models & Accounts", null, (s, e) => ShowAt("model", "accts"));
+    menu.Items.Add("Usage", null, (s, e) => ShowAt("usage", null));
+    menu.Items.Add("Active Tasks", null, (s, e) => ShowAt("chat", null));
+    if (trayWork == "running") menu.Items.Add("Pause task", null, (s, e) => CorePost("/api/interrupt"));
+    else if (trayWork == "paused") menu.Items.Add("Continue task", null, (s, e) => CorePost("/api/workbench/continue"));
+    menu.Items.Add(new ToolStripSeparator());
+    menu.Items.Add("Exit Noema", null, (s, e) => QuitLain());
+    var old = tray.ContextMenuStrip;
+    tray.ContextMenuStrip = menu;
+    if (old != null) old.Dispose();
+  }
+
+  /** Core's summary: { tooltip, lines[], active: { percent (used), remaining, limited }, note, task }. */
+  void TrayUpdate(string json) {
+    if (tray == null) return;
+    Dictionary<string, object> m = null;
+    try { m = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>; } catch { m = null; }
+    if (m == null) return;
+    var lines = new List<string>();
+    var raw = m.ContainsKey("lines") ? m["lines"] as System.Collections.IEnumerable : null;
+    if (raw != null) foreach (var l in raw) lines.Add(Convert.ToString(l, CultureInfo.InvariantCulture));
+    trayLines = lines;
+    trayNote = m.ContainsKey("note") && m["note"] != null ? Convert.ToString(m["note"], CultureInfo.InvariantCulture) : null;
+    trayWork = m.ContainsKey("task") && m["task"] != null ? Convert.ToString(m["task"], CultureInfo.InvariantCulture) : null;
+    SetTrayText(m.ContainsKey("tooltip") ? Convert.ToString(m["tooltip"], CultureInfo.InvariantCulture) : "Noema");
+    int pct = -1; bool limited = false;
+    var act = m.ContainsKey("active") ? m["active"] as Dictionary<string, object> : null;
+    if (act != null) {
+      // WHAT REMAINS is what the icon draws (Core sends it; an older summary sends only what was used).
+      try { pct = act.ContainsKey("remaining") ? Convert.ToInt32(act["remaining"], CultureInfo.InvariantCulture) : 100 - Convert.ToInt32(act["percent"], CultureInfo.InvariantCulture); } catch { pct = -1; }
+      try { limited = act.ContainsKey("limited") && Convert.ToBoolean(act["limited"], CultureInfo.InvariantCulture); } catch { limited = false; }
+    }
+    SetTrayIcon(pct, limited);
+    RebuildTrayMenu();
+  }
+
+  /** Windows shows up to 127 tooltip characters; NotifyIcon.Text accepts 63, so the field is set directly. */
+  void SetTrayText(string text) {
+    if (String.IsNullOrEmpty(text)) text = "Noema";
+    if (text.Length > 127) text = text.Substring(0, 127);
+    try {
+      var t = typeof(NotifyIcon);
+      var hidden = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+      t.GetField("text", hidden).SetValue(tray, text);
+      if ((bool)t.GetField("added", hidden).GetValue(tray)) t.GetMethod("UpdateIcon", hidden).Invoke(tray, new object[] { true });
+    } catch {
+      try { tray.Text = text.Length > 63 ? text.Substring(0, 63) : text; } catch { /* keep the old text */ }
+    }
+  }
+
+  /**
+   * THE ICON CARRIES ONE FACT: how much of the active account's tightest
+   * reported window REMAINS — a thin bar along the bottom (green; amber at 20 %
+   * or less; red at 5 % or less, or when limited). A full bar is a full window
+   * still available; 100 % remaining is never red. No figure is drawn: at 16 px
+   * digits are unreadable. With nothing reported, the plain icon.
+   */
+  void SetTrayIcon(int pct, bool limited) {
+    if (pct < 0 && !limited) {
+      if (trayIconHandle != IntPtr.Zero) { tray.Icon = TrayIcon(); DestroyIcon(trayIconHandle); trayIconHandle = IntPtr.Zero; }
+      return;
+    }
+    try {
+      int size = Math.Max(16, SystemInformation.SmallIconSize.Width);
+      using (var bmp = new Bitmap(size, size))
+      using (var g = Graphics.FromImage(bmp)) {
+        g.Clear(Color.Transparent);
+        using (var baseIcon = new Icon(TrayIcon(), size, size)) g.DrawIcon(baseIcon, new Rectangle(0, 0, size, size));
+        int h = Math.Max(3, size / 5);
+        int p = Math.Min(100, Math.Max(0, pct));
+        // A LIMITED account is an alert, not a reading: a full red bar.
+        int w = limited ? size - 2 : Math.Max(1, (int)Math.Round((size - 2) * p / 100.0));
+        Color c = limited || p <= 5 ? Color.FromArgb(220, 64, 64) : p <= 20 ? Color.FromArgb(230, 170, 40) : Color.FromArgb(60, 180, 110);
+        using (var back = new SolidBrush(Color.FromArgb(210, 24, 24, 24))) g.FillRectangle(back, 0, size - h, size, h);
+        using (var fill = new SolidBrush(c)) g.FillRectangle(fill, 1, size - h + 1, w, h - 2);
+        IntPtr handle = bmp.GetHicon();
+        IntPtr old = trayIconHandle;
+        tray.Icon = Icon.FromHandle(handle);
+        trayIconHandle = handle;
+        if (old != IntPtr.Zero) DestroyIcon(old);
+      }
+    } catch { /* the plain icon stays */ }
+  }
+
+  /** Open the window at a surface — the same navigation message a clicked reminder sends. */
+  void ShowAt(string tab, string section) {
+    ShowWindow();
+    var nav = new Dictionary<string, object>();
+    nav["tab"] = tab;
+    if (section != null) nav["section"] = section;
+    var msg = new Dictionary<string, object>();
+    msg["nav"] = nav;
+    ToRenderer(new JavaScriptSerializer().Serialize(msg));
+  }
+
+  /** One of Core's own routes, asked for from the tray — Core decides what it means. */
+  void CorePost(string path) {
+    var msg = new Dictionary<string, object>();
+    msg["id"] = 0;
+    msg["method"] = "POST";
+    msg["path"] = path;
+    msg["body"] = new Dictionary<string, object>();
+    core.Send(new JavaScriptSerializer().Serialize(msg));
   }
 
   /**
@@ -774,27 +1121,6 @@ class Shell : Form {
     BringToFront();
   }
 
-  /** A new conversation, asked for from the tray. Core decides what that means. */
-  void NewSession(string lane) {
-    ShowWindow();
-    var body = new Dictionary<string, object>();
-    body["lane"] = lane;
-    var msg = new Dictionary<string, object>();
-    msg["id"] = 0;
-    msg["method"] = "POST";
-    msg["path"] = "/api/session/new";
-    msg["body"] = body;
-    core.Send(new JavaScriptSerializer().Serialize(msg));
-  }
-
-  void ShowStatus() {
-    MessageBox.Show(
-      (core.Live ? "Connected to LAIN Core." : "LAIN Core is not responding.")
-        + Environment.NewLine + Environment.NewLine
-        + "Closing the window keeps LAIN running so bots and background work carry on."
-        + Environment.NewLine + "Quit LAIN from this menu to end it.",
-      "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Information);
-  }
 
   /**
    * QUIT — the explicit one, and the only thing here that ends anything.
@@ -807,8 +1133,8 @@ class Shell : Form {
    */
   void QuitLain() {
     if (MessageBox.Show(
-          "Quit LAIN? Bots, background jobs and any work in progress will stop.",
-          "Quit LAIN", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
+          "Exit Noema? Bots, background jobs and any work in progress will stop.",
+          "Exit Noema", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
     quitting = true;
     var msg = new Dictionary<string, object>();
     msg["id"] = 0;
@@ -836,7 +1162,7 @@ class Shell : Form {
    */
   void OnClosing(object sender, FormClosingEventArgs e) {
     SaveWindow();
-    if (e.CloseReason == CloseReason.UserClosing && !quitting) {
+    if (e.CloseReason == CloseReason.UserClosing && !quitting && mode == null) {
       e.Cancel = true;
       Hide();
       return;
@@ -856,6 +1182,101 @@ class Shell : Form {
  *
  * Returns the chosen folder's full path, or null when the person cancelled.
  */
+/**
+ * A SECOND WINDOW ON THE SAME CORE (Phase 8.1) — the detached preview.
+ *
+ * It shows LAIN's own page in a mode (#detached-preview) that draws only the
+ * preview, the picker and "Say something to change". It holds its OWN pipe
+ * connection to the same Core, so every request goes through the same routes
+ * and every state broadcast reaches it: one session, one Selection, one dev
+ * server. It has no tray and no verbs beyond the two a preview needs.
+ */
+class Satellite : Form {
+  readonly WebView2 view = new WebView2();
+  readonly Core core;
+  readonly Args args;
+  readonly CoreWebView2Environment env;
+  readonly string start;
+  bool ready;
+
+  public Satellite(Args a, CoreWebView2Environment e, string title, string url) {
+    args = a; env = e; start = url;
+    core = new Core(a.Get("pipe"), a.Get("secret"));
+    Text = title;
+    MinimumSize = new Size(560, 420);
+    Size = new Size(1180, 820);
+    BackColor = Color.FromArgb(11, 13, 16);
+    StartPosition = FormStartPosition.WindowsDefaultLocation;
+    view.Dock = DockStyle.Fill;
+    Controls.Add(view);
+    core.Message += line => { try { BeginInvoke((Action)(() => FromCore(line))); } catch { } };
+    Load += async (s, ev) => await Boot();
+    FormClosed += (s, ev) => { core.Stop(); };
+  }
+
+  async Task Boot() {
+    try { await view.EnsureCoreWebView2Async(env); } catch { Close(); return; }
+    var w = view.CoreWebView2;
+    var s = w.Settings;
+    bool dev = args.Has("dev");
+    s.AreDefaultContextMenusEnabled = dev;
+    s.AreDevToolsEnabled = dev;
+    s.IsStatusBarEnabled = false;
+    s.AreBrowserAcceleratorKeysEnabled = dev;
+    s.IsZoomControlEnabled = false;
+    s.IsSwipeNavigationEnabled = false;
+    var assets = args.Get("assets");
+    if (assets != null && Directory.Exists(assets)) w.SetVirtualHostNameToFolderMapping("lain.app", assets, CoreWebView2HostResourceAccessKind.Allow);
+    w.WebMessageReceived += (o, e) => {
+      string json; try { json = e.WebMessageAsJson; } catch { return; }
+      Dictionary<string, object> m = null;
+      try { m = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>; } catch { m = null; }
+      if (m != null && m.ContainsKey("host") && m.ContainsKey("id")) { Verb(m); return; }
+      core.Send(json);
+    };
+    w.NewWindowRequested += (o, e) => { e.Handled = true; };
+    w.NavigationStarting += (o, e) => {
+      var uri = e.Uri ?? "";
+      if (uri.StartsWith("https://lain.app/", StringComparison.OrdinalIgnoreCase) || uri.StartsWith("about:", StringComparison.OrdinalIgnoreCase)) return;
+      e.Cancel = true;
+    };
+    core.Start();
+    view.Source = new Uri(start);
+    ready = true;
+  }
+
+  void Verb(Dictionary<string, object> m) {
+    string ask = Convert.ToString(m["host"], CultureInfo.InvariantCulture);
+    var body = new Dictionary<string, object>();
+    body["host"] = ask;
+    if (ask == "close") { body["ok"] = true; BeginInvoke((Action)(() => Close())); }
+    else if (ask == "zoom") {
+      double f = 1.0;
+      try { f = Convert.ToDouble(m["factor"], CultureInfo.InvariantCulture); } catch { f = 1.0; }
+      view.ZoomFactor = Math.Max(0.5, Math.Min(3.0, f));
+      body["ok"] = true;
+    } else { body["ok"] = false; body["why"] = "the preview window does not offer " + ask; }
+    var rep = new Dictionary<string, object>();
+    rep["id"] = m["id"];
+    rep["body"] = body;
+    ToRenderer(new JavaScriptSerializer().Serialize(rep));
+  }
+
+  void FromCore(string line) {
+    // A HOST VERB FROM CORE (show, quit) is the main window's business, not the preview's.
+    try {
+      var o = new JavaScriptSerializer().DeserializeObject(line) as Dictionary<string, object>;
+      if (o != null && o.ContainsKey("host")) return;
+    } catch { }
+    ToRenderer(line);
+  }
+
+  void ToRenderer(string json) {
+    if (!ready || view.CoreWebView2 == null) return;
+    try { view.CoreWebView2.PostWebMessageAsJson(json); } catch { }
+  }
+}
+
 static class FolderPicker {
   [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")]
   class FileOpenDialogCom { }
