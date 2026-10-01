@@ -136,7 +136,7 @@ module.exports = async function () {
     // failure that makes every other result untrustworthy. A run that did
     // nothing cannot excuse a claim that it did something.
     assert.ok(!(claimed && after.code !== 0),
-      `LAIN reported success while the fixture is still broken.\n--- fixture ---\n${after.out}\n--- said ---\n${said.slice(-2500)}`);
+      `Noema reported success while the fixture is still broken.\n--- fixture ---\n${after.out}\n--- said ---\n${said.slice(-2500)}`);
 
     // ---- DID THE PROVIDER ACTUALLY RETURN ANY WORK? -----------------------
     //
@@ -170,7 +170,7 @@ module.exports = async function () {
     assert.strictEqual(r.code, 0, 'and the binary exited cleanly');
   });
 
-  await test('ADVERSARIAL: LAIN does not report a task complete over unverified work', async () => {
+  await test('ADVERSARIAL: Noema does not report a task complete over unverified work', async () => {
     // The completion gate, against a real model rather than a script: a change
     // with nothing run to check it must not be reported as finished.
     const dir = freshFixture();

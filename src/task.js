@@ -290,6 +290,15 @@ class Task {
      * already was one.
      */
     this.externalConsults = 0;
+    /**
+     * WHERE THE WORK BEGAN, AND WHETHER THE CODING AGENT HAS CARRIED IT — the
+     * session journey (journey.js). A task started in Chat and continued in the IDE is
+     * ONE task: `origin` says which surface it came from, `agentic` that the
+     * Coding Agent has worked it, which is what makes a read-only question
+     * asked meanwhile an ASIDE rather than a new task (identify.js).
+     */
+    this.origin = null;      // 'chat' | 'ide' | 'terminal' | 'bot' | null
+    this.agentic = false;
   }
 
   /** One more outside opinion on this task. See externalrequest.consultedOn. */
@@ -426,6 +435,7 @@ class Task {
       id: this.id, state: this.state,
       executor: this.executor, handovers: this.handovers,
       foreignFailures: this.foreignFailures,
+      origin: this.origin, agentic: this.agentic,
     };
   }
 
@@ -475,6 +485,8 @@ class Task {
     t.handovers = Array.isArray(data.handovers) ? data.handovers.slice() : [];
     t.foreignFailures = Array.isArray(data.foreignFailures)
       ? data.foreignFailures.slice(-MAX_FOREIGN) : [];
+    t.origin = typeof data.origin === 'string' ? data.origin : null;
+    t.agentic = data.agentic === true;
     return t;
   }
 }

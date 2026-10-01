@@ -384,6 +384,6 @@ function applyAnswer(draft, question, answer) {
 }
 
 module.exports = {
-  looksLikeMigration, parse, questions, resolveAnswer, applyAnswer, cleanName,
+  looksLikeMigration, parse, questions, resolveAnswer, applyAnswer, cleanName, AMBIGUOUS,
   VERB_RE, TO_RE, FROM_RE, WITH_RE, ARROW_RE, MERGE_RE, SPLIT_RE, WHOLE_RE, STOPWORDS,
 };

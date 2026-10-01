@@ -43,7 +43,7 @@ module.exports = async () => {
       const url = new URL(req.url, 'http://fixture');
       const method = url.pathname.split('/').at(-1);
       if (!url.pathname.startsWith(`/bot${token}/`)) { res.writeHead(401); res.end(JSON.stringify({ ok: false, error_code: 401 })); return; }
-      if (method === 'getMe') return respond(res, { ok: true, result: { id: 4242, is_bot: true, username: 'lain_harness_bot', first_name: 'LAIN Harness' } });
+      if (method === 'getMe') return respond(res, { ok: true, result: { id: 4242, is_bot: true, username: 'lain_harness_bot', first_name: 'Noema Harness' } });
       if (method === 'getUpdates') {
         const flush = () => { const i = pending.indexOf(flush); if (i >= 0) pending.splice(i, 1); respond(res, { ok: true, result: updates.splice(0) }); };
         if (updates.length) return flush();
@@ -90,7 +90,7 @@ module.exports = async () => {
       assert.strictEqual(connected.code, 200, JSON.stringify(connected.body));
       assert.ok(!JSON.stringify(connected.body).includes(token), 'the token is never in a response');
       assert.strictEqual(connected.body.telegram.identity.username, 'lain_harness_bot');
-      assert.strictEqual(connected.body.telegram.identity.name, 'LAIN Harness');
+      assert.strictEqual(connected.body.telegram.identity.name, 'Noema Harness');
       assert.ok(!fs.readFileSync(require('../../src/config').configFile(), 'utf8').includes(token), 'nor in config');
 
       assert.ok(await until(async () => {

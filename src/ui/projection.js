@@ -145,6 +145,7 @@ function statusState(ui) {
     // read a job mid-transition and, worse, let a view reach back and change
     // one. See src/agentjob.js `summary`.
     jobs: ui.app.jobs ? ui.app.jobs.all().map((j) => j.summary()) : [],
+    background: require('./activityline').backgroundOf(ui.app),   // `1 shell · 1 monitor` on the live row
     // THIS turn's calls while it runs, the last turn's once it has ended —
     // the trail is always about work that really happened.
     recent: ui.liveActions.length ? ui.liveActions : (last && last.actions) || [],
@@ -156,6 +157,7 @@ function statusState(ui) {
       toolCalls: last.toolCalls || 0,
       filesChanged: (last.mutations || []).length,
       stopReason: last.stopReason || null,
+      usage: last.usage || null,   // the receipt on the DONE line (ui/activityline.receipt)
       blocker: last.blocker != null ? Boolean(last.blocker) : require('../wakeup').statesBlocker(last.text),
     } : null,
   };
@@ -198,7 +200,14 @@ function contextUsage(app, pc) {
 function frameState(ui) {
   const app = ui.app;
   let pc = {};
-  try { pc = require('../provider').resolve({ ...app.cfg, _evidence: app.connectionEvidence }); } catch { pc = {}; }
+  // THE SESSION'S LANE, NOT THE PROCESS DEFAULT (Phase 8.2): the header names the
+  // account and model the NEXT turn goes through — the same pair the window shows.
+  let lane = null;
+  try {
+    const which = require('../sessionviews').current(app.session) === 'chat' ? 'chat' : 'coding';
+    lane = require('../sessionintel').lane(app, app.session, which);
+  } catch { lane = null; }
+  try { pc = require('../provider').resolve(require('../sessionviews').turnCfg(app, app.session)); } catch { pc = {}; }
   let providerStatus = null;
   try { providerStatus = app.availability.getFor(pc.connectionId || pc.provider || '', pc.canonicalModel || pc.model || '').status; } catch { /* none */ }
   const life = app.session.lifecycle;
@@ -210,10 +219,15 @@ function frameState(ui) {
     lifecycle: life,
     checkpoints: app.checkpoints,
     outputs: ui.outputs,
-    model: pc.canonicalModel || pc.model || app.cfg.model,
+    // THE MOCK MODEL (LAIN_PROVIDER=mock: tests, demos) answers every turn whatever the lane says —
+    // no account to ask for, and its own name is what the next turn uses.
+    model: pc.provider === 'mock' ? pc.model : ((lane && lane.modelLabel) || pc.canonicalModel || pc.model || app.cfg.model),
+    // THE PROVIDER FAMILY (Phase 8.3) — "Codex › GPT-6 Sol (XHigh)": never the backing account's name.
+    account: pc.provider === 'mock' ? '' : (lane ? (lane.familyLabel || lane.accountLabel || (lane.needs === 'family' || lane.needs === 'account' ? 'choose a provider' : '')) : ''),
     provider: pc.provider,
     connection: pc.connectionId,
-    effort: app.cfg.effort,
+    // THE LANE'S EFFORT as its model declares it (a level it does not take is never shown as in force).
+    effort: (() => { if (lane && lane.effortKnown) return lane.effortLabel && lane.effort ? lane.effortLabel : null; try { const r = require('../sessionintel').resolve(app, app.session).reasoning; return r && r.value !== 'auto' ? r.value : null; } catch { return app.cfg.effort; } })(),
     /**
      * THE OUTPUT TOKENS OF THE RESPONSE IN FLIGHT — the header's one number.
      *

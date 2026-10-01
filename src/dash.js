@@ -147,7 +147,7 @@ function dashState(app) {
   // CHEAP BY CONSTRUCTION: `selectedId` and `usingWeb` read session fields and
   // launch nothing. A dashboard poll that opened a browser to draw a row would
   // be a status view with a side effect.
-  let chat = { source: 'lain', label: 'LAIN', model: null, web: false };
+  let chat = { source: 'lain', label: 'Noema', model: null, web: false };
   try {
     const reg = require('./modelsource/registry');
     const src = reg.selectedId(app);
@@ -182,8 +182,8 @@ function dashState(app) {
     // it is the question a reader of this payload is most likely to get wrong:
     // selecting a website source changes who answers a QUESTION and never who
     // writes a file. See src/modelsource/lane.js.
-    chatSource: { ...chat, coding: 'LAIN' },
-    phase: phase ? { phase: phase.phase, actor: phase.actor || 'LAIN', tool: phase.tool || null, target: phase.target || null } : null,
+    chatSource: { ...chat, coding: 'Noema' },
+    phase: phase ? { phase: phase.phase, actor: phase.actor || 'Noema', tool: phase.tool || null, target: phase.target || null } : null,
     busy: Boolean(ui.busy || phase),
     interrupted: Boolean(ui.interrupted),
     retryCancelled: Boolean(ui.retryCancelled),
@@ -291,12 +291,15 @@ function send(res, code, body, type = 'application/json') {
  *     only one a browser ever uses, and it is never shown to anybody — it is
  *     plumbing, not a credential a person is asked to know.
  *
- *   THE STARTUP PASSWORD printed in the terminal. Kept because it is what
- *     `curl` and a script can use, and because someone who can read the
- *     terminal has already proved more than a password proves. It is also the
- *     way in when no password has been set yet.
+ *   THE STARTUP PASSWORD, held by this process only. It is NEVER printed, logged
+ *     or put in a URL (consolidation §11: terminal output is history); it is
+ *     handed to in-process callers by `start()`/`status()` and accepted only
+ *     in a header.
  *
  * Both are compared in constant time against a value of the same length.
+ *
+ * NEVER FROM THE QUERY STRING. `?t=` used to be honoured for old links; a URL
+ * is history, logs and Referer, so a credential there is refused, not read.
  *
  * `x-lain-session` is the header the page sends. `x-lain-token` is accepted
  * beside it because scripts written against the old name exist and turning them
@@ -306,8 +309,7 @@ function send(res, code, body, type = 'application/json') {
 function authorised(url, req) {
   if (!state) return false;
   const supplied = String(
-    url.searchParams.get('t')
-    || req.headers['x-lain-session']
+    req.headers['x-lain-session']
     || req.headers['x-lain-token']
     || '',
   );
@@ -354,7 +356,7 @@ function handle(app, req, res) {
     req.on('data', (d) => { body += d; if (body.length > 4000) req.destroy(); });
     req.on('end', () => {
       if (state.sessions.lockedOut) {
-        send(res, 429, { error: 'too many failed attempts — restart LAIN to try again' });
+        send(res, 429, { error: 'too many failed attempts — restart Noema to try again' });
         return;
       }
       let j = {};
@@ -529,7 +531,9 @@ function start(app, { lan = false, port = DEFAULT_PORT } = {}) {
       // ANNOUNCE THIS INSTANCE once the port is real. Best-effort: a registry
       // that cannot be written costs the dashboard its switcher, not LAIN its
       // startup. See instances.js for why it is files and not a daemon.
-      try { announceSelf(app); } catch { /* the dashboard still works alone */ }
+      // AFTER THE LAUNCH'S KEY WARM-UP (Phase 8.2): announcing names the model, and naming it
+      // lists the routes — at bind time that forced a blocking secret-store read before the prompt.
+      Promise.resolve(require('./credentials').warmed()).catch(() => null).then(() => { try { announceSelf(app); } catch { /* the dashboard still works alone */ } });
       resolve({ ok: true, ...status() });
     });
   });

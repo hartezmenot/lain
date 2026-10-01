@@ -59,14 +59,24 @@ function digest(text) { return crypto.createHash('sha256').update(String(text)).
 
 function attach(session) {
   session.planDocs = [];
-  session.handoff = null;
+  session.transfers = [];
   return session;
+}
+
+/**
+ * THE PLAN HANDOFF — the newest transfer of kind 'plan'. Not a field of its
+ * own: the transfer list is the one record, and this is a way of reading it.
+ */
+function handoff(session) {
+  const list = (session && Array.isArray(session.transfers)) ? session.transfers : [];
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].kind === 'plan') return list[i];
+  return null;
 }
 
 function toJSON(session) {
   return {
     planDocs: (session.planDocs || []).slice(-MAX_PLANS),
-    handoff: session.handoff || null,
+    transfers: (session.transfers || []).slice(-MAX_TRANSFERS),
   };
 }
 
@@ -74,8 +84,87 @@ function restore(session, data = {}) {
   session.planDocs = Array.isArray(data.planDocs)
     ? data.planDocs.filter((p) => p && typeof p.id === 'string' && STATE[p.state] && typeof p.text === 'string').slice(-MAX_PLANS)
     : [];
-  session.handoff = data.handoff && typeof data.handoff === 'object' && typeof data.handoff.planId === 'string' ? data.handoff : null;
+  session.transfers = Array.isArray(data.transfers) ? data.transfers.filter((t) => t && typeof t.id === 'string' && typeof t.kind === 'string').slice(-MAX_TRANSFERS) : [];
+  // A SESSION SAVED BEFORE 2026-09-25 kept its plan handoff in a field of its
+  // own; it joins the transfer list once, so nothing reads that field again.
+  const h = data.handoff && typeof data.handoff === 'object' && typeof data.handoff.planId === 'string' ? data.handoff : null;
+  if (h && !session.transfers.some((t) => t.id === h.id)) session.transfers.push({ ...h, kind: 'plan', id: h.id || `X${h.planId}` });
   return session;
+}
+
+// ---- THE TRANSFER — the one Core representation of work changing hands ----------
+//
+// (2026-09-25) Work moved between surfaces and executors through four doors,
+// each with its own record: the plan handoff above (Chat → IDE), the BOT's
+// `hand_to_coding_agent` (a `_delegation` field), the IDE's "Move to Agent?"
+// proposal (journey.js), and "Open in /focus". Different buttons; now the same
+// door. Every one is a TRANSFER:
+//
+//   kind              plan | proposal | delegation | surface
+//   from / to         the surface or executor it leaves / reaches
+//   task              the instruction, as the receiving side will act on it
+//   constraints       the "must / never / keep …" lines carried with it
+//   findings          what the sender already established (files, errors)
+//   evidenceRefs      the canonical Selection id, the files already changed
+//   projectGeneration the one project generation it was made at
+//   state             PROPOSED → ACCEPTED / DECLINED → SUBMITTED → DONE;
+//                     a plan is PREFILLED until its Coding turn is submitted
+//
+// Kept on the session (bounded, persisted); nothing else records a handoff.
+const TRANSFER = Object.freeze({ PROPOSED: 'PROPOSED', PREFILLED: 'PREFILLED', ACCEPTED: 'ACCEPTED', DECLINED: 'DECLINED', SUBMITTED: 'SUBMITTED', DONE: 'DONE' });
+const MAX_TRANSFERS = 40;
+const PROPOSAL_TTL_MS = 30 * 60_000;
+
+function transfersOf(session) {
+  if (!Array.isArray(session.transfers)) session.transfers = [];
+  return session.transfers;
+}
+
+function transfer(app, { kind, from, to, task = '', text = '', context = '', reason = '', via = null, origin = null, state = TRANSFER.PROPOSED, extra = {} } = {}) {
+  const session = app.session;
+  let generation = null;
+  let selection = null;
+  try { const hc = require('./harnesscontext'); generation = require('./projectgen').current(session.cwd).n; const sel = hc.selection(app, session); selection = sel ? sel.id : null; } catch { /* no Harness context */ }
+  const body = `${task || text}\n${context || ''}`;
+  const rec = {
+    id: `X${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}`,
+    kind: String(kind), from: from || null, to: to || null, state,
+    task: String(task || '').slice(0, 4000) || null, text: String(text || '').slice(0, 4000) || null,
+    findings: String(context || '').slice(0, 6000) || null,
+    constraints: body.split('\n').map((l) => l.trim()).filter((l) => l && CONSTRAINT_RE.test(l)).slice(0, MAX_REQUIREMENTS),
+    evidenceRefs: { selection, taskId: session.task ? session.task.id : null },
+    projectGeneration: generation, reason: String(reason || '').slice(0, 200), via, origin,
+    at: Date.now(), ...extra,
+  };
+  const list = transfersOf(session);
+  // One PROPOSED transfer at a time: a newer question replaces the one waiting.
+  for (const t of list) if (t.state === TRANSFER.PROPOSED && rec.state === TRANSFER.PROPOSED) { t.state = TRANSFER.DECLINED; t.why = 'superseded by a newer proposal'; }
+  list.push(rec);
+  if (list.length > MAX_TRANSFERS) list.splice(0, list.length - MAX_TRANSFERS);
+  return rec;
+}
+
+/** The transfer waiting for the person, or null (expired ones are closed here). */
+function pendingTransfer(app) {
+  const list = transfersOf(app.session);
+  const t = list.filter((x) => x.state === TRANSFER.PROPOSED).slice(-1)[0] || null;
+  if (t && Date.now() - t.at > PROPOSAL_TTL_MS) { t.state = TRANSFER.DECLINED; t.why = 'expired'; return null; }
+  return t;
+}
+
+/** Answer a waiting transfer, once. An unknown or stale id takes nothing. */
+function answerTransfer(app, id, accept) {
+  const t = pendingTransfer(app);
+  if (!t || t.id !== String(id || '')) return null;
+  t.state = accept ? TRANSFER.ACCEPTED : TRANSFER.DECLINED;
+  t.answeredAt = Date.now();
+  return t;
+}
+
+function settleTransfer(app, id, state) {
+  const t = transfersOf(app.session).find((x) => x.id === id);
+  if (t && TRANSFER[state]) { t.state = state; t.settledAt = Date.now(); }
+  return t || null;
 }
 
 function docs(session) {
@@ -180,23 +269,18 @@ function accept(app, id) {
   p.digest = digest(p.text);
   p.goalId = goalId(session);
   const brief = buildBrief(app, p);
-  session.handoff = {
-    id: `h${now.toString(36)}`,
-    planId: p.id,
-    planDigest: p.digest,
-    state: HANDOFF.PREFILLED,
-    createdAt: now,
-    submittedAt: null,
-    prompt: instruction(brief),
-    brief,
-  };
+  // THE PLAN HANDOFF IS A TRANSFER (kind 'plan', Chat → IDE), the same record.
+  const h = transfer(app, {
+    kind: 'plan', from: 'chat', to: 'ide', task: p.title || '', text: p.text, reason: 'an accepted plan', state: HANDOFF.PREFILLED,
+    extra: { planId: p.id, planDigest: p.digest, createdAt: now, submittedAt: null, prompt: instruction(brief), brief },
+  });
   require('./sessionviews').views(session).active = 'coding';
-  return { ok: true, plan: p, handoff: session.handoff };
+  return { ok: true, plan: p, handoff: h };
 }
 
 /** The Coding turn that carried the handoff was submitted. */
 function noteSubmitted(session) {
-  const h = session.handoff;
+  const h = handoff(session);
   if (!h || h.state !== HANDOFF.PREFILLED) return null;
   h.state = HANDOFF.SUBMITTED;
   h.submittedAt = Date.now();
@@ -217,7 +301,7 @@ function complete(session, id) {
  * DONE completes its plan. The lifecycle decides; this only records it.
  */
 function afterCoding(session) {
-  const h = session.handoff;
+  const h = handoff(session);
   const life = session.lifecycle;
   if (!h || h.state !== HANDOFF.SUBMITTED || !life || life.state !== 'DONE') return null;
   const r = complete(session, h.planId);
@@ -350,7 +434,8 @@ function promptSection(session) {
   }
   const accepted = latest(session, STATE.ACCEPTED);
   if (!accepted) return '';
-  const h = session.handoff && session.handoff.planId === accepted.id ? session.handoff.brief : null;
+  const ho = handoff(session);
+  const h = ho && ho.planId === accepted.id ? ho.brief : null;
   const out = [
     `# Accepted plan ${accepted.id} — ${accepted.title}`,
     'The person accepted this plan in the Chat view. It is the agreed scope; implement it, and say so if the code shows a step is wrong rather than silently diverging.',
@@ -376,7 +461,7 @@ function project(session) {
     origin: p.origin ? { source: p.origin.source || null, model: p.origin.model || null, editedFrom: p.origin.editedFrom || null } : null,
   }));
   const draftDoc = latest(session, STATE.DRAFT);
-  const h = session.handoff;
+  const h = handoff(session);
   return {
     plans,
     draft: draftDoc ? draftDoc.id : null,
@@ -394,4 +479,5 @@ module.exports = {
   STATE, HANDOFF, MAX_PLAN_CHARS,
   attach, toJSON, restore, detect, draft, capture, edit, accept, complete,
   noteSubmitted, afterCoding, buildBrief, instruction, promptSection, project, find, latest,
+  TRANSFER, transfer, handoff, pendingTransfer, answerTransfer, settleTransfer, transfersOf,
 };

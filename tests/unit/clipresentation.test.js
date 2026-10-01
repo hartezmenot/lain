@@ -108,22 +108,26 @@ module.exports = async function () {
     assert.strictEqual(box.rows({ busy: true, phase: { phase: 'WAITING_MODEL' }, phaseSince: now, recent: [] }, 99, now), 0, 'not opened for nothing');
     const collapsed = box.rows({ ...base, phase: { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'x.js' } });
     const expanded = box.rows({ ...base, activityExpanded: true, phase: { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'x.js' } });
-    assert.strictEqual(collapsed, 1, 'a tool acting is primary: the box is one line');
+    // ONE ACTIVITY LINE (2026-10-01): the status strip says what is happening; the box takes rows only for what the
+    // line cannot carry — the model's own visible words, agents, and the Ctrl+O detail.
+    assert.strictEqual(collapsed, 0, 'a tool acting is said once, on the activity line — no box');
     assert.ok(expanded > collapsed, 'Ctrl+O still expands it');
     const thinking = box.rows({ ...base, phaseSince: now - 5000, phase: { phase: 'WAITING_MODEL' } }, 99, now);
-    assert.strictEqual(thinking, 2, 'thinking earns the rectangle: kind, then the summary');
+    assert.strictEqual(thinking, 0, 'thinking with nothing visible to quote is said once, on the activity line');
     const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'src', 'ui', 'activitybox.js'), 'utf8');
     assert.ok(!/reasoning|narration/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'it never reads the model\'s reasoning or prose');
   });
 
-  await test('HEADER: RUNNING · elapsed · real step progress; PLAN shows no countdown; the mode is always visible', () => {
+  await test('HEADER: real step progress; PLAN shows no countdown; the mode is always visible; the live state is NOT repeated', () => {
     const hs = require('../../src/ui/headerstate');
     const { Plan } = require('../../src/plan');
     const plan = new Plan('x'); plan.addSteps(['a', 'b', 'c', 'd', 'e', 'f', 'g']); plan.complete(); plan.complete();
     const session = { plan, execMode: 'AUTO' };
     const ui = { app: { session }, busy: true, phase: { phase: 'RUNNING_TOOL' }, clock: { state: 'RUNNING', startedAt: Date.now() - 258000, accumulated: 0 } };
     const run = hs.run(ui);
-    assert.strictEqual(run.parts[0], 'RUNNING');
+    // NOT `RUNNING · 04:18` (2026-10-01): the activity line below owns what is happening and for how long.
+    assert.strictEqual(run.parts[0], 'AUTO');
+    assert.ok(!run.parts.includes('RUNNING') && !run.parts.some((p) => /^\d+:\d\d/.test(p)), run.parts.join(' · '));
     assert.ok(run.parts.includes('3/7'), run.parts.join(' · '));
     session.execMode = 'PLAN';
     assert.deepStrictEqual(hs.run(ui).parts.slice(0, 2), ['PLAN', 'discussing']);
@@ -132,7 +136,7 @@ module.exports = async function () {
     session.execMode = 'MANUAL'; ui.busy = false; ui.phase = null;
     assert.strictEqual(hs.run(ui).parts[0], 'MANUAL');
     const h = strip(views.header({ cwd: '/x/toradb', model: 'glm-5', width: 110, run: { parts: ['RUNNING', '04:18', '3/7'], tone: 'info' }, output: { tokens: 12400, measured: true } })[0]);
-    assert.match(h, /^LAIN · toradb · /);
+    assert.match(h, /^Noema · toradb · /);
     assert.match(h, /RUNNING · 04:18 · 3\/7\s+12\.4K$/);
   });
 };

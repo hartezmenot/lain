@@ -41,6 +41,11 @@ const ROUTES = {
 
   'POST /api/bot/telegram/check': async (app) => ok({ telegram: await bc.telegram(app, { check: true }) }),
 
+  'POST /api/bot/telegram/test': async (app, body = {}) => {
+    const r = await bc.sendTest(app, { to: body.to });
+    return r.ok ? ok({ receipt: r.receipt }) : bad(r.why, 409, { receipt: r.receipt || null });
+  },
+
   'POST /api/bot/telegram/candidates': async (app) => ok({ candidates: bc.candidates(app, 'telegram') }),
 
   'POST /api/bot/telegram/approve': async (app, body = {}) => {
@@ -55,7 +60,7 @@ const ROUTES = {
 
   'POST /api/bot/telegram/disconnect': async (app) => {
     const r = await bc.disconnectTelegram(app);
-    return r.ok ? ok({ removed: r.removed, telegram: r.telegram }) : bad(r.why, 409);
+    return r.ok ? ok({ removed: r.removed, notRevoked: r.notRevoked, telegram: r.telegram }) : bad(r.why, 409);
   },
 };
 

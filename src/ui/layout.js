@@ -402,11 +402,11 @@ class Screen {
     // It used to be a four-row `┌─ L A I N ─┐` frame carrying the project, the
     // path, the model, the ROUTE, the effort, a status word and a coloured dot
     // — seven fields and a border, above a conversation that had no rows left.
-    // The route went with the tabs (see views.header); the status word moved to
-    // the one place that owns it, the live row above the input.
+    // The route went with the tabs; the status word lives on the live row above the input.
     const head = views.header({
       cwd: this.state.cwd,
       model: this.state.model,
+      account: this.state.account || '', effort: this.state.effort || null,   // account first (Phase 8.2)
       provider: this.state.provider,
       connection: this.state.connection,
       output: this.state.output,

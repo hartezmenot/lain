@@ -45,8 +45,10 @@ const START_TIMEOUT_MS = 8000;
 
 function home() {
   if (process.env.LAIN_HOME) return process.env.LAIN_HOME;
-  const base = process.env.USERPROFILE || process.env.HOME || '.';
-  return path.join(base, '.lain-v2');
+  // A run with its OWN home (NOEMA_CONFIG_DIR — a test, a bench, a second identity) has its own sessions, so it must
+  // never report them to the person's supervisor. 2026-10-01: an ad-hoc bench wrote ~30 fake sessions into the real
+  // ~/.noema/supervisor/guardian because this read userHome() and ignored the override.
+  return require('./home').resolve();
 }
 
 function stateDir(root = home()) { return path.join(root, 'supervisor'); }
@@ -57,7 +59,25 @@ function endpointFile(root = home()) { return path.join(stateDir(root), 'endpoin
  * contributor who ran `cargo build` should not have to learn why it did not
  * take effect.
  */
+/**
+ * DISCOVERY IS CACHED. probe() used to stat three binary paths and re-read endpoint.json on EVERY call — and the
+ * Guardian probes several times per phase note, so a turn spent more Core CPU discovering the supervisor than
+ * talking to it (bench/latency, 2026-10-01: endpoint() 13 % of sampled time, readFileUtf8 the top self cost). A
+ * binary does not appear mid-run often enough to matter for BINARY_TTL_MS; an endpoint is re-read when its file
+ * changes (one stat) and is never believed past its pid's death (one signal-0, no I/O).
+ */
+const BINARY_TTL_MS = 5000;
+let binaryMemo = null;
 function binary() {
+  const now = Date.now();
+  const key = process.env.LAIN_SUPERVISOR_BIN || '';
+  if (binaryMemo && binaryMemo.key === key && now - binaryMemo.at < BINARY_TTL_MS) return binaryMemo.value;
+  const value = findBinary();
+  binaryMemo = { key, at: now, value };
+  return value;
+}
+
+function findBinary() {
   // THE OVERRIDE IS CHECKED LIKE ANY OTHER PATH. Returning it unverified made
   // `probe()` report a supervisor that was available and `ensure()` then spawn
   // something that does not exist — which fails asynchronously, long after the
@@ -66,7 +86,12 @@ function binary() {
   if (forced) {
     try { return fs.statSync(forced).isFile() ? forced : null; } catch { return null; }
   }
-  const exe = process.platform === 'win32' ? 'lain-supervisor.exe' : 'lain-supervisor';
+  // AN INSTALLED NOEMA ships the supervisor prebuilt as native/prebuilt/noema-supervisor.exe (distribution/release.js);
+  // a development checkout builds rust/lain-supervisor (the crate keeps its directory name; Cargo.toml names the
+  // binary, and so the process, noema-supervisor) and uses the newest build.
+  const exe = process.platform === 'win32' ? 'noema-supervisor.exe' : 'noema-supervisor';
+  const shipped = path.join(__dirname, '..', 'native', 'prebuilt', exe);
+  try { if (fs.statSync(shipped).isFile()) return shipped; } catch { /* a development checkout */ }
   const root = path.join(__dirname, '..', 'rust', 'lain-supervisor', 'target');
   // THE NEWEST BUILD WINS, not a fixed preference for `release`. Preferring
   // release unconditionally meant that `cargo build` (which writes debug) left
@@ -91,15 +116,31 @@ function alive(pid) {
 }
 
 /** The endpoint a live supervisor is serving on, or null. */
+const endpointMemo = new Map();   // file → { mtimeMs, size, value, checkedAt }
+const ENDPOINT_STAT_MS = 250;
 function endpoint(root = home()) {
-  let raw;
-  try { raw = fs.readFileSync(endpointFile(root), 'utf8'); } catch { return null; }
-  let v;
-  try { v = JSON.parse(raw); } catch { return null; }
-  if (!v || !v.pid || !v.port) return null;
-  if (!alive(v.pid)) return null;
-  return { pid: v.pid, port: v.port, version: v.version || null };
+  const file = endpointFile(root);
+  const now = Date.now();
+  const memo = endpointMemo.get(file);
+  // Within ENDPOINT_STAT_MS the cached record is trusted as long as its pid lives (signal 0, no file I/O).
+  if (memo && now - memo.checkedAt < ENDPOINT_STAT_MS) return memo.value && alive(memo.value.pid) ? memo.value : null;
+  let st;
+  try { st = fs.statSync(file); } catch { endpointMemo.set(file, { mtimeMs: 0, size: 0, value: null, checkedAt: now }); return null; }
+  if (memo && memo.mtimeMs === st.mtimeMs && memo.size === st.size) {
+    memo.checkedAt = now;
+    return memo.value && alive(memo.value.pid) ? memo.value : null;
+  }
+  let value = null;
+  try {
+    const v = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (v && v.pid && v.port) value = { pid: v.pid, port: v.port, version: v.version || null };
+  } catch { value = null; }
+  endpointMemo.set(file, { mtimeMs: st.mtimeMs, size: st.size, value, checkedAt: now });
+  return value && alive(value.pid) ? value : null;
 }
+
+/** Forget cached discovery (tests that start/stop supervisors, and a refused connection). */
+function invalidate() { endpointMemo.clear(); binaryMemo = null; }
 
 /**
  * WHAT IS ACTUALLY POSSIBLE RIGHT NOW — one answer, never an exception.
@@ -147,9 +188,49 @@ function send(port, msg, { timeoutMs = TIMEOUT_MS } = {}) {
       try { parsed = JSON.parse(line); } catch { parsed = { ok: false, error: 'unreadable reply' }; }
       done(parsed);
     });
-    sock.on('error', (e) => { clearTimeout(timer); done({ ok: false, error: `supervisor unreachable: ${e.message}` }); });
+    sock.on('error', (e) => { clearTimeout(timer); if (e && e.code === 'ECONNREFUSED') invalidate(); done({ ok: false, error: `supervisor unreachable: ${e.message}` }); });
     sock.on('close', () => { clearTimeout(timer); done({ ok: false, error: 'supervisor closed the connection' }); });
   });
+}
+
+/**
+ * SEVERAL REQUESTS, ONE CONNECTION. The server answers the lines of one connection in order (main.rs `handle`), so
+ * a batch of observations costs one connect instead of one each. Replies come back in request order; a failure
+ * fills every unanswered slot with the same {ok:false}.
+ */
+function sendMany(port, msgs, { timeoutMs = TIMEOUT_MS } = {}) {
+  if (!msgs.length) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const replies = [];
+    let settled = false;
+    const done = (fail) => {
+      if (settled) return; settled = true;
+      while (replies.length < msgs.length) replies.push(fail || { ok: false, error: 'supervisor closed the connection' });
+      resolve(replies);
+    };
+    const sock = net.connect({ port, host: '127.0.0.1' });
+    let buf = '';
+    const timer = setTimeout(() => { try { sock.destroy(); } catch { /* gone */ } done({ ok: false, error: 'supervisor timed out' }); }, timeoutMs);
+    sock.on('connect', () => { sock.write(msgs.map((m) => `${JSON.stringify(m)}\n`).join('')); });
+    sock.on('data', (d) => {
+      buf += d.toString('utf8');
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        try { replies.push(JSON.parse(line)); } catch { replies.push({ ok: false, error: 'unreadable reply' }); }
+      }
+      if (replies.length >= msgs.length) { clearTimeout(timer); try { sock.end(); } catch { /* closing */ } done(); }
+    });
+    sock.on('error', (e) => { clearTimeout(timer); if (e && e.code === 'ECONNREFUSED') invalidate(); done({ ok: false, error: `supervisor unreachable: ${e.message}` }); });
+    sock.on('close', () => { clearTimeout(timer); done(); });
+  });
+}
+
+/** Several calls to a supervisor that is already there, over one connection. Never starts one. */
+async function callManyIfRunning(msgs, opts = {}) {
+  const ep = endpoint();
+  if (!ep) return msgs.map(() => ({ ok: false, error: 'no supervisor is running' }));
+  return sendMany(ep.port, msgs, opts);
 }
 
 /**
@@ -222,6 +303,12 @@ async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } 
     if (child.pid) {
       owned.set(child.pid, child);
       child.once('exit', () => owned.delete(child.pid));
+      // DURABLE OWNERSHIP (runtimeregistry.js): a person's supervisor outlives
+      // LAIN on purpose; a test's is stopped when its run ends or dies.
+      require('./runtimeregistry').register(child, {
+        purpose: 'supervisor', label: `supervisor · ${root}`,
+        policy: { onOwnerExit: process.env.LAIN_SUPERVISOR_ON_OWNER_EXIT === 'stop' ? 'stop' : 'keep' },
+      });
     }
     child.unref();
   } catch (e) {
@@ -236,6 +323,9 @@ async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } 
     const ep = endpoint(root);
     if (ep) {
       const pong = await send(ep.port, { op: 'ping' }, { timeoutMs: Math.max(1, Math.min(500, deadline - Date.now())) });
+      // A cancel that landed while the ping was in flight still wins: the
+      // caller asked for no supervisor, so the one just started is stopped.
+      if (signal && signal.aborted) break;
       if (pong && pong.ok) return { available: true, running: true, endpoint: ep, binary: first.binary, why: '' };
     }
     await new Promise((r) => setTimeout(r, 60));
@@ -426,8 +516,8 @@ function build({ release = true } = {}) {
 }
 
 module.exports = {
-  probe, ensure, submit, status, cancel, list, events, shutdown, shutdownIn, build,
-  call, callIfRunning,
+  probe, ensure, submit, status, cancel, list, events, shutdown, shutdownIn, build, home,
+  call, callIfRunning, callManyIfRunning, sendMany, invalidate,
   noteProvider, providers, setProvider, clearProvider,
   endpoint, binary, alive, stateDir, endpointFile, TIMEOUT_MS, cleanupOwned,
 };

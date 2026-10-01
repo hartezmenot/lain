@@ -58,8 +58,9 @@ const path = require('path');
 const search = require('./tools/search');
 const codemodel = require('./codemodel');
 
-/** The directory, inside the project being worked on. */
-const DIR = '.lain';
+/** The directory, inside the project being worked on: `.noema/`, or an existing `.lain/` (projectmeta.js). */
+const meta = require('./projectmeta');
+const DIR = meta.CANON;
 const INDEX = 'index.json';
 
 /** Bumped when the shape changes, so an old index is rebuilt rather than misread. */
@@ -71,7 +72,9 @@ const MAX_FILE_BYTES = 2_000_000;
 /** A refresh that would take longer than this reports what it did and stops. */
 const BUDGET_MS = 4000;
 
-function dirFor(root) { return path.join(root, DIR); }
+function dirFor(root) { return meta.dir(root); }
+/** Noema's own folder (either name) — never indexed. */
+function ownRel(rel) { return meta.isMetaName(String(rel).split('/')[0]); }
 function fileFor(root) { return path.join(dirFor(root), INDEX); }
 
 function empty(root) {
@@ -198,7 +201,7 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
   if (dirty) {
     Object.assign(files, before);
     for (const rel of dirty) {
-      if (rel === DIR || rel.startsWith(`${DIR}/`) || freshness.IGNORE.test(rel)) continue;
+      if (ownRel(rel) || freshness.IGNORE.test(rel)) continue;
       const abs = path.join(root, rel);
       const stamp = stampOf(abs);
       const prev = before[rel];
@@ -212,7 +215,7 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
   }
   for (const f of (dirty ? [] : search.walk(root))) {
     // The index never indexes itself.
-    if (f.rel === DIR || f.rel.startsWith(`${DIR}/`)) continue;
+    if (ownRel(f.rel)) continue;
     const stamp = stampOf(f.abs);
     if (!stamp) continue;
     scanned += 1;

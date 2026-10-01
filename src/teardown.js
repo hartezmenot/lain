@@ -54,6 +54,17 @@ async function shutdown(viewApp, { why = 'the session ended', closeWindow = true
   // THE MESSAGING GATEWAY FIRST. It holds a long poll and can accept new work;
   // stopping it first means nothing new arrives during the rest of this.
   await step('the bot service', async () => { if (app._botService) await app._botService.stop(); });
+  // THE ASSISTANT'S CLOCK (and its lease, so the next LAIN takes over at once),
+  // and OpenCode's owned server — see assistant/scheduler.js, drivers/opencodeserver.js.
+  await step('the assistant scheduler', () => require('./assistant/scheduler').stop(app));
+  await step('the OpenCode server', () => require('./drivers/opencodeserver').stop());
+  // THE LAIN SERVER and the MCP servers LAIN started (Phase 8.1) end with LAIN — never orphaned.
+  await step('the Noema server', () => require('./serve').stop());
+  await step('MCP servers', () => { for (const id of [...require('./integrations')._live.keys()]) require('./integrations').disconnect(app, id); });
+
+  // EACH ACCOUNT'S RUNTIME (a codex app-server per signed-in account) — the
+  // processes this LAIN started, by their own handles.
+  await step('account runtimes', () => require('./accountinstances').stopAll());
 
   // A BACKGROUND JOB HOLDS a provider request, a tool and a forked session. It
   // must not outlive the LAIN that started it.

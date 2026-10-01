@@ -224,7 +224,7 @@ function ownership(env) {
     return failures.fail(
       CODE.VM_UNAVAILABLE,
       `${(env && env.id) || 'this VM'} is not registered as Harness-owned`,
-      'LAIN will not start, stop, snapshot or restore a VM it was not explicitly given. Register it with owned: true.',
+      'Noema will not start, stop, snapshot or restore a VM it was not explicitly given. Register it with owned: true.',
     );
   }
   return { ok: true };
@@ -285,7 +285,7 @@ async function restore(env, name = null) {
     return failures.fail(
       CODE.VM_UNAVAILABLE,
       `${env.id} has no clean snapshot registered`,
-      'Register one with cleanSnapshot so LAIN reverts to a state a person chose, never to whatever is newest.',
+      'Register one with cleanSnapshot so Noema reverts to a state a person chose, never to whatever is newest.',
     );
   }
   if (name && env.cleanSnapshot && name !== env.cleanSnapshot) {

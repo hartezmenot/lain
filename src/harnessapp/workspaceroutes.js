@@ -23,6 +23,8 @@ const path = require('path');
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }
+/** An owner's `{ok, why, ...}` answer, as a response. */
+function reply(r) { return r && r.ok ? ok(r) : bad(r && r.why, 400, r || {}); }
 
 function cfgOf(app) { return ((app && app._sibling) || app).cfg || {}; }
 
@@ -87,7 +89,7 @@ function mcpServers(app) {
     transport: 'stdio',
     enabled: process.platform === 'win32',
     state: st ? (st.connected ? 'CONNECTED' : 'DISCONNECTED') : 'NOT_STARTED',
-    why: st ? st.why : (process.platform === 'win32' ? 'starts when LAIN is asked to use the computer' : 'Windows only'),
+    why: st ? st.why : (process.platform === 'win32' ? 'starts when Noema is asked to use the computer' : 'Windows only'),
     authorized: st ? Boolean(st.authorized) : false,
     tools: st ? (st.capabilities || []) : [],
     // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's
@@ -107,7 +109,7 @@ function mcpServers(app) {
       // THE PROGRAM, NOT ITS ARGUMENTS OR ENVIRONMENT — either can carry a token.
       command: path.basename(String(s.command[0] || '')),
       state: !s.enabled ? 'DISABLED' : (live && live.id === s.id ? 'ACTIVE_BRIDGE' : 'CONFIGURED'),
-      why: !s.enabled ? 'switched off in config' : (live && live.id === s.id ? 'the desktop bridge LAIN talks to' : 'configured; one bridge is connected at a time'),
+      why: !s.enabled ? 'switched off in config' : (live && live.id === s.id ? 'the desktop bridge Noema talks to' : 'configured; one bridge is connected at a time'),
       tools: [],
       usedBy: live && live.id === s.id ? ['BOT', 'Coding Agent'] : [],
     });
@@ -120,11 +122,19 @@ const ROUTES = {
 
   'POST /api/accounts/refresh': async (app, body = {}) => ok(await require('./accounts').refresh(app, { force: Boolean(body.force) })),
 
+  // ADD / TEST / REMOVE a provider route (accountops.js). The key travels in
+  // once, is proven, and only its shape ever comes back.
+  'POST /api/accounts/choices': async (app) => ok({ providers: require('./accountops').choices(app) }),
+  'POST /api/accounts/addkey': async (app, body = {}) => reply(await require('./accountops').addKey(app, body)),
+  'POST /api/accounts/test': async (app, body = {}) => reply(await require('./accountops').test(app, body)),
+  'POST /api/accounts/remove': async (app, body = {}) => reply(require('./accountops').remove(app, body)),
+
   'POST /api/mcp/servers': async (app) => ok({ servers: mcpServers(app) }),
 
   // THERE IS NO SKILL LOADER IN THIS BUILD, and the answer says so rather than
   // the window drawing an empty list that reads as "you have none installed".
-  'POST /api/skills': async () => ok({ supported: false, skills: [], why: 'this build of LAIN Core has no skill loader; nothing is installed or loaded' }),
+  'POST /api/skills': async (app) => ok({ supported: true, skills: require('../integrations').listSkills(app), why: '' }),
+  'POST /api/skills/legacy': async () => ok({ supported: false, skills: [], why: 'this build of Noema Core has no skill loader; nothing is installed or loaded' }),
 
   'POST /api/project/open': async (app, body = {}) => openProject(app, body.path),
 
@@ -143,6 +153,9 @@ const ROUTES = {
     } else {
       try { fs.mkdirSync(dir, { recursive: false }); } catch (e) { return bad(`could not create ${dir}: ${(e && e.message) || e}`); }
     }
+    // FROM CHAT (`attach: true`): the SAME session is bound to the new folder — the
+    // conversation is not duplicated into a new session (Phase 8 project attachment).
+    if (body.attach === true) return require('./viewroutes').ROUTES['POST /api/project/attach'](app, { path: dir });
     return openProject(app, dir);
   },
 };

@@ -50,24 +50,12 @@ function register({ define, C }) {
         if (!s.running) { w(C.dim('  /dash is not running. /dash on to start it.\n')); return; }
         w('\n' + C.bold('Remote Control') + '\n');
         for (const u of s.urls) w('  ' + C.green(u) + '\n');
-        // THE CREDENTIAL, ON ITS OWN LINE, because it is no longer in the URL —
-        // the link is safe to send yourself and the secret is not sent with it.
-        //
-        // WITH A PASSWORD SET, THE STARTUP PASSWORD IS NOT SHOWN. It still works
-        // for a script, but printing it here every time would hand out a second
-        // way in that bypasses the chosen password, which makes that password
-        // decorative.
-        //
-        // ONE WORD, EITHER WAY. Both lines say "password", because both name the
-        // thing a person types. This used to say "startup key" beside "password",
-        // which read as two different kinds of credential and left people
-        // guessing which one the gate wanted.
+        // NO CREDENTIAL IS PRINTED (consolidation §11) — not the chosen password (never stored), and not the per-run
+        // startup password either: terminal output is history. The page asks for the password the person set with
+        // `/dash password` (typed hidden); until one is set, that is the one thing to do.
         const locked = require('./dashauth').configured(app.cfg);
         if (locked) w('  ' + C.dim('password required') + C.dim(' — /dash password to change it\n'));
-        else {
-          w('  ' + C.dim('startup password ') + C.bold(s.startupPassword) + '\n');
-          w(C.dim('    it changes every restart — /dash password sets one you can remember\n'));
-        }
+        else w('  ' + C.yellow('no password set') + C.dim(' — /dash password sets the one the page asks for\n'));
         w(C.dim(`  bound to ${s.host}:${s.port} · pid ${s.pid} · ${s.clients} page load(s)\n`));
         if (s.tookAnotherPort) {
           w('  ' + C.yellow(`port ${s.tookAnotherPort} was already taken by another program`)
@@ -116,7 +104,7 @@ function register({ define, C }) {
         app.cfg.dashAutostart = word === 'on';
         config.save(app.cfg);
         w(word === 'on'
-          ? '  ' + C.green('✓ the dashboard will start with LAIN') + C.dim(' — set a password with /dash password so it is the same one every session.\n')
+          ? '  ' + C.green('✓ the dashboard will start with Noema') + C.dim(' — set a password with /dash password so it is the same one every session.\n')
           : '  ' + C.green('✓ autostart off') + C.dim(' — /dash starts it when you want it.\n'));
         // TURNING IT ON MEANS NOW, TOO. Being told "it will start with LAIN" and
         // then finding nothing running until the next session is a promise the
@@ -179,7 +167,7 @@ function register({ define, C }) {
         const r2 = await dash.start(app, { port: n });
         if (!r2.ok) { app.render.notice('error', `could not start the dashboard: ${r2.error}`); return; }
         w(C.dim('  a fixed port can be shadowed by another program on Windows — if the page looks\n'));
-        w(C.dim('  wrong, it is not LAIN. /dash on takes a free port instead.\n'));
+        w(C.dim('  wrong, it is not Noema. /dash on takes a free port instead.\n'));
         report();
         return;
       }

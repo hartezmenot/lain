@@ -268,7 +268,7 @@ define('/mcp', {
       if (!mcpMod.configured(app.cfg)) {
         w('  ' + C.yellow('✕ NOT CONFIGURED') + C.dim(' — add mcp.command to ' + require('./config').configFile() + ':\n'));
         w(C.dim('    { "mcp": { "command": ["node", "C:\\\\path\\\\to\\\\bridge.js"] } }\n'));
-        w(C.dim('    The bridge is a separate program you provide. LAIN automates nothing itself.\n'));
+        w(C.dim('    The bridge is a separate program you provide. Noema automates nothing itself.\n'));
         return;
       }
       w(C.dim('  starting the bridge…\n'));
@@ -665,7 +665,7 @@ require('./briefcommand').register({ define, FLASH_MS, C });
 // client read, which is what stops the terminal being the degraded surface.
 // See harnesscommands.js on why `/task` was extended rather than replaced.
 require('./harnesscommands').register({ define, FLASH_MS, DURING_TURN, C });
-require('./botcommand').register({ define, FLASH_MS });
+require('./botcommand').register({ define, FLASH_MS }); require('./accountcommand').register({ define, FLASH_MS }); require('./accountcommand').registerUsage({ define }); require('./accountcommand').registerChannels({ define });
 // AND `/source` — WHICH MODEL ANSWERS A CHAT TURN: LAIN's own runtime,
 // ChatGPT.com or Gemini.google.com. Its own file because it is one subject and
 // because the model sources have a package of their own; it is also what
@@ -680,7 +680,7 @@ require('./goalcommand').register({ define, FLASH_MS, C });
 // `/app` IS GONE (2026-09-15). The Harness was a page a command had to summon:
 // `/app` minted a token, started a loopback listener and opened the person's
 // browser at a URL. LAIN Desktop is the application now and it is launched like
-// one — a shortcut, the Start menu, `LAIN.exe` — so a command to conjure the
+// one — a shortcut, the Start menu, `Noema Harness.exe` — so a command to conjure the
 // product from inside the other surface is a command for a shape LAIN no longer
 // has. See src/desktoprun.js and src/corelock.js.
 // AND /help, which is a VIEW OF THIS REGISTRY rather than a family of

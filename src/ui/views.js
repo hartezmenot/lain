@@ -228,7 +228,7 @@ const center = T.center;
  * only field with colour, because it is the one a person checks before sending
  * anything; everything else is dim.
  */
-function header({ cwd, model, provider, connection, output = null, width = 80, run = null }) {
+function header({ cwd, model, account = '', effort = null, provider, connection, output = null, width = 80, run = null }) {
   const w = Math.max(20, width);
 
   // THE MODEL, WITHOUT ITS ROUTE. `routeOf` splits the downstream out of the
@@ -252,8 +252,11 @@ function header({ cwd, model, provider, connection, output = null, width = 80, r
   //     tokens    dim          the figure that moves, and metadata while it does
   //
   // Nothing here is at equal weight, which is the whole of §12.
-  const left = [P.head('LAIN'), P.plain(name), P.info(id.model || 'no model')];
-  const plainLeft = ['LAIN', name, id.model || 'no model'];
+  // ACCOUNT FIRST (Phase 8.2): who pays for the next request, then what answers it.
+  const who = account ? `${account} › ` : '';
+  const what = `${who}${id.model || 'no model'}${effort ? ` (${effort})` : ''}`;
+  const left = [P.head('Noema'), P.plain(name), P.info(what)];
+  const plainLeft = ['Noema', name, what];
   const SEP = ' · ';
   let leftText = plainLeft.join(SEP);
   let leftPaint = left.join(P.meta(SEP));
@@ -361,7 +364,7 @@ function planView({ plan, expanded = new Set(), width = 80, cursor = -1, evidenc
       '',
       '  No plan yet.',
       '',
-      '  Plans are optional — LAIN never requires one.',
+      '  Plans are optional — Noema never requires one.',
       '  /plan step <text>   add a step',
       '  /plan done <note>   finish the open step',
     ];

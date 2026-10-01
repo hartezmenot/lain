@@ -64,7 +64,7 @@ function status(app, C) {
     return;
   }
   const t = snap.task;
-  app.render.write('\n' + C.bold(`LAIN TASK ${t.id}`) + '\n');
+  app.render.write('\n' + C.bold(`NOEMA TASK ${t.id}`) + '\n');
   app.render.write(C.dim('  ' + '─'.repeat(46)) + '\n');
   row(app, 'title', t.title);
   row(app, 'state', tone(C, t.state) + (t.reason ? C.dim(` — ${t.reason}`) : ''));

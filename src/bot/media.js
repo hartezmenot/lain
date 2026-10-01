@@ -21,7 +21,7 @@ async function ingress(adapter, app, e) {
   if (!e.attachments.length) return '';
   if (!adapter.caps.mediaIn || !adapter.download) return '\nAttachment download is unavailable on this connection; only attachment descriptions were received.';
   const h = require('../harnesslink').existing(app), taskId = h?.runtime.activeId;
-  if (!taskId) return '\nNo task owns these attachments yet; ask LAIN to inspect them in a task.';
+  if (!taskId) return '\nNo task owns these attachments yet; ask Noema to inspect them in a task.';
   const lines = [];
   for (const a of e.attachments) {
     try {

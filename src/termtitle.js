@@ -199,7 +199,7 @@ function glyph(state, now = Date.now()) {
  *   LAIN         no project at all; the one place the name still appears
  */
 function compose({ folder = '', state = STATE.IDLE, now = Date.now() } = {}) {
-  const name = clean(folder, 28) || 'LAIN';
+  const name = clean(folder, 28) || 'Noema';
   const g = glyph(state, now);
   return g ? `${g} ${name}` : name;
 }

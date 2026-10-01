@@ -85,6 +85,8 @@ function describe(id, data, stat, now = Date.now()) {
     cwd: data.cwd || '',
     project: data.cwd ? path.basename(data.cwd) : '(unknown)',
     objective: task && task.objective ? String(task.objective).replace(/\s+/g, ' ') : null,
+    // THE NAME THE PERSON GAVE IT (Chat › rename) — wins over anything derived.
+    title: typeof data.title === 'string' && data.title.trim() ? data.title.trim().slice(0, 120) : null,
     state: life && life.state ? life.state : null,
     turns: turns.length,
     messages: Array.isArray(data.messages) ? data.messages.length : 0,
@@ -148,6 +150,7 @@ function samePlace(a, b) {
  *   cwd    the project to scope to; null means do not scope
  *   scope  'project' (default when cwd is given) or 'all'
  */
+const summaryMemo = new Map();   // file → { mtimeMs, size, cwd, row } — see the note in the loop below
 function summaries({
   limit = DEFAULT_LIMIT, exclude = null, now = Date.now(), dir = null,
   cwd = null, scope = 'project',
@@ -177,8 +180,19 @@ function summaries({
   const cap = Math.max(1, Math.min(MAX_LIMIT, limit));
   for (const s of stats) {
     if (out.length >= cap) break;
+    // UNCHANGED FILES ARE NOT RE-PARSED (2026-10-01): the Harness asks for this list with every state read (1.5 s),
+    // and parsing the newest session files — megabytes each — was half of every /api/state. A file's summary is kept
+    // until its mtime or size moves; only `when` (relative to now) is recomputed.
+    const memo = summaryMemo.get(s.file);
+    if (memo && memo.mtimeMs === s.stat.mtimeMs && memo.size === s.stat.size) {
+      if (memo.unreadable) { if (!wantScope) out.push({ ...memo.row, when: when(s.stat.mtimeMs, now) }); continue; }
+      if (wantScope && !samePlace(memo.cwd, cwd)) continue;
+      out.push({ ...memo.row, when: when(s.stat.mtimeMs, now), here: samePlace(memo.cwd, cwd || process.cwd()) });
+      continue;
+    }
     let data;
     try { data = JSON.parse(fs.readFileSync(s.file, 'utf8')); } catch (e) {
+      summaryMemo.set(s.file, { mtimeMs: s.stat.mtimeMs, size: s.stat.size, unreadable: true, row: unreadable(s.id, s.stat, e.message, now) });
       // AN UNREADABLE FILE CANNOT BE SCOPED, because its cwd is exactly what
       // could not be read. Shown only when nothing is being scoped — inside a
       // project it would be an unexplained row that may not even belong here.
@@ -189,8 +203,11 @@ function summaries({
       if (!wantScope) out.push(unreadable(s.id, s.stat, 'not a session', now));
       continue;
     }
+    const described = describe(s.id, data, s.stat, now);
+    summaryMemo.set(s.file, { mtimeMs: s.stat.mtimeMs, size: s.stat.size, cwd: data.cwd, row: described });
+    if (summaryMemo.size > 2000) summaryMemo.delete(summaryMemo.keys().next().value);
     if (wantScope && !samePlace(data.cwd, cwd)) continue;
-    const row = describe(s.id, data, s.stat, now);
+    const row = { ...described };
     // MARKED, ALWAYS. Even in `all` scope the caller can tell which rows would
     // resume into a different directory than the one LAIN is running in.
     row.here = samePlace(data.cwd, cwd || process.cwd());
@@ -222,7 +239,7 @@ function search(list, query) {
 /** The one-line headline: what this session was, in the user's words. */
 function headline(s) {
   if (s.unreadable) return `unreadable — ${s.unreadable}`;
-  return s.objective || s.lastUser || '(no task was ever started)';
+  return s.title || s.objective || s.lastUser || '(no task was ever started)';
 }
 
 /** The stats line under the headline. Only facts that are actually recorded. */

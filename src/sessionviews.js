@@ -54,6 +54,13 @@ const PANEL = Object.freeze({
   TERMINAL: 'TERMINAL',
   WORKSHOP: 'WORKSHOP',
   VERIFICATION: 'VERIFICATION',
+  // THE IDE'S PROBLEMS LIST: diagnostics the editor's language services and
+  // Core's syntax checks found, drawn by the window from its own editor state.
+  PROBLEMS: 'PROBLEMS',
+  // THE DEBUGGER (dap/manager.js): the session's stack, variables and console.
+  DEBUG: 'DEBUG',
+  // THE IDE'S OUTPUT (Phase 8.2): the logs of what LAIN runs in the project — tasks, the dev server.
+  OUTPUT: 'OUTPUT',
 });
 
 /** Pins are emphasis, not a second context window. */
@@ -65,9 +72,12 @@ function defaults() {
   return {
     active: VIEW.CODING,
     coding: { model: null, connection: null },
+    // THIS SESSION'S REASONING, when it overrides the project/global one (sessionintel.js).
+    effort: null,
     panel: { open: PANEL.NONE, width: null, file: null },
     pins: [],
-    project: { attached: null, attachedAt: null },
+    // `github`: owner/repo this session is bound to — a clone may not exist yet (github.js).
+    project: { attached: null, attachedAt: null, github: null },
   };
 }
 
@@ -82,9 +92,10 @@ function toJSON(session) {
     views: {
       active: v.active,
       coding: { model: v.coding.model || null, connection: v.coding.connection || null },
+      ...(v.effort ? { effort: v.effort } : {}),
       panel: { open: v.panel.open, width: v.panel.width, file: v.panel.file },
       pins: (v.pins || []).slice(0, MAX_PINS),
-      project: { attached: v.project.attached, attachedAt: v.project.attachedAt || null },
+      project: { attached: v.project.attached, attachedAt: v.project.attachedAt || null, github: v.project.github || null },
     },
   };
 }
@@ -97,6 +108,7 @@ function restore(session, data = {}) {
     v.coding.model = typeof d.coding.model === 'string' ? d.coding.model : null;
     v.coding.connection = typeof d.coding.connection === 'string' ? d.coding.connection : null;
   }
+  if (typeof d.effort === 'string') v.effort = d.effort;
   if (d.panel && typeof d.panel === 'object') {
     v.panel.open = PANEL[d.panel.open] ? d.panel.open : PANEL.NONE;
     v.panel.width = Number.isFinite(d.panel.width) ? d.panel.width : null;
@@ -106,6 +118,7 @@ function restore(session, data = {}) {
   if (d.project && typeof d.project === 'object') {
     v.project.attached = typeof d.project.attached === 'boolean' ? d.project.attached : null;
     v.project.attachedAt = d.project.attachedAt || null;
+    v.project.github = typeof d.project.github === 'string' ? d.project.github : null;
   }
   session.views = v;
   return session;
@@ -172,16 +185,24 @@ function turnCfg(app, session) {
   // THE EXECUTION PROFILE rides the turn config: the context budget reads it (profile.js).
   cfg.executionProfile = require('./profile').of(s, app.cfg);
   if (!s) return cfg;
-  if (current(s) === VIEW.CHAT) {
-    const pick = (s.sourceSelections || {}).lain;
-    if (pick) cfg.model = pick;
-    return cfg;
-  }
-  const v = views(s);
-  if (v.coding.model) {
-    cfg.model = v.coding.model;
-    if (v.coding.connection) cfg.connection = v.coding.connection;
-  }
+  // THE BOT'S TURN IN THE IDE runs on the BOT's model — the same runtime pick
+  // the Chat view uses — so a question never spends the Coding model. When the
+  // BOT is a website account, `_botOwnModel` is false and the Coding model
+  // answers read-only instead (harnessapp/botroute.js).
+  // PROJECT DEFAULTS AND THE SESSION'S REASONING (sessionintel.js), under the view's own pick.
+  const intel = require('./sessionintel');
+  intel.overlay(app, s, cfg);
+  // ACCOUNT FIRST (Phase 8.2): the lane's account and model, resolved to the
+  // EXACT route that account offers the model on — never the first route a
+  // model name happens to reach. A lane that cannot name its account sends
+  // nothing and says why (provider.resolve reads `_refusal`).
+  const which = current(s) === VIEW.CHAT || (s._botTurn && s._botOwnModel) ? 'chat' : 'coding';
+  const rc = intel.routeCfg(app, s, which);
+  if (rc.ok) {
+    cfg.model = rc.model; cfg.connection = rc.connection; cfg.account = rc.account; cfg.family = rc.family || null;
+    // ONLY A LEVEL THE MODEL DECLARES REACHES TRANSPORT (Phase 8.3); none, when it declares none.
+    if (rc.effortKnown) cfg.effort = rc.effort || undefined;
+  } else if (rc.model) { cfg.model = rc.model; cfg.connection = null; cfg._refusal = { kind: 'account', why: rc.why, code: rc.code }; }
   return cfg;
 }
 
@@ -190,7 +211,7 @@ function turnCfg(app, session) {
 /**
  * DIRECTORIES THAT ARE LAIN, NOT A PROJECT.
  *
- * A session inheriting one of these as its cwd — because LAIN.exe was started
+ * A session inheriting one of these as its cwd — because Noema Harness.exe was started
  * from its install folder — is a session with NO project, and Project Files
  * must say so rather than offering LAIN's own tree as "the source".
  */
@@ -228,6 +249,7 @@ function project(session) {
     name: attached ? path.basename(root) : null,
     missing: attached && !exists,
     attachedAt: v.project.attachedAt || null,
+    github: v.project.github || null,
   };
 }
 
@@ -240,7 +262,7 @@ function checkRoot(dir) {
   try { st = fs.statSync(want); } catch { return { ok: false, why: `no folder at ${want}` }; }
   if (!st.isDirectory()) return { ok: false, why: `${want} is a file, not a folder` };
   const abs = path.resolve(want);
-  if (lainOwnDirs().includes(abs.toLowerCase())) return { ok: false, why: `${abs} is LAIN's own folder, not a project` };
+  if (lainOwnDirs().includes(abs.toLowerCase())) return { ok: false, why: `${abs} is Noema's own folder, not a project` };
   if (path.parse(abs).root.toLowerCase() === abs.toLowerCase()) return { ok: false, why: 'a drive root is not a project' };
   return { ok: true, root: abs };
 }

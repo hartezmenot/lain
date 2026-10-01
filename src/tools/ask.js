@@ -31,13 +31,12 @@ const tools = {
       description:
         'Ask the user a question with a short list of options, when a genuine fork in the work '
         + 'needs their decision. Returns the option they chose. '
-        + 'ASK EARLY RATHER THAN LATE: one question that settles an ambiguity is far cheaper than '
-        + 'searching forty files, building the wrong thing and rewriting it — so if two readings of '
-        + 'the request would lead to different implementations, ask BEFORE investigating. '
-        + 'Ask ONLY about what the user knows and the machine cannot find out: intent, preference, '
+        + 'Ask early when two readings of the request would lead to materially different work: one '
+        + 'question is cheaper than building the wrong thing. Ask only about what the user knows and '
+        + 'the machine cannot find out: intent, preference, '
         + 'and which reading of their words is right. Never ask what a read, a search or a test run '
         + 'would answer. A few questions per task, then decide yourself and state the assumption. '
-        + 'DO NOT WRITE ANY INSTRUCTION ABOUT HOW TO REPLY — no "(please type a number)", no '
+        + 'Do not write instructions about how to reply — no "(please type a number)", no '
         + '"reply with a letter". The interface draws the choices, numbers or letters them, and '
         + 'prints its own prompt describing exactly what it accepts; your version can only '
         + 'contradict it. Give the question and the options and nothing else.',

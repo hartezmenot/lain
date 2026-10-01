@@ -51,7 +51,7 @@ const HELLO_TIMEOUT_MS = 10_000;
 let server = null;
 let state = null;
 
-function pipeName(id) { return `\\\\.\\pipe\\lain-desktop-${id}`; }
+function pipeName(id) { return `\\\\.\\pipe\\noema-harness-${id}`; }
 
 /**
  * START THE CHANNEL. Returns what a host needs to connect and nothing a log
@@ -138,6 +138,8 @@ function start(app) {
             clearTimeout(hello);
             chan.clients += 1;
             chan.sockets.add(socket);
+            // THE TRAY (fabric/tray.js): this process feeds it now; the host gets the current quota once.
+            setImmediate(() => { try { const t = require('../fabric/tray'); t.bind(app); t.changed(app, { force: true }); } catch { /* presentation only */ } });
             reply({ id: msg.id || 0, ok: true, hello: true, pid: process.pid });
             continue;
           }
@@ -218,8 +220,23 @@ function status() {
  * It is not debounced or batched. A wake is a few bytes on a pipe, and a timer
  * added to smooth them out would be the delay this exists to remove.
  */
+/**
+ * COALESCED (2026-10-01). It was sent for EVERY turn event — every streamed text chunk — and every wake made the
+ * window rebuild the whole /api/state (25–55 ms of Core's event loop each), so a streaming turn competed with its own
+ * screen. The first wake goes at once; further wakes inside WAKE_COALESCE_MS become ONE trailing wake. The window still
+ * sees the settled state within that window — and no longer reads it dozens of times a second.
+ */
+const WAKE_COALESCE_MS = 120;
+let wakeAt = 0;
+let wakeTimer = null;
 function wake() {
   if (!server || !state || !state.clients) return { ok: false, why: 'no window is connected' };
+  const now = Date.now();
+  if (now - wakeAt < WAKE_COALESCE_MS) {
+    if (!wakeTimer) { wakeTimer = setTimeout(() => { wakeTimer = null; wake(); }, WAKE_COALESCE_MS - (now - wakeAt)); if (wakeTimer.unref) wakeTimer.unref(); }
+    return { ok: true, coalesced: true };
+  }
+  wakeAt = now;
   const line = `${JSON.stringify({ wake: 1 })}
 `;
   let sent = 0;
@@ -261,6 +278,29 @@ function toHost(verb) {
   return { ok: sent > 0, sent };
 }
 
+/**
+ * OPEN A SURFACE IN THE WINDOW — `{nav: {tab, section}}`, the same navigation a
+ * clicked reminder or the tray sends the page. A tab and a section name from the
+ * page's own list; the page ignores anything else. It carries no data.
+ */
+const NAV_TABS = new Set(['home', 'ide', 'chat', 'model', 'usage', 'mcp', 'settings']);
+function navigate(nav) {
+  if (!nav || !NAV_TABS.has(String(nav.tab))) return { ok: false, why: 'unknown surface' };
+  if (!server || !state || !state.clients) return { ok: false, why: 'no window is connected' };
+  const line = `${JSON.stringify({ nav: { tab: String(nav.tab), section: nav.section ? String(nav.section).slice(0, 40) : null } })}\n`;
+  let sent = 0;
+  for (const socket of state.sockets) {
+    if (socket.destroyed) continue;
+    try { socket.write(line); sent += 1; } catch { /* the peer went away */ }
+  }
+  return { ok: sent > 0, sent };
+}
+
+/** A window about to open should start at this surface: the page asks for it once it has booted. */
+let queuedNav = null;
+function queueNavigation(nav) { queuedNav = nav && NAV_TABS.has(String(nav.tab)) ? { tab: String(nav.tab), section: nav.section ? String(nav.section).slice(0, 40) : null, at: Date.now() } : null; }
+function takeNavigation() { const n = queuedNav; queuedNav = null; return n && Date.now() - n.at < 120000 ? { tab: n.tab, section: n.section } : null; }
+
 function stop() {
   if (!server) return { ok: true, stopped: false };
   try { server.close(); } catch { /* already closing */ }
@@ -275,4 +315,4 @@ function stop() {
   return { ok: true, stopped: true };
 }
 
-module.exports = { start, stop, status, toHost, wake, emit, pipeName, MAX_LINE, HELLO_TIMEOUT_MS };
+module.exports = { start, stop, status, toHost, wake, emit, navigate, queueNavigation, takeNavigation, pipeName, MAX_LINE, HELLO_TIMEOUT_MS };

@@ -3,7 +3,7 @@
 /**
  * PROMPT CACHING MUST ACTUALLY COVER THE CONVERSATION, NOT JUST THE SYSTEM PROMPT.
  *
- * Found while tracing a report of LAIN v2 burning tokens 50-80x faster than
+ * Found while tracing a report of LAIN burning tokens 50-80x faster than
  * expected: `anthropicChat` placed its only `cache_control` breakpoint on the
  * system block, gated behind an arbitrary 6000-character threshold, and never
  * marked the messages array at all. The turn loop (turn.js) resends the FULL
@@ -78,7 +78,7 @@ async function drain(gen) { const out = []; for await (const ev of gen) out.push
 
 /** One user message plus `n` tool-call/tool-result step pairs — the shape turn.js accumulates. */
 function messagesForSteps(n) {
-  const msgs = [{ role: 'system', content: 'You are LAIN.' }, { role: 'user', content: 'do the thing' }];
+  const msgs = [{ role: 'system', content: 'You are Noema.' }, { role: 'user', content: 'do the thing' }];
   for (let i = 0; i < n; i++) {
     msgs.push({ role: 'assistant', content: '', tool_calls: [{ id: `c${i}`, name: 'read_file', arguments: { path: `f${i}.txt` } }] });
     msgs.push({ role: 'tool', tool_call_id: `c${i}`, content: `contents of f${i}` });

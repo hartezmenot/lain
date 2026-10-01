@@ -102,7 +102,7 @@ module.exports = async function () {
 
   // ------------------------------------------- internal control stays hidden --
 
-  await test('GLUE: a continuation LAIN sends itself is NEVER a user message', () => {
+  await test('GLUE: a continuation Noema sends itself is NEVER a user message', () => {
     // THE INVARIANT: runtime control reaches the model, not the transcript. `from`
     // is what enforces it — a submission with one is drawn as a caption, never as
     // a user block.
@@ -302,15 +302,12 @@ module.exports = async function () {
       'a turn with nothing but thinking must not read as a lost reply');
   });
 
-  await test('GLUE: the prompt forbids routine narration, explicitly', () => {
-    // Structural, not a test of model wording: the contract has to SAY it.
-    const prompt = read('prompt.js');
-    assert.match(prompt, /Say less\. Work quietly\./);
-    assert.match(prompt, /WORK, THEN SPEAK/);
-    for (const banned of ['One more consideration', 'Potential issue', 'To save turns',
-      'Call 1', 'Continuing the final step', 'I think']) {
-      assert.ok(prompt.includes(banned),
-        'the contract must name "' + banned + '" as something not to say');
-    }
+  await test('GLUE: the standing policy says what to communicate, and that routine work is not narrated', () => {
+    // Structural, not a test of model wording: the constitution has to SAY it — once, as judgment. The catalogue of
+    // forbidden phrases that used to ride on every request is gone; dropping narration lines is the interface's job.
+    const { POLICY } = require('../../src/discipline/constitution');
+    assert.match(POLICY, /Communicate findings, decisions, contradictions and blockers/);
+    assert.match(POLICY, /Do not narrate routine work/);
+    assert.ok(require('../../src/prompt').BASE.startsWith(POLICY), 'and the prompt IS the constitution');
   });
 };

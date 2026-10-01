@@ -9,7 +9,7 @@
  * unreachable on every real task for want of any way for the model to write a
  * plan. A green unit tier said nothing about that.
  *
- * So each case drives bin/lain.js as a child process with a scripted model and
+ * So each case drives bin/noema.js as a child process with a scripted model and
  * a real filesystem and shell, and asserts on what a user would actually see.
  */
 

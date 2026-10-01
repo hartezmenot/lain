@@ -141,7 +141,7 @@ module.exports = async function () {
       'the run consumed more model requests than the four it needs — something is polling');
   });
 
-  await test('BOT: a run that ends by itself does not leave LAIN believing it is watched', async () => {
+  await test('BOT: a run that ends by itself does not leave Noema believing it is watched', async () => {
     const { cwd, configDir } = project();
     fs.writeFileSync(path.join(cwd, 'quick.js'), 'process.stdout.write("ROUND_COMPLETE\\n");');
     const r = await runCli(['-p', 'watch the quick one'], {

@@ -1,4 +1,4 @@
-# LAIN v2 — verification status
+# LAIN — verification status
 
 Labels are used exactly as defined; nothing is upgraded because the code looks
 correct. A green run of unit/integration/smoke never implies LIVE PROVIDER.
@@ -12,7 +12,86 @@ Tiers: `unit` → UNIT-VERIFIED · `integration` → INTEGRATION-VERIFIED ·
 `smoke` (spawns the real binary) → LIVE-VERIFIED · `live` (contacts a real
 provider, self-skipping) → LIVE PROVIDER VERIFIED.
 
-## Laya project readiness, persistent project index, GPT-6 Luna A/B (2026-09-24, latest)
+## Simplification + performance pass (2026-10-01, latest)
+
+Details and numbers: `docs/PERFORMANCE.md`, `docs/SIMPLIFICATION.md`, `docs/TESTING-NOEMA.md` (proportional verification).
+
+| Claim | Verification |
+|---|---|
+| Noema-added latency per turn: "reply OK" 82 → 37 ms (sandbox), 173 → 55 ms (real home); shell step 343 → ~23 ms + deferred cleanup | MEASURED (`bench/latency`, fake model, real binary/supervisor) |
+| Supervisor off the request path: 175 → 16 connections per 10 turns, no awaited admission | MEASURED + INTEGRATION-VERIFIED (`guardian`, `supervisor` 23/0) |
+| One CLI activity line; no duplicate Waiting/Thinking; no `job_wait` on screen; `· 1 shell · 1 monitor`; reasoning as tokens | REAL TTY observed (`bench/cliux`, ConPTY + pyte) + UNIT (`activityline`) |
+| Goal loop: a turn whose closing words name unfinished work continues by itself, from the continuity digest; plans advisory | INTEGRATION-VERIFIED (`autocontinue` 4/0) |
+| FAST/ECO request 77.6 KB → 39.1 / 29.7 KB; NORMAL 68.0 KB | MEASURED (fake model) · LIVE PROVIDER (Z.ai, n=2: −44 % / −56 % input tokens) |
+| Antigravity: OAuth/identity/project/models/quota/execution over HTTPS, no runtime download | INTEGRATION-VERIFIED against a fake Google — **real sign-in NOT VERIFIED** (needs the person's browser) |
+| Reset boundary rolls Noema's observed bucket; API (Z.ai) windows kept with id/length | UNIT (`resetroll`) · Z.ai windows read live (5-hour, weekly) |
+| `/api/state` 50–100 → 22–27 ms; wakes coalesced; one state read in flight | MEASURED (real config) · REAL WINDOW (`perf83-real`) |
+| Harness window startup 0.82 s (8.3) vs 1.8 s now | MEASURED — **open, not improved** |
+
+## Phase 8.3 — the unified intelligence fabric (2026-09-29)
+
+Provider families, backing accounts and account policy; per-model effort; one Execution dropdown; the
+shared Model Dashboard (the CLI never takes a key); Import accounts; the Skills Hub; tray quota; Freebuff and
+the website providers removed. Claims, measurements and the verification tier of each: `docs/HARNESS-PHASE8.md`
+§Phase 8.3 (UNIT-VERIFIED and INTEGRATION-VERIFIED with fixtures; the Model Dashboard, composer, tray push and
+performance in a real window). No live provider was contacted in 8.3. The 9router / website-source / Freebuff
+records further down are **historical** — those are no longer sources in LAIN.
+
+## Violetto retired; Laya → Harness Context & Perception; Core-owned GUG; warm uncached budget (2026-09-24)
+
+Details: `docs/WORKERS.md` §L.
+
+| Claim | Verification |
+|---|---|
+| Violetto retired: no dispatch, prewarm, role, schema; `violettojob.js` deleted; manifest `retired` keeps identity + gate | UNIT-VERIFIED (`specialistworkers.test.js`, `dispatch.test.js`) |
+| A rejected role (`source_file_ranker`) is not revived by `/workers laya on`; only an explicit role override | UNIT-VERIFIED |
+| Laya Harness roles SHADOW; Core validates refs at the current generation; SHADOW never consumed; late results discarded; no self-dispatch; never blocks | UNIT-VERIFIED (`layacontext.test.js`, fake worker at the runtime seam — the real Laya model was NOT run) |
+| GUG: nodes/relations from DOM evidence, source binding EXACT/MULTIPLE/UNKNOWN, bounded canonical slice, UNKNOWN kept, reverse mapping + impact | UNIT-VERIFIED (`gug.test.js`) |
+| Workshop pick → GUG node (routes `picked` / `pick-at`, `POST /api/workshop/gug`) | UNIT-VERIFIED with a stubbed page measurement; and in the REAL Workshop UI (workshop-real smoke asserts the real-mouse pick maps to a GUG node measured in Chromium) |
+| IDE selection / manual save → Harness state, project generation, PROJECT_DELTA; packet anchored once in history, never in the tail or system prompt; stable prefix byte-identical across turns | INTEGRATION-VERIFIED (`flagshipcontext.test.js`, real App, mock model) |
+| "rename this to ButtonFix" / "move this down 6px" finish with 0 model requests, verified; a rename needing judgement goes to the flagship with the packet | INTEGRATION-VERIFIED |
+| Budgeter: warm/cold/epoch, per-protocol ratio, reduction of optional owners > 8 %, exceptions; bounded tool output with recoverable raw receipts; cache-aware `foldRepeats` | UNIT-VERIFIED (`cachebudget.test.js`) |
+| Warm uncached ratio on GPT-6 Luna | NOT MEASURED — route unhealthy (9router :20128 down; LainRouter 429 usage limit). 1 live request spent. |
+| Structural warm estimate (mock model, byte prefix) | median 2.99 %, worst 5.30 %, 0 over 8 %, 0 epoch resets (`bench/cache-warm/run.js --mode mock`) — an estimate, not a receipt |
+
+Final runs (2026-09-25): unit 3369/0 · integration 221/0 · workflow 7/0 · **cli smoke 500/0 (one run, 2,309 s)** · harness compatibility (additive Workshop route fields): harnessapp-workshop + workshop-real 2/0. The first unit run had 1 failure from a concurrent session's botroute regex (fixed by that session; re-run clean). D:\lain-harness: no change.
+
+
+## Capabilities do not volunteer; Laya live-evidence gate (2026-09-24)
+
+Details are in `docs/WORKERS.md` §K.
+
+**Core assigns specialist work.** `src/dispatch.js` makes one deterministic
+assignment per input: the class, which owners may take part, and a telemetry row.
+- **migration_plan.** Offered only for a real old → new transition, or while one
+  is in flight. It had been fired by "move the button to the right".
+- **Recruitment per role.** Roles run OFF / SHADOW / AUTO / FORCE:
+  - Laya source-file ranking OFF, UI evidence SHADOW;
+  - Violetto has no flagship tool; Core owns geometry jobs, and a direct path
+    solves "10% smaller" by arithmetic, writes and verifies.
+- **Smaller tool surface.** An ordinary request now carries 59 tools / 54,082
+  chars, down from 63 / 57,661.
+- UNIT-VERIFIED: `tests/unit/dispatch.test.js`, 15 tests including acceptance scenarios A–E.
+
+**Observation receipts and the Laya live-evidence compiler.**
+`src/observationstore.js`, `src/layaevidence.js` and `observe {receipt}`;
+`tests/unit/layaevidence.test.js` (4). UNIT-VERIFIED.
+
+**Local gate FAILED** (`bench/live-evidence/`):
+- Real Toralink UI captured once: 151 DOM nodes; the project stayed byte-identical.
+- The shipped slice recalls 1/8 targets, missing the search input, submission
+  and download action. Core alone recalls 3/8.
+- **No GPT-6 Luna A/B was spent.**
+
+**LainRouter GPT-6 Luna: NOT VERIFIED.** The router was down (`:4570` refused
+connections). The one acceptance turn reached nothing: 0 requests were served,
+and there was no fallback.
+
+**Tests.** One clean sequential run of every tier: unit 3,313/0 · integration
+216/0 · workflow 4/0 · CLI smoke 437/0. Harness smoke was not run: no Harness
+source or Harness-consumed contract changed.
+
+## Laya project readiness, persistent project index, GPT-6 Luna A/B (2026-09-24)
 
 Details: `docs/WORKERS.md` §J. Evidence (gitignored): `bench/out/readonly-diagnostic/luna-*`,
 `bench/out/laya-index/`, `compare-luna-control-vs-luna-laya.json`.
@@ -297,7 +376,7 @@ all connections were preserved.
 | ECO spent more tokens than FAST for the same outcome (fix → suite → fix → suite) | ECO guidance: fix all failures, then one run | — | LIVE (measured, n=1 per profile) |
 
 REAL CLI VERIFIED in this pass (live model, real ConPTY):
-- profiles `/fast` `/normal` `/slow` and FOCUS on/off/combined, header clean after every transition;
+- profiles `/fast` `/normal` `/slow` (historical: SLOW was removed in Phase 8.1; profiles are Normal · Fast · Eco) and FOCUS on/off/combined, header clean after every transition;
 - the Diff lifecycle;
 - a known 42m reset:
   - one request, zero premature retries;

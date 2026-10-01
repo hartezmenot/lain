@@ -50,6 +50,7 @@ const MAX_REASONING = 4000;
 
 /** What one turn did. Handed to the REPL and appended to the session. */
 function newRecord(sessionId, userInput, model) {
+  require('./perfmark').mark('turn');   // where the turn's milliseconds go (perfmark.js)
   turnSeq += 1;
   return {
     turnId: `t${turnSeq}-${Date.now().toString(36)}`,

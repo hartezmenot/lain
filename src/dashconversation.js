@@ -65,7 +65,7 @@ function conversation(session, live = {}) {
   const flush = (upTo) => {
     while (pending.length && at(pending[0]) <= upTo) {
       const e = pending.shift();
-      const who = e.kind === 'external' ? 'EXTERNAL' : e.kind === 'mcp' ? 'MCP' : 'LAIN';
+      const who = e.kind === 'external' ? 'EXTERNAL' : e.kind === 'mcp' ? 'MCP' : 'Noema';
       // THE TERMINAL FEED SHOWS THE EVENT; THE PHONE CAN SHOW THE WORDS.
       // An external consultation is one line in the conversation on purpose
       // (see externalrequest.dispatch), and the advisor's own text rides along
@@ -84,9 +84,9 @@ function conversation(session, live = {}) {
     // drawing it as `USER` claims somebody typed six hundred characters they
     // never typed. Same rule as the terminal feed — see ui/conversation.js.
     const said = t.userInput ? require('./ui/phrasing').selfAskedCaption(t.from, t.typed) : null;
-    if (said) out.push({ who: 'LAIN', text: said });
+    if (said) out.push({ who: 'Noema', text: said });
     else if (t.userInput) out.push({ who: 'USER', text: trim(t.userInput) });
-    if (t.text) out.push({ who: 'LAIN', text: trim(t.text) });
+    if (t.text) out.push({ who: 'Noema', text: trim(t.text) });
     for (const a of (t.actions || [])) {
       out.push({ who: 'ACTION', text: trim(`${a.name} ${a.target || ''}`), ok: a.ok !== false });
     }
@@ -97,7 +97,7 @@ function conversation(session, live = {}) {
   // work is happening — the same gap the terminal feed had before the live
   // rows were added, and far more obvious on a device you are only watching.
   if (live.user) out.push({ who: 'USER', text: trim(live.user) });
-  for (const n of (live.narration || [])) out.push({ who: 'LAIN', text: trim(n.text) });
+  for (const n of (live.narration || [])) out.push({ who: 'Noema', text: trim(n.text) });
   for (const a of (live.actions || [])) {
     out.push({ who: 'ACTION', text: trim(`${a.name} ${a.target || ''}`), ok: a.ok !== false });
   }

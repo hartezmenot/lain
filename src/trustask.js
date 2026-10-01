@@ -45,7 +45,7 @@ async function ensureTrusted(app) {
     items: [
       { label: dir, selectable: false },
       { label: '', selectable: false },
-      { label: 'LAIN can read, write and run commands here. Only say yes to code you', selectable: false },
+      { label: 'Noema can read, write and run commands here. Only say yes to code you', selectable: false },
       { label: 'would be willing to run yourself.', selectable: false },
       { label: '', selectable: false },
       { label: `Yes — trust ${name}`, value: trust.LEVEL.TRUSTED },

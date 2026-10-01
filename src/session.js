@@ -125,6 +125,7 @@ class Session {
     // WHO ANSWERS A CHAT TURN, and which website thread is this one's.
     require('./modelsource/sessionstate').attach(this);
     require('./sessionviews').attach(this);   // Chat/Coding views, pins, panel, project — see there
+    require('./journey').attach(this);          // the session journey — see there
     // Cowork uploads wait here only until the next active Harness task adopts
     // them. Metadata is persisted; bytes remain in this session's scratch.
     this.coworkInputs = [];
@@ -514,6 +515,9 @@ class Session {
       plan: this.plan ? this.plan.toJSON() : null,
       planHistory: (this.planHistory || []).slice(-5).map((p) => p.toJSON()),
       mode: this.mode || null,
+      ...(this.title ? { title: this.title } : {}),
+      // WHERE A CONTINUED SESSION CAME FROM (externalsessions.js): external:<runtime>:<id>.
+      ...(this.origin ? { origin: this.origin } : {}),
       execMode: this.execMode || null, focus: Boolean(this.focus), fast: Boolean(this.fast), profile: this.profile || null,
       decisions: Array.isArray(this.decisions) ? this.decisions.slice(-20) : [],
       bgResults: Array.isArray(this._bgResults) ? this._bgResults.slice(-20) : [],
@@ -528,6 +532,9 @@ class Session {
       ...require('./modelsource/sessionstate').toJSON(this),
       ...require('./sessionviews').toJSON(this),
       ...require('./planhandoff').toJSON(this),
+      ...require('./journey').toJSON(this),
+      ...require('./evidencerefs').toJSON(this),
+      ...require('./workbench').toJSON(this),   // Chat's supervision of the Agent (workbench.js)
       cowork: require('./cowork/sessionstate').from(this.cowork),
       coworkInputs: require('./cowork/attachments').pending(this),
       goal: require('./goal').toJSON(this),
@@ -535,6 +542,10 @@ class Session {
       // WHAT LAIN DID AND CHECKED: transaction receipts (mutation.js), verification
       // runs (verifycontract.js) and the non-progress state (progress.js).
       mutationReceipts: Array.isArray(this.mutationReceipts) ? this.mutationReceipts.slice(-60) : [],
+      // THE QUICK CHANGES' RESULTS (changeclass.js) — small, bounded, what the IDE's Changes panel lists.
+      quickChanges: Array.isArray(this.quickChanges) ? this.quickChanges.slice(-20) : [],
+      // THE COMMITTED TASK CHECKPOINT (taskcheckpoint.js) — where the work stands, as last committed.
+      checkpoint: this.checkpoint || null,
       verification: this.verification || null,
       progress: require('./progress').toJSON(this),
       // A TURN IN FLIGHT, so a force-close can be recovered (inflight.js).
@@ -594,8 +605,9 @@ class Session {
     s.evidence = EvidenceLedger.from(data.evidence, s.cwd, s.id);
     s.plan = require('./plan').Plan.from(data.plan);
     s.planHistory = (Array.isArray(data.planHistory) ? data.planHistory : []).map((p) => require('./plan').Plan.from(p)).filter(Boolean).slice(-5);
-    s.mode = data.mode || null;
-    s.execMode = data.execMode || null; s.focus = Boolean(data.focus); s.fast = Boolean(data.fast); s.profile = data.profile || null;
+    s.mode = data.mode || null; if (typeof data.title === 'string') s.title = data.title;
+    if (data.origin && typeof data.origin === 'object') s.origin = data.origin;
+    s.execMode = data.execMode || null; s.focus = Boolean(data.focus); s.fast = Boolean(data.fast); s.profile = data.profile ? (require('./profile').normalize(data.profile) || null) : null;   // SLOW (retired) → ECO
     s.decisions = Array.isArray(data.decisions) ? data.decisions : [];
     s._bgResults = Array.isArray(data.bgResults) ? data.bgResults : [];
     s.taskClassVerdict = data.taskClassVerdict || null;
@@ -608,11 +620,16 @@ class Session {
     require('./modelsource/sessionstate').restore(s, data);
     require('./sessionviews').restore(s, data);
     require('./planhandoff').restore(s, data);
+    require('./journey').restore(s, data);
+    require('./evidencerefs').restore(s, data);
+    require('./workbench').restore(s, data);
     s.cowork = require('./cowork/sessionstate').from(data.cowork);
     s.coworkInputs = Array.isArray(data.coworkInputs) ? data.coworkInputs.slice(0, 8) : [];
     s.goal = require('./goal').from(data.goal);
     s.pausedGoals = require('./goal').pausedFrom(data.pausedGoals);
     s.mutationReceipts = Array.isArray(data.mutationReceipts) ? data.mutationReceipts.slice(-60) : [];
+    s.quickChanges = Array.isArray(data.quickChanges) ? data.quickChanges.slice(-20) : [];
+    require('./taskcheckpoint').restore(s, data);
     s.verification = data.verification && typeof data.verification === 'object' ? data.verification : null;
     require('./progress').restore(s, data.progress);
     // A TURN THAT WAS IN FLIGHT WHEN ITS PROCESS DIED is repaired here — lost
@@ -625,7 +642,7 @@ class Session {
       const inf = require('./inflight');
       const r = s.inflight ? inf.recover(s) : null;
       const jobs = inf.recoverJobs(s);
-      if (jobs.length && s.recovered) s.recovered.line += ` · ${jobs.length} background job(s) left by the closed LAIN`;
+      if (jobs.length && s.recovered) s.recovered.line += ` · ${jobs.length} background job(s) left by the closed Noema`;
       if ((r && !r.live) || jobs.length) s.save();
     } catch { /* the session still loads */ }
     return s;

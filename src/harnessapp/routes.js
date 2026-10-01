@@ -44,12 +44,12 @@ function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400) { return { code, body: { ok: false, why: String(why || 'refused') } }; }
 function noProject() { return { code: 409, body: { ok: false, why: 'no project is attached to this session', projectRequired: true } }; }
 
-/** Bound work, so a wedged browser cannot hold an HTTP connection open forever. */
+/**
+ * Bound work, so a wedged browser cannot hold an HTTP connection open forever. The deadline
+ * goes when the work does (deadline.js) — it used to stay armed 30–120 s after every call.
+ */
 function within(promise, ms = ACTION_TIMEOUT_MS, what = 'the operation') {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve({ ok: false, why: `${what} did not finish within ${Math.round(ms / 1000)}s` }), ms)),
-  ]);
+  return require('../deadline').race(promise, ms, () => ({ ok: false, why: `${what} did not finish within ${Math.round(ms / 1000)}s` }));
 }
 
 /**
@@ -59,6 +59,27 @@ function within(promise, ms = ACTION_TIMEOUT_MS, what = 'the operation') {
  * is answerable by reading one object — and so an unknown path is a 404 rather
  * than something falling through to a handler that half-matches it.
  */
+/**
+ * A WORKSHOP PICK, ANSWERED ONCE — both doors (a click on the preview image,
+ * a click in the preview window) end here. The pick is measured into the GUG
+ * (workshopPicked), which makes it the canonical Selection; the answer is THAT
+ * Selection's one binding (node, style owner, component evidence), not a second
+ * resolution — and `open` is the source the IDE should show: the style owner
+ * when it is bound EXACT / LIKELY, otherwise the component that renders it.
+ */
+async function pickAnswer(app, ws, element) {
+  const hc = require('../harnesscontext');
+  let gug = null;
+  try { gug = await within(hc.workshopPicked(app, app.session, ws, element), 30_000, 'mapping the selection'); } catch { gug = null; }
+  let sel = null;
+  try { sel = hc.selection(app, app.session); } catch { sel = null; }
+  const binding = sel && sel.kind === 'visual' && sel.visual ? sel.visual.sourceBinding || null : null;
+  const style = binding && binding.style && binding.style.file && ['EXACT', 'LIKELY'].includes(binding.style.confidence) ? { file: binding.style.file, line: binding.style.line || 1, why: `style owner ${binding.style.selector || ''} (${binding.style.confidence})` } : null;
+  const top = binding && binding.component && binding.component.candidates && binding.component.candidates[0];
+  const comp = top && binding.component.confidence !== 'UNKNOWN' ? { file: top.rel, line: (top.hits && top.hits[0] && top.hits[0].line) || 1, why: `component (${binding.component.confidence})` } : null;
+  return { source: binding ? binding.component : null, gug, binding, selection: sel ? sel.id : null, projectGeneration: sel ? sel.projectGeneration : null, open: style || comp || null, alternatives: [style, comp].filter(Boolean) };
+}
+
 const ROUTES = {
   // ------------------------------------------------------------- reading --
 
@@ -150,7 +171,7 @@ const ROUTES = {
   'POST /api/desktop/quit': async (app) => {
     app.wantExit = true;
     setTimeout(async () => {
-      try { await require('../teardown').shutdown(app, { why: 'you quit LAIN' }); } catch { /* going anyway */ }
+      try { await require('../teardown').shutdown(app, { why: 'you quit Noema' }); } catch { /* going anyway */ }
       process.exit(0);
     }, 10);
     return ok({ quitting: true });
@@ -274,15 +295,19 @@ const ROUTES = {
     return ok(source.find(app, String(body.q || '')));
   },
   'POST /api/files/freshness': (app, body) => ok({ files: source.freshness(app, body.open || []) }),
-  'POST /api/files/save': (app, body) => {
-    const r = source.save(app, String(body.path || ''), body.body, {
-      hash: body.hash, mtimeMs: body.mtimeMs, force: Boolean(body.force),
+  'POST /api/files/save': async (app, body) => {
+    const r = await source.save(app, String(body.path || ''), body.body, {
+      hash: body.hash, mtimeMs: body.mtimeMs, force: Boolean(body.force), encoding: body.encoding || null,
+      origin: body.origin === 'FORMATTER' ? 'FORMATTER' : 'USER',
     });
     // A REFUSAL IS NOT AN ERROR HERE. Stale and truncation both come back 200
     // with the reason and the evidence, because the page has to SHOW them —
     // a 4xx would be swallowed by the generic handler and the person would see
     // "save failed" with nothing to act on.
-    return ok(r);
+    // (The generation, the GUG and provenance follow inside the mutation
+    // transaction the save went through — source.save → mutation.change.)
+    const { transaction, checkpoint, output, isError, mutated, ...shown } = r || {};
+    return ok({ ...shown, generation: transaction ? transaction.generation : null });
   },
 
   // ---- UI <-> SOURCE --------------------------------------------------
@@ -290,9 +315,12 @@ const ROUTES = {
   // The defining feature. Both directions return EVIDENCE and a CONFIDENCE,
   // and `UNKNOWN` is a real answer — see harnessapp/uisource.js on why a
   // confident wrong file costs more than an honest shrug.
-  'POST /api/files/from-element': (app, body) => ok(
-    require('./uisource').fromElement(app, body.element || {}),
-  ),
+  // THE ONE UI → SOURCE BINDING (gug.sourceBinding): the component evidence is
+  // what this route has always answered; the style owner comes with it.
+  'POST /api/files/from-element': (app, body) => {
+    const b = require('../gug').sourceBinding(app, app.session.cwd, body.element || {});
+    return ok({ ...(b.component || { confidence: 'UNKNOWN', candidates: [] }), binding: b });
+  },
   'POST /api/files/to-ui': (app, body) => ok(
     require('./uisource').toSelectors(app, String(body.path || ''), { line: body.line }),
   ),
@@ -381,7 +409,22 @@ const ROUTES = {
   'POST /api/workshop/picked': async (app) => {
     const ws = require('../workshop').forApp(app);
     const r = await within(ws.picked(app.session.cwd), 30_000, 'reading the selection');
+    // THE PICK AS A GUG NODE (harnesscontext.js): Core now knows what "this" is.
+    if (r && r.ok && r.element) return ok({ ...r, ...(await pickAnswer(app, ws, r.element)) });
     return ok(r);
+  },
+
+  /**
+   * THE WORKSHOP'S GEOMETRIC UI GRAPH (gug.js): re-measure, and say what moved
+   * since the last measurement — "SearchBar height +6px · Results moved +6px"
+   * rather than "SearchView.tsx changed". Optional `id`: that node's slice.
+   */
+  'POST /api/workshop/gug': async (app, body = {}) => {
+    const ws = require('../workshop').forApp(app);
+    const r = await within(require('../harnesscontext').measureWorkshop(app, app.session, ws), 30_000, 'measuring the page');
+    if (!r.ok) return bad(r.why);
+    const slice = body.id ? require('../gug').slice(r.graph, String(body.id)) : null;
+    return ok({ gug: r.summary, impact: r.impact ? { from: r.impact.from, to: r.impact.to, lines: r.impact.lines, affectedRelations: r.impact.affectedRelations } : null, slice: slice && slice.found ? slice.text : null });
   },
 
   /** SELECT BY CLICKING THE PREVIEW IMAGE: page coordinates, mapped by the page. */
@@ -389,10 +432,7 @@ const ROUTES = {
     const ws = require('../workshop').forApp(app);
     const r = await within(ws.pickAt(app.session.cwd, body.x, body.y), 30_000, 'selecting the element');
     if (!r.ok) return bad(r.why);
-    // WHERE IT COMES FROM, when the project's own source says so — never guessed.
-    let source = null;
-    try { source = r.element ? require('./uisource').fromElement(app, r.element) : null; } catch { source = null; }
-    return ok({ element: r.element, source });
+    return ok({ element: r.element, ...(r.element ? await pickAnswer(app, ws, r.element) : { source: null, gug: null, binding: null, selection: null, open: null }) });
   },
 
   'POST /api/workshop/unpick': async (app) => {
@@ -564,6 +604,17 @@ function acting(app, body) {
   return { app: target };
 }
 
+/** POST routes that change nothing the window shows — they never wake it. */
+const QUIET_READS = new Set([
+  '/api/files/freshness', '/api/files/open', '/api/files/raw', '/api/files/tree', '/api/files/find',
+  '/api/files/diff', '/api/files/search', '/api/files/check',
+  '/api/terminal/read', '/api/terminal/processes', '/api/terminal/resize', '/api/terminal/input',
+  '/api/git/status', '/api/git/diff', '/api/git/show', '/api/git/branches',
+  '/api/ide/context', '/api/ide/definition', '/api/ide/resolve', '/api/workspace/vscode',
+  '/api/clipboard/read', '/api/clipboard/write', '/api/image/read',
+  '/api/devserver/status', '/api/chrome/status', '/api/project/recent', '/api/preview/input/next',
+]);
+
 async function dispatch(app, method, pathname, body) {
   const key = `${String(method).toUpperCase()} ${pathname}`;
   const fn = ROUTES[key];
@@ -580,7 +631,13 @@ async function dispatch(app, method, pathname, body) {
     // application admitted it had happened, which reads as LAIN being slow at
     // the one thing that is instant. GET is excluded: a read changes nothing,
     // and waking on it would be a loop.
-    if (String(method).toUpperCase() !== 'GET') {
+    //
+    // A READ SENT AS POST IS STILL A READ. The window calls several of these
+    // on every render (is the open file fresh?) or on a short clock (the
+    // terminal pump); waking on them made poll → render → read → wake → poll a
+    // loop at pipe speed — measured at ~70 state reads a second, enough to
+    // starve every turn on Core's event loop.
+    if (String(method).toUpperCase() !== 'GET' && !QUIET_READS.has(pathname)) {
       try { require('./ipc').wake(); } catch { /* no window is connected */ }
     }
     return out;
@@ -605,11 +662,33 @@ Object.assign(ROUTES, require('./viewroutes').ROUTES);
 Object.assign(ROUTES, require('./devroutes').ROUTES);
 // Messaging connections and the Telegram setup flow — botroutes.js.
 Object.assign(ROUTES, require('./botroutes').ROUTES);
+// Account instances: runtime accounts (Codex, …) and API routes as one list.
+Object.assign(ROUTES, require('./instanceroutes').ROUTES);
+Object.assign(ROUTES, require('./usageroutes').ROUTES);
+// The personal assistant: tasks, activity, settings — assistantroutes.js.
+Object.assign(ROUTES, require('./assistantroutes').ROUTES);
+// Chat supervising the Coding Agent: offers, findings, strategy, profile, quota Continue, plan send — workbenchroutes.js.
+Object.assign(ROUTES, require('./workbenchroutes').ROUTES);
+// GitHub as a project source — githubroutes.js.
+Object.assign(ROUTES, require('./githubroutes').ROUTES);
+// Appearance, AGENTS.md, feedback, session controls, surface handoff, reset windows — productroutes.js.
+Object.assign(ROUTES, require('./productroutes').ROUTES);
+// MODEL's intelligence fabric: local models, runtimes, legacy keys — fabricroutes.js.
+Object.assign(ROUTES, require('./fabricroutes').ROUTES);
 // LAIN for Chrome's connection state — chromeroutes.js.
 Object.assign(ROUTES, require('./chromeroutes').ROUTES);
 // Settings: a schema, validated updates — settingsroutes via src/settings.js.
 Object.assign(ROUTES, require('../settings').ROUTES);
 // The workspace shell: accounts and usage, MCP, skills, opening a project.
 Object.assign(ROUTES, require('./workspaceroutes').ROUTES);
+// The IDE: file operations, search, source control, editor context — ideroutes.js.
+Object.assign(ROUTES, require('./ideroutes').ROUTES);
+// Route modules with their quiet reads: the editor profile, VS Code / Cursor import and extensions (extroutes); the
+// session journey, house doors, Laya's provenance and the focused packet (journeyroutes); runtime processes, the
+// extension host and language servers (devtoolroutes); Settings › Storage (cacheroutes); updates and Exit (updateroutes).
+for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes')]) {
+  Object.assign(ROUTES, mod.ROUTES);
+  for (const q of mod.QUIET || []) QUIET_READS.add(q);
+}
 
 module.exports = { dispatch, ROUTES, ACTION_TIMEOUT_MS };

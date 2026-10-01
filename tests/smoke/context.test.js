@@ -9,7 +9,7 @@
  * every byte of it on every step. Nothing in the product knew the window had a
  * size.
  *
- * So this spawns bin/lain.js, gives it a task whose tool output genuinely
+ * So this spawns bin/noema.js, gives it a task whose tool output genuinely
  * overflows the budget, and then reads BOTH what the user saw and what was
  * actually persisted.
  */

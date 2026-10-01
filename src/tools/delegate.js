@@ -23,10 +23,10 @@ const CONTRACT = {
 
 function refuseInside(ctx, name) {
   if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: `DENIED: a subagent cannot use ${name}; report back to the main agent instead.`, isError: true, denied: true };
-  if (!ctx || !ctx.app) return { output: `UNAVAILABLE: ${name} needs a LAIN session.`, isError: true };
+  if (!ctx || !ctx.app) return { output: `UNAVAILABLE: ${name} needs a Noema session.`, isError: true };
   // SUBAGENTS OFF is the person's setting (`/subagents off`), and it covers A/B too.
   if (require('../subagents').settings(ctx.app).mode === 'off') {
-    return { output: `DENIED SUBAGENTS_OFF: ${name} starts other agents, and subagents are turned off for this LAIN (/subagents auto to allow). Do the work yourself.`, isError: true, denied: true };
+    return { output: `DENIED SUBAGENTS_OFF: ${name} starts other agents, and subagents are turned off for this Noema (/subagents auto to allow). Do the work yourself.`, isError: true, denied: true };
   }
   // ECO spends no extra model work on other agents unless the person asked (profile.js).
   const eco = require('../profile').allowsExtraAgents(ctx.session || ctx.app.session, name);
@@ -39,8 +39,9 @@ const tools = {
     mutates: false,
     schema: {
       name: 'delegate',
-      description: 'Hand bounded work to specialist subagents. Use ONLY when the task naturally partitions, a long independent investigation exists, '
-        + 'specialist verification helps, or a pipeline would keep your own context small — a one-agent task stays with you. '
+      description: 'Hand bounded work to specialist subagents. Each one re-establishes context and you then re-read its report, so delegate '
+        + 'only large, genuinely independent work (a task that partitions, a long independent investigation); work you could finish in a '
+        + 'handful of calls, and verification of your own work, stay with you. '
         + 'Each subagent gets a FRESH session with only its contract (never this conversation), an enforced read/write scope, and works in an '
         + 'ISOLATED copy of the project: nothing it does touches this tree. What it changes comes back as a CANDIDATE (checked for out-of-scope '
         + 'writes and undeclared deletions) that YOU integrate with integrate_candidate, then wire, refactor and verify. '
@@ -86,7 +87,7 @@ const tools = {
     },
     async run(input, ctx) {
       if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: 'DENIED: a subagent never integrates — its work is a candidate for the main agent.', isError: true, denied: true };
-      if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a LAIN session.', isError: true };
+      if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a Noema session.', isError: true };
       if (input.reject) {
         // A RESOLUTION, NOT A DELETION: the workspace's lifecycle decides its removal.
         const j = require('../candidates').reject(ctx.app, String(input.id || ''), input.reason || '');
@@ -108,7 +109,7 @@ const tools = {
       name: 'ab_compare',
       description: 'For a DIFFICULT implementation or bug fix with two credible approaches: build candidate A and candidate B in isolated git worktrees, '
         + 'run the SAME verification command in each, select the winner from the evidence (passes, then smaller change, then faster), '
-        + 'integrate only the winner into this tree and verify it here. Its temporary worktrees are removed by LAIN once resolved (a failed one is kept for inspection). Asks the person only when the evidence does not decide.',
+        + 'integrate only the winner into this tree and verify it here. Its temporary worktrees are removed by Noema once resolved (a failed one is kept for inspection). Asks the person only when the evidence does not decide.',
       parameters: {
         type: 'object',
         properties: {

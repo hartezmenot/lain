@@ -113,7 +113,7 @@ async function releaseAll(why = 'shutting down') {
 function warnIfStillHeld() {
   if (!held.size) return '';
   const keys = [...held.keys()].join(', ');
-  return `LAIN exited with ${keys} still held down. Press and release ${keys} to clear it.`;
+  return `Noema exited with ${keys} still held down. Press and release ${keys} to clear it.`;
 }
 
 /**
@@ -134,7 +134,7 @@ function arm() {
     }
   };
   // beforeExit CAN await, and is where an ordinary end-of-run lands.
-  process.once('beforeExit', () => { flush('LAIN is finishing').catch(() => {}); });
+  process.once('beforeExit', () => { flush('Noema is finishing').catch(() => {}); });
   // 'exit' cannot. All that is left is to tell the person.
   process.once('exit', () => {
     const msg = warnIfStillHeld();

@@ -41,7 +41,7 @@ function prefs(session) {
 }
 
 /** Tools that only read, even though a mutating flag might suggest otherwise. */
-const ALWAYS_READ = new Set(['plan_write', 'plan_findings', 'plan_step_done', 'scratch', 'ask_user', 'concept', 'architecture', 'wiring',
+const ALWAYS_READ = new Set(['plan_write', 'plan_findings', 'plan_step_done', 'report_finding', 'scratch', 'ask_user', 'concept', 'architecture', 'wiring',
   'request_browser', 'request_computer', 'job_status', 'job_wait', 'understand', 'engineering_brief', 'review_changes']);
 
 /** Does this call change the machine: a write, a command, a process? */

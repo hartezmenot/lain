@@ -39,7 +39,7 @@ const { test, runCli, tmpdir, assertIncludes, assertNotIncludes } = require('../
 const execution = require('../../src/execution');
 
 module.exports = async function () {
-  await test('SHELL LIVE: && really runs, through the binary, in the shell LAIN picks', async () => {
+  await test('SHELL LIVE: && really runs, through the binary, in the shell Noema picks', async () => {
     if (process.platform !== 'win32') return;
     if (execution.powerShellIsLegacy()) return;
 
@@ -68,7 +68,7 @@ module.exports = async function () {
 
     // ---- THE EXACT SENTENCE THAT WAS REPORTED, and it must be gone --------
     assertNotIncludes(tool.content, 'not a valid statement separator',
-      'the shell LAIN chose must be one that HAS the operator the model used');
+      'the shell Noema chose must be one that HAS the operator the model used');
     assertIncludes(tool.content, 'one', 'the first half ran');
     assertIncludes(tool.content, 'two', 'and so did the second — which is what && means');
   });

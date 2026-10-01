@@ -156,7 +156,9 @@ class Workshop {
     return work;
   }
 
-  async _open_(key, { taskId = null, headless = false } = {}) {
+  // HEADLESS BY DEFAULT (Phase 8.2): the preview is drawn INSIDE LAIN, live and interactive
+  // (stream.js), so a second Chromium window beside it is noise. "Open externally" is the person's browser.
+  async _open_(key, { taskId = null, headless = true } = {}) {
     const avail = this.availability();
     if (!avail.available) { this.lastWhy = avail.why; return { ok: false, why: avail.why }; }
 
@@ -191,7 +193,7 @@ class Workshop {
     const tab = await cdp.newTab(launched.base, 'about:blank');
     if (!tab.ok || !tab.target || !tab.target.webSocketDebuggerUrl) {
       await this.close(key);
-      return { ok: false, why: 'the preview browser would not give LAIN a page to drive' };
+      return { ok: false, why: 'the preview browser would not give Noema a page to drive' };
     }
     const conn = new cdp.Connection(tab.target.webSocketDebuggerUrl);
     const opened = await conn.connect();
@@ -293,6 +295,12 @@ class Workshop {
   async axTree(projectPath, selector = null) {
     const p = this._page(projectPath);
     return p.ok ? inspect.axTree(p.session, selector) : p;
+  }
+
+  /** The page measured for the GUG (gug.js fromDom) — bounded, deterministic. */
+  async measure(projectPath, max = 400) {
+    const p = this._page(projectPath);
+    return p.ok ? inspect.measure(p.session, max) : p;
   }
 
   /** Console and network, summarised. Cheap: both are accumulated already. */
@@ -510,10 +518,138 @@ class Workshop {
     };
   }
 
+  // ------------------------------------------------------ live preview (8.2) --
+
+  /** Stream the page's frames to the window (stream.js). Idempotent. */
+  async stream(projectPath, on = true) {
+    const p = this._page(projectPath);
+    if (!p.ok) return p;
+    const s = require('./stream');
+    return on ? s.start(p.session) : s.stop(p.session);
+  }
+
+  /** The newest frame after "since". */
+  frame(projectPath, since = 0) {
+    const p = this._page(projectPath);
+    return p.ok ? require('./stream').frame(p.session, since) : p;
+  }
+
+  /** The person's pointer, wheel and keys, delivered to the page. */
+  async input(projectPath, events) {
+    const p = this._page(projectPath);
+    return p.ok ? require('./stream').input(p.session, events) : p;
+  }
+
+  /** The element under a point (Pick mode's outline). */
+  async hover(projectPath, x, y) {
+    const p = this._page(projectPath);
+    return p.ok ? require('./stream').hover(p.session, x, y) : p;
+  }
+
+  /** Where the page is now — the page a change request targets when nothing is selected. */
+  async pageUrl(projectPath) {
+    const p = this._page(projectPath);
+    return p.ok ? require('./stream').url(p.session) : null;
+  }
+
+  // ------------------------------------------------ the frame preview (2026-09-30) --
+  //
+  // THE PREVIEW THE WINDOW SHOWS: the project's real frontend in an iframe, through the
+  // proxy (proxy.js) — the dev server, the bridge, the capability broker. No browser is
+  // launched and nothing is streamed; the CDP Workshop above stays for evidence (capture,
+  // verify, the accessibility tree) and opens only when one of those is asked for.
+  //
+  // ONE PER PROJECT, SHARED: Chat, Coding Chat, the Coding Agent and the IDE all show the
+  // same URL, viewport, selection and capability state — Core's, read from `frameState`.
+
+  async frameOpen(projectPath, { taskId = null } = {}) {
+    const key = path.resolve(projectPath);
+    if (!this._frames) this._frames = new Map();
+    const held = this._frames.get(key);
+    if (held && held.proxy && held.proxy.server) return { ok: true, ...this.frameState(key), reused: true };
+    const started = await this.devServers.start(key, { taskId });
+    if (!started.ok) { this.lastWhy = started.why; return { ok: false, why: started.why, devServer: started.devServer }; }
+    const ds = started.devServer;
+    const { PreviewProxy } = require('./proxy');
+    const proxy = new PreviewProxy({ target: ds.url, root: key, waker: (rule) => this._wake(key, rule, taskId) });
+    const up = await proxy.start();
+    if (!up.ok) return up;
+    this._frames.set(key, { proxy, target: ds.url, port: ds.port, processId: ds.processId, adopted: ds.adopted, viewport: (held && held.viewport) || { name: 'desktop', w: 1440, h: 900 }, path: null, openedAt: Date.now() });
+    this._emit(EVENT.BROWSER_STARTED, { taskId: String(taskId || ''), what: 'preview' });
+    return { ok: true, ...this.frameState(key) };
+  }
+
+  /** What every surface draws the preview from. Null when this project has none open. */
+  frameState(projectPath) {
+    const key = path.resolve(projectPath || '.');
+    const f = this._frames && this._frames.get(key);
+    if (!f || !f.proxy || !f.proxy.server) return null;
+    return { url: f.proxy.url, target: f.target, port: f.proxy.port, devPort: f.port, adopted: Boolean(f.adopted), viewport: f.viewport, path: f.path, capabilities: f.proxy.view(), stats: { requests: f.proxy.stats.requests, documents: f.proxy.stats.documents, errors: f.proxy.stats.errors } };
+  }
+
+  /** The viewport and page every surface shares (the window reports them; Core keeps them). */
+  frameSet(projectPath, { viewport = null, page = null } = {}) {
+    const key = path.resolve(projectPath);
+    const f = this._frames && this._frames.get(key);
+    if (!f) return { ok: false, why: 'the preview is not open' };
+    if (viewport && typeof viewport === 'object') {
+      const w = Math.round(Number(viewport.w)); const h = Math.round(Number(viewport.h));
+      if (w >= 240 && w <= 4096 && h >= 240 && h <= 4096) f.viewport = { name: String(viewport.name || 'custom').slice(0, 20), w, h };
+    }
+    if (typeof page === 'string') f.path = page.slice(0, 500);
+    return { ok: true, ...this.frameState(key) };
+  }
+
+  frameCapability(projectPath, name, mode) {
+    const key = path.resolve(projectPath);
+    const f = this._frames && this._frames.get(key);
+    if (!f) return { ok: false, why: 'the preview is not open' };
+    const r = f.proxy.setMode(String(name || ''), mode === 'default' ? null : mode);
+    // A CAPABILITY TURNED AWAY FROM LIVE puts its woken backend back to sleep — nothing it started keeps running.
+    const rule = r.ok ? f.proxy.rules().find((x) => x.name === name) : null;
+    if (rule && rule.mode !== 'live') {
+      const rec = f.proxy.release(name);
+      if (rec) require('./capability').sleep(rec, { processes: this.processes }).catch(() => null);
+      return { ...r, capabilities: f.proxy.view() };
+    }
+    return r;
+  }
+
+  /** WAKE ONE CAPABILITY'S BACKEND (the proxy asks, on the first request it claims). Owned by the ProcessManager. */
+  async _wake(key, rule, taskId) {
+    const cap = require('./capability');
+    const r = await cap.wake(key, rule, { processes: this.processes, taskId });
+    const f = this._frames && this._frames.get(key);
+    // THE PREVIEW CLOSED WHILE IT WOKE: what was started is stopped, never left behind.
+    if (r.ok && !(f && f.proxy && f.proxy.server)) { await cap.sleep(r, { processes: this.processes }); return { ok: false, why: 'the preview closed while the capability woke' }; }
+    return r;
+  }
+
+  /** Close the frame preview: the proxy always; the dev server only when LAIN started it (devstate owns that proof). */
+  async frameClose(projectPath, { keepServer = false } = {}) {
+    const key = path.resolve(projectPath);
+    const f = this._frames && this._frames.get(key);
+    if (!f) return { ok: true };
+    // THE CAPABILITY BACKENDS IT WOKE go with it — each one LAIN started, by its own process record.
+    for (const name of [...f.proxy.awake.keys()]) {
+      // eslint-disable-next-line no-await-in-loop -- a handful at most
+      await require('./capability').sleep(f.proxy.release(name), { processes: this.processes });
+    }
+    try { f.proxy.stop(); } catch { /* closing anyway */ }
+    this._frames.delete(key);
+    if (!keepServer && !f.adopted && f.processId && !this._open.has(key)) {
+      try { await this.devServers.stop(key); } catch { /* the manager reports its own failures */ }
+    }
+    this._emit(EVENT.BROWSER_CLOSED, { taskId: '', what: 'preview' });
+    return { ok: true };
+  }
+
   /** Close one project's preview. The dev server is the ProcessManager's. */
   async close(projectPath) {
     const key = path.resolve(projectPath);
+    if (this._frames && this._frames.has(key)) await this.frameClose(key, { keepServer: true });
     const held = this._open.get(key);
+    if (held && held.session) { try { await require('./stream').stop(held.session); } catch { /* closing anyway */ } }
     this._open.delete(key);
     this._before.delete(`${key}:desktop`);
     if (!held) return { ok: true };
@@ -537,6 +673,10 @@ class Workshop {
   }
 
   async closeAll() {
+    for (const key of [...((this._frames && this._frames.keys()) || [])]) {
+      // eslint-disable-next-line no-await-in-loop -- bounded and rare
+      await this.frameClose(key);
+    }
     for (const key of [...this._open.keys()]) {
       // eslint-disable-next-line no-await-in-loop -- bounded and rare
       await this.close(key);

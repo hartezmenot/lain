@@ -303,7 +303,7 @@ async function runCommand(app, { rest }, { C } = {}) {
     app.render.write('\n' + col.bold('Troubleshoot what?') + '\n');
     app.render.write(col.dim('  Describe the problem in your own words, e.g.\n'));
     app.render.write(col.dim("    /troubleshoot the Telegram signal button won't switch from OFF to ON\n"));
-    app.render.write(col.dim('  LAIN scans for evidence first, then traces the path — trigger → handler →\n'));
+    app.render.write(col.dim('  Noema scans for evidence first, then traces the path — trigger → handler →\n'));
     app.render.write(col.dim('  request → state → service — and reports what it ruled out.\n'));
     return;
   }
@@ -343,7 +343,7 @@ async function runCommand(app, { rest }, { C } = {}) {
     // second model look at this?" unanswerable, which is how a single opinion
     // gets mistaken for a reviewed one.
     app.render.write('\n  ' + col.dim('SECOND OPINION  ') + col.yellow('✕ NONE')
-      + col.dim('  — local investigation only. /source chatgpt (or gemini) to consult one.\n'));
+      + col.dim('  — local investigation only. /account and /model choose another model to consult.\n'));
     app.render.write(col.dim('  The full tool log is in the ACTIVITY view. /copy troubleshoot takes this report.\n'));
   }
   return report;

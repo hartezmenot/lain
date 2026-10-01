@@ -156,9 +156,9 @@ async function* runTurn(session, userInput, opts = {}) {
     return;
   }
 
-  // The vocabulary follows the App: `computer` appears only while a transport
-  // is connected, so the reader must forward the App it is working for.
-  const full = opts.tools === false ? [] : toolRegistry.schemas(opts.app);
+  // The vocabulary follows the App (`computer` appears only while a transport is connected), in THE MODEL'S OWN
+  // TOOL DIALECT (discipline/dialect.js): same operations, the vocabulary its family speaks.
+  const full = require('./discipline/dialect').forTurn(session, opts.tools === false ? [] : toolRegistry.schemas(opts.app, { turn: true }), pc.model, cfg);
   const schemas = require('./profile').of(session, cfg) === 'ECO' ? require('./schemacompact').compact(full) : full;   // ECO: same tools, fewer words
   // `ask` lets ask_user reach the interaction panel. Absent on non-interactive
   // runs, where the tool says so rather than hanging.
@@ -300,7 +300,7 @@ async function* runTurn(session, userInput, opts = {}) {
       if (!failure) {
       record.usage.requests += 1;
     const trace = reqtrace.forStep(record.turnId, step + 1, {});
-      for await (const ev of provider.chat(pc, wire, { tools: schemas, signal, trace, live, sessionId: session.id })) {
+      for await (const ev of provider.chat(pc, wire, { tools: schemas, signal, trace, live, sessionId: session.id, taskId: session.task ? session.task.id : null, cwd: session.cwd, role: session.thread === 'chat' ? 'bot' : 'agent', origin: record.from === 'messaging' ? 'telegram' : null })) {   // role: a Chat-view turn is the BOT's
         if (signal && signal.aborted) break;
         if (!ev) continue;
         if (ev.type === 'text') {
@@ -342,7 +342,7 @@ async function* runTurn(session, userInput, opts = {}) {
     } finally {
       // ONE END PER REAL ATTEMPT, carrying that attempt's receipt; the runtime
       // accumulates per request, so no turn-total usage note is sent anywhere.
-      if (gate && gate.request_id) require('./guardian').requestEnd(session.id, gate.request_id, { usage });
+      require('./guardian').requestEnd(session.id, (gate && gate.request_id) || '', { usage });
     }
 
     // AN EMPTY REPLY IS NOT AN ANSWER: it settled as DONE, so every next prompt
@@ -532,9 +532,11 @@ async function* runTurn(session, userInput, opts = {}) {
 
     wakeNote = '';
     if (usage) {
-      for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']) record.usage[k] += usage[k] || 0;
-    }
-    if (text.trim()) {
+      for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']) record.usage[k] += usage[k] || 0; if (Number.isFinite(usage.reasoningTokens)) record.usage.reasoningTokens = (record.usage.reasoningTokens || 0) + usage.reasoningTokens;   // reasoning only when STATED
+    } require('./cacheledger').settle(session, fitted.cache, usage, pc);   // expected (cachebudget) vs billed, per request
+    const repeatsFinal = require('./finish').repeatsFinal(session.messages, text, calls);   // one completion per turn (finish.js)
+    if (repeatsFinal) record.repeatedFinal = (record.repeatedFinal || 0) + 1;
+    if (text.trim() && !repeatsFinal) {
       record.text += (record.text ? '\n' : '') + text.trim();
       // Keep WHICH step said it. The activity view interleaves prose with the
       // calls that followed it, which is the difference between a narrative and
@@ -562,7 +564,7 @@ async function* runTurn(session, userInput, opts = {}) {
 
     const normalized = require('./toolcalls').normalize(calls, step);
 
-    if (text.trim() || normalized.length) {
+    if ((text.trim() && !repeatsFinal) || normalized.length) {
       const asst = { role: 'assistant', content: text.trim(), ts: new Date().toISOString() };
       if (normalized.length) {
         asst.tool_calls = normalized.map((c) => ({ id: c.id, name: c.name, arguments: JSON.stringify(c.input) }));
@@ -585,7 +587,7 @@ async function* runTurn(session, userInput, opts = {}) {
       if (cut === 'continue') { wakeNote = require('./finish').continueNote(finish); continue; } else if (cut) { record.stopReason = cut; break; }
       // AN EXECUTION TURN THAT WENT IDLE gets ONE hidden wake-up on the
       // framed tail, never a user message. See wakeup.js.
-      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution), wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd), readOnly: require('./readonly').active((opts.app && opts.app.session) || session) });
+      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution) && record.from !== 'goal-continue', wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd), readOnly: require('./readonly').active((opts.app && opts.app.session) || session) });
       if (idle === 'wake') { record.wakeups = (record.wakeups || 0) + 1; wakeNote = require('./wakeup').noteFor(record); continue; }
       if (idle === 'no-progress') record.stopReason = 'no-progress';
       record.stopReason = record.stopReason || 'end';
@@ -650,14 +652,14 @@ async function* runTurn(session, userInput, opts = {}) {
       record.toolCalls += 1;                       // TURN-WIDE accumulation
       if (!record.toolNames.includes(c.name)) record.toolNames.push(c.name);
       for (const m of result.mutated || []) if (!record.mutations.includes(m)) record.mutations.push(m);
-      if (result.isError) record.errors.push({ kind: 'TOOL', message: `${c.name}: ${String(result.output).slice(0, 200)}` });
+      if (result.isError) record.errors.push({ kind: 'TOOL', tool: c.name, message: `${c.name}: ${String(result.output).slice(0, 200)}`, denied: Boolean(result.denied), fatal: Boolean(result.fatal) });   // turnoutcome.js reads both flags
 
       // Every call gets a result message. An unanswered tool_call is a 400
       // everywhere, and a silent one makes the model believe it succeeded.
       session.messages.push({
         role: 'tool',
         tool_call_id: c.id,
-        content: String(result.output == null ? '' : result.output),
+        content: require('./toolbudget').bound(c.name, c.input, result, { cfg, session }),   // bounded as it ENTERS; raw kept by receipt
         isError: Boolean(result.isError),
         ts: new Date().toISOString(),
       });
@@ -678,11 +680,10 @@ async function* runTurn(session, userInput, opts = {}) {
       reason: `step-result:${record.turnId}:${step}`,
     });
 
-    // ONLY WHEN THE USER SET A BOUND. With `maxSteps` unset this never fires,
-    // and the loop above never ends on a count — so `max-steps` now means "the
-    // limit YOU configured was reached", which is a different sentence from the
-    // one it used to mean.
+    // ONLY WHEN THE USER SET A BOUND. With `maxSteps` unset this never fires, and the loop never ends on a count —
+    // `max-steps` means "the limit YOU configured was reached", a different sentence from the one it used to mean.
     if (maxSteps && step === maxSteps - 1) record.stopReason = 'max-steps';
+    if (life && life._closed) { record.stopReason = 'end'; if (!record.text.trim()) record.text = life._closed.text; life._closed = null; break; }   // a granted completion ends the turn (tools/contract.js)
   }
 
   // THE TURN IS OVER: account for it, and remember it. Both live in

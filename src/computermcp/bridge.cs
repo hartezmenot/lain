@@ -677,7 +677,7 @@ static class Bridge {
       case "hello": {
         Dictionary<string, object> d = Map();
         d["ok"] = true;
-        d["name"] = "LAIN Computer MCP (Windows UI Automation)";
+        d["name"] = "Noema Computer MCP (Windows UI Automation)";
         d["version"] = "1";
         d["capabilities"] = CAPS;
         return d;

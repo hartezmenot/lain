@@ -26,6 +26,19 @@
 function maybeComplete(app, record = null) {
   const plan = app.session.plan;
   const life = app.session.lifecycle;
+  // THE ARBITER'S OWN ROUTES TO AN ENDING (discipline/arbiter.js): the model requested completion and it was
+  // granted, or every acceptance criterion it set is now evidenced (OUTCOME SATISFIED) — neither waits for a plan.
+  if (life && !plan || life && plan && !plan.isFinished) {
+    const granted = life.state === 'DONE' && life.discipline && life.discipline.verdict && life.discipline.verdict.state === 'DONE' && !life._completionShown;
+    const satisfied = life.state === 'ACTIVE' && require('./discipline/arbiter').outcomeSatisfied(life);
+    if (!granted && !satisfied) return false;
+    if (satisfied) { const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app) }); if (!r.ok) { app.pendingCompletion = r.why; return false; } }
+    life._completionShown = true;
+    app.pendingCompletion = null;
+    if (plan) plan.retire('task complete');
+    showCompletion(app);
+    return true;
+  }
   if (!plan || !plan.steps.length || !plan.isFinished) return false;
   if (!life || life.state === 'DONE') return false;
 
@@ -40,7 +53,7 @@ function maybeComplete(app, record = null) {
     return false;
   }
 
-  const r = life.complete({ cwd: app.session.cwd });
+  const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app) });
   if (!r.ok) {
     // A refusal here is INFORMATION: every step is ticked off and LAIN is
     // declining to call it done. Silence made that indistinguishable from
@@ -70,6 +83,12 @@ function maybeComplete(app, record = null) {
   // to "how far along is the work in hand", so the next turn starts with no
   // progress rather than inheriting `100%` from the turn before it.
   plan.retire('task complete');
+  life._completionShown = true;
+  showCompletion(app);
+  return true;
+}
+
+function showCompletion(app) {
   if (app.ui.enabled) app.ui.showCompletion();
   else {
     const views = require('./ui/views');
@@ -78,7 +97,11 @@ function maybeComplete(app, record = null) {
       session: app.session, checkpoints: app.checkpoints, cwd: app.session.cwd, width: 76,
     })) app.render.write('  ' + l + '\n');
   }
-  return true;
+}
+
+/** How much latitude the current model has (discipline/profile.js) — the arbiter's standard does not change. */
+function discretionOf(app) {
+  try { return require('./discipline/profile').discretion((app.session && app.session.model) || (app.cfg && app.cfg.model) || '').level; } catch { return 'STRONG'; }
 }
 
 /**

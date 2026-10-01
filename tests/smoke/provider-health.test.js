@@ -60,7 +60,7 @@ module.exports = async function () {
       // never ran `cargo build`.
       env: { LAIN_HOME: h, LAIN_SUPERVISOR_BIN: path.join(h, 'no-such-binary') },
     });
-    assert.strictEqual(r.code, 0, `LAIN must exit cleanly: ${r.out.slice(-600)}`);
+    assert.strictEqual(r.code, 0, `Noema must exit cleanly: ${r.out.slice(-600)}`);
     assertIncludes(r.stdout, 'Connections', 'and still answer the question');
     assert.ok(!startedOne(h), 'reading provider health must not start anything');
   });
@@ -74,7 +74,7 @@ module.exports = async function () {
       script: [],
       env: { LAIN_HOME: h },
     });
-    assert.strictEqual(r.code, 0, `LAIN must exit cleanly: ${r.out.slice(-600)}`);
+    assert.strictEqual(r.code, 0, `Noema must exit cleanly: ${r.out.slice(-600)}`);
     assert.ok(!startedOne(h),
       'clearing state that was never stored must not spawn a process');
   });
@@ -94,7 +94,7 @@ module.exports = async function () {
       script: [],
       env: { LAIN_HOME: h },
     });
-    assert.strictEqual(r.code, 0, `LAIN must exit cleanly: ${r.out.slice(-600)}`);
+    assert.strictEqual(r.code, 0, `Noema must exit cleanly: ${r.out.slice(-600)}`);
     assertIncludes(r.stdout, 'Connections', 'and the command still works');
     assert.ok(!startedOne(h), 'a UI command must not spawn a background process');
   });
@@ -106,7 +106,7 @@ module.exports = async function () {
     const cwd = tmpdir('lain-health-');
     const h = home('open');
     const r = await runCli([], { cwd, stdin: '/exit\n', script: [], env: { LAIN_HOME: h } });
-    assert.strictEqual(r.code, 0, `LAIN must exit cleanly: ${r.out.slice(-600)}`);
+    assert.strictEqual(r.code, 0, `Noema must exit cleanly: ${r.out.slice(-600)}`);
     assert.ok(!startedOne(h), 'opening a session is not work submitted to anybody');
   });
 };

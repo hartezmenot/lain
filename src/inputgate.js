@@ -87,6 +87,12 @@ async function admit(app, text, { from = null } = {}) {
   const session = app && app.session;
   const id = session && session.id;
   if (!id) return { held: false };
+  // ONE WRITER PER SESSION ACROSS SURFACES (surfacehandoff.js): while the Harness or
+  // the CLI holds it, a sentence here is held with the reason — never written twice.
+  const lease = require('./surfacehandoff').check(app);
+  if (!lease.ok) { try { app.render.notice('warn', lease.why); } catch { /* no renderer */ } return { held: true, result: { held: 'surface', why: lease.why } }; }
+  // THE CLI IS NOW THE EXECUTION HOST for this session: it holds the writer (with its pid) until it exits.
+  try { require('./surfacehandoff').claim(app); } catch { /* bookkeeping */ }
 
   const verdict = await guardian.offer(id, text, { kind: from || 'user' });
   if (verdict.deliver) return { held: false };
@@ -147,7 +153,7 @@ async function recover(app, verdict) {
   //
   // Bounded inside runtimefacts.refresh, because a wedged supervisor must cost a
   // recovery some latency and never the recovery itself.
-  op.say(app, 'Restoring what LAIN observed');
+  op.say(app, 'Restoring what Noema observed');
   await require('./runtimefacts').refresh(app);
 
   // ---- 3. TAKE -----------------------------------------------------------

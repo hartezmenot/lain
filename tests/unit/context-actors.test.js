@@ -56,7 +56,7 @@ module.exports = async function () {
     // survives monochrome: a tool call is quoted behind a gutter, prose is not.
     assert.match(text, /│\s+✓ edited · dashboard\.py\s+\[(?:× )?Diff\]/, `a tool call is quoted — a live edit with its Diff:\n${text}`);
     assert.match(text, /^I found the writer\./m, `and prose sits at the margin:\n${text}`);
-    assert.ok(!/^\s*LAIN$/m.test(text), 'the application does not name itself at the user');
+    assert.ok(!/^\s*Noema$/m.test(text), 'the application does not name itself at the user');
     assert.ok(!/^\s*ACTIONS$/m.test(text), 'and actions do not announce that they are actions');
     assert.match(text, /fix the dashboard/);
     assert.match(text, /I found the writer/);
@@ -82,13 +82,13 @@ module.exports = async function () {
     process.env.LAIN_FORCE_COLOR = '1';
     try {
       const lines = views.activity({
-        session: { turns: [turn('x', 'LAIN speaking.')] },
+        session: { turns: [turn('x', 'Noema speaking.')] },
         extras: [{ kind: 'external', text: 'EXTERNAL speaking.' }],
         width: 90,
       });
       const ext = lines.find((l) => /EXTERNAL/.test(T.strip(l)));
       assert.ok(ext.includes(`\x1b[${require('../../src/ui/palette').sgr('external')}m`), 'the EXTERNAL label must carry the external colour');
-      const lain = lines.find((l) => /LAIN speaking\./.test(T.strip(l)));
+      const lain = lines.find((l) => /Noema speaking\./.test(T.strip(l)));
       assert.ok(lain && !lain.includes(`\x1b[${require('../../src/ui/palette').sgr('external')}m`), 'magenta belongs to the external model alone');
     } finally {
       delete process.env.LAIN_FORCE_COLOR;
@@ -100,7 +100,7 @@ module.exports = async function () {
   await test('CONTEXT: with NO_COLOR the labels and indentation still separate them', () => {
     // Colour may never be the ONLY distinction.
     const lines = views.activity({
-      session: { turns: [turn('x', 'LAIN speaking.')] },
+      session: { turns: [turn('x', 'Noema speaking.')] },
       extras: [{ kind: 'external', text: 'EXTERNAL speaking.' }],
       width: 90,
     });
@@ -116,7 +116,7 @@ module.exports = async function () {
     assert.match(text, /^EXTERNAL$/m, 'the label is at the margin');
     const body = /^(\s*)EXTERNAL speaking\./m.exec(text);
     assert.ok(body && body[1].length > 0, 'a labelled body is indented under its label');
-    assert.match(text, /^LAIN speaking\./m, 'and unlabelled prose is at the margin');
+    assert.match(text, /^Noema speaking\./m, 'and unlabelled prose is at the margin');
   });
 
   await test('CONTEXT: an external review SURVIVES the turn that acts on it', () => {
@@ -167,7 +167,8 @@ module.exports = async function () {
     // to displace.
     const fs = require('fs');
     const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'chatdispatch.js'), 'utf8');
+    // (Phase 8.3: the website chat dispatcher is gone; the runtime dispatcher holds the same property.)
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'runtimedispatch.js'), 'utf8');
     assert.match(src, /newRecord\(session\.id, text/,
       "the turn record's input must be what the user typed");
     assert.match(src, /role: 'user', content: String\(text\)/,
@@ -176,7 +177,7 @@ module.exports = async function () {
       'a chat source must never start a turn of its own');
   });
 
-  await test('CONTEXT: only LAIN\'s own machinery may assert sameTask', () => {
+  await test('CONTEXT: only Noema\'s own machinery may assert sameTask', () => {
     const { App } = require('../../src/app');
     const app = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
     // Typed input never carries it, so a genuinely new request is still new.

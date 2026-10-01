@@ -104,46 +104,51 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[level]',
-    desc: 'Show or set reasoning effort (orthogonal to model identity)',
+    desc: 'Show or set the reasoning effort — the levels the lane\'s model declares',
+    /**
+     * EFFORT BELONGS TO THE MODEL (Phase 8.3). The levels offered are exactly the
+     * ones the lane's model declares (fabric/effortcaps.js) — Opus might offer
+     * High and XHigh, another model Low/Medium/High, another none at all — and
+     * the choice is the same Core write the window's effort control and
+     * Telegram's /effort make: this session's lane (sessionintel.choose).
+     */
     async run(app, { args }) {
-      const cat = app.catalog();
-      const m = app.cfg.model ? cat.byId.get(app.cfg.model) : null;
-      const conn = m && (app.cfg.connection ? m.connections.find((c) => c.connectionId === app.cfg.connection) : m.connections[0]);
-      const available = conn ? conn.efforts : [];
-      // Bare /effort on a TTY opens the ONE interaction panel. Same owner, same
-      // parser, same validation — the panel only supplies the value.
-      if (!args[0] && app.ui && app.ui.enabled) {
+      const si = require('./sessionintel');
+      const laneName = si.currentLane(app.session);
+      const lane = si.lane(app, app.session, laneName);
+      const levels = lane.efforts || [];
+      const labels = lane.effortLabels || [];
+      const current = lane.effort || null;
+      const choose = async (value) => {
+        const r = await si.choose(app, app.session, { lane: laneName, effort: value });
+        try { app.session.save(); } catch { /* in memory */ }
+        return r;
+      };
+      // Bare /effort on a TTY opens the ONE interaction panel with the model's own levels.
+      if (!args[0] && app.ui && app.ui.enabled && levels.length) {
         const { effortAdapter } = require('./ui/panel');
-        const picked = await app.ui.ask(effortAdapter({ available, current: app.cfg.effort }));
+        const picked = await app.ui.ask(effortAdapter({ available: levels, current }));
         if (picked) args = [picked];
       }
       if (!args[0]) {
-        app.render.write('  effort: ' + (app.cfg.effort || C.dim('auto'))
-          + (available.length
-            ? C.dim(`  ·  available here: ${available.join(', ')}, auto`)
-            : C.dim('  ·  this route exposes no effort levels')) + '\n');
+        if (!lane.effortKnown) { app.render.write(`  effort: ${current || C.dim('default')}` + C.dim('  ·  choose a model first (/model)\n')); return; }
+        app.render.write(`  ${lane.modelLabel}: ${lane.effortLabel || C.dim('not configurable')}`
+          + (levels.length ? C.dim(`  ·  offers ${labels.join(', ')}`) : C.dim('  ·  this model has no configurable effort')) + '\n');
         return;
       }
       const want = String(args[0]).toLowerCase();
-      // `auto` is the absence of a pin, not a level: the route picks. It is
-      // handled by this same command and parser — there is no second owner and no
-      // alias, which is why /efforts does not exist.
+      // `auto` / `default` is the absence of a pin: the model's own default level.
       if (want === 'auto' || want === 'default' || want === 'none') {
-        app.cfg.effort = null;
-        config.save(app.cfg);
-        app.render.write(C.green('  effort auto') + C.dim(' — no level pinned; the route decides\n'));
+        const r = await choose('auto');
+        if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
+        app.render.write(C.green(`  effort: ${r.lane.effortLabel || 'default'}`) + C.dim(' — the model\'s default\n'));
         return;
       }
-      if (available.length && !available.includes(want)) {
-        app.render.write(C.yellow(`  "${want}" is not offered by ${conn.connectionId}.`) + C.dim(` Available: ${available.join(', ')}, auto\n`));
-        return;
-      }
-      app.cfg.effort = want;
-      config.save(app.cfg);
-      app.render.write(C.green(`  effort ${want}`) + '\n');
+      const r = await choose(want);
+      if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
+      app.render.write(C.green(`  ${r.lane.modelLabel} · ${r.lane.effortLabel}`) + '\n');
     },
   });
-
 
   define('/api', {
     // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve,
@@ -151,63 +156,45 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
     // and this comment is here so it is not "tidied" into a receipt later.
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
-    args: '[<credential>|<connection>|refresh [id]|status]  — bare /api asks for a key',
-    desc: 'Give LAIN a credential, re-key a configured route, or re-read what the APIs serve',
+    args: '[add|<provider>|<connection>|refresh [id]|status]  — keys are entered in the Model Dashboard',
+    desc: 'Add or replace an API source in the Model Dashboard, or re-read what the APIs serve',
     /**
-     * FOUR THINGS, ONE OWNER EACH.
+     * THE TERMINAL NEVER TAKES A KEY (Phase 8.3).
      *
-     * `refresh` and `status` are unchanged and still route to their existing
-     * owners. Handing LAIN a key had no way in from the CLI at all until
-     * `credentialFlow`. The fourth is the repair for a key that STOPPED
-     * working: name a configured route — `/api lain:custom` — and its
-     * credential is replaced under the SAME connection id, so a 401 fixes the
-     * one route rather than adding a second for the same endpoint. See
-     * rekeyFlow in apicommand.js.
+     * `/api`, `/api add`, `/api <provider>` and `/api <route>` (re-key) open the
+     * Model Dashboard at API — the one secure place a credential is entered. It
+     * never appears in the terminal, its input history, a conversation, a log
+     * or a model's context. The terminal hears back only the safe completion
+     * event: "API added: DeepSeek API (lain:deepseek) · 12 models".
      *
-     * A CREDENTIAL IS ANYTHING THAT IS NEITHER A SUBCOMMAND NOR A ROUTE NAME,
-     * which is the only test LAIN can honestly make: every provider spells
-     * its keys differently, and a shape pattern written today refuses the
-     * provider that appears tomorrow. See apicommand.js.
+     * A KEY PASTED HERE ANYWAY is not stored: it is registered with the
+     * redactor, taken back out of the input history, and the person is told
+     * where keys go. `refresh` and `status` are unchanged.
      */
     async run(app, { args }) {
       const apiMod = require('./apicommand');
       const first = args[0] || '';
-      // ---- BARE `/api` ASKS FOR THE CREDENTIAL, MASKED --------------------
-      //
-      // It used to mean `refresh`, which is the least likely thing somebody
-      // types `/api` for and gave no way in at all. Asking through the panel is
-      // also strictly safer than `/api <key>`: on the command line the shell
-      // has already echoed the key before anything of LAIN's could mask it.
-      // `refresh` is still one word away and still does exactly what it did.
-      if (!first) return apiMod.credentialFlow(app, '', { C, config, refreshCatalog });
       const sub = String(first).toLowerCase();
       if (sub === 'refresh') { await refreshCatalog(app, { only: args[1] || null }); return; }
-      // ---- A CONFIGURED ROUTE'S NAME RE-KEYS IT ---------------------------
-      //
-      // THE ORDER IS THE WHOLE POINT. `lain:custom` is eleven characters with
-      // no spaces, so under the credential rule alone it WAS a credential —
-      // stored as an API key against a provider the user never chose, and the
-      // route then failed to authenticate for a reason nothing on screen
-      // explained. A word that names a route must repair that route, never
-      // become its credential. `connectionByName` is what decides.
-      if (apiMod.connectionByName(app, first)) {
-        return apiMod.rekeyFlow(app, first, { C, config, refreshCatalog });
+      if (sub === 'status') return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      const named = first && (['add', 'manage'].includes(sub) || apiMod.connectionByName(app, first) || apiMod.providerNamed(app, first));
+      if (first && !named && apiMod.looksLikeCredential(first, app.cfg)) {
+        const redact = require('./redact');
+        redact.register(String(first).trim());
+        redact.scrubHistory(app.input);
+        // WHERE KEYS GO comes first: a narrow command surface shows the first row or two.
+        app.render.write(C.yellow('  Noema never takes a key in the terminal.') + ' /api add opens the Model Dashboard, where keys go.\n');
+        app.render.write(C.dim('  It was not stored, and it is gone from the input history. The dashboard keeps keys in the Windows secret store.\n'));
+        return;
       }
-      if (apiMod.looksLikeCredential(first, app.cfg)) {
-        return apiMod.credentialFlow(app, String(first).trim(), { C, config, refreshCatalog });
-      }
-      // ---- A PROVIDER'S NAME WITH NO ROUTE YET IS AN ADD ------------------
-      //
-      // `/api custom` fell through to the status view: somebody adding that
-      // route was shown the routes they already had. The name is an answer to
-      // the provider question, so it is passed as one — see credentialFlow's
-      // `preselect`. Re-keying still wins above, because a route that EXISTS
-      // must be repaired rather than duplicated.
-      if (apiMod.providerNamed(app, first)) {
-        return apiMod.credentialFlow(app, '', { C, config, refreshCatalog, preselect: first });
-      }
-      // Anything else is the connection view, which already exists. One owner.
-      return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      if (first && !named) return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      const dl = require('./fabric/dashlaunch');
+      const since = Date.now();
+      const r = await dl.open(app, 'api');
+      if (!r.ok) { app.render.write(C.yellow(`  The Model Dashboard did not open: ${r.why}\n`)); return; }
+      app.render.write(`  ${dl.said(r, 'API')} Add or replace the key there.\n`);
+      app.render.write(C.dim('  The key is never shown here, and never enters a conversation.\n'));
+      dl.watch(since, (e) => { const t = dl.describe(e); if (app.ui && app.ui.enabled) app.ui.noteActor('note', t); else app.render.write(`  ${t}\n`); });
     },
   });
 

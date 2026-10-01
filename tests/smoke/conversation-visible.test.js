@@ -108,7 +108,7 @@ module.exports = async function () {
       `the user is a participant in their own conversation:\n${frame}`);
     assert.ok(!/(USER[A-Z ]* · find the dashboard bug[\s\S]*){2}/.test(frame),
       `the objective is drawn twice — the banner and a user row both have it:\n${frame}`);
-    assertIncludes(frame, 'LAIN', 'and the model must be visible as a speaker');
+    assertIncludes(frame, 'Noema', 'and the model must be visible as a speaker');
     assertIncludes(frame, 'stale cache in status.js', 'the answer must survive the flood that produced it');
 
     // AND THE FLOOD ITSELF, COUNTED RATHER THAN SPELLED OUT.
@@ -122,7 +122,7 @@ module.exports = async function () {
       `a routine search must not take a row in the conversation:\n${frame}`);
   });
 
-  await test('CONVERSATION LIVE: the order is USER, then LAIN, then what LAIN did', async () => {
+  await test('CONVERSATION LIVE: the order is USER, then Noema, then what Noema did', async () => {
     const r = await runCli([], {
       cwd: project(),
       env: { LAIN_FORCE_TUI: '1', COLUMNS: '100', LINES: '40' },
@@ -145,7 +145,7 @@ module.exports = async function () {
     assert.ok(at('why is the dashboard stale') < at('Looking at the renderer first.'),
       'the question comes before the answer');
     assert.ok(at('Looking at the renderer first.') < at('render-note.js'),
-      'LAIN says what it is about to do, THEN does it');
+      'Noema says what it is about to do, THEN does it');
     assert.ok(at('The cache is never invalidated.') < at('That is the defect.'),
       'and the conversation reads downward');
   });
@@ -194,7 +194,7 @@ module.exports = async function () {
 
     // AND IT MANUFACTURED NOTHING. No extra turn, no synthetic prompt, no
     // budget being counted down in front of the user.
-    assert.ok(!/CONTINUING/.test(everything), 'LAIN must not carry on by itself');
+    assert.ok(!/CONTINUING/.test(everything), 'Noema must not carry on by itself');
     assert.ok(!/automatic carry-ons/.test(everything), 'there is no continuation budget any more');
     assert.ok(!/Continue from exactly where you stopped/i.test(everything),
       'no synthetic continuation prompt may be injected into the conversation');
@@ -312,7 +312,7 @@ module.exports = async function () {
     const files = ['dashboard.js', 'render.js', 'status.js', 'feed.js'];
     for (let i = 0; i < 8; i++) {
       script.push({
-        text: `Line ${i}: LAIN is working through the tree.`,
+        text: `Line ${i}: Noema is working through the tree.`,
         tool_calls: [{ name: 'read_file', input: { path: `src/${files[i % 4]}` } }],
       });
     }

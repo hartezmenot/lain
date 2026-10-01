@@ -41,7 +41,7 @@ module.exports = async function () {
     const root = repo({ 'src/core.js': 'module.exports = 1;\n', 'src/a.js': 'require("./core");\n', 'package.json': '{}' });
     assert.strictEqual(vc.selectFor(root, ['src/core.js']).level, vc.LEVEL.IMPACT);
     assert.strictEqual(vc.selectFor(root, ['package.json']).level, vc.LEVEL.PROJECT);
-    assert.strictEqual(vc.selectFor(root, ['bin/lain.js']).level, vc.LEVEL.RELEASE);
+    assert.strictEqual(vc.selectFor(root, ['bin/noema.js']).level, vc.LEVEL.RELEASE);
     assert.strictEqual(vc.selectFor(root, []).level, vc.LEVEL.UNSPECIFIED, 'nothing changed, nothing selected');
   });
 

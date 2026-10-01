@@ -62,7 +62,7 @@ const TEXTY = /\.(m?[jt]sx?|cjs|py|rs|go|java|kt|cs|rb|php|swift|css|scss|html?|
  * NEVER EMBEDDED: output, not source. On top of the walk's own exclusions
  * (tools/search.js — node_modules, .git, …), which this does not duplicate.
  */
-const GENERATED = /(^|\/)(?:dist|build|coverage|\.next|\.nuxt|\.cache|\.turbo|__pycache__|\.venv|venv|target|\.lain)(?:\/|$)|(^|\/)bench(?:marks?)?\/out\/|\.min\.(?:js|css)$|\.map$|(^|\/)(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/i;
+const GENERATED = /(^|\/)(?:dist|build|coverage|\.next|\.nuxt|\.cache|\.turbo|__pycache__|\.venv|venv|target|\.lain|\.noema)(?:\/|$)|(^|\/)bench(?:marks?)?\/out\/|\.min\.(?:js|css)$|\.map$|(^|\/)(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/i;
 
 const sha1 = (s) => crypto.createHash('sha1').update(s).digest('hex');
 

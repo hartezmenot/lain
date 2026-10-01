@@ -61,15 +61,6 @@ async function send(app, text, label = text) {
   return app.session.turns[app.session.turns.length - 1];
 }
 
-function installWeb(app, id, fixtureScript) {
-  const fixture = require('../../src/modelsource/fixture');
-  const { WebModelSource } = require('../../src/modelsource/webmodel');
-  if (!app._modelSources) app._modelSources = new Map();
-  const surface = fixture.create({ id, label: id, ...fixtureScript });
-  app._modelSources.set(id, new WebModelSource({ surface, app, id, label: id }));
-  return app._modelSources.get(id);
-}
-
 module.exports = async function () {
   const registry = require('../../src/modelsource/registry');
   const { SOURCE } = require('../../src/modelsource/contract');
@@ -145,7 +136,7 @@ module.exports = async function () {
     await send(app, 'fix it');
     await app.handle('/verify tests');
     assertIdle(app, 'after /verify');
-    const tasks = path.join(cwd, '.lain', 'tasks');
+    const tasks = path.join(cwd, '.noema', 'tasks');
     const record = JSON.parse(fs.readFileSync(path.join(tasks, fs.readdirSync(tasks)[0], 'task.json'), 'utf8'));
     assert.strictEqual(record.state, 'FAILED', 'the verification really failed first');
     assert.match(String((await send(app, 'why did it fail')).text), /after verify/);
@@ -167,48 +158,28 @@ module.exports = async function () {
     assert.match(String((await send(app, 'and now in the foreground')).text), /foreground after bg/);
   });
 
-  await test('ADMISSION: Chat/Coding across LAIN, ChatGPT.com, local model and Gemini', async () => {
+  // (Phase 8.1: the ChatGPT.com / Gemini website sources were retired — admission is proven
+  // across LAIN's own routes, a local model among them, and a retired source cannot be chosen.)
+  await test('ADMISSION: Chat/Coding across Noema and a local model; a retired website source is refused', async () => {
     const cwd = sandbox();
     script([
       { text: 'lain explains' },
       // Coding turns make their change before they speak — see wakeup.js.
       { text: '', tool_calls: [{ name: 'write_file', input: { path: 'change2.txt', content: 'x' } }] }, { text: 'lain codes' },
-      { text: '', tool_calls: [{ name: 'write_file', input: { path: 'change3.txt', content: 'x' } }] }, { text: 'coding stays on lain' },
       { text: 'local explains' },
       { text: 'lain explains again' },
       { text: '', tool_calls: [{ name: 'write_file', input: { path: 'change4.txt', content: 'x' } }] }, { text: 'lain codes again' },
     ]);
     const app = newApp(cwd);
-    const gpt = installWeb(app, SOURCE.CHATGPT_WEB, { reply: 'chatgpt explains' });
-    const gem = installWeb(app, SOURCE.GEMINI_WEB, { reply: 'gemini explains' });
-    await gpt.selectModel('fx-large');
-    await gem.selectModel('fx-large');
-
     const said = async (line, re, label) => assert.match(String((await send(app, line, label)).text), re, label);
 
-    await said('explain what a.js does', /lain explains/, 'LAIN chat');
-    await said('fix a.js so it exports 3 and run the tests', /lain codes/, 'LAIN coding');
-    registry.selectSource(app, SOURCE.CHATGPT_WEB);
-    await said('explain the module layout', /chatgpt explains/, 'ChatGPT.com chat');
-    await said('implement the export change in a.js', /coding stays on lain/, 'Coding with ChatGPT.com selected goes to LAIN');
-    registry.selectSource(app, SOURCE.LAIN);
+    await said('explain what a.js does', /lain explains/, 'Noema chat');
+    await said('fix a.js so it exports 3 and run the tests', /lain codes/, 'Noema coding');
+    assert.strictEqual(registry.selectSource(app, SOURCE.CHATGPT_WEB).ok, false, 'a retired website source is refused');
     app.cfg.model = 'local-model';
     await said('explain what a.js exports', /local explains/, 'local model chat');
-    registry.selectSource(app, SOURCE.GEMINI_WEB);
-    await said('explain why the export matters', /gemini explains/, 'Gemini chat');
-    registry.selectSource(app, SOURCE.LAIN);
-    await said('explain it once more', /lain explains again/, 'back to LAIN chat');
-    await said('fix a.js to export 4', /lain codes again/, 'back to LAIN coding');
+    await said('explain it once more', /lain explains again/, 'still Noema chat');
+    await said('fix a.js to export 4', /lain codes again/, 'back to Noema coding');
   });
 
-  await test('ADMISSION: a failed web chat turn does not hold the next line', async () => {
-    script([{ text: 'lain after web failure' }]);
-    const app = newApp(sandbox());
-    const gpt = installWeb(app, SOURCE.CHATGPT_WEB, { silent: true, settleMs: 1 });
-    await gpt.selectModel('fx-large');
-    registry.selectSource(app, SOURCE.CHATGPT_WEB);
-    await send(app, 'explain the layout', 'silent web reply');
-    registry.selectSource(app, SOURCE.LAIN);
-    assert.match(String((await send(app, 'explain it here instead')).text), /lain after web failure/);
-  });
 };

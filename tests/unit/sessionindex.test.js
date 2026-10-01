@@ -223,7 +223,7 @@ module.exports = async function () {
     const text = sessionDetailsAdapter({ session: s }).items.map((i) => i.label).join('\n');
     assert.match(text, /ORIGINAL TASK/);
     assert.match(text, /the dashboard stopped updating/);
-    assert.match(text, /LAST LAIN MESSAGE/);
+    assert.match(text, /LAST Noema MESSAGE/);
     assert.match(text, /stale writer/);
     assert.match(text, /LAST EXTERNAL REVIEW/);
     assert.match(text, /writer appears to have stopped/);

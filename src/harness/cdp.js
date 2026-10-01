@@ -60,7 +60,7 @@ function clientAvailable() {
   if (typeof globalThis.WebSocket !== 'function') {
     return {
       ok: false,
-      why: `this Node (${process.version}) has no global WebSocket, and LAIN ships no dependencies — `
+      why: `this Node (${process.version}) has no global WebSocket, and Noema ships no dependencies — `
         + 'browser observation needs Node 22 or newer',
     };
   }
@@ -202,7 +202,7 @@ class Connection {
       for (const fn of [...this._handlers]) {
         // A LISTENER THAT THROWS MUST NOT KILL THE CONNECTION, for the same
         // reason an event-bus subscriber may not kill a turn.
-        try { fn(msg.method, msg.params || {}); } catch { /* dropped */ }
+        try { fn(msg.method, msg.params || {}, msg.sessionId || null); } catch { /* dropped */ }
       }
     }
   }
@@ -219,7 +219,13 @@ class Connection {
   /** Every event of one method since the connection opened. */
   since(method) { return this.events.filter((e) => e.method === method); }
 
-  send(method, params = {}, timeoutMs = CALL_TIMEOUT_MS) {
+  send(method, params = {}, timeoutMs = CALL_TIMEOUT_MS) { return this.sendTo(null, method, params, timeoutMs); }
+
+  /**
+   * A CALL TO AN ATTACHED TARGET (flattened sessions: Target.setAutoAttach { flatten: true }) — an out-of-process
+   * frame, such as the Preview's page, answers on the same socket under its own session id.
+   */
+  sendTo(sessionId, method, params = {}, timeoutMs = CALL_TIMEOUT_MS) {
     if (!this.open) return Promise.reject(new Error(this.closedWhy || 'the debugger socket is not open'));
     this._id += 1;
     const id = this._id;
@@ -229,7 +235,7 @@ class Connection {
         reject(new Error(`${method} did not answer in ${timeoutMs}ms`));
       }, timeoutMs);
       this._pending.set(id, { resolve, reject, timer });
-      try { this.ws.send(JSON.stringify({ id, method, params })); } catch (e) {
+      try { this.ws.send(JSON.stringify(sessionId ? { id, sessionId, method, params } : { id, method, params })); } catch (e) {
         clearTimeout(timer);
         this._pending.delete(id);
         reject(e);

@@ -125,6 +125,14 @@ function phrase(name, target, running = false) {
     // THE BRIDGE, NAMED AS THE BRIDGE — an action carried out by something other
     // than LAIN, which is worth a word of its own.
     computer: () => two('computer', t),
+    // BACKGROUND WORK IN THE PERSON'S WORDS (2026-10-01): never `job wait` / `run background` on screen.
+    run_background: () => two('shell (background)', t),
+    job_wait: () => two('waited for shell', t),
+    job_status: () => two('checked shell', t),
+    job_stop: () => two('stopped shell', t),
+    observe_start: () => two('monitor', t),
+    observe_stop: () => two('monitor stopped', t),
+    delegate: () => two('agent', t),
   }[name];
   if (!say) return two(String(name || '').replace(/_/g, ' '), t);
   return say();
@@ -224,12 +232,13 @@ function trimRestatement(text) {
 const SELF_ASKED = Object.freeze({
   'external-advice': 'continuing the investigation with the external advice',
   'rate-limit-resume': 'continuing after the rate limit reset',
+  'phase-continue': 'continuing with the next phase of the approved plan',
   // EVERY KEY ANY CALLER ACTUALLY USES. Two were missing, so their captions
   // fell through to the generic fallback and named an internal identifier at
   // the user - `carrying on (provider-failover)`. A test now walks the tree and
   // requires every `from:` a submission uses to be here.
   'provider-failover': 'continuing on another provider',
-  handover: 'continuing from what LAIN observed',
+  handover: 'continuing from what Noema observed',
   steer: 'continuing with what you added',
   plan: 'executing the accepted plan',
   'bg-complete': 'continuing with the background result',
@@ -237,6 +246,11 @@ const SELF_ASKED = Object.freeze({
   // a shelf's Continue — deliberately shows the instruction it sent: the person pressed it.)
   'rate-limit-switch': 'retrying your message on the model you switched to',
   'smoke-failed': 'continuing: the final smoke failed — repairing the step it names',
+  // THE TASK CARRYING ON BY ITSELF (autocontinue.js) — a crash recovered, a provider failure waited out,
+  // an account switched by the family's policy. Each is LAIN's own continuation, never a person's message.
+  'auto-resume': 'resuming after the execution host stopped mid-turn',
+  'provider-restart': 'continuing after the provider failure cleared',
+  'account-fallback': 'continuing on another account of the same provider',
 });
 
 /**

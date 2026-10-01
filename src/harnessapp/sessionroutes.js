@@ -52,7 +52,7 @@ function portFor(app) {
       return new Promise((resolve) => {
         const q = question || {};
         const options = (q.options || []).map((o) => (typeof o === 'string' ? o : (o && (o.label || o.value)) || String(o)));
-        const open = { id: `q${++seq}`, title: String(q.title || 'LAIN asks'), question: String(q.question || q.text || ''), options, at: Date.now(), resolve };
+        const open = { id: `q${++seq}`, title: String(q.title || 'Noema asks'), question: String(q.question || q.text || ''), options, at: Date.now(), resolve };
         app._harnessAsk = open;
         // A QUESTION IS A STATUS CHANGE: the rail says NEEDS_INPUT now.
         require('../sessionstatus').touch(app);
@@ -171,6 +171,13 @@ const ROUTES = {
    * instruction to stop the work, and this route is deliberately incapable of
    * deleting anything: see `POST /api/session/delete` for the action that can.
    */
+  /** RENAME the current session — a person-given title (sessionindex.headline prefers it). */
+  'POST /api/session/rename': async (app, body = {}) => {
+    const t = String(body.title || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
+    app.session.title = t || undefined;
+    try { app.session.save(); } catch (e) { return { code: 500, body: { ok: false, why: e.message } }; }
+    return { code: 200, body: { ok: true, title: t || null } };
+  },
   'POST /api/session/close': async (app, body = {}) => {
     const id = String(body.id || app.session.id);
     const pool = app.pool();

@@ -53,7 +53,7 @@ module.exports = async function () {
 
     const cold = projectindex.refresh(root);
     assert.strictEqual(cold.persisted, true, 'the index reaches disk');
-    assert.ok(fs.existsSync(path.join(root, '.lain', 'index.json')));
+    assert.ok(fs.existsSync(path.join(root, '.noema', 'index.json')));
 
     // A SECOND PASS — which is what a resume, a restart or the next turn does.
     // `reused` is the number NOT reparsed, and it must be all of them.

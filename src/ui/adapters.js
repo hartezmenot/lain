@@ -23,14 +23,19 @@ const { KIND, MODE, pad, clip } = require('./panel');
 // Adapters are DATA. They read existing application state and never draw.
 
 /** `/effort` — one owner; `auto` clears the pin. */
+/**
+ * THE MODEL'S OWN LEVELS, and nothing else (Phase 8.3): a model that offers High and XHigh
+ * shows exactly those — no generic list, no invented 'auto'. A model with none has no panel.
+ */
 function effortAdapter({ available = [], current = null }) {
-  const levels = [...available, 'auto'];
+  const caps = require('../fabric/effortcaps');
+  const levels = caps.order(available);
   return {
     title: 'EFFORT',
     kind: KIND.EFFORT_SELECTION,
     mode: MODE.COMPACT,
     items: levels.map((l) => ({
-      label: `${l}${l === (current || 'auto') ? '   (current)' : ''}`,
+      label: `${caps.label(l)}${l === caps.norm(current) ? '   (current)' : ''}`,
       value: l,
     })),
     footer: '↑↓ select · Enter confirm · Esc cancel',
@@ -68,9 +73,10 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
     // likewise. One provider name is orientation, not diagnostics.
     const routes = m.connections.length;
     const efforts = (m.connections[0] && m.connections[0].efforts) || [];
+    const idShown = String(m.displayName || '').toLowerCase() !== String(m.id).toLowerCase() ? m.id : null;
     const meta = routes > 1
-      ? `${routes} providers`
-      : [(m.connections[0] || {}).provider, efforts.length > 1 ? `${efforts.length} levels` : null]
+      ? [idShown, `${routes} providers`].filter(Boolean).join('  ·  ')
+      : [idShown, (m.connections[0] || {}).provider, efforts.length > 1 ? `${efforts.length} levels` : null]
         .filter(Boolean).join('  ·  ');
     // The mark goes in FRONT of the name, where a person looks for it, not in a
     // column after it.

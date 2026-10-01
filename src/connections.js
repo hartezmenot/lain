@@ -130,6 +130,9 @@ function writeCache(id, models, source) {
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify({ fetchedAt: Date.now(), source: source || null, models }), 'utf8');
   fs.renameSync(tmp, file);
+  // WHAT A CONNECTION SERVES JUST CHANGED: the memoised connection list and catalog are rebuilt on the next
+  // read (appcatalog.js). Without this, a key added a moment ago listed no models — no account — for a second.
+  try { require('./appcatalog').invalidate(); } catch { /* not loaded */ }
   return file;
 }
 
@@ -295,6 +298,10 @@ function fromConfig(cfg = {}, evidence = {}) {
   const out = [];
   const declared = cfg.connections && typeof cfg.connections === 'object' ? cfg.connections : {};
 
+  // NO SECRET IS READ TO LIST A CONNECTION (2026-10-01). This used to decrypt every configured key — one synchronous
+  // PowerShell/DPAPI round trip, ~240 ms of a blocked event loop — whenever any route was resolved, including on
+  // every turn's first resolve. A listing needs to know the key is THERE (a file check); the request that uses a
+  // key reads only that one, asynchronously (provider.chat → credentials.ensure).
   for (const [id, c] of Object.entries(declared)) {
     if (!c || typeof c !== 'object') continue;
     if (require('./retired').connectionSystem(id, c)) continue;
@@ -302,9 +309,14 @@ function fromConfig(cfg = {}, evidence = {}) {
     const via = c.via === VIA.BRIDGE ? VIA.BRIDGE : VIA.NATIVE;
     const auth = c.auth || (via === VIA.BRIDGE ? AUTH.NONE : AUTH.API_KEY);
     // A bridge needs no LAIN credential at all — calling that "api_key" is a lie.
-    const key = auth === AUTH.API_KEY
-      ? (c.apiKey || (c.envKey ? process.env[c.envKey] : '') || '')
-      : '';
+    // A credential REFERENCE resolves here and nowhere else (credentials.js):
+    // this is the transport's side of the boundary.
+    // A KEY STILL BEING READ IN THE BACKGROUND (credentials.prefetchAsync, at launch) is not read
+    // again for a listing: a listing needs to know it is there, not what it is. The first request
+    // reads it (Phase 8.2 — this read was a blocking secret-store round trip before the first prompt).
+    const deferred = auth === AUTH.API_KEY && Boolean(c.credentialRef) && !require('./credentials').cached(c.credentialRef);
+    const readKey = () => ((c.credentialRef ? require('./credentials').resolve(c.credentialRef) : '') || c.apiKey || (c.envKey ? process.env[c.envKey] : '') || '');
+    const key = auth === AUTH.API_KEY && !deferred ? readKey() : '';
     // ---- HELD BACK FROM EVERY DISPLAY SURFACE, FROM THE MOMENT IT IS READ --
     //
     // This is the one function that turns a config entry or an environment
@@ -313,13 +325,13 @@ function fromConfig(cfg = {}, evidence = {}) {
     // from the first listing onwards, whether it arrived from `/api`, from
     // config.json written by hand, or from the environment. See src/redact.js.
     if (key) redact.register(key);
-    const credentialPresent = via === VIA.BRIDGE ? true : Boolean(key) || auth === AUTH.OAUTH;
+    const credentialPresent = via === VIA.BRIDGE ? true : Boolean(key) || (deferred && require('./credentials').present(c.credentialRef)) || auth === AUTH.OAUTH;
     // A declared list is the user stating what this route serves; discovery
     // never overrules it. Absent one, the disk cache answers — which is what
     // makes a router with thousands of ids usable without transcribing any.
     const declared = Array.isArray(c.models) && c.models.length ? c.models : null;
     const cached = declared ? null : readCache(id);
-    out.push({
+    const conn = {
       id,
       provider: c.provider || id,
       via,
@@ -327,6 +339,7 @@ function fromConfig(cfg = {}, evidence = {}) {
       protocol: c.protocol || 'chat',
       baseUrl: apiRoot(c.baseUrl),
       envKey: c.envKey || null,
+      credentialRef: c.credentialRef || null,
       apiKey: key,
       models: declared || (cached ? cached.models : []),
       declaredModels: Boolean(declared),
@@ -337,7 +350,16 @@ function fromConfig(cfg = {}, evidence = {}) {
         requestSucceeded: Boolean(ev.requestSucceeded),
         authFailed: Boolean(ev.authFailed),
       }),
-    });
+    };
+    // (defined, not spread: a getter spread into a literal would run at once)
+    if (deferred) {
+      Object.defineProperty(conn, 'apiKey', {
+        enumerable: true, configurable: true,
+        get() { const v = readKey(); if (v) redact.register(v); Object.defineProperty(conn, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); return v; },
+        set(v) { Object.defineProperty(conn, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },
+      });
+    }
+    out.push(conn);
   }
 
   // Environment-declared native routes, so a bare API key still works with no
@@ -365,6 +387,11 @@ function fromConfig(cfg = {}, evidence = {}) {
       readiness: readinessFor({ credentialPresent: true, requestSucceeded: Boolean(ev.requestSucceeded), authFailed: Boolean(ev.authFailed) }),
     });
   }
+
+  // LOCAL AND RUNTIME MODELS (runtimeconnections.js): llama.cpp, Ollama and the
+  // runtimes that execute through their own programs — the same catalog, the
+  // same resolution, the same request envelope as every API route.
+  try { for (const c of require('./runtimeconnections').connections({ cfg }, { byConfig: true })) if (!out.some((x) => x.id === c.id)) out.push(c); } catch { /* a broken cache never costs the API routes */ }
 
   return out.sort((a, b) => (RANK[a.readiness] ?? 9) - (RANK[b.readiness] ?? 9));
 }
@@ -399,7 +426,7 @@ function authRoutes(provider, connections = []) {
     rows.push({
       kind: 'oauth', label: `${provider} OAuth`, connectionId: null,
       status: 'OAUTH NOT AVAILABLE FOR THIS PROVIDER', action: null, enabled: false,
-      detail: 'LAIN has no legitimate OAuth mechanism for this provider. It is not faked, and no protected flow is bypassed.',
+      detail: 'Noema has no legitimate OAuth mechanism for this provider. It is not faked, and no protected flow is bypassed.',
     });
   }
 
@@ -410,7 +437,7 @@ function authRoutes(provider, connections = []) {
       kind: 'bridge', label: `${provider} via ${c.id}`, connectionId: c.id,
       status: c.readiness === READINESS.REQUEST_READY ? 'Connected (verified)' : 'Connected',
       action: 'Use', enabled: true,
-      detail: `${c.models.length} model(s) — the bridge authenticates upstream itself; LAIN holds no credential for it.`,
+      detail: `${c.models.length} model(s) — the bridge authenticates upstream itself; Noema holds no credential for it.`,
     });
   }
 

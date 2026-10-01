@@ -193,7 +193,7 @@ module.exports = async function () {
 
   // ------------------------------------------------------ default selection --
 
-  await test('DEFAULT: LAIN refuses to guess a model out of a large catalog', () => {
+  await test('DEFAULT: Noema refuses to guess a model out of a large catalog', () => {
     const cat = catalog.build([{ id: 'c', provider: 'p', models: ['a', 'b', 'c'] }]);
     assert.strictEqual(catalog.chooseDefault(cat, { connections: { c: {} } }), null,
       'picking models[0] once selected an alphabetically-first video detector as the coding model');

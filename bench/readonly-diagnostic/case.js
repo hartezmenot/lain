@@ -107,8 +107,8 @@ function diffManifest(a, b) {
   const hostDir = path.join(base, 'workerhost');
   const ENV = {
     A: { LAIN_WORKERS: 'off', LAIN_LOCATE: 'off', LAIN_WORKER_LAYA: 'off', LAIN_WORKER_VIOLETTO: 'off' },
-    B: { LAIN_WORKERS: 'auto', LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_WORKER_VIOLETTO: 'on' },
-    C: { LAIN_WORKERS: 'auto', LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_WORKER_VIOLETTO: 'off' },
+    B: { LAIN_WORKERS: 'auto', LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKER_VIOLETTO: 'on' },
+    C: { LAIN_WORKERS: 'auto', LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKER_VIOLETTO: 'off' },
     D: { LAIN_WORKERS: 'off', LAIN_LOCATE: 'off', LAIN_WORKER_LAYA: 'off', LAIN_WORKER_VIOLETTO: 'off' },
   }[CASE];
   if (!ENV) throw new Error(`unknown case ${CASE}`);

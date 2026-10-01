@@ -13,6 +13,10 @@
  * The name narrows it to one MODEL. Which provider serves it is a second
  * question with real differences behind it — price, rate limits, effort levels,
  * and which one is answering right now.
+ *
+ * PHASE 8.2: a choice is THIS SESSION'S (sessionintel.choose — the same write
+ * the window makes), on the route = the account; the process default is only
+ * written by `/model default`.
  */
 
 const assert = require('assert');
@@ -35,8 +39,12 @@ function model(n) {
 /** An app whose panel answers with `answer`, recording what it was asked. */
 function harness(m, { enabled = true, answer = null } = {}) {
   const state = { asked: null, wrote: [], saved: 0 };
+  // THE ROUTES AS CONFIGURED ACCOUNTS (declared — never contacted), and a session to choose for.
+  const connections = {};
+  for (const c of m.connections) connections[c.connectionId] = { baseUrl: 'http://127.0.0.1:9/v1', provider: 'anthropic', apiKey: 'k', models: [m.id] };
   const app = {
-    cfg: {},
+    cfg: { connections },
+    session: { id: 'routes-test', cwd: require('os').tmpdir(), messages: [], save() {} },
     availability: { get: () => ({ status: 'UNKNOWN' }), getFor: () => ({ status: 'UNKNOWN' }) },
     connections: () => m.connections.map((c) => ({ id: c.connectionId })),
     ensureCatalog: async () => {},
@@ -88,8 +96,10 @@ module.exports = async function () {
     const h = harness(m);
     await mc.pickCommand(h.app, { args: ['claude-opus-5'], rest: 'claude-opus-5' }, h.api);
     assert.strictEqual(h.state.asked, null, 'one route is not a question');
-    assert.strictEqual(h.app.cfg.model, 'claude-opus-5');
-    assert.strictEqual(h.app.cfg.connection, 'route0');
+    const lane = require('../../src/sessionintel').lane(h.app, h.app.session, 'coding');
+    assert.strictEqual(lane.model, 'claude-opus-5');
+    assert.strictEqual(lane.route, 'route0');
+    assert.strictEqual(h.app.cfg.model, undefined, 'the session chose; the process default is untouched');
   });
 
   await test('ROUTES: naming the connection outright still skips the question', async () => {
@@ -98,7 +108,7 @@ module.exports = async function () {
     const h = harness(m);
     await mc.pickCommand(h.app, { args: ['claude-opus-5', 'route1'], rest: 'claude-opus-5 route1' }, h.api);
     assert.strictEqual(h.state.asked, null, 'the route was named, so nothing is left to decide');
-    assert.strictEqual(h.app.cfg.connection, 'route1');
+    assert.strictEqual(require('../../src/sessionintel').lane(h.app, h.app.session, 'coding').route, 'route1');
   });
 
   await test('ROUTES: off a TTY it takes the first route rather than hanging', async () => {
@@ -107,8 +117,9 @@ module.exports = async function () {
     const m = model(2);
     const h = harness(m, { enabled: false });
     await mc.pickCommand(h.app, { args: ['claude-opus-5'], rest: 'claude-opus-5' }, h.api);
-    assert.strictEqual(h.app.cfg.model, 'claude-opus-5');
-    assert.strictEqual(h.app.cfg.connection, 'route0');
+    const lane = require('../../src/sessionintel').lane(h.app, h.app.session, 'coding');
+    assert.strictEqual(lane.model, 'claude-opus-5');
+    assert.strictEqual(lane.route, 'route0');
     assert.match(h.said(), /route0/, 'it must name the route it chose');
     assert.match(h.said(), /2 routes serve this model/, 'and say there were others');
   });

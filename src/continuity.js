@@ -126,7 +126,7 @@ function resumeSummary(session, app = null) {
     const web = reg.usingWeb(app);
     say(!web || Boolean(model), web
       ? `chat source: ${reg.LABEL[src]}${model ? ` · ${model}` : ' — no model chosen yet'}`
-      : 'chat source: LAIN\'s own runtime');
+      : 'chat source: Noema\'s own runtime');
   } catch { /* the registry is unreadable — say nothing rather than guess */ }
 
   try {

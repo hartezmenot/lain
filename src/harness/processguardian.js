@@ -38,11 +38,14 @@ async function stop() {
 process.on('disconnect', stop);
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
-process.on('message', (spec) => {
-  if (spec.stop) { stop(); return; }
-  if (worker || stopping || !process.connected) return;
+// THE WORKER IS STARTED AT BOOT, not when the spec arrives (2026-10-01): a pre-warmed guardian (processes.js) then
+// has its whole tree ready, and a command costs an IPC message instead of two Node boots. The worker's own cwd/env
+// are this process's (the caller's for a cold start); the command gets the spec's cwd/env either way.
+let sent = false;
+function ensureWorker() {
+  if (worker || stopping) return;
   worker = spawn(process.execPath, [require.resolve('./processworker')], {
-    cwd: spec.cwd, env: spec.env, windowsHide: true,
+    cwd: process.cwd(), env: process.env, windowsHide: true,
     detached: process.platform !== 'win32', stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
   });
   worker.on('message', (result) => {
@@ -54,9 +57,16 @@ process.on('message', (spec) => {
     if (process.connected) process.send({ error: e.message }, stop); else stop();
   });
   worker.once('exit', (code, signal) => {
-    if (!reported && !stopping && process.connected) {
+    if (sent && !reported && !stopping && process.connected) {
       process.send({ error: `command owner exited without a result (${signal || code})` }, stop);
     } else stop();
   });
+}
+ensureWorker();
+process.on('message', (spec) => {
+  if (spec.stop) { stop(); return; }
+  if (sent || stopping || !process.connected) return;
+  ensureWorker();
+  sent = true;
   worker.send(spec, (e) => { if (e) stop(); });
 });

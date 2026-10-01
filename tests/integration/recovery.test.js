@@ -155,13 +155,13 @@ module.exports = async function () {
     } finally { h.restore(); fs.rmSync(w.dir, { recursive: true, force: true }); }
   });
 
-  await test('RECOVERY: undo REFUSES when the file changed after LAIN wrote it', () => {
+  await test('RECOVERY: undo REFUSES when the file changed after Noema wrote it', () => {
     const h = home();
     const w = work();
     try {
       const a = new Checkpoints('sess-J', w.dir);
       const entry = a.capture('t1', [w.file]);
-      fs.writeFileSync(w.file, 'written by LAIN\n');
+      fs.writeFileSync(w.file, 'written by Noema\n');
       a.settle(entry);
 
       // Somebody else — another session, an editor, a git checkout — writes it.
@@ -170,19 +170,19 @@ module.exports = async function () {
       const r = a.undo();
       assert.strictEqual(r.ok, false, 'restoring pre-edit bytes here would discard the newer change');
       assert.strictEqual(r.stale, true);
-      assert.match(r.error, /changed after LAIN last wrote to it/);
+      assert.match(r.error, /changed after Noema last wrote to it/);
       assert.strictEqual(fs.readFileSync(w.file, 'utf8'), 'written by someone else\n', 'nothing may be touched');
       assert.strictEqual(a.entries.length, 1, 'the checkpoint is kept so the user can still decide');
     } finally { h.restore(); fs.rmSync(w.dir, { recursive: true, force: true }); }
   });
 
-  await test('RECOVERY: undo proceeds when the file is exactly as LAIN left it', () => {
+  await test('RECOVERY: undo proceeds when the file is exactly as Noema left it', () => {
     const h = home();
     const w = work();
     try {
       const a = new Checkpoints('sess-K', w.dir);
       const entry = a.capture('t1', [w.file]);
-      fs.writeFileSync(w.file, 'written by LAIN\n');
+      fs.writeFileSync(w.file, 'written by Noema\n');
       a.settle(entry);
 
       // The ordinary case, and the one that must not be broken by the guard.

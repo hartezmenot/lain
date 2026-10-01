@@ -20,7 +20,7 @@ const intent = require('../../src/intent');
 const { Session } = require('../../src/session');
 
 const HISTORY = [
-  'Fix two router bugs: 1. cross-provider rate-limit bleed 2. slow refresh-all. Do not touch LAIN.',
+  'Fix two router bugs: 1. cross-provider rate-limit bleed 2. slow refresh-all. Do not touch Noema.',
   'continue',
   'fix the router rate limit bug and the slow refresh all, do not touch lain',
   'continue the two bugs',

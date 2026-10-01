@@ -153,7 +153,6 @@ static class Pty {
   struct PROCESS_INFORMATION { public IntPtr hProcess; public IntPtr hThread; public int dwProcessId; public int dwThreadId; }
 
   static IntPtr hPC = IntPtr.Zero;
-  static IntPtr toChild = IntPtr.Zero;      // we write, the shell reads
   static IntPtr toConsole = IntPtr.Zero;    // we write, the PSEUDOCONSOLE reads
   static FileStream consoleOut;
   static IntPtr fromChild = IntPtr.Zero;    // the shell writes, we read
@@ -191,37 +190,18 @@ static class Pty {
     if (String.IsNullOrEmpty(shell)) { Fail("no shell was named"); return 3; }
     if (String.IsNullOrEmpty(cwd) || !Directory.Exists(cwd)) { Fail("the working directory does not exist: " + cwd); return 3; }
 
-    // ---- INHERITABLE, BECAUSE THE SHELL IS GIVEN THESE ENDS DIRECTLY -----
+    // ---- TWO PIPES, BOTH THE PSEUDOCONSOLE'S ------------------------------
     //
-    // See the note at CreateProcessW below for why the child receives the
-    // pseudoconsole's own ends as its std handles rather than being left to
-    // pick them up from the console it is attached to.
-    var sa = new SECURITY_ATTRIBUTES();
-    sa.nLength = Marshal.SizeOf(typeof(SECURITY_ATTRIBUTES));
-    sa.bInheritHandle = 1;
-    IntPtr saPtr = Marshal.AllocHGlobal(sa.nLength);
-    Marshal.StructureToPtr(sa, saPtr, false);
-
+    // Keystrokes go IN to ConPTY, which turns them into console input events
+    // (so PSReadLine edits the line, Up recalls history, and 0x03 is Ctrl+C);
+    // the shell's screen comes OUT of ConPTY as VT. The shell touches neither
+    // pipe itself — it is attached to the pseudoconsole and uses its console —
+    // so neither end is inheritable, and the shell is created inheriting no
+    // handles at all.
     IntPtr inRead, inWrite, outRead, outWrite;
-    if (!CreatePipe(out inRead, out inWrite, saPtr, 0)) { Fail("the console input pipe could not be created"); return 3; }
-    if (!CreatePipe(out outRead, out outWrite, saPtr, 0)) { Fail("the output pipe could not be created"); return 3; }
+    if (!CreatePipe(out inRead, out inWrite, IntPtr.Zero, 0)) { Fail("the console input pipe could not be created"); return 3; }
+    if (!CreatePipe(out outRead, out outWrite, IntPtr.Zero, 0)) { Fail("the output pipe could not be created"); return 3; }
 
-    // ---- THE SHELL GETS ITS OWN STDIN, AND THIS IS NOT A DETAIL ----------
-    //
-    // The console-input pipe above belongs to the pseudoconsole: ConPTY reads
-    // it and turns keystrokes into console input events. The shell is ALSO
-    // handed explicit std handles (see below), so if it were given that same
-    // read end the two would race for every byte — measured: a prompt appeared
-    // and then no command ever ran, because ConPTY and cmd.exe were each
-    // consuming half the keystrokes.
-    //
-    // So the shell reads from a pipe of its own. Output still travels through
-    // the pseudoconsole, which is where colour, redraw and reflow come from;
-    // resize is a direct ResizePseudoConsole call and needs no keystrokes.
-    IntPtr shellIn, shellInWrite;
-    if (!CreatePipe(out shellIn, out shellInWrite, saPtr, 0)) { Fail("the shell input pipe could not be created"); return 3; }
-
-    toChild = shellInWrite;
     toConsole = inWrite;
     fromChild = outRead;
 
@@ -256,53 +236,28 @@ static class Pty {
     IntPtr siPtr = Marshal.AllocHGlobal(sizeofEx);
     for (int z = 0; z < sizeofEx; z++) Marshal.WriteByte(siPtr, z, 0);
     Marshal.WriteInt32(siPtr, 0, sizeofEx);      // StartupInfo.cb
-    // ---- THE SHELL IS GIVEN THE CONSOLE'S ENDS EXPLICITLY ----------------
+    // ---- STD HANDLES: DECLARED, AND EMPTY ---------------------------------
     //
-    // THIS IS THE LINE THAT MADE IT WORK, and it is worth recording why.
+    // STARTF_USESTDHANDLES with all three NULL is what stops the shell taking
+    // the BRIDGE's stdio (Core's protocol pipes) as its own; left NULL, the
+    // console it is attached to — the pseudoconsole — supplies them. Without
+    // the flag the shell once parsed LAIN's JSON as PowerShell.
     //
-    // The documented arrangement is: attach PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
-    // and let the child pick up std handles from the console it lands on. On
-    // this machine (Windows 11 26200) that half does not happen. Measured, with
-    // a minimal standalone program built the same way: CreatePseudoConsole
-    // returns S_OK, the attribute list is well-formed, UpdateProcThreadAttribute
-    // and CreateProcessW both succeed with GetLastError 0, the pty emits its
-    // client handshake — and the shell's output still goes to whatever std
-    // handles the PARENT had. Under Core (stdio pipes) that meant the shell's
-    // banner arrived as raw text on the bridge's own stdout while the terminal
-    // stayed blank.
-    //
-    // So the child is told, explicitly, that its console ends ARE its std
-    // handles: STARTF_USESTDHANDLES with the pseudoconsole's own read/write
-    // ends, and inheritable pipes so it can receive them. The attribute stays —
-    // it is what makes the shell believe it has a console at all, which is
-    // where resize, Ctrl+C and colour come from.
-    //
-    // ---- WHAT THIS COSTS, AND WHAT WAS TRIED INSTEAD (2026-09-16) -------
-    //
-    // A shell given a PIPE for stdin is not interactive: it reads no console
-    // input, so a keystroke cannot arrive as a Ctrl+C. Four arrangements were
-    // measured on Windows 11 26200 against `Start-Sleep -Seconds 20`, and NONE
-    // of them interrupted PowerShell:
-    //
-    //   pipe stdin (this)            the sleep ran to completion
-    //   no STARTF_USESTDHANDLES      the shell inherited the BRIDGE'S stdin and
-    //                                began parsing LAIN's own protocol JSON as
-    //                                PowerShell — the attribute gives the child
-    //                                a console for OUTPUT but not for input
-    //   stdin NULL, so it opens      typing, prompts and reflow all worked;
-    //   CONIN$ for itself            the sleep still ran to completion
-    //   + CREATE_NEW_PROCESS_GROUP   CTRL_BREAK aimed at the shell's own group:
-    //                                no change
-    //
-    // In every case AttachConsole and GenerateConsoleCtrlEvent SUCCEEDED. The
-    // event is raised and PowerShell does not act on it. So this stays on the
-    // arrangement that is known to work for typing, colour, reflow and width,
-    // and the panel offers End shell as the action that actually stops things.
-    // See Interrupt below, which now says when it could not raise the event.
+    // HISTORY (2026-09-16 → 2026-09-24). This used to hand the shell its own
+    // stdin PIPE and the pseudoconsole's output pipe as stdout. It drew a
+    // prompt, but the shell read keystrokes from a pipe: no line editing (DEL
+    // ignored), no history, Enter echoed as a bare CR so output overwrote the
+    // command, programs saw no TTY — and Ctrl+C never interrupted anything.
+    // The Ctrl+C failure was NOT the arrangement: every variant measured then
+    // (pipe stdin, CONIN$, a new process group) failed because the bridge
+    // passed down an inherited "ignore Ctrl+C" flag (see SetConsoleCtrlHandler
+    // below). With that cleared and the console's own handles, measured on
+    // Windows 11 26200: PSReadLine edits and recalls, 0x03 stops
+    // `Start-Sleep 20` within a second, and `node -e isTTY` prints true.
     Marshal.WriteInt32(siPtr, 60, 0x00000100);   // dwFlags = STARTF_USESTDHANDLES
-    Marshal.WriteIntPtr(siPtr, 80, shellIn);     // hStdInput — its own, never the console's
-    Marshal.WriteIntPtr(siPtr, 88, outWrite);    // hStdOutput
-    Marshal.WriteIntPtr(siPtr, 96, outWrite);    // hStdError
+    Marshal.WriteIntPtr(siPtr, 80, IntPtr.Zero); // hStdInput  — from the pseudoconsole
+    Marshal.WriteIntPtr(siPtr, 88, IntPtr.Zero); // hStdOutput — from the pseudoconsole
+    Marshal.WriteIntPtr(siPtr, 96, IntPtr.Zero); // hStdError  — from the pseudoconsole
     Marshal.WriteIntPtr(siPtr, sizeofStartupInfo, attrList);
 
     // ---- THE BRIDGE MUST NOT SHARE A CONSOLE WITH THE SHELL IT HOSTS -----
@@ -319,13 +274,19 @@ static class Pty {
     // Detaching first leaves nothing to inherit, so the pseudoconsole is the
     // only console the shell can have. The bridge's OWN stdio is unaffected:
     // those are pipes from Core, not the console.
+    // CTRL+C MUST BE ALLOWED BEFORE THE SHELL IS CREATED. Whether a process
+    // ignores Ctrl+C is inherited: anything up the chain started in a new
+    // process group (a launcher, a service, a terminal host) passes "ignore"
+    // down to Core, to this bridge, and so to the shell — which then shrugs off
+    // every interrupt, however it is raised. Clearing it here is the fix.
+    SetConsoleCtrlHandler(IntPtr.Zero, false);
     FreeConsole();
 
     // EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT
     uint flags = 0x00080000 | 0x00000400;
     // (CREATE_NEW_PROCESS_GROUP, so a control event could be aimed at the shell
     // as a group leader, was measured and made no difference — see Interrupt.)
-    bool started = CreateProcessW(null, shell, IntPtr.Zero, IntPtr.Zero, true, flags, IntPtr.Zero, cwd, siPtr, out child);
+    bool started = CreateProcessW(null, shell, IntPtr.Zero, IntPtr.Zero, false, flags, IntPtr.Zero, cwd, siPtr, out child);
     int lastErr = Marshal.GetLastWin32Error();
     if (Environment.GetEnvironmentVariable("LAIN_PTY_DEBUG") == "1") {
       var dbg = new Dictionary<string, object>();
@@ -370,8 +331,21 @@ static class Pty {
     pump.IsBackground = true;
     pump.Start();
 
+    // ---- THE SHELL EXITING ENDS THE TERMINAL -----------------------------
+    //
+    // The output pipe's far end belongs to the pseudoconsole, not the shell,
+    // so `exit` never reaches the pump as end-of-file: it has to be watched
+    // for. A moment's grace lets ConPTY flush the shell's last words first.
+    var watch = new Thread(delegate () {
+      WaitForSingleObject(child.hProcess, 0xFFFFFFFF);
+      Thread.Sleep(200);
+      End();
+      Environment.Exit(0);
+    });
+    watch.IsBackground = true;
+    watch.Start();
+
     // ---- WHAT CORE SAYS -------------------------------------------------
-    var writer = new FileStream(new Microsoft.Win32.SafeHandles.SafeFileHandle(toChild, false), FileAccess.Write);
     consoleOut = new FileStream(new Microsoft.Win32.SafeHandles.SafeFileHandle(toConsole, false), FileAccess.Write);
     var ser = new JavaScriptSerializer();
     string line;
@@ -388,21 +362,18 @@ static class Pty {
         if (!msg.TryGetValue("data", out dv)) continue;
         byte[] bytes;
         try { bytes = Convert.FromBase64String(Convert.ToString(dv)); } catch { continue; }
-        try { writer.Write(bytes, 0, bytes.Length); writer.Flush(); } catch { break; }
+        try { consoleOut.Write(bytes, 0, bytes.Length); consoleOut.Flush(); } catch { break; }
       } else if (op == "resize") {
         COORD s2;
         s2.X = (short)Convert.ToInt32(msg.ContainsKey("cols") ? msg["cols"] : 120);
         s2.Y = (short)Convert.ToInt32(msg.ContainsKey("rows") ? msg["rows"] : 30);
         if (s2.X > 0 && s2.Y > 0) ResizePseudoConsole(hPC, s2);
       } else if (op == "signal") {
-        // ---- CTRL+C GOES TO THE CONSOLE, NOT TO THE SHELL'S STDIN --------
+        // ---- CTRL+C, FOR A CALLER THAT HAS NO KEYSTROKE ------------------
         //
-        // A shell reading 0x03 from a PIPE sees a byte; a shell attached to a
-        // console sees an INTERRUPT. The pseudoconsole is what performs that
-        // translation, so the byte is written to ITS input — which is also why
-        // the two inputs are separate pipes (see the note where they are made).
-        // Measured: written to the shell's stdin instead, `Start-Sleep 30` ran
-        // to completion and Ctrl+C did nothing at all.
+        // A typed 0x03 already arrives as an interrupt: keystrokes go to the
+        // pseudoconsole, which turns it into a console control event. This op
+        // is for Core's Stop button, which has no keystroke to send.
         Interrupt();
       } else if (op == "kill") {
         break;

@@ -29,7 +29,7 @@ const RECEIPTS = new Set([
   '/new', '/clear', '/model', '/models', '/effort',
   '/oauth', '/undo', '/steer', '/cancel', '/stop', '/compact', '/mouse',
   // A toggle you just flipped: the confirmation is read as it is written.
-  '/focus', '/fast', '/normal', '/slow', '/eco', '/subagents',
+  '/focus', '/fast', '/normal', '/eco', '/subagents',
 ]);
 
 /**

@@ -7,7 +7,7 @@
  * THE OWNER. This module, and nothing else. A subagent's worktree, an A/B
  * candidate's worktree, a snapshot copy: each is REGISTERED here when it is
  * made, and each is removed only by `attempt()` after every condition below is
- * proven from recorded facts. Laya, Violetto, the flagship and the subagent
+ * proven from recorded facts. Laya, any other worker, the flagship and the subagent
  * itself hold no path to deletion: no tool calls `attempt` with a directory,
  * no model input names one, and the directory removed is always the exact one
  * this registry recorded at creation — never one built from text.
@@ -278,10 +278,10 @@ function guard(rec, target) {
   const root = real(tempRoot());
   if (!rec || real(rec.dir) !== t) return { ok: false, why: 'DENIED: not the registered workspace directory' };
   const rel = path.relative(root, t);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.split(/[\\/]/).length !== 1) return { ok: false, why: `DENIED: ${t} is not directly inside the LAIN temp root ${root}` };
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.split(/[\\/]/).length !== 1) return { ok: false, why: `DENIED: ${t} is not directly inside the Noema temp root ${root}` };
   // ONLY A NAME LAIN'S OWN mkdtemp PRODUCES — even a misconfigured temp root
   // cannot make a project folder beside it look like a workspace.
-  if (!/^lain-/.test(path.basename(t))) return { ok: false, why: `DENIED: ${path.basename(t)} is not a LAIN workspace name` };
+  if (!/^lain-/.test(path.basename(t))) return { ok: false, why: `DENIED: ${path.basename(t)} is not a Noema workspace name` };
   const protectedRoots = [rec.root, path.join(__dirname, '..'), os.homedir(), require('./config').configDir(), path.dirname(rec.root || t)];
   try { protectedRoots.push(require('./harnesslocation').root && require('./harnesslocation').root()); } catch { /* no harness */ }
   try { for (const w of Object.values(require('./workerruntime').manifest())) if (w.defaultStore) protectedRoots.push(w.defaultStore); } catch { /* no manifest */ }

@@ -64,7 +64,7 @@ const MAX_BATCH = 20;
 /** The three verdicts, from the one place that owns them. */
 const { VERDICT } = require('./harness/checks');
 
-const HOME = () => process.env.LAIN_HOME || path.join(require('os').homedir(), '.lain-v2');
+const HOME = () => process.env.LAIN_HOME || require('./home').userHome();
 const SOURCE = path.join(__dirname, 'computermcp', 'bridge.cs');
 
 /** The .NET Framework compiler that ships with Windows, or null. */
@@ -133,7 +133,7 @@ function ensureBridge() {
 
 /** The synthetic config one Bridge needs to run one program. */
 function bridgeConfig(exe) {
-  return { mcp: { servers: { computer: { command: [exe], name: 'LAIN Computer MCP' } } } };
+  return { mcp: { servers: { computer: { command: [exe], name: 'Noema Computer MCP' } } } };
 }
 
 class ComputerMCP {
@@ -198,12 +198,12 @@ class ComputerMCP {
     let answer = null;
     try {
       answer = await interaction.ask(this.app, {
-        title: 'Allow LAIN to observe and control this computer?',
+        title: 'Allow Noema to observe and control this computer?',
         question: [
-          'LAIN will be able to see the windows on this machine, read their controls,',
+          'Noema will be able to see the windows on this machine, read their controls,',
           'move the mouse, click, type, and use the clipboard.',
           '',
-          'This lasts for THIS LAIN SESSION. Disconnect, /mcp revoke or closing LAIN ends it.',
+          'This lasts for THIS Noema SESSION. Disconnect, /mcp revoke or closing Noema ends it.',
           'Actions that change files or reach outside this machine are still asked about separately.',
         ].join('\n'),
         options: [YES, 'Cancel'],
@@ -315,6 +315,14 @@ class ComputerMCP {
   async openApp(command, { args = null, name = null, waitTitle = null, timeoutMs = 20000 } = {}) {
     const harness = require('./harnesslink').harnessFor(this.app);
     if (!harness || !harness.processes) return { ok: false, why: 'no process authority — an application cannot be owned' };
+    // THE WINDOWS THAT WERE ALREADY THERE. A launcher like calc.exe hands off to
+    // a store app and exits, so its pid owns nothing, and the title alone then
+    // matched whichever "Calculator" was open first — a suspended window from
+    // hours earlier whose tree was empty (found 2026-09-25: "no control matches
+    // num7Button", and the test then closed that window instead of its own).
+    // Only a window that was NOT here before the launch can be ours.
+    const beforeWins = await this.windows().catch(() => null);
+    const existed = new Set(((beforeWins && beforeWins.ok && beforeWins.result && beforeWins.result.windows) || []).map((w) => w.handle));
     const started = harness.processes.start({
       name: String(name || command), command: String(command), args: args || null, cwd: this.app.cwd || process.cwd(),
     });
@@ -342,8 +350,9 @@ class ComputerMCP {
       const rows = (wins.ok && wins.result && wins.result.windows) || [];
       const mine = pid ? rows.filter((w) => w.pid === pid) : [];
       const named = wanted ? rows.filter((w) => String(w.title || '').toLowerCase().includes(wanted)) : [];
-      const both = mine.filter((w) => named.includes(w));
-      seen = both[0] || (wanted ? named[0] : null) || (mine.length === 1 ? mine[0] : null);
+      const fresh = (w) => !existed.has(w.handle);
+      const both = mine.filter((w) => named.includes(w) && fresh(w));
+      seen = both[0] || (wanted ? named.filter(fresh)[0] : null) || (mine.filter(fresh).length === 1 ? mine.filter(fresh)[0] : null);
       sharing = mine;
       if (seen) break;
       await sleep(250);

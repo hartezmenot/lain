@@ -102,7 +102,28 @@ function applySites(source, sites, to) {
  * @param {boolean} [o.members=false] also rewrite `x.from` member accesses
  * @param {boolean} [o.dryRun=false]  report what would change, change nothing
  */
-async function rename(root, from, to, { include = '', members = false, dryRun = false } = {}) {
+async function rename(root, from, to, opts = {}) {
+  const gen = renameBody(root, from, to, opts);
+  let step = gen.next();
+  while (!step.done) step = gen.next(await step.value);
+  return step.value;
+}
+
+/**
+ * THE DRY RUN, SYNCHRONOUS: the same walk and classification as `rename`,
+ * writing nothing. A caller that must decide on the input's own tick
+ * (selectionjob.js, routed before any await) reads it directly. A dry run
+ * never reaches the body's one `yield`, so this loop never spins.
+ */
+function scan(root, from, to, { include = '', members = false } = {}) {
+  const gen = renameBody(root, from, to, { include, members, dryRun: true });
+  let step = gen.next();
+  while (!step.done) step = gen.next();
+  return step.value;
+}
+
+/** The walk itself. `yield` stands for the one await (the post-write parse check). */
+function* renameBody(root, from, to, { include = '', members = false, dryRun = false } = {}) {
   const includeRe = include ? globToRegExp(include) : null;
   const changed = [];
   const textOnly = [];
@@ -154,7 +175,7 @@ async function rename(root, from, to, { include = '', members = false, dryRun = 
     // taking a correct rename in nineteen others with it.
     let ok = true;
     try {
-      const check = await diagnostics.checkFile(f.abs);
+      const check = yield diagnostics.checkFile(f.abs);
       ok = !(check && check.ok === false);
     } catch { ok = true; }
     if (!ok) { fs.writeFileSync(f.abs, source, 'utf8'); }
@@ -213,4 +234,4 @@ function describe(r) {
   return lines.join('\n');
 }
 
-module.exports = { rename, describe, sitesIn, applySites, SITE, MAX_FILES, MAX_SITES };
+module.exports = { rename, scan, describe, sitesIn, applySites, SITE, MAX_FILES, MAX_SITES };

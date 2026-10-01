@@ -45,7 +45,7 @@ function panels(app, S) {
     width: v.panel.width,
     file: v.panel.file,
     project: {
-      attached: proj.attached, root: proj.root, name: proj.name, missing: proj.missing,
+      attached: proj.attached, root: proj.root, name: proj.name, missing: proj.missing, github: proj.github || null,
       // PROJECT UNDERSTANDING, as the index walk reported it (sessionpool.js
       // reattachProject) — running, or what it found. Only for THIS root.
       sync: app._projectSync && proj.attached && app._projectSync.root === proj.root ? app._projectSync : null,
@@ -53,11 +53,14 @@ function panels(app, S) {
     pins: v.pins,
     panels: [
       { id: 'PROJECT_FILES', label: 'Project Files', available: true, badge: v.pins.length ? `${v.pins.length} pinned` : null, needsProject: !proj.attached },
+      { id: 'PROBLEMS', label: 'Problems', available: proj.attached, badge: null },
+      { id: 'OUTPUT', label: 'Output', available: proj.attached, badge: null },
       { id: 'CHANGES', label: 'Changes', available: changes.length > 0, badge: changes.length || null },
       { id: 'PLAN', label: 'Plan', available: Boolean(plan) || Boolean((s.planDocs || []).length), badge: plan ? `${plan.done}/${plan.total}` : null },
       { id: 'TERMINAL', label: 'Terminal', available: proj.attached, badge: null },
       { id: 'WORKSHOP', label: 'Workshop', available: Boolean(ws && ws.available) && proj.attached, badge: ws && ws.devServer ? ws.devServer.status : null },
       { id: 'VERIFICATION', label: 'Verification', available: Boolean(verification), badge: verification ? verification.verdict : null },
+      { id: 'DEBUG', label: 'Debug Console', available: proj.attached, badge: debugBadge(app) },
     ],
     actions: { open: 'POST /api/workspace/panel {action:"open", panel}', close: 'POST /api/workspace/panel {action:"close"}', toggle: 'POST /api/workspace/panel {action:"toggle", panel}' },
   };
@@ -119,7 +122,7 @@ function project(app, S) {
     composer: {
       chat: { placeholder: 'Ask, discuss or plan…', canSend: true },
       coding: {
-        placeholder: sv.project(s).attached ? 'Tell LAIN what to implement…' : 'Attach a project to start coding',
+        placeholder: sv.project(s).attached ? 'Tell Noema what to implement…' : 'Attach a project to start coding',
         canSend: sv.project(s).attached,
         // THE HANDOFF PREFILL — shown in the Coding composer, editable, sent
         // only when the person presses Enter.
@@ -140,6 +143,11 @@ function devServer(app) {
     const ws = app._workshop;
     return ws ? ws.devServers.get(p.root) : require('../workshop/devstate').blank(p.root);
   } catch { return null; }
+}
+
+/** The debug session's state for the panel tab ("paused"), or nothing. */
+function debugBadge(app) {
+  try { const d = require('../dap/manager').status(app).session; return d && d.state !== 'ENDED' && d.state !== 'FAILED' ? d.state.toLowerCase() : null; } catch { return null; }
 }
 
 module.exports = { project, header, panels, devServer, usage };

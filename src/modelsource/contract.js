@@ -54,8 +54,10 @@ const SOURCE = Object.freeze({
 
 /** What a source is, for a person and for a picker. */
 const LABEL = Object.freeze({
-  [SOURCE.LAIN]: 'LAIN',
-  [SOURCE.CHATGPT_WEB]: 'ChatGPT.com',
+  [SOURCE.LAIN]: 'Noema',
+  // "ChatGPT Chat" (modelroles.CHATGPT_CHAT): the chatgpt.com website session,
+  // CHAT ONLY. Never "Codex", never "OpenAI API", never a bare GPT model id.
+  [SOURCE.CHATGPT_WEB]: 'ChatGPT Chat',
   [SOURCE.GEMINI_WEB]: 'Gemini.google.com',
 });
 

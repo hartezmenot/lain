@@ -114,6 +114,78 @@ function describeExpr(selectorOrNull) {
   })()`;
 }
 
+/**
+ * THE GUG MEASUREMENT (gug.js fromDom): every VISIBLE element's box, its
+ * nearest measured ancestor, its identity and the computed px that decide its
+ * geometry — bounded to `max` elements, in document order. One evaluate. No
+ * text beyond a short label, no attributes beyond identity.
+ */
+const GUG_STYLE = ['display', 'position', 'top', 'left', 'right', 'bottom', 'width', 'height', 'min-width', 'max-width', 'min-height', 'max-height',
+  'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'gap',
+  'justify-content', 'align-items', 'flex-direction'];
+function gugExpr(max = 400) {
+  return `(() => {
+    const max = ${Number(max) || 400};
+    const keys = ${lit(GUG_STYLE)};
+    const skip = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1, META: 1, LINK: 1, HEAD: 1, BR: 1 };
+    const ws = new RegExp('[ ' + String.fromCharCode(9, 10, 13) + ']+', 'g');
+    const out = [];
+    const index = new Map();
+    const pathOf = (n) => {
+      if (n.id) return '#' + n.id;
+      if (n.getAttribute && n.getAttribute('data-testid')) return '[data-testid="' + n.getAttribute('data-testid') + '"]';
+      const parts = [];
+      let cur = n;
+      while (cur && cur.nodeType === 1 && parts.length < 6) {
+        let part = cur.tagName.toLowerCase();
+        if (cur.id) { parts.unshift('#' + cur.id); break; }
+        const par = cur.parentElement;
+        if (par) {
+          const same = [].slice.call(par.children).filter((c) => c.tagName === cur.tagName);
+          if (same.length > 1) part += ':nth-of-type(' + (same.indexOf(cur) + 1) + ')';
+        }
+        parts.unshift(part);
+        cur = cur.parentElement;
+      }
+      return parts.join(' > ');
+    };
+    const walker = document.createTreeWalker(document.body || document.documentElement, 1);
+    let el = walker.currentNode;
+    while (el && out.length < max) {
+      if (!skip[el.tagName] && el !== window.__lainPickerBox) {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        if (r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none') {
+          let p = el.parentElement;
+          while (p && !index.has(p)) p = p.parentElement;
+          const style = {};
+          for (const k of keys) style[k] = cs.getPropertyValue(k);
+          const cls = (el.className && el.className.baseVal !== undefined) ? el.className.baseVal : String(el.className || '');
+          index.set(el, out.length);
+          out.push({
+            tag: el.tagName.toLowerCase(), id: el.id || '', classes: cls.trim().slice(0, 200),
+            testid: el.getAttribute('data-testid') || '', role: el.getAttribute('role') || '',
+            label: (el.getAttribute('aria-label') || (el.children.length ? '' : (el.innerText || el.textContent || ''))).replace(ws, ' ').trim().slice(0, 60),
+            selector: pathOf(el),
+            rect: { x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height },
+            parent: p ? index.get(p) : -1, style,
+          });
+        }
+      }
+      el = walker.nextNode();
+    }
+    return { url: location.href, viewport: { w: innerWidth, h: innerHeight }, elements: out };
+  })()`;
+}
+
+/** Measure the page for the GUG. */
+async function measure(page, max = 400) {
+  const r = await ask(page, 'measure the page', gugExpr(max));
+  if (!r.ok) return r;
+  if (!r.value || !Array.isArray(r.value.elements)) return { ok: false, why: 'the page returned no measurement' };
+  return { ok: true, ...r.value };
+}
+
 /** One element by selector, or a stated reason there is not one. */
 async function element(page, selector) {
   const r = await ask(page, 'read the element', describeExpr(String(selector)));
@@ -265,6 +337,6 @@ function networkReport(session) {
 }
 
 module.exports = {
-  element, pick, pickAt, picked, unpick, axTree, consoleReport, networkReport,
-  describeExpr, LAYOUT_PROPS, MAX_TEXT, MAX_NODES, MAX_CONSOLE, MAX_NETWORK,
+  element, pick, pickAt, picked, unpick, axTree, consoleReport, networkReport, measure, gugExpr,
+  describeExpr, LAYOUT_PROPS, GUG_STYLE, MAX_TEXT, MAX_NODES, MAX_CONSOLE, MAX_NETWORK,
 };

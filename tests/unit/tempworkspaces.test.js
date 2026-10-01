@@ -234,7 +234,7 @@ module.exports = async function () {
       assert.ok(!tw.guard({ ...rec, dir: bad }, bad).ok, `denied even when registered: ${bad}`);
     }
     const notOurs = fs.mkdtempSync(path.join(tw.tempRoot(), 'project-'));
-    assert.ok(!tw.guard({ ...rec, dir: notOurs }, notOurs).ok, 'a non-LAIN name under the temp root is denied');
+    assert.ok(!tw.guard({ ...rec, dir: notOurs }, notOurs).ok, 'a non-Noema name under the temp root is denied');
     // A FORGED record pointing at the canonical project, marked eligible: refused, project intact.
     const forged = { ...tw.read(rec.id), id: 'twforged', dir: root, state: 'NOTHING_PROPOSED' };
     fs.writeFileSync(path.join(require('../../src/config').configDir(), 'workspaces', 'twforged.json'), JSON.stringify(forged));

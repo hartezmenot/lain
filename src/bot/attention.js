@@ -30,7 +30,7 @@ function ownerTarget(platform, settings) {
 }
 
 function label(kind) {
-  return { ASK_USER: 'LAIN asks', PERMISSION_REQUEST: 'PERMISSION', CAPABILITY_REQUEST: 'REQUEST', DOWNLOAD_REQUEST: 'DOWNLOAD', BLOCKED: 'BLOCKED',
+  return { ASK_USER: 'Noema asks', PERMISSION_REQUEST: 'PERMISSION', CAPABILITY_REQUEST: 'REQUEST', DOWNLOAD_REQUEST: 'DOWNLOAD', BLOCKED: 'BLOCKED',
     BACKGROUND_COMPLETE: 'BG COMPLETE', TASK_COMPLETE: 'DONE', FAILED: 'FAILED' }[kind] || kind;
 }
 
@@ -64,7 +64,7 @@ class Attention {
     for (const d of decisions.pending()) {
       if (this.sent.has(d.id)) continue;
       this.sent.set(d.id, { closed: false });
-      const text = [`${label(d.type)} · ${d.project || 'LAIN'}`, d.title, d.question].filter(Boolean).join('\n');
+      const text = [`${label(d.type)} · ${d.project || 'Noema'}`, d.title, d.question].filter(Boolean).join('\n');
       await this.send(text, `decision:${d.id}`, d.options.length ? { id: decisions.token(d), choices: d.options } : null);
     }
     for (const [id, row] of this.sent) {

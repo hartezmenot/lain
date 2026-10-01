@@ -634,4 +634,22 @@ function forApp(app) {
   return rt;
 }
 
-module.exports = { ChromiumRuntime, forApp, resolve, argsFor, appWindowArgs, PURPOSE, LAUNCH_TIMEOUT_MS, STOP_TIMEOUT_MS };
+/**
+ * THE SIGN-IN WINDOW'S FLAGS — an ORDINARY browser window on a website
+ * source's own LAIN profile, for a person to sign in by hand
+ * (modelsource/signin.js). Deliberately NOT argsFor(WEBMODEL): no debugging
+ * port, no automation of any kind, extensions allowed (a password manager is
+ * part of logging in). A password page is never open in a window another
+ * program is driving; LAIN attaches only after the person closes it.
+ */
+function signInWindowArgs(url, profileDir) {
+  return [
+    `--user-data-dir=${profileDir}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--new-window',
+    url,
+  ];
+}
+
+module.exports = { ChromiumRuntime, forApp, resolve, argsFor, appWindowArgs, signInWindowArgs, PURPOSE, LAUNCH_TIMEOUT_MS, STOP_TIMEOUT_MS };

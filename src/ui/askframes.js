@@ -40,7 +40,7 @@ const { splitOption } = require('./adapters');
  * there, and a CHOICE question cannot promise a numeric field it does not have.
  * See ui/answer.js for what each kind accepts.
  */
-function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', input = null }) {
+function askAdapter({ question, options = [], title = 'NOEMA NEEDS YOUR INPUT', input = null }) {
   const kind = A.kindOf(input, options);
   // The model's own "(please type a number)" is removed: the surface prints an
   // accurate prompt of its own, and two instructions that can disagree is how
@@ -139,7 +139,7 @@ function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', i
  * number question that quietly accepts "about forty" has not been answered, it
  * has been answered WRONGLY, and the model will act on it.
  */
-function numberAdapter({ question, title = 'LAIN NEEDS YOUR INPUT' }) {
+function numberAdapter({ question, title = 'NOEMA NEEDS YOUR INPUT' }) {
   return {
     title,
     kind: KIND.ASK_USER,
@@ -202,7 +202,7 @@ function textAdapter({ question, options = [], title = 'YOUR ANSWER', back = fal
  * somebody meant, silently accepted, is the same class of error as the wrong
  * single choice.
  */
-function multiAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT' }) {
+function multiAdapter({ question, options = [], title = 'NOEMA NEEDS YOUR INPUT' }) {
   const marks = A.labels(options, A.KIND.MULTI_SELECT);
   const chosen = new Set();
   const rows = () => [

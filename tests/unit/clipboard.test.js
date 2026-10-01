@@ -40,11 +40,11 @@ module.exports = async function () {
     assert.strictEqual(copy.sanitize('\x1b[32mnpm test\x1b[0m'), 'npm test');
   });
 
-  await test('CLIP: an OSC title is removed — LAIN writes one every session', () => {
+  await test('CLIP: an OSC title is removed — Noema writes one every session', () => {
     // termtitle.js sets the terminal title. It shows up in captured output as
     // `]0;LAIN — proj`, and pasted into PowerShell it is a parse error.
-    assert.strictEqual(copy.sanitize('\x1b]0;LAIN — proj\x07npm test'), 'npm test');
-    assert.strictEqual(copy.sanitize('\x1b]2;LAIN\x1b\\npm test'), 'npm test');
+    assert.strictEqual(copy.sanitize('\x1b]0;Noema — proj\x07npm test'), 'npm test');
+    assert.strictEqual(copy.sanitize('\x1b]2;Noema\x1b\\npm test'), 'npm test');
   });
 
   await test('CLIP: non-SGR CSI escapes are removed — strip() kept every one', () => {

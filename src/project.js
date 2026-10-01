@@ -25,7 +25,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const SKIP = /^(?:node_modules|\.git|dist|build|out|target|vendor|__pycache__|\.venv|venv|coverage|\.next|\.cache|\.idea|\.vscode)$/i;
+// `.lain` is LAIN's own record of the project (tasks, scratch, index): not the
+// project's source, and never a place a rename or a search should report hits.
+const SKIP = /^(?:node_modules|\.git|\.lain|\.noema|dist|build|out|target|vendor|__pycache__|\.venv|venv|coverage|\.next|\.cache|\.idea|\.vscode)$/i;
 const MAX_ENTRIES = 40;
 /**
  * HOW MUCH OF THE PROJECT THE MODEL IS SHOWN BEFORE IT TOUCHES ANYTHING.
@@ -58,7 +60,7 @@ const MAX_ENTRIES = 40;
  * this one: a huge tree fills the budget, is cut at a line boundary, and is
  * TOLD it was cut.
  */
-const MAX_CHARS = 6000;
+const MAX_CHARS = 6800;   // 6000 → 6800 with MAX_DIR_LINE (2026-09-27); the brief is the cached prefix
 const MAX_COMPLETIONS = 200;
 /** Source directories summarised in the brief, and how many files each shows. */
 const MAX_SOURCE_DIRS = 6;
@@ -66,8 +68,10 @@ const MAX_FILES_PER_DIR = 400;
 /** How wide one directory line may get. See the loop in `brief`. */
 // 2600 → 3200 (2026-09-16): LAIN's own src/ outgrew one line, and names past
 // the cut (steerqueue.js, promptcache.js) stopped being listed. Still well
-// inside MAX_CHARS for the whole brief.
-const MAX_DIR_LINE = 3200;
+// inside MAX_CHARS for the whole brief. 3200 → 4000 (2026-09-24): the Core
+// dispatch modules pushed steerqueue.js past the cut again. 4000 → 4800 (2026-09-27):
+// Phase 8's workbench modules (supervision, runstrategy, github, …) did the same.
+const MAX_DIR_LINE = 4800;
 
 /**
  * Directories worth naming. A project's own code lives in a small, boringly

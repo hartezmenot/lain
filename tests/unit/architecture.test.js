@@ -222,7 +222,7 @@ module.exports = async function () {
     // default that drifts in either file is caught.
     const turn = require('../../src/turn');
     assert.strictEqual(turn.DEFAULT_MAX_STEPS, 0,
-      'a non-zero default is LAIN deciding how long the model may work');
+      'a non-zero default is Noema deciding how long the model may work');
     const defaults = require('../../src/config').defaults
       ? require('../../src/config').defaults()
       : null;
@@ -452,6 +452,7 @@ module.exports = async function () {
       }
     };
     visit('cli.js');
+    visit('boot.js');   // bin/noema.js and bin/lain.js start here
     const orphans = files.map((f) => f.file).filter((f) => !seen.has(f));
     assert.deepStrictEqual(orphans, [], `unreachable modules: ${orphans.join(', ')}`);
   });

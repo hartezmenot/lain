@@ -226,6 +226,8 @@ function summary(dir) {
   const lines = [`OS: ${osName(process.platform)}`];
   const sh = detectShell();
   if (sh && sh.preferred) lines.push(`Shell: ${sh.preferred}`);
+  // WHICH TOOL SPEAKS WHICH SHELL, said before the first call (2026-09-29: PowerShell was sent through run_bash).
+  if (process.platform === 'win32') lines.push('Shell tools: run_powershell = PowerShell syntax · run_bash = Git Bash (its /tmp is %TEMP%) · run_cmd = cmd.exe. Output a later step needs goes under $LAIN_SCRATCH.');
   const pm = detectPackageManager(key);
   if (pm) {
     lines.push(pm.missing

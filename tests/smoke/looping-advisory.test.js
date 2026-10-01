@@ -103,7 +103,7 @@ module.exports = async function () {
       `only the user speaks as the user; found ${JSON.stringify(said)}`);
     const all = JSON.stringify(sessionOf(r).messages);
     assert.ok(!/liveness/i.test(all), 'the old nudge text must not reach the conversation');
-    assert.ok(!/_liveness/.test(all), 'nor the flag that marked LAIN writing as the user');
+    assert.ok(!/_liveness/.test(all), 'nor the flag that marked Noema writing as the user');
   });
 
   await test('ADVISORY: it HIDES ITSELF once the model moves on — nobody dismisses it', async () => {

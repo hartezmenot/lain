@@ -3,7 +3,7 @@
 /**
  * CACHE / RESIDENCY BENCH — no flagship request is made here.
  *
- *   node bench/specialist-workers/cache/run.js [laya|violetto|both]
+ *   node bench/specialist-workers/cache/run.js        (Laya only; Violetto retired 2026-09-24)
  *
  * Separates the three things "cache" can mean for a local worker:
  *   B  MODEL RESIDENCY   cold load (process start → model ready) and resident
@@ -27,7 +27,6 @@ const rt = require('../../../src/workerruntime');
 const la = require('../../../src/locateassist');
 
 const OUT = path.join(__dirname, '..', 'out');
-const which = process.argv[2] || 'both';
 
 function snap(st) { return { calls: st.calls, inferences: st.inferences, cacheHits: st.cacheHits, cacheMisses: st.cacheMisses, tokensIn: st.tokensIn, tokensOut: st.tokensOut }; }
 
@@ -59,38 +58,13 @@ async function laya() {
   return res;
 }
 
-async function violetto() {
-  process.env.LAIN_WORKER_VIOLETTO = 'on';
-  const app = { cfg: { workers: {} }, session: { workerLedger: [] } };
-  const tool = require('../../../src/tools/geometry').tools.geometry_specialist;
-  const t0 = Date.now();
-  const ok = await rt.warm(app, 'violetto');
-  const st = rt.stats(app, 'violetto');
-  const res = { worker: 'violetto', loaded: ok, coldLoadMs: st.coldLoadMs, memoryMB: st.memoryMB, wallToReadyMs: Date.now() - t0 };
-  const ask = async (problem) => {
-    const t = Date.now();
-    const out = await tool.run({ problem, answer_format: 'width=?, x=?, y=?' }, { app, session: app.session });
-    const row = app.session.workerLedger[app.session.workerLedger.length - 1] || {};
-    return { ms: Date.now() - t, answer: row.answer, finish: row.finish, tokensIn: row.tokensIn, tokensOut: row.tokensOut, cached: row.cacheHit, output: String(out.output).split('\n')[0] };
-  };
-  const P1 = 'A square send button 40 px wide sits in a composer bar 64 px tall whose top edge is at y=720 and right edge at x=1256 (screen y grows downward). Its right edge is 12 px inside the bar\'s right edge and it is vertically centred. Give its width and top-left corner.';
-  const P2 = 'A square avatar 32 px wide is vertically centred in a top bar 56 px tall whose top edge is at y=0 and right edge at x=1280, with a 16 px right inset. Give its width and top-left corner.';
-  res.truth = { P1: 'width=40, x=1204, y=732', P2: 'width=32, x=1232, y=12' };
-  res.firstInference = await ask(P1);
-  res.warmInference = await ask(P2);
-  const before = snap(st);
-  res.resultCache = { ...(await ask(P2)), inferencesDuring: snap(st).inferences - before.inferences, lookupUs: st.cacheLookupUs[st.cacheLookupUs.length - 1] };
-  const b2 = snap(st);
-  res.invalidation = { ...(await ask(P2.replace('16 px right inset', '24 px right inset'))), inferencesDuring: snap(st).inferences - b2.inferences, truth: 'width=32, x=1224, y=12' };
-  res.totals = { ...snap(st), totalInferenceMs: st.totalInferenceMs };
-  rt.stop(app);
-  return res;
-}
+// VIOLETTO WAS RETIRED 2026-09-24 (workers/manifest.json `retired`). Its recorded result stays in
+// out/cache-violetto.json; there is no production path left to measure.
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  for (const w of which === 'both' ? ['laya', 'violetto'] : [which]) {
-    const r = w === 'laya' ? await laya() : await violetto();
+  for (const w of ['laya']) {
+    const r = await laya();
     r.at = new Date().toISOString();
     fs.writeFileSync(path.join(OUT, `cache-${w}.json`), JSON.stringify(r, null, 2));
     console.log(JSON.stringify(r, null, 1));

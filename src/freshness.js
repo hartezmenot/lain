@@ -37,7 +37,7 @@ const path = require('path');
 const STATE = Object.freeze({ FRESH: 'FRESH', STALE: 'STALE', PARTIAL: 'PARTIAL', UNKNOWN: 'UNKNOWN' });
 
 /** Never descended into by the watcher's consumers: machine state and dependencies. */
-const IGNORE = /(^|\/)(\.lain|\.git|node_modules|__pycache__|target|dist|build|\.next|\.venv|venv)(\/|$)/;
+const IGNORE = /(^|\/)(\.lain|\.noema|\.git|node_modules|__pycache__|target|dist|build|\.next|\.venv|venv)(\/|$)/;
 /** Past this many dirty paths the targeted refresh is no cheaper than the walk. */
 const OVERFLOW = 2000;
 

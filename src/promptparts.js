@@ -70,6 +70,8 @@ function durable(app, session) {
   const s = session || app.session;
   const out = { agents: '', cowork: '', goal: '', assignment: '' };
   try { out.agents = require('./agentsmd').forPrompt(s.cwd); } catch { out.agents = ''; }
+  // ENABLED SKILLS (integrations.js): name, description and where SKILL.md is — read on demand.
+  try { const sk = require('./integrations').skillsPrompt(app); if (sk) out.agents = out.agents ? `${out.agents}\n\n${sk}` : sk; } catch { /* none */ }
   try { out.cowork = require('./cowork/prompt').forSession(s) || ''; } catch { out.cowork = ''; }
   try { const g = require('./goal').forPrompt(s); out.goal = g ? `# Goal\n${g}` : ''; } catch { out.goal = ''; }
   if (s.workOrder) {
@@ -116,6 +118,10 @@ function of(app, { opened = false, session = null } = {}) {
   // sit and where it was re-priced on every turn for no reason.
   if (app._projectBrief === undefined) {
     try { app._projectBrief = require('./project').brief(app.session.cwd); } catch { app._projectBrief = ''; }
+    // THE GENERATION THIS BRIEF DESCRIBES. It is never regenerated mid-session
+    // (that would re-price every cached byte after it); what changes later rides
+    // the tail as PROJECT_DELTA base → now (harnesscontext.js).
+    try { require('./projectgen').pinBase(app.session.cwd); } catch { /* context only */ }
   }
   let stable = built.stable;
   if (app._projectBrief) stable += `\n\n# This project\n${app._projectBrief}`;
@@ -157,6 +163,28 @@ function of(app, { opened = false, session = null } = {}) {
   // Files puts nothing here; pinning is the explicit act. See sessionviews.js.
   const pinned = require('./sessionviews').pinnedContext(s);
   if (pinned) live += `\n\n${pinned}`;
+  // WHAT THE IDE HAS IN FRONT OF THE PERSON — file, cursor, selection, tabs,
+  // problems — and the project's terminal output, for turns typed in the IDE
+  // only. Volatile by construction. See idecontext.js.
+  const ide = require('./idecontext').section(app, s);
+  if (ide) live += `\n\n${ide}`;
+  // THE FOCUSED CONTEXT PACKET, for the Coding Agent's turn only: the
+  // neighbourhood of the change, built once when the turn began. focuspacket.js.
+  const focus = require('./focuspacket').section(s);
+  if (focus) live += `\n\n${focus}`;
+  // HOW MUCH MACHINERY THIS CHANGE GETS (changeclass.js): a DIRECT or NARROW change is told to stay small.
+  const cls = require('./changeclass').section(s);
+  if (cls) live += `\n\n${cls}`;
+  // THE CODING AGENT, AS CHAT SEES IT (supervision.js): compact Core state — phase, landed, findings,
+  // pending steers — for the CHAT thread only. Never the Agent's transcript.
+  if (require('./sessionviews').current(s) === 'chat') { const sup = require('./supervision').chatContext({ ...app, session: s }); if (sup) live += `\n\n${sup}`; }
+  // THE HARNESS CONTEXT PACKET (Core's): surface, the resolved selection, a
+  // bounded GUG slice, PROJECT_DELTA and recent user actions — canonical, and
+  // NOT in this tail: a new packet is recorded once at the turn's start and
+  // spliced into history before the turn's request (harnesscontext.anchorPacket,
+  // contextfit.buildWire), so later requests find it cached instead of paying
+  // for it again. A Laya line appears only after Core validated it.
+  if (!opened) require('./harnesscontext').anchorPacket(app, s);
   // (The probe decoration that rode here — volatile by construction, since it
   // depended on `from` and the live environment — was removed with the Probe
   // integration in 2026-09. The tail above is the whole volatile half.)

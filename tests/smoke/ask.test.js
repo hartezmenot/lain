@@ -58,7 +58,7 @@ module.exports = async function () {
     // TYPE (see ui/answer.js), so it has to read the same way for a letter and
     // for a number. The guarantee this test exists for is untouched: the model
     // asked, the panel rendered every choice, and the answer went back.
-    assert.match(out, /lain\s+needs\s+your\s+input/i, 'the panel rendered');
+    assert.match(out, /noema\s+needs\s+your\s+input/i, 'the panel rendered');
     assertIncludes(out, 'Which backend should be used?');
     assertIncludes(out, 'A.  Node.js');
     assertIncludes(out, 'C.  Go');
@@ -178,7 +178,7 @@ module.exports = async function () {
     });
     const out = plain(r.stdout);
     assertNotIncludes(out, 'TASK COMPLETE', 'an unverified change is not a finished task');
-    assertIncludes(out, 'not complete', 'and LAIN must say why it is carrying on');
+    assertIncludes(out, 'not complete', 'and Noema must say why it is carrying on');
     assertIncludes(out, 'nothing has been run to check');
     assert.match(out, /Verifying/, 'the status must stay active, not fall back to READY');
   });

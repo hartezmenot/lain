@@ -109,7 +109,7 @@ module.exports = async function () {
     });
     const out = plain(r.out);
     assert.match(out, /STEP LIMIT/, 'the user asked for a bound and it held');
-    assert.match(out, /you configured/, 'and it is named as the USER\'s limit, not as LAIN\'s judgement');
+    assert.match(out, /you configured/, 'and it is named as the USER\'s limit, not as Noema\'s judgement');
     assert.ok(fs.readdirSync(path.join(cwd, 'out')).length <= 6, 'and it really stopped there');
   });
 

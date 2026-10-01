@@ -330,7 +330,7 @@ module.exports = async function () {
     const r = new TaskRuntime({ bus, workspace: dir, persist: true });
     const t = r.create({ title: 'nothing happens' });
     r.start(t.id);
-    assert.strictEqual(fs.existsSync(path.join(dir, '.lain')), false,
+    assert.strictEqual((fs.existsSync(path.join(dir, '.lain')) || fs.existsSync(path.join(dir, '.noema'))), false,
       'a task that never did anything must leave no trace');
     assert.strictEqual(r.store.loadTask(t.id), null);
   });

@@ -80,8 +80,22 @@ function buildWire(session, systemPrompt, live = '') {
   const tail = framed ? [{ role: 'user', content: framed, _live: true }] : [];
   // THIS TURN'S THREAD ONLY. A Coding turn is not handed the Chat transcript,
   // and a terminal-only session is returned untouched. See sessionviews.js.
-  // A request the person repeated later is sent once (intent.foldRepeats).
-  return [...head, ...require('./intent').foldRepeats(require('./sessionviews').wireMessages(session)), ...tail];
+  // A request the person repeated later is sent once (intent.foldRepeats) —
+  // unless it already went out in this cache lineage (`_wireSent`), where a
+  // fold would rewrite cached history.
+  // THE ANCHORED HARNESS CONTEXT (harnesscontext.spliceContext): append-only, before the request it was recorded for.
+  const frozen = session._wireSent ? session._wireSent.set : null;
+  const history = require('./harnesscontext').spliceContext(session, require('./intent').foldRepeats(require('./sessionviews').wireMessages(session), { frozen }), contextprovenance.frame);
+  return [...head, ...history, ...tail];
+}
+
+/** Remember which history messages this lineage has transmitted (a new model/route starts empty). */
+function noteSent(session, pc, wire, { reset = false } = {}) {
+  const key = `${pc.model || ''}|${pc.connectionId || pc.provider || ''}`;
+  if (!session._wireSent || session._wireSent.key !== key) session._wireSent = { key, set: new WeakSet() };
+  if (reset) return wire;
+  for (const m of session.messages || []) session._wireSent.set.add(m);
+  return wire;
 }
 
 /**
@@ -95,6 +109,7 @@ function buildWire(session, systemPrompt, live = '') {
  *          itself, so the whole thing is testable without a turn.
  */
 function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'COMPACT', tools = [] } = {}) {
+  require('./perfmark').mark('fit');
   const notices = [];
   let compactions = 0;
   const authority = session.contextAuthority;
@@ -147,10 +162,35 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
   }
 
   // ---- PASS TWO: measure what is ACTUALLY going out -----------------------
-  const projection = authority.project(pc, () => buildWire(session, systemPrompt, live), {
+  noteSent(session, pc, null, { reset: true });   // a new model/route: nothing is frozen yet, so repeats may fold
+  let projection = authority.project(pc, () => buildWire(session, systemPrompt, live), {
     stable: systemPrompt, live, tools: (tools || []).length,
   });
-  const wire = projection.wire;
+  // ---- WHAT WILL THIS COST IN UNCACHED INPUT? (cachebudget.js) ------------
+  //
+  // The exact wire against the lineage's previous request. Over the 8 % warm
+  // ceiling, the optional tail sections are cut to their floors and the wire
+  // rebuilt once; still over, it is sent with an EXCEPTION naming the owners.
+  // Required context and new tool evidence are never cut here.
+  let cache = null;
+  try {
+    const cb = require('./cachebudget');
+    cache = cb.plan(session, pc, projection.wire, tools, cfg);
+    if (cache.status === 'OVER') {
+      const red = cb.reduceLive(live, cache, cfg);
+      if (red.reductions.length) {
+        const reduced = red.live;
+        projection = authority.project(pc, () => buildWire(session, systemPrompt, reduced), { stable: systemPrompt, live: reduced, tools: (tools || []).length });
+        const again = cb.plan(session, pc, projection.wire, tools, cfg);
+        again.reductions = red.reductions;
+        again.before = { ratio: cache.ratio, uncachedChars: cache.uncachedChars };
+        cache = again;
+      }
+      if (cache.status === 'OVER') cache.exception = cb.exception(cache);
+    }
+    cb.commit(session, cache);
+  } catch { cache = null; }
+  const wire = noteSent(session, pc, projection.wire);
   const limits = providerLimits.limitsFor(pc, cfg);
   const verdict = providerLimits.check(wire, limits);
   if (!verdict.ok) {
@@ -171,7 +211,8 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
     tools: tools || [],
     budget: require('./contextbudget').charsFor(pc, cfg),
   });
-  return { wire, notices, compactions, fit: first, verdict, audit };
+  if (audit && cache) audit.cache = { warmth: cache.warmth, epoch: cache.epoch, ratio: cache.ratio, status: cache.status, reductions: cache.reductions, exception: cache.exception };
+  return { wire, notices, compactions, fit: first, verdict, audit, cache };
 }
 
 module.exports = { fit, buildWire };

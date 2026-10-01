@@ -39,10 +39,10 @@ function get(port, path, headers = {}) {
   });
 }
 
-function post(port, path, payload) {
+function post(port, path, payload, headers = {}) {
   return new Promise((resolve) => {
     const data = JSON.stringify(payload);
-    const req = http.request({ host: '127.0.0.1', port, path, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path, method: 'POST', headers: { ...headers, 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } }, (res) => {
       let body = '';
       res.on('data', (d) => { body += d; });
       res.on('end', () => resolve({ code: res.statusCode, body }));
@@ -130,7 +130,8 @@ module.exports = async function () {
       // A token of the right LENGTH but the wrong value is still no.
       const wrong = 'f'.repeat(r.startupPassword.length);
       assert.strictEqual((await get(r.port, `/api/state?t=${wrong}`)).code, 401);
-      assert.strictEqual((await get(r.port, `/api/state?t=${r.startupPassword}`)).code, 200);
+      // THE RIGHT VALUE IN A URL IS STILL REFUSED (§11): a credential is never read from a query string.
+      assert.strictEqual((await get(r.port, `/api/state?t=${r.startupPassword}`)).code, 401);
       // The header is the way the page sends it now, and must work identically.
       const viaHeader = await get(r.port, '/api/state', { 'x-lain-session': r.startupPassword });
       assert.strictEqual(viaHeader.code, 200, 'the header form must be accepted');
@@ -173,26 +174,25 @@ module.exports = async function () {
         assert.ok(!u.includes(r.startupPassword), `the printed URL is the credential: ${u}`);
         assert.ok(!/[?&]t=/.test(u), `the printed URL still has a token parameter: ${u}`);
       }
-      // BUT AN OLD LINK IS NOT TURNED AWAY. Anyone holding one keeps working;
-      // the page scrubs it from the address bar on arrival.
-      assert.strictEqual((await get(r.port, `/api/state?t=${r.startupPassword}`)).code, 200,
-        'the query form must still be honoured for links already in the wild');
+      // AND A LINK THAT CARRIES ONE ANYWAY IS NOT HONOURED (§11) — the page scrubs it from the address bar.
+      assert.strictEqual((await get(r.port, `/api/state?t=${r.startupPassword}`)).code, 401,
+        'a credential in a URL is refused');
     } finally { dash.stop(); }
   });
 
-  await test('DASH: the state says what LAIN is doing, and carries no secrets', async () => {
+  await test('DASH: the state says what Noema is doing, and carries no secrets', async () => {
     const app = fakeApp();
     app.cfg = { ...app.cfg, apiKey: 'sk-should-never-appear', connections: { x: { apiKey: 'sk-secret-value' } } };
     const r = await dash.start(app, { port: 0 });
     try {
-      const res = await get(r.port, `/api/state?t=${r.startupPassword}`);
+      const res = await get(r.port, '/api/state', { 'x-lain-session': r.startupPassword });
       const s = JSON.parse(res.body);
       assert.ok(s.project && s.project.name, 'the project must be named');
       assert.ok('task' in s && 'model' in s && 'desktop' in s && 'chatSource' in s);
       // WHO ANSWERS A CHAT TURN, and — stated rather than implied, because it is
       // the thing a reader of this payload is most likely to get wrong — who
       // owns coding whatever is selected.
-      assert.strictEqual(s.chatSource.coding, 'LAIN');
+      assert.strictEqual(s.chatSource.coding, 'Noema');
       assert.ok(!/sk-secret-value|sk-should-never-appear/.test(res.body), 'no credential may cross the wire');
       // Nor the conversation itself.
       assert.ok(!('messages' in s) || !Array.isArray(s.messages), 'message content is not the dashboard business');
@@ -203,11 +203,11 @@ module.exports = async function () {
     const app = fakeApp();
     const r = await dash.start(app, { port: 0 });
     try {
-      const denied = await post(r.port, `/api/action?t=${r.startupPassword}`, { action: 'stop' });
+      const denied = await post(r.port, '/api/action', { action: 'stop' }, { 'x-lain-session': r.startupPassword });
       assert.strictEqual(denied.code, 403);
       assert.match(denied.body, /read-only/);
       dash.setActions(true);
-      const allowed = await post(r.port, `/api/action?t=${r.startupPassword}`, { action: 'stop' });
+      const allowed = await post(r.port, '/api/action', { action: 'stop' }, { 'x-lain-session': r.startupPassword });
       // Nothing is running, so it fails — but it was ATTEMPTED, which is the
       // difference this test is about.
       assert.strictEqual(allowed.code, 400);
@@ -222,7 +222,7 @@ module.exports = async function () {
     try {
       dash.setActions(true);
       for (const attempt of ['shell', 'run', 'exec', 'write', 'read', 'eval', 'undo', '/exit']) {
-        const res = await post(r.port, `/api/action?t=${r.startupPassword}`, { action: attempt, value: 'rm -rf /' });
+        const res = await post(r.port, '/api/action', { action: attempt, value: 'rm -rf /' }, { 'x-lain-session': r.startupPassword });
         assert.strictEqual(res.code, 400, `"${attempt}" must not be reachable`);
         assert.match(res.body, /unknown action/);
       }
@@ -236,7 +236,7 @@ module.exports = async function () {
     const r = await dash.start(app, { port: 0 });
     try {
       dash.setActions(true);
-      const res = await post(r.port, `/api/action?t=${r.startupPassword}`, { action: 'revoke-desktop' });
+      const res = await post(r.port, '/api/action', { action: 'revoke-desktop' }, { 'x-lain-session': r.startupPassword });
       assert.strictEqual(res.code, 200);
       assert.strictEqual(app.desktop().permissions.state().active, false, 'the grant must be gone at once');
     } finally { dash.stop(); }
@@ -246,14 +246,14 @@ module.exports = async function () {
     const app = fakeApp();
     const r = await dash.start(app, { port: 0 });
     try {
-      const res = await get(r.port, `/?t=${r.startupPassword}`);
+      const res = await get(r.port, '/');
       assert.strictEqual(res.code, 200);
       assert.match(res.headers['content-type'], /text\/html/);
       assert.match(res.headers['content-security-policy'], /default-src 'none'/);
       // No CDN, no font, no image, no external anything.
       assert.ok(!/https?:\/\/(?!127\.0\.0\.1)/.test(res.body.replace(/http:\/\/\$\{/g, '')),
         'the page must not reference any external origin');
-      assert.match(res.body, /LAIN/);
+      assert.match(res.body, /Noema/);
     } finally { dash.stop(); }
   });
 
@@ -262,7 +262,7 @@ module.exports = async function () {
     const r = await dash.start(app, { port: 0 });
     dash.stop();
     assert.strictEqual(dash.status().running, false);
-    const after = await get(r.port, `/api/state?t=${r.startupPassword}`);
+    const after = await get(r.port, '/api/state', { 'x-lain-session': r.startupPassword });
     assert.strictEqual(after.code, 0, 'the socket must be closed, not merely ignored');
   });
 

@@ -36,7 +36,7 @@ function register({ define, C }) {
     surface: true,
     flashMs: 0,
     args: '[n|name]',
-    desc: 'Every LAIN session the runtime knows — running, finished, blocked',
+    desc: 'Every Noema session the runtime knows — running, finished, blocked',
     async run(app, ctx) {
       const w = (line) => app.render.write(`${line}\n`);
       const want = String((ctx.rest || '').trim());
@@ -73,7 +73,7 @@ function register({ define, C }) {
         // "nothing is happening".
         w('');
         w(C.dim('  No runtime is answering on this machine.'));
-        w(C.dim('  One starts when a turn begins, and from then on it knows every LAIN'));
+        w(C.dim('  One starts when a turn begins, and from then on it knows every Noema'));
         w(C.dim('  session on this machine — including the ones in other terminals.'));
         w('');
         return;

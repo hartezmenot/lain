@@ -52,7 +52,7 @@ async function browser(app, args, { C }) {
     const v = await route.inspect(app, { target: s.current.url || 'current', scope: 'page' });
     for (const line of require('./ui/browserview').lines(v, 96)) w(`  ${line}\n`);
   }
-  if (!s.chrome.connected) w(C.dim('\n  /browser connect starts the bridge for the LAIN for Chrome extension.\n'));
+  if (!s.chrome.connected) w(C.dim('\n  /browser connect starts the bridge for the Noema for Chrome extension.\n'));
   w(C.dim('\n  [Current] /browser current   [Tabs] /browser tabs   [Disconnect] /browser disconnect\n'));
   return null;
 }
@@ -71,16 +71,44 @@ function register({ define, C }) {
     desc,
     run(app, { args }) {
       const prof = require('./profile');
-      const p = prof.set(app.session, prof.toggle(prof.of(app.session, app.cfg), target, args[0]));
+      // WHILE THE AGENT WORKS the change is QUEUED to its next checkpoint (runstrategy.queueProfile).
+      const want = prof.toggle(prof.of(app.session, app.cfg), target, args[0]);
+      const r = require('./runstrategy').queueProfile(app, want);
       try { app.session.save(); } catch { /* still applies in memory */ }
       if (app.ui && app.ui.enabled) app.ui.refresh();
+      const p = r.queued ? `${want} queued — applies at the next checkpoint` : prof.of(app.session, app.cfg);
       app.render.write(C.dim(`  ${p}${p === 'ECO' ? ' (token economy)' : ''} · ${execmode.label(app.session)}\n`));
     },
   });
   profileCmd('/fast', 'FAST', 'FAST profile (toggle): finish quickly — parallel independent work, disjoint subagents; same verification bar');
   profileCmd('/normal', 'NORMAL', 'NORMAL profile (default): main agent first, subagents only when clearly useful');
   profileCmd('/eco', 'ECO', 'ECO profile (toggle) — token economy: one agent, serial, deterministic tools first, smaller context; same verification bar');
-  profileCmd('/slow', 'ECO', 'Alias of /eco', true);
+  // THE RUN STRATEGY (runstrategy.js) — separate from the profile and from effort.
+  define('/strategy', {
+    surface: true, args: '[normal|phased|long] [confirm]',
+    desc: 'Run strategy: Normal, Phased (review each phase) or Long Context Phasing (continue phase after phase)',
+    run(app, { args }) {
+      const rs = require('./runstrategy');
+      if (!args[0]) { const s = rs.get(app.session); app.render.write(C.dim(`  ${rs.LABEL[s.kind]}${s.kind !== 'NORMAL' ? ` · review ${s.review.toLowerCase().replace(/_/g, ' ')}` : ''}\n`)); return; }
+      const r = rs.request(app, args[0], { review: args[2] || null });
+      if (!r.ok) { app.render.write(C.dim(`  ${r.why}\n`)); return; }
+      if (r.needsConfirm) {
+        if (args[1] !== 'confirm') { app.render.write(`  ${r.offer.text}\n  ${r.offer.estimate.text}\n  Type /strategy long confirm to continue, or /eco first.\n`); return; }
+        rs.confirm(app, r.offer.id, 'continue');
+      }
+      try { app.session.save(); } catch { /* in memory */ }
+      app.render.write(C.dim(`  ${rs.LABEL[rs.get(app.session).kind]}\n`));
+    },
+  });
+  // HAND THE SESSION BACK TO THE HARNESS (surfacehandoff.js): same task, no transcript replay.
+  define('/handback', {
+    surface: true, args: '',
+    desc: 'Hand this session back to the Noema Harness (it continues the same task there)',
+    run(app) {
+      const r = require('./surfacehandoff').handoff(app, 'harness');
+      app.render.write(r.ok ? '  Handed to the Harness — it picks this session up. This terminal stops writing to it.\n' : `  ${r.why}\n`);
+    },
+  });
   // SUBAGENTS — one small setting, not a panel: AUTO (recommended) or OFF, and
   // how many may run at once. The counter itself lives in the run state.
   define('/subagents', {
@@ -105,7 +133,7 @@ function register({ define, C }) {
   // recruited, and what they measurably saved. Never shown during normal work.
   define('/workers', {
     surface: true, args: '[status|auto|off|locate on|off|laya [auto|on|off]]',
-    desc: 'Diagnostics: specialist workers (Laya/Violetto/Jev) — installed, switched, gated, what they saved',
+    desc: 'Diagnostics: specialist workers (Laya roles, Jev excluded, Violetto retired) — installed, loaded, per-role mode, invoked',
     run(app, { args }) { return require('./workerscommand').run(app, args || [], { C, gateResults }); },
   });
   define('/workspaces', {
@@ -115,7 +143,7 @@ function register({ define, C }) {
   });
   define('/browser', {
     surface: true, args: '[current|tabs|connect|disconnect]',
-    desc: 'The browser LAIN can see: your Chrome, the frontend dev server, or an isolated one',
+    desc: 'The browser Noema can see: your Chrome, the frontend dev server, or an isolated one',
     run(app, { args }) { return browser(app, args, { C }); },
   });
   define('/chrome', {

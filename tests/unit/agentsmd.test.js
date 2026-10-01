@@ -62,10 +62,10 @@ module.exports = async function () {
   await test('LIVE PROMPT: the standing goal reaches the prompt a real turn sends', () => {
     const cwd = tmpdir('live-goal-');
     const app = realApp(cwd);
-    goal.set(app.session, 'Finish the LAIN foundation');
+    goal.set(app.session, 'Finish the Noema foundation');
     const p = promptparts.of(app);
-    assert.match(p.stable, /# Goal[\s\S]*Finish the LAIN foundation/, 'it was missing from every live turn before');
-    assert.strictEqual((app.systemPrompt().match(/Finish the LAIN foundation/g) || []).length, 1, 'and the one-string path states it once');
+    assert.match(p.stable, /# Goal[\s\S]*Finish the Noema foundation/, 'it was missing from every live turn before');
+    assert.strictEqual((app.systemPrompt().match(/Finish the Noema foundation/g) || []).length, 1, 'and the one-string path states it once');
   });
 
   await test('LIVE PROMPT: a /bg fork is prompted from ITS session, carrying its own assignment', () => {

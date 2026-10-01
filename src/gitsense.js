@@ -33,7 +33,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execute } = require('./tools/exec');
+const { execFile } = require('child_process');
 
 /** A diff bigger than this in one file is worth remarking on. */
 const BIG_FILE_LINES = 400;
@@ -52,9 +52,21 @@ const GENERATED = [
   [/(?:^|\/)\.env(?:\.|$)/, 'an environment file, which may hold secrets'],
 ];
 
-async function git(cwd, args) {
-  const r = await execute('git', args, { cwd, timeoutMs: 20_000 });
-  return { ok: r.ok, out: String(r.stdout || ''), err: String(r.stderr || ''), code: r.exitCode };
+/**
+ * A READ-ONLY GIT QUESTION, asked directly (Phase 8.2). These went through the
+ * Agent's command runner — a guardian process, a worker process and an identity
+ * query around every `git status` — and four of them run at the start of every
+ * task: ~16 processes and ~1.7 s, in a repository with 171 changes, for answers
+ * git gives in milliseconds. Bounded by the same 20 s. `GIT_OPTIONAL_LOCKS=0`:
+ * LAIN's look at the tree never takes the index lock, so it cannot collide with
+ * the person's own git.
+ */
+function git(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 20_000, windowsHide: true, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: String(stdout || ''), err: String(stderr || (err ? err.message : '')), code: err ? (Number.isInteger(err.code) ? err.code : 1) : 0 });
+    });
+  });
 }
 
 /**
@@ -261,14 +273,14 @@ function describe(r) {
     const surprise = r.files.filter((f) => f.unexpected);
     if (surprise.length) {
       notes.push(`NOT CHANGED BY THIS SESSION: ${surprise.map((f) => f.file).join(', ')} — these differ from the `
-        + 'last commit but are not files LAIN wrote. They may have been dirty before this session started.');
+        + 'last commit but are not files Noema wrote. They may have been dirty before this session started.');
     }
     if (r.missing.length) {
       // "No change" is two observations, not one: the write matched the
       // committed bytes, or git never looks at the path at all (ignored, or
       // outside the reviewed subtree). Only the first was being stated — a
       // false inference whenever the second was the case.
-      notes.push(`WRITTEN BUT NOT DIFFERENT: ${r.missing.join(', ')} — LAIN wrote these and git reports no change `
+      notes.push(`WRITTEN BUT NOT DIFFERENT: ${r.missing.join(', ')} — Noema wrote these and git reports no change `
         + 'for them: either the write produced the same bytes that were already there, or the path is not one '
         + 'git tracks (ignored, or outside this directory).');
     }

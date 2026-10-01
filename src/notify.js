@@ -37,7 +37,7 @@ const path = require('path');
 
 /** The endings worth interrupting somebody for, and the sentence for each. */
 function sentenceFor(app, record) {
-  const project = path.basename((app.session && app.session.cwd) || '') || 'LAIN';
+  const project = path.basename((app.session && app.session.cwd) || '') || 'Noema';
   const life = app.session && app.session.lifecycle;
   if (record && record.stopReason === 'no-progress') return `${project} — blocked: no progress after a wake-up`;
 
@@ -128,7 +128,7 @@ function attention(app, kind, text, meta = null) {
     const fsx = require('fs');
     const dir = path.join(require('./config').configDir(), 'attention');
     fsx.mkdirSync(dir, { recursive: true });
-    const project = path.basename((app && app.session && app.session.cwd) || '') || 'LAIN';
+    const project = path.basename((app && app.session && app.session.cwd) || '') || 'Noema';
     const row = { kind, text: String(text || '').slice(0, 500), project, sessionId: (app && app.session && app.session.id) || '', meta, at: Date.now() };
     const file = path.join(dir, `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.json`);
     fsx.writeFileSync(file, JSON.stringify(row));

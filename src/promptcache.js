@@ -184,7 +184,10 @@ function usageFrom(u) {
   // WHETHER THE PROVIDER SAID ANYTHING ABOUT CACHING AT ALL. A receipt with no
   // cache field is "not reported", which is not "cached = 0" (reqtrace.end).
   const reported = [d.cached_tokens, u.cached_tokens, u.cache_read_input_tokens, d.cache_creation_tokens, u.cache_creation_input_tokens].some((v) => v != null);
-  return { cacheReadTokens: Number(read) || 0, cacheCreationTokens: Number(made) || 0, reported };
+  // REASONING AS THE PROVIDER COUNTED IT (completion_tokens_details / output_tokens_details) — part of the output,
+  // reported apart so a receipt can say `reasoning 7.4k`. Absent stays absent: never estimated from text.
+  const r = (u.completion_tokens_details || u.output_tokens_details || {}).reasoning_tokens;
+  return { cacheReadTokens: Number(read) || 0, cacheCreationTokens: Number(made) || 0, reported, ...(Number.isFinite(r) ? { reasoningTokens: r } : {}) };
 }
 
 module.exports = { needsExplicitCache, applyToChat, usageFrom, mark, EXPLICIT };

@@ -1,42 +1,16 @@
 'use strict';
 
 /**
- * `/api <credential>` — from a pasted key to a usable model, without typing an id.
+ * API SOURCES — what the Model Dashboard's Add API and the terminal share.
  *
- * ------------------------------------------------------------------------
- * WHAT WAS MISSING, and it was the whole of the flow.
- *
- * `/api` existed and did two things: `refresh` and `status`. There was no way to
- * GIVE LAIN a credential at all — a key had to be written into config.json by
- * hand, or exported as an environment variable, and the model then had to be
- * named by id because nothing had discovered what the route served.
- *
- * The steps were all present and none of them were joined up: connections.js
- * knows how to model a route and how to `discover` what it serves, catalog.js
- * knows how to fold that into the model list, and ui/panel.js knows how to ask
- * a question. This is the join.
- *
- *     /api sk-…
- *         ↓  which provider does this belong to?
- *     provider picker            ← providers.js, the ONE table of endpoints
- *         ↓  stored under lain:<provider>
- *     credential saved           ← config.js, the existing store
- *         ↓  GET /models
- *     discovery                  ← connections.discover, no tokens spent
- *         ↓
- *     model picker               ← the SAME picker /models opens
- *
- * ------------------------------------------------------------------------
- * NO SECOND PROVIDER ARCHITECTURE. Every step above is an existing owner being
- * called in order. What is new here is the ORDER and the questions, which is
- * exactly what was missing — and `refresh` and `status` still route to the same
- * places they always did.
- *
- * ------------------------------------------------------------------------
- * A CREDENTIAL IS NEVER ECHOED. It goes to the config store and nowhere else:
- * not into the transcript, not into the panel, not into an error message. What
- * is shown back is its SHAPE — `sk-…4f2a` — which is enough to recognise which
- * key you pasted and not enough to be one.
+ * PHASE 8.3: THE TERMINAL NEVER TAKES A KEY. `/api`, `/api add`, `/api <provider>`
+ * and `/api <route>` open the Model Dashboard at API (fabric/dashlaunch.js); a
+ * key typed at the prompt anyway is refused, redacted and taken out of the input
+ * history (routecommands.js). What stays here is shared by the window's Add API
+ * (harnessapp/accountops.js): recognising what a word is (a route, a provider, a
+ * credential), keeping a key in the OS secret store under a reference
+ * (`store`), retiring the key it replaced (`retire`), and asking the provider
+ * what it serves (`discoverModels`) — a catalog read, never a completion.
  */
 
 const providers = require('./providers');
@@ -112,133 +86,11 @@ function shapeOf(cred) {
   return `${s.slice(0, 3)}…${s.slice(-4)}`;
 }
 
-/**
- * WHICH PROVIDER DOES THIS KEY BELONG TO?
- *
- * The known endpoints, then anything already in the user's config, then
- * `Customs…` — which asks for a base URL rather than guessing one. See
- * providers.js for why a guessed endpoint is a security question and not a
- * convenience one.
- */
-function providerAdapter(list) {
-  // ---- ORDERED BY HOW READY A ROW IS TO BE USED -------------------------
-  //
-  // `Other…` used to sit at the bottom, which was right when the picker was
-  // twelve rows and wrong the moment it became twenty-one. The panel shows
-  // about ten at a time, so the ONE row that works for every provider in
-  // existence — "I know where my key goes, let me type the URL" — had fallen
-  // two screens below the fold, and the rows standing in front of it are the
-  // ones LAIN can do LEAST with.
-  //
-  // So the list runs from most ready to least:
-  //
-  //   PICK AND GO        the endpoint is known, or the user already configured
-  //                      it. One keystroke and the credential is stored.
-  //   Customs…           the universal escape. Works for anything.
-  //   NEEDS AN ENDPOINT  a name LAIN knows and cannot place. This is the SAME
-  //                      action as `Customs…` with the name filled in — a
-  //                      convenience over it, not a step before it — so it
-  //                      belongs after it rather than in front of it.
-  //
-  // THERE IS ONE CUSTOM CATEGORY, AND IT IS CALLED `Customs…` (2026-09-15).
-  // The picker used to show this escape as `Other…` AND a separate row named
-  // `custom` carried in from the user's V1 configuration — two spellings of one
-  // idea, side by side. The row is retired (providers.js RETIRED) and the escape
-  // took the name. NOTHING PERSISTED CHANGES: the value behind this row is the
-  // internal sentinel `__other__`, never a stored label, and a credential
-  // entered through it is still filed under its own hostname.
-  //
-  // Nothing is hidden and nothing is guessed; only the order changed.
-  const row = (p) => ({
-    // THREE STATES, ALL VISIBLE. A row with an endpoint shows it; a row LAIN
-    // knows of but cannot place SAYS SO rather than being quietly dropped,
-    // which is what the first version of this picker did. See providers.js.
-    label: p.baseUrl
-      ? `${p.label}   ${p.baseUrl}`
-      : `${p.label}   — needs an endpoint`,
-    value: p.id,
-  });
-  const ready = list.filter((p) => p.baseUrl);
-  const unplaced = list.filter((p) => !p.baseUrl);
-  return {
-    title: 'WHICH PROVIDER IS THIS CREDENTIAL FOR?',
-    kind: 'PROVIDER_SELECTION',
-    mode: 'EXPANDED',
-    items: [
-      ...ready.map(row),
-      { label: 'Customs…   (enter the base URL yourself)', value: OTHER },
-      ...unplaced.map(row),
-    ],
-    footer: '↑↓ select · Enter confirm · Esc cancel',
-  };
-}
-
-/**
- * ASK FOR THE CREDENTIAL, WITHOUT SHOWING IT.
- *
- * `secret: true` is read by ui/inputbox.js, which draws one dot per character
- * instead of the text, and by ui/index.js, which keeps the line out of the ↑/↓
- * history. The BUFFER is untouched — what is sent is the real credential, and
- * only the drawing is masked.
- *
- * This is what bare `/api` opens, so a key never has to be typed on a command
- * line where it would be echoed before this frame could exist.
- */
-function credentialAdapter() {
-  return {
-    title: 'API CREDENTIAL',
-    kind: 'ASK_USER',
-    mode: 'EXPANDED',
-    takes: 'TEXT',
-    secret: true,
-    options: [],
-    question: 'Paste the API key or token.',
-    items: [
-      { label: 'Paste the API key or token.', selectable: false },
-      { label: '', selectable: false },
-      { label: 'It is masked as you type and is never written to history,', selectable: false },
-      { label: 'the transcript, or an error message.', selectable: false },
-      { label: '', selectable: false },
-      { label: 'Enter confirms. Esc cancels and stores nothing.', selectable: false },
-    ],
-    footer: 'Enter confirm · Esc cancel',
-    onTyped(text) {
-      const t = String(text == null ? '' : text).trim();
-      return t ? { close: t } : undefined;
-    },
-  };
-}
-
-/** The base URL for a provider LAIN does not know. Typed, never guessed. */
-function baseUrlAdapter() {
-  return {
-    title: 'BASE URL',
-    kind: 'ASK_USER',
-    mode: 'EXPANDED',
-    takes: 'TEXT',
-    options: [],
-    question: 'Which endpoint should this credential be sent to?',
-    items: [
-      { label: 'Which endpoint should this credential be sent to?', selectable: false },
-      { label: '', selectable: false },
-      { label: 'For an OpenAI-compatible router this is usually the /v1 root,', selectable: false },
-      { label: 'for example  https://your-router.example/api/v1', selectable: false },
-      { label: '', selectable: false },
-      { label: 'Type it on the line above and press Enter. Esc cancels.', selectable: false },
-    ],
-    footer: 'Enter confirm · Esc cancel',
-    onTyped(text) {
-      const s = String(text == null ? '' : text).trim();
-      return s ? { close: s } : undefined;
-    },
-  };
-}
-
 /** Only somewhere a credential can safely be sent. */
 function validBaseUrl(url) {
   const s = String(url || '').trim();
   if (!/^https?:\/\//i.test(s)) return 'a base URL must start with http:// or https://';
-  try { new URL(s); } catch { return 'that is not a URL LAIN can parse'; }
+  try { new URL(s); } catch { return 'that is not a URL Noema can parse'; }
   return null;
 }
 
@@ -250,7 +102,7 @@ function validBaseUrl(url) {
  * UPDATED rather than duplicated — re-keying a route that already works is the
  * commonest reason to run this a second time.
  */
-function store(app, config, { provider, protocol, baseUrl, credential, connectionId }) {
+function store(app, config, { provider, protocol, baseUrl, credential, connectionId, retireOld = false }) {
   const cfg = app.cfg;
   // ---- HELD BACK FROM EVERY SCREEN, BEFORE IT IS WRITTEN ANYWHERE --------
   //
@@ -266,17 +118,37 @@ function store(app, config, { provider, protocol, baseUrl, credential, connectio
   if (!cfg.connections || typeof cfg.connections !== 'object') cfg.connections = {};
   const id = connectionId || providers.connectionIdFor(provider);
   const existing = cfg.connections[id] || {};
-  cfg.connections[id] = {
+  // ---- THE KEY GOES TO THE OS STORE; CONFIG KEEPS ITS NAME --------------
+  //
+  // A fresh reference per store, so a failed proof can put the previous one
+  // back untouched (accountops.addKey) and a working one retires the old blob
+  // (`retire`). Where no OS store exists the old plaintext field is the only
+  // place left, and the entry says so (`plaintext`) for the window to warn.
+  const creds = require('./credentials');
+  const nextRef = creds.ref(`${id}-${require('crypto').randomBytes(3).toString('hex')}`);
+  const kept = creds.store(nextRef, credential, { kind: 'api_key' });
+  const entry = {
     ...existing,
     provider,
     via: 'native',
     auth: 'api_key',
     protocol: protocol || existing.protocol || 'chat',
     baseUrl: baseUrl || existing.baseUrl || '',
-    apiKey: credential,
   };
+  if (kept.ok) { entry.credentialRef = nextRef; delete entry.apiKey; delete entry.plaintext; }
+  else { entry.apiKey = credential; entry.plaintext = true; delete entry.credentialRef; }
+  cfg.connections[id] = entry;
   config.save(cfg);
+  // The terminal flows keep a new key even when discovery fails (the network may
+  // be what is wrong), so the one it replaced goes now.
+  if (retireOld) retire(existing, entry);
   return id;
+}
+
+/** After a stored key proved itself: the blob it replaced is deleted. */
+function retire(previous, current) {
+  const was = previous && previous.credentialRef;
+  if (was && (!current || current.credentialRef !== was)) require('./credentials').remove(was);
 }
 
 /**
@@ -374,162 +246,10 @@ function connectionByName(app, name) {
       || String(c.provider || '').toLowerCase() === bare)) || null;
 }
 
-/**
- * REPLACE AN EXISTING ROUTE'S CREDENTIAL, UNDER THE SAME CONNECTION ID.
- *
- * `/api lain:custom` — or `/api custom` — exists because a stored key can STOP
- * working: rotated, expired, refused with a 401 on a route whose endpoint and
- * model list were perfectly good. The fix is a new key under the SAME id, not
- * a second route for the same endpoint. So this flow skips the provider and
- * base-URL questions — the route already answered them — and asks only for the
- * replacement, masked, then re-runs the same discovery the first flow uses so
- * a refusal comes back in the provider's own words.
- *
- * NON-DESTRUCTIVE IN BOTH DIRECTIONS. Esc stores nothing; a discovery failure
- * keeps the NEW key, which may be perfectly good while the network is not —
- * the same rule credentialFlow applies.
- */
-async function rekeyFlow(app, name, { C, config, refreshCatalog }) {
-  const w = (s) => app.render.write(s);
-  const conn = connectionByName(app, name);
-  if (!conn) {
-    w(C.yellow(`  No connection named '${String(name || '').trim()}'.\n`));
-    w(C.dim('  /provider status lists the ids.\n'));
-    return;
-  }
-  if (conn.via === 'bridge') {
-    w(C.yellow(`  ${conn.id} is a bridge: it authenticates upstream itself, so LAIN holds no credential to replace.\n`));
-    return;
-  }
-  if (!app.ui || !app.ui.enabled) {
-    w(C.yellow('  /api <connection> needs the interactive panel to ask for the replacement key.\n'));
-    w(C.dim('  Without a terminal, edit config.json instead — see /provider status.\n'));
-    return;
-  }
-  w(C.dim(`  Re-keying ${conn.id}  ${conn.baseUrl || '(no endpoint recorded)'}\n`));
-  const cred = await app.ui.ask(credentialAdapter());
-  if (!cred) { w(C.dim(CANCELLED)); return; }
-  const id = store(app, config, {
-    provider: conn.provider, protocol: conn.protocol, baseUrl: conn.baseUrl,
-    credential: String(cred).trim(), connectionId: conn.id,
-  });
-  w(C.green(`  ${id}`) + C.dim(`  ${shapeOf(cred)}  →  ${conn.baseUrl}\n`));
-  w(C.dim(`  FETCHING AVAILABLE MODELS from ${conn.baseUrl} …\n`));
-  const found = await discoverModels(app, id);
-  if (!found.ok) {
-    w(C.yellow(`  Model discovery failed: ${found.error}\n`));
-    w(C.dim(`  The new credential is stored. \`/api refresh ${id}\` re-reads the catalog once the cause is fixed.\n`));
-    return;
-  }
-  w(C.green(`  ${found.models.length} model(s) available\n`));
-  await refreshCatalog(app, { only: id, quiet: true });
-}
-
-/**
- * The whole flow. Returns nothing; everything it has to say, it says on screen.
- *
- * NON-TTY IS NOT A DEGRADED TTY. With no panel to ask through there is no way
- * to choose a provider, and guessing one would store a credential against a
- * route the user never named. It says so and stores nothing.
- */
-async function credentialFlow(app, credential, { C, config, refreshCatalog, preselect = null } = {}) {
-  const w = (s) => app.render.write(s);
-  if (!app.ui || !app.ui.enabled) {
-    w(C.yellow('  /api <credential> needs the interactive picker to ask which provider it belongs to.\n'));
-    w(C.dim('  Without a terminal, declare the route in config.json instead — see /provider status.\n'));
-    return;
-  }
-
-  // ---- NO CREDENTIAL YET: ASK FOR IT, MASKED ----------------------------
-  //
-  // Bare `/api` lands here. Asking through the panel is strictly better than
-  // requiring `/api <key>` on the command line, where the shell echoes it
-  // before anything of LAIN's can mask it.
-  let cred = String(credential || '').trim();
-  if (!cred) {
-    cred = await app.ui.ask(credentialAdapter());
-    if (!cred) { w(C.dim(CANCELLED)); return; }
-    cred = String(cred).trim();
-  }
-
-  const list = providers.choices(app.cfg);
-  // ---- `/api <provider>` NAMES THE ROUTE, SO DO NOT ASK AGAIN -----------
-  //
-  // `/api custom` used to fall through to `/provider status`: somebody trying
-  // to ADD that route was shown a list of the routes they already had, with
-  // nothing saying how to add one. The add path existed — bare `/api` — and
-  // was not reachable from the thing they typed.
-  //
-  // Naming a provider LAIN already knows is an unambiguous answer to the
-  // question the picker would have asked, so it is taken as one. The
-  // credential is still asked for through the panel, and a word matching no
-  // provider still falls through to the status view.
-  const wanted = preselect
-    ? list.find((x) => String(x.id).toLowerCase() === String(preselect).toLowerCase())
-    : null;
-  const pickedId = wanted ? wanted.id : await app.ui.ask(providerAdapter(list));
-  if (!pickedId) { w(C.dim('  Cancelled. Nothing was stored.\n')); return; }
-  if (wanted) w(C.dim(`  ${wanted.label || wanted.id}\n`));
-
-  let provider = pickedId;
-  let protocol = 'chat';
-  let baseUrl = '';
-  let connectionId = null;
-
-  if (pickedId === OTHER) {
-    const typed = await app.ui.ask(baseUrlAdapter());
-    if (!typed) { w(C.dim('  Cancelled. Nothing was stored.\n')); return; }
-    const bad = validBaseUrl(typed);
-    if (bad) { w(C.yellow(`  ${bad}\n`)); w(C.dim('  Nothing was stored.\n')); return; }
-    baseUrl = String(typed).trim();
-    // NAMED AFTER ITS HOST, because a route has to be referable — by `/model`,
-    // by `/provider disable`, and in the header. An unnamed one cannot be.
-    try { provider = new URL(baseUrl).hostname.replace(/^www\./, ''); } catch { provider = 'custom'; }
-  } else {
-    const p = list.find((x) => x.id === pickedId);
-    if (!p) { w(C.yellow('  That provider is no longer available.\n')); return; }
-    provider = p.id;
-    protocol = p.protocol;
-    baseUrl = p.baseUrl;
-    connectionId = p.connectionId || null;
-    if (!baseUrl) {
-      const typed = await app.ui.ask(baseUrlAdapter());
-      if (!typed) { w(C.dim('  Cancelled. Nothing was stored.\n')); return; }
-      const bad = validBaseUrl(typed);
-      if (bad) { w(C.yellow(`  ${bad}\n`)); w(C.dim('  Nothing was stored.\n')); return; }
-      baseUrl = String(typed).trim();
-    }
-  }
-
-  const id = store(app, config, { provider, protocol, baseUrl, credential: cred, connectionId });
-  w(C.green(`  ${id}`) + C.dim(`  ${shapeOf(cred)}  →  ${baseUrl}\n`));
-
-  // ---- WHAT IT SERVES ------------------------------------------------------
-  w(C.dim(`  FETCHING AVAILABLE MODELS from ${baseUrl} …\n`));
-  const found = await discoverModels(app, id);
-  if (!found.ok) {
-    // THE CREDENTIAL IS KEPT. It may be perfectly good and the network may not
-    // be — throwing it away would make a transient failure look like a typo,
-    // and the user would paste it again to no better effect.
-    w(C.yellow(`  Model discovery failed: ${found.error}\n`));
-    w(C.dim('  The credential is stored. Try `/api refresh` once the cause is fixed,\n'));
-    w(C.dim('  or `/provider status` to see how this route is doing.\n'));
-    return;
-  }
-  w(C.green(`  ${found.models.length} model(s) available\n`));
-
-  // ---- AND THE PICKER, SO NOBODY TYPES AN ID -------------------------------
-  //
-  // The SAME picker `/models` opens. A second list here would be a second
-  // filter, a second Enter and a second thing to keep in step.
-  await refreshCatalog(app, { only: id, quiet: true });
-  return require('./modelcommand').pickCommand(app, { args: [], rest: '' }, { C, config, refreshCatalog });
-}
-
-// `providerAdapter` is exported for the test that pins WHERE `Customs…` sits in
-// the list — see tests/unit/apiflow.test.js. Its position is a property of the
-// picker rather than of a flow, so it is asserted on the adapter directly.
 module.exports = {
+  retire,
   providerNamed,
-  credentialFlow, rekeyFlow, connectionByName, looksLikeCredential, shapeOf, validBaseUrl, providerAdapter, SUBCOMMANDS,
+  connectionByName, looksLikeCredential, shapeOf, validBaseUrl, SUBCOMMANDS,
+  // The window's Add API key (harnessapp/accountops.js) is the same two steps.
+  store, discoverModels,
 };

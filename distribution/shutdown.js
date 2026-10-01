@@ -36,12 +36,12 @@ async function main() {
 
   let found = null;
   try { found = await lock.discover(); } catch (e) {
-    process.stdout.write(`could not look for a running LAIN: ${e.message}\n`);
+    process.stdout.write(`could not look for a running Noema: ${e.message}\n`);
     return 0;
   }
-  if (!found || !found.running) { process.stdout.write('no LAIN is running\n'); return 0; }
+  if (!found || !found.running) { process.stdout.write('no Noema is running\n'); return 0; }
 
-  process.stdout.write(`asking LAIN (pid ${found.pid}) to shut down\n`);
+  process.stdout.write(`asking Noema (pid ${found.pid}) to shut down\n`);
   try { await lock.ask('quit'); } catch (e) {
     process.stdout.write(`it did not take the request: ${e.message}\n`);
     return 1;

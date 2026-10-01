@@ -94,13 +94,13 @@ module.exports = async function () {
     assert.strictEqual(E.isProviderFailure({ name: 'AbortError' }), false);
   });
 
-  await test('LAYER: EVERY kind names a layer, and none of them names LAIN', () => {
+  await test('LAYER: EVERY kind names a layer, and none of them names Noema', () => {
     // The property the whole file exists for. A screen that shows one of these
     // as a LAIN malfunction sends the user to debug the wrong program.
     for (const kind of Object.values(E.KIND)) {
       const layer = E.LAYER[kind];
       assert.ok(layer, `${kind} has no explanation`);
-      assert.ok(!/\blain\b/i.test(layer), `${kind} blames LAIN: ${layer}`);
+      assert.ok(!/\blain\b/i.test(layer), `${kind} blames Noema: ${layer}`);
     }
   });
 

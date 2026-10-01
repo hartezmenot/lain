@@ -135,7 +135,7 @@ function last(sessionId) {
 
 /** Drop a session's cached snapshot — `/new`, `/resume`, and the tests. */
 function forgetLocal(sessionId) {
-  if (sessionId) { mirror.delete(sessionId); chain.delete(sessionId); } else { mirror.clear(); chain.clear(); }
+  if (sessionId) { mirror.delete(sessionId); chain.delete(sessionId); queued.delete(sessionId); } else { mirror.clear(); chain.clear(); queued.clear(); }
 }
 
 /** Is a supervisor answering right now? Never starts one. */
@@ -150,16 +150,48 @@ function running() {
  * process, a timeout, a rejection — lands in the same place: silence, and the
  * mirror keeps whatever it had.
  */
+/**
+ * OBSERVATIONS ARE BATCHED, ONE CONNECTION PER TICK PER SESSION (2026-10-01).
+ *
+ * Every `tell` used to be its own TCP connection, discovered afresh each time, and turn.js announces a phase before
+ * every request and every tool. Measured with a zero-latency model (bench/latency): the supervisor client was the
+ * largest Core cost on the turn path. Now the observations of one tick are queued and sent as ONE batch, in order,
+ * on the session's chain — and a newer PHASE replaces an unsent older one (only the current phase is a fact worth
+ * delivering; "WAITING_MODEL then RUNNING_TOOL then WAITING_MODEL" in one tick is one state, not three).
+ */
+const SUPERSEDES = new Set(['guardian_turn_phase']);
+const queued = new Map();   // sessionId → [{op, ...msg}]
+
+function flush(sessionId) {
+  const key = sessionId || '';
+  const batch = queued.get(key);
+  if (!batch || !batch.length) return chainOf(key);
+  queued.delete(key);
+  return ordered(key, async () => {
+    if (!(await reachable())) return;
+    try {
+      const replies = await supervisor.callManyIfRunning(batch);
+      for (const r of replies) remember(sessionId, r);
+    } catch { /* an observation that did not land is not a turn failure */ }
+  });
+}
+
+function chainOf(key) { return chain.get(key) || Promise.resolve(); }
+
 function tell(op, msg, { sessionId = '' } = {}) {
   // NOT `running()` — see THE BOOT WINDOW. A turn that fails in the first second
   // of a session is exactly the turn whose failure must be recorded.
   if (!running() && !waking) return;
-  ordered(sessionId, async () => {
-    if (!(await reachable())) return;
-    try { remember(sessionId, await supervisor.callIfRunning({ op, ...msg })); } catch {
-      /* an observation that did not land is not a turn failure */
-    }
-  });
+  const key = sessionId || '';
+  let batch = queued.get(key);
+  if (!batch) {
+    batch = [];
+    queued.set(key, batch);
+    setImmediate(() => flush(key));
+  }
+  const last = batch[batch.length - 1];
+  if (last && last.op === op && SUPERSEDES.has(op)) batch[batch.length - 1] = { op, ...msg };
+  else batch.push({ op, ...msg });
 }
 
 /**
@@ -171,6 +203,7 @@ function tell(op, msg, { sessionId = '' } = {}) {
  */
 async function ask(op, msg, { sessionId = '', timeoutMs = OFFER_TIMEOUT_MS } = {}) {
   if (!running() && !waking) return null;
+  flush(sessionId);   // a read sees every observation made before it
   return ordered(sessionId, async () => {
     if (!(await reachable())) return null;
     try {
@@ -233,7 +266,7 @@ async function reachable(timeoutMs = BOOT_WAIT_MS) {
   if (running()) return true;
   const boot = waking;
   if (!boot) return false;
-  await Promise.race([boot, new Promise((r) => setTimeout(r, Math.max(0, timeoutMs)))]);
+  await require('./deadline').race(boot, Math.max(0, timeoutMs));
   return running();
 }
 
@@ -249,8 +282,14 @@ async function reachable(timeoutMs = BOOT_WAIT_MS) {
  * in guardian.rs, and see the note there about never inferring death from
  * silence.
  */
+// ONE BEGIN PER TURN (2026-10-01): App.submit (turnauthority.begin, which covers every path) and turn.js both announce
+// the same turn; the second is dropped while the first is still open. turnEnd closes it.
+const openTurns = new Map();   // sessionId → at
 function turnBegin(sessionId, { turnId = '', model = '', provider = '', connectionId = '' } = {}) {
   if (!sessionId) return;
+  const at = openTurns.get(sessionId);
+  if (at && Date.now() - at < 10_000) return;
+  openTurns.set(sessionId, Date.now());
   wake();
   tell('guardian_turn_begin', {
     session: sessionId,
@@ -284,6 +323,7 @@ function turnPhase(sessionId, phase) {
  */
 function turnEnd(sessionId, { outcome = 'completed', kind = '', reason = '' } = {}) {
   if (!sessionId) return;
+  openTurns.delete(sessionId);
   tell('guardian_turn_end', {
     session: sessionId,
     outcome: String(outcome || 'completed'),
@@ -531,15 +571,48 @@ function clearModel(sessionId) {
  * (they queue behind it and land when it completes); the REQUEST boundary
  * arms from the first request made with a runtime already up.
  */
+/**
+ * IS THIS ROUTE SHUT BY THE DURABLE STORE? Read straight from the record the supervisor persists
+ * (<home>/supervisor/providers/<id>.json) — a stat and, when it changed, one small read; no IPC. The same rule as
+ * guardian.rs request_begin: shut only for a rate limit with a STATED future reset (a missing reset is not a clock).
+ * This is what keeps a limit another process learned from reaching this one's wire.
+ */
+const shutMemo = new Map();   // file → { mtimeMs, rec }
+function routeShut(connectionId, now = Date.now()) {
+  if (!connectionId) return null;
+  let s = String(connectionId).replace(/[^A-Za-z0-9._-]/g, '_');
+  if (s && /^\.+$/.test(s)) s = `_${s}`;
+  const file = require('path').join(supervisor.stateDir(), 'providers', `${s}.json`);
+  let st;
+  try { st = require('fs').statSync(file); } catch { return null; }
+  let m = shutMemo.get(file);
+  if (!m || m.mtimeMs !== st.mtimeMs) {
+    let rec = null;
+    try { rec = JSON.parse(require('fs').readFileSync(file, 'utf8')); } catch { rec = null; }
+    m = { mtimeMs: st.mtimeMs, rec };
+    shutMemo.set(file, m);
+  }
+  const r = m.rec;
+  if (!r || !r.rate_limited || !(Number(r.reset_at) > now)) return null;
+  return `ROUTE_SHUT: ${r.id || connectionId} is rate limited for another ${Math.max(1, Math.floor((Number(r.reset_at) - now) / 60000))}m`;
+}
+
 async function requestBegin(sessionId, { turnId = '', model = '', provider = '', connectionId = '' } = {}) {
+  // AN OBSERVATION, NO LONGER AN AWAITED ROUND TRIP (2026-10-01). It was awaited before every model request and queued
+  // behind every unsent phase note — measured as most of Noema's ~120–270 ms pre-request overhead. Its refusals are
+  // decided here without IPC: ROUTE_SHUT from the durable provider record (routeShut), and TURN_LOST cannot be true
+  // for the live process that owns the turn and is asking. The runtime still learns the request opened.
+  const shut = routeShut(connectionId);
+  if (shut) return { allow: false, reason: shut };
   if (!sessionId || !running()) return null;
-  return ask('request_begin', {
+  tell('request_begin', {
     session: sessionId,
     turn_id: String(turnId || ''),
     model: String(model || ''),
     provider: String(provider || ''),
     connection_id: String(connectionId || ''),
   }, { sessionId });
+  return null;
 }
 
 /**
@@ -566,6 +639,7 @@ function requestEnd(sessionId, requestId, { usage = null } = {}) {
 }
 
 module.exports = {
+  flush,
   DEGRADED, OFFER_TIMEOUT_MS,
   running, wake, reachable, last, forgetLocal,
   turnBegin, turnPhase, turnEnd,

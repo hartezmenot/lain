@@ -1,0 +1,17 @@
+READ-ONLY inspection. Do not modify anything: no project files, no .lain records, no tests.
+
+The live Toralink web UI (this project's webapp, running) was captured as observation receipt {RECEIPT}: its DOM and accessibility nodes with bounds and state, the page's network and console, and runtime facts, after a search for "big buck bunny". Read it with the observe tool and receipt "{RECEIPT}". The project source is also available.
+
+Identify the complete live search interaction surface and its runtime relationships:
+1. the search input;
+2. the search submission control;
+3. the source/provider control, if present;
+4. the status/loading/error surface;
+5. the results container;
+6. one result item;
+7. the selected-result/download action, if present;
+8. any live endpoint/network action directly associated with search.
+
+For each element report, where observable: its DOM selector / accessibility identity, visible label, bounds, state, parent/relationship, and the relevant runtime/network relationship. Say plainly when something is not present.
+
+Do not redesign anything. Do not write project files.

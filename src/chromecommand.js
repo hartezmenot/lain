@@ -21,7 +21,7 @@ async function run(app, args, { C }) {
 
   if (how === 'status') {
     const s = bridge.status();
-    w('\n' + C.bold('LAIN FOR CHROME') + '\n');
+    w('\n' + C.bold('NOEMA FOR CHROME') + '\n');
     w('  ' + 'Bridge'.padEnd(16) + (s.connected ? C.green(`✓ listening on 127.0.0.1:${s.port}`) : C.dim('— not started')) + '\n');
     w('  ' + 'Extension'.padEnd(16) + (s.extensionSeen ? C.green('✓ registered') : C.dim('— has not registered yet')) + '\n');
     w('  ' + 'Authorized tabs'.padEnd(16) + (s.authorizedTabs.length ? C.green(String(s.authorizedTabs.length)) : C.dim('0')) + '\n');
@@ -33,7 +33,7 @@ async function run(app, args, { C }) {
   if (how === 'connect') {
     const r = await bridge.connect();
     w('  ' + C.green('✓ BRIDGE LISTENING') + C.dim(`  127.0.0.1:${r.port}\n`));
-    w('\n  Open the LAIN for Chrome extension\'s popup and paste this token:\n\n');
+    w('\n  Open the Noema for Chrome extension\'s popup and paste this token:\n\n');
     w('    ' + C.bold(r.token) + '\n\n');
     w(C.dim('  Then authorize the tab(s) you want reachable. Nothing is controllable until you do —\n'));
     w(C.dim('  the extension decides what is exposed, never this bridge.\n'));

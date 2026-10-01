@@ -1,8 +1,13 @@
 [package]
-name = "lain-supervisor"
+name = "noema-supervisor"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.89"
+
+# THE PROCESS IS NOEMA'S: the package and binary are noema-supervisor; only the directory keeps its old name.
+[[bin]]
+name = "noema-supervisor"
+path = "src/main.rs"
 
 [dependencies]
 

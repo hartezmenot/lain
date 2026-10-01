@@ -68,7 +68,7 @@ module.exports = async function () {
       // The observed shape: the provider answers B with nothing at all.
       script: [{ text: 'FIRST_REPLY' }, { text: '' }, { text: 'SECOND_REPLY' }, { text: 'THIRD_REPLY' }],
       steps: [
-        { until: 'Ask LAIN', timeout: 40000 },
+        { until: 'Ask Noema', timeout: 40000 },
         { send: 'reply with first\r' }, { until: 'FIRST_REPLY', timeout: 30000 }, { snap: 'A', settle: 1200 },
         { send: 'reply with second\r' }, { until: 'SECOND_REPLY', timeout: 20000 }, { snap: 'B', settle: 1200 },
         { send: 'reply with third\r' }, { until: 'THIRD_REPLY', timeout: 20000 }, { snap: 'C', settle: 1200 },
@@ -104,7 +104,7 @@ module.exports = async function () {
         { text: 'R_AFTER_CANCEL' },
       ],
       steps: [
-        { until: 'Ask LAIN', timeout: 40000 },
+        { until: 'Ask Noema', timeout: 40000 },
         { send: 'reply with first\r' }, { until: 'R_FIRST', timeout: 20000 }, { snap: 'first', settle: 1200 },
         { send: 'reply with second\r' }, { until: 'R_SECOND', timeout: 20000 }, { snap: 'second', settle: 1200 },
         { send: 'reply with third\r' }, { until: 'R_THIRD', timeout: 20000 }, { snap: 'third', settle: 1200 },
@@ -132,7 +132,7 @@ module.exports = async function () {
     // /goal with no goal is `GOAL › _` — the composer label, and nothing narrated.
     assert.match(text(s.goal), /GOAL ›/, 'the composer says what the line is for');
     assert.ok(!/GOAL ›/.test(text(s.goalclosed)), 'Esc gives the line back');
-    assert.match(text(s.goalclosed), /Ask LAIN/);
+    assert.match(text(s.goalclosed), /Ask Noema/);
     assert.ok(!/GOAL ›|What are you trying to achieve/.test(text(s.aftergoal)), 'and nothing about it lingers under later turns');
 
     // ONE CLOCK: it pauses in the rate-limit wait, and every new turn starts at zero.

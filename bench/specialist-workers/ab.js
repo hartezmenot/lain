@@ -92,9 +92,9 @@ const PROMPT = [
 const USES = { control: [], laya: ['laya'], violetto: ['violetto'], 'laya+violetto': ['laya', 'violetto'] };
 const ENV = {
   control: { LAIN_LOCATE: 'off', LAIN_WORKER_LAYA: 'off', LAIN_WORKER_VIOLETTO: 'off' },
-  laya: { LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_WORKER_VIOLETTO: 'off' },
+  laya: { LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKER_VIOLETTO: 'off' },
   violetto: { LAIN_LOCATE: 'off', LAIN_WORKER_LAYA: 'off', LAIN_WORKER_VIOLETTO: 'on' },
-  'laya+violetto': { LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_WORKER_VIOLETTO: 'on' },
+  'laya+violetto': { LAIN_LOCATE: 'on', LAIN_WORKER_LAYA: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKER_VIOLETTO: 'on' },
 };
 
 const EDIT = new Set(['edit_file', 'apply_patch', 'write_file', 'append_file', 'insert_at', 'delete_range', 'replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol', 'move_file', 'delete_file']);

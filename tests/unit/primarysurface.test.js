@@ -66,7 +66,7 @@ module.exports = async function () {
     assert.match(out, /lain-v2/, 'the project must be named');
     assert.match(out, /claude-opus-4/, 'the active model must be named');
     assert.match(out, /1\.2K/, 'the live output count must be readable, at three significant figures');
-    assert.match(out, /Ask LAIN/, 'and the input region must be present and say what it is for');
+    assert.match(out, /Ask Noema/, 'and the input region must be present and say what it is for');
   });
 
   await test('SURFACE: the input is the anchor — one region, at the bottom, with no box', () => {
@@ -77,7 +77,7 @@ module.exports = async function () {
     // (\x1b[<row>;1H) rather than from a split — which is what the terminal
     // actually does with it.
     const out = draw();
-    const hits = out.match(/Ask LAIN/g) || [];
+    const hits = out.match(/Ask Noema/g) || [];
     assert.strictEqual(hits.length, 1, 'exactly one input region');
     // ---- AND IT HAS NO RECTANGLE AROUND IT ---------------------------
     //
@@ -102,7 +102,7 @@ module.exports = async function () {
       const last = addr[addr.length - 1] || '';
       return Number((last.match(/\[(\d+);/) || [])[1] || 0);
     };
-    const inputRow = rowOf(out, 'Ask LAIN');
+    const inputRow = rowOf(out, 'Ask Noema');
     assert.ok(inputRow >= 25, `the input belongs on the floor of a 30-row screen, drawn at row ${inputRow}`);
     // AND THE RESULT READS ABOVE IT — the hierarchy this whole file is about.
     const answerRow = rowOf(out, 'Routing fixed.');
@@ -123,7 +123,7 @@ module.exports = async function () {
     assert.strictEqual(b.detail, a.detail, 'nor may the subject');
   });
 
-  await test('ACTIVITY: with nothing running and nothing done, LAIN says READY — not a fake verb', () => {
+  await test('ACTIVITY: with nothing running and nothing done, Noema says READY — not a fake verb', () => {
     // The resting state is a state. Inventing READING here would be the exact
     // dishonesty the activity architecture forbids.
     const idle = status.liveState({}, Date.now());
@@ -171,7 +171,7 @@ module.exports = async function () {
     // setInterval could animate a lie past every behavioural test here.
     const src = fsx.readFileSync(path.join(__dirname, '..', '..', 'src', 'ui', 'status.js'), 'utf8');
     assert.ok(!/setInterval|setTimeout/.test(src), 'the status strip must not schedule anything');
-    assert.ok(!/Math\.random/.test(src), 'and it must never invent what LAIN is doing');
+    assert.ok(!/Math\.random/.test(src), 'and it must never invent what Noema is doing');
   });
 
   // ---------------------------------------------------------- boundary ----

@@ -41,13 +41,13 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
     // observation's own state — never the session, the plan or the messages —
     // so there is nothing for a turn in flight to lose.
     duringTurn: DURING_TURN.SAFE,
-    desc: 'Stop the observed run — LAIN keeps the evidence and keeps working',
+    desc: 'Stop the observed run — Noema keeps the evidence and keeps working',
     run(app, { rest } = {}) {
       const w = (s) => app.render.write(s);
       const yard = app._observatory;
       const obs = yard && yard.current;
       if (!obs || !obs.running) {
-        w(C.dim('  Nothing is being observed. ') + C.dim('Ctrl+C stops the turn; /exit leaves LAIN.\n'));
+        w(C.dim('  Nothing is being observed. ') + C.dim('Ctrl+C stops the turn; /exit leaves Noema.\n'));
         return;
       }
       const observe = require('./observe');

@@ -374,6 +374,7 @@ function dir() { return path.join(config.configDir(), 'migrations'); }
 function fileFor(id) { return path.join(dir(), `${id}.json`); }
 
 function save(contract) {
+  listMemo = null;
   fs.mkdirSync(dir(), { recursive: true });
   const f = fileFor(contract.id);
   fs.writeFileSync(`${f}.tmp`, JSON.stringify(manifest(contract), null, 2), 'utf8');
@@ -401,8 +402,22 @@ function load(id) {
   } catch { return null; }
 }
 
-/** Every manifest, newest first. */
+/**
+ * Every manifest, newest first. MEMOISED on the folder's own mtime (2026-10-01): dispatch and the prompt each asked
+ * for it on every turn, re-reading and re-parsing every manifest — ~59 ms a turn on a real home. A new, renamed or
+ * removed manifest moves the folder's mtime; this process's own writes clear the memo.
+ */
+let listMemo = null;
 function list() {
+  let st = null;
+  try { st = fs.statSync(dir()); } catch { return []; }
+  const sig = `${dir()}|${st.mtimeMs}`;
+  if (listMemo && listMemo.sig === sig) return listMemo.value.slice();
+  const value = listUncached();
+  listMemo = { sig, value };
+  return value.slice();
+}
+function listUncached() {
   let names = [];
   try { names = fs.readdirSync(dir()).filter((f) => f.endsWith('.json')); } catch { return []; }
   const out = [];

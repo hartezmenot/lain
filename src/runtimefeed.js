@@ -103,7 +103,7 @@ function headline(e) {
     case 'TURN_INTERRUPTED':
       return `a turn did not finish${e.reason ? ` — ${e.reason}` : ''}`;
     case 'INPUT_HELD':
-      return `LAIN is holding what you typed${e.reason ? ` — ${e.reason}` : ''}`;
+      return `Noema is holding what you typed${e.reason ? ` — ${e.reason}` : ''}`;
     case 'HANDOVER_CREATED':
       return `a handover is needed${e.reason ? ` — ${e.reason}` : ''}`;
     case 'MODEL_SWITCHED':

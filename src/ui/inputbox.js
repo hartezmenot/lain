@@ -172,7 +172,7 @@ function shownRows(screen) {
  * placeholder that could be submitted would be the worst possible bug in the
  * one region that sends things.
  */
-const PLACEHOLDER = 'Ask LAIN…';
+const PLACEHOLDER = 'Ask Noema…';
 
 /**
  * ...AND WHAT IT SAYS WHEN A QUESTION IS OPEN.

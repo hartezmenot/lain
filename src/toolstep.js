@@ -71,7 +71,9 @@ async function run(call, { session, evidence = null, toolCtx }) {
     ledger = null;
   }
   const substitute = (gate && gate.substitute) || ledger;
+  const t0 = Date.now();
   let result = substitute || await toolRegistry.execute(call.name, call.input, toolCtx);
+  require('./perfmark').add(`tool:${call.name}`, Date.now() - t0);
   // Flagged here, once, rather than re-derived by every caller that cares
   // whether an exit code proves anything — see evidencekind.js.
   if (result && /^run_/.test(call.name)) {

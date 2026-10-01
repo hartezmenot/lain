@@ -182,7 +182,7 @@ module.exports = async function () {
     const seen = rawFrames(r.out);
     const at = seen.findIndex((f) => inputRows(f).some((l) => /^\/exit$/.test(l)));
     assert.ok(at >= 0, 'the pasted text never reached the input region');
-    assert.ok(seen.length > at + 1, 'LAIN stopped drawing at the paste — it took the /exit');
+    assert.ok(seen.length > at + 1, 'Noema stopped drawing at the paste — it took the /exit');
     assertIncludes(plain(r.out), 'Session saved', 'and it left only when actually asked to');
   });
 
@@ -258,7 +258,7 @@ module.exports = async function () {
     // ↑ after both were submitted must recall the TYPED one.
     const recalled = rawFrames(r.out).reverse()
       .map((f) => inputRows(f, 0)[0] || '')
-      .find((l) => l.trim() && l.trim() !== 'Ask LAIN…');
+      .find((l) => l.trim() && l.trim() !== 'Ask Noema…');
     assert.ok(recalled, 'nothing was ever recalled into the input region');
     assert.ok(!/pasted body/.test(recalled), `↑ recalled a paste: ${JSON.stringify(recalled)}`);
   });

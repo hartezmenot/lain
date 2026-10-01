@@ -17,11 +17,19 @@ const { Session } = require('../../src/session');
 const { Task } = require('../../src/task');
 
 module.exports = async function () {
-  await test('PROFILE: NORMAL by default; /fast /normal /slow set it; ECO is the identity of /slow; a legacy fast session reads FAST', () => {
+  await test('PROFILE: NORMAL by default; Normal · Fast · Eco only (Phase 8.1); a saved SLOW reads — and re-saves — as ECO; a legacy fast session reads FAST', () => {
     const s = new Session({ cwd: tmpdir('prof-') });
     assert.strictEqual(profile.of(s), 'NORMAL');
-    assert.strictEqual(profile.set(s, 'slow'), 'ECO');
-    assert.strictEqual(profile.of(s), 'ECO');
+    assert.deepStrictEqual(profile.PROFILES, ['FAST', 'NORMAL', 'ECO'], 'Slow is not a profile');
+    assert.strictEqual(profile.set(s, 'slow'), 'ECO', 'the retired SLOW is ECO');
+    s.profile = 'SLOW';
+    assert.strictEqual(profile.of(s), 'ECO', 'a session saved as SLOW reads as ECO');
+    const saved = new Session({ cwd: tmpdir('prof-r-') });
+    saved.profile = 'SLOW'; require('../../src/workbench').of(saved).pendingProfile = 'SLOW'; saved.save();
+    const r2 = Session.resume(saved.id);
+    assert.strictEqual(r2.profile, 'ECO', 'resume migrates a saved SLOW to ECO');
+    assert.strictEqual(r2.workbench.pendingProfile, 'ECO', 'and a queued SLOW');
+    assert.strictEqual(profile.of(new Session({ cwd: tmpdir('prof-e-') }), { executionProfile: 'slow' }), 'ECO', 'a configured SLOW default is ECO');
     assert.strictEqual(profile.set(s, 'FAST'), 'FAST');
     assert.strictEqual(s.fast, true, 'the older boolean follows');
     const legacy = new Session({ cwd: tmpdir('prof-l-') }); legacy.fast = true;
@@ -41,7 +49,8 @@ module.exports = async function () {
     assert.strictEqual(t('FAST', 'NORMAL'), 'NORMAL');
     assert.strictEqual(t('FAST', 'FAST', 'on'), 'FAST', '`on` is explicit');
     assert.strictEqual(t('NORMAL', 'FAST', 'off'), 'NORMAL');
-    assert.strictEqual(t('ECO', 'slow'), 'NORMAL', '/slow is the same toggle as /eco');
+    assert.strictEqual(t('SLOW', 'ECO'), 'NORMAL', 'a saved SLOW is ECO, so /eco returns to Normal');
+    assert.strictEqual(t('SLOW', 'FAST'), 'FAST');
   });
 
   await test('PROFILE TOGGLE: through the registered commands, FOCUS and AUTO/MANUAL/PLAN untouched', async () => {
@@ -85,11 +94,11 @@ module.exports = async function () {
     assert.strictEqual(execmode.label(s), 'AUTO', 'the default says nothing');
   });
 
-  await test('PROFILE: the context budget — FAST larger, ECO smaller, same floor and ceiling', () => {
+  await test('PROFILE: the context budget — FAST never larger (speed is doing less, not carrying more), ECO smaller, same ceiling', () => {
     const budget = require('../../src/contextbudget');
     const pc = { ctx: 200000 };
     const n = budget.charsFor(pc, { executionProfile: 'NORMAL' });
-    assert.ok(budget.charsFor(pc, { executionProfile: 'FAST' }) > n);
+    assert.ok(budget.charsFor(pc, { executionProfile: 'FAST' }) <= n, 'a bigger context is more to prefill on every request');
     assert.ok(budget.charsFor(pc, { executionProfile: 'ECO' }) < n);
     assert.ok(budget.charsFor({ ctx: 16000 }, { executionProfile: 'FAST' }) <= budget.charsFor({ ctx: 16000 }, { executionProfile: 'NORMAL' }) * 1.01 + 1, 'never above the provider ceiling');
   });
@@ -205,6 +214,6 @@ module.exports = async function () {
     profile.set(s, 'ECO');
     assert.match(execmode.guidance(s), /ECO — token economy[\s\S]*BATCH[\s\S]*Same verification bar[\s\S]*final smoke/);
     profile.set(s, 'FAST');
-    assert.match(execmode.guidance(s), /FAST[\s\S]*DISJOINT[\s\S]*Never skip required reads, verification or permissions/);
+    assert.match(execmode.guidance(s), /FAST — lowest latency[\s\S]*no preliminary surveys[\s\S]*targeted check[\s\S]*Never skip required reads, verification or permissions/);
   });
 };

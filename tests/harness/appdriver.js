@@ -28,13 +28,18 @@
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 
+// ISOLATED BEFORE ANYTHING OF CORE'S IS REQUIRED. Whoever loads this driver —
+// the test runner or a scratch script — gets a run-owned profile, never the
+// person's real ~/.lain-v2. See tests/harness/isolation.js.
+const isolation = require('./isolation');
+isolation.ensure();
+
 function scriptFile(steps) {
-  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lain-appdrv-')), 'script.json');
+  const p = path.join(isolation.tmp('appdrv-'), 'script.json');
   fs.writeFileSync(p, JSON.stringify(steps));
   return p;
 }
@@ -47,12 +52,12 @@ function scriptFile(steps) {
  * @returns {Promise<Driver>} or `{ skipped: why }`
  */
 async function open({ cwd = null, script = [], width = 1280, height = 820, resume = null } = {}) {
-  if (process.platform !== 'win32') return { skipped: 'LAIN Desktop is Windows-only for now' };
+  if (process.platform !== 'win32') return { skipped: 'Noema Desktop is Windows-only for now' };
   const desktop = require(path.join(ROOT, 'src', 'desktop'));
   const built = desktop.build();
   if (!built.ok) return { skipped: `the desktop host could not be built: ${built.why}` };
 
-  const dir = cwd || fs.mkdtempSync(path.join(os.tmpdir(), 'lain-appproj-'));
+  const dir = cwd || isolation.tmp('appproj-');
   process.env.LAIN_PROVIDER = 'mock';
   process.env.LAIN_MOCK_SCRIPT = scriptFile(script);
   require(path.join(ROOT, 'src', 'mockprovider'))._reset();
@@ -118,6 +123,27 @@ async function open({ cwd = null, script = [], width = 1280, height = 820, resum
       }
       throw new Error(`timed out waiting for: ${expr} (last: ${JSON.stringify(last)})`);
     },
+    /**
+     * GO TO A SURFACE THE WAY A PERSON WOULD (Phase 8.2): the app panel when it is on
+     * screen (every surface but the IDE), otherwise the IDE's small LAIN switcher at
+     * the top-left.
+     */
+    async surface(tab) {
+      const how = await d.js(`(() => {
+        const t = document.querySelector('.gtab[data-tab="${tab}"]');
+        if (t && t.offsetParent !== null && t.getBoundingClientRect().width > 0) { t.click(); return 'rail'; }
+        const s = document.getElementById('surfBtn');
+        if (!s || s.offsetParent === null) return 'none';
+        s.click();
+        return 'switcher';
+      })()`);
+      if (how === 'switcher') {
+        await d.until("!!document.querySelector('.surfpop')", 5000);
+        await d.js(`(() => { const want = { home: 'Home', ide: 'IDE', chat: 'Chat', model: 'Model', usage: 'Usage', mcp: 'MCP & Skills', settings: 'Settings' }['${tab}']; const b = Array.from(document.querySelectorAll('.surfpop button')).find((x) => x.textContent.startsWith(want)); b.click(); return true; })()`);
+      } else if (how === 'none') throw new Error(`no visible navigation to ${tab}`);
+      await d.until(`LAIN.nav.tab() === '${tab}'`, 5000);
+      return how;
+    },
     async click(selector) {
       const r = await page.click(selector);
       if (r && r.ok === false) throw new Error(`click ${selector}: ${r.why}`);
@@ -149,14 +175,22 @@ async function open({ cwd = null, script = [], width = 1280, height = 820, resum
     },
     async close() {
       try { conn.close(); } catch { /* going away */ }
+      // THIS CORE ENDS WITH THE TEST: its terminals go the way teardown.js ends them on a real exit.
+      // A shell left open held the runner's event loop, and a run that had passed never exited.
+      for (const a of [app, app._sibling]) { try { if (a) require(path.join(ROOT, 'src', 'pty')).closeAll(a); } catch { /* none held */ } }
       // THE WINDOW AND THE CHANNEL, in that order and both awaited: a host left
       // running is a window on somebody's desktop that outlived its test, and
       // this repository has already paid for that once.
       try { await win.close(); } catch { /* going away regardless */ }
       try { ipc.stop(); } catch { /* stopped */ }
+      // ITS SUPERVISOR TOO (Gate 3, 2026-09-30): the detached `lain-supervisor serve --home <this run's home>` this
+      // Core started outlived every scratch run that ended with close() — 59 orphans were found. Only processes this
+      // client spawned are stopped (supervisor.cleanupOwned), exactly as tests/run.js ends a tier.
+      try { await require(path.join(ROOT, 'src', 'supervisor')).cleanupOwned(); } catch { /* legacyprocs.scan reports any left */ }
+      try { await require(path.join(ROOT, 'src', 'harness', 'processes')).cleanupOwned(); } catch { /* none held */ }
     },
   };
   return d;
 }
 
-module.exports = { open };
+module.exports = { open, tmp: isolation.tmp, cleanup: isolation.cleanup, isolated: isolation.isolated };

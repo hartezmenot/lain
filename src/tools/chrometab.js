@@ -39,7 +39,7 @@ const ACT = ['switch_tab', 'open_tab', 'close_tab', 'navigate', 'back', 'forward
 const schema = {
   name: 'chrome_tab',
   description:
-    'Observe and drive the user\'s REAL Chrome, through the LAIN for Chrome extension the person installed and '
+    'Observe and drive the user\'s REAL Chrome, through the Noema for Chrome extension the person installed and '
     + 'connected. NOT for the native Harness UI (use ordinary interaction there) and NOT a general browsing tool — '
     + `only the tabs the person explicitly authorized in the extension\'s popup are reachable. `
     + `Observations: ${OBSERVE.join(', ')}. Actions: ${ACT.join(', ')}. `
@@ -71,7 +71,7 @@ async function run(input, ctx) {
   const bridge = bridgeFor(ctx);
   const op = String((input && input.op) || '');
   if (!bridge || !bridge.connected) {
-    return refused('LAIN for Chrome is not connected. The user runs `/chrome connect`, installs the extension if '
+    return refused('Noema for Chrome is not connected. The user runs `/chrome connect`, installs the extension if '
       + 'needed, and pastes the token into its popup. It cannot be started from here.');
   }
   if (!OBSERVE.includes(op) && !ACT.includes(op)) return refused(`there is no chrome_tab operation "${op}"`);

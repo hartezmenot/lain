@@ -35,7 +35,7 @@ const PLAN = '## Plan: fix stalled downloads\n1. Add a stall timer to `DownloadQ
 
 module.exports = async function () {
   await test('HARNESS CONTRACT REAL: Chat → plan → Coding → background status → Project Files → dev server → Bot → Settings → quit', async () => {
-    if (process.platform !== 'win32') { process.stdout.write('    (skipped: LAIN Desktop is Windows-only for now)\n'); return; }
+    if (process.platform !== 'win32') { process.stdout.write('    (skipped: Noema Desktop is Windows-only for now)\n'); return; }
     const proj = tmpdir('contract-proj-');
     fs.writeFileSync(path.join(proj, 'queue.js'), 'class DownloadQueue {}\nmodule.exports = DownloadQueue;\n');
     fs.writeFileSync(path.join(proj, 'package.json'), JSON.stringify({ name: 'contractfixture', private: true, scripts: { dev: 'node server.js' } }));
@@ -64,7 +64,9 @@ module.exports = async function () {
       trace("the shell, the workspace tabs, the sessions");
       await d.until("!!document.getElementById('app') && !document.getElementById('app').hidden", 40000);
       const text = await d.js("document.getElementById('tabs').innerText");
-      for (const t of ['HOME', 'IDE', 'CHAT', 'BOT', 'MODEL', 'SESSION', 'SETTINGS']) assert.ok(text.toUpperCase().includes(t), `the ${t} tab: ${text}`);
+      // PHASE 8: six top-level surfaces; BOT is Settings › Assistant, SESSION lives in Chat.
+      for (const t of ['HOME', 'IDE', 'CHAT', 'MODEL', 'USAGE', 'MCP & SKILLS', 'SETTINGS']) assert.ok(text.toUpperCase().includes(t), `the ${t} tab: ${text}`);
+      assert.ok(!/\bBOT\b|\bSESSION\b/.test(text.toUpperCase()), `BOT and SESSION are not top-level tabs: ${text}`);
       assert.ok(await d.js('!!(window.LAIN && window.LAIN.contract)'), 'the contract client is loaded in the renderer');
       await c("window.__events = []; C.on('session.status', function (e) { window.__events.push(e); }); return true;");
 

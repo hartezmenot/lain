@@ -91,7 +91,7 @@ tools.observe_start = {
     name: 'observe_start',
     description:
       'Run something and WATCH IT WITHOUT LOOKING AT IT — a bot, a game script, a long automation. '
-      + 'Say what it should do and which output lines matter; LAIN then stays quiet while it runs '
+      + 'Say what it should do and which output lines matter; Noema then stays quiet while it runs '
       + 'and captures the screen only when a rule you marked `capture` fires. '
       + 'DO NOT take screenshots in a loop while it runs: that costs a request per glance and still '
       + 'misses anything shorter than the gap between them. Call observe_stop ONCE when it should '
@@ -149,6 +149,7 @@ tools.observe_start = {
     const jobsMod = require('./jobs');
     const started = jobsMod.startFor(app, ctx, { command, shell: input.shell });
     if (!started.ok) return { output: started.why, isError: true };
+    started.job.kind = 'monitor';   // a watched run is a MONITOR on the activity line, not a shell
 
     observe.attach(obs, started.job, (rule) => capture(app, rule, obs));
     // WHEN THE RUN ENDS BY ITSELF the observation ends with it. A bot that

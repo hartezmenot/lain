@@ -31,9 +31,9 @@ module.exports = async function () {
     // WHETHER IT IS STILL GOING are not.
     // ------------------------------------------------------------------
     assert.strictEqual(title.compose({ folder: 'scalppbot' }), 'scalppbot');
-    assert.ok(!/LAIN/.test(title.compose({ folder: 'scalppbot' })), 'no branding in the title');
-    assert.strictEqual(title.compose({ folder: '' }), 'LAIN',
-      'with no project at all the title has to say something, and this is the one place it says LAIN');
+    assert.ok(!/Noema/.test(title.compose({ folder: 'scalppbot' })), 'no branding in the title');
+    assert.strictEqual(title.compose({ folder: '' }), 'Noema',
+      'with no project at all the title has to say something, and this is the one place it says Noema');
   });
 
   await test('TITLE: working is a SPINNER, and it turns', () => {

@@ -1,9 +1,10 @@
 {
-  "name": "lain",
-  "version": "2.0.0-alpha.1",
-  "description": "LAIN Harness \u2014 an evidence-driven agentic coding CLI. The model decides; the harness executes, observes, verifies and keeps the receipts. One install, one `lain` command.",
+  "name": "noema",
+  "version": "0.1.0",
+  "description": "Noema — an evidence-driven coding agent for the terminal and the desktop. The model decides; Noema executes, observes, verifies and keeps the receipts.",
   "license": "MIT",
   "bin": {
+    "noema": "bin/noema.js",
     "lain": "bin/lain.js"
   },
   "main": "src/cli.js",
@@ -47,6 +48,6 @@
     "test:global": "node tests/run.js global",
     "test:live": "node tests/run.js live",
     "test:distribution": "node tests/run.js distribution",
-    "dist": "node distribution/build.js"
+    "dist": "node distribution/release.js"
   }
 }

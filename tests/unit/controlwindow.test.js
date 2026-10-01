@@ -129,7 +129,7 @@ module.exports = async function () {
       setTimeout(() => { child.kill(); resolve(out); }, 1200);
     });
     const shown = (frame.split('\x1b[2J\x1b[H').pop() || '').replace(/\x1b\[[0-9;]*m/g, '');
-    assert.match(shown, /LAIN DESKTOP CONTROL/);
+    assert.match(shown, /NOEMA DESKTOP CONTROL/);
     assert.match(shown, /● ACTIVE/);
     assert.match(shown, /Target\s+Cheat Engine/);
     assert.match(shown, /Screen\s+✓ ALLOWED/);
@@ -142,7 +142,7 @@ module.exports = async function () {
     assert.ok(!/grant\(/.test(src), 'the window must never be able to grant anything');
   });
 
-  await test('CTLWIN: the viewer exits when its directory is gone, and when LAIN is gone', async () => {
+  await test('CTLWIN: the viewer exits when its directory is gone, and when Noema is gone', async () => {
     const run = (dir, ms) => new Promise((resolve) => {
       const child = execFile(process.execPath, [VIEWER, dir],
         { env: { ...process.env, NO_COLOR: '1', LAIN_CONTROL_EXIT_GRACE_MS: '300' } });
@@ -165,7 +165,7 @@ module.exports = async function () {
     fs.writeFileSync(path.join(owned, 'state.json'), JSON.stringify({
       pid: dead, project: 'p', bridge: { state: 'CONNECTED' }, active: true, capabilities: {}, activity: [],
     }));
-    assert.strictEqual(await run(owned, 5000), 'exited', 'a viewer outlived the LAIN that fed it');
+    assert.strictEqual(await run(owned, 5000), 'exited', 'a viewer outlived the Noema that fed it');
     fs.rmSync(owned, { recursive: true, force: true });
   });
 

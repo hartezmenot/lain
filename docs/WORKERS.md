@@ -7,6 +7,11 @@ measurably saves flagship work without hurting correctness.
 
 Verification labels for every claim are in `docs/STATUS.md` (2026-09-23 section).
 
+> **2026-09-24, latest (§L):** Violetto is **RETIRED** from the active architecture — every
+> Violetto section below (G.2, G.4, H, K.4, K.5) is history. Laya is repositioned as the
+> **Harness Context & Perception** engine; its source-file ranking is **OFF and rejected**.
+> Geometry and the GUG are Core-owned.
+
 ## A. Architecture map: where each concern already lives
 
 A worker layer has to plug into these owners, not duplicate them.
@@ -226,7 +231,7 @@ Harness page, 20 queries phrased by what a control does.
 uses it nowhere. The A/B (§G.4) forces it on to measure what it does
 end to end.
 
-### G.2 Limite 1B Violetto (Q4_K_M GGUF, patched llama.cpp, CPU)
+### G.2 Limite 1B Violetto (Q4_K_M GGUF, patched llama.cpp, CPU) — RETIRED 2026-09-24 (§L)
 
 Built from `ggml-org/llama.cpp@58367713` + `limite.patch` with MSVC. The GGUF
 SHA-256 was verified. Generation runs at about 32 tokens/s.
@@ -772,7 +777,7 @@ $0.35 at the snapshotted prices. The breakdown:
 EXCLUDED. No saving is claimed: 0 valid runs per arm.
 
 
-## J. Laya project readiness, persistent project index, GPT-6 Luna A/B (2026-09-24, latest)
+## J. Laya project readiness, persistent project index, GPT-6 Luna A/B (2026-09-24)
 
 ### J.1 Why Laya had produced 0 inferences
 
@@ -899,3 +904,353 @@ capture `/responses`, the second 2; one CONTROL run lost to the harness's own
 30-minute wrapper after 40 requests (no report — INVALID, kept as
 `luna-control-invalid`); then CONTROL 14 + LAYA 17. About **76** in all. The
 harness now takes `--timeout-min` and has no outer wrapper.
+
+
+## K. Capabilities do not volunteer; Laya as a live-evidence compiler (2026-09-24, latest)
+
+### K.1 The defect
+
+Capabilities were taking part because they existed. `migration_plan` was
+offered on every request, and Core read any change verb plus "to X" as a
+migration, so "move the button to the right", "switch the theme to dark" and
+"change this button into a lever" all put the migration workflow in front of an
+ordinary edit. Laya ranked files whenever the shortlist was on, the flagship saw
+Violetto as a tool (`geometry_specialist`), and the slice named its worker
+("locate assist · Laya + lexical").
+
+### K.2 Core assigns (`src/dispatch.js`)
+
+Once per input (`identify.js`), Core classifies the request deterministically
+(MIGRATION · UI_GEOMETRY · UI_EVIDENCE · TRACE · QUESTION · GENERAL) and names
+the owners allowed to take part, cheapest first. The assignment is stored on the
+session and appended to `dispatchLedger`. Tools, the prompt and the specialist
+hooks read it. None of them decides for itself that it is relevant.
+Specialists return their result to Core (`dispatch.job`). No worker module
+requires another worker or the migration planner, and a unit test enforces this.
+
+### K.3 migration_plan describes a real state transition
+
+`dispatch.migrationTransition` is eligible only when Core can name the current
+representation, owner or contract, the target one, and the boundary between
+them:
+
+| Trigger | Example |
+|---|---|
+| A technology or persistence representation on either side | JSON → SQLite, React → Vue, webpack → vite |
+| A versioned contract | "the IPC message schema from v1 to v2" |
+| A unit of ownership moving between owners | "the auth module from core to server" |
+| A representation replaced by a new system | "local UI geometry tokens with a centralized design-token system" |
+| A merge or split of established units | "merge these three agents", "split the repository" |
+| The user naming the migration outright | "migrate the tests to the new runner" |
+
+These are never eligible:
+- a value target: `8px`, `right`, `dark`, `rem`, a port number;
+- a purpose clause: "to read the JSON";
+- a UI property change;
+- multi-file, complex or merely planned work.
+
+Checked against 12 valid and 23 invalid requests, including all the steer's
+examples.
+
+- `mode.js` uses the same test, now placed before REFACTOR, which is safe because
+  the test is strict. "Extract the parser into its own file" still reaches
+  REFACTOR.
+- **Not flagship vocabulary by default.** `migration_plan`, `migration_verify`
+  and `migration_activate` are offered only for an eligible input, or while a
+  migration contract is in flight. A call when they are not offered is told why.
+  The always-on prompt no longer advertises them; the MIGRATE guidance still
+  teaches them.
+- **Telemetry.** For each input the ledger records:
+  - eligibility, the trigger that fired, and the transition with its compatibility flag;
+  - whether the tools were offered and `migration_plan` was invoked;
+  - whether its output was used: a later verify, activate or source edit (settled at turn close).
+
+  `/workers` shows the totals.
+
+### K.4 Recruitment per role, not per model (`workers/manifest.json` `roles`, `workerruntime.roleMode`)
+
+| Mode | Meaning |
+|---|---|
+| OFF | never dispatched |
+| SHADOW | dispatched and RECORDED, never consumed, and it never loads a cold model |
+| AUTO | consumed where the input's assignment names the role AND that role's gate passed (otherwise it runs as SHADOW) |
+| FORCE | consumed, as an experiment the person switched on |
+
+| Worker / role | Mode | Why |
+|---|---|---|
+| Laya / source_file_ranker | OFF (REJECT) | both file gates failed; A/B WORSE |
+| Laya / uia_evidence_assembler | SHADOW | live gate FAILED (K.6) |
+| Laya / gug_context_compiler | SHADOW | not evaluated; Core has no live GUG source yet |
+| Violetto / numeric_geometry_solver | SHADOW (experimental) | effectively OFF: the worker switch is off |
+| Violetto / constraint_solver | OFF | not evaluated |
+| Violetto / arbitrary_ui_generation | OFF (REJECT) | outside the contract |
+
+- **Overrides.** `LAIN_ROLE_<ROLE>` or `cfg.workers.roles.<role>` sets one role.
+  `/workers laya on` still forces every role of that worker.
+- **Residency.** `wantsResident` loads a model only for a consuming role, or
+  for a SHADOW role the person set explicitly (warm ≠ participate).
+- **Where it shows.** `/workers` prints each role and its mode.
+
+### K.5 Laya and Violetto are invisible to the flagship (Violetto since RETIRED, §L)
+
+- **Violetto.** `geometry_specialist` is gone. `src/violettojob.js` is a Core
+  job, and `geometryjob.js` owns geometry: `parse` builds a GEOMETRY_JOB; the
+  solver (the bench GUG solver, promoted) is exact.
+- **The direct path.** An explicit numeric change ("10% smaller") with exactly
+  one stylesheet binding is solved by arithmetic. Core writes it through the
+  ordinary gated `edit_file` and verifies it by reading the file back. The turn
+  ends with no model request, no Violetto, no Laya and no `migration_plan`.
+  - It only runs in AUTO execution, in the Coding view, with no read-only
+    declaration.
+  - With two bindings, no number, or a square binding asked to change one side,
+    the flagship receives a "Geometry facts (Core)" block instead.
+- **Violetto telemetry.** Every job records target, constraints, input,
+  solution and `deterministicSufficient`.
+- **Laya's file shortlist** says "Likely relevant files (N ranked)". The ledger
+  row records which tier produced it.
+- **Computer `ui_tree`.** Its deterministic slice's ledger row was labelled
+  `worker: 'LAYA'`; it now says `deterministic`.
+
+### K.6 Laya as a live-evidence compiler: the local gate FAILED
+
+**The role.**
+- **Receipts** (`src/observationstore.js`). A captured observation (DOM with
+  linked accessibility role and name, bounds, state, network with `/api`
+  response summaries, console, runtime) is kept once under a receipt in the LAIN
+  home. `observe {receipt, goal: page | element (ref / query / selector) |
+  requests | errors | system}` reads it. Every read is recorded, so reads
+  outside a slice count as narrowing debt.
+- **Laya's job** (`src/layaevidence.js`). Embedding every node is preparation,
+  done once per observation. At task time Laya embeds the query only, fuses it
+  with Core's deterministic score and returns an EVIDENCE_SLICE that keeps every
+  ref.
+  - It narrows observations only; the request, its read-only status, the output
+    it asks for and its acceptance criteria are untouched.
+  - SHADOW records and attaches nothing; FORCE attaches the slice as ordinary
+    evidence; an unprepared observation is bypassed without waiting.
+
+**Capture** (`bench/live-evidence/capture.js`, once):
+- Setup: a temp copy of Toralink's webapp, a temp state dir and its own port.
+  Your running instance and its state were never touched.
+- One real search for "big buck bunny" returned 13 results with 9/9 sources
+  answering.
+- The capture holds 151 DOM nodes, with the accessibility tree linked by
+  backend node id.
+- Hashes of the whole project, `node_modules` and `.lain` included, were
+  **byte-identical before and after**.
+
+**Ground truth.** Fixed selectors, taken from `src/App.tsx` before any model ran:
+
+| Target | Element |
+|---|---|
+| T1 search input | `input.search-input` |
+| T2 search submission | the `form` (it submits on Enter; there is no button) |
+| T3 source control | `select.sort-select` |
+| T4 status surface | `.search-hint` |
+| T5 results container | `div.results` |
+| T6 result item | `div.result` |
+| T7 download action | `button.dl-btn` "Get" |
+| T8 search endpoint | `GET /api/search` |
+
+**Local gate** (`bench/live-evidence/gate.js`):
+
+| Slice (16 nodes) | Recall | Missed |
+|---|---|---|
+| **shipped: Core fused with Laya** | **1/8** (3/8 counting refs on path lines) | search input, submission, source, status, download |
+| Laya alone | 1/8 | all but the endpoint |
+| Core alone | 3/8 | submission, source, results, item, download |
+| diagnostic, declared in advance: Core splits the 8 items, top 2 each — Laya | 5/8 (14 nodes, 9 irrelevant) | submission, source, download |
+| same diagnostic — Core alone | 5/8 (8 nodes, 4 irrelevant) | submission, source, download |
+
+Laya's top 16 were almost entirely result titles (the literal "big buck bunny"
+in the request), a FitGirl source chip and the "Toradb library" tab. Its cosines
+spanned only 0.892–0.946, the same weak separation as on files. Compression was
+×3.2 (10,152 raw chars).
+
+Preparation was measured apart from the task:
+- cold load 31.6 s (125 s on the first try, with the disk cold);
+- node embedding 8.7 s;
+- about 2.0 GB resident.
+
+The task inference took 371 ms (295 ms warm).
+
+**Verdict: LOCAL GATE FAILED.** The slice misses the search input, the
+submission and the download action. As the protocol requires, **no GPT-6 Luna
+CONTROL/LAYA request was spent.** The role stays SHADOW
+(`gates.live_evidence.pass = false`). The per-item diagnostic shows that a
+better-shaped job does not help: Laya equals Core at a larger size.
+
+### K.7 The route
+
+LainRouter's catalog lists `openai-codex/gpt-6-luna`: native `openai-responses`,
+accepting Responses or Chat, efforts low…max, default medium.
+
+The one acceptance turn (`lr-luna-smoke`, cap 6) never reached it. LainRouter
+went down during the session: `127.0.0.1:4570` refused connections and nothing
+listened there. The proxy recorded 6 × "fetch failed" plus one request refused
+by the cap. **Zero Luna requests were served.**
+
+Per the protocol there was no fallback to 9router, GPT-OSS, Claude or another
+Luna route, and the router was not started or modified from here. The served
+model, protocol, tool calling, usage and effort on LainRouter therefore remain
+**unverified**.
+
+
+## L. Violetto retired; Laya as Harness Context & Perception; the Core-owned GUG; warm uncached input (2026-09-24, latest)
+
+### L.1 Cleanup
+
+| Removed / retired | Where |
+|---|---|
+| `src/violettojob.js` (the Core→Violetto job) | deleted |
+| Violetto's manifest entry, roles and `geometry_solver` contract | moved to `workers/manifest.json` `retired` (identity + gate kept as history); `workers.js` contract replaced |
+| Violetto prewarm, dispatch owners (`violetto:numeric_geometry_solver`), telemetry row | gone; a geometry job now records a `CORE / geometry_solver / DETERMINISTIC` row |
+| Violetto path in `bench/specialist-workers/cache/run.js` | removed (its recorded output stays) |
+| `laya:gug_context_compiler`, `uia_evidence_assembler` | replaced by the roles below (renamed, no alias) |
+| `/workers laya on` reviving the file ranker | a **rejected** role (`rejected: true`) is never raised by a worker switch; only `LAIN_ROLE_SOURCE_FILE_RANKER=FORCE` reaches it (the historical benches set it) |
+
+Kept, generic: the worker host and lifecycle, HOT_IDLE, OFF/SHADOW/AUTO/FORCE,
+bounded job/result contracts, crash containment, per-worker stats, the
+llama-server runtime (no entry uses it now), the result cache, the Laya
+project index (reachable only by the forced ranker).
+
+`/workers` now prints, per worker: runtime installed / loaded / switch; per
+role: mode, invoked, background, critical-path; the Laya background queue;
+RETIRED workers. Installed ≠ loaded ≠ participating.
+
+### L.2 Laya's roles (`src/layacontext.js`, manifest `roles`)
+
+| Role | Mode | Trigger (Core's) |
+|---|---|---|
+| harness_context_compiler | SHADOW (candidate AUTO) | selection / surface / edit / input |
+| selection_resolver | SHADOW (candidate AUTO) | input, when dispatch names it (a deictic reference without an explicit selection) |
+| cross_surface_correlator | SHADOW | selection / input |
+| session_semantic_enrichment | SHADOW (background) | edit / surface |
+| ui_evidence_narrower | SHADOW | a UI-evidence input over a receipt (`layaevidence.js`) |
+| source_file_ranker | **OFF, rejected** | none |
+
+- **The flow.** Core facts (Harness state, GUG, locate) → a bounded job → a
+  hypothesis (refs) → **Core validates** every ref at the current generation
+  (a GUG node that exists at that GUG generation, a file that exists, the
+  selection that is still the selection) → only AUTO/FORCE results enter the
+  packet. SHADOW results are recorded and never consumed.
+- **Never on the critical path.** `enqueue` returns at once; jobs run in a
+  background queue, coalesced per role; SHADOW runs only on a resident model
+  (never loads one); a result that finishes after the context moved on is
+  LATE: counted, discarded, never appended.
+- **Cannot volunteer, self-dispatch or call another worker.** Jobs are pure
+  functions of `(facts, embed)`; an enqueue from inside a job is refused and
+  counted; a unit test reads the job bodies.
+- **Measured in SHADOW:** dispatched, skipped, validated, invalid (false
+  correlation), late, referent recall against Core's explicit selection,
+  raw candidate chars vs slice chars (compression), consumed.
+
+### L.3 The Harness context (`src/harnesscontext.js`)
+
+Core-owned state per session: surface, active file/tab, text selection
+(range + head), visual selection (GUG node + generation), DOM/UIA selection,
+dirty buffers, navigation, a recent-actions ledger (situational, not history),
+runtime refs, a context generation (bumped only when the canonical state
+changes), the project generation (per root, advanced by a manual save, Core's
+own edit or a model mutation) and its PROJECT_DELTA.
+
+Fed by: `POST /api/ide/context` (beside idecontext / journey), `POST /api/files/save`,
+Workshop `picked` / `pick-at` (→ GUG node), turn close (model mutations),
+Core's direct edits.
+
+**The packet** (`packet`) is canonical and bounded (2,400 chars): surface,
+the resolved selection (a selected identifier resolved by `locate.sweep`,
+memoised per project generation), a GUG slice for a visual selection,
+PROJECT_DELTA, recent user actions, and a Laya line only after Core validated
+it. **It is not re-sent:** a new packet is recorded once at the turn's start
+(`anchorPacket`) and spliced into history just before that turn's user message
+(`contextfit.buildWire` → `spliceContext`), so every later request finds it
+in the cached prefix. It is never saved or shown in the feed.
+
+### L.4 The GUG (`src/gug.js`)
+
+- **Nodes:** stable semantic id (`composer.submit`: own token under the
+  nearest named ancestor), surface, role, tag, name, selector, rect, parent /
+  children, limits (only what the page reported, else null), computed geometry
+  style, binding, provenance.
+- **Edges (measured, intent UNKNOWN):** PARENT_OF, CENTERED_IN (x/y),
+  ANCHORED_TO (insets), ALIGNED_WITH (edge), ABOVE / BELOW / LEFT_OF /
+  RIGHT_OF, GAP_TO (px), SAME_WIDTH_AS / SAME_HEIGHT_AS, OVERLAPS,
+  BINDS_TO_SOURCE, CONTROLLED_BY_TOKEN.
+- **Sources:** the Workshop DOM (`workshop/inspect.js measure`, one bounded
+  evaluate), UIA (`fromUia`, no source binding possible), stylesheet rules and
+  custom properties (`bind`: EXACT · MULTIPLE · UNKNOWN).
+- **Reverse mapping:** a source edit marks the nodes that file (or a token in
+  it) sizes as STALE; the next measurement is a new generation, and `impact`
+  reports per-node moves/resizes and relations gained / lost / gap changes
+  (`POST /api/workshop/gug`).
+- **Example slice** (the unit test's fixture, 733 chars, generated — not hand-written):
+
+```
+GUG_SLICE · generation 1 · workshop · http://localhost:5173/
+target: composer.submit <button> "Send"
+geometry: x 912 y 614 w 40 h 40
+parent: composer (x 300 y 600 w 660 h 68)
+relations: width == height · centerY == composer.centerY · insets in composer: top 14 right 8 bottom 14 left 612 · centerY aligned with composer.composer-input · gap before 22px (x) from composer.composer-input
+nearby: composer.composer-input input w 580 h 48
+limits: UNKNOWN (none reported by the page)
+implementation: app.css:2 .submit { width: var(--submit-size); height: var(--submit-size) } · token --submit-size: 40px (app.css:1)
+provenance: DOM · computed-style · source-css
+uncertainty: relations are MEASURED, not declared — design intent is UNKNOWN
+```
+
+### L.5 Deterministic selection jobs (`src/selectionjob.js`)
+
+Through the existing geometry door (`geometryjob.routes/run`), decided on the
+input's own tick, only where Core may write without asking:
+
+- **"rename this to ButtonFix"** with an identifier selected → a synchronous
+  dry run (`rename.scan`); clean (no string/comment/member sites, no clash, not
+  truncated) → the gated `rename_symbol` tool, verified by a second scan.
+  Otherwise the flagship gets the turn with the packet.
+- **"move this down 6px"** on a Workshop node with an EXACT binding → the one
+  px declaration that moves it (`top` for a positioned box, else `margin-top`)
+  → `edit_file`, verified by reading it back.
+- **"make this 10% smaller"** on a Workshop node → width/height arithmetic.
+
+No model, no Laya, no migration_plan on these paths.
+
+### L.6 Warm uncached input (`src/cachebudget.js`, `src/cacheledger.js`, `src/toolbudget.js`)
+
+- **Metric:** `uncached / total` per request, normalised per protocol
+  (anthropic input excludes cache; chat/responses include it). Unreported
+  cache figures are null, never zero. Absolute cached / uncached and total
+  prompt size are kept with every row.
+- **Budgeter:** serialises the exact wire (tools in order, then messages),
+  compares with the lineage's previous request: expected cached = shared
+  prefix. WARM ≤ 5 % SEND · ≤ 8 % PRESSURE · > 8 % reduce the optional tail
+  owners (git status, IDE snapshot, locate shortlist, evidence slice, pinned
+  files) to their floors with a recovery note, re-plan, else send with an
+  EXCEPTION naming the owners. COLD / EPOCH_RESET are labelled, never warm
+  failures.
+- **Epochs:** advance only on a changed tool surface (with the names), a
+  changed system prompt (with the heading), a history rewrite, or a model /
+  route change.
+- **Cache breaker fixed:** `intent.foldRepeats` rewrote an already-sent
+  repeated request on the next request (an epoch reset per repeat); it now
+  never folds a message this lineage already transmitted.
+- **Tool output:** bounded as it enters (24,000 chars default; explicit
+  `read_file` ranges kept up to 80,000; errors never cut; shell keeps head +
+  tail); the raw output is kept under a `tr_…` receipt in LAIN's home.
+- **Where it shows:** `/token` → "Uncached input": warm / cold / resets /
+  unreported, median, p90, worst normal, exceptions.
+
+### L.7 Measurements
+
+- **GPT-6 Luna: NOT MEASURED.** The configured route (`cx/gpt-6-luna` via
+  9router :20128) was not running; LainRouter :4570 answered the one probe
+  request with `429 FAILED_RATE_LIMIT "The usage limit has been reached"`
+  (provider `chaox-gpt`). Per the protocol no other model or route was used.
+  Live spend: 1 request.
+- **Structural estimate** (`bench/cache-warm/run.js --mode mock`, the real wire
+  assembly and budgeter, scripted model with real tool calls, byte-prefix —
+  NOT a provider receipt): 10 requests, 1 COLD, 0 epoch resets, 9 WARM:
+  median 2.99 %, worst 5.30 % (the two requests where a new Harness packet
+  entered history), none over 8 %; mean prompt 67,950 chars, of which tool
+  schemas 45,020 and system 16,535. The deterministic GUG edit took 0 requests.
+  The fixture's tool results are small; tool-heavy turns will be higher.

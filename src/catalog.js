@@ -103,14 +103,23 @@ function displayName(base) {
   // the models without burying the name.
   const qualifier = segments.join('/');
   const [name, variant] = last.split(':');
-  const pretty = String(name || last)
+  const words = String(name || last)
     .replace(/[_]+/g, ' ')
     .replace(/-/g, ' ')
     .trim()
-    .split(/\s+/)
+    .split(/\s+/);
+  // A VERSION SPELLED WITH DASHES (`claude-opus-5-5`, `gemini-2-5-pro`) reads as one:
+  // "5.5", "2.5". Only short numbers join — a date (`2024-08-06`) is left as it is.
+  const joined = [];
+  for (const w of words) {
+    const prev = joined[joined.length - 1];
+    if (prev != null && /^[1-9]\d?(\.\d{1,2})*$/.test(prev) && /^\d{1,2}$/.test(w) && !/^0\d/.test(w)) joined[joined.length - 1] = `${prev}.${w}`;
+    else joined.push(w);
+  }
+  const pretty = joined
     .map((w) => {
       if (/\d/.test(w)) return w;
-      if (w.length <= 3 && !/^(pro|max|air)$/i.test(w)) return w.toUpperCase();
+      if (w.length <= 3 && !/^(pro|max|air|sol)$/i.test(w)) return w.toUpperCase();
       return w.charAt(0).toUpperCase() + w.slice(1);
     })
     .join(' ');
@@ -449,7 +458,11 @@ function familyFold(byFold) {
 function resolve(catalog, { model, connectionId = null, effort = null }) {
   const m = catalog.byId.get(model);
   if (!m) return { ok: false, error: `unknown model "${model}"` };
-  const conn = connectionId ? m.connections.find((c) => c.connectionId === connectionId) : m.connections[0];
+  // A STORED BASE CONNECTION ID (a selection saved before routes carried namespaces) still
+  // resolves — but only when exactly ONE of the model's routes goes through it, never a guess.
+  const exact = connectionId ? m.connections.find((c) => c.connectionId === connectionId) : null;
+  const viaBase = connectionId && !exact ? m.connections.filter((c) => c.baseConnectionId === connectionId) : [];
+  const conn = connectionId ? (exact || (viaBase.length === 1 ? viaBase[0] : null)) : m.connections[0];
   if (!conn) return { ok: false, error: `model "${model}" is not served by connection "${connectionId}"` };
 
   if (!conn.efforts.length) {

@@ -34,7 +34,11 @@ function run(ui) {
   }
   if (busy) {
     const clockText = clock.shown ? clock.text.replace(/^00:/, '') : null;
-    return { parts: ['RUNNING', clockText, step, mode !== 'AUTO' ? mode : '', ...tags].filter(Boolean), tone: 'info' };
+    // NOT `RUNNING · 04:18` any more: the live row below already says what is happening and for how long, and a
+    // third copy of one state is what made the CLI read as stuttering (2026-10-01). The header keeps the plan step
+    // and the mode tags, which nothing else shows.
+    void clockText;
+    return { parts: [mode, step, ...tags].filter(Boolean), tone: 'info', busy: true };
   }
   const idle = [mode, ...tags, step ? `step ${step}` : ''].filter(Boolean);
   return { parts: idle, tone: 'meta' };

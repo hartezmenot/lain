@@ -28,6 +28,8 @@
  * @returns {Promise<object>} the record, or the record of the turn that followed
  */
 async function after(app, record, text) {
+  // THE TURN HAS ENDED: an account switch that waited for it is applied now — never in the middle of a request.
+  try { await require('./sessionintel').applyPending(app, app.session); } catch { /* the choice stays as it was */ }
   if (record && app.ui && app.ui.enabled) require('./compacttip').afterTurn(app);
   // ---- AN INTERRUPTED TURN HAS NO RECORD, AND THAT IS ORDINARY ----------
   //
@@ -128,6 +130,50 @@ async function after(app, record, text) {
     if (app.ui.enabled) app.ui.refresh();
   }
 
+  // ---- THE CODING AGENT'S CHECKPOINT (supervision.js) --------------------
+  //
+  // A Coding turn that ended is an AUTHORITATIVE checkpoint: its phase summary
+  // goes to Chat, pending steers and plan deltas are put to the person, a
+  // queued profile change applies, and the run strategy decides whether LAIN
+  // continues the APPROVED plan on its own (Long Context Phasing). A provider
+  // limit pauses the task resumably first (quotapause.js), so the checkpoint
+  // sees it and does not continue.
+  //
+  // THE NEXT PHASE IS NOT CARRY-ON: the person chose the strategy after a usage
+  // warning; LAIN continues only the approved plan, and stops for any problem.
+  let phaseNext = null;
+  // ---- THE FAMILY'S ACCOUNT POLICY FIRST (Phase 8.3, fabric/fallback.js) ----------
+  // Automatic fallback moves to the next eligible account of the same family for the
+  // same model and effort and CARRIES ON the same task; Ask / Pinned / no compatible
+  // account leave a question on the session instead. Nothing the person chose changes.
+  let fallback = null;
+  if (record.stopReason === 'rate-limited' && record.providerFailure && !app.wantExit) {
+    try { fallback = require('./fabric/fallback').onTurnLimited(app, record); } catch { fallback = null; }
+    if (fallback && fallback.action === 'switched') {
+      if (app.ui.enabled) app.ui.noteActor('note', fallback.text); else app.render.notice('info', fallback.text);
+      return await app.submit(require('./ratelimit').RESUME_PROMPT, { sameTask: true, from: 'account-fallback' });
+    }
+    if (fallback && app.ui.enabled && await require('./fabric/fallback').askInTerminal(app)) {
+      return await app.submit(require('./ratelimit').RESUME_PROMPT, { sameTask: true, from: 'account-fallback' });
+    }
+  }
+  if (require('./sessionviews').current(app.session) === 'coding' && !app.session.cowork) {
+    try {
+      if (record.stopReason === 'rate-limited' && record.providerFailure) require('./quotapause').pause(app, record);
+      const cp = require('./supervision').checkpoint(app, record);
+      if (cp && cp.next) phaseNext = cp;
+      try { app.session.save(); } catch { /* in memory */ }
+    } catch (e) { if (process.env.LAIN_DEBUG_TASK) app.render.notice('warn', `checkpoint: ${e.message}`); }
+  }
+  // THE TASK CARRIES ON (autocontinue.js): the next phase, a turn a provider failure cut (after a bounded,
+  // cancellable wait — Stop ends it), or a crash recovered. Always the same door, with the cause as `from`.
+  if (phaseNext && !app.wantExit && !(record.stopReason === 'rate-limited')) {
+    const ac = require('./autocontinue');
+    if (phaseNext.delayMs > 0 && !(await ac.wait(app, phaseNext.delayMs, phaseNext.cause))) return record;
+    if (phaseNext.compact) ac.compactBoundary(app);
+    return await app.submit(phaseNext.next, { sameTask: true, from: phaseNext.cause || 'phase-continue' });
+  }
+
   // ---- RATE LIMITED FOR HOURS: WAIT, OR CHANGE MODEL --------------------
   //
   // The turn ended without spending itself on a limit measured in hours (see
@@ -135,6 +181,9 @@ async function after(app, record, text) {
   // are asked — and then LAIN does the waiting, rather than the user coming back
   // later to type `continue`.
   if (record.stopReason === 'rate-limited' && record.providerFailure) {
+    // AN ACCOUNT QUESTION IS ALREADY ON THE SESSION (Ask / Pinned / no compatible account): it is the answer
+    // the person gives — the window and Telegram show it; nothing waits on a second question here.
+    if (fallback) { app.render.notice('warn', fallback.text || 'The account is rate limited — choose what to do.'); return record; }
     return await require('./ratelimit').handle(app, record, text);
   }
 

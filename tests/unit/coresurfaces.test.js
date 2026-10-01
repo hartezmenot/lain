@@ -89,7 +89,9 @@ module.exports = async function () {
     // can be unauthenticated. If a verb ever carries conversation, a session or
     // a credential, it belongs on the authenticated channel instead.
     const verbs = [...lock.matchAll(/verb === '([a-z]+)'/g)].map((m) => m[1]).sort();
-    assert.deepStrictEqual(verbs, ['quit', 'show', 'status'], `three verbs: ${verbs.join(', ')}`);
+    // 2026-09-29: `open` — Windows' Open with LAIN: a PATH, opened as the IDE would open it (openpath.js); it runs and grants nothing.
+    // 2026-09-30: `preview` — `noema preview` while Noema runs: show the running Noema's Preview (it opens a view, grants nothing).
+    assert.deepStrictEqual(verbs, ['open', 'preview', 'quit', 'show', 'status'], `five verbs: ${verbs.join(', ')}`);
     // CODE ONLY. Both comment forms are stripped — the first version of this
     // flagged a line saying the pipe hands out no secret, which is a sentence
     // agreeing with the assertion.
@@ -101,7 +103,7 @@ module.exports = async function () {
     const run = read('src', 'desktoprun.js');
     const askAt = run.indexOf('lock.discover()');
     const appAt2 = run.indexOf('new App(');
-    assert.ok(askAt > 0 && appAt2 > askAt, 'it discovers a running LAIN before constructing one');
+    assert.ok(askAt > 0 && appAt2 > askAt, 'it discovers a running Noema before constructing one');
     const cli = read('src', 'cli.js');
     assert.ok(cli.indexOf("opts.desktop") < cli.indexOf('const { App } = require'),
       'and the CLI routes --desktop before it builds a session');
@@ -135,12 +137,12 @@ module.exports = async function () {
     assert.match(host, /api\/desktop\/quit/, 'and it asks Core rather than exiting here');
     // THE TRAY IS WHAT MAKES HIDING SAFE: something must be left to restore from.
     assert.match(host, /NotifyIcon/, 'there is a tray icon');
-    assert.match(host, /tray\.DoubleClick/, 'and double-clicking it brings LAIN back');
+    assert.match(host, /tray\.DoubleClick/, 'and double-clicking it brings Noema back');
 
     // ONE SHUTDOWN SEQUENCE, THREE CALLERS. A second one would forget an entry.
     for (const f of ['src/repl.js', 'src/corelock.js', 'src/harnessapp/routes.js', 'src/desktoprun.js']) {
       assert.match(fs.readFileSync(path.join(ROOT, f), 'utf8'), /teardown'\)\.shutdown\(/,
-        `${f} ends LAIN through the one sequence`);
+        `${f} ends Noema through the one sequence`);
     }
   });
 

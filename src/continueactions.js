@@ -112,7 +112,9 @@ function instruction({ goalText = '', step = null, plan = null }) {
   else lines.push('Continue the work in hand.');
 
   if (step && plan) {
-    lines.push(`Resume at plan step ${step.n} of ${plan.steps.length}: ${step.text}`);
+    // THE COMMITTED POSITION, counted the one way every surface counts (plan.position): "step 3 of 5".
+    const pos = typeof plan.position === 'function' ? plan.position(step) : { index: step.n, total: plan.steps.length };
+    lines.push(`Resume at plan step ${pos.index} of ${pos.total}: ${step.text}`);
   } else if (plan) {
     lines.push('Every step of the plan is finished — verify the goal is met, or say what remains.');
   } else {

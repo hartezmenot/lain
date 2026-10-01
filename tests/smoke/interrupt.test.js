@@ -52,7 +52,7 @@ module.exports = async function () {
     assertIncludes(plain(r.out), 'interrupted', 'the interruption must be visible as the reason');
   });
 
-  await test('INT SMOKE: LAIN is usable immediately afterwards', async () => {
+  await test('INT SMOKE: Noema is usable immediately afterwards', async () => {
     const r = await runCli([], {
       cwd: tmpdir('int-'), env: tui,
       stdinSteps: ['audit it\n', ETX, '/status\n'], stepDelayMs: 1500,

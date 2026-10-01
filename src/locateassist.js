@@ -245,40 +245,43 @@ async function rank(app, root, query, { laya = 'cos', list = null, generation = 
 /**
  * WHO ANSWERS THIS TURN. The shortlist is OPT-IN (`cfg.workers.locate = 'on'`,
  * `/workers locate on`, or LAIN_LOCATE=on): the end-to-end A/B measured no
- * saving from it, so it is not on by default (docs/WORKERS.md §G.4). Laya
- * joins it only where its recorded gate for FILE location passed (`auto`), or
- * when the person forced it on for an experiment (`on`). See workerruntime.uses.
+ * saving from it, so it is not on by default (docs/WORKERS.md §G.4).
+ *
+ * LAYA DOES NOT VOLUNTEER (dispatch.js). Its `source_file_ranker` role is
+ * REJECTED (OFF): `/workers laya on` does not revive it (workerruntime.roleMode
+ * skips rejected roles); it joins only when a benchmark sets the role itself
+ * (LAIN_ROLE_SOURCE_FILE_RANKER=FORCE) to replay the recorded experiments.
+ * No dispatch class names it. The lexical shortlist above is Core's and stays
+ * opt-in.
  */
 function policy(app, session) {
   const rt = require('./workerruntime');
   const cfg = (app && app.cfg && app.cfg.workers) || {};
   const on = rt.policyOf(app) !== 'off' && String(process.env.LAIN_LOCATE || cfg.locate || 'off').toLowerCase() === 'on';
   const view = (() => { try { return require('./sessionviews').current(session); } catch { return 'coding'; } })();
-  return { on: on && view !== 'chat', laya: rt.uses(app, 'laya', 'file_locate') ? (cfg.layaMode || 'cos') : 'off' };
+  const mode = rt.roleMode(app, 'laya', 'source_file_ranker');
+  const assigned = mode === 'FORCE' || (mode === 'AUTO' && require('./dispatch').allows(session, 'laya:source_file_ranker'));
+  return { on: on && view !== 'chat', laya: assigned && rt.uses(app, 'laya', 'file_locate') ? (cfg.layaMode || 'cos') : 'off', mode };
 }
 
 /**
- * START LOADING LAYA WHEN LAIN OPENS — only when policy will use it — and
- * never wait for it. The load runs in the worker host (workerhost.js); the
- * prompt is usable at once. Nothing is inferred and no token is produced
- * here: a hot, idle model costs memory, not work. Until it is hot, a turn
- * that could use it goes without it (workerruntime's availability deadline).
- *
- * Violetto is NOT loaded in normal work: its gate failed and it is off. It is
- * loaded here only when a person forced it on (an experiment).
+ * THE REJECTED RANKER'S OWN PREPARATION — reached only when a benchmark set
+ * `source_file_ranker` explicitly (LAIN_ROLE_SOURCE_FILE_RANKER=FORCE): the
+ * worker switch never revives a rejected role (workerruntime.roleMode), so in
+ * normal work this returns false and prepares nothing. Model residency for
+ * Laya's Harness roles is layacontext.prewarm's. Never waited for.
  */
 function prewarm(app) {
   try {
     const s = app && app.session;
     if (!s || !s.cwd) return false;
     const rt = require('./workerruntime');
-    if (rt.uses(app, 'violetto', 'geometry')) rt.prewarm(app, 'violetto');
     const pol = policy(app, s);
-    if (!pol.on || pol.laya === 'off') return false;
+    if (!(pol.on && pol.laya !== 'off')) return false;
     rt.prewarm(app, 'laya');
     // AND THE PROJECT: model hot is not project ready. The host embeds this
     // project in the background (or restores it from LAIN's machine-local
-    // cache) so the first task finds it READY — layaindex.js.
+    // cache) — layaindex.js.
     rt.indexProject(app, 'laya', s.cwd);
     return true;
   } catch { return false; }
@@ -323,7 +326,9 @@ async function take(app, session, step = 0) {
   if (r.abstain || !r.ranked.length) return '';
   hold.slice = r.ranked.map((x) => x.id);
   hold.by = r.by;
-  hold.text = `# Likely relevant files (locate assist · ${r.by === 'laya' ? 'Laya + lexical' : 'lexical'} · ${r.n} files ranked)\n`
+  // ORDINARY EVIDENCE: how it was produced is an orchestration detail the
+  // flagship does not need (the ledger row records the tier).
+  hold.text = `# Likely relevant files (${r.n} ranked)\n`
     + r.ranked.map((x) => `- ${x.id}`).join('\n')
     + '\nA ranked suggestion only — open what the task needs; any file remains reachable. It narrows project EVIDENCE; the request, its constraints and the output it asks for are unchanged.';
   hold.row = require('./workers').note(session, {
@@ -338,7 +343,14 @@ async function take(app, session, step = 0) {
   });
   // DIAGNOSTIC ONLY: one transient note when the worker was FORCED on for an
   // experiment — never in normal work, never a transcript row.
-  if (r.by === 'laya' && require('./workerruntime').enabledOf(app, 'laya') === 'on') {
+  if (r.by === 'laya') {
+    try {
+      require('./dispatch').job(session, { worker: 'LAYA', role: 'source_file_ranker', contract: 'evidence_narrower', mode: pol.mode,
+        why: pol.mode === 'FORCE' ? 'forced on by the person for an experiment' : 'assigned by Core', facts: r.candidates.length,
+        resultChars: hold.text.length, consumed: true, late: Boolean(r.laya && r.laya.timedOut) });
+    } catch { /* telemetry only */ }
+  }
+  if (r.by === 'laya' && pol.mode === 'FORCE') {
     const k = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
     try { require('./ui/operation').say(app, `WORKER · Laya · evidence narrowed · ${k(hold.text.length)} chars from ${k(r.rawChars)}${r.laya && r.laya.cached ? ' · cached' : ''}`); } catch { /* no screen */ }
   }

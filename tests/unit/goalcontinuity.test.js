@@ -14,10 +14,10 @@ const compose = require('../../src/composemode');
 module.exports = async function () {
   await test('GOAL CONTINUITY: New keeps the previous goal as PAUSED', () => {
     const s = new Session({ cwd: tmpdir('gc-') });
-    const a = goal.create(s, 'Finish LAIN Harness');
+    const a = goal.create(s, 'Finish Noema Harness');
     goal.create(s, 'Fix the release blocker');
     const l = goal.list(s);
-    assert.deepStrictEqual(l.map((g) => [g.text, g.state]), [['Fix the release blocker', 'ACTIVE'], ['Finish LAIN Harness', 'PAUSED']]);
+    assert.deepStrictEqual(l.map((g) => [g.text, g.state]), [['Fix the release blocker', 'ACTIVE'], ['Finish Noema Harness', 'PAUSED']]);
     assert.strictEqual(l[1].id, a.id, 'the paused goal keeps its identity');
   });
 

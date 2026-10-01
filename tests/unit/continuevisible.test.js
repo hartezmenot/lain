@@ -61,7 +61,7 @@ module.exports = async function () {
 
       const text = feedText(app.session);
       assert.strictEqual((text.match(/^USER[A-Z ]* · continue\s*$/gm) || []).length, 1, `visible exactly once:\n${text}`);
-      assert.ok(!/continuing from what LAIN observed/.test(text), 'not replaced by a caption');
+      assert.ok(!/continuing from what Noema observed/.test(text), 'not replaced by a caption');
       assert.ok(text.indexOf('migrate the timer') < text.search(/USER[A-Z ]* · continue/), 'in chronological order');
 
       const copied = require('../../src/copysummary').context(app, { all: true });
@@ -70,7 +70,7 @@ module.exports = async function () {
 
       const rows = require('../../src/dashconversation').conversation(app.session);
       assert.ok(rows.some((r) => r.who === 'USER' && r.text === 'continue'), 'the dashboard/Harness projection agrees');
-      assert.ok(!rows.some((r) => /continuing from what LAIN observed/.test(r.text)));
+      assert.ok(!rows.some((r) => /continuing from what Noema observed/.test(r.text)));
     });
   });
 
@@ -84,7 +84,7 @@ module.exports = async function () {
     });
   });
 
-  await test('CONTINUE: LAIN\'s own synthetic resume is NOT drawn as the user', async () => {
+  await test('CONTINUE: Noema\'s own synthetic resume is NOT drawn as the user', async () => {
     await withMock([{ text: 'a' }, { text: 'resumed' }], async () => {
       const app = realApp();
       await app.submit('write the parser');

@@ -17,12 +17,14 @@
  */
 
 function register({ define, C }) {
-  define('/lain', {
+  // `/noema`, and `/lain` — the name it had before the rename — as the same command.
+  const spec = {
     surface: true,
     args: '',
-    desc: 'What .lain remembers: architecture, wiring, vocabulary, facts, unfinished turns',
+    desc: 'What .noema remembers: architecture, wiring, vocabulary, facts, unfinished turns',
     run(app) {
       const root = app.session ? app.session.cwd : process.cwd();
+      const folder = `${require('./projectmeta').name(root)}/`;
       const lainstore = require('./lainstore');
       const dictionary = require('./dictionary');
       const architecture = require('./architecture');
@@ -32,7 +34,7 @@ function register({ define, C }) {
 
       const survey = lainstore.survey(root);
       if (!survey.exists) {
-        app.render.write(C.dim('\n  No .lain/ in this project yet — nothing has been recorded.\n'
+        app.render.write(C.dim(`\n  No ${folder} in this project yet — nothing has been recorded.\n`
           + '  The concept, architecture, wiring and scratch tools write here as the model '
           + 'establishes things worth keeping.\n'));
         return;
@@ -43,7 +45,7 @@ function register({ define, C }) {
         .filter(([, s]) => s.present)
         .map(([name, s]) => `${name} (${Math.max(1, Math.round(s.bytes / 1024))}k, `
           + `${new Date(s.updatedAt).toISOString().slice(0, 10)})`);
-      app.render.write(C.green(`\n  .lain/ — ${slots.length ? slots.join(' · ') : 'empty slots'}`));
+      app.render.write(C.green(`\n  ${folder} — ${slots.length ? slots.join(' · ') : 'empty slots'}`));
 
       // THE VOCABULARY, one line each.
       app.render.write(C.dim('\n  -- vocabulary --'));
@@ -77,7 +79,9 @@ function register({ define, C }) {
         app.render.write(C.dim('\n  No unfinished turns.\n'));
       }
     },
-  });
+  };
+  define('/noema', spec);
+  define('/lain', { ...spec, desc: 'Same as /noema (its name before the rename)' });
 }
 
 function indent(text, pad) {

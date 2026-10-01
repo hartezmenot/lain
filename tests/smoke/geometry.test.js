@@ -66,7 +66,7 @@ const TUI = { LAIN_FORCE_TUI: '1', COLUMNS: '100', LINES: '34' };
  * says when it is empty, which is the row a person looks at anyway and the row
  * the caret is parked on.
  */
-const INPUT = 'Ask LAIN';
+const INPUT = 'Ask Noema';
 
 /** Drive the binary, and return the frames with and without `marker`. */
 async function openAndClose(steps, marker) {
@@ -140,7 +140,7 @@ module.exports = async function () {
     // says that typing there answers the question. Filtering on the word INPUT
     // therefore excluded exactly the frames this test is about.
     const raw = frames(r.out);
-    const asking = raw.filter((f) => plain(f).match(/lain\s+needs\s+your\s+input/i));
+    const asking = raw.filter((f) => plain(f).match(/noema\s+needs\s+your\s+input/i));
     assert.ok(asking.length, 'the question must reach the screen');
     const f = asking[asking.length - 1];
     // MATCHED ON THE PANEL'S OWN TITLE, not on the question text. The status
@@ -149,7 +149,7 @@ module.exports = async function () {
     // input that was in fact below it.
     const answerBox = absRow(f, 'ANSWER');
     assert.ok(answerBox > 0, 'the input box must be drawn, wearing its ANSWER label');
-    assert.ok(absRow(f, 'Lain needs your input') > answerBox,
+    assert.ok(absRow(f, 'Noema needs your input') > answerBox,
       'the question must sit under the line that answers it');
   });
 };

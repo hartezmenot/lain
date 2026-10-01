@@ -64,7 +64,7 @@ function normalizeUrl(u) {
 
 async function viaChrome(app) {
   const bridge = require('./lainchrome').existing(app);
-  if (!bridge) return { ok: false, why: 'LAIN for Chrome is not connected — /browser connect' };
+  if (!bridge) return { ok: false, why: 'Noema for Chrome is not connected — /browser connect' };
   const nav = await bridge.request('nav_state', {});
   const found = await bridge.request('find', { query: '' });
   const text = await bridge.request('text', {});

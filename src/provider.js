@@ -28,13 +28,9 @@ const progress = require('./streamprogress');
 const { routeHeaders } = require('./routeheaders');
 const errors = require('./errors');
 
-const PROTOCOL = Object.freeze({ ANTHROPIC: 'anthropic', CHAT: 'chat', RESPONSES: 'responses', MOCK: 'mock' });
+const PROTOCOL = Object.freeze({ ANTHROPIC: 'anthropic', CHAT: 'chat', RESPONSES: 'responses', MOCK: 'mock', RUNTIME: 'runtime' });
 
-/**
- * Resolve which endpoint serves this turn.
- * Phase 1 keeps this deliberately small: env vars and explicit config only.
- * There is no catalog, no alias table and no 3,761-entry registry.
- */
+/** Which endpoint serves this turn: the chosen account's exact catalog route (Phase 8.2), or an env-var key. */
 function resolve(cfg = {}) {
   if (process.env.LAIN_PROVIDER === 'mock') {
     return { protocol: PROTOCOL.MOCK, provider: 'mock', connectionId: 'mock', model: cfg.model || 'mock-model', apiKey: 'mock', ctx: 200000, maxTokens: 4096 };
@@ -44,39 +40,44 @@ function resolve(cfg = {}) {
   // another connection that happens to carry the same model name. See retired.js.
   const gone = require('./retired').selection(cfg);
   if (gone) return { protocol: null, provider: null, connectionId: gone.connection, model: cfg.model || null, apiKey: '', unavailable: gone };
+  if (cfg._refusal) return { protocol: null, provider: null, connectionId: null, model: cfg.model || null, apiKey: '', unavailable: { kind: 'account', why: cfg._refusal.why, code: cfg._refusal.code || null } };
 
   // STRUCTURED SELECTION: {model, connection, effort} resolved through the
   // catalog. The fused upstream id is produced HERE, at send time, and nowhere
   // else — which is the difference from V1, where the fused string WAS the
   // runtime identity and the catalog was only a render-time view.
-  if (cfg.model && cfg.connections) {
+  if (cfg.model && (cfg.connections || /^(runtime|local):/.test(String(cfg.connection || '')))) {   // a runtime/local route needs no API connections configured at all
     const connections = require('./connections').fromConfig(cfg, cfg._evidence || {});
-    const catalog = require('./catalog').build(connections);
+    const catalog = require('./appcatalog').catalogFor(connections);   // built once per distinct set (Phase 8.2)
     const r = require('./catalog').resolve(catalog, {
       model: cfg.model, connectionId: cfg.connection, effort: cfg.effort,
     });
     if (r.ok) {
-      // baseConnectionId is the configured connection; connectionId may carry a
-      // routing namespace (e.g. `omniroute:openrouter`) that identifies the ROUTE.
+      // baseConnectionId is the configured connection; connectionId may carry a routing namespace (e.g. `omniroute:openrouter`).
       const conn = connections.find((c) => c.id === (r.connection.baseConnectionId || r.connection.connectionId));
       if (conn) {
+        const bound = require('./runtimebound').check({ conn, connectionId: r.connection.connectionId, model: r.model, upstreamId: r.upstreamId }); if (bound) return { protocol: null, provider: conn.provider, connectionId: conn.id, model: r.model, apiKey: '', unavailable: bound };
         return {
           protocol: conn.protocol || PROTOCOL.CHAT,
           provider: conn.provider,
           connectionId: conn.id,
+          // THE ACCOUNT IT GOES THROUGH (accountcatalog.js), the one asked for, and the exact route.
+          routeId: r.connection.connectionId, accountId: require('./accountcatalog').accountIdForRoute(r.connection.connectionId, conn), requestedAccount: cfg.account || null, family: cfg.family || null,
           model: r.upstreamId,
           canonicalModel: r.model,
           effort: r.effort,
           reasoningEffort: cfg.effort || null,   // a request FIELD on the Responses API (responsesapi.js)
-          baseUrl: conn.baseUrl,
-          apiKey: conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''),
-          ctx: conn.ctx || 128000,
-          maxTokens: conn.maxTokens || 4096,
+          baseUrl: conn.baseUrl, credentialRef: conn.credentialRef || null,   // the key is read just before the request (chat → credentials.ensure), never to list
+          get apiKey() { return conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''); }, set apiKey(v) { Object.defineProperty(this, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },   // read when a request is sent — never to draw a header (connections.js)
+          ctx: ((conn.models || []).find((x) => x && x.id === r.model) || {}).ctx || conn.ctx || 128000,   // a local model's real window
+          maxTokens: conn.maxTokens || ((conn.protocol === PROTOCOL.ANTHROPIC && /claude/i.test(r.upstreamId || r.model)) ? 32000 : 4096),   // a current Claude thinks inside max_tokens (audit F1); streamed, so safe
           // CARRIED FROM THE CONFIG, because the SENDER needs it and only `resolve`
           // reads the config. `promptCache: true|false` overrides the guess in
           // src/promptcache.js for a gateway nobody here has seen.
           promptCache: cfg.promptCache,
           headers: conn.headers || {},
+          // RUNTIME (runtimeprovider.js): llama.cpp, Ollama, Claude Code, OpenCode, ZCode — which adapter, and its settings.
+          runtime: conn.runtime || null, locality: conn.locality || null, adapterCfg: conn.runtime ? { local: cfg.local || {}, runtimes: cfg.runtimes || {}, accounts: { codex: { binary: ((cfg.accounts || {}).codex || {}).binary } } } : null,
         };
       }
     }
@@ -99,7 +100,7 @@ function resolve(cfg = {}) {
       model: cfg.model || 'claude-opus-5',
       baseUrl: 'https://api.anthropic.com/v1',
       apiKey: process.env.ANTHROPIC_API_KEY,
-      ctx: 200000, maxTokens: 8192, headers: {},
+      ctx: 200000, maxTokens: 32000, headers: {},
     };
   }
   if (process.env.OPENAI_API_KEY) {
@@ -123,7 +124,7 @@ function resolve(cfg = {}) {
  * find an API key they did not need.
  */
 function credentialHint(pc, cfg = null) {
-  if (pc.unavailable) return require('./retired').unavailableText(pc.unavailable);
+  if (pc.unavailable) return pc.unavailable.kind === 'runtime-bound' || pc.unavailable.kind === 'account' ? pc.unavailable.why : require('./retired').unavailableText(pc.unavailable);
   if (!pc.protocol) {
     const hasConnections = cfg && cfg.connections && Object.keys(cfg.connections).length > 0;
     if (hasConnections && !cfg.model) {
@@ -132,9 +133,9 @@ function credentialHint(pc, cfg = null) {
     if (hasConnections && cfg.model) {
       return `Model "${cfg.model}" is not served by any configured connection. /model to pick one, or /provider refresh to re-read a route's catalog.`;
     }
-    return 'No provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or declare a connection in ~/.lain-v2/config.json.';
+    return `No provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or add an account or API key with \`noema model\` (settings: ${require('./config').configFile()}).`;
   }
-  if (!pc.apiKey) return `No credential for provider '${pc.provider}'.`;
+  if (!(pc.credentialRef ? require('./credentials').present(pc.credentialRef) : pc.apiKey) && pc.protocol !== PROTOCOL.RUNTIME) return `No credential for provider '${pc.provider}'.`;   // presence only — a hint never decrypts a key; a runtime route holds no LAIN credential
   return null;
 }
 
@@ -440,7 +441,7 @@ async function* anthropicChat(pc, messages, opts) {
     body = body.slice();
     body[body.length - 1] = withCacheBreakpoint(body[body.length - 1]);
   }
-  const payload = { model: pc.model, max_tokens: pc.maxTokens, stream: true, messages: body };
+  const payload = { model: pc.model, max_tokens: pc.maxTokens, stream: true, messages: body }; if (pc.effort && /^(low|medium|high|xhigh|max)$/.test(String(pc.effort)) && /claude/i.test(pc.model)) payload.output_config = { effort: String(pc.effort) };   // audit F2: only a configured effort, only on Claude
   if (system) {
     // Cache the whole stable prefix. Anthropic orders tools -> system ->
     // messages, so one breakpoint on system covers the tool schemas too. Always
@@ -573,7 +574,7 @@ async function* openaiChat(pc, messages, opts) {
       const c = promptcache.usageFrom(j.usage);
       usage.cacheReadTokens = c.cacheReadTokens || usage.cacheReadTokens || 0;
       usage.cacheCreationTokens = c.cacheCreationTokens || usage.cacheCreationTokens || 0;
-      usage.cacheReported = usage.cacheReported || c.reported;
+      usage.cacheReported = usage.cacheReported || c.reported; if (c.reasoningTokens != null) usage.reasoningTokens = c.reasoningTokens;
       // ---- LIVE ONLY IF IT GENUINELY ARRIVED EARLY ------------------------
       //
       // This shape has no `message_start`, so there is no guaranteed moment at
@@ -588,6 +589,7 @@ async function* openaiChat(pc, messages, opts) {
       // for every provider to be made to look the same.
       if (usage.inputTokens && usage.inputTokens !== before) yield { type: 'usage_live', ...usage };
     }
+    if (j.timings && typeof j.timings === 'object') usage.timings = j.timings;   // llama.cpp's own counters → local metrics (runtimeprovider.js)
     if (j.choices && j.choices[0] && j.choices[0].finish_reason) stopRaw = j.choices[0].finish_reason;
     const d = j.choices && j.choices[0] && j.choices[0].delta;
     if (!d) continue;
@@ -647,19 +649,17 @@ async function* openaiChat(pc, messages, opts) {
  * measurement able to end a turn.
  */
 async function* chat(pc, messages, opts = {}) {
-  const reqtrace = require('./reqtrace');
-  const rec = reqtrace.begin({
-    ...(opts.trace || {}),
-    model: pc.model || '',
-    connection: pc.connectionId || pc.provider || '',
-  });
-  reqtrace.sized(rec, messages, opts.tools);
+  if (pc && pc.credentialRef) { try { await require('./credentials').ensure(pc.credentialRef); } catch { /* resolve() reads it on demand */ } }   // THIS request's key, read without blocking — listings never decrypt one
+  // THE ONE REQUEST ENVELOPE (modelrequest.js) — the same as a website source's; the protocol below is only the transport.
+  const mr = require('./modelrequest');
+  const env = mr.openApi(pc, messages, opts);
   // THE RECEIPT THIS ATTEMPT RETURNED, or null — the last `usage` event the
   // provider streamed. Captured here because this is the one funnel every
   // protocol passes through, and given to the ledger so it can ride the
   // per-request record (`reqtrace.end`). Events are yielded through UNCHANGED:
   // capturing is observing, and nothing downstream may see a difference.
   let receipt = null;
+  let toolCalls = 0;
   try {
     const inner = pc.protocol === PROTOCOL.MOCK
       ? require('./mockprovider').chat(pc, messages, opts)
@@ -669,7 +669,7 @@ async function* chat(pc, messages, opts = {}) {
           ? openaiChat(pc, messages, opts)
           : pc.protocol === PROTOCOL.RESPONSES
             ? require('./responsesapi').responsesChat(pc, messages, opts)
-            : null;
+            : pc.protocol === PROTOCOL.RUNTIME ? require('./runtimeprovider').chat(pc, messages, { ...opts, app: opts.app || (pc.adapterCfg ? { cfg: pc.adapterCfg } : null) }) : null;
     if (!inner) {
       const e = new Error(`no protocol for provider '${pc.provider}'`);
       e.status = 400;
@@ -677,11 +677,12 @@ async function* chat(pc, messages, opts = {}) {
     }
     for await (const ev of inner) {
       if (ev && ev.type === 'usage') receipt = ev;
+      if (ev && ev.type === 'tool_calls' && Array.isArray(ev.calls)) toolCalls += ev.calls.length;
       yield ev;
     }
-    reqtrace.end(rec, { ok: true, receipt });
+    mr.close(env, { ok: true, usage: receipt ? { ...receipt, toolCalls } : null });
   } catch (e) {
-    reqtrace.end(rec, { ok: false, status: e && e.status, failure: (e && e.message) || 'failed', receipt });
+    mr.close(env, { ok: false, status: e && e.status, failure: (e && e.message) || 'failed', usage: receipt ? { ...receipt, toolCalls } : null });
     throw e;
   }
 }
@@ -694,4 +695,4 @@ async function* chat(pc, messages, opts = {}) {
 // the tail of the wire never produces two consecutive user turns, which this
 // protocol refuses with a 400. The alternative was a test that skipped itself
 // when the symbol was missing — a guarantee that quietly stops being checked.
-module.exports = { PROTOCOL, resolve, chat, credentialHint, routeHeaders, classify: errors.classify, sseLines, toAnthropic, postSSE };
+module.exports = { PROTOCOL, resolve, chat, credentialHint, routeHeaders, classify: errors.classify, sseLines, toAnthropic, postSSE, openaiChat };

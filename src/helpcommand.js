@@ -74,7 +74,7 @@ const GROUPS = [
     '/bg', '/ps', '/steer', '/plan', '/task', '/verify', '/cancel', '/answer', '/jobs',
   ]],
   ['Looking', [
-    '/brief', '/changes', '/undo', '/note', '/tasks', '/artifacts', '/env', '/health', '/lain',
+    '/brief', '/changes', '/undo', '/note', '/tasks', '/artifacts', '/env', '/health', '/noema',
   ]],
   ['This session', [
     '/model', '/effort', '/provider', '/new', '/clear', '/compact', '/resume', '/sessions',
@@ -161,7 +161,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         // here is the difference between a trade and a thing that seems broken.
         w(C.dim('  The wheel and the clickable caret are off; PgUp/PgDn scroll the transcript,'));
         w(C.dim('  and Alt+↑/Alt+↓ jump between your own messages. /mouse on for the wheel.'));
-        w(C.dim('  /copy still works, and copies what LAIN knows rather than the screen.'));
+        w(C.dim('  /copy still works, and copies what Noema knows rather than the screen.'));
       }
       w('');
     },
@@ -231,7 +231,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         else w('  ' + keys.padEnd(22) + C.dim(what) + NL);
       }
       w(NL + C.dim('  Anything else is sent to the model. Multi-line input is never a command.') + NL);
-      w(C.dim('  You never have to choose a workflow — describe the problem and LAIN routes it.') + NL);
+      w(C.dim('  You never have to choose a workflow — describe the problem and Noema routes it.') + NL);
     },
   });
 }

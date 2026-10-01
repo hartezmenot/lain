@@ -35,11 +35,8 @@ const path = require('path');
 /** Bound on what any one call sends back. Errors show context, not whole files. */
 const MAX_CONTEXT_LINES = 12;
 
-function resolve(cwd, p) {
-  const s = String(p || '');
-  if (!s) return null;
-  return path.isAbsolute(s) ? s : path.resolve(cwd, s);
-}
+/** One resolver for every file tool — including the `/tmp/…` a Windows shell wrote (pathmap.js). */
+function resolve(cwd, p) { return require('./pathmap').resolve(cwd, p); }
 
 /**
  * Read a file, preserving what kind of line endings it had.
@@ -180,7 +177,7 @@ function whyNotFound(hay, needle, ctx, abs) {
     return [
       'PATCH CONFLICT: this file changed after you read it.',
       `It was ${conflict.was.size} bytes when you read it; it is ${conflict.now.size} now.`,
-      "LAIN did not make that change — its own writes clear this record — so another",
+      "Noema did not make that change — its own writes clear this record — so another",
       'session, an editor or a build step did. Re-read the range you mean to change',
       'and patch against what is there now. NOTHING WAS WRITTEN.',
     ].join(NL);
@@ -366,7 +363,7 @@ const tools = {
         return { output: 'apply_patch needs `replace` (use "" to delete)', isError: true };
       }
       let text;
-      try { text = fs.readFileSync(abs, 'utf8'); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { text = fs.readFileSync(abs, 'utf8'); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
 
       // Compared with line endings normalised, so a CRLF file does not reject a
       // patch that is correct in every way except invisible bytes.
@@ -488,7 +485,7 @@ const tools = {
       if (!input.anchor) return { output: 'insert_at needs an `anchor`', isError: true };
       if (typeof input.text !== 'string') return { output: 'insert_at needs `text`', isError: true };
       let f;
-      try { f = readLines(abs); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { f = readLines(abs); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       const hits = [];
       f.lines.forEach((l, i) => { if (l.includes(input.anchor)) hits.push(i); });
       if (!hits.length) {
@@ -542,7 +539,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'delete_range needs a path', isError: true };
       let f;
-      try { f = readLines(abs); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { f = readLines(abs); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       const from = Number(input.from);
       const to = Number(input.to);
       if (!Number.isFinite(from) || !Number.isFinite(to) || from < 1 || to < from) {
@@ -634,7 +631,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'delete_file needs a path', isError: true };
       let st;
-      try { st = fs.statSync(abs); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { st = fs.statSync(abs); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       if (st.isDirectory()) return { output: `${input.path} is a directory — delete_file only removes one file`, isError: true };
       // DELETING A FILE SOMEBODY ELSE JUST WROTE is the most complete way to
       // lose work nobody saw. A checkpoint can put it back; nothing puts back
@@ -671,7 +668,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'file_info needs a path', isError: true };
       let st;
-      try { st = fs.statSync(abs); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { st = fs.statSync(abs); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       if (st.isDirectory()) return { output: `${at(ctx.cwd, abs)} is a directory`, meta: { directory: true } };
       let lines = null;
       try { lines = fs.readFileSync(abs, 'utf8').split('\n').length; } catch { lines = null; }

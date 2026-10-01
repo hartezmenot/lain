@@ -38,6 +38,15 @@ const ROLES = Object.freeze({
 
 const WHOLE_PROJECT = /^(?:\*\*?|\.\/?|\*\*\/\*|\/)?$/;
 
+/** What a role a model invented most likely meant — named in the refusal, never applied silently. */
+const ROLE_READS_AS = Object.freeze({
+  EXPLORER: 'SCOUT', INVESTIGATOR: 'SCOUT', ANALYST: 'SCOUT', MAPPER: 'SCOUT', READER: 'SCOUT',
+  ARCHITECT: 'FOUNDATION', DESIGNER: 'FOUNDATION', PLANNER: 'FOUNDATION',
+  CODER: 'IMPLEMENTER', DEVELOPER: 'IMPLEMENTER', BUILDER: 'IMPLEMENTER', ENGINEER: 'IMPLEMENTER', WORKER: 'IMPLEMENTER', FIXER: 'IMPLEMENTER',
+  REVIEWER: 'VERIFIER', TESTER: 'VERIFIER', QA: 'VERIFIER', CHECKER: 'VERIFIER', VALIDATOR: 'VERIFIER',
+  SEARCHER: 'RESEARCHER', WEB: 'RESEARCHER', RESEARCH: 'RESEARCHER',
+});
+
 /**
  * A contract is complete and bounded, or it is refused with the reason.
  * @returns {{ok:true, contract:object}|{ok:false, why:string}}
@@ -53,7 +62,11 @@ function validate(c = {}, { parentTask = '' } = {}) {
   const missing = need.filter((k) => !String(c[k] || '').trim());
   if (!readScope.length) missing.push('readScope (the files or globs it may read — "help with this project" is not a scope)');
   if (!ROLES[role]) {
-    return { ok: false, why: `role must be one of ${Object.keys(ROLES).join(', ')}${missing.length ? `; the contract is also missing: ${missing.join(', ')}` : ''}` };
+    // A SCHEMA SLIP, answered with the enum and the likely intent (2026-09-29): the model retries in the same
+    // turn; nothing was started, so nothing needs undoing. It is never a reason for the task to stop.
+    const meant = ROLE_READS_AS[role] ? ` — "${c.role}" reads as ${ROLE_READS_AS[role]}` : '';
+    return { ok: false, code: 'INVALID_ARGUMENT', why: `INVALID_ARGUMENT role "${String(c.role || '')}" is not a subagent role${meant}. Allowed: ${Object.keys(ROLES).join(' | ')}. `
+      + `Retry delegate with one of these; nothing was started${missing.length ? `. The contract is also missing: ${missing.join(', ')}` : ''}` };
   }
   if (missing.length) return { ok: false, why: `${role} contract is missing: ${missing.join(', ')}` };
   if (!ROLES[role].write && writeScope.length) return { ok: false, why: `${role} is read-only and may not hold a writeScope` };

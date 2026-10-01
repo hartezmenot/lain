@@ -8,7 +8,7 @@
  * This module owns the process of each one per App: spawned lazily (or warmed
  * at start), one request at a time over JSON lines, a hard timeout per call,
  * killed at teardown. It holds no authority and makes no decision: callers
- * (locateassist.js, evidenceslice.js) ask one bounded question and get one
+ * (layacontext.js, layaevidence.js) ask one bounded question and get one
  * result or `null` — unavailable, timed out, failed — and carry on without it.
  *
  * WHERE THE MODEL LIVES (2026-09-23, later): in the WORKER HOST
@@ -38,8 +38,8 @@ const ROOT = path.join(__dirname, '..');
 const MANIFEST = path.join(ROOT, 'workers', 'manifest.json');
 
 // ---- CHEAP ON THE HOT PATH ------------------------------------------------------
-// `uses` is asked on every tool lookup (tools/index.js offers the geometry tool
-// through it). Re-reading the manifest and stat-ing a model store on another
+// `uses` / `roleMode` are asked on hot paths (dispatch, the turn hooks).
+// Re-reading the manifest and stat-ing a model store on another
 // drive each time put disk latency into every call — measured as a key-timing
 // test failing under full-tier load. Both are cached briefly.
 let manifestCache = null;
@@ -49,6 +49,10 @@ function manifest() {
   try { manifestCache = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).workers || {}; } catch { manifestCache = {}; }
   manifestAt = Date.now();
   return manifestCache;
+}
+/** Workers retired from the active architecture (manifest `retired`): history, never dispatched. */
+function retired() {
+  try { return JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).retired || {}; } catch { return {}; }
 }
 const existsCache = new Map();
 function exists(p) {
@@ -72,20 +76,94 @@ function enabledOf(app, id) {
 }
 
 /**
- * MAY THIS WORKER SERVE THIS USE? Installed, not switched off, and either its
- * recorded gate for THAT use passed or the person forced it on. A gate that
- * failed keeps an installed worker out of normal work — installed ≠ recruited.
+ * RECRUITMENT IS PER ROLE, NOT PER MODEL (2026-09-24). A worker has several
+ * job contracts (manifest `roles`), each with its own mode:
+ *
+ *   OFF     Core never dispatches it
+ *   SHADOW  Core dispatches it, the result is RECORDED, the task never
+ *           consumes it — and it never loads a cold model to do so
+ *   AUTO    dispatched when Core's classification calls for it, consumed —
+ *           only where that role's own gate passed (else it runs as SHADOW)
+ *   FORCE   dispatched and consumed: an experiment the person switched on
+ *
+ * Laya/source_file_ranker can be REJECT while Laya/selection_resolver is
+ * SHADOW. `LAIN_ROLE_<ROLE>` or cfg.workers.roles.<role> sets one role; the
+ * worker's own switch (`/workers laya on` = FORCE, `off` = OFF) covers every
+ * role that was not set explicitly — EXCEPT a REJECTED role (manifest
+ * `rejected: true`), which a worker switch never revives: a failed gate is not
+ * undone by turning the model on. Only an explicit role override (a benchmark
+ * replaying history) reaches it.
  */
-function uses(app, id, use) {
-  // THE CHEAP ANSWERS FIRST: switches and the recorded gate, before any disk.
-  if (policyOf(app) === 'off') return false;
-  const en = enabledOf(app, id);
-  if (en === 'off') return false;
+const MODE = Object.freeze({ OFF: 'OFF', SHADOW: 'SHADOW', AUTO: 'AUTO', FORCE: 'FORCE' });
+
+function explicitRole(app, role) {
+  const v = process.env[`LAIN_ROLE_${String(role).toUpperCase()}`] || ((cfgOf(app).roles || {})[role]);
+  return v ? String(v).toUpperCase() : '';
+}
+
+function roleMode(app, id, role) {
+  if (policyOf(app) === 'off') return MODE.OFF;
   const m = manifest()[id] || {};
-  const g = (m.gates || {})[use];
-  if (en !== 'on' && !(en === 'auto' && g && g.pass)) return false;
+  const r = (m.roles || {})[role];
+  if (!r) return MODE.OFF;
+  let mode = explicitRole(app, role);
+  if (!mode) {
+    const en = enabledOf(app, id);
+    if (en === 'off' || r.rejected) return MODE.OFF;
+    mode = en === 'on' ? MODE.FORCE : String(r.mode || 'OFF').toUpperCase();
+  }
+  if (!MODE[mode]) return MODE.OFF;
+  if (mode === MODE.AUTO && !((m.gates || {})[r.gate] || {}).pass) return MODE.SHADOW;
+  return mode;
+}
+
+/** Every role a worker has, with its mode now. */
+function roles(app, id) {
+  const m = manifest()[id] || {};
+  return Object.entries(m.roles || {}).map(([role, r]) => ({ role, ...r, mode: roleMode(app, id, role), explicit: Boolean(explicitRole(app, role)) }));
+}
+
+/** The role a recorded gate evaluates (manifest roles[*].gate). */
+function roleForUse(id, use) {
+  const m = manifest()[id] || {};
+  const hit = Object.entries(m.roles || {}).find(([, r]) => r.gate === use);
+  return hit ? hit[0] : null;
+}
+
+/**
+ * MAY THIS WORKER'S RESULT BE CONSUMED FOR THIS USE? The role the use belongs
+ * to is AUTO (its gate passed) or FORCE, and the worker is installed. With
+ * `{ shadow: true }` a SHADOW role also counts — for dispatching a job whose
+ * result is only recorded. A gate that failed keeps an installed worker out of
+ * normal work — installed ≠ recruited.
+ */
+function uses(app, id, use, { shadow = false } = {}) {
+  // THE CHEAP ANSWERS FIRST: switches and the recorded gate, before any disk.
+  const role = roleForUse(id, use);
+  if (!role) return false;
+  const mode = roleMode(app, id, role);
+  if (!(mode === MODE.AUTO || mode === MODE.FORCE || (shadow && mode === MODE.SHADOW))) return false;
   const w = info(app, id);
   return Boolean(w && w.usable);
+}
+
+/**
+ * SHOULD THIS WORKER BE RESIDENT? Only when a role will consume it (AUTO /
+ * FORCE), or the person explicitly asked for a SHADOW role — warm is not
+ * participate, and a default SHADOW role never loads a model by itself.
+ */
+function wantsResident(app, id) {
+  const w = info(app, id);
+  if (!w || !w.usable) return false;
+  return roles(app, id).some((r) => r.mode === MODE.AUTO || r.mode === MODE.FORCE || (r.mode === MODE.SHADOW && r.explicit));
+}
+
+/** Is it loaded and idle or working right now? Never loads it. */
+function isHot(app, id) {
+  const h = ((app && app._hostView) || {})[id];
+  if (h) return ['HOT_IDLE', 'INFERENCING'].includes(h.state);
+  const p = procs(app).get(id);
+  return Boolean(p && ready(p));
 }
 
 /** Everything known about one worker on this machine. */
@@ -284,9 +362,10 @@ function startPython(app, id, w) {
 }
 
 /**
- * A LLAMA-SERVER WORKER (Violetto): the patched server on a loopback port,
- * started with its model and polled until /health answers — that wait IS the
- * cold load, and it is measured as such.
+ * A LLAMA-SERVER WORKER (generic runtime; no manifest entry uses it since
+ * Violetto was retired on 2026-09-24): the server on a loopback port, started
+ * with its model and polled until /health answers — that wait IS the cold
+ * load, and it is measured as such.
  */
 function startLlama(app, id, w) {
   const port = Number((cfgOf(app)[id] || {}).port || w.port || 8093);
@@ -520,12 +599,12 @@ function status(app) {
     return {
       id, contract: w.contract, status: w.status || (w.installed ? 'INSTALLED' : 'NOT INSTALLED'), state, hosted: hosted(app), host: h,
       switch: enabledOf(app, id), enabled: w.enabled, running: ['LOADING', 'HOT_IDLE', 'INFERENCING'].includes(state), warm: ['HOT_IDLE', 'INFERENCING'].includes(state),
-      gates: w.gates || {}, verdict: w.verdict || '', reason: w.reason || '',
+      gates: w.gates || {}, verdict: w.verdict || '', reason: w.reason || '', roles: roles(app, id),
     };
   });
 }
 
 module.exports = {
-  manifest, info, uses, policyOf, enabledOf, call, warm, prewarm, stop, settle, status, stats, memoryMB, memoryMBAsync,
+  manifest, retired, info, uses, roleMode, roles, roleForUse, wantsResident, isHot, MODE, policyOf, enabledOf, call, warm, prewarm, stop, settle, status, stats, memoryMB, memoryMBAsync,
   hosted, spec, hostView, AVAILABLE_WITHIN_MS, indexProject, projectIndex, waitProjectIndex,
 };

@@ -8,7 +8,7 @@
  * come back into a real turn. A capability that exists and is not wired to the
  * vocabulary is a capability the model cannot use.
  *
- * Every one of these drives `bin/lain.js` with the mock provider scripting the
+ * Every one of these drives `bin/noema.js` with the mock provider scripting the
  * tool call — so argv, the REPL, the session, the turn loop, dispatch and the
  * real child process are all genuine. Only the network is a double.
  */

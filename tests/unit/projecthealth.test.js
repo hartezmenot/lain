@@ -85,14 +85,14 @@ module.exports = async function () {
     assert.match(withTests.next, /src\/index\.js/, 'and it says where to start');
   });
 
-  await test('PH: /health is the project and /ready is LAIN — two commands, two engines', () => {
+  await test('PH: /health is the project and /ready is Noema — two commands, two engines', () => {
     const commands = require('../../src/commands');
     const health = commands.REGISTRY.get('/health');
     const ready = commands.REGISTRY.get('/ready');
     assert.ok(health && ready, 'both must exist');
     assert.notStrictEqual(health.run, ready.run, '/ready must not be an alias of /health');
     assert.match(health.desc, /project/i);
-    assert.match(ready.desc, /LAIN/);
+    assert.match(ready.desc, /Noema/);
     // THE READINESS REPORT KEPT ITS ENGINE THROUGH THE RENAME. This is the
     // assertion that would have caught a rename that quietly dropped it.
     assert.strictEqual(ready.run.name, commands.REGISTRY.get('/ready').run.name);

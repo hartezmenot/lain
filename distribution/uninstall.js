@@ -57,7 +57,7 @@ function uninstall(opts = {}) {
   // ---- THE START MENU ENTRY ----------------------------------------------
   //
   // Installed by install.js §6. Removed the same way: one file, by name. The
-  // `LAIN.exe` it pointed at stays — it lives in LAIN's own directory alongside
+  // `Noema Harness.exe` it pointed at stays — it lives in LAIN's own directory alongside
   // the built host, and it is rebuilt from source on demand rather than being
   // something the installer put there.
   if (process.platform === 'win32' && opts.shortcut !== false) {
@@ -70,6 +70,11 @@ function uninstall(opts = {}) {
       if (r.removed) out.removed.push(r.link);
       out.steps.push({ ok: true, text: r.removed ? `removed the Start Menu entry` : 'Start Menu: there was no entry' });
     }
+  }
+  // ---- "OPEN WITH LAIN" (src/winassoc.js) — LAIN's own keys and values only; never under a test run --------
+  if (process.platform === 'win32' && opts.openWith !== false && process.env.LAIN_ISOLATED !== '1') {
+    const r = require('../src/winassoc').unregister({ exe: require('../src/desktop').launcherPath() });
+    out.steps.push({ ok: true, text: r.removed ? 'removed Noema from "Open with" and the folder menu' : '"Open with": nothing to remove' });
   }
 
   // ---- THE PATH ENTRY ----------------------------------------------------
@@ -93,7 +98,7 @@ function uninstall(opts = {}) {
 }
 
 function render(result) {
-  const lines = ['LAIN Harness — uninstall', ''];
+  const lines = ['Noema Harness — uninstall', ''];
   for (const s of result.steps) lines.push(`  ${s.ok ? '✓' : '✗'} ${s.text}`);
   for (const w of result.warnings) lines.push(`  ! ${w}`);
   lines.push('');

@@ -43,7 +43,7 @@ module.exports = async () => {
     try {
       const pc = { protocol: 'responses', provider: 'x', connectionId: 'c', model: 'gpt-6-luna', baseUrl: s.url, apiKey: 'k', headers: {}, reasoningEffort: 'medium' };
       await collect(pc, [
-        { role: 'system', content: 'You are LAIN.' },
+        { role: 'system', content: 'You are Noema.' },
         { role: 'user', content: 'read it' },
         { role: 'assistant', content: 'Reading.', tool_calls: [{ id: 'call_1', name: 'read_file', arguments: '{"path":"a.js"}' }] },
         { role: 'tool', tool_call_id: 'call_1', content: '1\tx' },
@@ -52,7 +52,7 @@ module.exports = async () => {
       const b = s.seen[0].body;
       assert.strictEqual(s.seen[0].url, '/v1/responses');
       assert.strictEqual(s.seen[0].auth, 'Bearer k');
-      assert.strictEqual(b.instructions, 'You are LAIN.');
+      assert.strictEqual(b.instructions, 'You are Noema.');
       assert.deepStrictEqual(b.reasoning, { effort: 'medium' });
       assert.strictEqual(b.store, false);
       assert.strictEqual(b.stream, true);

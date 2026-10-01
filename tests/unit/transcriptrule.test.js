@@ -121,7 +121,7 @@ module.exports = async function () {
     }] };
     const text = views.activity({ session, width: 96 }).map(strip).join(LF);
     assert.match(text, /check the python files/, 'what the person said survives');
-    assert.match(text, /All fine/, 'and what LAIN answered');
+    assert.match(text, /All fine/, 'and what Noema answered');
     assert.ok(!/import ast/.test(text), 'the first mechanics command is gone');
     assert.ok(!/import json/.test(text), 'and the second');
     assert.ok(!/Read a\.py/.test(text), 'and the reads');
@@ -202,7 +202,7 @@ module.exports = async function () {
     // The spinner is a liveness signal and must never be created by a label.
     const status = require('../../src/ui/status');
     const termtitle = require('../../src/termtitle');
-    const live = status.liveState({ op: { text: 'Restoring what LAIN observed', level: 'info' } }, 0);
+    const live = status.liveState({ op: { text: 'Restoring what Noema observed', level: 'info' } }, 0);
     assert.ok(!live.spin, 'a note is not work in flight');
     assert.strictEqual(termtitle.stateOf(live), termtitle.STATE.IDLE);
   });
@@ -214,10 +214,10 @@ module.exports = async function () {
     const fs = require('fs');
     const path = require('path');
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'inputgate.js'), 'utf8');
-    assert.ok(!/Recovering with what LAIN observed rather than sending/.test(src),
+    assert.ok(!/Recovering with what Noema observed rather than sending/.test(src),
       'the glued recovery paragraph is gone');
     assert.match(src, /op\.say\(app, [^;]*'Recovering interrupted turn'/, 'and is an operation instead');
-    assert.match(src, /Restoring what LAIN observed/);
+    assert.match(src, /Restoring what Noema observed/);
     assert.match(src, /Continuing from verified state/);
     // THE FACT IS STILL RECORDED. `_handover` carries the reason into the packet
     // the model reads, which is what makes this a presentation change.

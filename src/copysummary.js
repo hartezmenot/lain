@@ -273,7 +273,7 @@ function context(app, { all = false } = {}) {
     out.push(head, text);
   };
 
-  out.push(`# LAIN diagnostic context — ${span.length} turn(s)`);
+  out.push(`# Noema diagnostic context — ${span.length} turn(s)`);
   if (s.cwd) out.push(`# project: ${s.cwd}`);
   if (s.task && s.task.objective) out.push(`# objective: ${trim(s.task.objective, 300)}`);
 
@@ -303,9 +303,9 @@ function context(app, { all = false } = {}) {
 
     // AND WHAT LAIN SAID IN PUBLIC. `t.reasoning` is deliberately not read
     // here or anywhere in this file — see the header.
-    push('LAIN', t.text);
+    push('Noema', t.text);
 
-    if (t.stopReason && t.stopReason !== 'end') push('LAIN (turn ended early)', String(t.stopReason));
+    if (t.stopReason && t.stopReason !== 'end') push('Noema (turn ended early)', String(t.stopReason));
   }
   return out.join('\n');
 }

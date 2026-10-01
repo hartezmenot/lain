@@ -88,6 +88,9 @@ function beginTurn(app, verdict, text) {
   const chatty = verdict.mode === modeId.KIND.CHAT || verdict.mode === modeId.KIND.EXPLAIN
     || require('./readonly').active(app.session);
   if (chatty && !existing(app)) return null;
+  // AN ASIDE (identify.js) is a question asked while the Coding Agent carries
+  // a task: it opens no task record of its own and closes none.
+  if (verdict.aside) return null;
 
   let h;
   try { h = harnessFor(app); } catch { return null; }
@@ -205,6 +208,10 @@ async function shutdown(app) {
   // remains, and an orphan is by definition one whose owner is not around to
   // close it; a sweep from the launcher is the only thing that can.
   try { await require('./env/chromium').forApp(app).stopAll(); } catch { /* the way out is never blocked by cleanup */ }
+  // LANGUAGE SERVERS AND DEBUG ADAPTERS this process started are stopped with
+  // it (the runtime registry's stop-on-owner-exit is the backstop, not the plan).
+  try { await require('./lsp/manager').stopAll(); } catch { /* the way out is never blocked by cleanup */ }
+  try { await require('./dap/manager').stopAll(); } catch { /* the way out is never blocked by cleanup */ }
   const h = existing(app);
   if (!h) return;
   try { await h.shutdown(); } catch { /* the way out is never blocked by cleanup */ }

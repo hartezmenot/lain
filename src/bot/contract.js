@@ -32,18 +32,22 @@ function digest(parts) { return crypto.createHash('sha256').update(JSON.stringif
 // Sender is deliberate: even two authorized people in one channel have separate histories.
 function sessionKey(e) { return digest([e.platform, e.accountId, e.chatId, e.threadId || '', e.senderId]); }
 function eventKey(e) { return digest([e.platform, e.accountId, e.chatId, e.messageId]); }
-function authorized(e, policy = {}) {
+// WHY A MESSAGE WAS REFUSED, in words the owner can act on — or null when it
+// is allowed. `authorized` is exactly `!whyDenied`; the reason feeds the
+// channel's receipts (bot/trace.js) so a dropped message is never silent there.
+function whyDenied(e, policy = {}) {
   const contains = (key, value) => Array.isArray(policy[key]) && policy[key].map(String).includes(value);
-  if (e.bot) return false;
-  if (!contains('allowUsers', e.senderId) && !(e.platform === 'telegram' && e.kind === 'dm' && e.paired)) return false;
-  if (policy.allowChats?.length && !contains('allowChats', e.chatId)) return false;
+  if (e.bot) return 'sent by a bot';
+  if (!contains('allowUsers', e.senderId) && !(e.platform === 'telegram' && e.kind === 'dm' && e.paired)) return 'sender is not approved — approve them in Noema › BOT › Connections';
+  if (policy.allowChats?.length && !contains('allowChats', e.chatId)) return 'this chat is not in the allowed chats';
   if (e.kind === 'group') {
-    if (!contains('allowChats', e.chatId) && !contains('allowChannels', e.channelId)) return false;
-    if (e.guildId && !contains('allowGuilds', e.guildId)) return false;
-    if (!e.addressed && !e.promptResponse && policy.ambient !== true) return false;
+    if (!contains('allowChats', e.chatId) && !contains('allowChannels', e.channelId)) return 'group chat is not allowed';
+    if (e.guildId && !contains('allowGuilds', e.guildId)) return 'server is not allowed';
+    if (!e.addressed && !e.promptResponse && policy.ambient !== true) return 'group message did not address the bot';
   }
-  return true;
+  return null;
 }
+function authorized(e, policy = {}) { return !whyDenied(e, policy); }
 function descriptor(d) {
   if (d.version !== VERSION || !/^[a-z][a-z0-9_-]{0,31}$/.test(d.platform)) throw new Error('unsupported adapter contract');
   if (!Number.isInteger(d.maxLength) || d.maxLength < 128 || d.maxLength > 16000) throw new Error('invalid message limit');
@@ -74,4 +78,4 @@ function assertAction(a, caps) {
   if (a.type === 'edit' && !a.messageId) throw Object.assign(new Error('edit requires platform message ID'), { definitive: true });
   if (a.type === 'media' && (!Buffer.isBuffer(a.file?.bytes) || a.file.bytes.length > 2 * 1024 * 1024)) throw Object.assign(new Error('invalid media body'), { definitive: true });
 }
-module.exports = { VERSION, event, sessionKey, eventKey, authorized, descriptor, Registry, digest, assertAction };
+module.exports = { VERSION, event, sessionKey, eventKey, authorized, whyDenied, descriptor, Registry, digest, assertAction };

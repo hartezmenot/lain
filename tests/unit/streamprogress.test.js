@@ -32,9 +32,10 @@ module.exports = async function () {
     assert.strictEqual(progress.state(live, t0 + 5000).word, 'WAITING', 'no data yet is WAITING, not THINKING');
     progress.reasoning(live, 2100, t0 + 6000);
     assert.strictEqual(progress.state(live, t0 + 7000).word, 'THINKING');
-    assert.match(progress.state(live, t0 + 7000).detail, /2\.1 KB/, 'reasoning is shown as a size, never quoted');
+    // TOKENS, NOT KB (2026-10-01), and marked as an ESTIMATE: 2100 chars ≈ 525 tokens. Never quoted.
+    assert.match(progress.state(live, t0 + 7000).detail, /^~525 tok$/, 'reasoning is shown as an estimated token count, never quoted');
     progress.text(live, 'Checking the recovery state. ', t0 + 8000);
-    assert.strictEqual(progress.state(live, t0 + 8500).word, 'STREAMING');
+    assert.strictEqual(progress.state(live, t0 + 8500).word, 'WRITING');
     progress.toolDelta(live, { name: 'edit_file', bytes: 9830, index: 0, calls: 1 }, t0 + 9000);
     const st = progress.state(live, t0 + 9500);
     assert.strictEqual(st.word, 'PREPARING TOOL');
@@ -124,25 +125,28 @@ module.exports = async function () {
     assert.strictEqual(live.tool.bytes, '{"path":"a.js","content":"hi"}'.length);
   });
 
-  await test('ACTIVITY BOX + STATUS ROW: both read the same record; the rectangle carries clock and commentary', () => {
+  await test('ACTIVITY BOX + STATUS ROW: one record, one live line; the box carries only commentary', () => {
     const t0 = Date.now() - 21_000;
     const live = progress.begin(t0);
     progress.text(live, 'Checking whether recovery state matches the latest completed tool receipt', Date.now() - 100);
     const state = { busy: true, phase: { phase: 'RECEIVING', live }, phaseSince: t0, recent: [] };
     const s = box.summary(state);
-    assert.strictEqual(s.kind, 'STREAMING');
+    assert.strictEqual(s.kind, 'WRITING');
     assert.strictEqual(s.clock, '00:21');
     assert.match(s.commentary, /recovery state matches/);
-    assert.ok(box.rows(state, 99) >= 3, 'the model is primary: kind, detail, commentary');
-    assert.strictEqual(box.rows(state, 99, Date.now(), { minimal: true }), 1, 'a diff/tool primary minimizes it to one line');
+    // THE BOX NO LONGER REPEATS THE LIVE ROW: only the model's own words take rows.
+    assert.strictEqual(box.rows(state, 99), 2, 'commentary only — the state word and clock live on the one activity line');
+    assert.strictEqual(box.rows(state, 99, Date.now(), { minimal: true }), 0, 'a diff/tool primary leaves no box at all');
     const row = status.liveState({ phase: state.phase, phaseSince: t0 });
-    assert.strictEqual(row.word, 'STREAMING', 'the status strip says the same word');
+    assert.strictEqual(row.word, 'WRITING', 'the status strip says the same word');
     progress.toolDelta(live, { name: 'edit_file', bytes: 9830 });
     assert.strictEqual(box.summary(state).kind, 'PREPARING TOOL');
     assert.strictEqual(status.liveState({ phase: state.phase, phaseSince: t0 }).word, 'PREPARING TOOL');
     const lines = box.draw(state, 80, box.rows(state, 99)).map((l) => l.replace(/\x1b\[[0-9;]*m/g, ''));
-    assert.match(lines[0], /PREPARING TOOL · 00:2\d/);
-    assert.match(lines[1], /edit_file · 9\.6 KB/);
+    assert.ok(!lines.some((l) => /PREPARING TOOL/.test(l)), 'the box never repeats the state word');
+    assert.match(lines.join(' '), /recovery state matches/);
+    const strip = status.statusStrip({ phase: state.phase, phaseSince: t0 }, 80, 1).join('').replace(/\x1b\[[0-9;]*m/g, '');
+    assert.match(strip, /Preparing tool · edit_file · 9\.6 KB/, 'the one activity line carries it');
   });
 
   await test('ACTIVITY BOX: a rate limit is RATE LIMITED, not generic WAITING', () => {

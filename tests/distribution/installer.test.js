@@ -1,205 +1,228 @@
 'use strict';
 
 /**
- * THE INSTALLER — the artifact people actually download.
+ * THE NOEMA INSTALLER — the artifact people actually download (distribution/release.js → Noema-Setup-<v>.exe).
  *
  * ------------------------------------------------------------------------
- * THE RULE THIS FILE OBEYS ABOVE ALL OTHERS, and it is the same one
- * install.test.js obeys:
+ * NO TEST HERE MAY TOUCH THE DEVELOPER'S REAL PATH, START MENU, "OPEN WITH", INSTALLED APPS OR DATA.
+ * Every case installs into a TEMPORARY folder with --no-path --no-open-with --no-open-folder --no-start-menu
+ * --no-register, and a temporary data home (NOEMA_CONFIG_DIR). The last case checks that the machine's own
+ * registrations are exactly what they were — a test that left one behind is found by looking.
  *
- *     NO TEST HERE MAY TOUCH THE DEVELOPER'S REAL PATH, START MENU OR DATA.
+ * WHAT IS PROVEN (the matrix, packaging pass §T): clean CLI-only · the installed copy depends on nothing in the
+ * checkout · add the Harness later · repair · clean CLI + Harness · upgrade 0.1.0 → 0.1.1 side by side · uninstall
+ * the program only (data kept) · uninstall + data · no LAIN executable ships, and an upgrade removes one ·
+ * the `lain` command is a shim onto noema.exe · start at sign-in survives repair and upgrade, goes with the Harness
+ * and comes back with it, and uninstall leaves no dead entry. The Startup folder is a TEMPORARY one (APPDATA).
  *
- * Every case installs into a TEMPORARY directory with `--no-path` and
- * `--no-shortcuts`. THE SECOND ONE WAS MISSING AT FIRST, and the tier left a
- * real Start Menu entry and a real Add/Remove Programs registration behind on
- * the developer's machine — found by checking afterwards rather than by any
- * assertion, which is exactly why the check is worth doing.
- *
- * ------------------------------------------------------------------------
- * WHAT IS PROVEN HERE, as opposed to asserted about:
- *
- *   the artifact BUILDS, and carries the whole product inside it
- *   an install produces both entrypoints — LAIN.exe and the CLI
- *   the installed copy depends on NOTHING in the checkout
- *   an UPGRADE replaces the program and keeps the person's work
- *   an UNINSTALL removes the program and keeps the person's work
- *   Node is checked BEFORE anything is written, not after
- *
- * These are slow (each install compiles the native host), so the set is small
- * and each case earns its seconds.
+ * The releases are built UNSIGNED here (no feed; the executables are never code-signed in this repository), from
+ * the official Node.js runtime that release.js verifies against nodejs.org. Slow — two builds and eight installs.
  */
 
 const assert = require('assert');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const { test, tmpdir } = require('../helpers');
 
 const ROOT = path.join(__dirname, '..', '..');
-const build = require('../../distribution/build');
-const payload = require('../../distribution/payload');
+const HARNESS = path.join(ROOT, '..', 'lain-harness');
+const ISO = ['--no-path', '--no-open-with', '--no-open-folder', '--no-start-menu', '--no-register'];
 
-/** Built once for the whole file — it is the expensive part. */
-let ARTIFACT = null;
-function artifact() {
-  if (ARTIFACT) return ARTIFACT;
-  ARTIFACT = build.build({ out: tmpdir('lain-dist-') });
-  return ARTIFACT;
+function reg(key) { return spawnSync('reg.exe', ['query', key], { encoding: 'utf8', windowsHide: true }).status === 0; }
+function userPath() { return spawnSync('powershell.exe', ['-NoProfile', '-Command', "[Environment]::GetEnvironmentVariable('PATH','User')"], { encoding: 'utf8', windowsHide: true }).stdout.trim(); }
+function snapshot() {
+  return {
+    lainFile: reg('HKCU\\Software\\Classes\\LAIN.File'), noemaFile: reg('HKCU\\Software\\Classes\\Noema.File'),
+    uninstall: reg('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Noema'), path: userPath(),
+    menu: fs.existsSync(path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Noema')),
+  };
 }
-
-function setup(args) {
-  const a = artifact();
-  try { return { ok: true, out: execFileSync(a.exe, args, { encoding: 'utf8', timeout: 600000 }) }; }
-  catch (e) { return { ok: false, out: String((e.stdout || '') + (e.stderr || '') + (e.message || '')) }; }
-}
+const sleep = (ms) => spawnSync(process.execPath, ['-e', `setTimeout(()=>{},${ms})`]);
 
 module.exports = async function () {
   if (process.platform !== 'win32') {
-    await test('INSTALLER: skipped — the LAIN installer is a Windows program', () => {});
+    await test('INSTALLER: skipped — the Noema installer is a Windows program', () => {});
     return;
   }
+  if (!fs.existsSync(path.join(HARNESS, 'index.js'))) {
+    await test(`INSTALLER: skipped — no Harness package at ${HARNESS} to build the payload from`, () => {});
+    return;
+  }
+  const before = snapshot();
+  const work = tmpdir('noema-installer-');
+  const HOME = path.join(work, 'data');
+  fs.mkdirSync(path.join(HOME, 'sessions'), { recursive: true });
+  fs.writeFileSync(path.join(HOME, 'sessions', 'marker.json'), '{"kept":true}');
+  // A TEMPORARY APPDATA: the Startup folder setup and the CLI write to (startup.js) is this one, never the person's.
+  const APPDATA = path.join(work, 'appdata');
+  fs.mkdirSync(APPDATA, { recursive: true });
+  const env = { ...process.env, NOEMA_CONFIG_DIR: HOME, NOEMA_NO_UPDATE_CHECK: '1', APPDATA };
+  const LINK = path.join(APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Noema Harness.lnk');
+  const linkTarget = () => {
+    if (!fs.existsSync(LINK)) return null;
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', '$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:L); $s.TargetPath + "|" + $s.Arguments'], { env: { ...process.env, L: LINK }, encoding: 'utf8', windowsHide: true });
+    return String(r.stdout || '').trim();
+  };
+  const real = (p) => fs.realpathSync.native(p).toLowerCase();
+  const pointsInto = (dir) => { const t = linkTarget(); return Boolean(t) && t.split('|')[0].toLowerCase() === real(path.join(dir, 'Noema Harness.exe')) && t.split('|')[1] === '--startup'; };
+  for (const k of ['LAIN_CONFIG_DIR', 'LAIN_HOME', 'NOEMA_HOME', 'NOEMA_INSTALL_ROOT']) delete env[k];
 
-  await test('INSTALLER: the artifact builds, and carries the whole product', () => {
-    const a = artifact();
-    assert.strictEqual(a.ok, true, a.why);
-    assert.ok(fs.existsSync(a.exe), 'one file, which is what ships');
-    assert.match(path.basename(a.exe), /^LAIN-Setup\.exe$/);
-    // THE PAYLOAD IS THE PACKAGE ALLOWLIST plus one DECLARED extra, never a
-    // second hand-written list that can drift from it.
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    const named = payload.entries();
-    for (const shipped of pkg.files) assert.ok(named.includes(shipped), `${shipped} is in the payload`);
-    assert.deepStrictEqual(
-      named.filter((e) => !pkg.files.includes(e) && e !== 'package.json'),
-      payload.INSTALLER_EXTRAS,
-      'and the only additions are the declared ones');
+  const builds = {};
+  function release(version) {
+    if (builds[version]) return builds[version];
+    const out = path.join(work, `dist-${version}`);
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'distribution', 'release.js'), '--version', version, '--out', out, '--harness-dir', HARNESS, '--unsigned'], { encoding: 'utf8', timeout: 900000, windowsHide: true });
+    assert.strictEqual(r.status, 0, `release ${version} did not build:\n${r.stdout}\n${r.stderr}`);
+    builds[version] = path.join(out, `Noema-Setup-${version}.exe`);
+    return builds[version];
+  }
+  function run(exe, args) {
+    const log = path.join(work, `setup-${Date.now()}.log`);
+    const r = spawnSync(exe, [...args, '--log', log], { env, encoding: 'utf8', timeout: 600000, windowsHide: true });
+    return { code: r.status, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+  }
+  function cli(dir, args) {
+    const r = spawnSync(path.join(dir, 'noema.exe'), args, { env, encoding: 'utf8', timeout: 120000, windowsHide: true, cwd: tmpdir('noema-elsewhere-') });
+    return { code: r.status, out: String(r.stdout || '').trim(), err: String(r.stderr || '').trim() };
+  }
+  const ptr = (dir, n) => { try { return fs.readFileSync(path.join(dir, n), 'utf8').trim(); } catch { return null; } };
+  const comps = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'components.json'), 'utf8')); } catch { return {}; } };
+  const D1 = path.join(work, 'cli');
+  const D2 = path.join(work, 'full');
 
-    // THE ONE EXTRA, AND WHY IT IS NOT IN THE NPM PACKAGE. Publishing
-    // Microsoft's DLLs inside LAIN's npm package is a different act from
-    // shipping them inside LAIN's own Windows installer — install.test.js
-    // guards the first, and without them an installed copy cannot build
-    // LAIN.exe offline at all.
-    // (The SDK moved with the host into lain-harness, 2026-09-23.)
-    assert.deepStrictEqual(payload.INSTALLER_EXTRAS, ['harness/native/vendor/']);
-    assert.ok(!pkg.files.includes('native/vendor/') && !pkg.files.includes('harness/native/vendor/'), 'and npm still does not publish it');
-    assert.ok(a.payloadFiles > 300, `${a.payloadFiles} files is not a whole product`);
+  await test('INSTALLER: the release builds — setup, update package; UNSIGNED makes no feed', () => {
+    const setup = release('0.1.0');
+    assert.ok(fs.existsSync(setup), setup);
+    assert.ok(fs.existsSync(path.join(path.dirname(setup), 'noema-0.1.0-win-x64.zip')));
+    assert.ok(!fs.existsSync(path.join(path.dirname(setup), 'manifest-stable.json')), 'an unsigned build never produces a feed');
   });
 
-  await test('INSTALLER: it installs both entrypoints, and the launcher points into the install', () => {
-    const dir = path.join(tmpdir('lain-install-'), 'LAIN');
-    const r = setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']);
-    assert.strictEqual(r.ok, true, r.out.slice(-400));
+  await test('INSTALLER: clean CLI-only — launchers, private runtime, no Harness, `noema --version` answers', () => {
+    const r = run(release('0.1.0'), ['--silent', '--dir', D1, '--cli-only', ...ISO]);
+    assert.strictEqual(r.code, 0, r.log);
+    for (const f of ['noema.exe', 'noemaw.exe', 'Uninstall Noema.exe', 'noema.ico']) assert.ok(fs.existsSync(path.join(D1, f)), f);
+    assert.ok(fs.existsSync(path.join(D1, 'versions', '0.1.0', 'runtime', 'node.exe')), 'the private runtime');
+    assert.ok(fs.existsSync(path.join(D1, 'versions', '0.1.0', 'runtime', 'LICENSE-node.txt')), 'and its licence');
+    assert.ok(!fs.existsSync(path.join(D1, 'Noema Harness.exe')), 'the Harness is optional');
+    assert.strictEqual(ptr(D1, 'current'), '0.1.0');
+    const v = cli(D1, ['--version']);
+    assert.match(v.out, /^Noema CLI 0\.1\.0 \(stable/, v.out || v.err);
+    assert.match(r.log, /Verified: Noema CLI 0\.1\.0/, 'setup verified the installed CLI itself');
+    assert.ok(!fs.existsSync(LINK), 'start at sign-in is OFF until the person turns it on');
+  });
 
-    assert.ok(fs.existsSync(path.join(dir, 'LAIN.exe')), 'the Harness');
-    assert.ok(fs.existsSync(path.join(dir, 'lain.cmd')), 'and the CLI, always together');
-    assert.ok(fs.existsSync(path.join(dir, 'Uninstall LAIN.exe')), 'and a way back out');
-
-    // WHAT THE NATIVE HOST READS AT STARTUP. It must name this install, not the
-    // machine the artifact was built on.
-    const launch = JSON.parse(fs.readFileSync(path.join(dir, 'launch.json'), 'utf8'));
-    assert.strictEqual(path.resolve(launch.entry), path.resolve(path.join(dir, 'bin', 'lain.js')));
-    assert.ok(launch.node && fs.existsSync(launch.node), `a real Node was recorded: ${launch.node}`);
-
-    // AND THE CLI SHIM QUOTES ITS PATHS — an install directory with a space in
-    // it is the ordinary case, and this one has one.
-    const shim = fs.readFileSync(path.join(dir, 'lain.cmd'), 'utf8');
-    assert.match(shim, /^"[^"]+node\.exe" "[^"]+lain\.js" %\*$/m, shim);
+  await test('INSTALLER: no LAIN executable ships; `lain` is a shim onto the same noema.exe, with the notice once', () => {
+    const files = fs.readdirSync(D1);
+    assert.ok(!files.some((f) => /^lain.*\.exe$/i.test(f)), `a LAIN executable was installed: ${files.join(', ')}`);
+    const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [e.name]);
+    assert.deepStrictEqual(walk(D1).filter((f) => /^(lain|LAIN)[^/\\]*\.exe$|lain-supervisor/i.test(f)), [], 'nowhere in the payload either');
+    const shim = fs.readFileSync(path.join(D1, 'lain.cmd'), 'utf8');
+    assert.match(shim, /"%~dp0noema\.exe" %\*/, 'the shim runs noema.exe');
+    assert.match(shim, /setlocal/i);
+    const run1 = spawnSync('cmd.exe', ['/d', '/c', path.join(D1, 'lain.cmd'), '--version'], { env, encoding: 'utf8', windowsHide: true, timeout: 120000 });
+    assert.match(String(run1.stdout), /^Noema CLI 0\.1\.0/, String(run1.stdout) + run1.stderr);
+    assert.match(String(run1.stderr), /LAIN has been renamed to Noema/);
+    const run2 = spawnSync('cmd.exe', ['/d', '/c', path.join(D1, 'lain.cmd'), '--version'], { env, encoding: 'utf8', windowsHide: true, timeout: 120000 });
+    assert.ok(!/renamed to Noema/.test(String(run2.stderr)), 'the notice is said once per home');
+    assert.ok(!fs.existsSync(path.join(HOME, '..', '.lain-v2')) && !fs.readdirSync(HOME).some((f) => /lain/i.test(f)), 'no LAIN home was made');
   });
 
   await test('INSTALLER: the installed copy depends on NOTHING in the checkout', () => {
-    // §16. A distribution certified by running the repository has not been
-    // certified: the repository has files the artifact does not.
-    const dir = path.join(tmpdir('lain-indep-'), 'LAIN');
-    assert.strictEqual(setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']).ok, true);
-
     const hits = [];
     const walk = (d, depth) => {
-      if (depth > 8) return;
+      if (depth > 9) return;
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) { walk(p, depth + 1); continue; }
         if (!/\.(js|json|cmd|cs)$/i.test(e.name)) continue;
         let text = '';
         try { text = fs.readFileSync(p, 'utf8'); } catch { continue; }
-        if (text.toLowerCase().includes(ROOT.toLowerCase())) hits.push(path.relative(dir, p));
+        if (text.toLowerCase().includes(ROOT.toLowerCase())) hits.push(path.relative(D1, p));
       }
     };
-    walk(dir, 0);
+    walk(D1, 0);
     assert.deepStrictEqual(hits, [], `installed files naming the checkout: ${hits.join(', ')}`);
-
-    // AND IT RUNS, from a working directory that is nobody's project.
-    const home = tmpdir('lain-indep-home-');
-    const out = execFileSync(process.execPath, [path.join(dir, 'bin', 'lain.js'), '--version'], {
-      encoding: 'utf8', timeout: 120000, cwd: tmpdir('lain-elsewhere-'),
-      env: { ...process.env, LAIN_CONFIG_DIR: home },
-    });
-    assert.match(out.trim(), /^lain \d/, out.trim());
   });
 
-  await test('INSTALLER: an upgrade replaces the program and keeps the person\'s work', () => {
-    const dir = path.join(tmpdir('lain-upgrade-'), 'LAIN');
-    assert.strictEqual(setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']).ok, true);
-
-    // A file the next version does not ship, and a file that is the person's.
-    const stale = path.join(dir, 'src', 'gone-in-the-next-version.js');
-    fs.writeFileSync(stale, '// not shipped any more\n');
-
-    const again = setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']);
-    assert.strictEqual(again.ok, true, again.out.slice(-400));
-    assert.ok(!fs.existsSync(stale), 'a module the new version does not ship is gone');
-    assert.ok(fs.existsSync(path.join(dir, 'LAIN.exe')), 'and the program is there');
-    // THE UPGRADE PATH THAT FAILED FIRST TIME: ExtractToDirectory refuses to
-    // replace an existing file, and package.json is loose in the root.
-    assert.ok(fs.existsSync(path.join(dir, 'package.json')), 'loose files are replaced, not refused');
+  await test('INSTALLER: add the Harness later — nothing else changes, the data is the same', () => {
+    const r = run(path.join(D1, 'Uninstall Noema.exe'), ['--add-harness', '--dir', D1]);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(fs.existsSync(path.join(D1, 'Noema Harness.exe')));
+    assert.strictEqual(comps(D1).harness, true);
+    assert.strictEqual(fs.readFileSync(path.join(HOME, 'sessions', 'marker.json'), 'utf8'), '{"kept":true}');
   });
 
-  await test('INSTALLER: uninstalling removes the program and KEEPS the data', () => {
-    const dir = path.join(tmpdir('lain-uninstall-'), 'LAIN');
-    assert.strictEqual(setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']).ok, true);
-
-    const r = setup(['--uninstall', '--dir', dir, '--silent']);
-    assert.strictEqual(r.ok, true, r.out.slice(-400));
-    assert.ok(!fs.existsSync(path.join(dir, 'src')), 'the runtime is gone');
-    assert.ok(!fs.existsSync(path.join(dir, 'bin')), 'and the entrypoint');
-    // THE SENTENCE THAT MATTERS TO SOMEBODY UNINSTALLING.
-    assert.match(r.out, /Kept your sessions, goals and settings/);
-    assert.ok(!/removed your lain data/i.test(r.out), 'nothing of theirs was taken');
+  await test('INSTALLER: start at sign-in — the CLI turns it on; the entry is the version-independent launcher', () => {
+    const r = cli(D1, ['settings', 'startup', 'harness', 'on']);
+    assert.strictEqual(r.code, 0, r.out + r.err);
+    assert.ok(pointsInto(D1), `the Startup entry: ${linkTarget()}`);
+    assert.ok(!/versions/i.test(linkTarget()), 'never a version folder');
+    assert.match(cli(D1, ['settings', 'startup', 'status']).out, /with Windows: ON[\s\S]*registered/);
   });
 
-  await test('INSTALLER: the Node requirement is stated, and the refusal cannot be deleted quietly', () => {
-    // ---- WHAT CANNOT BE TESTED HERE, AND WHY -----------------------------
-    //
-    // The intended case is "no Node, so refuse before writing anything". It
-    // cannot be staged on this machine: WINDOWS WILL NOT LET A PROCESS OVERRIDE
-    // %ProgramFiles%. Measured — a child started with ProgramFiles set to
-    // C:\NoSuchPlace and PATH emptied reports `ProgramFiles=C:\Program Files`
-    // and an empty PATH. So the standard location cannot be hidden from the
-    // preflight, and on a machine with Node installed there the refusal is
-    // unreachable.
-    //
-    // That is a fact about the platform rather than a gap in the check, and it
-    // is also what makes the check robust. What IS asserted is that the
-    // requirement is stated where a person will see it, and that the refusal
-    // text is still in the shipped binary — so the branch cannot be removed
-    // without this failing.
-    const a = artifact();
-    // .NET keeps string literals as UTF-16 in the assembly, so the bytes to
-    // look for are the UTF-16 ones — searched as latin1 this found nothing and
-    // said the branch was missing when it was not.
-    const binary = fs.readFileSync(a.exe);
-    const has = (s) => binary.includes(Buffer.from(s, 'utf16le'));
-    assert.ok(has('Node.js 18 or newer'), 'the refusal is compiled in');
-    assert.ok(has('nodejs.org'), 'and it says where to get it');
-    assert.ok(has('nodejs'), 'and where it looked');
+  await test('INSTALLER: repair restores a missing program file and keeps every choice', () => {
+    fs.unlinkSync(path.join(D1, 'versions', '0.1.0', 'app', 'bin', 'noema.js'));
+    const r = run(release('0.1.0'), ['--silent', '--dir', D1, '--repair']);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(fs.existsSync(path.join(D1, 'versions', '0.1.0', 'app', 'bin', 'noema.js')));
+    const c = comps(D1);
+    assert.ok(c.harness === true && c.path === false && c.openWith === false && c.registered === false, JSON.stringify(c));
+    assert.ok(pointsInto(D1), 'start at sign-in survives a repair');
+  });
 
-    // AND ON A MACHINE THAT HAS ONE, IT SAYS WHICH — before anything else.
-    const dir = path.join(tmpdir('lain-node-'), 'LAIN');
-    const r = setup(['--silent', '--dir', dir, '--no-path', '--no-shortcuts']);
-    assert.strictEqual(r.ok, true, r.out.slice(-300));
-    const first = r.out.trim().split('\n')[0];
-    assert.match(first, /^Node v\d+\.\d+\.\d+ at /, `the runtime is reported first: ${first}`);
-    const launch = JSON.parse(fs.readFileSync(path.join(dir, 'launch.json'), 'utf8'));
-    assert.ok(fs.existsSync(launch.node), 'and the one it recorded really exists');
+  await test('INSTALLER: clean CLI + Harness', () => {
+    const r = run(release('0.1.0'), ['--silent', '--dir', D2, '--harness', ...ISO]);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(fs.existsSync(path.join(D2, 'Noema Harness.exe')));
+    assert.strictEqual(comps(D2).harness, true);
+  });
+
+  await test('INSTALLER: upgrade 0.1.0 → 0.1.1 side by side — previous kept for rollback, choices kept', () => {
+    fs.writeFileSync(path.join(D1, 'lain.exe'), 'MZ obsolete');           // a LAIN-era build left in the folder
+    const r = run(release('0.1.1'), ['--silent', '--dir', D1]);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.strictEqual(ptr(D1, 'current'), '0.1.1');
+    assert.strictEqual(ptr(D1, 'previous'), '0.1.0');
+    assert.ok(fs.existsSync(path.join(D1, 'versions', '0.1.0')) && fs.existsSync(path.join(D1, 'versions', '0.1.1')));
+    assert.match(cli(D1, ['--version']).out, /^Noema CLI 0\.1\.1/);
+    assert.ok(comps(D1).harness === true && comps(D1).openWith === false, JSON.stringify(comps(D1)));
+    assert.ok(!fs.existsSync(path.join(D1, 'lain.exe')), 'the upgrade removed the obsolete lain.exe');
+    assert.match(r.log, /removed the obsolete lain\.exe/);
+    assert.ok(pointsInto(D1), 'start at sign-in survives the upgrade, unchanged');
+  });
+
+  await test('INSTALLER: removing the Harness removes its Startup entry; adding it back restores it — the choice is kept', () => {
+    let r = run(path.join(D1, 'Uninstall Noema.exe'), ['--remove-harness', '--dir', D1]);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(!fs.existsSync(path.join(D1, 'Noema Harness.exe')));
+    assert.ok(!fs.existsSync(LINK), 'no dead entry');
+    assert.match(cli(D1, ['settings', 'startup', 'status']).out, /with Windows: ON \(Noema Harness is not installed/);
+    r = run(path.join(D1, 'Uninstall Noema.exe'), ['--add-harness', '--dir', D1]);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(pointsInto(D1), 'registered again');
+  });
+
+  await test('INSTALLER: uninstall the program only — the data is kept', () => {
+    const r = run(path.join(D2, 'Uninstall Noema.exe'), ['--uninstall', '--silent', '--dir', D2]);
+    sleep(4000);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(pointsInto(D1), 'uninstalling ANOTHER install leaves this one\'s Startup entry alone');
+    assert.ok(!fs.existsSync(path.join(D2, 'versions')) && !fs.existsSync(path.join(D2, 'noema.exe')));
+    assert.ok(fs.existsSync(path.join(HOME, 'sessions', 'marker.json')), 'the data stays');
+  });
+
+  await test('INSTALLER: uninstall + "Also remove Noema user data" — both gone', () => {
+    const r = run(path.join(D1, 'Uninstall Noema.exe'), ['--uninstall', '--silent', '--remove-data', '--dir', D1]);
+    sleep(4000);
+    assert.strictEqual(r.code, 0, r.log);
+    assert.ok(!fs.existsSync(path.join(D1, 'noema.exe')));
+    assert.ok(!fs.existsSync(path.join(D1, 'lain.cmd')), 'the shim goes with the program');
+    assert.ok(!fs.existsSync(LINK), 'uninstall removed the Startup entry — nothing dead is left');
+    assert.ok(!fs.existsSync(HOME), 'the data folder is removed');
+  });
+
+  await test('INSTALLER: nothing outside the sandbox changed — "Open with", PATH, Start Menu, Installed apps', () => {
+    assert.deepStrictEqual(snapshot(), before);
   });
 };

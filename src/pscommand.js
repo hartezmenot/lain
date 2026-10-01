@@ -138,7 +138,7 @@ function render(app, C, width = 80) {
   const list = rows(app);
   const out = [];
   if (!list.length) {
-    out.push(C.dim('  Nothing is running that LAIN owns.'));
+    out.push(C.dim('  Nothing is running that Noema owns.'));
     out.push(C.dim('  /bg <what you want done> starts something in the background.'));
     return out;
   }
@@ -192,8 +192,8 @@ function render(app, C, width = 80) {
   out.push('');
   const T = require('./ui/text');
   const note = w >= 74
-    ? 'Processes LAIN started and still owns. Host processes are not listed.'
-    : 'Owned by LAIN. Host processes are not listed.';
+    ? 'Processes Noema started and still owns. Host processes are not listed.'
+    : 'Owned by Noema. Host processes are not listed.';
   const doors = w >= 70
     ? '/bg — the work behind these · /bg stop <id> — end a background task'
     : '/bg — the work behind these';
@@ -209,7 +209,7 @@ function register({ define, C }) {
     surface: true,
     // READ, not glanced at — it waits for Esc.
     flashMs: 0,
-    desc: 'Processes and services LAIN owns — pid, type, state, name',
+    desc: 'Processes and services Noema owns — pid, type, state, name',
     run(app) {
       const width = (app.render && app.render.width) || 80;
       for (const line of render(app, C, width)) app.render.write(line + '\n');

@@ -78,7 +78,7 @@ const ACTOR_CSS = `
 .msg .body{white-space:pre-wrap;word-break:break-word}
 .USER .who{color:var(--fg)}
 .USER .body{color:var(--fg)}
-.LAIN .who{color:var(--ok)}
+.Noema .who{color:var(--ok)}
 .EXTERNAL .who{color:var(--ext)}
 .MCP .who{color:var(--warn)}
 .ACTION{padding:3px 14px;border:0}
@@ -108,7 +108,7 @@ const GATE_CSS = `
 function page() {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>LAIN</title><style>
+<title>Noema</title><style>
 :root{--bg:#0e1116;--fg:#d7dde5;--dim:#7c8798;--ok:#4ec97a;--warn:#e3b341;--bad:#f2705d;--ext:#c678dd;--line:#232935}
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -137,11 +137,11 @@ summary{padding:10px 14px;color:var(--dim);font-size:12px;letter-spacing:.1em;cu
 #insts .here{border-color:var(--ok);color:var(--ok)}
 ${GATE_CSS}
 </style></head><body>
-<div id="gate"><h2>LAIN</h2>
+<div id="gate"><h2>Noema</h2>
 <p id="gatehint">This dashboard is locked.</p>
 <form id="gateform"><input id="pw" type="password" placeholder="password" autocomplete="current-password" autocapitalize="off" spellcheck="false"><button type="submit">Unlock</button></form>
 <div id="gatemsg"></div></div>
-<header><h1 id="proj">LAIN</h1><div class="sub" id="task">connecting…</div><div id="insts"></div></header>
+<header><h1 id="proj">Noema</h1><div class="sub" id="task">connecting…</div><div id="insts"></div></header>
 <div id="thread"></div>
 <details id="facts"><summary>DETAILS</summary><div id="detail"></div></details>
 <div id="live"><span class="dim">○ idle</span></div>
@@ -154,10 +154,8 @@ ${GATE_CSS}
 // it never reaches a URL, a log or a Referer.
 const KEY='lain.dash.session';
 let T=sessionStorage.getItem(KEY)||'';
-// A LINK THAT STILL CARRIES ?t= IS HONOURED ONCE AND THEN SCRUBBED, so an old
-// bookmark keeps working without leaving the credential in the address bar.
-const q=new URL(location.href).searchParams.get('t');
-if(q){T=q;sessionStorage.setItem(KEY,T);history.replaceState(null,'',location.pathname);}
+// A LINK THAT STILL CARRIES ?t= IS SCRUBBED FROM THE ADDRESS BAR, NOT USED: a credential in a URL is refused.
+if(new URL(location.href).searchParams.get('t'))history.replaceState(null,'',location.pathname);
 const $=(id)=>document.getElementById(id);
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const row=(k,v,cls)=>'<div class="row"><span class="k">'+esc(k)+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>';
@@ -200,7 +198,7 @@ function lock(why){
   if(entering){askWhat();$('pw').value='';$('pw').focus();}
 }
 function unlock(){LOCKED=false;$('gate').classList.remove('on');$('gatemsg').textContent='';}
-// WHICH PASSWORD THIS LAIN WANTS — the one that was set, or the startup one it
+// WHICH PASSWORD THIS Noema WANTS — the one that was set, or the startup one it
 // printed. Asked rather than assumed: wording that does not match what would
 // actually be accepted is a form people cannot get through.
 let WANTS_PASSWORD=false;
@@ -220,10 +218,10 @@ async function askWhat(){
     $('pw').placeholder='password';
     $('gatehint').textContent=WANTS_PASSWORD
       ?'This dashboard is locked. Enter the password you set with /dash password.'
-      :'No password has been set for this dashboard yet. Enter the STARTUP PASSWORD LAIN printed '
+      :'No password has been set for this dashboard yet. Enter the STARTUP PASSWORD Noema printed '
        +'in the terminal when /dash started. Run /dash password there to choose one you can '
-       +'remember — the startup password changes every time LAIN restarts.';
-    if(j.lockedOut)$('gatemsg').textContent='too many failed attempts — restart LAIN to try again';
+       +'remember — the startup password changes every time Noema restarts.';
+    if(j.lockedOut)$('gatemsg').textContent='too many failed attempts — restart Noema to try again';
   }catch(e){/* the gate still works with its default wording */}
 }
 $('gateform').addEventListener('submit',async(e)=>{
@@ -242,7 +240,7 @@ $('gateform').addEventListener('submit',async(e)=>{
       T=j.session||j.token;sessionStorage.setItem(KEY,T);$('pw').value='';unlock();tick();return;
     }
     const j=r?await r.json().catch(()=>({})):{};
-    $('gatemsg').textContent=j.error||'no answer from LAIN';
+    $('gatemsg').textContent=j.error||'no answer from Noema';
     // SELECT, NEVER CLEAR. A wrong password stays in the field, highlighted, so
     // a typo is one keystroke to fix rather than a whole password to retype.
     $('pw').select();
@@ -252,7 +250,7 @@ $('gateform').addEventListener('submit',async(e)=>{
   // nothing yet to hash it against. It buys the same session key.
   const r=await fetch('/api/state',{headers:{'x-lain-session':v}}).catch(()=>null);
   if(r&&r.ok){T=v;sessionStorage.setItem(KEY,T);unlock();draw(await r.json());return;}
-  $('gatemsg').textContent=r?'that password was refused':'no answer from LAIN';
+  $('gatemsg').textContent=r?'that password was refused':'no answer from Noema';
   $('pw').select();
 });
 async function post(action,value){
@@ -311,7 +309,7 @@ async function instances(){
 }
 
 function draw(s){
-  $('proj').textContent='LAIN · '+s.project.name;
+  $('proj').textContent='Noema · '+s.project.name;
   instances();
   $('task').textContent=s.task?s.task.objective:'no task yet';
   const el=$('thread');
@@ -355,11 +353,11 @@ async function tick(){
   if(!T){lock('');return;}
   try{
     const r=await fetch('/api/state',{headers:auth()});
-    // A REVOKED SESSION RE-LOCKS THE PAGE. A LAIN that ended takes its session
+    // A REVOKED SESSION RE-LOCKS THE PAGE. A Noema that ended takes its session
     // keys with it, and a page left open must say so rather than sitting on the last
     // state it happened to have — a stale screen that looks live is worse than
     // an honest lock.
-    if(r.status===401){lock('this session ended — LAIN printed a new startup password');return;}
+    if(r.status===401){lock('this session ended — Noema printed a new startup password');return;}
     unlock();
     draw(await r.json());
   }

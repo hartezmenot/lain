@@ -15,7 +15,7 @@
  * starts and nobody has to manage by hand:
  *
  *   LAIN (CLI / Core) ──named pipe──▶ worker host ──stdin/stdout──▶ Laya (python)
- *                                                └──loopback http──▶ Violetto (llama-server)
+ *                                                └──loopback http──▶ a llama-server worker (none since 2026-09-24)
  *
  * - NO NETWORK PORT of its own: a named pipe on Windows, a unix socket elsewhere.
  * - A SINGLETON BY CONSTRUCTION: the pipe name is derived from the host
@@ -176,7 +176,7 @@ function sendPython(w, req, timeoutMs) {
   });
 }
 
-/** LLAMA-SERVER WORKER (Violetto): its own loopback port, polled until /health answers. */
+/** LLAMA-SERVER WORKER (generic runtime): its own loopback port, polled until /health answers. */
 function startLlama(w) {
   const s = w.spec;
   w.port = Number(s.port) || 8093;
@@ -521,7 +521,7 @@ function tick() {
     if (freeMB < MIN_FREE_MB) { unload(w.id, `memory pressure: ${freeMB} MB free < ${MIN_FREE_MB} MB`); continue; }
     if (w.idleUnloadMs && now - (w.lastUsedAt || w.hotSince) > w.idleUnloadMs) unload(w.id, `idle ${Math.round((now - w.lastUsedAt) / 1000)} s`);
   }
-  if (noClientsSince && now - noClientsSince > graceMs()) shutdown(`no LAIN client for ${Math.round((now - noClientsSince) / 1000)} s (grace ${Math.round(graceMs() / 1000)} s)`);
+  if (noClientsSince && now - noClientsSince > graceMs()) shutdown(`no Noema client for ${Math.round((now - noClientsSince) / 1000)} s (grace ${Math.round(graceMs() / 1000)} s)`);
 }
 
 let closing = false;
@@ -555,7 +555,7 @@ async function handle(q) {
       // FOR A BENCHMARK OR A DIAGNOSTIC ONLY: block until the worker is hot (or failed).
       const w = workers.get(String(q.id));
       if (!w) return { ok: false, state: 'UNLOADED' };
-      if (w.state === 'LOADING') await Promise.race([w.ready, new Promise((r) => setTimeout(r, Number(q.timeoutMs) || 600000))]);
+      if (w.state === 'LOADING') await require('./deadline').race(w.ready, Number(q.timeoutMs) || 600000);
       return { ok: ['HOT_IDLE', 'INFERENCING'].includes(w.state), ...view(w) };
     }
     case 'call': return call(String(q.id), q.req || {}, q);

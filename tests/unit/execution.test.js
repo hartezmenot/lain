@@ -302,7 +302,7 @@ module.exports = async function () {
     assert.strictEqual(shellTools.shellPrefix, execution.shellPrefix);
   });
 
-  await test('SHELL: every shell LAIN names resolves to an executable and a prefix', () => {
+  await test('SHELL: every shell Noema names resolves to an executable and a prefix', () => {
     for (const s of execution.SHELLS) {
       const [file, prefix] = execution.shellPrefix(s);
       assert.ok(file && typeof file === 'string', `${s} has no executable`);
@@ -355,7 +355,7 @@ module.exports = async function () {
     }
   });
 
-  await test('SHELL LIVE: && and || really run under the PowerShell LAIN chose', async () => {
+  await test('SHELL LIVE: && and || really run under the PowerShell Noema chose', async () => {
     // The end of the chain: not "the right file was chosen" but "the operator
     // the user reported works". Skipped rather than failed on a machine with
     // only 5.1, because there `&&` genuinely does not exist and the honest

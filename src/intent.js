@@ -127,8 +127,15 @@ function render(eff, { objective = true } = {}) {
  * request once instead of five times. The first message (the objective) and
  * the latest user message are never touched; nothing is removed, so every
  * protocol still sees the same turn structure.
+ *
+ * NEVER A MESSAGE ALREADY SENT IN THIS CACHE LINEAGE (`frozen`, 2026-09-24).
+ * Folding a repeat that already went out rewrites history: every byte after
+ * it loses the provider's prefix cache and is billed again (measured: one
+ * repeated question reset the cache epoch on the next request). The fold is
+ * for a model that has NOT read the conversation — a new model or route, a
+ * cold lineage — which is exactly when nothing is frozen.
  */
-function foldRepeats(messages) {
+function foldRepeats(messages, { frozen = null } = {}) {
   const users = [];
   messages.forEach((m, i) => { if (m && m.role === 'user' && !m._live && !m._steer && typeof m.content === 'string') users.push(i); });
   if (users.length < 3) return messages;
@@ -137,6 +144,7 @@ function foldRepeats(messages) {
   for (let k = 1; k < users.length; k++) {
     const i = users[k];
     if (i === lastUser) continue;
+    if (frozen && frozen.has(messages[i])) continue;
     const text = messages[i].content;
     if (/^<lain-context>/.test(text)) continue;
     // Equivalent to ANY other request (the objective before it, or a copy after

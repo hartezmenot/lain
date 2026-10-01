@@ -157,9 +157,9 @@ module.exports = async function () {
 
   // ------------------------------------------------------------ projects --
 
-  await test('PROJECT: LAIN\'s own folder, the config home and the placeholder are never a project', () => {
+  await test('PROJECT: Noema\'s own folder, the config home and the placeholder are never a project', () => {
     const app = appAt(ROOT);
-    assert.strictEqual(sv.project(app.session).attached, false, 'the LAIN checkout is not the project');
+    assert.strictEqual(sv.project(app.session).attached, false, 'the Noema checkout is not the project');
     app.session.cwd = sv.unattachedDir();
     assert.strictEqual(sv.project(app.session).attached, false);
     const real = tmpdir('proj-');
@@ -172,7 +172,7 @@ module.exports = async function () {
     assert.strictEqual(sv.checkRoot(real).ok, true);
   });
 
-  await test('PROJECT FILES: with no project the tree is refused structurally, never LAIN\'s folder', async () => {
+  await test('PROJECT FILES: with no project the tree is refused structurally, never Noema\'s folder', async () => {
     const routes = require('../../src/harnessapp/routes');
     const app = appAt(ROOT);
     const r = await routes.dispatch(app, 'POST', '/api/files/tree', { path: '' });
@@ -188,7 +188,7 @@ module.exports = async function () {
     const lainApp = appAt(ROOT);
     const blank = await routes.dispatch(lainApp, 'POST', '/api/session/new', { lane: 'engineering' });
     assert.strictEqual(blank.code, 200);
-    assert.strictEqual(blank.body.project.attached, false, 'viewing LAIN\'s folder gives a session with no project');
+    assert.strictEqual(blank.body.project.attached, false, 'viewing Noema\'s folder gives a session with no project');
     const bad = await routes.dispatch(lainApp, 'POST', '/api/project/attach', { path: ROOT, session: blank.body.id });
     assert.strictEqual(bad.code, 400);
     const proj = tmpdir('attach-');

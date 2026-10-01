@@ -99,7 +99,7 @@ function tracer() {
   return { append, stamp };
 }
 
-function fakeTelegram({ token = mintToken(), me = { id: 77, username: 'lain_test_bot', first_name: 'LAIN Test' } } = {}) {
+function fakeTelegram({ token = mintToken(), me = { id: 77, username: 'lain_test_bot', first_name: 'Noema Test' } } = {}) {
   const trace = tracer().append;
   const state = { token, queue: [], sent: [], polls: 0, fail: false, nextUpdateId: 1, held: [] };
   const reply = (res, body) => {
@@ -319,7 +319,7 @@ module.exports = async function () {
       const s = await rc.status();
       assert.strictEqual(JSON.stringify(s).includes(FAKE_TOKEN), false, 'the status leaked the token');
       assert.ok(s.configured);
-      assert.strictEqual(s.bot_name, 'LAIN Test');
+      assert.strictEqual(s.bot_name, 'Noema Test');
 
       // ---- NOR IN THE EVENT LOG ------------------------------------------
       //
@@ -404,7 +404,7 @@ module.exports = async function () {
       tg.say('/session');
       const said = await until(() => (tg.sent.length > before ? tg.sent[tg.sent.length - 1].text : null));
       assert.ok(said, 'the bot answered');
-      assert.match(said, /LAIN SESSIONS/);
+      assert.match(said, /NOEMA SESSIONS/);
       // NO BRAIN IS CONFIGURED IN THIS TEST. A slash command must not need one:
       // that is what makes the runtime reachable when the local model is down.
       assert.ok(!/local model/i.test(said));
@@ -461,7 +461,7 @@ module.exports = async function () {
       // AND IT WAS ASKED THE RIGHT WAY ROUND: routing first, then explanation.
       // Two calls, and the second one carried the runtime's own text as facts.
       assert.strictEqual(brain.seen.length, 2, 'interpret then explain — two calls, no more');
-      assert.match(brain.seen[1], /LAIN SESSIONS/, 'the explanation was given the runtime facts');
+      assert.match(brain.seen[1], /NOEMA SESSIONS/, 'the explanation was given the runtime facts');
       assert.match(brain.seen[0], /session\.list/, 'and the routing call was shown the vocabulary');
     }, {
       brainAnswers: [
@@ -489,7 +489,7 @@ module.exports = async function () {
       // WITH the reason — a user who is told nothing learns that the feature is
       // flaky rather than that the model is.
       assert.ok(!said.includes('It is 61% through'), 'the invented sentence was sent as an answer');
-      assert.match(said, /LAIN SESSIONS/, 'the authoritative answer is what was sent');
+      assert.match(said, /NOEMA SESSIONS/, 'the authoritative answer is what was sent');
       assert.match(said, /runtime never reported/i, 'and the user is told why they got a table');
       // The rejected figures ARE named in the note, which is not the same as
       // asserting them: a user who is told nothing concludes the feature is
@@ -497,7 +497,7 @@ module.exports = async function () {
       assert.match(said, /61/);
       assert.match(said, /2629/);
       // What must not happen is the model's sentence standing on its own.
-      assert.ok(said.indexOf('LAIN SESSIONS') < said.indexOf('61'), 'the facts come first');
+      assert.ok(said.indexOf('NOEMA SESSIONS') < said.indexOf('61'), 'the facts come first');
     }, {
       brainAnswers: [
         '{"capability":"session.list","args":{}}',
@@ -545,7 +545,7 @@ module.exports = async function () {
       const before2 = tg.sent.length;
       tg.say('/session');
       const said = await until(() => (tg.sent.length > before2 ? tg.sent[tg.sent.length - 1].text : null));
-      assert.match(said, /LAIN SESSIONS/);
+      assert.match(said, /NOEMA SESSIONS/);
     }, { brainAnswers: ['{"capability":"session.list","args":{}}'] });
   });
 

@@ -63,13 +63,17 @@ const ASKS_USER = [
 const STATE = Object.freeze({
   ACTIVE: 'ACTIVE',
   DONE: 'DONE',
+  // THE ARBITER'S HONEST ENDINGS (discipline/arbiter.js): finished without the evidence the contract asks for, or
+  // finished with explicit asks still open — each said as what it is, never rounded up to DONE.
+  DONE_UNVERIFIED: 'DONE_UNVERIFIED',
+  PARTIAL: 'PARTIAL',
   BLOCKED: 'BLOCKED',
   NEEDS_USER: 'NEEDS_USER',
   NEEDS_AUTH: 'NEEDS_AUTH',
   FAILED: 'FAILED',
 });
 
-const TERMINAL = new Set([STATE.DONE, STATE.BLOCKED, STATE.NEEDS_USER, STATE.NEEDS_AUTH, STATE.FAILED]);
+const TERMINAL = new Set([STATE.DONE, STATE.DONE_UNVERIFIED, STATE.PARTIAL, STATE.BLOCKED, STATE.NEEDS_USER, STATE.NEEDS_AUTH, STATE.FAILED]);
 
 /**
  * How many unproductive TURNS — narration, no tools, nothing changed — before
@@ -168,6 +172,8 @@ class Lifecycle {
     this.lastCommand = null;
     this.blockers = [];
     this.turns = 0;
+    // THE TASK'S BELIEF / EVIDENCE STATE — outcome, asks, criteria, CheckState, integrity flags (discipline/).
+    this.discipline = new (require('./discipline').Discipline)(objective);
   }
 
   get isActive() { return this.state === STATE.ACTIVE; }
@@ -234,8 +240,13 @@ class Lifecycle {
       if (verdict.ok === true && this.evidence.filesChanged.size > 0) this.evidence.verifiedChecks += 1;
     }
     for (const m of mutated) this.evidence.filesChanged.add(m);
-    // EVERY CHANGE INVALIDATES A FINAL SMOKE THAT RAN BEFORE IT (finalsmoke.js).
+    // EVERY CHANGE INVALIDATES A FINAL SMOKE THAT RAN BEFORE IT (finalsmoke.js) — and starts a new GENERATION of
+    // evidence: a check observed before it says nothing about the state after it (discipline/checks.js).
     if (mutated.length) this.mutationSeq = (this.mutationSeq || 0) + 1;
+    if (this.discipline) {
+      const ok = /^run_/.test(name) ? (this.lastCommand ? this.lastCommand.ok : null) : !isError;
+      try { this.discipline.observe({ name, input, output, ok, exitCode, gen: this.mutationSeq || 0, changed: [...this.evidence.filesChanged], denied }); } catch { /* evidence bookkeeping never costs a call */ }
+    }
     if (finalSmoke && !denied) {
       this.smoke = detached
         ? { ok: null, running: true, seq: this.mutationSeq || 0, command: String((input && input.command) || name), at: Date.now() }
@@ -330,14 +341,26 @@ class Lifecycle {
    */
   contradiction(text) {
     const last = this.lastCommand;
-    if (!last || last.ok === true) return null;
-    if (!claimsSuccess(text)) return null;
-    if (last.ok === null) {
-      return `The last check does not verify that: ${last.command} — ${last.note || 'its exit code proves nothing about this requirement'}. `
-        + 'Run something that actually checks it before treating this as done.';
+    if (last && last.ok !== true && claimsSuccess(text)) {
+      if (last.ok === null) {
+        return `The last check does not verify that: ${last.command} — ${last.note || 'its exit code proves nothing about this requirement'}. `
+          + 'Run something that actually checks it before treating this as done.';
+      }
+      return `The last check was still failing when that was written: ${last.command}`
+        + `${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}. Run it again before treating this as done.`;
     }
-    return `The last check was still failing when that was written: ${last.command}`
-      + `${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}. Run it again before treating this as done.`;
+    // CLAIM PROVENANCE: a VERIFIED claim Noema has no evidence for is downgraded, and the person is told which.
+    // A turn that did nothing (an answer, an explanation) is not held to it unless the claim names a kind of
+    // reality that needs its own evidence — a package, a build, tests, something on screen.
+    if (!this.discipline) return null;
+    const { extract, crossCheck, DOMAINS } = require('./discipline/claims');
+    const active = this.evidence.filesChanged.size > 0 || this.evidence.commandsRun > 0;
+    const claims = extract(text).filter((c) => c.type === 'VERIFIED' && (active || DOMAINS.some((d) => d.claim.test(c.text))));
+    if (!claims.length) return null;
+    const bad = crossCheck(claims, { ledger: this.discipline.checks, gen: this.mutationSeq || 0, changed: [...this.evidence.filesChanged] }).filter((c) => !c.accepted);
+    if (!bad.length) return null;
+    this.discipline.claims = [...(this.discipline.claims || []), ...bad].slice(-20);
+    return `Not verified by Noema — ${bad.map((c) => `"${c.text.slice(0, 80)}" (${c.why})`).join('; ')}. Treat ${bad.length === 1 ? 'it' : 'them'} as NOT_CHECKED.`;
   }
 
   noteAuthFailure(provider, detail = '') {
@@ -451,9 +474,23 @@ class Lifecycle {
     return current;
   }
 
-  complete({ verified = false, userConfirmed = false, note = '', cwd = null } = {}) {
+  /**
+   * COMPLETION IS THE ARBITER'S DECISION (discipline/arbiter.js), with verifycontract.js as the single authority on
+   * how much proof a change needs. This used to apply its own gates — "the last command passed", then a mandatory
+   * final smoke for every changed tree — which made one ritual the universal measure and duplicated the contract.
+   * The legacy gates below are the arbiter's when no discipline state exists (a restored pre-Noema session).
+   */
+  complete({ verified = false, userConfirmed = false, note = '', cwd = null, discretion = 'STRONG', objective = '' } = {}) {
     if (verified) this.evidence.verifiedChecks += 1;
     if (userConfirmed) this.evidence.userConfirmed = true;
+    if (this.discipline) {
+      const v = require('./discipline/arbiter').evaluate(this, { cwd, discretion, objective: objective || this.objective });
+      this.discipline.verdict = { state: v.state, why: v.why, at: Date.now() };
+      if (!v.ok) return { ok: false, state: this.state, verdict: v.state, why: v.why, ...(v.failedCheck ? { failedCheck: v.failedCheck } : {}), ...(v.unverified ? { unverified: true } : {}), ...(v.smoke ? { smoke: v.smoke } : {}), remaining: v.remaining || [] };
+      this.state = STATE.DONE;
+      this.reason = note || v.why;
+      return { ok: true, state: this.state, verdict: v.state, why: this.reason, level: v.level || null };
+    }
     const e = this.evidence;
     const has = e.filesChanged.size > 0 || e.commandsRun > 0 || e.verifiedChecks > 0 || e.userConfirmed;
     if (!has) {
@@ -540,6 +577,7 @@ class Lifecycle {
       nudges: this.nudges, turns: this.turns, blockers: this.blockers,
       lastCommand: this.lastCommand, mutationSeq: this.mutationSeq || 0, smoke: this.smoke || null,
       evidence: { ...this.evidence, filesChanged: [...this.evidence.filesChanged] },
+      discipline: this.discipline ? this.discipline.toJSON() : null,
     };
   }
 
@@ -565,6 +603,8 @@ class Lifecycle {
       verifiedChecks: e.verifiedChecks || 0,
       userConfirmed: Boolean(e.userConfirmed),
     };
+    // THE BELIEF / EVIDENCE STATE survives a resume; a session saved before it existed starts one from its objective.
+    if (data.discipline) l.discipline = require('./discipline').Discipline.from(data.discipline);
     return l;
   }
 }

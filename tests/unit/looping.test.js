@@ -170,7 +170,7 @@ module.exports = async function () {
     assert.strictEqual(ui.panel.visible, true, 'the advisory is still there, unbothered');
   });
 
-  await test('LOOP: it never claims LAIN is waiting on you, because LAIN is not', () => {
+  await test('LOOP: it never claims Noema is waiting on you, because Noema is not', () => {
     // The status header is the line a person acts on. An advisory raised over a
     // running turn must not turn it into WAITING FOR YOU — that is the DONE-
     // over-unfinished-work untruth in the other direction.

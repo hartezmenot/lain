@@ -107,7 +107,7 @@ module.exports = async () => {
       const has = (re, why) => assert.ok(results.some((r) => re.test(r)), `${why}\n${results.join('\n---\n')}`);
       has(/^DENIED READ_ONLY_TASK: write_file changes things[\s\S]*refuses the WRITE, not the task/, 'the write is refused, the task is not');
       has(/^NOTE: "functions\/grep" is not a tool name here — ran "grep"[\s\S]*api\.search|^NOTE: "functions\/grep"[\s\S]*App\.tsx/, 'a namespaced name runs the tool it names');
-      has(/^NOTE: "print_tree" is not a LAIN tool — ran a recursive listing[\s\S]*src\/App\.tsx/, 'print_tree recovers as a bounded recursive listing');
+      has(/^NOTE: "print_tree" is not a Noema tool — ran a recursive listing[\s\S]*src\/App\.tsx/, 'print_tree recovers as a bounded recursive listing');
       has(/^web is a FILE \(\d+ bytes\), not a directory — read it with read_file/, 'a file listed as a folder is named a file');
       has(/regular-expression escape[\s\S]*"webapp\/src\/api\.ts" exists[\s\S]*Nearest existing folder: webapp\/src\//, 'a regex-escaped path is reported with the literal file, never rewritten');
       has(/^DENIED READ_ONLY_TASK: that command is not a read-only inspection/, 'an install is refused');
@@ -123,7 +123,7 @@ module.exports = async () => {
       assert.ok(/^REPORT:/.test(String(turn.text || '').trim().split('\n').pop()), 'the task ended with its report');
 
       // ---- .lain untouched ----------------------------------------------------
-      assert.strictEqual(fs.existsSync(path.join(proj, '.lain')), false, 'no .lain/ was created: no task record, index, scratch or schema');
+      assert.strictEqual((fs.existsSync(path.join(proj, '.lain')) || fs.existsSync(path.join(proj, '.noema'))), false, 'no .lain/ was created: no task record, index, scratch or schema');
     } finally {
       mock.chat = realChat;
       try { require('../../src/lainstore').hold(proj, app.session.id, false); } catch { /* released */ }

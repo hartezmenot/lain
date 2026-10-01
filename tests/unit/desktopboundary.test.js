@@ -41,8 +41,9 @@ module.exports = async function () {
     // Sorted: which order they appear in a source file is not a property worth
     // pinning, but WHICH ONES EXIST very much is.
     const routes = [...src.matchAll(/"\/api\/[a-z/]+"/gi)].map((m) => m[0]).sort();
-    assert.deepStrictEqual(routes, ['"/api/desktop/drop"', '"/api/desktop/quit"', '"/api/session/new"'],
-      `the host names only routes IT originates — a drop, a quit and a tray session: ${routes.join(', ')}`);
+    // PHASE 8.3: the tray's compact panel pauses (interrupt) or continues (workbench/continue) the task — Core's own routes.
+    assert.deepStrictEqual(routes, ['"/api/desktop/drop"', '"/api/desktop/quit"', '"/api/interrupt"', '"/api/workbench/continue"'],
+      `the host names only routes IT originates — a drop, a quit, and the tray's Pause/Continue: ${routes.join(', ')}`);
     // AND NONE OF THEM DECIDES ANYTHING. Each is a request Core answers: a file
     // the OS handed the window, a shutdown Core performs, a session Core makes.
     // The host holds no state behind any of them.
@@ -79,12 +80,32 @@ module.exports = async function () {
     assert.deepStrictEqual(verbs, ['exit', 'hide', 'show'], `a closed vocabulary: ${verbs.join(', ')}`);
     // ---- RENDERER→HOST IS A SECOND CLOSED VOCABULARY, FOR PRESENTATION ONLY --
     //
-    // The page asks the host for three things only a window can do: the system
-    // folder picker, the tray tooltip, and hiding itself. None of them grants
-    // anything — a picked folder still goes to Core's /api/project/open, which
-    // checks it like a typed path — and none of them is forwarded to Core.
+    // The page asks the host for five things only a window can do: the system
+    // folder and file pickers, the tray tooltip, hiding itself, and handing a
+    // web address to the default browser (sign-in and "get a key" pages open
+    // THERE, never inside LAIN). None of them grants anything — a picked path
+    // still goes to Core, which checks it like a typed one — and none of them
+    // is forwarded to Core.
     const asks = [...host.matchAll(/ask == "([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
-    assert.deepStrictEqual(asks, ['hide', 'pickFolder', 'trayTip'], `a closed renderer vocabulary: ${asks.join(', ')}`);
+    // Phase 8 adds two: `zoom` (the window's own ZoomFactor, clamped) and `capture`
+    // (a picture of this window for a feedback report the person ticked).
+    // Phase 8.1: `detach` opens the preview window; that window (Satellite) knows only `close` and `zoom`.
+    // 2026-09-30: `win` — the page draws the title bar, so it asks for min / max / close / move / top-edge resize.
+    assert.deepStrictEqual(asks, ['capture', 'close', 'detach', 'hide', 'openExternal', 'pickFile', 'pickFolder', 'trayTip', 'win', 'zoom', 'zoom'], `a closed renderer vocabulary: ${asks.join(', ')}`);
+    // `win` GRANTS NOTHING: it moves, sizes, minimises or hides this window — "close" is the system X (hides to the tray).
+    const win = host.slice(host.indexOf('ask == "win"'), host.indexOf('ask == "zoom"'));
+    assert.ok(win.length > 0 && !/core\.Send|Process\.Start|File\./.test(win), 'the title-bar verb touches only the window');
+    // openExternal IS NOT A PROGRAM LAUNCHER: the address is parsed, only
+    // http(s) passes, credentials in it are refused, and what reaches the shell
+    // is the parsed form, never the raw text.
+    const at = host.indexOf('static string OpenExternally(');
+    const opener = host.slice(at, at + 1400);
+    assert.match(opener, /Uri\.TryCreate\(/);
+    assert.match(opener, /u\.Scheme != Uri\.UriSchemeHttps && u\.Scheme != Uri\.UriSchemeHttp/);
+    assert.match(opener, /UserInfo/);
+    assert.match(opener, /ProcessStartInfo\(u\.AbsoluteUri\)/);
+    // pickFile's filter comes from a fixed list — the page cannot supply one.
+    assert.ok(!/m\["filter"\]|ContainsKey\("filter"\)/.test(host), 'the page does not choose the file filter');
     const handler = host.slice(host.indexOf('void HostVerbFromRenderer('), host.indexOf('ToRenderer(new JavaScriptSerializer().Serialize(reply));'));
     assert.ok(handler.length > 0 && !/core\.Send/.test(handler), 'a renderer verb is answered by the host and never sent on to Core');
     // AND A HOST MESSAGE NEVER REACHES THE PAGE.
@@ -221,7 +242,8 @@ module.exports = async function () {
     const cli = fs.readFileSync(path.join(ROOT, 'src', 'cli.js'), 'utf8');
     assert.match(cli, /opts\.desktop/, 'the CLI has a launch flag');
     const host = fs.readFileSync(require('../helpers').harnessPath('native', 'host.cs'), 'utf8');
-    assert.match(host, /Launcher\.Start\(\)/, 'and a double-clicked host starts Core rather than refusing');
+    // (with the path Explorer handed it, when LAIN was launched by Open with — 2026-09-29)
+    assert.match(host, /Launcher\.Start\((Target\(argv\)[^;]*)?\);/, 'and a double-clicked host starts Core rather than refusing');
 
     // AND IT NEVER FALLS BACK TO A BROWSER. A native failure that quietly
     // opened Chrome would hide exactly the regression it should report.

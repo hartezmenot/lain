@@ -65,8 +65,8 @@ module.exports = async function () {
     assert.strictEqual(r.code, 0);
     const f = lastFrameWith(r.out, /Type a task below/);
     assert.ok(f, 'the launch screen was drawn');
-    assertIncludes(f, 'L   A   I   N', 'the wordmark');
-    assertIncludes(f, 'Ready to work.', 'and that LAIN is ready');
+    assertIncludes(f, 'N   O   E   M   A', 'the wordmark');
+    assertIncludes(f, 'Ready to work.', 'and that Noema is ready');
     assertIncludes(f, 'Model', 'and what model is configured');
     assertIncludes(f, 'Connection', 'through what');
     assertIncludes(f, 'Effort', 'and at what effort');
@@ -147,7 +147,7 @@ module.exports = async function () {
     // and becomes the provider's own count when the receipt lands. Everything
     // else — per-request input, cache reads, the measured/estimated split — is
     // `/token`, asked for rather than always drawn.
-    const strip = f.split('\n').find((l) => /LAIN\s+(?:·\s+)?\S+\s+(?:·\s+)?mock-model/.test(l)) || '';
+    const strip = f.split('\n').find((l) => /Noema\s+(?:·\s+)?\S+\s+(?:·\s+)?mock-model/.test(l)) || '';
     assert.ok(strip, 'the header row must be on screen at all');
     assert.match(strip, /~?\d+(?:\.\d)?[KMB]?\s*$/,
       `the header carries the output figure, once, at its right: ${strip.trim()}`);
@@ -164,7 +164,7 @@ module.exports = async function () {
     // THE HEADER ROW ITSELF — the one carrying the model, which is the only
     // row of metadata there is. Taking "the first few rows" would now catch the
     // top of the conversation, which is exactly where the task SHOULD be.
-    const head = f.split('\n').find((l) => /LAIN\s+\S+\s+mock-model/.test(l)) || '';
+    const head = f.split('\n').find((l) => /Noema\s+\S+\s+mock-model/.test(l)) || '';
     // THE TASK IS STILL NAMED, AND NOW ONLY ONCE.
     //
     // It used to be named in the HEADER and again in the pinned TASK banner two
@@ -193,7 +193,7 @@ module.exports = async function () {
     // because two writers shared the terminal.
     // What a border is ALLOWED to say: the region it labels, the view selector,
     // or the transient exit hint. Anything else in a border is the defect.
-    const KNOWN = /^(?:L A I N|CONTEXT|ACTIVITY|PLAN|DIFF|FILES|OUTPUT|INPUT|COMMANDS|Press Ctrl\+C.*)$/;
+    const KNOWN = /^(?:N O E M A|L A I N|CONTEXT|ACTIVITY|PLAN|DIFF|FILES|OUTPUT|INPUT|COMMANDS|Press Ctrl\+C.*)$/;
     const isViewStrip = (t) => /^\[\d \w+\]/.test(t);
     const labelOf = (l) => l.replace(/^[┌└]─/, '').replace(/─+[┐┘]?$/, '').trim();
     const bad = frames(r.out)
@@ -312,7 +312,7 @@ module.exports = async function () {
     const f = lastFrameWith(r.out, /session\s+\d/);
     assertIncludes(f, 'Status', '/status rendered inside the workspace');
     assertIncludes(f, 'messages');
-    assertIncludes(f, 'Ask LAIN', 'and the input region survived it');
+    assertIncludes(f, 'Ask Noema', 'and the input region survived it');
   });
 
   // ---- /config actually edits ---------------------------------------------
@@ -349,7 +349,7 @@ module.exports = async function () {
     // ------------------------------------------------------------------
     const f = lastFrameWith(r.out, /CONFIG/i);
     assert.ok(!/\bWorking\b|\bThinking\b|\bReceiving\b/i.test(f),
-      `a modal panel is LAIN waiting on a person, not LAIN working:
+      `a modal panel is Noema waiting on a person, not Noema working:
 ${f}`);
     // NO ACTOR COLUMN FOR LAIN'S OWN WORK — one identity is enough, and the header
     // already carries it (ui/status.js).

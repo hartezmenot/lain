@@ -50,21 +50,27 @@ module.exports = async function () {
 
       // HOME IS WHERE LAIN OPENS; CHAT IS ONE TAB AWAY, NOT THROUGH HOME.
       await d.until("LAIN.nav.tab() === 'home' && !document.getElementById('vHome').hidden");
-      await d.click('#tabChat');
+      assert.strictEqual(await d.surface('chat'), 'rail', 'from Home, the rail');
       await d.until("LAIN.nav.tab() === 'chat' && LAIN.ui().mode === 'chat'");
+      // THE RAIL (2026-09-30): on Chat it is on screen — the way out of Chat — and File/Edit/View/Help are the IDE's only.
+      assert.ok(await d.js("(() => { const r = document.getElementById('rail'); const w = r.getBoundingClientRect().width; return r.offsetParent !== null && w > 0 && document.getElementById('menus').offsetParent === null; })()"), 'Chat: the rail, no IDE menubar');
       await d.type('#ask', 'explain what a.js does');
       await d.click('#send');
       await d.until("document.getElementById('stream').innerText.includes('dispatches by path prefix')", 30000);
 
-      // THE MODEL-SOURCE PICKER AND THE SOURCE WORKSPACE ARE DIFFERENT CONTROLS.
-      await d.click('#srcPill');
-      await d.until("document.getElementById('pop') && /ChatGPT\\.com/.test(document.getElementById('pop').innerText) && /Gemini\\.google\\.com/.test(document.getElementById('pop').innerText)", 8000);
-      await d.js("document.getElementById('pop').remove()");
+      // THE ROUTE PILL OPENS THE PROVIDER PICKER (2026-09-30 composer): LAIN's own sources only.
+      // (Phase 8.1: the website sources were retired — no ChatGPT.com / gemini.google.com page is ever offered.)
+      await d.js("document.querySelector('#composerCells [data-route-pill]').click()");
+      await d.until("document.getElementById('pop') && /provider/i.test(document.getElementById('pop').innerText)", 8000);
+      assert.ok(!(await d.js("/ChatGPT Chat|Gemini\\.google\\.com/.test(document.getElementById('pop').innerText)")), 'no website source is offered');
+      await d.js('LAIN.closePop()');
       // THE IDE, straight from Chat: the attached project's tree and the BOT beside it.
-      await d.click('#tabIde');
+      // THE APP PANEL IS ON CHAT (Phase 8.2): leaving Chat is one click on it.
+      assert.strictEqual(await d.surface('ide'), 'rail');
+      assert.ok(await d.js("document.getElementById('menus').offsetParent !== null"), 'the IDE has its File / Edit / View / Help');
       await d.until("!document.getElementById('main').hidden && document.getElementById('srcTree').innerText.includes('a.js')", 10000);
       await d.until("document.getElementById('ideBotHost').contains(document.getElementById('ask'))", 5000);
-      await d.click('#tabChat');
+      await d.surface('chat');
       await d.until("document.getElementById('chatHost').contains(document.getElementById('ask'))", 5000);
 
       // A QUESTION THE WINDOW-STARTED TURN ASKS IS ANSWERED IN THE WINDOW.
@@ -101,7 +107,10 @@ module.exports = async function () {
 
       // BACK TO THE FIRST CONVERSATION, FROM THE RAIL.
       await d.until("document.querySelectorAll('#sessions .sess').length >= 2", 8000);
-      await d.js("Array.from(document.querySelectorAll('#sessions .sess')).find((b) => b.innerText.includes('explain what a.js does')).click()");
+      // The row is titled by the work in hand: the Coding Agent took up "change
+      // the export style" as its own task (journey.js / identify.js), so the
+      // first conversation may be listed under either.
+      await d.js("Array.from(document.querySelectorAll('#sessions .sess')).find((b) => /explain what a\.js does|change the export style/.test(b.innerText)).click()");
       await d.until("LAIN.state().current.lane === 'engineering' && document.getElementById('stream').innerText.includes('Keeping CommonJS')", 10000);
 
       // RELOAD KEEPS THE SESSION AND THE CONVERSATION.
@@ -123,7 +132,7 @@ module.exports = async function () {
       await again.until("!document.getElementById('app').hidden && LAIN.state()", 30000);
       await again.js("LAIN.nav.go('chat')");
       await again.until("document.getElementById('stream').innerText.includes('Keeping CommonJS')", 30000);
-      assert.ok(await again.js("document.getElementById('sessions').innerText.includes('explain what a.js does')"), 'the session list survives the restart');
+      assert.ok(await again.js("/explain what a\.js does|change the export style/.test(document.getElementById('sessions').innerText)"), 'the session list survives the restart');
       await again.type('#ask', 'and after a restart?');
       await again.click('#send');
       await again.until("document.getElementById('stream').innerText.includes('After the restart.')", 30000);
@@ -164,10 +173,10 @@ module.exports = async function () {
                 return r.width > 40 && r.right <= window.innerWidth + 2; })(),
           send: (function(){ var e=document.getElementById('send'); var r=e.getBoundingClientRect();
                  return r.width > 0 && r.right <= window.innerWidth + 2; })(),
-          sessionTab: (function(){ var r=document.getElementById('tabSession').getBoundingClientRect();
+          sessionTab: (function(){ var r=document.getElementById('chatMore').getBoundingClientRect();
                        return r.width > 0 && r.right <= window.innerWidth + 2; })(),
-          railShown: (function(){ var e=document.querySelector('#sessions .sess') || document.querySelector('#sessions .empty');
-                      return !!e && e.getBoundingClientRect().width > 0; })()
+          railShown: (function(){ var e=document.getElementById('sessions');
+                      if (!e || e.offsetParent === null) return false; var r=e.getBoundingClientRect(); return r.width > 0 && r.left < window.innerWidth; })()
         })`));
       };
 
@@ -178,18 +187,20 @@ module.exports = async function () {
         assert.ok(v.send, `${w}x${h} @${scale}x: Send is off the window`);
       }
 
-      // WIDE: the conversation rail is a column beside the chat.
+      // WIDE (2026-09-30): the conversations are the rail's room, a column beside the chat.
       const wide = await at(1280, 820, 1);
-      assert.ok(wide.railShown, 'the conversation rail is a column at a normal width');
+      assert.ok(wide.railShown, 'the conversation list is a column at a normal width');
 
       // NARROW: the rail steps aside for the conversation, AND every session is
       // still one click away — the Session tab is in the tab bar at every width.
       // A narrow window that simply dropped the list would be one you cannot
       // leave the session you are in.
       const narrow = await at(520, 700, 1);
-      assert.ok(!narrow.railShown, 'at 520px the rail is not taking the window');
-      assert.ok(narrow.sessionTab, 'but the Session tab is on screen');
-      await d.click('#tabSession');
+      assert.ok(!narrow.railShown, 'at 520px the rail is compact and not taking the window');
+      assert.ok(narrow.sessionTab, 'but the conversation menu is on screen');
+      await d.click('#chatMore');
+      await d.until("!!document.querySelector('.pop') && /All sessions/.test(document.querySelector('.pop').innerText)", 5000);
+      await d.js("Array.from(document.querySelectorAll('.pop button, .pop .opt, .pop [role=menuitem]')).find((x) => /^All sessions/.test((x.innerText || '').trim())).click()");
       await d.until("document.querySelectorAll('#sessList .srow').length >= 1 && document.querySelector('#sessList .srow').getBoundingClientRect().width > 0", 8000);
     } finally {
       await d.close();

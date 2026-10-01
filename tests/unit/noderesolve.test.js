@@ -33,7 +33,7 @@ function fakeNode(dir, name) {
 }
 
 module.exports = async function () {
-  await test('NODE: the interpreter already running LAIN is the best answer', () => {
+  await test('NODE: the interpreter already running Noema is the best answer', () => {
     const r = resolve.find();
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.exe, process.execPath, 'it is the Node that got here');

@@ -205,7 +205,8 @@ module.exports = async function () {
     const out = handover.build(s, { cwd: root, checkpoints: cp, toModel: 'model-B' });
     // The POSITION comes from `completed`/`remaining` — the same getters /plan
     // reads — so it can never disagree with any other view of the plan.
-    assert.ok(/Plan: 1\/4 steps done\./.test(out),
+    // THE TOTAL COUNTS LIVE STEPS ONLY (Gate 3 §81): the dropped one is history, counted apart.
+    assert.ok(/Plan: 1\/3 steps done\./.test(out),
       `the position must come from the plan's own getters:${NL}${out}`);
     assert.ok(/1 dropped/.test(out), 'a dropped step is counted, not listed as work to do');
     // STILL OUTSTANDING names the two steps the next entry must actually do —

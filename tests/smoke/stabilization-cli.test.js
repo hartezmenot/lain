@@ -55,7 +55,7 @@ module.exports = async function () {
       { text: 'Executed the accepted plan.' },
     ],
     steps: [
-      { until: 'Ask LAIN', timeout: 30000 },
+      { until: 'Ask Noema', timeout: 30000 },
       { snap: 'auto', settle: 300 },
       { key: 'shift-tab' }, { snap: 'manual', settle: 400 },
       { key: 'shift-tab' }, { snap: 'plan', settle: 400 },
@@ -63,9 +63,9 @@ module.exports = async function () {
       { until: 'only propose', timeout: 30000 },
       { snap: 'planned', settle: 500 },
       { send: '/plan accept\r' },
-      { until: 'RUNNING', timeout: 20000 },
+      { until: 'PLAN ACCEPTED', timeout: 20000 },
       { snap: 'executing', settle: 200 },
-      { until: 'Executed the accepted plan', timeout: 30000 },
+      { until: 'Executed the accepted plan|Blocked|DONE', timeout: 30000 },
       { snap: 'executed', settle: 500 },
     ],
   });
@@ -80,8 +80,10 @@ module.exports = async function () {
     assert.ok(!fs.existsSync(path.join(a.cwd, 'plan-mode.txt')), 'the write was refused');
     assert.ok(!/\b\d+\/\d+\b/.test(header(a.byName.planned).replace(/\d+\.\d+K|~?\d+$/, '')), header(a.byName.planned));
   });
-  await test('CLI A: /plan accept leaves PLAN, executes, and the header shows RUNNING with real progress', () => {
-    assert.match(header(a.byName.executing), /RUNNING/);
+  await test('CLI A: /plan accept leaves PLAN, executes, and the header shows the mode with real progress', () => {
+    // The live state (and its clock) is the activity line's; the header keeps the mode and the plan step (2026-10-01).
+    assert.match(header(a.byName.executing), /AUTO(?: · step \d+\/\d+)?/);
+    assert.ok(!/RUNNING/.test(header(a.byName.executing)), 'the live state is not repeated in the header');
     assert.ok(fs.existsSync(path.join(a.cwd, 'accepted.txt')), 'execution happened after acceptance');
     assert.ok(!/PLAN · discussing/.test(header(a.byName.executed)));
   });
@@ -100,18 +102,17 @@ module.exports = async function () {
       { text: 'Retry delay now doubles. check.js passes.' },
     ],
     steps: [
-      { until: 'Ask LAIN', timeout: 30000 },
+      { until: 'Ask Noema', timeout: 30000 },
       { send: 'fix the retry delay\r' },
       // The activity state, as the one compact line a running tool gets.
-      { until: '(?:EXECUTING|READING|THINKING|TESTING|WRITING|VERIFYING) · ', timeout: 20000 },
+      { until: '(?:Running|Reading|Testing|Writing|Verifying|Working) · ', timeout: 20000 },
       { snap: 'working', settle: 100 },
       { until: 'check\\.js passes', timeout: 30000 },
       { snap: 'done', settle: 800 },
     ],
   });
-  // ACTIVITY IS A GREY RECTANGLE WHILE THINKING and ONE LINE while a tool is
-  // primary (ui/activitybox.js) — so a running tool reads `EXECUTING · …`.
-  const liveState = /(?:EXECUTING|READING|THINKING|TESTING|WRITING|VERIFYING) · /;
+  // ONE ACTIVITY LINE (2026-10-01): a running tool reads `Running · node …` / `Reading · retry.js`, said once.
+  const liveState = /(?:Running|Reading|Testing|Writing|Verifying|Working) · /;
   await test('CLI B: the activity state is there while a tool runs — one compact line — and gone when the turn ends', () => {
     assert.deepStrictEqual(b.timeouts, []);
     assert.match(vis(b.byName.working), liveState);
@@ -127,7 +128,7 @@ module.exports = async function () {
   const diffCol = (b.byName.done.text[diffRow - 1] || '').search(/\[(?:× )?Diff\]/) + 2;
   const b2 = await tty.runTty({
     cols: 110, rows: 34, args: ['--resume', lastSession(b.configDir).id], configDir: b.configDir, cwd: cwdB,
-    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'closed', diffCol), ...click(diffRow, 'reopen', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
+    steps: [{ until: 'Ask Noema', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'closed', diffCol), ...click(diffRow, 'reopen', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
   });
   await test('CLI B: a resumed turn still shows its diff; the control collapses and reopens it; Esc does not remove transcript', () => {
     assert.match(vis(b2.byName.resumed), /\[× Diff\][\s\S]*- .*n \* 100[\s\S]*\+ .*100 \* 2 \*\* n/);
@@ -148,14 +149,13 @@ module.exports = async function () {
       { text: 'Continuing with what the browser request returned.' },
     ],
     steps: [
-      { until: 'Ask LAIN', timeout: 30000 },
+      { until: 'Ask Noema', timeout: 30000 },
       { send: '/browser\r' }, { snap: 'browser', settle: 800 }, { key: 'escape' },
       { send: '/chrome\r' }, { snap: 'chrome', settle: 800 }, { key: 'escape' },
       { send: '/focus\r' }, { wait: 500 }, { send: '/fast\r' }, { snap: 'prefs', settle: 800 },
       { send: 'check the page renders\r' },
-      { until: '(?i)request · browser', timeout: 30000 },
-      { snap: 'asked', settle: 300 },
-      { key: 'enter' },
+      // A LOCAL page in Noema's own ISOLATED browser is inspected directly (tools/capability.js internalRoute);
+      // the person's Chrome and public sites are still asked.
       { until: 'Continuing with what the browser request returned', timeout: 90000 },
       { snap: 'continued', settle: 500 },
     ],
@@ -167,9 +167,9 @@ module.exports = async function () {
   await test('CLI C: /focus and /fast are session preferences shown in the header', () => {
     assert.match(header(c.byName.prefs), /FOCUS · FAST/);
   });
-  await test('CLI C: a model request for the browser asks, then EXECUTES — the turn continues from a real result', () => {
+  await test('CLI C: a model request for a LOCAL page EXECUTES in the isolated browser without a prompt — the turn continues from a real result', () => {
     assert.deepStrictEqual(c.timeouts, []);
-    assert.match(vis(c.byName.asked), /Allow once[\s\S]*Allow session[\s\S]*Deny/);
+    assert.ok(!/Allow once/.test(vis(c.byName.continued)), 'no permission prompt for Noema\'s own isolated browser on a local page');
     const s = lastSession(c.configDir);
     const toolMsg = s.messages.find((m) => m.role === 'tool');
     assert.ok(toolMsg, 'a tool result exists');
@@ -206,7 +206,7 @@ module.exports = async function () {
   // ---- E — no resurrected rate-limit warning --------------------------------
   const e1 = await runCli(['-p', 'hello'], { timeoutMs: 60000, script: [{ error: { status: 429, message: 'rate limited', retryAfter: 3000 } }, { error: { status: 429, message: 'rate limited' } }] });
   const sid = lastSession(e1.configDir).id;
-  const e2 = await tty.runTty({ cols: 110, rows: 30, args: ['--resume', sid], configDir: e1.configDir, cwd: e1.cwd, steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 1200 }] });
+  const e2 = await tty.runTty({ cols: 110, rows: 30, args: ['--resume', sid], configDir: e1.configDir, cwd: e1.cwd, steps: [{ until: 'Ask Noema', timeout: 30000 }, { snap: 'resumed', settle: 1200 }] });
   await test('CLI E: resuming after a rate limit does not resurrect the red warning on the primary UI', () => {
     const live = e2.byName.resumed.text.slice(-6).join('\n');
     assert.ok(!/RATE LIMITED|FAILED/.test(live), live);
@@ -218,7 +218,7 @@ module.exports = async function () {
     connections: { local: { provider: 'local', via: 'bridge', baseUrl: 'http://127.0.0.1:9/v1', models: ['glm-5', 'qwen3', 'qwen3:free'] } },
   }));
   const f = await tty.runTty({ cols: 110, rows: 34, configDir: cfgF, env: { LAIN_PROVIDER: '' },
-    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { send: '/model\r' }, { until: '(?i)models', timeout: 20000 }, { snap: 'models', settle: 600 }, { send: 'external:' }, { snap: 'external', settle: 800 }, { key: 'escape' }, { send: '/exit\r' }, { wait: 1500 }] });
+    steps: [{ until: 'Ask Noema', timeout: 30000 }, { send: '/model\r' }, { until: '(?i)models', timeout: 20000 }, { snap: 'models', settle: 600 }, { send: 'external:' }, { snap: 'external', settle: 800 }, { key: 'escape' }, { send: '/exit\r' }, { wait: 1500 }] });
   await test('CLI F: /model opens "MODELS" directly — no source shelf; access variants are not separate rows', () => {
     const t = vis(f.byName.models);
     assert.ok(!/Model source/.test(t), t);
@@ -227,7 +227,8 @@ module.exports = async function () {
     assert.strictEqual((t.match(/qwen3/gi) || []).length, 1, 'qwen3 and qwen3:free are one model');
   });
   await test('CLI F: the website sources appear only under external:', () => {
-    assert.match(vis(f.byName.external), /external sources[\s\S]*ChatGPT\.com[\s\S]*Gemini/i);
+    // The ChatGPT source is labelled "ChatGPT Chat" now (it was "ChatGPT.com").
+    assert.match(vis(f.byName.external), /external sources[\s\S]*ChatGPT[\s\S]*Gemini/i);
   });
 
   // ---- H — FOCUS (§76) ------------------------------------------------------
@@ -244,7 +245,7 @@ module.exports = async function () {
       { text: 'small.js now exports 2; the check passes.' },
     ],
     steps: [
-      { until: 'Ask LAIN', timeout: 30000 },
+      { until: 'Ask Noema', timeout: 30000 },
       { send: '/focus\r' }, { wait: 600 },
       { send: 'make small.js export 2\r' },
       { wait: 1200 },

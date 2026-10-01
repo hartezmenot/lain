@@ -27,6 +27,47 @@
 const STATUS = Object.freeze({ TODO: 'todo', ACTIVE: 'active', DONE: 'done', DROPPED: 'dropped' });
 /** How many completed steps the compact digest shows before folding the rest. */
 const DIGEST_DONE = 6;
+/** Dropped steps kept as history (they are not work; the list is bounded). */
+const DROPPED_KEEP = 100;
+
+/**
+ * A STEP'S IDENTITY IS ITS ID; ITS NUMBER IS ITS PLACE (2026-09-30, Gate 3 §81).
+ *
+ * THE DEFECT: "Continuing step 3… step 4… step 3…" — and, in real sessions, "step 224", "step 3325". A revision
+ * (plan_write with the remaining work reworded) DROPPED every open step and APPENDED the new list, numbered after
+ * everything before it. The same work came back as 6, then 9, then 224, while the model kept its own numbering;
+ * the prompt's `→ 6.` and the model's "step 3" disagreed, and each continuation flipped between them. Totals
+ * counted the dropped rows ("7/3328 done").
+ *
+ * NOW: a step has a stable `id`; `n` is its position among the LIVE steps (1…k), so "step 3 of 5" means the same
+ * thing to every surface and to the model. A revision RECONCILES — an open step the new list still contains keeps
+ * its id, status and findings (only its wording follows the model); only work genuinely gone is dropped, and it
+ * leaves `steps` for `dropped` (history, never work). Completed steps are never touched.
+ */
+function newStepId() { return `st_${Date.now().toString(36).slice(-4)}${Math.random().toString(36).slice(2, 7)}`; }
+/** A step's words as the model tends to vary them: numbering, "(done)" marks, case and punctuation dropped. */
+function normStep(t) {
+  return String(t || '').toLowerCase()
+    .replace(/^\s*(?:step\s*)?\d+\s*[.):\-–—]\s*/i, '')
+    .replace(/\s*[([]?\s*(?:done|completed|✓|✔|in progress|current)\s*[)\]]?\s*$/i, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function wordsOf(t) { return new Set(normStep(t).split(' ').filter((w) => w.length > 2)); }
+/** Same step, reworded? Equal words, or most of them shared. */
+function sameStep(a, b) {
+  const x = normStep(a); const y = normStep(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const A = wordsOf(a); const B = wordsOf(b);
+  if (!A.size || !B.size) return false;
+  let both = 0;
+  for (const w of A) if (B.has(w)) both += 1;
+  return both / (A.size + B.size - both) >= 0.6;
+}
+/** What the model wrote, without its own numbering or a "(done)" mark. */
+function cleanStep(t) {
+  return String(t || '').trim().replace(/^\s*(?:step\s*)?\d+\s*[.):\-–—]\s*/i, '').replace(/\s*[([]\s*(?:done|completed|✓|✔)\s*[)\]]\s*$/i, '').trim();
+}
 
 class Plan {
   constructor(objective = '') {
@@ -49,7 +90,8 @@ class Plan {
      */
     this.objective = String(objective);
     this.createdAt = new Date().toISOString();
-    this.steps = [];       // [{ n, text, status, note, completedAt }]
+    this.steps = [];       // [{ id, n, text, status, note, completedAt }] — LIVE steps; n = place, 1…k
+    this.dropped = [];     // [{ id, text, droppedAt, why }] — history, never work
     this.decisions = [];   // [{ text, at, reason }]
     /**
      * WHEN THIS PLAN STOPPED BEING THE WORK IN HAND, or null while it still is.
@@ -96,15 +138,90 @@ class Plan {
     // follow the work rather than the verdict that preceded it.
     if (String(texts && texts.length ? texts.join('') : '').trim()) this.retiredAt = null;
     for (const t of texts) {
-      const text = String(t || '').trim();
+      const text = cleanStep(t);
       if (!text) continue;
-      this.steps.push({ n: this.steps.length + 1, text, status: STATUS.TODO, note: '', completedAt: null, origin: String(origin) });
+      this.steps.push({ id: newStepId(), n: this.steps.length + 1, text, status: STATUS.TODO, note: '', completedAt: null, origin: String(origin) });
     }
     if (this.steps.length && !this.steps.some((s) => s.status === STATUS.ACTIVE)) {
       const first = this.steps.find((s) => s.status === STATUS.TODO);
       if (first) first.status = STATUS.ACTIVE;
     }
     return this;
+  }
+
+  /** Numbers follow places: live steps are 1…k, whatever was dropped. */
+  renumber() {
+    this.steps.forEach((s, i) => { s.n = i + 1; if (!s.id) s.id = newStepId(); });
+    return this;
+  }
+  /** Take the DROPPED rows out of the live list (kept as bounded history), then renumber. */
+  settleDropped(why = '') {
+    const gone = this.steps.filter((s) => s.status === STATUS.DROPPED);
+    if (gone.length) {
+      const at = new Date().toISOString();
+      this.steps = this.steps.filter((s) => s.status !== STATUS.DROPPED);
+      for (const s of gone) this.dropped.push({ id: s.id || newStepId(), text: s.text, droppedAt: s.droppedAt || at, why: s.why || why || '', origin: s.origin || null });
+      if (this.dropped.length > DROPPED_KEEP) this.dropped.splice(0, this.dropped.length - DROPPED_KEEP);
+    }
+    return this.renumber();
+  }
+  /** "step 3 of 5" — the one way every surface and the model count. */
+  position(step = this.current()) {
+    if (!step) return { index: null, total: this.steps.length };
+    const i = this.steps.indexOf(step);
+    return { index: i >= 0 ? i + 1 : null, total: this.steps.length };
+  }
+  byId(id) { return this.steps.find((s) => s.id === id) || null; }
+
+  /**
+   * A REVISION FROM THE MODEL (plan_write again) — RECONCILED, NEVER RE-APPENDED.
+   *
+   *   an open step the new list still names (reworded or not)   kept: id, status, findings; wording updated
+   *   a step the new list names that is already DONE             skipped — finished work is not re-added
+   *   an open step the new list no longer names                   dropped (to history)
+   *   a genuinely new step                                        added
+   *
+   * The open steps follow the new order, with the step in hand first: re-planning does not switch the work that
+   * is under way. Returns what changed, or `unchanged`.
+   */
+  revise(texts, { origin = 'llm', why = 'plan revised by the model' } = {}) {
+    const incoming = (Array.isArray(texts) ? texts : []).map(cleanStep).filter(Boolean);
+    const done = this.steps.filter((s) => s.status === STATUS.DONE);
+    const open = this.steps.filter((s) => s.status === STATUS.TODO || s.status === STATUS.ACTIVE);
+    const active = open.find((s) => s.status === STATUS.ACTIVE) || null;
+    const used = new Set();
+    const next = [];
+    let skippedDone = 0;
+    let added = 0;
+    let reworded = 0;
+    for (const text of incoming) {
+      if (done.some((s) => sameStep(s.text, text))) { skippedDone += 1; continue; }
+      const hit = open.find((s) => !used.has(s) && sameStep(s.text, text));
+      if (hit) {
+        used.add(hit);
+        if (hit.text !== text) { hit.text = text; reworded += 1; }
+        next.push(hit);
+      } else {
+        next.push({ id: newStepId(), n: 0, text, status: STATUS.TODO, note: '', completedAt: null, origin: String(origin) });
+        added += 1;
+      }
+    }
+    const droppedNow = open.filter((s) => !used.has(s));
+    const unchanged = !added && !droppedNow.length && !reworded && next.every((s, i) => s === open[i]);
+    if (unchanged) return { unchanged: true, kept: open.length, added: 0, dropped: 0, skippedDone };
+    // THE STEP IN HAND stays in hand when the new list still has it.
+    if (active && used.has(active)) { next.splice(next.indexOf(active), 1); next.unshift(active); }
+    for (const s of next) if (s.status === STATUS.ACTIVE && s !== active) s.status = STATUS.TODO;
+    const at = new Date().toISOString();
+    for (const s of droppedNow) { s.status = STATUS.DROPPED; s.droppedAt = at; s.why = why; }
+    // Finished and dropped rows keep their places in the array for settleDropped; the open ones follow the new order.
+    const others = this.steps.filter((s) => s.status === STATUS.DONE || s.status === STATUS.DROPPED);
+    this.steps = [...others, ...next];
+    if (next.length && !next.some((s) => s.status === STATUS.ACTIVE)) next[0].status = STATUS.ACTIVE;
+    if (next.length) this.retiredAt = null;
+    this.settleDropped(why);
+    if (droppedNow.length || added) this.decisions.push({ text: `${why}: ${added} added, ${droppedNow.length} dropped, ${used.size} kept`, at, reason: 'revision' });
+    return { unchanged: false, kept: used.size, added, dropped: droppedNow.length, reworded, skippedDone };
   }
 
   current() {
@@ -175,10 +292,10 @@ class Plan {
       s.text = String(r.text);
     }
     for (const t of append) {
-      const text2 = String(t || '').trim();
+      const text2 = cleanStep(t);
       // STEER-ORIGIN, and marked as such: this step exists because a person
       // corrected work already in flight. See `addSteps` on why origin is kept.
-      if (text2) { this.steps.push({ n: this.steps.length + 1, text: text2, status: STATUS.TODO, note: '', completedAt: null, origin: 'steer' }); this.retiredAt = null; }
+      if (text2) { this.steps.push({ id: newStepId(), n: this.steps.length + 1, text: text2, status: STATUS.TODO, note: '', completedAt: null, origin: 'steer' }); this.retiredAt = null; }
     }
     // Exactly one active step, and it is the first thing still to do.
     for (const s of this.steps) if (s.status === STATUS.ACTIVE) s.status = STATUS.TODO;
@@ -186,7 +303,8 @@ class Plan {
     if (next) next.status = STATUS.ACTIVE;
 
     if (reason) this.decisions.push({ text: reason, at: new Date().toISOString(), reason: 'user steer' });
-    return this;
+    // DROPPED WORK LEAVES THE LIVE LIST; the numbers that remain are places again.
+    return this.settleDropped(reason);
   }
 
   /** A failed check is recorded and the work continues. The plan is NEVER reset. */
@@ -242,7 +360,7 @@ class Plan {
   toJSON() {
     return {
       objective: this.objective, createdAt: this.createdAt, retiredAt: this.retiredAt,
-      steps: this.steps, decisions: this.decisions,
+      steps: this.steps, dropped: this.dropped.slice(-DROPPED_KEEP), decisions: this.decisions,
     };
   }
 
@@ -251,8 +369,15 @@ class Plan {
     const p = new Plan(data.objective);
     p.createdAt = data.createdAt || p.createdAt;
     p.steps = Array.isArray(data.steps) ? data.steps : [];
+    p.dropped = Array.isArray(data.dropped) ? data.dropped : [];
     p.decisions = Array.isArray(data.decisions) ? data.decisions : [];
     p.retiredAt = data.retiredAt || null;
+    // A PLAN SAVED BEFORE 2026-09-30 kept dropped rows in `steps` and numbered by append order: settled here, so
+    // "step 3325 of 3328" comes back as the place it really is among the live steps. Ids are given where missing.
+    p.settleDropped('dropped before this build');
+    const actives = p.steps.filter((s) => s.status === STATUS.ACTIVE);
+    for (const s of actives.slice(1)) s.status = STATUS.TODO;
+    if (!actives.length) { const first = p.steps.find((s) => s.status === STATUS.TODO); if (first) first.status = STATUS.ACTIVE; }
     return p;
   }
 }
@@ -433,4 +558,21 @@ async function runCommand(app, { args = [], rest = '' } = {}, { C } = {}) {
 /** A step is finished when its STATUS says so — steps carry `status`, never a `done` boolean. */
 function stepDone(s) { return Boolean(s) && (s.status === STATUS.DONE || s.status === STATUS.DROPPED || s.done === true); }
 
-module.exports = { runCommand, Plan, STATUS, stepDone };
+/**
+ * A PLAN CORE SEEDS FROM WORK IT ALREADY DID — the runtime's door (§20: the
+ * doors that append steps are the runtime, /plan and /steer; a person's
+ * sentence is never one). The deterministic steps Core completed before the
+ * model (resolving the symbol, inspecting dependents) arrive DONE with their
+ * evidence; the rest are TODO for the model to tick with plan_step_done. It is
+ * a projection of execution, not a gate: nothing waits on it.
+ */
+function seedFromCore(session, { objective = '', done = [], remaining = [] } = {}) {
+  if (!session) return null;
+  const p = new Plan(String(objective || ''));
+  p.addSteps([...done.map((d) => d[0]), ...remaining], { origin: 'core' });
+  for (const [, note] of done) p.complete(note);
+  session.plan = p;
+  return p;
+}
+
+module.exports = { runCommand, Plan, STATUS, stepDone, seedFromCore, sameStep, cleanStep };

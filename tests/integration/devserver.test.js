@@ -57,7 +57,7 @@ async function withServers(fn) {
 }
 
 module.exports = async function () {
-  await test('DEVSERVER: it runs in the PROJECT ROOT — not Core\'s cwd, not LAIN\'s folder', async () => {
+  await test('DEVSERVER: it runs in the PROJECT ROOT — not Core\'s cwd, not Noema\'s folder', async () => {
     const dir = project({ 'package.json': pkg(), 'server.js': SERVER('port') });
     assert.notStrictEqual(path.resolve(process.cwd()).toLowerCase(), path.resolve(dir).toLowerCase(), 'the test itself runs elsewhere');
     await withServers(async (ds, pm) => {
@@ -68,7 +68,7 @@ module.exports = async function () {
       assert.strictEqual(rec.cwd.toLowerCase(), fs.realpathSync.native(dir).toLowerCase());
       const reported = fs.readFileSync(path.join(dir, 'cwd.txt'), 'utf8');
       assert.strictEqual(fs.realpathSync.native(reported).toLowerCase(), fs.realpathSync.native(dir).toLowerCase(), `the process saw its cwd as ${reported}`);
-      assert.ok(!reported.toLowerCase().startsWith(path.join(__dirname, '..', '..').toLowerCase()), 'never LAIN\'s own folder');
+      assert.ok(!reported.toLowerCase().startsWith(path.join(__dirname, '..', '..').toLowerCase()), 'never Noema\'s own folder');
       assert.strictEqual(pm.list()[0].cwd.toLowerCase(), fs.realpathSync.native(dir).toLowerCase(), 'the ProcessManager was given the root');
       assert.ok(rec.pid, 'a PID is recorded');
       assert.strictEqual(rec.command, 'npm run dev');
@@ -168,6 +168,56 @@ module.exports = async function () {
       const sp = await routes.dispatch(app, 'POST', '/api/devserver/stop', {});
       assert.strictEqual(sp.body.devServer.status, 'STOPPED');
     } finally {
+      await require('../../src/harnesslink').shutdown(app);
+    }
+  });
+
+  await test('PREVIEW CAPABILITY WAKE (Gate 4, CineFlex): the frontend alone; Play wakes ONLY playback, owned; off stops it; close stops all', async () => {
+    const http = require('http');
+    const get = (port, p) => new Promise((resolve, reject) => http.get({ host: '127.0.0.1', port, path: p }, (r) => { const c = []; r.on('data', (d) => c.push(d)); r.on('end', () => resolve({ status: r.statusCode, headers: r.headers, body: Buffer.concat(c).toString('utf8') })); }).on('error', reject));
+    const routes = require('../../src/harnessapp/routes');
+    const { App } = require('../../src/app');
+    // A MONOLITH like CineFlex: `start` runs the whole backend; the frontend is files beside it.
+    const dir = project({
+      'package.json': JSON.stringify({ name: 'media', private: true, scripts: { start: 'node backend.js' } }),
+      'backend.js': "require('http').createServer((q, s) => { s.writeHead(200, { 'content-type': 'application/json' }); s.end(JSON.stringify({ from: 'backend', url: q.url, host: process.env.HOST })); }).listen(Number(process.env.PORT), process.env.HOST);\n",
+    });
+    fs.mkdirSync(path.join(dir, 'public'));
+    fs.writeFileSync(path.join(dir, 'public', 'index.html'), '<!doctype html><title>Media</title><h1>Library</h1>');
+    fs.mkdirSync(path.join(dir, '.lain', 'preview-data', 'api'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.lain', 'preview-data', 'api', 'library.json'), JSON.stringify({ items: [{ id: 'ep1' }] }));
+    fs.writeFileSync(path.join(dir, '.lain', 'preview.json'), JSON.stringify({ static: 'public', capabilities: {
+      'database-read': { match: ['/api/library'], adapter: '.lain/preview-data' },
+      playback: { match: ['/api/stream/'], mode: 'live', command: `"${process.execPath}" backend.js` },
+      scanner: { match: ['/api/scan'] },
+    } }));
+    const app = new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: dir });
+    const caps = () => require('../../src/harnesslink').harnessFor(app).processes.list().filter((p) => /^cap:/.test(p.name));
+    try {
+      const st = await routes.dispatch(app, 'POST', '/api/preview/start', {});
+      assert.strictEqual(st.body.ok, true, st.body.why);
+      const port = st.body.preview.port;
+      assert.match((await get(port, '/')).body, /<h1>Library/, 'the frontend is served by Noema; the backend never started');
+      assert.strictEqual(JSON.parse((await get(port, '/api/library')).body).items[0].id, 'ep1', 'preview data answers the library');
+      assert.strictEqual((await get(port, '/api/scan/all')).status, 503, 'the scanner stays dormant');
+      assert.strictEqual(caps().length, 0, 'nothing woke to draw the page');
+      const play = await get(port, '/api/stream/ep1?token=t');
+      assert.strictEqual(play.headers['x-lain-preview'], 'live:playback');
+      assert.deepStrictEqual(JSON.parse(play.body), { from: 'backend', url: '/api/stream/ep1?token=t', host: '127.0.0.1' }, 'Play woke the backend, on loopback');
+      assert.strictEqual(caps().filter((p) => p.alive).length, 1, 'exactly one capability process, owned by the ProcessManager');
+      const view = (await routes.dispatch(app, 'POST', '/api/preview/state', {})).body.preview.capabilities;
+      assert.deepStrictEqual(view.filter((c) => c.awake).map((c) => c.name), ['playback'], 'only playback is awake');
+      const off = await routes.dispatch(app, 'POST', '/api/preview/capability', { name: 'playback', mode: 'off' });
+      assert.strictEqual(off.body.ok, true);
+      for (let i = 0; i < 40 && caps().some((p) => p.alive); i++) await new Promise((r) => setTimeout(r, 100));
+      assert.ok(!caps().some((p) => p.alive), 'turned off: the woken backend is stopped');
+      assert.strictEqual((await get(port, '/api/stream/ep1')).status, 503);
+      await routes.dispatch(app, 'POST', '/api/preview/capability', { name: 'playback', mode: 'default' });
+      assert.strictEqual(JSON.parse((await get(port, '/api/stream/ep2')).body).from, 'backend', 'back to its configured mode: wakes again on use');
+      await routes.dispatch(app, 'POST', '/api/preview/stop', {});
+      assert.ok(!caps().some((p) => p.alive), 'closing the preview stops what it woke');
+    } finally {
+      try { await routes.dispatch(app, 'POST', '/api/preview/stop', {}); } catch { /* stopped */ }
       await require('../../src/harnesslink').shutdown(app);
     }
   });

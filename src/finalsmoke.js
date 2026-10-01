@@ -1,16 +1,14 @@
 'use strict';
 
 /**
- * THE FINAL SMOKE — the terminal execution step of implementation work.
+ * THE FINAL SMOKE — ONE EXECUTOR of the verification contract, for the tiers that ask for broad proof.
  *
- * TARGETED TESTS prove each individual fix while the work is done. The FINAL
- * SMOKE proves the complete task after all implementation has converged, and
- * it is the LAST thing that runs: nothing may be changed after it and still be
- * called verified. So, for a task that changed something:
- *
- *   ✓ DONE (TASK_VERIFIED) requires the final suite to have run AND passed
- *   after the last mutation. Response ended, turn ended and task complete are
- *   different facts; this module owns the one that closes a task.
+ * It is no longer a universal last ritual. verifycontract.requirement() — the single verification authority —
+ * decides whether a change needs the project's broad suite (PROJECT / RELEASE level: a manifest, the runner, many
+ * files, a release). Only then does this module's requirement apply: the final suite must have run AND passed after
+ * the last mutation. A targeted fix, a UI nudge verified in the Preview, a one-file change nothing imports: the
+ * contract asks for evidence that exercises the change, and the final smoke is NOT_REQUIRED. (`state` asks the
+ * contract, so the arbiter, the idle wake-up, notifications and the prompt all agree.)
  *
  * WHICH SUITE IS FINAL: the project's smoke suite when it has one (discovered
  * by testing.js), otherwise its primary test suite, otherwise nothing — a tree
@@ -81,10 +79,17 @@ function isFinal(cwd, name, input = {}) {
 function state(life, cwd) {
   if (!life || !life.evidence || !life.evidence.filesChanged || !life.evidence.filesChanged.size) return 'NOT_REQUIRED';
   if (!suite(cwd)) return 'NOT_REQUIRED';
+  if (!required(life, cwd)) return 'NOT_REQUIRED';
   const sm = life.smoke;
   if (!sm || sm.seq !== (life.mutationSeq || 0)) return 'MISSING';
   if (sm.running) return 'RUNNING';
   return sm.ok ? 'PASSED' : 'FAILED';
+}
+
+/** Does the verification contract ask for the broad suite for what this task changed? */
+function required(life, cwd) {
+  const rels = [...life.evidence.filesChanged].map((p) => path.relative(cwd || process.cwd(), String(p)).replace(/\\/g, '/'));
+  try { return require('./verifycontract').requirement(cwd || process.cwd(), rels, { objective: life.objective || '' }).needsSuite; } catch { return false; }
 }
 
 /** The sentence a refusal to call the task done carries. */
@@ -222,4 +227,4 @@ function settleBackground(app, session, r) {
   return { failed: true, reopened: said };
 }
 
-module.exports = { ORIGIN, suite, isFinal, state, why, noteMutation, ensureTerminal, owner, reopen, guidance, settleBackground, _cache: cache };
+module.exports = { ORIGIN, suite, isFinal, state, required, why, noteMutation, ensureTerminal, owner, reopen, guidance, settleBackground, _cache: cache };

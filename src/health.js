@@ -172,7 +172,7 @@ async function assess(app) {
   // check whether somebody is still logged in to ChatGPT would be a report with
   // a side effect, so the row says what the session has chosen and says plainly
   // that liveness is `/source connect`'s question.
-  let chat = { label: 'LAIN', model: null, web: false };
+  let chat = { label: 'Noema', model: null, web: false };
   try {
     const reg = require('./modelsource/registry');
     const src = reg.selectedId(app);
@@ -186,9 +186,9 @@ async function assess(app) {
     row('Source', chat.web && !chat.model ? STATE.ATTENTION : STATE.IMPLEMENTED,
       chat.web
         ? `${chat.label}${chat.model ? ` · ${chat.model}` : ' — no model chosen; /source models'}`
-        : 'LAIN\'s own runtime — the configured route answers chat turns'),
+        : 'Noema\'s own runtime — the configured route answers chat turns'),
     row('Coding authority', STATE.IMPLEMENTED,
-      'always LAIN\'s runtime — a consulted website never reads this filesystem, runs a command or settles a task'),
+      'always Noema\'s runtime — a consulted website never reads this filesystem, runs a command or settles a task'),
   ]);
 
   // THE DESKTOP SEAM, read from the LIVE bridge — never from the presence of a
@@ -207,8 +207,8 @@ async function assess(app) {
       bridge.permissions && bridge.permissions.active
         ? `GRANTED right now${bridge.target ? ` · ${bridge.target}` : ''} — /mcp revoke stops it`
         : 'nothing is granted; every capability requires an explicit answer'),
-    row('Automation in LAIN', STATE.EXCLUDED,
-      'LAIN synthesises no input and captures no screen itself — that is the bridge process'),
+    row('Automation in Noema', STATE.EXCLUDED,
+      'Noema synthesises no input and captures no screen itself — that is the bridge process'),
   ]);
 
   const hasModule = (f) => fs.existsSync(path.join(srcDir, f));
@@ -236,7 +236,7 @@ function renderHealth(app, a, { C } = {}) {
   const paint = (state, s) => (col[state.colour] ? col[state.colour](s) : s);
   const w = (s) => app.render.write(s);
 
-  w('\n' + col.bold('LAIN V2 — RC readiness') + '\n');
+  w('\n' + col.bold('Noema — RC readiness') + '\n');
   w(col.dim(`  ${a.summary.ready}/${a.summary.total} areas ready · legend: `)
     + col.green('✓ ready') + col.dim(' · ') + col.yellow('⚠ attention') + col.dim(' · ')
     + col.red('✕ missing') + col.dim(' · ⊘ excluded · ') + col.cyan('● info') + '\n');

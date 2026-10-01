@@ -1,11 +1,11 @@
 'use strict';
 
 /**
- * THE FINAL SMOKE IS THE TERMINAL EXECUTION STEP (finalsmoke.js).
+ * THE FINAL SMOKE IS ONE EXECUTOR OF THE VERIFICATION CONTRACT (finalsmoke.js, verifycontract.js).
  *
- *   TARGETED TEST != FINAL SMOKE; RESPONSE_ENDED != TASK_COMPLETE.
- *   A changed tree is DONE only after the final suite ran and passed after the
- *   last change. A failing final smoke reopens the step that owns the failure,
+ *   It is required only where the contract asks for broad proof (PROJECT / RELEASE): then a changed tree is DONE
+ *   only after the final suite ran and passed after the last change. A targeted change is proved by targeted
+ *   evidence — the final smoke is NOT a universal ritual. A failing final smoke reopens the step that owns the failure,
  *   leaves the other completed steps done, and waits to be run again. A /bg
  *   final smoke keeps the task open until it rejoins, then settles on its own.
  */
@@ -44,17 +44,24 @@ module.exports = async function () {
     assert.strictEqual(fsm.suite(tmpdir('finalsmoke-none-')), null, 'no suite, no invented requirement');
   });
 
-  await test('FINAL SMOKE: DONE needs a passing final run AFTER the last change — targeted tests do not count, a later change reopens it', () => {
+  await test('FINAL SMOKE: proportional — a targeted change is not held to it; a PROJECT-level change needs it AFTER the last change', () => {
+    const targeted = project();
+    const small = new Lifecycle('fix one bug');
+    write(small, path.join(targeted, 'src', 'a.js'));
+    run(small, 'node src/a.js', true);                              // exercises the change
+    assert.strictEqual(fsm.state(small, targeted), 'NOT_REQUIRED', 'a one-file fix nothing imports: the contract asks for targeted proof only');
+    assert.strictEqual(small.complete({ cwd: targeted }).ok, true, 'and targeted evidence completes it');
+
     const root = project();
     const life = new Lifecycle('fix two bugs');
     assert.strictEqual(fsm.state(life, root), 'NOT_REQUIRED', 'a diagnostic that changed nothing needs no smoke');
-    write(life, 'src/a.js');
-    run(life, 'npm test', true);                                   // targeted
+    write(life, path.join(root, 'package.json'));                   // project-wide: the contract asks for broad proof
+    run(life, 'npm test', true);
     assert.strictEqual(fsm.state(life, root), 'MISSING');
     assert.match(life.complete({ cwd: root }).why, /final smoke has not run/);
     run(life, 'npm run smoke', true, { finalSmoke: true });
     assert.strictEqual(fsm.state(life, root), 'PASSED');
-    write(life, 'src/b.js');                                       // a change AFTER the smoke
+    write(life, path.join(root, 'src', 'b.js'));                   // a change AFTER the smoke
     assert.strictEqual(fsm.state(life, root), 'MISSING', 'nothing may change after the final smoke and still count');
     run(life, 'npm run smoke', false, { finalSmoke: true });
     assert.strictEqual(fsm.state(life, root), 'FAILED');
@@ -99,7 +106,7 @@ module.exports = async function () {
     const root = project();
     const session = { cwd: root, lifecycle: new Lifecycle('fix'), plan: new Plan('fix') };
     session.plan.addSteps(['Fix A']); fsm.ensureTerminal(session.plan, root);
-    write(session.lifecycle, 'src/a.js'); session.plan.complete('fixed');
+    write(session.lifecycle, path.join(root, 'package.json')); session.plan.complete('fixed');   // project-wide
     session.lifecycle.observeTool({ name: 'run_tests', input: { which: 'smoke' }, output: 'DETACHED', finalSmoke: true, detached: true });
     assert.strictEqual(fsm.state(session.lifecycle, root), 'RUNNING');
     assert.match(session.lifecycle.complete({ cwd: root }).why, /still running in the background/, 'not DONE while it runs');

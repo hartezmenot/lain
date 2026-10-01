@@ -39,7 +39,7 @@ let timer = null;
 
 function dir() {
   const base = (() => {
-    try { return require('./config').configDir(); } catch { return path.join(os.homedir(), '.lain-v2'); }
+    try { return require('./config').configDir(); } catch { return require('./home').resolve(); }
   })();
   return path.join(base, 'control');
 }

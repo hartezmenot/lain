@@ -148,7 +148,10 @@ function notes(root, sessionId) {
 function file(root, sessionId, name) {
   const safe = String(name || 'file').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80) || 'file';
   const dir = dirOf(root, sessionId);
-  if (!lainstore.held(root)) { try { fs.mkdirSync(dir, { recursive: true }); } catch { /* read-only project */ } }
+  if (!lainstore.held(root)) {
+    const created = !fs.existsSync(lainstore.dirFor(root));
+    try { fs.mkdirSync(dir, { recursive: true }); if (created) require('./lainschema').stampNew(root); } catch { /* read-only project */ }
+  }
   return path.join(dir, safe);
 }
 

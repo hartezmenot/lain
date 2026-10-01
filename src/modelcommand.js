@@ -1,5 +1,14 @@
 'use strict';
 
+/** Why `id` cannot be the default model (it codes), or null. See modelroles.js. */
+function agentGate(app, id) {
+  const roles = require('./modelroles');
+  if (roles.isChatAlias(id)) return roles.check({ modelId: id }, roles.ROLE.AGENT).why;
+  const rt = require('./runtimeconnections').rowFor(app, id);
+  if (rt && !roles.allowed(rt, roles.ROLE.AGENT)) return `${rt.label || id} is not verified for the Coding Agent — use it as the BOT in the gear, or run its Agent test in MODEL › Local`;
+  return null;
+}
+
 /**
  *  AND  — browsing the catalog, and choosing from it.
  *
@@ -27,6 +36,50 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // there is no way to guess which one a person will reach for, and they run
     // the same code — there is one registry.
     if (rest.trim().toLowerCase() === 'refresh') { await refreshCatalog(app); return; }
+    // ---- ACCOUNT FIRST (Phase 8.2) -------------------------------------------
+    //
+    // `/model` chooses FOR THIS SESSION, on the lane the next turn runs on, from
+    // the models THE CHOSEN ACCOUNT offers — the same write the window's composer
+    // makes (sessionintel.choose). `/model all` browses every account's models
+    // (picking one also chooses its account). `/model default <name>` sets what
+    // new sessions start with.
+    const intel = require('./sessionintel');
+    const laneName = (() => { try { return require('./sessionviews').current(app.session) === 'chat' ? 'chat' : 'coding'; } catch { return 'coding'; } })();
+    const words0 = rest.trim().split(/\s+/).filter(Boolean);
+    // `/model manage` — THE MODEL DASHBOARD (Phase 8.3): accounts, APIs and keys are managed there, never here.
+    if (words0[0] === 'manage') {
+      const dl = require('./fabric/dashlaunch');
+      const r = await dl.open(app, words0[1] || 'models');
+      app.render.write(C.dim(`  ${dl.said(r, 'Models')}\n`));
+      return;
+    }
+    if (words0[0] === 'default') {
+      const r = await intel.set(app, app.session, { lane: laneName === 'chat' ? 'chat' : 'coding', field: 'model', value: words0.slice(1).join(' ') || null, scope: 'global' });
+      app.render.write(r.ok ? C.dim(`  New sessions start with ${words0.slice(1).join(' ') || 'no model'} (${laneName}).\n`) : C.dim(`  ${r.why}\n`));
+      return;
+    }
+    const browseAll = words0[0] === 'all';
+    if (browseAll) { rest = words0.slice(1).join(' '); args = args.slice(1); }
+    const laneNow = intel.lane(app, app.session, laneName);
+    // THE PROVIDER FAMILY'S MODELS (Phase 8.3) — every backing account's routes, never one account's slice.
+    const famNow = !browseAll && laneNow.family ? require('./fabric/index').family(app, laneNow.family) : null;
+    const famAccounts = famNow ? new Set(famNow.accounts.map((a) => a.id)) : null;
+    const A = require('./accountcatalog');
+    /**
+     * Choose FAMILY + MODEL (+ effort) for this session's lane — the one write. A picked route names
+     * its family; the backing account is the family's policy's to choose, not the row the person hit.
+     */
+    const choose = async (modelId, routeId, effort) => {
+      const acct = routeId ? A.accountFor(app, routeId) : null;
+      const fam = acct ? require('./fabric/index').familyOfAccount(app, acct.id) : null;
+      const body = { lane: laneName, model: modelId };
+      if (fam) body.family = fam.id; else if (acct) body.account = acct.id;
+      if (effort !== undefined) body.effort = effort || 'auto';
+      const r = await intel.choose(app, app.session, body);
+      if (!r.ok) return r;
+      try { app.session.save(); } catch { /* saved with the next turn */ }
+      return r;
+    };
     // ---- MODELS FIRST; SOURCES ARE SECONDARY (§54–55) -----------------------
     //
     // This used to open a "Model source" shelf — LAIN · ChatGPT.com ·
@@ -37,8 +90,17 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // A picker with nothing in it is not an answer. If no route has ever been
     // asked what it serves, ask now — this is the moment the list is needed.
     await app.ensureCatalog();
-    const cat = app.catalog();
+    const whole = app.catalog();
+    // THE ACCOUNT'S SLICE: only its models, only its routes — a picker never
+    // renders a router's thousand models to someone who chose one account.
+    const inFam = (c) => { const a = A.accountFor(app, c.connectionId); return Boolean(a && famAccounts.has(a.id)); };
+    const cat = famNow ? (() => {
+      const models = whole.models.filter((m) => m.connections.some(inFam))
+        .map((m) => ({ ...m, connections: m.connections.filter(inFam) }));
+      return { models, byId: new Map(models.map((m) => [m.id, m])) };
+    })() : whole;
     const w = (s) => app.render.write(s);
+    if (famNow && !browseAll && !rest) w(C.dim(`  ${famNow.label} · ${famNow.models.length} model(s) · /model all for every provider\n`));
     // ONE RULE EVERYWHERE: commit when nothing is left to decide.
     //
     // `/models sonnet` matches 52 models, so it opens the picker with `sonnet`
@@ -72,10 +134,11 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       // browser settles model, connection and level in a single act.
       const newModels = require('./newmodels');
       const isNew = newModels.all();
+      let pending = null;
       const build = (filter) => modelsAdapter({
         catalog: cat,
-        current: app.cfg.model,
-        currentConnection: app.cfg.connection,
+        current: laneNow.model,
+        currentConnection: laneNow.route,
         filter,
         readinessOf,
         availabilityOf,
@@ -87,10 +150,12 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         externalSources: externalSources(app),
         sourceIssues: require('./catalogstate').issues(app.connections()),
         onPickRoute: (model, conn, effort) => {
-          app.cfg.model = model.id;
-          app.cfg.connection = conn.connectionId;
-          if (effort !== undefined) app.cfg.effort = effort;
-          config.save(app.cfg);
+          // THE DEFAULT CODES: a local/runtime model not verified for AGENT is refused here (modelroles.js).
+          const gate = laneName === 'coding' ? agentGate(app, model.id) : null;
+          if (gate) { w(C.dim(`  ${gate}
+`)); return; }
+          // THE SESSION'S CHOICE, made once the panel closes (sessionintel.choose is async).
+          pending = { model: model.id, route: conn.connectionId, effort };
           // Using it is the end of it being news.
           newModels.seen(model.id);
         },
@@ -105,6 +170,10 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       });
       const picked = await app.ui.ask(build(rest));
       app.ui.setModelFilter(null);
+      if (pending) {
+        const r = await choose(pending.model, pending.route, pending.effort);
+        if (!r.ok) { if (app.input) app.input.setLine(''); else app.ui.setInput(''); w(C.dim(`  ${r.why}\n`)); return; }
+      }
       // THE QUERY BELONGED TO THE PICKER, so it leaves with it. While the
       // browser is open the filter text lives on the input line — that is what
       // makes typing narrow the list — and it was being left behind when the
@@ -123,7 +192,9 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         app.render.write('\n' + C.green('  ✓ Model selected') + '\n');
         app.render.write('      ' + C.bold(name) + '\n');
         if (conn) app.render.write(C.dim(`      ${conn.provider}`) + '\n');
-        app.render.write(C.dim(`      effort ${picked.effort || app.cfg.effort || 'auto'}`) + '\n');
+        const now = intel.lane(app, app.session, laneName);
+        app.render.write(C.dim(`      effort ${now.effortLabel || 'not configurable'}`) + '\n');
+        app.render.write(C.dim(`      ${laneName === 'chat' ? 'Chat' : 'Coding'} · ${now.familyLabel || now.accountLabel} › ${now.modelLabel} · ${now.policyLabel || ''} · this session`) + '\n');
       } else {
         // Escape. Saying so is the difference between "cancelled" and "did that
         // do anything?".
@@ -153,7 +224,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
           ? `${routes} providers`
           : [(m.connections[0] || {}).provider, efforts.length > 1 ? `${efforts.length} levels` : null]
             .filter(Boolean).join('  ·  ');
-        const mark = app.cfg.model === m.id ? C.green('● ') : '  ';
+        const mark = laneNow.model === m.id ? C.green('● ') : '  ';
         // NEW leads the row, where the eye lands, and only for models the LAST
         // refresh actually brought in — never for one that was already there.
         const isNew = fresh.has(m.id) ? C.green('NEW ') : '    ';
@@ -213,6 +284,10 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // levels, and which one is answering right now. So it gets asked — through
     // the same route picker the browser drills into, so there is one
     // implementation of "choose a route" rather than a second for the typed path.
+    // ROUTES OF ONE PROVIDER FAMILY ARE NOT A CHOICE (Phase 8.3): they are its backing accounts, and the
+    // family's account policy picks among them. Only routes through DIFFERENT providers are asked about.
+    const famOfRoute = (c) => { const a = A.accountFor(app, c.connectionId); const fm = a ? require('./fabric/index').familyOfAccount(app, a.id) : null; return fm ? fm.id : c.connectionId; };
+    if (!conn && new Set(m.connections.map(famOfRoute)).size === 1) conn = m.connections[0];
     if (!conn && m.connections.length > 1 && app.ui && app.ui.enabled) {
       const { modelRoutesAdapter } = require('./ui/panel');
       const byId = new Map(app.connections().map((c) => [c.id, c]));
@@ -241,11 +316,13 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       w(C.dim(`  "${m.displayName}" has no route that can serve it.\n`));
       return;
     }
-    app.cfg.model = m.id;
-    app.cfg.connection = conn.connectionId;
-    config.save(app.cfg);
+    const gate = laneName === 'coding' ? agentGate(app, m.id) : null;
+    if (gate) { w(C.dim(`  ${gate}
+`)); return; }
+    const chosen = await choose(m.id, conn.connectionId);
+    if (!chosen.ok) { w(C.dim(`  ${chosen.why}\n`)); return; }
     if (app.ui && app.ui.enabled) app.ui.refresh();
-    w('\n' + C.green(`  ${m.displayName}`) + C.dim(`  via ${conn.connectionId}${app.cfg.effort ? ' · effort ' + app.cfg.effort : ''}`) + '\n');
+    w('\n' + C.green(`  ${chosen.lane.familyLabel || chosen.lane.accountLabel} › ${chosen.lane.modelLabel || m.displayName}`) + C.dim(`${chosen.lane.effortLabel ? ` · ${chosen.lane.effortLabel}` : ''} · ${laneName} · this session`) + '\n');
     // Everything that was NOT chosen, so a single-match selection never hides
     // that there were other routes.
     if (m.connections.length > 1) {

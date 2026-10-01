@@ -34,7 +34,7 @@ function baseline(root, { budgetMs = BUDGET_MS } = {}) {
   let count = 0;
   let truncated = false;
   for (const f of search.walk(root)) {
-    if (f.rel === '.lain' || f.rel.startsWith('.lain/')) continue;
+    if (require('./projectmeta').isMetaName(f.rel.split('/')[0])) continue;
     if (count >= MAX_BASELINE_FILES || Date.now() - started > budgetMs) { truncated = true; break; }
     let st;
     try { st = fs.statSync(f.abs); } catch { continue; }
@@ -81,7 +81,7 @@ function entriesOf(root, rels) {
 function bootstrap(root, { budgetMs = BUDGET_MS } = {}) {
   const started = Date.now();
   const r = path.resolve(String(root));
-  const priorLain = fs.existsSync(path.join(r, '.lain'));
+  const priorLain = require('./projectmeta').NAMES.some((n) => fs.existsSync(path.join(r, n)));
   try { require('./lainschema').ensure(r); } catch { /* an unwritable project still bootstraps in memory */ }
 
   const languages = require('./langscan').languages(r);

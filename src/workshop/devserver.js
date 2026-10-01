@@ -124,9 +124,39 @@ function canonical(dir) {
  */
 function detect(cwd) {
   const root = canonical(cwd);
+  // A COMMAND THE PERSON CONFIGURED for this project's preview (Preview › Configure) outranks detection.
+  const confFile = require('../projectmeta').file(root, 'preview.json');
+  const confRel = `${path.basename(path.dirname(confFile))}/preview.json`;
+  const conf = readJson(confFile);
+  if (conf && typeof conf.command === 'string' && conf.command.trim()) {
+    const port = Number(conf.port) || null;
+    return { ok: true, root, script: 'configured', scriptLine: conf.command.trim(), packageManager: null, command: conf.command.trim(), why: `${conf.command.trim()} (configured for this project)`, declaredPort: port, declaredBy: port ? confRel : null, configured: true };
+  }
+  // A FRONTEND THAT IS FILES BESIDE ITS OWN SERVER (Gate 4, CineFlex): "static": "public" serves that folder
+  // with LAIN's static server, so the project's server — its backend — stays dormant. "mount" adds paths the
+  // server used to map from elsewhere in the project ("/vendor/x.js": "node_modules/x/dist/x.js"). Both stay
+  // inside the project; a path that climbs out is not served.
+  if (conf && typeof conf.static === 'string' && conf.static.trim()) {
+    const within = (rel) => { const full = path.resolve(root, String(rel)); return (full + path.sep).toLowerCase().startsWith((root + path.sep).toLowerCase()) ? full : null; };
+    const serveRoot = within(conf.static.trim());
+    if (!serveRoot || !fs.existsSync(path.join(serveRoot, 'index.html'))) return { ok: false, root, why: `${confRel} names "static": "${conf.static}", which is not a folder with an index.html inside this project`, declaredPort: null };
+    const mount = {};
+    const given = conf.mount && typeof conf.mount === 'object' ? Object.entries(conf.mount).slice(0, 40) : [];
+    for (const [u, rel] of given) { const full = /^\/[^?#\s]*$/.test(u) && typeof rel === 'string' ? within(rel) : null; if (full) mount[u] = full; }
+    return { ok: true, root, script: 'static', scriptLine: 'Noema static server', packageManager: null, static: true, configured: true,
+      command: `"${process.execPath}" "${require.resolve('./staticserve')}" "${serveRoot}"`, env: Object.keys(mount).length ? { LAIN_STATIC_MOUNT: JSON.stringify(mount) } : null,
+      why: `the frontend in ${path.relative(root, serveRoot) || '.'}, served by Noema — the project's server stays dormant`, declaredPort: null, declaredBy: null };
+  }
   const pkg = readJson(path.join(root, 'package.json'));
   if (!pkg) {
-    return { ok: false, root, why: 'no package.json here — LAIN has no dev server to start', declaredPort: null };
+    // PLAIN FILES (Phase 8.2): an index.html is a site — LAIN serves the folder itself (staticserve.js).
+    const index = ['index.html', 'public/index.html'].find((f) => fs.existsSync(path.join(root, f)));
+    if (index) {
+      const serveRoot = path.dirname(path.join(root, index));
+      return { ok: true, root, script: 'static', scriptLine: 'Noema static server', packageManager: null, static: true,
+        command: `"${process.execPath}" "${require.resolve('./staticserve')}" "${serveRoot}"`, why: `a static site (${index}), served by Noema`, declaredPort: null, declaredBy: null };
+    }
+    return { ok: false, root, why: 'no preview target detected — no package.json dev script and no index.html. Configure Preview… to name a command.', declaredPort: null };
   }
   const scripts = (pkg.scripts && typeof pkg.scripts === 'object') ? pkg.scripts : {};
   const name = SCRIPTS.find((n) => typeof scripts[n] === 'string' && scripts[n].trim());
@@ -176,7 +206,9 @@ async function pickPort() {
   for (let i = 0; i < 20; i++) {
     // eslint-disable-next-line no-await-in-loop -- a short ordered probe
     const p = await freePort(PREFERRED_BASE + i);
-    if (p && !(await portOpen(p, '::1'))) return p;
+    // Binding 127.0.0.1 succeeds on Windows beside a 0.0.0.0 listener, so a bind
+    // test alone would hand out a port another app serves: ask both loopbacks.
+    if (p && !(await portOpen(p, '127.0.0.1')) && !(await portOpen(p, '::1'))) return p;
   }
   return 0;
 }
@@ -220,7 +252,7 @@ async function adoptable(cwd, declaredPort, { processes = null } = {}) {
           // eslint-disable-next-line no-await-in-loop -- at most a handful
           const host = await listening(p.port);
           if (host) {
-            return { ok: true, port: p.port, url: `http://${host}:${p.port}/`, why: 'the dev server LAIN started for this project is still up', processId: p.processId || null };
+            return { ok: true, port: p.port, url: `http://${host}:${p.port}/`, why: 'the dev server Noema started for this project is still up', processId: p.processId || null };
           }
         }
       }
@@ -257,7 +289,7 @@ async function ensure(cwd, { processes = null, taskId = null, timeoutMs = 60_000
     name: `dev:${found.script}`,
     command: found.command,
     cwd: root,
-    env: port ? { PORT: String(port) } : null,
+    env: port || found.env ? { ...(found.env || {}), ...(port ? { PORT: String(port) } : {}) } : null,
     port: port || null,
   });
   if (typeof onStart === 'function') { try { onStart(proc, found, port); } catch { /* a listener never breaks a start */ } }
@@ -280,6 +312,11 @@ async function ensure(cwd, { processes = null, taskId = null, timeoutMs = 60_000
     if (forced || saidHost) {
       const usePort = forced ? port : said.port;
       const host = forced || saidHost;
+      // AN ANSWER IS NOT OWNERSHIP (Phase 8.2): the listener must descend from the process LAIN
+      // started — never another application that happens to hold the port (portowner.js).
+      // eslint-disable-next-line no-await-in-loop -- once, when the port first answers
+      const own = await require('./portowner').verify(proc.pid || proc.commandPid, usePort);
+      if (own.ok === false) return fail(own.why);
       proc.port = usePort;
       return {
         ok: true,
@@ -299,7 +336,37 @@ async function ensure(cwd, { processes = null, taskId = null, timeoutMs = 60_000
   return fail(`${found.why} did not open ${port ? `:${port}` : 'a port'} or announce a URL within ${Math.round(timeoutMs / 1000)}s`);
 }
 
+/**
+ * CONFIGURE PREVIEW (Phase 8.2): the command (and port) that serves this project,
+ * kept with it in `.lain/preview.json` — a file in the project, so it is written
+ * through the transaction like any other project edit (mutation.js). An empty
+ * command removes it (detection decides again).
+ */
+async function configure(app, root, { command = '', port = null } = {}) {
+  const file = require('../projectmeta').file(root, 'preview.json');
+  const cmd = String(command || '').trim().slice(0, 400);
+  const p = Number(port) || null;
+  return require('../mutation').change(app, {
+    name: 'preview.configure', targets: [file], what: cmd ? `set the preview command: ${cmd}` : 'cleared the preview command',
+    write: () => {
+      try {
+        // THE REST OF THE FILE IS KEPT — the backend capabilities (proxy.js) live beside the command.
+        const prev = readJson(file) || {};
+        const rest = { ...prev }; delete rest.command; delete rest.port;
+        if (!cmd) {
+          if (!Object.keys(rest).length) { try { fs.unlinkSync(file); } catch { /* there was none */ } }
+          else fs.writeFileSync(file, JSON.stringify(rest, null, 2));
+          return { ok: true, cleared: true };
+        }
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, JSON.stringify({ command: cmd, port: p, ...rest }, null, 2));
+        return { ok: true };
+      } catch (e) { return { ok: false, why: `could not save the preview command: ${(e && e.message) || e}` }; }
+    },
+  });
+}
+
 module.exports = {
-  detect, ensure, adoptable, canonical, freePort, pickPort, listening, announced, packageManager, viteConfigPort,
+  detect, ensure, adoptable, canonical, freePort, pickPort, listening, announced, packageManager, viteConfigPort, configure,
   SCRIPTS, PREFERRED_BASE,
 };

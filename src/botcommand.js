@@ -1,6 +1,6 @@
 'use strict';
 function register({ define }) {
-  define('/bot', { surface: true, flashMs: 0, args: '[start|stop|restart|platforms|doctor]', desc: 'LAIN messaging connections', async run(app, { rest = '' } = {}) {
+  define('/bot', { surface: true, flashMs: 0, args: '[start|stop|restart|platforms|doctor]', desc: 'Noema messaging connections', async run(app, { rest = '' } = {}) {
     const service = require('./bot/service'); const action = rest.trim();
     if (action === 'doctor') {
       const doctor = require('./bot/doctor');
@@ -9,7 +9,7 @@ function register({ define }) {
       return;
     }
     if (['start', 'restart'].includes(action) && !app.ui?.enabled) {
-      app.render.write('Run lain --bot for a foreground messaging service, or /bot start inside the interactive CLI.\n'); return;
+      app.render.write('Run noema --bot for a foreground messaging service, or /bot start inside the interactive CLI.\n'); return;
     }
     if (action === 'platforms') {
       for (const c of require('./bot/registry').createRegistry().list()) app.render.write(`  ${c.platform}: text${c.buttons ? ', prompts' : ''}${c.mediaOut ? ', files' : ''}\n`);

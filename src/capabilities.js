@@ -58,7 +58,7 @@ const CAPABILITIES = [
     id: 'project-notes', name: 'Project notes / init', group: 'Understanding',
     plain: 'Saves a short written summary of the project so later sessions do not have to work it out again.',
     paths: [/(^|\/)project-context\.js$/],
-    content: [/\.lain\/summary\.md|\.lain\/architecture\.md/],
+    content: [/\.(?:lain|noema)\/summary\.md|\.(?:lain|noema)\/architecture\.md/],
   },
   {
     id: 'dictionary', name: 'Cross-language vocabulary', group: 'Understanding',

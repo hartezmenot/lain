@@ -105,7 +105,7 @@ module.exports = async function () {
     assert.strictEqual(byName(facts, 'Range end').value, F.REPR.EXCLUSIVE);
   });
 
-  await test('CONTRACT: columns are NOT claimed, because LAIN does not produce them', () => {
+  await test('CONTRACT: columns are NOT claimed, because Noema does not produce them', () => {
     // Inventing a project-wide column base would be a fact nobody measured.
     const col = byName(contracts.sourceLocationFacts(), 'Columns');
     assert.ok(col);

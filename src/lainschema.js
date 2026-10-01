@@ -45,7 +45,7 @@ const BACKUPS = 'backups';
 /** Directories that are not documents and are never backed up or migrated. */
 const SKIP_DIRS = new Set(['scratch', 'tasks', BACKUPS]);
 
-function dirOf(root) { return path.join(String(root), '.lain'); }
+function dirOf(root) { return require('./projectmeta').dir(String(root)); }
 function schemaPath(root) { return path.join(dirOf(root), SCHEMA_FILE); }
 
 /** The version on disk: 0 when there is no `.lain/`, 1 when it predates schema-version.json. */
@@ -245,10 +245,25 @@ function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT
 }
 
 /** A `.lain/` created fresh is created at the current schema. */
+/**
+ * A `.lain/` LAIN JUST CREATED KEEPS ITSELF OUT OF THE PERSON'S COMMITS (Phase 8.2):
+ * opening a project must not put files the person never made into Source Control.
+ * The convention cache-writing tools use (pytest's `.pytest_cache`, Python's venv):
+ * a `.gitignore` of `*` inside the folder — the folder, this file included, is
+ * invisible to git. Deleting it commits `.lain/` with the project. Only for a folder
+ * LAIN creates; a `.lain/` that already exists (perhaps committed) is left as it is.
+ */
+const SELF_IGNORE = '# Written by Noema when it first opened this project: its index, fingerprints and notes\n# stay out of your commits. Delete this file to commit .noema/ with the project.\n*\n';
+function ignoreNew(root) {
+  const f = path.join(dirOf(root), '.gitignore');
+  try { if (!fs.existsSync(f)) fs.writeFileSync(f, SELF_IGNORE, { flag: 'wx' }); return true; } catch { return false; }
+}
+
 function stampNew(root) {
   if (require('./lainstore').held(root)) return false;
   if (detect(root) === 0 || fs.existsSync(schemaPath(root))) return false;
+  ignoreNew(root);
   try { writeSchema(root, CURRENT, []); return true; } catch { return false; }
 }
 
-module.exports = { CURRENT, detect, backup, rollback, validate, ensure, stampNew, MIGRATIONS, documents, _ensured: ensured };
+module.exports = { CURRENT, detect, backup, rollback, validate, ensure, stampNew, ignoreNew, SELF_IGNORE, MIGRATIONS, documents, _ensured: ensured };

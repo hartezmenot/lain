@@ -9,7 +9,7 @@
  * project, and nothing ever passed an `onStatus` to receive it. Every liveness
  * function was correct and none of it reached a terminal.
  *
- * So each case spawns bin/lain.js, renders the frames it actually drew, and
+ * So each case spawns bin/noema.js, renders the frames it actually drew, and
  * asserts on the text a person would have read.
  */
 
@@ -65,9 +65,9 @@ module.exports = async function () {
     const r = await runCli([], { cwd: tmpdir('live-'), env: tui(), stdin: 'audit it\n', script: slowScript(1) });
     const out = plain(r.out);
     // The word follows the wire since 2026-09-23 (streamprogress.js): not every wait is THINKING.
-    assert.match(out, /THINKING|WAITING|STREAMING/i, 'waiting on the provider must be visible');
+    assert.match(out, /Working|THINKING|WAITING|STREAMING|Writing/i, 'waiting on the provider must be visible');
     // Before any data arrives the strip says WAITING, not THINKING (streamprogress.js, 2026-09-23).
-    assert.match(out, /first response from the model|waiting for the model/, 'and said in words on the status strip above the input');
+    assert.match(out, /waiting for model/, 'and said in words on the ONE activity line above the input');
   });
 
   await test('SEE: the screen names the TOOL while the tool is running', async () => {
@@ -98,7 +98,7 @@ module.exports = async function () {
     // column said nothing the verb did not and is drawn only for an actor that is
     // NOT this program — the network, the bridge, a second model, the user. The
     // row is `◐ Running  sleep 3` now. See ui/status.js.
-    const spinners = new Set(running.map((f) => (f.match(/([◐◓◑◒])\s+Running\s+sleep 3/) || [])[1]).filter(Boolean));
+    const spinners = new Set(running.map((f) => (f.match(/([◐◓◑◒])\s+Running\s+(?:·\s+)?sleep 3/) || [])[1]).filter(Boolean));
     assert.ok(spinners.size >= 3, `the indicator did not move: saw ${[...spinners].join('') || 'nothing'}`);
   });
 
@@ -147,7 +147,7 @@ module.exports = async function () {
     // wordmark and the input carries what it is for, which is the same
     // guarantee with two fewer rows of chrome.
     assertIncludes(out, headerMark(), 'the header names the program and the project');
-    assertIncludes(out, 'Ask LAIN', 'and the interaction region is always identifiable');
+    assertIncludes(out, 'Ask Noema', 'and the interaction region is always identifiable');
   });
 
   await test('SEE: an open picker NAMES itself, in its own panel below the input', async () => {
@@ -223,7 +223,7 @@ module.exports = async function () {
     // LAIN is doing has one owner, the live row above the caret. The property
     // is unchanged — READY must never flash between INTERRUPTING and
     // INTERRUPTED — only the place it is read from.
-    const between = seen.slice(iAt, dAt).filter((f) => /LAIN\s+READY/.test(f));
+    const between = seen.slice(iAt, dAt).filter((f) => /Noema\s+READY/.test(f));
     assert.deepStrictEqual(between, [], 'READY must never flash between INTERRUPTING and INTERRUPTED');
   });
 
@@ -284,7 +284,7 @@ module.exports = async function () {
       });
       const out = plain(r.out);
       assert.ok(/RUNNING\s+sleep 2|THINKING/i.test(out), `${cols}x${rows}: no live status survived`);
-      assertIncludes(out, 'Ask LAIN', `${cols}x${rows}: the input region must always be identifiable`);
+      assertIncludes(out, 'Ask Noema', `${cols}x${rows}: the input region must always be identifiable`);
     }
   });
 };

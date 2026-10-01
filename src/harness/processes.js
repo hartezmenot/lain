@@ -87,20 +87,76 @@ const RETRY_MS = 250;
 let seq = 0;
 const ownedChildren = new Set();
 
-/** Shared containment for services and finite verification commands. */
-function spawnOwned({ command, args = null, cwd, env = process.env, shell = null, cleanupPaths = [] }) {
-  // On Windows the guardian must survive its caller's console/OS lifetime.
-  // IPC remains referenced, so ordinary calls still await bounded cleanup.
+/**
+ * ONE PRE-WARMED GUARDIAN (2026-10-01). A command's containment is two Node processes (guardian + worker) before
+ * the shell even starts — ~105 ms of boot on every shell tool call (bench/latency). After the first owned spawn of
+ * a run, the next guardian is started in the background, idle and unref'd (it never keeps Noema alive), its worker
+ * already booted; the next command takes it and pays an IPC message. It is NOT a pool: one slot, refilled after
+ * use, expired after WARM_IDLE_MS idle, and it dies with Noema (the guardian stops on IPC disconnect).
+ * NOEMA_NO_PREWARM=1 turns it off.
+ */
+const WARM_IDLE_MS = 120_000;
+let warm = null;
+let warmTimer = null;
+
+function startGuardian(cwd, env) {
   const child = spawn(process.execPath, [require.resolve('./processguardian')], {
     cwd, env, windowsHide: true, detached: true,
     stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
   });
+  child.spawnedAt = Date.now();
   child.on('message', (result) => {
     if (result.startedPid) child.commandPid = result.startedPid;
     else child.commandResult = result;
   });
+  child.on('error', () => {}); // callers report the failure; never an unhandled event
+  return child;
+}
+
+function setRef(child, on) {
+  try { on ? child.ref() : child.unref(); } catch { /* gone */ }
+  try { if (child.channel) on ? child.channel.ref() : child.channel.unref(); } catch { /* gone */ }
+  for (const s of [child.stdin, child.stdout, child.stderr]) {
+    try { if (s && s._handle) on ? s._handle.ref() : s._handle.unref(); } catch { /* gone */ }
+  }
+}
+
+function dropWarm() {
+  if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+  const w = warm; warm = null;
+  if (w && w.exitCode === null) { try { w.disconnect(); } catch { /* gone */ } }
+}
+
+function refillWarm() {
+  if (warm || process.env.NOEMA_NO_PREWARM === '1' || process.env.LAIN_NO_PREWARM === '1') return;
+  try {
+    warm = startGuardian(require('os').tmpdir(), process.env);
+    setRef(warm, false);
+    warm.once('exit', () => { if (warm && warm.exitCode !== null) warm = null; });
+    warmTimer = setTimeout(dropWarm, WARM_IDLE_MS);
+    if (warmTimer.unref) warmTimer.unref();
+  } catch { warm = null; }
+}
+
+function takeWarm() {
+  const w = warm;
+  if (!w) return null;
+  warm = null;
+  if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+  if (w.exitCode !== null || w.signalCode !== null || !w.connected || w.commandResult) { try { w.kill(); } catch { /* gone */ } return null; }
+  setRef(w, true);
+  return w;
+}
+
+/** Shared containment for services and finite verification commands. `eof`: see processworker.js. */
+function spawnOwned({ command, args = null, cwd, env = process.env, shell = null, cleanupPaths = [], eof = null }) {
+  // On Windows the guardian must survive its caller's console/OS lifetime.
+  // IPC remains referenced, so ordinary calls still await bounded cleanup.
+  const child = (!cleanupPaths.length && takeWarm()) || startGuardian(cwd, env);
+  setImmediate(refillWarm);
   ownedChildren.add(child);
   child.once('close', () => ownedChildren.delete(child));
+  require('../runtimeregistry').register(child, { purpose: 'service', label: String(command).slice(0, 80), project: cwd || null, command: [command, ...(args || [])].join(' '), policy: { onOwnerExit: 'stop', onTaskEnd: true }, spawnedAt: child.spawnedAt });
   child.on('error', () => {}); // callers report the failure; never an unhandled event
   if (cleanupPaths.length && child.pid) {
     // A sibling, not a descendant of the service tree: it must survive that
@@ -111,7 +167,7 @@ function spawnOwned({ command, args = null, cwd, env = process.env, shell = null
     cleaner.on('error', (e) => child.emit('error', e));
     cleaner.unref();
   }
-  child.send({ command, args, cwd, env, shell, cleanupPaths }, (e) => { if (e) child.emit('error', e); });
+  child.send({ command, args, cwd, env, shell, cleanupPaths, ...(eof ? { eof } : {}) }, (e) => { if (e) child.emit('error', e); });
   return child;
 }
 
@@ -121,12 +177,40 @@ function stopTree(child, opts = {}) {
   return child._treeStop;
 }
 
+/**
+ * CLEANUP OFF THE CRITICAL PATH. A finished command's tree is still killed and confirmed — but its caller already has
+ * the result. The next owned spawn waits for pending cleanups (`settle`), so a leftover can never overlap the next
+ * command; a failure is kept and reported to the next caller (`lateFailures`).
+ */
+const pendingStops = new Set();
+const lateErrors = [];
+function deferStop(child) {
+  const p = stopTree(child).catch((e) => { lateErrors.push(String(e && e.message || e)); });
+  pendingStops.add(p);
+  p.finally(() => pendingStops.delete(p));
+  return p;
+}
+async function settle(maxMs = 5000) {
+  if (!pendingStops.size) return;
+  await Promise.race([Promise.allSettled([...pendingStops]), new Promise((r) => { const t = setTimeout(r, maxMs); if (t.unref) t.unref(); })]);
+}
+function lateFailures() { return lateErrors.splice(0); }
+
+/** Resolves when the child has exited, or after `ms`. Event-driven: no polling. */
+function waitExit(child, ms) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const t = setTimeout(done, ms);
+    function done() { clearTimeout(t); child.removeListener('exit', done); resolve(); }
+    child.once('exit', done);
+  });
+}
+
 async function terminateTree(child, { graceMs = 3000 } = {}) {
   if (!child || !child.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (child.connected) {
     child.send({ stop: true }, () => {});
-    const deadline = Date.now() + Math.max(1000, graceMs);
-    while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    await waitExit(child, Math.max(1000, graceMs));
     if (child.exitCode !== null || child.signalCode !== null) return;
   }
   if (process.platform === 'win32') {
@@ -138,12 +222,12 @@ async function terminateTree(child, { graceMs = 3000 } = {}) {
   } else {
     try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') throw e; }
   }
-  const deadline = Date.now() + Math.max(1000, graceMs);
-  while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  await waitExit(child, Math.max(1000, graceMs));
   if (child.exitCode === null && child.signalCode === null) throw new Error(`owned process ${child.pid} did not stop`);
 }
 
 async function cleanupOwned() {
+  dropWarm();
   const results = await Promise.allSettled([...ownedChildren].map((child) => stopTree(child)));
   const failed = results.find((r) => r.status === 'rejected');
   if (failed) throw failed.reason;
@@ -507,4 +591,4 @@ class ProcessManager {
   }
 }
 
-module.exports = { ProcessManager, ManagedProcess, STATUS, HEALTH, GONE, portOpen, httpProbe, MAX_LOG, PROBE_MS, spawnOwned, stopTree, cleanupOwned };
+module.exports = { ProcessManager, ManagedProcess, STATUS, HEALTH, GONE, portOpen, httpProbe, MAX_LOG, PROBE_MS, spawnOwned, stopTree, cleanupOwned, deferStop, settle, lateFailures, dropWarm };

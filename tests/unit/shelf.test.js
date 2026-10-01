@@ -20,7 +20,7 @@ function open(o) {
 
 const GOAL = {
   title: 'Goal',
-  context: ['Finish LAIN Harness application'],
+  context: ['Finish Noema Harness application'],
   actions: [
     { label: 'Continue', value: 'continue' },
     { label: 'Edit', value: 'edit' },
@@ -35,7 +35,7 @@ module.exports = async function () {
     assert.strictEqual(panel.kind, KIND.SHELF);
     const rows = panel.render(80, 8).map(plain);
     assert.ok(rows.some((r) => /Goal/.test(r)), rows.join('\n'));
-    assert.ok(rows.some((r) => /Finish LAIN Harness application/.test(r)));
+    assert.ok(rows.some((r) => /Finish Noema Harness application/.test(r)));
     const actions = rows.find((r) => /Continue/.test(r));
     assert.match(actions, /Continue\s+Edit\s+New\s+Delete/, 'actions sit on one row');
   });

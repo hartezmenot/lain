@@ -115,7 +115,7 @@ function find(opts = {}) {
   const self = opts.self === undefined ? process.execPath : opts.self;
   if (self) {
     searched.push(`the running interpreter (${self})`);
-    if (usable(self)) return { ok: true, exe: self, how: 'the Node already running LAIN' };
+    if (usable(self)) return { ok: true, exe: self, how: 'the Node already running Noema' };
   }
 
   // ---- 2. WHAT SOMEBODY CONFIGURED --------------------------------------
@@ -156,7 +156,7 @@ function find(opts = {}) {
   // ---- 6. SAY WHAT WAS LOOKED FOR, AND WHERE ----------------------------
   return {
     ok: false,
-    why: 'Node could not be found. LAIN needs a Node executable to start its Core.'
+    why: 'Node could not be found. Noema needs a Node executable to start its Core.'
       + ` Looked in: ${searched.join('; ')}.`
       + ' Install Node (https://nodejs.org) or set `nodePath` in config.json to the full path of node.exe.',
     searched,

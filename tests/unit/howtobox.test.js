@@ -7,7 +7,7 @@
  * THE REPORTED DEFECT, and it was not a cosmetic one.
  *
  *     ┌─ HOW TO RUN ─────────────────────────────────────────┐
- *     │ node bin/lain.js (start a Probe with /mcp probe, th… │
+ *     │ node bin/noema.js (start a Probe with /mcp probe, th… │
  *     └──────────────────────────────────────────────────────┘
  *
  * The box that exists to carry the one line a person is going to TYPE destroyed
@@ -60,7 +60,7 @@ function readable(drawn) {
     .trim();
 }
 
-const LONG_RUN = 'node bin/lain.js (start a Probe with /mcp probe, then run the task)';
+const LONG_RUN = 'node bin/noema.js (start a Probe with /mcp probe, then run the task)';
 const LONG_TEST = 'node tests/run.js unit and python -m pytest tests/test_probe.py -q';
 const WIDTHS = [36, 48, 60, 80, 100, 160, 240];
 
@@ -90,10 +90,10 @@ module.exports = async function () {
   // ------------------------------------------------------------------- 3 ---
 
   await test('HOWTO: explicit newlines in a block SURVIVE as separate rows', () => {
-    const doc = ['How to run:', '```', 'node bin/lain.js', '', 'Start a Probe:', '/mcp probe', '```'];
+    const doc = ['How to run:', '```', 'node bin/noema.js', '', 'Start a Probe:', '/mcp probe', '```'];
     const drawn = rows(doc, 70);
     const body = drawn.filter((r) => /^│/.test(r.trim())).map((r) => r.replace(/^\s*│\s?/, '').replace(/\s*│\s*$/, '').trim());
-    assert.deepStrictEqual(body, ['node bin/lain.js', '', 'Start a Probe:', '/mcp probe'],
+    assert.deepStrictEqual(body, ['node bin/noema.js', '', 'Start a Probe:', '/mcp probe'],
       'the model wrote four lines and the box must draw four lines\n' + drawn.join('\n'));
   });
 
@@ -169,7 +169,7 @@ module.exports = async function () {
     assert.notDeepStrictEqual(wide, narrow, 'the cache served the narrow render at the wide width');
     assert.deepStrictEqual(back, narrow, 'and coming back to a width reproduces it');
     for (const drawn of [narrow, wide]) {
-      assert.ok(!drawn.some((r) => /HOW TO RUN/.test(r) === false && r.includes('…') && r.includes('bin/lain.js')),
+      assert.ok(!drawn.some((r) => /HOW TO RUN/.test(r) === false && r.includes('…') && r.includes('bin/noema.js')),
         'no drawn row carries a truncated command');
     }
   });

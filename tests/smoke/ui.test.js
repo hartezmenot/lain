@@ -54,10 +54,10 @@ module.exports = async function () {
     // and the input was a labelled box. It is one dim row of metadata, a rule,
     // the conversation, one live activity row, and a grey input with no border.
     // Each of the four is asserted by the thing only it draws.
-    assertIncludes(out, 'LAIN', 'the header wordmark');
+    assertIncludes(out, 'Noema', 'the header wordmark');
     assertIncludes(out, path.basename(cwd), 'the project folder, on the header');
     assertIncludes(out, 'READY', 'the live activity row says nothing is running');
-    assertIncludes(out, 'Ask LAIN', 'and the input says what it is for');
+    assertIncludes(out, 'Ask Noema', 'and the input says what it is for');
     // AND NO TAB STRIP UNDER IT.
     assertNotIncludes(out, '[1 activity]', 'there is one surface, so there is no strip');
   });
@@ -339,7 +339,7 @@ module.exports = async function () {
       // region that is NEVER sacrificed and so is drawn at every size. The
       // header's rule would have done except at 40x9, where it is correctly the
       // first thing given up.
-      const inputSeg = segs.find((x) => /Ask LAIN/.test(x));
+      const inputSeg = segs.find((x) => /Ask Noema/.test(x));
       assert.ok(inputSeg, `${cols}x${rows}: the input region must always be identifiable`);
       widths.push(inputSeg.length);
 
@@ -431,7 +431,7 @@ module.exports = async function () {
     assert.ok(/--resume [a-z0-9]{3,}/.test(plain(r.stdout)), 'the resume command was printed');
   });
 
-  await test('UI SMOKE: Ctrl+C while working cancels the work, and LAIN stays usable', async () => {
+  await test('UI SMOKE: Ctrl+C while working cancels the work, and Noema stays usable', async () => {
     const { cwd, configDir } = ws();
     // A slow command keeps the turn in flight so the interrupt lands mid-work.
     const r = await runCli([], {

@@ -68,6 +68,7 @@ function remember(session, record) {
   session.usage.outputTokens += record.usage.outputTokens;
   session.usage.cacheReadTokens += record.usage.cacheReadTokens || 0;
   session.usage.cacheCreationTokens += record.usage.cacheCreationTokens || 0;
+  if (Number.isFinite(record.usage.reasoningTokens)) session.usage.reasoningTokens = (session.usage.reasoningTokens || 0) + record.usage.reasoningTokens;
   session.usage.requests += record.usage.requests;
   session.turns.push({
     turnId: record.turnId, startedAt: record.startedAt, endedAt: record.endedAt,
@@ -141,10 +142,42 @@ function close(session, life, record) {
   remember(session, record);
   settleScratch(session, record);
   try { require('./locateassist').settleRecord(session, record); } catch { /* a measurement, never a failure */ }
+  try { require('./dispatch').settle(session, record); } catch { /* the assignment's telemetry, never a failure */ }
+  try { require('./layaevidence').settle(session); } catch { /* narrowing debt is a measurement */ }
+  // (The model's writes advance the project generation inside the mutation
+  // transaction itself — mutation.js `consequences` — once per kept change.)
   try { require('./tempworkspaces').sweep(null, session.id); } catch { /* retained; reconciled at the next start */ }
+  try { profileTurn(life, record); } catch { /* a measurement, never a failure */ }
   tellRuntime(session, record);
   require('./inflight').end(session);   // ended by a route LAIN saw — nothing to recover
   return record;
+}
+
+/**
+ * THE MODEL'S MEASURED BEHAVIOUR (discipline/profile.js) — folded in once per turn, so discretion follows what a
+ * model actually does rather than its name. Counters on the lifecycle are consumed here (reported once).
+ */
+function profileTurn(life, record) {
+  if (!record || !record.model || /mock/i.test(record.model)) return;
+  const d = life && life.discipline;
+  const errs = record.errors || [];
+  const patchCalls = (record.actions || []).filter((a) => require('./mutation').isSourceMutation(a.name || ''));
+  const repeats = life ? [...life.seen.values()].filter((n) => n > 1).length : 0;
+  const gen = life ? life.mutationSeq || 0 : 0;
+  const verified = Boolean(d && d.checks.all().some((c) => c.latest && c.latest.gen === gen && ['PASS', 'OBSERVED'].includes(c.latest.state)));
+  require('./discipline/profile').record(record.model, {
+    calls: record.toolCalls || 0,
+    invalidCalls: errs.filter((e) => /unknown tool|invalid (?:arguments|json)|not offered/i.test(String(e.message || ''))).length,
+    patches: patchCalls.length,
+    patchFailures: patchCalls.filter((a) => a.ok === false).length,
+    completionRequests: life ? life._completionRequests || 0 : 0,
+    falseCompletions: life ? life._falseCompletions || 0 : 0,
+    repeats: Math.max(0, repeats - (life ? life._repeatsReported || 0 : 0)),
+    mutated: (record.mutations || []).length > 0,
+    verified,
+    onOutcome: Boolean(d && (d.contract.outcome || d.contract.criteria.length)),
+  });
+  if (life) { life._completionRequests = 0; life._falseCompletions = 0; life._repeatsReported = repeats; }
 }
 
 /**

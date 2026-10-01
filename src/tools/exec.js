@@ -79,12 +79,10 @@ function onPath(name) {
   const exts = process.platform === 'win32'
     ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';').filter(Boolean)
     : [''];
-  for (const d of dirs) {
-    for (const e of exts) {
-      if (exists(path.join(d, name + e))) return true;
-    }
-  }
-  return false;
+  // REMEMBERED (pathlookup.js, Phase 8.3): the window's state read asks for Python on every poll (the Cowork
+  // capabilities), and each ask walked every PATH directory × extension.
+  if (!dirs.length) return false;
+  return require('../pathlookup').find(name, exts) !== null;
 }
 
 /**

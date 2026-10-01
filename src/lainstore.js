@@ -64,8 +64,12 @@
 const fs = require('fs');
 const path = require('path');
 
-/** The directory, inside the project being worked on. */
-const DIR = '.lain';
+/**
+ * The directory, inside the project being worked on: `.noema/` — or `.lain/` for a project LAIN already opened
+ * (projectmeta.js decides, per project; `noema project migrate` moves it). DIR is the name a NEW project gets.
+ */
+const meta = require('./projectmeta');
+const DIR = meta.CANON;
 
 /**
  * THE SLOTS. A closed list, because an open one is how a second authority
@@ -119,7 +123,7 @@ const TASKS = 'tasks';
 /** Bumped when an envelope's shape changes, so an old document is discarded. */
 const VERSION = 1;
 
-function dirFor(root) { return path.join(String(root), DIR); }
+function dirFor(root) { return meta.dir(String(root)); }
 
 /**
  * The absolute path of a slot. THE ONLY PATH JOIN IN THE PROJECT for anything
@@ -294,10 +298,12 @@ function hold(root, sessionId, on) {
 function held(root) {
   if (!holds.size || !root) return false;
   let k = keyOf(root);
-  const d = `${path.sep}${DIR}`.toLowerCase();
-  const at = k.indexOf(`${d}${path.sep}`);
-  if (at >= 0) k = k.slice(0, at);
-  else if (k.endsWith(d)) k = k.slice(0, -d.length);
+  for (const n of meta.NAMES) {
+    const d = `${path.sep}${n}`.toLowerCase();
+    const at = k.indexOf(`${d}${path.sep}`);
+    if (at >= 0) { k = k.slice(0, at); break; }
+    if (k.endsWith(d)) { k = k.slice(0, -d.length); break; }
+  }
   return holds.has(k);
 }
 

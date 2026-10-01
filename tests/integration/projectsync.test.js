@@ -76,7 +76,7 @@ module.exports = async function () {
 
       const first = await projectsync.open(root);
       assert.strictEqual(first.verdict, 'NEW', 'the runtime has never seen this tree');
-      assert.ok(fs.existsSync(path.join(root, '.lain', 'index.json')), 'and the index is materialised in the project');
+      assert.ok(fs.existsSync(path.join(root, '.noema', 'index.json')), 'and the index is materialised in the project');
 
       // ---- NOTHING MOVED --------------------------------------------------
       const second = await projectsync.open(root);
@@ -150,16 +150,16 @@ module.exports = async function () {
       assert.strictEqual((await projectsync.open(a)).verdict, 'MODIFIED');
       assert.strictEqual((await projectsync.open(b)).verdict, 'UNCHANGED', 'the other project is untouched');
       // AND THEIR INDEXES ARE THEIR OWN.
-      assert.ok(fs.existsSync(path.join(a, '.lain', 'index.json')));
-      assert.ok(fs.existsSync(path.join(b, '.lain', 'index.json')));
+      assert.ok(fs.existsSync(path.join(a, '.noema', 'index.json')));
+      assert.ok(fs.existsSync(path.join(b, '.noema', 'index.json')));
     });
   });
 
-  await test('PSYNC: a deleted .lain is rebuilt, and the runtime notices the tree is the same', async () => {
+  await test('PSYNC: a deleted .noema is rebuilt, and the runtime notices the tree is the same', async () => {
     await withHome(async () => {
       const root = project();
       await projectsync.open(root);
-      fs.rmSync(path.join(root, '.lain'), { recursive: true, force: true });
+      fs.rmSync(path.join(root, '.noema'), { recursive: true, force: true });
 
       const after = await projectsync.open(root);
       // The INDEX had to be rebuilt from nothing...

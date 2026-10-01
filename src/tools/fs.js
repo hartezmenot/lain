@@ -16,11 +16,8 @@ const path = require('path');
 
 const MAX_READ_BYTES = 400_000;
 
-function resolve(cwd, p) {
-  const s = String(p || '');
-  if (!s) return null;
-  return path.isAbsolute(s) ? s : path.resolve(cwd, s);
-}
+/** One resolver for every file tool — including the `/tmp/…` a Windows shell wrote (pathmap.js). */
+function resolve(cwd, p) { return require('./pathmap').resolve(cwd, p); }
 
 function rel(cwd, abs) {
   try {
@@ -74,7 +71,7 @@ function missing(cwd, p, kind) {
 }
 
 /** A bounded recursive listing — the print_tree recovery (toolalias.js). */
-const TREE_SKIP = new Set(['node_modules', '.git', '.lain', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv', 'target']);
+const TREE_SKIP = new Set(['node_modules', '.git', '.lain', '.noema', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv', 'target']);
 function tree(root, depth, max = 300) {
   const out = [];
   (function walk(d, level, prefix) {
@@ -310,14 +307,16 @@ const tools = {
     mutates: true,
     schema: {
       name: 'edit_file',
-      description: 'Replace an exact string in a file. `old` must appear exactly once unless replace_all is set.',
+      description: 'Replace an exact string in a file. `old` must appear exactly once unless replace_all is set; otherwise the edit is '
+        + 'refused and nothing is written. Use it for a short, unique string or for replacing every occurrence (replace_all); for a '
+        + 'multi-line block, apply_patch reports more precisely what it did not find. Returns the result of the write, not the file.',
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string' },
-          old: { type: 'string' },
-          new: { type: 'string' },
-          replace_all: { type: 'boolean' },
+          path: { type: 'string', description: 'the file, relative to the working directory' },
+          old: { type: 'string', description: 'the exact current text, whitespace included' },
+          new: { type: 'string', description: 'the text that replaces it' },
+          replace_all: { type: 'boolean', description: 'replace every occurrence of `old` instead of requiring exactly one' },
         },
         required: ['path', 'old', 'new'],
       },
@@ -326,7 +325,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'edit_file needs a path', isError: true };
       let text;
-      try { text = fs.readFileSync(abs, 'utf8'); } catch { return { output: `no such file: ${input.path}`, isError: true }; }
+      try { text = fs.readFileSync(abs, 'utf8'); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       if (!String(input.old)) return { output: 'edit_file needs a non-empty `old`', isError: true };
       // read_file's line-number gutter copied into `old` (see gutter.js).
       const g = require('./gutter').resolve(text, String(input.old), String(input.new));

@@ -121,7 +121,21 @@ const NEVER_AUTO = [
 
 /** Normalise for comparison: absolute, real case-insensitive on Windows. */
 function norm(p) {
-  const s = path.resolve(String(p || ''));
+  let s = path.resolve(String(p || ''));
+  // AN 8.3 SHORT NAME (C:\Users\HARTEZ~1\…) is the same folder as its long name; a folder trusted under one must be
+  // trusted under the other (the installed launcher starts Noema with the long form). Only short names are expanded —
+  // a junction keeps being judged by the path it was trusted under.
+  // A path that does not exist yet (a file about to be created) is expanded through its nearest existing folder.
+  if (process.platform === 'win32' && s.includes('~')) {
+    const rest = [];
+    let head = s;
+    for (let i = 0; i < 64; i++) {
+      try { s = path.join(fs.realpathSync.native(head), ...rest.reverse()); break; } catch { /* not there yet */ }
+      const up = path.dirname(head);
+      if (up === head) break;
+      rest.push(path.basename(head)); head = up;
+    }
+  }
   return process.platform === 'win32' ? s.replace(/[\\/]+$/, '').toLowerCase() : s.replace(/\/+$/, '');
 }
 

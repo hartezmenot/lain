@@ -99,16 +99,37 @@ function flatten(headers) {
 }
 
 /**
+ * WHAT KIND OF LIMIT A WINDOW IS — so a percentage is never read as the wrong
+ * thing. "63%" of a 5-hour subscription allowance and "63%" of this minute's
+ * request limit are different facts: one says the plan is running out, the
+ * other says slow down for a few seconds.
+ *
+ *   SUBSCRIPTION     the provider's own plan window (Anthropic unified 5h/7d)
+ *   REQUEST_WINDOW   a rate limit counted in requests
+ *   TOKEN_WINDOW     a rate limit counted in tokens (input, output or total)
+ *   RATE_LIMIT       a rate limit whose unit the provider did not name
+ */
+const KIND = Object.freeze({ SUBSCRIPTION: 'SUBSCRIPTION', REQUEST_WINDOW: 'REQUEST_WINDOW', TOKEN_WINDOW: 'TOKEN_WINDOW', RATE_LIMIT: 'RATE_LIMIT' });
+
+function kindOf(name, subscription, named) {
+  if (subscription) return KIND.SUBSCRIPTION;
+  if (!named) return KIND.RATE_LIMIT;
+  if (/token/.test(name)) return KIND.TOKEN_WINDOW;
+  if (/request/.test(name)) return KIND.REQUEST_WINDOW;
+  return KIND.RATE_LIMIT;
+}
+
+/**
  * THE WINDOWS A SET OF HEADERS DESCRIBES.
  *
- * @returns {Array<{name, label, percent, limit, remaining, resetAt, subscription}>}
+ * @returns {Array<{name, label, kind, percent, limit, remaining, resetAt, subscription}>}
  *          percent is 0..100 (used), or null when only a reset was stated.
  */
 function parse(headers, now = Date.now()) {
   const h = flatten(headers);
   const acc = new Map();
-  const slot = (name, subscription) => {
-    if (!acc.has(name)) acc.set(name, { name, label: windowLabel(name), percent: null, limit: null, remaining: null, resetAt: null, subscription });
+  const slot = (name, subscription, named = true) => {
+    if (!acc.has(name)) acc.set(name, { name, label: windowLabel(name), kind: kindOf(name, subscription, named), percent: null, limit: null, remaining: null, resetAt: null, subscription });
     return acc.get(name);
   };
   for (const [k, v] of Object.entries(h)) {
@@ -132,7 +153,9 @@ function parse(headers, now = Date.now()) {
     }
     m = /^x-ratelimit-(limit|remaining|reset)(?:-([a-z-]+))?$/.exec(k);
     if (m) {
-      const w = slot(m[2] || 'requests', false);
+      // An unsuffixed x-ratelimit-* names no unit, so it is its own window
+      // ("rate limit") and never merges into, or claims to be, "requests".
+      const w = slot(m[2] || 'rate', false, Boolean(m[2]));
       if (m[1] === 'reset') w.resetAt = resetAt(v, now); else w[m[1]] = num(v);
     }
   }
@@ -210,4 +233,4 @@ function all() { return [...readings.keys()].map(forConnection); }
 function last() { return lastRoute ? { ...lastRoute } : null; }
 function _reset() { readings.clear(); lastRoute = null; }
 
-module.exports = { observe, parse, headline, forConnection, forSelection, all, last, durationMs, _reset };
+module.exports = { observe, parse, headline, forConnection, forSelection, all, last, durationMs, _reset, KIND };

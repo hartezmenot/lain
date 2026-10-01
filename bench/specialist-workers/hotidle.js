@@ -68,7 +68,7 @@ function sessionOf(configDir) {
 const rowView = (r) => r && ({ tier: r.tier, ms: r.ms, layaMs: r.layaMs, bypass: r.layaBypass, timedOut: r.layaTimedOut, cacheHit: r.cacheHit,
   usage: r.layaUsage, rawChars: r.rawChars, outChars: r.outChars, slice: r.slice, warmWaitMs: r.warmWaitMs, at: r.at });
 
-const ENV = { LAIN_WORKER_LAYA: 'on', LAIN_LOCATE: 'on', LAIN_WORKER_VIOLETTO: 'off', LAIN_WORKERHOST_DIR: HOSTDIR };
+const ENV = { LAIN_WORKER_LAYA: 'on', LAIN_LOCATE: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKERHOST_DIR: HOSTDIR };
 
 async function openOnly(laya) {
   // §52 comparison: how long until the prompt is usable, Laya on vs off.

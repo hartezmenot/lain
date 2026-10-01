@@ -3,7 +3,7 @@
 /**
  * Test helpers, including the SMOKE harness.
  *
- * `runCli` spawns bin/lain.js as a real child process. Nothing in the smoke
+ * `runCli` spawns bin/noema.js as a real child process. Nothing in the smoke
  * suite is allowed to require() application modules directly — that is the
  * difference between LIVE CLI VERIFIED and WIRED/UNIT VERIFIED, and V1 blurred
  * it badly enough to ship a runnable foreign-plan bug under a green suite.
@@ -15,7 +15,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const BIN = path.join(ROOT, 'bin', 'lain.js');
+const BIN = path.join(ROOT, 'bin', 'noema.js');
 
 let passed = 0;
 let failed = 0;
@@ -254,6 +254,10 @@ function prepareCli(o = {}) {
     //
     // A test that wants the real schedule can override it through `o.env`.
     LAIN_BACKOFF_MS: '1,1,1,1,1,1,1,1,1,1',
+    // NO WINDOW: `/model manage`, `/api add` and `/account add` open the Model
+    // Dashboard (fabric/dashlaunch.js). A spawned test binary reports that it
+    // did not, rather than a real desktop window appearing mid-suite.
+    LAIN_NO_DESKTOP: '1',
     ...(o.env || {}),
   };
   if (o.script !== undefined && o.script !== null) {
@@ -345,7 +349,7 @@ function assertNotIncludes(haystack, needle, msg) {
  * `headerMark()` is the wordmark on the header row itself, for tests that want
  * the top of the frame rather than the boundary.
  */
-function headerMark() { return 'LAIN'; }
+function headerMark() { return 'Noema'; }
 
 /** True for the header rule — a row that STARTS with a run of box-drawing dash. */
 function isRuleRow(line) { return /^─{4}/.test(String(line || '')); }
@@ -360,7 +364,7 @@ function ruleRowIndex(rows) { return rows.findIndex((l) => isRuleRow(l)); }
  */
 function harnessPath(...parts) {
   const root = require('../src/harnesslocation').root();
-  if (!root) throw new Error('LAIN Harness is not installed next to this checkout (../lain-harness) — set LAIN_HARNESS_DIR');
+  if (!root) throw new Error('Noema Harness is not installed next to this checkout (../lain-harness) — set LAIN_HARNESS_DIR');
   return path.join(root, ...parts);
 }
 

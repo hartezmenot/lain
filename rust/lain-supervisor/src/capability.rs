@@ -372,12 +372,12 @@ fn session_list(kernel: &Arc<Kernel>) -> Outcome {
         v.set("sessions", Value::Arr(Vec::new()));
         return answered(
             "session.list",
-            "LAIN SESSIONS\n\nThe runtime knows of no conversations yet.".to_string(),
+            "NOEMA SESSIONS\n\nThe runtime knows of no conversations yet.".to_string(),
             v,
         );
     }
 
-    let mut text = String::from("LAIN SESSIONS\n");
+    let mut text = String::from("NOEMA SESSIONS\n");
     let mut arr = Vec::new();
     for (i, s) in rows.iter().enumerate() {
         let st = s.status();

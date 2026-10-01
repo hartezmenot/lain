@@ -99,7 +99,7 @@ module.exports = async function () {
     assert.strictEqual(r.body.orchestration.mode, 'SINGLE_PER_ROLE', 'only the mode Core routes is claimed');
   });
 
-  await test('SHELL: MCP lists the built-in Computer server and never starts it; skills say none exist', async () => {
+  await test('SHELL: MCP lists the built-in Computer server and never starts it; skills are supported and none are installed', async () => {
     const app = appAt(tmpdir());
     const m = await routes.dispatch(app, 'POST', '/api/mcp/servers', {});
     const comp = m.body.servers.find((s) => s.id === 'computer');
@@ -107,8 +107,8 @@ module.exports = async function () {
     assert.notStrictEqual(comp.state, 'CONNECTED', 'reading the list connected nothing');
     assert.strictEqual(require('../../src/computermcp').existing(app), null);
     const k = await routes.dispatch(app, 'POST', '/api/skills', {});
-    assert.strictEqual(k.body.supported, false);
-    assert.deepStrictEqual(k.body.skills, []);
+    assert.strictEqual(k.body.supported, true, 'a skill loader exists (integrations.js, Phase 8.1)');
+    assert.deepStrictEqual(k.body.skills.map((x) => `${x.id} ${x.name}`), [], 'no skill is installed in this home');
   });
 
   // ------------------------------------------------------------ projects --
@@ -158,11 +158,11 @@ module.exports = async function () {
 
   // ------------------------------------------------------- BOT about LAIN --
 
-  await test('SELF: the BOT describes LAIN from the same projection, and never invents usage', async () => {
+  await test('SELF: the BOT describes Noema from the same projection, and never invents usage', async () => {
     uw._reset();
     const app = appAt(tmpdir());
     const tool = require('../../src/tools/lainself').tools.lain_workspace;
-    assert.strictEqual(tool.mutates, false, 'reading LAIN changes nothing');
+    assert.strictEqual(tool.mutates, false, 'reading Noema changes nothing');
     const out = (await tool.run({ action: 'describe', topic: 'all' }, { app })).output;
     assert.match(out, /MODEL ROLES/);
     assert.match(out, /Settings › mcp|Settings › MCP/i);

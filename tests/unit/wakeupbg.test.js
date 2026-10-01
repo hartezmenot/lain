@@ -194,7 +194,7 @@ module.exports = async function () {
     // The person decided in this turn: "change the export style" → ask_user → "keep CommonJS" needs no change.
     assert.strictEqual(w.decide(rec({ actions: [{ name: 'ask_user', ok: true }] }), 'Keeping CommonJS as you chose.', { required: true, cls: 'PROJECT_IMPLEMENTATION' }), null);
     // A STATED BLOCKER is not DONE — strip and remote attention (live real-Chrome run, 2026-09-19).
-    const said = 'The extension is not responding.\n\nBlocker: LAIN for Chrome extension is not communicating.';
+    const said = 'The extension is not responding.\n\nBlocker: Noema for Chrome extension is not communicating.';
     assert.strictEqual(w.statesBlocker(said), true);
     assert.strictEqual(w.statesBlocker('All 8 tests pass; the unblocker module is untouched.'), false);
     const st = require('../../src/ui/status').liveState({ lastTurn: { stopReason: 'end', toolCalls: 3, blocker: true } }, Date.now());

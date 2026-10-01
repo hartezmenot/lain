@@ -17,7 +17,7 @@ const RUNNING = [['ctrl+c', 'interrupt'], ['ctrl+o', 'activity'], ['shift+tab', 
 const IDLE = [['/', 'commands'], ['@', 'files'], ['shift+tab', 'mode']];
 
 function hints(run) {
-  const busy = Boolean(run && Array.isArray(run.parts) && run.parts[0] === 'RUNNING');
+  const busy = Boolean(run && (run.busy || (Array.isArray(run.parts) && run.parts[0] === 'RUNNING')));   // headerstate says busy explicitly now (2026-10-01)
   return busy ? RUNNING : IDLE;
 }
 

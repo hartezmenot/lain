@@ -186,7 +186,7 @@ module.exports = async function () {
   });
 
   // ---- §2 + §12: a NEW Node process finds the job, and Rust is authority ---
-  await test('EXECUTION: a restarted LAIN finds the job it never started', async () => {
+  await test('EXECUTION: a restarted Noema finds the job it never started', async () => {
     const home = isolate('restart');
     const script = `
       process.env.LAIN_HOME = ${JSON.stringify(home)};
@@ -207,7 +207,7 @@ module.exports = async function () {
       // THIS process never started it and has no in-process record of it.
       const app = fakeApp('sess-restart', home);
       const seen = await jobTools.job_status.run({ id }, { app });
-      assert.ok(!seen.isError, `a restarted LAIN must find it: ${seen.output}`);
+      assert.ok(!seen.isError, `a restarted Noema must find it: ${seen.output}`);
       assert.strictEqual(seen.meta.supervised, true, 'and the supervisor is the authority for it');
 
       const done = await until(async () => {
@@ -287,11 +287,8 @@ module.exports = async function () {
   // src/modelsource. The assertions are the same property, re-aimed.
   await test('CONSULT: a chat model source is granted no execution, and says so', () => {
     const contract = require('../../src/modelsource/contract');
-    const ctx = require('../../src/modelsource/context');
-    // It is TOLD it has nothing, in the payload that actually leaves.
-    const built = ctx.build({ session: { cwd: ROOT, messages: [] } }, 'why is this slow?', { continuing: false });
-    assert.match(built.text, /no tools, no filesystem and no shell/i,
-      'the consulted model must be told it has none of them');
+    // (Phase 8.3: the website chat sources and their context packet are removed; the contract's
+    // overclaim check and the no-supervisor rule over the whole package still hold.)
     // A claim to have acted is caught, whatever else the reply contains.
     assert.ok(contract.overclaims('FACT: the loader is fine. I ran the tests and they pass.'),
       'a claim to have executed must be flagged');
@@ -306,9 +303,6 @@ module.exports = async function () {
       assert.ok(!/supervisor/i.test(src),
         `modelsource/${f} must not reach the supervisor — consultation is not execution authority`);
     }
-    // AND NEITHER MAY THE DISPATCHER that puts a reply into the conversation.
-    const disp = fs.readFileSync(path.join(ROOT, 'src', 'chatdispatch.js'), 'utf8');
-    assert.ok(!/require\(['"]\.\/supervisor['"]\)/.test(disp), 'and neither may the dispatch path');
   });
 
   await test('CONSULT: an empty or malformed reply degrades to a failure, never an action', () => {

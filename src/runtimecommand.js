@@ -82,7 +82,7 @@ function register({ define, C }) {
         w(C.dim('  No runtime is answering on this machine.'));
         w(C.dim('  One starts when a turn begins, and keeps jobs, provider limits and'));
         w(C.dim('  undelivered input alive across restarts. Nothing is lost meanwhile —'));
-        w(C.dim('  LAIN simply cannot be told what happened while it was not running.'));
+        w(C.dim('  Noema simply cannot be told what happened while it was not running.'));
         w('');
         return;
       }

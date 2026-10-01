@@ -83,8 +83,9 @@ module.exports = async function () {
 
   await test('LIVE: waiting on the model says so, in words', () => {
     const line = at({ phase: PHASE.WAITING_MODEL }, 0, 1000);
-    assert.match(line, /Thinking/);
-    assert.match(line, /waiting for the model/, 'the state word alone is jargon; say what it means');
+    // ONE ACTIVITY LINE (2026-10-01): `Working · waiting for model` — the work is Noema's, the wait is the model's.
+    assert.match(line, /Working/);
+    assert.match(line, /waiting for model/, 'the state word alone is jargon; say what it means');
   });
 
   await test('LIVE: a running tool names what it is running', () => {
@@ -95,7 +96,7 @@ module.exports = async function () {
     assert.match(line, /Reading/, 'reading a file and running a command are different states');
     assert.match(line, /src\/auth\.js/, 'and the subject must be named');
     const shell = at({ phase: PHASE.RUNNING_TOOL, tool: 'run_bash', target: 'npm test' }, 0, 1000);
-    assert.match(shell, /Running\s+npm test/);
+    assert.match(shell, /Running\s+·\s+npm test/);
   });
 
   await test('LIVE: a long wait shows HOW LONG — the difference between slow and hung', () => {
@@ -178,7 +179,7 @@ module.exports = async function () {
     const text = lines.join('\n');
     assert.match(text, /src\/a\.js/);
     assert.match(text, /✗/, 'a failed call is not quietly reported as a tick');
-    assert.match(text, /Running\s+npm test/, 'and the live row is last, closest to the caret');
+    assert.match(text, /Running\s+·\s+npm test/, 'and the live row is last, closest to the caret');
     // With no history there is nothing to trail — and nothing is made up.
     const bare = status.statusStrip({ recent: [] }, 80, 3, 1000);
     assert.strictEqual(bare.length, 3);
@@ -216,7 +217,7 @@ module.exports = async function () {
     // and to nothing else. Two owners for one sentence read as two things
     // happening at once, which is why the banner never carried it either.
     const row = status.statusStrip({ phase: { phase: PHASE.WAITING_MODEL } }, 60, 1, 1000).join('');
-    assert.match(row, /Thinking/, 'in the one place that owns it');
+    assert.match(row, /Working/, 'in the one place that owns it');
     const planned = require('../../src/ui/text').strip(views.planView({ plan, width: 60 }).join(NL));
     assert.ok(!/THINKING|◐/.test(planned), `the plan view must not carry the live row: ${planned}`);
   });

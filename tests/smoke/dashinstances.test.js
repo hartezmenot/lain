@@ -5,7 +5,7 @@
  * against the actual binaries rather than asserted from the registry alone.
  *
  * `instances.js` is a directory of small files precisely so two independent
- * `bin/lain.js` processes can discover each other with no daemon and no lock —
+ * `bin/noema.js` processes can discover each other with no daemon and no lock —
  * so this is the one place that claim is worth testing with two REAL processes
  * sharing one `LAIN_CONFIG_DIR`, not two in-process `App` objects sharing a
  * module cache no real deployment would share.
@@ -46,7 +46,7 @@ function post(url, headers, payload) {
   });
 }
 
-/** One real, headless `bin/lain.js`, sharing `configDir` so the registry sees it. */
+/** One real, headless `bin/noema.js`, sharing `configDir` so the registry sees it. */
 function spawnLain(configDir, label) {
   const cwd = tmpdir(`lain-dash-proj-${label}-`);
   fs.writeFileSync(path.join(cwd, 'README.md'), `# ${label}\n`);
@@ -86,8 +86,13 @@ async function waitForDash(inst, { timeoutMs = 8000 } = {}) {
     // to read `key <32 hex>` on one line, and that word was the last place the
     // old token vocabulary survived — see repl.js on why the value gets a row
     // of its own rather than sharing one at 40 columns.
-    const t = /\bpassword\s*\r?\n\s*([0-9a-f]{32})/.exec(out);
-    if (u && (t || /password required/.test(out))) return { url: u[1], password: t ? t[1] : null };
+    // NO CREDENTIAL IS PRINTED (consolidation §11); the session key comes from proving the configured password.
+    if (u && /password required|no password/.test(out)) {
+      assert.ok(!/\b[0-9a-f]{32}\b/.test(out), `a credential reached the terminal:\n${out.slice(0, 800)}`);
+      let password = null;
+      if (/password required/.test(out) && inst.pw) password = JSON.parse((await post(`${u[1]}api/login`, {}, { password: inst.pw })).body).session;
+      return { url: u[1], password };
+    }
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error(`dashboard never announced itself:\n${inst.getOut().slice(0, 2000)}`);
@@ -96,8 +101,9 @@ async function waitForDash(inst, { timeoutMs = 8000 } = {}) {
 module.exports = async function () {
   await test('DASH LIVE: two real instances discover each other, and a killed one is swept', async () => {
     const configDir = tmpdir('lain-dash-cfg-');
-    const a = spawnLain(configDir, 'alpha');
-    const b = spawnLain(configDir, 'beta');
+    fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({ dashPassword: dashauth.hash('two instances') }));
+    const a = Object.assign(spawnLain(configDir, 'alpha'), { pw: 'two instances' });
+    const b = Object.assign(spawnLain(configDir, 'beta'), { pw: 'two instances' });
     try {
       const [ta, tb] = await Promise.all([waitForDash(a), waitForDash(b)]);
 
@@ -182,7 +188,7 @@ module.exports = async function () {
       last = await post(`${t.url}api/login`, {}, { password: `one-more-guess` });
       assert.strictEqual(last.status, 429);
       const rLockedOut = await post(`${t.url}api/login`, {}, { password: 'correct horse battery staple' });
-      assert.strictEqual(rLockedOut.status, 429, 'lockout refuses even the RIGHT password until LAIN restarts');
+      assert.strictEqual(rLockedOut.status, 429, 'lockout refuses even the RIGHT password until Noema restarts');
     } finally {
       try { inst.child.kill('SIGKILL'); } catch { /* already gone */ }
     }

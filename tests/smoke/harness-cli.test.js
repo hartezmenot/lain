@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE HARNESS AT THE REAL PROMPT. Every case spawns bin/lain.js as a child.
+ * THE HARNESS AT THE REAL PROMPT. Every case spawns bin/noema.js as a child.
  *
  * This file may not require() a single application module — a green run here
  * proves the commands are reachable, registered, and survive a real turn, which
@@ -52,7 +52,7 @@ module.exports = async function () {
     });
     assert.strictEqual(r.code, 0);
     assertNoCrash(r);
-    assertIncludes(r.out, 'LAIN TASK', 'a task record must exist after a turn');
+    assertIncludes(r.out, 'NOEMA TASK', 'a task record must exist after a turn');
     assertIncludes(r.out, 'add a greeting file', 'and it is titled by what was asked');
     // THE MODEL STOPPING IS NOT A PASS. The task is VERIFYING, and the screen
     // says nothing has been proved.
@@ -60,7 +60,7 @@ module.exports = async function () {
     assertNotIncludes(r.out, 'PASSED');
   });
 
-  await test('HARNESS-CLI: the task record is written under .lain/tasks', async () => {
+  await test('HARNESS-CLI: the task record is written under .noema/tasks', async () => {
     const cwd = tmpdir('lain-harness-');
     const r = await runCli([], {
       cwd,
@@ -72,7 +72,7 @@ module.exports = async function () {
       timeoutMs: 60000,
     });
     assert.strictEqual(r.code, 0);
-    const tasks = path.join(cwd, '.lain', 'tasks');
+    const tasks = path.join(cwd, '.noema', 'tasks');
     assert.ok(fs.existsSync(tasks), 'the harness must persist a task directory');
     const ids = fs.readdirSync(tasks);
     assert.ok(ids.length >= 1, 'one task per request');
@@ -102,7 +102,7 @@ module.exports = async function () {
     assertIncludes(r.out, 'VERIFICATION PASSED');
     assertIncludes(r.out, '1 passed');
     assertIncludes(r.out, 'is now');
-    const tasks = path.join(cwd, '.lain', 'tasks');
+    const tasks = path.join(cwd, '.noema', 'tasks');
     const ids = fs.readdirSync(tasks);
     const record = JSON.parse(fs.readFileSync(path.join(tasks, ids[0], 'task.json'), 'utf8'));
     assert.strictEqual(record.state, 'PASSED', 'evidence, and only evidence, reaches PASSED');
@@ -123,8 +123,8 @@ module.exports = async function () {
     // THE MODEL SAID "ALL FIXED". THE EVIDENCE SAYS OTHERWISE, AND THE
     // EVIDENCE IS WHAT THE TASK STATE FOLLOWS.
     assertIncludes(r.out, 'VERIFICATION FAILED');
-    const ids = fs.readdirSync(path.join(cwd, '.lain', 'tasks'));
-    const record = JSON.parse(fs.readFileSync(path.join(cwd, '.lain', 'tasks', ids[0], 'task.json'), 'utf8'));
+    const ids = fs.readdirSync(path.join(cwd, '.noema', 'tasks'));
+    const record = JSON.parse(fs.readFileSync(path.join(cwd, '.noema', 'tasks', ids[0], 'task.json'), 'utf8'));
     assert.strictEqual(record.state, 'FAILED');
   });
 
@@ -169,7 +169,7 @@ module.exports = async function () {
     const r = await runCli(['--doctor'], { timeoutMs: 60000 });
     assert.strictEqual(r.code, 0, r.out);
     assertNoCrash(r);
-    assertIncludes(r.out, 'LAIN Harness');
+    assertIncludes(r.out, 'Noema Harness');
     assertIncludes(r.out, 'Core');
     assertIncludes(r.out, 'Core is available.');
     assertNotIncludes(r.out, 'Session saved');
@@ -233,7 +233,7 @@ module.exports = async function () {
     assertIncludes(r.out, 'objective', 'the original table is still there');
     assertIncludes(r.out, 'started');
     assertIncludes(r.out, 'state');
-    assertIncludes(r.out, 'LAIN TASK', 'and the harness record is appended beneath it');
+    assertIncludes(r.out, 'NOEMA TASK', 'and the harness record is appended beneath it');
   });
 
   await test('HARNESS-CLI: the model can start a managed service and check it', async () => {

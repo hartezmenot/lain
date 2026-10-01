@@ -32,9 +32,10 @@
  *   READ     safe to repeat — reported as not completed.
  *
  * Recovery writes the missing tool results (an unanswered tool_call is a 400
- * on every provider), keeps the turn as a record that ended `crashed`, and
- * leaves the next step to the person (`continue`) — the guardian's handover
- * then works from a session that actually contains the turn.
+ * on every provider) and keeps the turn as a record that ended `crashed`. A
+ * Coding task cut off recently then RESUMES BY ITSELF (autocontinue.js
+ * scheduleRecovery, bounded, with the handover packet); an old one waits for
+ * ▶ Continue — either way from a session that actually contains the turn.
  */
 
 const fs = require('fs');
@@ -101,6 +102,7 @@ function begin(session, record, { from = null } = {}) {
 function step(session, n) {
   if (!session || !session.inflight) return;
   session.inflight.step = n;
+  session.inflight.touchedAt = Date.now();   // how recently the turn was alive — recovery resumes only a fresh crash
   persist(session);
 }
 
@@ -115,6 +117,7 @@ function beforeTool(session, call, target = '') {
   const kind = kindOf(call.name, call.input);
   const pre = kind === 'FILE' ? Object.fromEntries(targets(session, call.input).map((t) => [t, hashOf(t)])) : null;
   f.tool = { id: call.id, name: call.name, target: String(target || '').slice(0, 200), kind, state: 'STARTED', at: Date.now(), pre };
+  f.touchedAt = Date.now();
   persist(session, { force: kind !== 'READ' });
   return f.tool;
 }
@@ -127,6 +130,7 @@ function afterTool(session, call, result = {}) {
   f.ledger.push(done);
   if (f.ledger.length > LEDGER_MAX) f.ledger.splice(0, f.ledger.length - LEDGER_MAX);
   f.tool = null;
+  f.touchedAt = Date.now();
   persist(session, { force: done.kind !== 'READ' || Boolean(result.mutated && result.mutated.length) });
   return done;
 }
@@ -143,15 +147,15 @@ function pidAlive(pid) {
 
 /** The one sentence a lost call's result says, by inspecting reality. */
 function classify(session, t) {
-  if (!t) return { state: 'NOT_STARTED', text: 'LAIN was closed before this call started. It did not run.' };
+  if (!t) return { state: 'NOT_STARTED', text: 'Noema was closed before this call started. It did not run.' };
   if (t.kind === 'FILE' && t.pre) {
     const changed = Object.entries(t.pre).filter(([abs, h]) => hashOf(abs) !== h).map(([abs]) => path.relative(session.cwd || '', abs) || abs);
-    if (changed.length) return { state: 'COMPLETED', text: `LAIN was force-closed while this call ran. Inspected after restart: ${changed.join(', ')} CHANGED — the write landed. Re-read the file before editing it again.` };
-    return { state: 'NOT_APPLIED', text: 'LAIN was force-closed while this call ran. Inspected after restart: the target is UNCHANGED — the write did not land. Safe to redo it.' };
+    if (changed.length) return { state: 'COMPLETED', text: `Noema was force-closed while this call ran. Inspected after restart: ${changed.join(', ')} CHANGED — the write landed. Re-read the file before editing it again.` };
+    return { state: 'NOT_APPLIED', text: 'Noema was force-closed while this call ran. Inspected after restart: the target is UNCHANGED — the write did not land. Safe to redo it.' };
   }
-  if (t.kind === 'COMMAND') return { state: 'UNKNOWN', text: 'LAIN was force-closed while this command ran. It may have run partly or fully; its output was lost. It was NOT re-run — check its effect before running it again.' };
-  if (t.kind === 'CHECK') return { state: 'UNKNOWN', text: 'LAIN was force-closed while this check ran; no result was recorded. Re-run it if the result is still needed.' };
-  return { state: 'NOT_COMPLETED', text: 'LAIN was force-closed before this read returned. Nothing changed; repeat it if still needed.' };
+  if (t.kind === 'COMMAND') return { state: 'UNKNOWN', text: 'Noema was force-closed while this command ran. It may have run partly or fully; its output was lost. It was NOT re-run — check its effect before running it again.' };
+  if (t.kind === 'CHECK') return { state: 'UNKNOWN', text: 'Noema was force-closed while this check ran; no result was recorded. Re-run it if the result is still needed.' };
+  return { state: 'NOT_COMPLETED', text: 'Noema was force-closed before this read returned. Nothing changed; repeat it if still needed.' };
 }
 
 /**
@@ -192,10 +196,13 @@ function recover(session) {
   const lostState = f.tool ? (verdicts.find((v) => v.id === f.tool.id) || {}).state || 'UNKNOWN' : '';
   // ONE ROW, the actionable part first — it is drawn as an operation note and
   // clipped at the terminal's width (seen in a real ConPTY, 2026-09-23).
+  // `lastActiveAt` says how fresh the crash is: a Coding task cut off minutes ago resumes by itself
+  // (autocontinue.scheduleRecovery); one found days later waits for ▶ Continue.
   const summary = {
     turnId: record.turnId, step: f.step + 1, calls: f.ledger.length, lost: verdicts,
-    during: inTool, userInput: f.userInput,
-    line: `RECOVERED · cut off at step ${f.step + 1} · type continue to resume`
+    during: inTool, userInput: f.userInput, from: f.from || null,
+    lastActiveAt: f.touchedAt || Date.parse(f.startedAt || '') || null,
+    line: `RECOVERED · cut off at step ${f.step + 1}`
       + (f.tool ? ` · ${f.tool.name} ${lostState === 'UNKNOWN' ? 'UNKNOWN, not re-run' : lostState}` : ''),
   };
   session.inflight = null;
@@ -258,8 +265,8 @@ function recoverJobs(session) {
 function jobRows(session) {
   const list = session && Array.isArray(session.bgJobs) ? session.bgJobs : [];
   return list.filter((j) => j.state === 'ORPHANED' || j.state === 'LOST').map((j) => (j.state === 'ORPHANED'
-    ? `- ${j.command} — STILL RUNNING as pid ${j.pid} from the closed LAIN (not adopted; output not captured). Do not start it again; stop it or reuse what it serves.`
-    : `- ${j.command} — ended while LAIN was closed; its result was not captured. Re-run it only if the result is needed.`));
+    ? `- ${j.command} — STILL RUNNING as pid ${j.pid} from the closed Noema (not adopted; output not captured). Do not start it again; stop it or reuse what it serves.`
+    : `- ${j.command} — ended while Noema was closed; its result was not captured. Re-run it only if the result is needed.`));
 }
 
 module.exports = {

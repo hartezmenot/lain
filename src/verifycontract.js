@@ -329,8 +329,32 @@ function contractFor(session) {
   };
 }
 
+/**
+ * WHAT COMPLETION REQUIRES — THE verification authority (Execution Discipline §19–§20). The completion arbiter asks
+ * this; nothing else decides how much proof a change needs.
+ *
+ *   TARGETED / IMPACT / SUBSYSTEM   current evidence that exercises the change (a check, or a Preview observation)
+ *   PROJECT                         … and the project's broad suite, passing after the last change (finalsmoke.js
+ *                                   is the EXECUTOR of that one requirement — not a ritual every task performs)
+ *   RELEASE                         … and, when the task is about shipping/packaging, packaging evidence
+ *
+ * @returns {{ level, reasons, needsSuite, needsPackaging, minDiscrimination }}
+ */
+function requirement(cwd, changedRels, { objective = '', discretion = 'STRONG' } = {}) {
+  const sel = selectFor(cwd, changedRels, { objective });
+  const r = rank(sel.level);
+  return {
+    level: sel.level,
+    reasons: sel.reasons,
+    needsSuite: r >= rank(LEVEL.PROJECT),
+    needsPackaging: /\b(release|publish|packag\w*|ship|installer|distribut\w*|production (?:build|package))\b/i.test(objective),
+    // LESS DISCRETION, NOT LOWER STANDARDS: a weaker model must show evidence that exercises the change itself.
+    minDiscrimination: discretion === 'WEAK' ? 'MODERATE' : 'LOW',
+  };
+}
+
 module.exports = {
   LEVEL, LADDER, EVIDENCE, EVIDENCE_RANK, CAUSE,
   selectFor, planFor, escalate, classifyFailure, settle, strongestEvidence, evidenceForCommand,
-  record, contractFor,
+  record, contractFor, requirement,
 };

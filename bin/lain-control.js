@@ -71,9 +71,9 @@ function draw(s) {
     : '└' + '─'.repeat(w - 2) + '┘');
 
   const out = [];
-  out.push(rule('LAIN DESKTOP CONTROL'));
+  out.push(rule('NOEMA DESKTOP CONTROL'));
   if (!s) {
-    out.push(line(dim('waiting for LAIN…')));
+    out.push(line(dim('waiting for Noema…')));
     out.push(rule());
   } else {
     const live = s.active && !stopped;
@@ -122,8 +122,8 @@ if (process.stdin.isTTY) {
 
 // The window names ITSELF. `start "TITLE"` loses a title containing spaces
 // somewhere between Node, cmd and start; OSC and process.title do not.
-process.title = 'LAIN DESKTOP CONTROL';
-if (process.stdout.isTTY) process.stdout.write('\x1b]0;LAIN DESKTOP CONTROL\x07');
+process.title = 'NOEMA DESKTOP CONTROL';
+if (process.stdout.isTTY) process.stdout.write('\x1b]0;NOEMA DESKTOP CONTROL\x07');
 /**
  * IT DOES NOT OUTLIVE WHAT IT WATCHES. The keep-alive below held this window
  * open forever — after LAIN exited and after its control directory was deleted

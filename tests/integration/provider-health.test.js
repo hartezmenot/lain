@@ -104,7 +104,7 @@ module.exports = async function () {
     });
   });
 
-  await test('HEALTH: it survives the SUPERVISOR restarting too, not just LAIN', async () => {
+  await test('HEALTH: it survives the SUPERVISOR restarting too, not just Noema', async () => {
     // The store is on disk, not in the supervisor's memory. Killing the process
     // that owns the state is the strongest form of the same question.
     const home = isolate('supdie');
@@ -287,7 +287,7 @@ module.exports = async function () {
       assert.ok(/Routes that are closed right now/.test(packet), 'the section is present');
       assert.ok(/omniroute-main/.test(packet), 'and names the route');
       assert.ok(/clears in (2h|3h)/.test(packet), `with a real clock: ${packet}`);
-      assert.ok(/LAIN observed these/.test(packet),
+      assert.ok(/Noema observed these/.test(packet),
         'and marks them as observed, not as the dead model\'s report');
       await supervisor.shutdown();
     });

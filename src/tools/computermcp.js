@@ -159,7 +159,9 @@ function treeOrSlice(ctx, result, target, input) {
   const receipt = needsReceipt ? ev.keep(session && session.id, result.tree, rendered, { window: target.window || null, nodes: result.nodes }) : '';
   if (focus) {
     const s = ev.slice(result.tree, { focus, window: target.window || '', receipt, totalChars: rendered.length, describe: describeElement });
-    workers.note(session, { contract: 'evidence_narrower', worker: 'LAYA', tier: 'deterministic', rawChars: rendered.length, inChars: rendered.length, outChars: s.text.length, ms: Date.now() - t0, abstain: s.abstain, confidence: s.confidence, receipt });
+    // CORE'S deterministic tier answered — not Laya (it was mislabelled LAYA before 2026-09-24).
+    workers.note(session, { contract: 'evidence_narrower', worker: 'deterministic', tier: 'deterministic', rawChars: rendered.length, inChars: rendered.length, outChars: s.text.length, ms: Date.now() - t0, abstain: s.abstain, confidence: s.confidence, receipt });
+    shadowLaya(ctx, result.tree, focus, s, target);
     return { output: s.text, meta: { computer: 'ui_tree', slice: true, receipt, matched: s.matched, total: s.total } };
   }
   if (rows.length <= SHOW_ROWS) return { output: rendered.slice(0, 20000), meta: { computer: 'ui_tree' } };
@@ -169,6 +171,38 @@ function treeOrSlice(ctx, result, target, input) {
       + `Use ui_tree with focus:"what you are looking for" for just the relevant controls, or expand {receipt:"${receipt}", offset:${SHOW_ROWS}}.`,
     meta: { computer: 'ui_tree', receipt },
   };
+}
+
+/**
+ * LAYA IN SHADOW over a UIA tree (dispatch.js, layaevidence.js): only when
+ * Core's assignment allows the role, its mode is SHADOW and the model is
+ * already resident. Computed in the background, RECORDED beside the
+ * deterministic slice, never attached — this is how the role is evaluated
+ * before anything consumes it.
+ */
+function shadowLaya(ctx, tree, focus, detSlice, target) {
+  const app = ctx && ctx.app;
+  const session = ctx && ctx.session;
+  try {
+    const rt = require('../workerruntime');
+    const dispatch = require('../dispatch');
+    const ROLE = 'ui_evidence_narrower';
+    if (!app || !session || !dispatch.allows(session, `laya:${ROLE}`)) return;
+    if (rt.roleMode(app, 'laya', ROLE) !== 'SHADOW' || !rt.isHot(app, 'laya')) return;
+    const ev = require('../evidenceslice');
+    const flat = ev.flatten(tree);
+    const nodes = flat.map((f, i) => ({
+      ref: `u${i}`, tag: String(f.node.controlType || 'node').toLowerCase(), role: f.node.controlType || '', name: f.node.name || '', id: f.node.automationId || '',
+      text: f.node.value || '', classes: [], attrs: {}, depth: f.depth, parent: f.parent >= 0 ? `u${f.parent}` : null,
+      bounds: f.node.rect ? { x: f.node.rect.x, y: f.node.rect.y, w: f.node.rect.width, h: f.node.rect.height } : null,
+    }));
+    const id = require('../observationstore').keep({ kind: 'uia', url: target.window || '', capturedAt: new Date().toISOString(), nodes, network: [], console: [], runtime: {} });
+    const le = require('../layaevidence');
+    le.prepare(app, id).then(() => le.compile(app, id, focus)).then((r) => dispatch.job(session, {
+      worker: 'LAYA', role: ROLE, contract: 'evidence_narrower', mode: 'SHADOW', why: 'Core: a UI tree was sliced for a focus', receipt: id,
+      consumed: false, ok: Boolean(r && r.ok), refs: r && r.ok ? r.slice.refs : [], resultChars: r && r.ok ? r.slice.text.length : 0, deterministicMatched: detSlice.matched,
+    })).catch(() => null);
+  } catch { /* a shadow job never affects the answer */ }
 }
 
 /** THE RAW TREE BACK, by receipt: a page of it, or a re-slice for another focus. */
@@ -300,7 +334,7 @@ async function run(input, ctx) {
         return {
           output: r.window
             ? `started ${input.command} · pid ${r.pid}\nits window: ${describeWindow(r.window)}\nAim later actions by pid or handle, never by title alone.`
-            : `started ${input.command} · pid ${r.pid}\n${r.why} — a single-instance application may have merged into a copy that was already running, and LAIN will not adopt somebody else's window.`,
+            : `started ${input.command} · pid ${r.pid}\n${r.why} — a single-instance application may have merged into a copy that was already running, and Noema will not adopt somebody else's window.`,
           isError: !r.window,
           meta: { computer: op, pid: r.pid },
         };

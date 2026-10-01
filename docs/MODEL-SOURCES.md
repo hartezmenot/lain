@@ -1,315 +1,150 @@
-# Chat model sources — the contract
+# Model sources — the intelligence fabric (Phase 8.3, lifecycle and authentication from 8.4)
 
-**Who answers a chat turn.** LAIN's own runtime, ChatGPT.com, or
-Gemini.google.com. This document is the contract the Harness frontend consumes;
-it deliberately says nothing about how a page is read, because a frontend must
-never need to know.
+> **8.4 changes to read first.** A *backing account* is always a **CONNECTED** account. Imported router pools and
+> migrated placeholders are **metadata under "Finish setup"** (`IMPORTED_PENDING_AUTH`): never routed, never counted,
+> never a fallback target. Connecting an account is an **AuthSession** (`src/authsession.js`) scoped to one new
+> AccountInstance in its own private profile (Claude `CLAUDE_CONFIG_DIR`, Antigravity `GEMINI_HOME`, Codex overlay
+> home) — it never changes an existing account and never touches a running request. Discover, Connect and Import are
+> three different acts. See `docs/HARNESS-PHASE8.md` § Phase 8.4.
+>
+> **8.4.1 changes to read next.** MODEL › Accounts lists only connected accounts, one plane per provider; *Finish setup*
+> and *Discovered on this PC* are their own surfaces, *Import accounts* is an item of the toolbar's ⋯. Every account
+> can be **detached** on its own (LAIN forgets it; nothing is signed out) — Sign out and Remove-profile are separate,
+> confirmed, LAIN-owned-only acts, and an account a request is working through refuses all three ("In use by Coding
+> Agent"). **Gemini OAuth is Antigravity** (one Google provider; the Gemini API stays an API source), and an Antigravity
+> account advertises Chat/Assistant only after a real message through it succeeded. **Quota is always stated as what
+> remains** ("74% remaining"; the tray says "N% left"); red is 5 % remaining or less, never 100 % remaining.
 
----
-
-## 1. The two things that are not the same thing
-
-```
-ModelSource                          MessagingTransport   (src/bot — not here)
-  ├─ RuntimeModelSource  "lain"        ├─ Telegram
-  └─ WebModelSource                    ├─ Discord
-       ├─ "chatgpt-web"                └─ WhatsApp
-       └─ "gemini-web"
-```
-
-A **ModelSource** is a model LAIN can consult.
-A **MessagingTransport** is a place a person can talk to LAIN.
-
-They are orthogonal, and they are not behind one "external adapter"
-abstraction. A messaging transport carries the user's own authority; a consulted
-model carries none. Merging them merges the one boundary that decides whether a
-sentence may cause an action.
-
----
-
-## 2. One engineering session, two kinds of turn
-
-Chat and coding are **not** separate modes, tabs or sessions. They share one
-session, one project, one workspace and one history:
+One Core-owned registry of everything LAIN can use to think. The Harness, the
+CLI, Telegram and `lain --serve` are projections of it; none keeps a second
+copy. Code: `src/fabric/` (store, index, policy, effortcaps, fallback, tray,
+migrate, dashlaunch), `src/sessionintel.js` (the lanes), `src/accountcatalog.js`
+(the raw accounts and their catalog routes).
 
 ```
-  user: why is checkout failing?          -> CHAT
-  user: show me the architecture          -> CHAT
-  user: implement the fix and run tests   -> CODING
-  user: why did you change router.js?     -> CHAT
+LAIN Core — the intelligence fabric
+│
+├─ Provider families      Codex · Claude Pro · OpenCode · Z.ai · Local · one per API source
+├─ Backing accounts       per family: alias, masked identity, reported quota, priority
+├─ API sources            keys in the Windows secret store
+├─ Runtime sources        Claude Code, Codex homes, OpenCode, ZCode
+├─ Local sources          llama.cpp, Ollama, GGUF folders
+├─ Logical models         per family, with per-account catalog ids
+├─ Effort capabilities    per model (and per backing account)
+├─ Quota windows          only what a provider reported
+├─ Account policies       Automatic fallback · Use one account only · Ask before switching
+└─ Defaults               Chat · Assistant · Coding · Research · Vision · Auxiliary
+        ↑
+  Harness   CLI   Telegram   lain --serve
 ```
 
-Nobody starts a new session because the next sentence changed register.
+## 1. Vocabulary
 
-### Which lane a turn is in
+| Term | Meaning |
+|---|---|
+| **Provider family** | Who serves a model, as a person names it: *Codex*, *Claude Pro*, *OpenCode*, *Local*, *DeepSeek API*. Appears once, however many accounts stand behind it. |
+| **Backing account** | One authenticated account of a family (a Codex home signed in with ChatGPT, Claude Code's sign-in, an imported router pool while its migration is pending). Capacity, not identity: it is never part of a model's name. |
+| **Account policy** | How a family's backing accounts are used: *Automatic fallback*, *Use one account only*, *Ask before switching*. |
+| **Logical model** | The model itself (`gpt-6-sol`), independent of which account or router namespace reaches it (`cx/gpt-6-sol` is the same logical model). |
+| **Effort** | How much the model reasons. Each model declares its levels (`minimal · low · medium · high · xhigh · max`, or none). |
+| **Execution profile** | How LAIN orchestrates the task: *Normal · Fast · Eco*. Independent of effort. |
+| **OAuth / Runtime / API / Local** | How a source is authenticated: a provider's own sign-in; a runtime program's own sign-in; an API key LAIN holds; this machine. |
 
-`src/modelsource/lane.js` — and it is a **projection of `mode.js`, not a second
-classifier**:
+## 2. The lane — what a session runs on
 
-```
-  mode.READ_ONLY  (CHAT, EXPLAIN, AUDIT)   -> CHAT lane
-  everything else                          -> CODING lane
-```
-
-It is computed from `mode.READ_ONLY` itself, so it cannot disagree with the one
-classifier that already exists. There is no LLM call, no second regex table.
-
-### The invariant that matters most
-
-> **Selecting ChatGPT.com changes who answers a question. It never changes who
-> writes a file.**
-
-A CODING turn runs `turn.js` with the tool registry, the permission gate, the
-checkpoints and the verification contract, exactly as it always has, whatever
-chat source is selected. A web model reply is untrusted text: no tool is offered
-to it, `gate.js` is not consulted on its behalf, it cannot settle a task, and a
-reply claiming to have *acted* is flagged rather than passed through.
-
----
-
-## 3. What a frontend reads
-
-### The picker
-
-```js
-const registry = require('./src/modelsource/registry');
-await registry.overview(app);
-```
-
-```jsonc
-{
-  "selected": "chatgpt-web",
-  "sources": [
-    {
-      "source": "lain",
-      "label": "LAIN",
-      "kind": "RUNTIME",
-      "state": "READY",
-      "why": "",
-      "selected": "glm-5.3-flash",
-      "models": null,            // discovery is a separate, paid call
-      "modelsAt": null,
-      "capabilities": { "text": true, "streaming": true, "authoritativeUsage": true, … },
-      "chosen": false
-    },
-    { "source": "chatgpt-web", "label": "ChatGPT.com", "kind": "WEB", "state": "AUTH_REQUIRED", … }
-  ]
-}
-```
-
-`overview` is **cheap**: it launches no browser and refreshes no catalog. A
-picker rendering three sources must not start three Chromiums.
-
-### The model list
-
-```js
-const src = registry.get(app, 'chatgpt-web');
-await src.discoverModels({ refresh: false });
-// { ok, models: [{ id, label, state }], cached, at, why, authRequired? }
-```
-
-Model `state` is one of `AVAILABLE` · `UNAVAILABLE` · `UNKNOWN` ·
-`AUTH_REQUIRED`. **`UNKNOWN` is a real value** — a site that stops declaring
-availability produces it rather than an optimistic `AVAILABLE`. A model list
-that cannot be *read* returns `ok: false` with a reason, never an empty array:
-"this account has no models" and "the site changed" are different statements and
-a person would act on the first by re-subscribing.
-
-The inventory is cached for 10 minutes, refreshable by hand
-(`discoverModels({ refresh: true })`), and thrown away when authentication
-changes.
-
-### Selecting
-
-```js
-await registry.selectSource(app, 'gemini-web');   // local, no browser
-await registry.selectModel(app, 'gemini-web', 'gemini-x');
-```
-
-A model outside the discovered inventory is refused. **"Selecting
-ChatGPT.com" never means "use whatever is active."**
-
-### Connection state
-
-`DISCONNECTED` · `CONNECTING` · `AUTH_REQUIRED` · `DISCOVERING` · `READY` ·
-`RATE_LIMITED` · `UNAVAILABLE` · `FAILED`
-
-### Live activity
-
-On the **one** `EventBus` (`src/events.js`) — not a second channel:
+`sessionintel.lane(app, session, 'chat' | 'coding')` returns, for every surface:
 
 ```
-webmodel.connecting   webmodel.auth_required   webmodel.discovering
-webmodel.ready        webmodel.sending         webmodel.waiting
-webmodel.receiving    webmodel.rate_limited    webmodel.failed
-webmodel.cancelled
+family, familyLabel         Codex
+model, modelLabel           gpt-6-sol · GPT 6 Sol
+effort, effortLabel         xhigh · XHigh        (only a level the model declares)
+efforts[]                   the model's levels   (the effort picker, exactly)
+policy, policyLabel         auto · Automatic fallback
+account, backing            the backing account serving it NOW (diagnostic)
+route                       the exact catalog route of that account
+pending                     an account question waiting on the session
 ```
 
-Payloads carry a source id, a model id, a state and a short reason. Never a
-cookie, never a URL with a token in it, never a prompt, never a reply.
+Stored per session: `session.intel.lanes[lane] = { family, effort }` and the
+backing account where Phase 8.2 kept "the account" (`accountSelections.chat`,
+`views.coding.connection`). The route is always resolved from backing account +
+that account's catalog id for the logical model. Layers: session → project →
+global (the fabric's role defaults, `fabric.json`).
 
-### The normalized result
+## 3. Account policy and fallback
 
-Website-specific detail stops at the adapter. The session only ever sees:
+`fabric/policy.js` decides from the **eligibility index** — family → logical
+model → the accounts that serve it and the effort levels each offers — and the
+limits providers reported. It never probes a model.
 
-```jsonc
-{
-  "source": "chatgpt-web",
-  "model": "gpt-x",
-  "status": "COMPLETED",       // | CANCELLED | AUTH_REQUIRED | RATE_LIMITED | UNAVAILABLE | FAILED
-  "text": "…",
-  "usage": null,               // websites publish no authoritative count — see below
-  "conversationBinding": { "threadId": "…" },
-  "retryAfterMs": null,        // only when the site STATED one
-  "error": null,
-  "provenance": { "sourceId": "chatgpt-web", "sourceLabel": "ChatGPT.com",
-                  "model": "gpt-x", "label": "ChatGPT.com · gpt-x", "at": 1788… }
-}
-```
+| Policy | On a limit |
+|---|---|
+| Automatic fallback | the next healthy account (priority order) serving the **same model at the same effort**; the same task continues (`fabric/fallback.js` → `submitclose.js` resubmits with `sameTask`). Recorded as a `fallback` event: tray, account detail, every status. |
+| Use one account only | never switched: the question *Switch account · Wait · Choose another model* waits on the session (`session.intel.pending`). |
+| Ask before switching | the next account is proposed; **no request goes through it** until *Switch* (`POST /api/intel/decide`, the CLI's panel, Telegram). |
+| No compatible account | asked — LAIN never lowers the effort or changes the model on its own. |
 
-`COMPLETED` **requires text** — an empty one is rewritten to `FAILED` at the one
-place every source passes through. `usage` is `null` for web sources and
-`authoritativeUsage: false` says so: unknown stays unknown, never a plausible
-estimate that reads like a measurement.
+## 4. Effort
 
-### Provenance
+`fabric/effortcaps.js`. Levels come from, in order: the person's override
+(`fabric.json efforts`), the provider's own report (Codex `model/list`
+`supportedReasoningEfforts`, a route whose ids fuse the level such as
+`gpt-5.5-high`), or a documented transport (Claude Code `--effort`, the
+Anthropic API's `output_config.effort` — Opus: low…max, Sonnet: low/medium/high,
+Haiku: none). A model with none has no effort control. A level becomes wire
+syntax in one place: Codex `-c model_reasoning_effort="xhigh"`, Claude Code
+`--effort xhigh`, an API route's fused upstream id or request field.
 
-Stamped **at execution time** and stored on the assistant message, so history,
-resume and any later comparison read the truth rather than whatever the picker
-shows later:
+## 5. The Model Dashboard
 
-```
-  LAIN · glm-5.3-flash
-  ChatGPT.com · gpt-x
-  Gemini.google.com · gemini-x
-```
+Harness MODEL; opened from the CLI by `/model manage`, `/account add`,
+`/api add`; from the tray (*Models & Accounts*) and Home search. Tabs: Accounts ·
+Models · API · Local · Defaults (`page/pagedash.js`). From a terminal
+(`fabric/dashlaunch.js`): this LAIN's window navigates; else the LAIN already
+running is asked over its control pipe (`dashboard:<section>` — a section name
+from a fixed list, nothing else); else this LAIN opens its own window at MODEL.
+No credential ever travels in a URL or an argument; the terminal learns only the
+safe completion event (`source-added`: id, name, capabilities).
 
----
+## 6. Import accounts (migration)
 
-## 4. Authentication is the person's
+`fabric/migrate.js`. Sources: a router LAIN is connected to (its provider
+prefixes, from LAIN's own model listing) and a router export file the person
+picks. An **API key the person owns** is verified against the **provider's own
+endpoint** and kept in the secret store — the router is not in the path
+afterwards. An **OAuth sign-in a router holds is never copied** (its tokens were
+issued to the router's client): it becomes a placeholder under its family —
+"Account discovered. Sign in again to finish migration." — resolved when LAIN's
+own sign-in for the same identity appears. A family with no LAIN sign-in yet
+(Antigravity) says so. A likely duplicate is asked about: *Keep existing ·
+Replace · Add separately*. Provenance is kept in the migration history only.
 
-LAIN opens a browser window. A **human** logs in, answers the MFA prompt and
-solves the CAPTCHA. There is no credential entry, no stored password, no cookie
-import from Chrome/Edge/Firefox, no anti-bot evasion. `AUTH_REQUIRED` is a
-first-class result, not an error.
+## 7. Quota and the tray
 
-Three-valued on purpose: `READY` / `AUTH_REQUIRED` / `UNKNOWN`. Telling somebody
-to sign in when they already are hides the real problem, which is that the page
-is not the page the adapter knows.
+Only windows a provider reported are shown (5-hour, weekly, monthly, credits), each as what REMAINS (providers report what is
+used; a provider that reports what remains is kept as it said) —
+from runtime telemetry, a response's limit headers, Codex's rate-limit read.
+LAIN's observed tokens (Usage) are a different fact and never become a quota
+percentage. The tray (`fabric/tray.js` → `native/host.cs`) is pushed only when
+its summary changes: after a receipt, an account change, a fallback, a manual
+refresh, and once at the next known reset. No polling.
 
-### Two browsers, kept apart
+## 8. `lain --serve`
 
-| | Verification browser | Web model browser |
-|---|---|---|
-| owner | `harness/browserharness.js` | `modelsource/webbrowser.js` |
-| profile | `mkdtemp`, deleted with the task | persistent, under `configDir()/webmodels/<source>` |
-| headless | yes | **no** — a person has to log in |
-| pointed at | code under test | a site the person is signed into |
+Logical routes `lain/<family>/<model>`; the family's policy chooses the backing
+account; `reasoning_effort` must be a level the model declares. No route names
+an account or an identity. `server.pinnable: true` lets a client append
+`@<account alias>`.
 
-Reusing one for the other in either direction is a real failure: a verification
-run driving somebody's authenticated Google session, or a login thrown away
-every time a task finishes. `webprofile.isolatedFrom()` is the assertion, and it
-is a test rather than a comment because the failure is silent.
+## 9. Not providers
 
-`/source disconnect` stops using a source and **leaves the login alone**.
-`/source forget` removes the saved profile, and is only reached by asking.
-
----
-
-## 5. What actually leaves the machine
-
-`modelsource/context.js`. Bounded, redacted **at the build** so the bytes
-previewed are the bytes sent.
-
-Included: the question; on a first turn also a handful of session facts (project
-path, runtimes, test command, files changed this session, plan position, last
-check result) and the recent user/assistant exchange.
-
-Never included: raw tool logs, command output, file bodies, the environment,
-LAIN's own reasoning, credentials.
-
-On a **resumed thread** the site already holds the earlier exchange, so the
-payload is the question and nothing else.
-
----
-
-## 6. Website thread bindings
-
-One per source per session, in `session.providerBindings`, **owned** by the
-session that minted it. `binding.resolve` refuses to serve a binding recorded
-against a different session id.
-
-Before every send the page's actual conversation is compared against the
-binding. A mismatch **fails closed**: the binding is dropped and a new thread is
-started. It never adopts whatever thread happens to be on screen — that is how
-one project's context lands in another project's ChatGPT conversation, and
-nothing on screen would say so.
-
----
-
-## 7. Sending is proved, not assumed
-
-Before: signed in · the right conversation · the intended model (clicked **and
-read back**).
-After: the assistant turn count **grew** · the reply settled (not streaming, and
-unchanged for a quiet period).
-
-Any of those unestablished ⇒ `FAILED` with a reason. Never a fabricated success,
-and never the previous answer returned as this turn's.
-
-**An uncertain send is never repeated.** If the composer provably refused the
-text, nothing left and one bounded retry is safe. If the prompt may have been
-submitted, LAIN does not send it again — a duplicate message in somebody's own
-ChatGPT thread cannot be withdrawn.
-
-**Cancellation** adopts the caller's `AbortSignal` (the turn's own — there is no
-second cancellation system), presses the site's stop button, and leaves the
-authenticated profile untouched.
-
-**Rate limits** keep their source: `{ status: RATE_LIMITED, source: "chatgpt-web",
-retryAfterMs }`, and `retryAfterMs` is `null` unless the page stated a time. A
-web rate limit deliberately does **not** arm app.js's automatic resume, which
-would re-send somebody's question into their own thread unasked.
-
----
-
-## 8. Verification status
-
-| Claim | Tier | Label |
-|---|---|---|
-| The orchestration — guards, retry rule, bindings, cancellation, rate-limit classification, provenance, session isolation | unit (conformance, run under both source ids) | **FIXTURE VERIFIED** |
-| Chat/coding lane routing, one shared history, per-source model persistence, resume | unit | **FIXTURE VERIFIED** |
-| The context policy — bounds, redaction, no tool output | unit | **FIXTURE VERIFIED** |
-| The profile boundary against the verification browser | unit | **FIXTURE VERIFIED** |
-| `/source` reaches a user through the real binary | smoke | **LIVE-VERIFIED (CLI)** |
-| chatgpt.com's page structure still matches `chatgpt.js` | — | **NOT LIVE VERIFIED** |
-| gemini.google.com's page structure still matches `gemini.js` | — | **NOT LIVE VERIFIED** |
-
-No default test tier opens a browser or contacts either site. Only
-`/source check chatgpt` (or `gemini`) can earn a LIVE claim, and it says at the
-end exactly what it did and did not establish. `/source check fixture` runs the
-same five steps against a fake site, which is how a red live run is told apart
-from a broken check.
-
----
-
-## 9. What `/external` became
-
-`/external` and its four modules (`external.js`, `actors.js`,
-`externalrequest.js`, `investigation.js`) are retired. The relay had been
-unreachable since `/troubleshoot` left the command registry.
-
-Reused rather than rewritten:
-
-- the bounded, redacted session-facts packet → `modelsource/context.js`
-- the call ledger, including *RESPONDED requires a response* → `externalstate.js`,
-  kept whole and now written by the web sources
-- the overclaim check → `modelsource/contract.js`
-- "advisory input, not a result, and not from the user" → `chatdispatch.js`
-
-Retired: the actor taxonomy (API / HUMAN / REVERSE), the clipboard relay, the
-draft/confirm/send state machine, and the bounded LAIN → EXTERNAL → LAIN relay.
-
-A second opinion is now a **selection**, not a verb: choose ChatGPT.com and the
-next question goes there, in the same history, with provenance on the answer.
-Two consultation systems would have been worse than either.
+- **Website chat services** (ChatGPT.com, Gemini.google.com) are not model
+  providers. Retired in 8.1; in 8.3 their adapters, sign-in and check tooling
+  and the web chat transport were removed. A session saved on one resumes on
+  LAIN with its conversation intact. If a website assistant is ever used, it is
+  a Skill/MCP/browser capability for Chat only — never the Coding Agent, a
+  worker, a fallback or a `lain --serve` model.
+- **Routers** (9Router, OmniRoute) are migration inputs, not dependencies. A
+  router pool imported in 8.2 serves as a backing account of its family,
+  marked *migration pending*, until its accounts are signed in with LAIN.
+- **Freebuff** is removed from the product (8.3).

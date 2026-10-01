@@ -1,0 +1,117 @@
+'use strict';
+
+/**
+ * THE JOURNEY'S ROUTES — the window onto the session journey and its neighbours:
+ *
+ *   journey.js       which room the window is in; "move to Agent?" answered
+ *   house.js         the doors, listed and walked through
+ *   editledger.js    who changed which lines (Core's provenance ledger)
+ *   focuspacket.js   what the Agent would be handed for a request (preview)
+ */
+
+const sv = require('../sessionviews');
+
+function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
+function reply(r) { return r && r.ok !== false ? ok(r) : { code: 200, body: { ok: false, ...(r || {}), why: String((r && r.why) || 'refused') } }; }
+function root(app) {
+  try { const p = sv.project(app.session); return p.attached && !p.missing ? app.session.cwd : null; } catch { return null; }
+}
+function noProject() { return { code: 409, body: { ok: false, why: 'no project is attached', projectRequired: true } }; }
+
+const ROUTES = {
+  /** The window says which room it is in. Navigation, recorded once per change. */
+  'POST /api/journey/surface': (app, body = {}) => reply(require('../journey').surface(app, { surface: body.surface, pane: body.pane })),
+
+  /** The person answered "This requires code changes. Move to Agent?". */
+  'POST /api/agent/proposal': (app, body = {}) => require('./botroute').answer(app, { id: body.id, accept: body.accept === true }),
+
+  /**
+   * CHATGPT IDENTITY (chatgptauth.js) — identity only, and off unless LAIN has
+   * its own OpenAI-registered client. `begin` returns the official URL; the
+   * window opens it in the default browser.
+   */
+  'POST /api/accounts/chatgpt/status': (app) => ok(require('../chatgptauth').status(app)),
+  'POST /api/accounts/chatgpt/begin': async (app) => reply(await require('../chatgptauth').begin(app)),
+  'POST /api/accounts/chatgpt/disconnect': (app, body = {}) => reply(require('../chatgptauth').disconnect({ token: body.token || null })),
+
+  /**
+   * CREDENTIALS BY KIND — an OAuth identity, an API key and a website session
+   * are three different things and are never shown as one. Per provider, only
+   * the kinds that exist in this build.
+   */
+  'POST /api/accounts/credentials': async (app) => {
+    const a = await require('./accounts').read(app);
+    const providers = a.providers || [];
+    const sources = a.sources || [];
+    const apiOf = (...pids) => {
+      const rows = providers.filter((x) => pids.includes(String(x.provider).toLowerCase()))
+        .flatMap((p) => p.connections.filter((c) => /key/i.test(String(c.auth || ''))));
+      return { kind: 'api_key', label: 'API key', state: rows.length ? 'CONFIGURED' : 'NOT_CONFIGURED', count: rows.length, readiness: rows.map((c) => c.readiness) };
+    };
+    const webOf = (sid, label) => {
+      const s = sources.find((x) => x.source === sid || x.id === sid);
+      return s ? { kind: 'website_session', label: `${label} session`, source: sid, state: s.state, why: s.why || '' } : null;
+    };
+    const chat = require('../chatgptauth').status(app);
+    const out = [
+      {
+        provider: 'openai', label: 'OpenAI',
+        kinds: [
+          { kind: 'oauth_identity', label: 'ChatGPT identity (Sign in with ChatGPT)', state: chat.state, why: chat.why || '', grants: chat.grants, identity: chat.identity || null, note: 'Identity only: name and email. Not model access, usage, conversations or memory.' },
+          apiOf('openai'),
+          webOf('chatgpt-web', 'chatgpt.com'),
+        ].filter(Boolean),
+      },
+      { provider: 'google', label: 'Google', kinds: [apiOf('gemini', 'google'), webOf('gemini-web', 'gemini.google.com')].filter(Boolean) },
+    ];
+    return ok({ providers: out });
+  },
+
+  /** The house doors: what exists, and walking through one. */
+  'POST /api/house/list': () => ok({ doors: require('../house').list() }),
+  'POST /api/house/run': async (app, body = {}) => reply(await require('../house').run(app, body.id, body.args || {})),
+
+  /** Provenance: which source wrote which lines of one file, as it stands now. */
+  'POST /api/provenance/file': (app, body = {}) => {
+    const r = root(app);
+    if (!r) return noProject();
+    const ledger = require('../editledger');
+    const rel = String(body.path || '');
+    return ok({ ...ledger.regions(r, rel), history: ledger.entries(r, { rel: rel.replace(/\\/g, '/'), limit: 20 }).reverse() });
+  },
+  /** Provenance: "what did I change?" / "what did LAIN change?". */
+  'POST /api/provenance/summary': (app, body = {}) => {
+    const r = root(app);
+    if (!r) return noProject();
+    const ledger = require('../editledger');
+    const source = body.source ? String(body.source).toUpperCase() : null;
+    const since = Number(body.since) || null;
+    const sum = ledger.summary(r, { source, since, sessionId: body.session === 'this' ? app.session.id : null });
+    const rows = ledger.entries(r, { source, since, limit: 60 }).reverse()
+      .map((e) => ({ at: e.at, source: e.source, path: e.path, added: e.added, removed: e.removed, taskId: e.taskId, linesUnknown: Boolean(e.linesUnknown), first: e.hunks && e.hunks[0] ? e.hunks[0][0] : null }));
+    return ok({ counts: sum.counts, text: sum.text, rows });
+  },
+
+  /** What the Coding Agent would be handed for this request — computed, not sent. */
+  'POST /api/focus/packet': async (app, body = {}) => {
+    const r = root(app);
+    if (!r) return noProject();
+    const pk = await require('../focuspacket').build(app, app.session, { task: String(body.task || '').slice(0, 2000) });
+    return ok({ text: pk ? pk.text : '', metrics: pk ? pk.metrics : null, relevant: pk ? pk.relevant : [] });
+  },
+  /** The last packets' counts — the evidence that /focus sends less. */
+  'POST /api/focus/metrics': (app) => ok({
+    metrics: (app.session && app.session._focusMetrics) || [],
+    // THE ADDRESSABLE EVIDENCE (evidencerefs.js) without bodies, and how the
+    // canonical Selection was served (cache hit / carried forward / resolved).
+    evidence: require('../evidencerefs').view(app.session),
+    selection: require('../harnesscontext').selectionStats(app.session),
+  }),
+};
+
+const QUIET = [
+  'POST /api/journey/surface', 'POST /api/house/list',
+  'POST /api/provenance/file', 'POST /api/provenance/summary', 'POST /api/focus/packet', 'POST /api/focus/metrics',
+];
+
+module.exports = { ROUTES, QUIET };

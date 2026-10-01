@@ -49,13 +49,17 @@ module.exports = async function () {
   const req = (method, p, body) => routes.dispatch(app, method, p, body);
 
   try {
-    await test('SOURCE LIVE: the tree is the project, and not its dependencies', async () => {
+    await test('SOURCE LIVE: the tree is the project, and its dependencies are one dim row', async () => {
       const r = await req('POST', '/api/files/tree', { path: '' });
       const names = r.body.entries.map((e) => e.name);
       assert.ok(names.includes('ui'), 'the project directories are there');
       assert.ok(names.includes('index.html'));
-      assert.ok(!names.includes('node_modules'),
-        'a tree whose first expansion is 40,000 dependency files is not a tree');
+      // THERE, AS IN ANY EDITOR — a person opens node_modules to read a
+      // dependency — but dim and unexpanded: the tree is lazy, so its 40,000
+      // files are listed only when someone asks for them.
+      const nm = r.body.entries.find((e) => e.name === 'node_modules');
+      assert.ok(nm && nm.dir && nm.dim, 'node_modules is a dim folder row');
+      assert.ok(!r.body.entries.some((e) => e.path.startsWith('node_modules/')), 'and nothing inside it is listed until it is opened');
       // Paths are project-relative, never absolute — an absolute path here
       // would put the person's directory layout in the page.
       for (const e of r.body.entries) assert.ok(!path.isAbsolute(e.path), `${e.path} is absolute`);
@@ -85,7 +89,7 @@ module.exports = async function () {
       assert.notStrictEqual(saved.body.hash, open.body.hash, 'the identity moves with the content');
     });
 
-    await test('SOURCE LIVE: a save over LAIN edit is REFUSED, and nothing is lost', async () => {
+    await test('SOURCE LIVE: a save over Noema edit is REFUSED, and nothing is lost', async () => {
       // THE INTERACTION THIS PRODUCT CREATES CONSTANTLY: the person has a file
       // open, LAIN edits it, and the person saves. Last-write-wins would
       // silently destroy the model's work, often, and quietly.
@@ -97,12 +101,12 @@ module.exports = async function () {
       assert.notStrictEqual(clash.body.ok, true, 'the save must be refused');
       assert.strictEqual(Boolean(clash.body.stale), true, 'it must be reported as stale');
       assert.match(fs.readFileSync(path.join(proj, 'ui', 'checkout.css'), 'utf8'), /opacity: 0\.9/,
-        'the disk must still hold what LAIN wrote');
+        'the disk must still hold what Noema wrote');
       assert.match(clash.body.current, /opacity: 0\.9/,
         'and the current bytes come back so the person can compare rather than guess');
     });
 
-    await test('SOURCE LIVE: the editor notices what LAIN changed underneath it', async () => {
+    await test('SOURCE LIVE: the editor notices what Noema changed underneath it', async () => {
       const open = await req('POST', '/api/files/open', { path: 'ui/checkout.css' });
       let fresh = await req('POST', '/api/files/freshness', {
         open: [{ path: 'ui/checkout.css', hash: open.body.hash }],
@@ -113,7 +117,7 @@ module.exports = async function () {
       fresh = await req('POST', '/api/files/freshness', {
         open: [{ path: 'ui/checkout.css', hash: open.body.hash }],
       });
-      assert.strictEqual(fresh.body.files[0].changed, true, 'a LAIN edit must be noticed');
+      assert.strictEqual(fresh.body.files[0].changed, true, 'a Noema edit must be noticed');
     });
 
     await test('SOURCE LIVE: UI -> source correlates a real element to the file that defines it', async () => {

@@ -53,8 +53,10 @@ const { STATE } = require('./jobs');
  * Everything session-shaped is taken FROM THE SESSION PASSED IN, never from
  * `app.session` — that is what makes a forked job actually forked.
  */
-function turnOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null }) {
-  return {
+function turnOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null, text = null }) {
+  // THE BOT'S CONTEXT PROFILE (botcontext.js): a BOT question that needs nothing
+  // but the conversation gets a short prompt and no tools; everything else is unchanged.
+  return require('./botcontext').apply({
     // THE VIEW'S MODEL, overlaid on a copy — Chat and Coding choose apart, and
     // the shared process config is never written. See sessionviews.turnCfg.
     cfg: require('./sessionviews').turnCfg(app, session),
@@ -97,7 +99,11 @@ function turnOptions(app, { session, signal, from = null, typed = false, ask = n
     // So does the locate-assist shortlist: ranked once at the first step,
     // repeated for the turn's later steps (locateassist.js).
     sideContext: async (step = 0) => [require('./bgdetach').takeContext(session),
-      await require('./locateassist').take(app, session, step)].filter(Boolean).join('\n\n'),
+      await require('./locateassist').take(app, session, step),
+      // A GEOMETRY JOB CORE COULD NOT FINISH arrives as ordinary facts (geometryjob.js),
+      // and a live-evidence slice when Core assigned one (layaevidence.js).
+      require('./geometryjob').evidence(session),
+      await require('./layaevidence').take(app, session, step)].filter(Boolean).join('\n\n'),
     taskClass: (session.taskClassVerdict && session.taskClassVerdict.cls) || null,
     // WHETHER AN IDLE REPLY GETS ONE HIDDEN WAKE-UP — see wakeup.js.
     requiresExecution: require('./wakeup').requiresExecution({
@@ -105,7 +111,7 @@ function turnOptions(app, { session, signal, from = null, typed = false, ask = n
       execMode: require('./execmode').of(session),
       readOnly: require('./sessionviews').current(session) === 'chat',
     }),
-  };
+  }, session, text);
 }
 
 /**

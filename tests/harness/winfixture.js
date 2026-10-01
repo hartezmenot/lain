@@ -70,7 +70,7 @@ function build() {
  * PID — because a title is not an identity, and every action the suite takes
  * is aimed at one of those two.
  */
-async function start(c, { titleHint = 'LAIN Fixture' } = {}) {
+async function start(c, { titleHint = 'Noema Fixture' } = {}) {
   const built = build();
   if (!built.ok) return { ok: false, why: built.why };
   const title = `${titleHint} ${crypto.randomBytes(3).toString('hex')}`;

@@ -44,7 +44,7 @@ async function run(app, args, { C }) {
   w('  ' + C.green('✓ COMPUTER MCP')
     + C.dim(`  ${r.reused ? 'already authorized' : 'authorized for this session'} · ${(r.capabilities || []).length} operations\n`));
   w(C.dim('    It sees windows and their controls, and can press and type into them.\n'));
-  w(C.dim('    /mcp computer off ends it. Changing session ends it. Closing LAIN ends it.\n'));
+  w(C.dim('    /mcp computer off ends it. Changing session ends it. Closing Noema ends it.\n'));
 }
 
 module.exports = { run };

@@ -17,7 +17,7 @@
  * rule broken for a shortcut's convenience, which a shortcut's own arguments
  * already provide.
  *
- * WHAT A SHORTCUT SHOULD POINT AT is `LAIN.exe` (src/desktop.js
+ * WHAT A SHORTCUT SHOULD POINT AT is `Noema Harness.exe` (src/desktop.js
  * `installLauncher`), which is a `winexe` and starts Core with
  * `CreateNoWindow` — measured: no process in the launched tree has a visible
  * window. A shortcut pointed at npm's generated `lain.cmd` instead is a console
@@ -66,40 +66,76 @@ async function main(opts = {}) {
   const out = (s) => { if (!opts.quiet) process.stdout.write(s); };
 
   if (process.platform !== 'win32') {
-    process.stderr.write('lain: LAIN Desktop is Windows-only for now — run `lain` and use /app browser\n');
+    process.stderr.write('noema: Noema Desktop is Windows-only for now — run `noema` and use /app browser\n');
     return 2;
   }
+
+  // ---- WHICH WINDOW (packaging pass §D, §E, §M) ------------------------
+  // null: the Harness (an installed component); 'dashboard': the Model Dashboard alone; 'preview': the Preview alone.
+  const mode = opts.mode === 'dashboard' || opts.mode === 'preview' ? opts.mode : null;
+  const section = require('./fabric/dashlaunch').sectionOf(opts.section || 'accounts');
+  if (!mode && !require('./components').harness()) { process.stderr.write(`noema: ${require('./components').NOT_INSTALLED}\n`); return 2; }
 
   // ---- IS THERE ALREADY A LAIN? ----------------------------------------
   const lock = require('./corelock');
   const found = await lock.discover();
+  // A DIFFERENT NOEMA IS RUNNING (an update was installed while it ran): say so; refuse only a protocol mismatch.
+  if (found.running && found.version) {
+    const b = require('./update/updater').build();
+    const c = require('./update/compat').attach({ version: found.version, protocol: found.protocol }, { version: b.version, protocol: b.protocol });
+    if (!c.ok) { process.stderr.write(`noema: ${c.why}\n`); return 2; }
+    if (c.note) process.stderr.write(`noema: ${c.note}\n`);
+  }
+  // THE RUNNING NOEMA SHOWS IT (the Harness is preferred when it runs).
+  if (found.running && mode) {
+    const what = mode === 'dashboard' ? 'Model Dashboard' : 'Preview';
+    const r = await lock.ask(mode === 'dashboard' ? 'dashboard:' + section : 'preview');
+    if (r && r.ok) { out(`Noema is running (pid ${found.pid}) — opened its ${what}.\n`); return 0; }
+    process.stderr.write(`noema: Noema is running (pid ${found.pid}) but could not open its ${what}: ${(r && r.why) || 'no answer'}\n`);
+    return 1;
+  }
+  // "OPEN WITH LAIN" / "OPEN FOLDER IN LAIN" (2026-09-29): the running LAIN opens it; there is never a second LAIN.
+  if (found.running && opts.open) {
+    const r = await lock.ask('open', { path: opts.open });
+    if (r && r.ok) { out(`Noema is already running (pid ${found.pid}) — opened ${r.opened || opts.open}.\n`); return 0; }
+    process.stderr.write(`noema: Noema is running (pid ${found.pid}) but could not open ${opts.open}: ${(r && r.why) || 'no answer'}\n`);
+    return 1;
+  }
+  // STARTED AT SIGN-IN (startup.js, `--startup`): the person's startup choices, read from the one canonical setting.
+  const startup = opts.startup ? require('./startup').setting(require('./config').load()) : null;
   if (found.running) {
-    const shown = await lock.ask('show');
+    // A NOEMA IS ALREADY RUNNING (a CLI's Core): the Harness ATTACHES to it — one Core, one session authority.
+    const shown = await lock.ask(startup && startup.minimized ? 'show:minimized' : 'show');
     if (shown && shown.ok) {
       out(shown.already
-        ? `LAIN is already running (pid ${found.pid}) — its window is in front.\n`
-        : `LAIN is already running (pid ${found.pid}) — opened its window.\n`);
+        ? `Noema is already running (pid ${found.pid}) — its window is in front.\n`
+        : `Noema is already running (pid ${found.pid}) — opened its window.\n`);
       return 0;
     }
     // IT ANSWERED `status` AND REFUSED `show`. That is a real failure in a real
     // LAIN, and starting a second one on top of it would turn one broken window
     // into two competing instances.
-    process.stderr.write(`lain: LAIN is running (pid ${found.pid}) but could not open its window: ${(shown && shown.why) || 'no answer'}\n`);
+    process.stderr.write(`noema: Noema is running (pid ${found.pid}) but could not open its window: ${(shown && shown.why) || 'no answer'}\n`);
     return 1;
   }
 
   // ---- THEN THIS PROCESS IS LAIN ---------------------------------------
   //
-  // THE SAME PREPARE THE TERMINAL DOES, and deliberately nothing more. In
-  // particular this does NOT start the messaging gateway: LAIN has never
-  // autostarted one — `/bot` and `lain --bot` start it, and it runs as its own
-  // process discovered through its own lock file (src/bot/service.js). So a
-  // gateway that was already running is still running and is reached the same
-  // way; one that was not is not started by opening a window. Inventing an
-  // autostart here would be a new behaviour wearing the clothes of a launch
-  // path, and it would connect a person's bot because they opened their
-  // application.
-  const app = new App({ cwd: opts.cwd, interactive: false });
+  // THE SAME PREPARE THE TERMINAL DOES — and then the messaging the person
+  // CONNECTED comes back (botconnect.resume). Not "a bot because they opened
+  // their application": a channel is resumed only when `enabled` is set, which
+  // only an explicit connect sets and disconnect clears. Before this, a
+  // connected Telegram bot went silent after every restart — the runtime polls
+  // only while a gateway holds its mailbox, and nothing started one. A gateway
+  // already running elsewhere (`lain --bot`) is found and left alone.
+  // RESTORE THE PREVIOUS WORKSPACE at sign-in (default on): the most recent session and its project.
+  const resume = opts.resume || (startup && startup.restoreWorkspace ? (require('./session').Session.list(1)[0] || null) : null);
+  const app = new App({ cwd: opts.cwd, interactive: false, ...(resume ? { resume } : {}) });
+  // STARTED WELL: the launcher keeps a freshly updated Harness only once it reports healthy (update/updater.js).
+  try { require('./update/updater').markHealthy(); } catch { /* not started by the launcher */ }
+  app._surfaceName = 'harness';   // the writer lease (surfacehandoff.js) names this surface
+  // LAIN SERVER, WHEN ASKED TO START WITH LAIN (Settings › Router Server; serve.js). Loopback unless allowed otherwise.
+  try { if (app.cfg && app.cfg.server && app.cfg.server.startWithLain) require('./serve').start(app).catch(() => {}); } catch { /* the window comes first */ }
 
   // ANNOUNCED BEFORE `prepare()`, NOT AFTER. Two launches close enough together
   // both pass `discover()` and both reach here — that race cannot be closed
@@ -110,18 +146,38 @@ async function main(opts = {}) {
   // constructor; only `show` reaches `desktop.open`, and by the time another
   // process's request actually arrives over the pipe, round-tripped through a
   // fresh OS process launch, `prepare()` below has already finished.
+  // THE KEYS, READ WHILE THE REST STARTS (Phase 8.2): the window's first listing finds them warm.
+  try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   const held = await lock.announce(app, { surface: 'desktop' });
-  if (!held.ok) out(`(LAIN could not claim the single-instance lock: ${held.why})\n`);
+  if (!held.ok) out(`(Noema could not claim the single-instance lock: ${held.why})\n`);
 
   await app.prepare();
+  require('./botconnect').resume(app).catch(() => {});
+  try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
 
-  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev) });
+  if (mode === 'preview') {
+    const root = (() => { try { const p = require('./sessionviews').project(app.session); return p.attached && !p.missing ? p.root : null; } catch { return null; } })();
+    if (!root) { process.stderr.write('noema: open a project folder first (run noema preview inside it)\n'); await require('./teardown').shutdown(app, { why: 'no project' }); return 2; }
+    const f = await require('./workshop').forApp(app).frameOpen(root, {});
+    if (!f.ok) { process.stderr.write(`noema: the Preview could not start: ${f.why}\n`); await require('./teardown').shutdown(app, { why: 'preview did not start' }); return 1; }
+  }
+  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev), mode, section: mode === 'dashboard' ? section : null, minimized: Boolean(startup && startup.minimized) });
   if (!opened.ok && !opened.already) {
-    process.stderr.write(`lain: the desktop did not open: ${opened.why || 'unknown'}\n`);
+    process.stderr.write(`noema: the window did not open: ${opened.why || 'unknown'}\n`);
     await require('./teardown').shutdown(app, { why: 'the desktop did not open' });
     return 1;
   }
-  out('LAIN Desktop is open. Close the window to send LAIN to the system tray; quit from the tray icon.\n');
+  // THE HARNESS LOOKS FOR UPDATES (check only — the person chooses Download / Restart from the Update button).
+  if (!mode) { try { require('./update/cli').watch(app); } catch { /* updates are optional */ } }
+  if (!mode && opts.afterUpdate) { try { require('./update/cli').afterRestart(app); } catch { /* not after an update */ } }
+  out(mode === 'dashboard' ? 'The Noema Model Dashboard is open — close it when you are done.\n'
+    : mode === 'preview' ? 'The Noema Preview is open — close it when you are done.\n'
+      : 'Noema Harness is open. Close the window to keep Noema running in the tray; Exit Noema ends it.\n');
+  // STARTED BY "OPEN WITH LAIN": the project and the file, now that this LAIN and its window are up.
+  if (opts.open) {
+    const r = await require('./openpath').open(app, opts.open).catch((e) => ({ ok: false, why: e.message }));
+    if (!r.ok) process.stderr.write(`noema: could not open ${opts.open}: ${r.why}\n`);
+  }
 
   // ---- STAY UP UNTIL SOMEBODY SAYS OTHERWISE ---------------------------
   //
@@ -143,7 +199,7 @@ async function main(opts = {}) {
     process.once('SIGTERM', bye);
   });
 
-  await require('./teardown').shutdown(app, { why: 'LAIN Desktop closed' });
+  await require('./teardown').shutdown(app, { why: 'Noema Desktop closed' });
   return app.exitCode || 0;
 }
 

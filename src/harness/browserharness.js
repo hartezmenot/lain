@@ -241,7 +241,8 @@ class BrowserHarness {
     const got = await this.session({ taskId: ctx.taskId, launch: spec.launch !== false });
     if (!got.ok) return { ok: false, source, why: got.why, value: null, summary: got.why };
     const s = got.session;
-    if (spec.url && spec.url !== s.url) {
+    // THE SAME URL IS RELOADED when the project changed after it loaded — otherwise this measures the old page.
+    if (spec.url && (spec.url !== s.url || require('../writeclock').since(s.loadedAt))) {
       const nav = await s.navigate(spec.url);
       if (!nav.ok) return { ok: false, source, why: nav.why, value: null, summary: nav.why };
     }
@@ -281,13 +282,14 @@ class BrowserHarness {
       return { ok: true, source, value: text, summary: `${s.network.length} response${s.network.length === 1 ? '' : 's'}` };
     }
     if (source === SOURCE.SCREENSHOT) {
-      const shot = await s.screenshot();
+      // THE RELEVANT AREA WHERE THERE IS ONE: a question about an element is answered with that element's area.
+      const shot = await s.screenshot({ selector: spec.selector || null });
       if (!shot.ok) return { ok: false, source, why: shot.why, value: null, summary: shot.why };
-      const kept = this._keep(ctx.taskId, 'screenshot', 'page.png', shot.buffer);
+      const kept = this._keep(ctx.taskId, 'screenshot', spec.selector ? 'element.png' : 'page.png', shot.buffer);
       this._emit(EVENT.BROWSER_OBSERVED, { taskId: String(ctx.taskId || ''), what: 'screenshot', url: s.url || '' });
       return {
         ok: true, source, value: kept ? kept.path : '(not kept)',
-        summary: `captured ${s.url || 'the page'}${kept ? ` to ${path.basename(kept.path)}` : ''}`,
+        summary: `captured ${spec.selector ? `the area of ${spec.selector} on ` : ''}${s.url || 'the page'}${kept ? ` to ${path.basename(kept.path)}` : ''}`,
       };
     }
     return { ok: false, source, why: `the browser cannot answer "${source}"`, value: null, summary: '' };
@@ -470,10 +472,10 @@ class BrowserHarness {
         return r.ok ? { ok: true, why: `evaluated: ${String(r.value).slice(0, 120)}` } : r;
       }
       case 'screenshot': {
-        const shot = await s.screenshot();
+        const shot = await s.screenshot({ selector: action.selector || null });
         if (!shot.ok) return shot;
-        const kept = this._keep(ctx.taskId, 'screenshot', String(action.name || 'step.png'), shot.buffer);
-        return { ok: true, why: kept ? `kept ${path.basename(kept.path)}` : 'captured' };
+        const kept = this._keep(ctx.taskId, 'screenshot', String(action.name || (action.selector ? 'element.png' : 'step.png')), shot.buffer);
+        return { ok: true, why: `${action.selector ? `the area of ${action.selector}: ` : ''}${kept ? `kept ${path.basename(kept.path)}` : 'captured'}` };
       }
       default: return { ok: false, why: `unknown action ${action.type}` };
     }

@@ -129,7 +129,9 @@ const NO_SUBJECT_RE = /^(?:it|this|that|things?|nothing|everything|stuff|the app
  * MUST BE TESTED BEFORE `IMPLEMENT_RE`, which also matches `refactor` and
  * `rename` and would otherwise swallow every one of these.
  */
-const REFACTOR_RE = /\b(?:refactor|restructure|reorgani[sz]e|rewrite|clean ?up|tidy|simplify|de-?duplicate|dedupe|extract|inline|split (?:up|out|into)|move|rename|modulari[sz]e|untangle|consolidate)\b/i;
+// `move` IS A REFACTOR ONLY FOR CODE: "move it into core", "move the helper functions" — not "move the button down
+// 6px", which is a visual change and was being given a restructuring brief (run the tests first) (2026-10-01).
+const REFACTOR_RE = /\b(?:refactor|restructure|reorgani[sz]e|rewrite|clean ?up|tidy|simplify|de-?duplicate|dedupe|extract|inline|split (?:up|out|into)|move (?:it|them|this|that|these|those) (?:in)?to|move (?:the |this |that |these |those )?(?:\w+ )?(?:functions?|methods?|class(?:es)?|modules?|files?|folders?|code|logic|helpers?|utils?|types?|tests?|components?)|rename|modulari[sz]e|untangle|consolidate)\b/i;
 
 /** "add", "implement", "support for" — build something that is not there yet. */
 const IMPLEMENT_RE = /\b(?:add|implement|introduce|support|enable|integrate|wire ?up|hook ?up|expose|extend|create|build|make|write|refactor|rename|migrate|convert|replace|remove|delete|drop|update|change|improve|optimi[sz]e|port)\b/i;
@@ -219,6 +221,10 @@ function declaresReadOnly(text) { return READ_ONLY_DECLARED_RE.test(String(text 
  * @returns {{ mode, reason, readOnly, declaredReadOnly, deterministic: true }}
  */
 function classify(text, ctx = {}) {
+  return { ...classifyMode(text, ctx), intent: intent(text) };
+}
+
+function classifyMode(text, ctx = {}) {
   const raw = String(text == null ? '' : text);
   const s = raw.trim();
   const one = s.replace(/\s+/g, ' ');
@@ -259,6 +265,37 @@ function classify(text, ctx = {}) {
     return { ...decide(explain ? KIND.EXPLAIN : KIND.AUDIT, 'declared read-only: nothing is to change'), declaredReadOnly: true };
   }
   return v;
+}
+
+// ---- THE FORM OF THE REQUEST, beside its mode ----------------------------------
+//
+// Facts about the WORDS that the mode alone does not carry, computed here once
+// so no surface keeps its own copy (dispatch.route consumes them; the Harness
+// used to hold these regexes itself — a second classifier, 2026-09-25). They
+// never change the mode: "why does the build fail?" is still a BUGFIX in the
+// terminal; the IDE's BOT tab answers a question and asks before implementing.
+const QUESTION_FORM_RE = /\?\s*$|^(?:why|what|how|where|when|which|who|explain|describe|show me|tell me)\b/i;
+const NAVIGATE_RE = /^\s*(?:please\s+)?(?:open|show|go to|go back to|take me to|bring up|display|jump to|navigate to)\b/i;
+const SETTING_RE = /\b(?:use|switch(?:\s+to)?|set|assign|pick|choose)\b[\s\S]*\b(?:model|opus|sonnet|haiku|fable|gpt[-\w.]*|gemini|claude|glm|coding agent|the bot)\b/i;
+const CONNECT_RE = /^\s*(?:please\s+)?(?:add|connect|set up)\b[\s\S]*\b(?:telegram|whatsapp|discord|api key|account|provider|mcp server)\b/i;
+const PLAN_RE = /^\s*(?:please\s+)?(?:(?:lets|let.s|let us|can you|could you)\s+)?(?:plan|draft|design|propose|outline|research|investigate|compare|brainstorm|think|discuss|consider|evaluate|review|analy[sz]e|assess|summari[sz]e|estimate|scope)\b|\b(?:make|write|draft|give me|come up with)\s+(?:a|an|the)\s+(?:plan|proposal|outline|design|approach)\b/i;
+const INTENT_CHANGE_RE = /\b(?:rename|refactor|implement|fix|rewrite|delete|remove|replace|edit|modify|extract|migrate|convert|debug|patch|write|create|build)\b/i;
+
+/**
+ * { question, navigate, setting, plan } — what the words ask FOR, as opposed
+ * to what kind of work they name. "open router.ts" navigates; "open router.ts
+ * and rename route" is a change; "use Opus for coding" is a LAIN setting;
+ * "plan how to fix X" asks for a plan, not the fix.
+ */
+function intent(text) {
+  const t = String(text == null ? '' : text).trim();
+  const rest = t.replace(/^\s*(?:please\s+)?\S+/, '');
+  return {
+    question: QUESTION_FORM_RE.test(t),
+    navigate: NAVIGATE_RE.test(t) && !INTENT_CHANGE_RE.test(rest),
+    setting: (SETTING_RE.test(t) && !/\.[a-z]{1,4}\b/i.test(t) && !INTENT_CHANGE_RE.test(t)) || CONNECT_RE.test(t),
+    plan: PLAN_RE.test(t),
+  };
 }
 
 /** The word rules, in precedence order. Split out so a declaration can overrule their answer. */
@@ -319,31 +356,32 @@ function byWords(one, ctx, decide) {
   //     After the defect rules, so "why is the total wrong?" stays a bug.
   if (ASKED_RE.test(one) && !CHANGE_VERB_RE.test(one)) return decide(KIND.EXPLAIN, 'asks a question, not for a change');
 
-  // 9. REFACTOR before IMPLEMENT — they share verbs, and only this one is
-  //    about code that already works. See REFACTOR_RE.
-  if (REFACTOR_RE.test(one)) return decide(KIND.REFACTOR, 'asks to restructure code that already works');
-
-  // 9b. A MIGRATION — AFTER refactor and before implement.
+  // 9. A MIGRATION — a real STATE TRANSITION (dispatch.js, 2026-09-24).
   //
-  //     AFTER REFACTOR because the two overlap on the words that describe
-  //     MOVING code around inside one technology. "Extract the parser into its
-  //     own file" and "split this module up" are restructuring: the language,
-  //     the framework and the runtime are all exactly what they were, and the
-  //     refactor guidance (pin the behaviour down, find every caller) is what
-  //     that job needs. Tested first, they were being swallowed by the word
-  //     "into".
+  //     Core must be able to name the current representation, owner or
+  //     contract, the target one and the boundary between them — JSON to
+  //     SQLite, React to Vue, a module from core to server, schema v1 to v2.
+  //     A verb and a direction were not enough: "move the button to the
+  //     right", "switch the theme to dark" and "change this button into a
+  //     lever" all used to read as migrations and put the migration workflow
+  //     in front of an ordinary edit.
+  //
+  //     BEFORE REFACTOR now, because the test is strict enough to be: a
+  //     request that names two representations is a transition even when it
+  //     says "move", and "extract the parser into its own file" or "split this
+  //     module up" name none, so they still reach REFACTOR below.
   //
   //     BEFORE IMPLEMENT because that is where the damage is. Read as an
   //     implementation request, "migrate X to Y" becomes "add Y" — the model
   //     writes the new thing, leaves the old one running, and reports success
-  //     truthfully about the half it describes. That is the exact failure the
-  //     migration subsystem exists to prevent.
-  //
-  //     The test itself is deliberately narrow (a verb AND a direction — see
-  //     migrationintent.js), so "move the button left" is not caught by it.
-  if (require('./migrationintent').looksLikeMigration(one)) {
+  //     truthfully about the half it describes.
+  if (require('./dispatch').migrationTransition(one).eligible) {
     return decide(KIND.MIGRATE, 'asks for a structural migration: the final state must not contain the old thing');
   }
+
+  // 9b. REFACTOR before IMPLEMENT — they share verbs, and only this one is
+  //    about code that already works. See REFACTOR_RE.
+  if (REFACTOR_RE.test(one)) return decide(KIND.REFACTOR, 'asks to restructure code that already works');
 
   // 10. IMPLEMENT — an imperative to change the code.
   if (IMPLEMENT_RE.test(one)) return decide(KIND.IMPLEMENT, 'asks for a change to the code');
@@ -378,4 +416,4 @@ function namesSomething(text) {
   return false;
 }
 
-module.exports = { KIND, READ_ONLY, classify, namesSomething, declaresReadOnly };
+module.exports = { KIND, READ_ONLY, classify, intent, namesSomething, declaresReadOnly };

@@ -57,7 +57,10 @@ function scan(app) {
 function isEmpty(app) {
   const s = scan(app);
   if (!s) return true;
-  return !(s.manifests || []).length && !(s.tree || []).length;
+  // SOURCE FILES AT THE TOP LEVEL ARE A PROJECT TOO: a folder holding index.html (or app.py) with no manifest and no
+  // src/ was called EMPTY, and every turn was told "no source here yet" while working on that file (2026-10-01).
+  const flatSource = (s.entries || []).some((e) => /\.(html?|css|m?[jt]sx?|py|go|rs|java|rb|cs|php|vue|svelte|c|cpp|h)$/i.test(e));
+  return !(s.manifests || []).length && !(s.tree || []).length && !flatSource;
 }
 
 /** The file tree the FILES view draws. Same cache, same lifetime. */
@@ -97,9 +100,9 @@ function state(app) {
 
 const STATE_LINE = {
   EMPTY: 'Project state: EMPTY — no source or project structure here yet.',
-  EXISTING_UNINDEXED: 'Project state: EXISTING_UNINDEXED — real source is present and LAIN has recorded no architecture, vocabulary or wiring for it. '
+  EXISTING_UNINDEXED: 'Project state: EXISTING_UNINDEXED — real source is present and Noema has recorded no architecture, vocabulary or wiring for it. '
     + 'No DECLARED architecture is not no architecture: derive what is OBSERVED from the source itself.',
-  EXISTING_INDEXED: 'Project state: EXISTING_INDEXED — real source plus recorded LAIN architecture/vocabulary/wiring; the source stays the authority when they disagree.',
+  EXISTING_INDEXED: 'Project state: EXISTING_INDEXED — real source plus recorded Noema architecture/vocabulary/wiring; the source stays the authority when they disagree.',
 };
 function stateLine(app) {
   try { return STATE_LINE[state(app)] || ''; } catch { return ''; }

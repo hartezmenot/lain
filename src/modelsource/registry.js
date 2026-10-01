@@ -32,18 +32,23 @@
 const contract = require('./contract');
 const { SOURCE, LABEL, KIND, CONNECTION } = contract;
 
-/** The sources this build knows about, in the order a picker should show them. */
+/**
+ * The sources this build knows about, in the order a picker should show them.
+ *
+ * THE WEBSITE SOURCES (ChatGPT Chat on chatgpt.com, Gemini on gemini.google.com)
+ * WERE RETIRED in Phase 8.1: they are no longer model providers in LAIN. A
+ * session that used one answers from LAIN's own source again (sessionstate.js);
+ * its old conversation is kept as it was. The site plans stay in the tree only
+ * for the conformance fixture (an explicit `surface`), never constructed here.
+ */
 const DECLARED = Object.freeze([
   { id: SOURCE.LAIN, kind: KIND.RUNTIME },
-  { id: SOURCE.CHATGPT_WEB, kind: KIND.WEB },
-  { id: SOURCE.GEMINI_WEB, kind: KIND.WEB },
 ]);
+const RETIRED = Object.freeze(new Set([SOURCE.CHATGPT_WEB, SOURCE.GEMINI_WEB]));
+const RETIRED_WHY = 'The ChatGPT and Gemini website sources were retired in Noema — connect the provider as an account or runtime instead (MODEL › Sources).';
 
-/** The site plan behind each web source. Declaration only — see websurface.js. */
-const PLANS = Object.freeze({
-  [SOURCE.CHATGPT_WEB]: () => require('./chatgpt'),
-  [SOURCE.GEMINI_WEB]: () => require('./gemini'),
-});
+/** No website source is constructed any more (see DECLARED). */
+const PLANS = Object.freeze({});
 
 function store(app) {
   if (!app) return new Map();
@@ -64,22 +69,9 @@ function get(app, sourceId, { surface = null } = {}) {
   const held = store(app);
   if (!surface && held.has(id)) return held.get(id);
 
-  let made = null;
-  if (id === SOURCE.LAIN) {
-    made = new (require('./runtime').RuntimeModelSource)({ app });
-  } else if (surface) {
-    made = new (require('./webmodel').WebModelSource)({ surface, app, id, label: LABEL[id] || id });
-  } else if (PLANS[id]) {
-    const site = PLANS[id]();
-    made = new (require('./webmodel').WebModelSource)({
-      surface: site.surface({ browser: require('./webbrowser').forApp(app) }),
-      app,
-      id,
-      label: LABEL[id] || id,
-    });
-  } else {
-    return null;
-  }
+  // PHASE 8.3: LAIN's own runtime is the only chat source — the website adapters are removed, not just retired.
+  if (id !== SOURCE.LAIN) return null;
+  const made = new (require('./runtime').RuntimeModelSource)({ app });
   held.set(id, made);
   return made;
 }
@@ -122,6 +114,7 @@ function usingWeb(app) {
  */
 function selectSource(app, sourceId) {
   const id = String(sourceId || '');
+  if (RETIRED.has(id)) return { ok: false, retired: true, why: RETIRED_WHY };
   if (!DECLARED.some((d) => d.id === id)) {
     return { ok: false, why: `"${id}" is not a chat source (${DECLARED.map((d) => d.id).join(', ')})` };
   }

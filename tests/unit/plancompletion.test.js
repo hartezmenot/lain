@@ -194,15 +194,23 @@ module.exports = async function () {
     assert.ok(!/DONE/.test(line), 'nothing may read as finished while a model is still working');
   });
 
-  // TEST 9b — targeted tests alone are not the final smoke
-  await test('PLAN100 + targeted tests passed but no final smoke → NOT DONE (finalsmoke.js)', () => {
+  // TEST 9b — verification is PROPORTIONAL (verifycontract.js is the one authority): a targeted change completes on
+  // a passing check after it; a project-wide change still needs the final smoke after the last change.
+  await test('PLAN100 + a targeted change with a passing check → DONE; a project-wide change without the final smoke → NOT DONE', () => {
     const life = new Lifecycle('do the work');
     edited(life, '/p/src/a.js');
     ran(life, 'npm test', 0);
     const app = appWith(finishedPlan(), life);
-    assert.strictEqual(app.maybeComplete({ text: 'Fixed the handler; the suite passes.' }), false);
-    assert.match(app.pendingCompletion, /final smoke has not run/);
-    assert.notStrictEqual(life.state, STATE.DONE);
+    assert.strictEqual(app.maybeComplete({ text: 'Fixed the handler; the suite passes.' }), true, 'no universal final-smoke ritual');
+    assert.strictEqual(life.state, STATE.DONE);
+
+    const wide = new Lifecycle('do the work');
+    edited(wide, require('path').join(process.cwd(), 'package.json'));   // project-wide: broad proof required
+    ran(wide, 'npm test', 0);
+    const app2 = appWith(finishedPlan(), wide);
+    assert.strictEqual(app2.maybeComplete({ text: 'Updated the manifest; the suite passes.' }), false);
+    assert.match(app2.pendingCompletion, /final smoke has not run/);
+    assert.notStrictEqual(wide.state, STATE.DONE);
   });
 
   // TEST 10 — genuinely complete

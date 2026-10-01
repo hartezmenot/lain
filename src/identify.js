@@ -18,14 +18,18 @@ const modeId = require('./mode');
 const taskClassId = require('./taskclass');
 const { Lifecycle } = require('./lifecycle');
 
+/** Prompts LAIN composes itself (beside autocontinue.AUTOMATIC) — never a person's steer. */
+const COMPOSED = new Set(['continue', 'plan', 'smoke-failed', 'provider-failover', 'rate-limit-switch', 'external-advice']);
+
 /**
  * @param {App}     app
  * @param {string}  text
  * @param {boolean} isPaste
  * @param {string}  forceMode  a named mode from a command, or null
  * @param {boolean} sameTask   asserted by LAIN's own machinery only
+ * @param {string}  from       who submitted it (app.submit's `from`) — machinery is never recorded as a steer
  */
-function identify(app, text, isPaste, forceMode = null, sameTask = false) {
+function identify(app, text, isPaste, forceMode = null, sameTask = false, from = null) {
 
   const verdict = taskId.classify(text, { isPaste, activeTask: app.session.task });
   // A CALLER MAY KNOW BETTER THAN THE CLASSIFIER. The troubleshoot relay
@@ -37,7 +41,10 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
   // WHAT KIND OF WORK IS THIS? A different question from "is this the same
   // task?", answered locally and for free — see mode.js. It selects a
   // paragraph of workflow guidance and nothing else, so it can never block.
-  const verdictMode = modeId.classify(text, {
+  // THE SAME INPUT IS CLASSIFIED ONCE: when dispatch.route already decided who
+  // takes it (the Harness asked before starting the turn), that verdict is
+  // consumed here rather than computed a second time.
+  const verdictMode = require('./dispatch').takeRouted(app.session, text) || modeId.classify(text, {
     isPaste,
     taskKind: verdict.kind,
     activeMode: app.session.mode,
@@ -49,6 +56,12 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
   verdict.mode = (forceMode && modeId.KIND[forceMode]) || verdictMode.mode;  // a named mode (/troubleshoot) beats the keyword guess
   verdict.modeReason = forceMode && modeId.KIND[forceMode] ? 'requested by command' : verdictMode.reason;
   app.session.mode = verdict.mode;
+  // ---- CORE ASSIGNS — who may take part in this input (dispatch.js) ------
+  //
+  // Once, here, from the same words: which owners are allowed (normal tools,
+  // the migration planner, a Laya role, the flagship). Capabilities read
+  // this; none of them decides for itself that it is relevant.
+  try { verdict.dispatch = require('./dispatch').assign(app, text, { mode: verdict.mode }); } catch { verdict.dispatch = null; }
   // ---- WHAT THIS TASK MAY CHANGE — a capability mask, not a hint -------
   //
   // Only a person's explicit declaration sets it (readonly.js); settled here,
@@ -74,6 +87,39 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
   // was removed with the Probe integration in 2026-09, along with PROBE as a
   // mode: such a request now classifies as whatever its own text says, which
   // is the honest answer for a tool whose workspace is the codebase.)
+
+  // ---- AN ASIDE IS NOT A NEW TASK (the session journey) ----------------------
+  //
+  // A question put to the BOT or to Chat WHILE the Coding Agent carries a task
+  // — "how much of my ChatGPT account is left?" — is read-only and is not a
+  // new objective. Replacing the task here would retire the Agent's work, clear
+  // its plan and record a handover to the BOT's model on it: leaving the IDE
+  // for Chat would then have ended the work. The window marks such a turn
+  // (`session._asideTurn`, set only by harnessapp routes for read-only BOT and
+  // Chat turns); anything that is not read-only, or any explicit cancellation,
+  // goes through the ordinary rules below.
+  const cur = app.session.task;
+  // A STEER COUNTS TOO: with a task active, task.js reads any other sentence as
+  // a correction to it — so without this the question would be written into the
+  // Agent's task as something the person asked it to change.
+  const asideKind = !verdict.sameTask || verdict.kind === taskId.KIND.STEER;
+  if (asideKind && !verdict.cancelled && app.session._asideTurn && cur && cur.live && cur.agentic) {
+    verdict.aside = true;
+    return verdict;
+  }
+  // ---- THE AGENT'S WORK IS NOT A STEER OF A QUESTION ----------------------
+  //
+  // A question to the BOT ("what does this function do?") leaves a task in
+  // hand that nobody has worked. When the Coding Agent then takes up real work
+  // ("rename fixButton everywhere"), task.js would read it as a STEER of that
+  // question and the Agent's task would carry the question as its objective.
+  // Work the Agent takes up over a task only read-only turns touched is a new
+  // task; a continuation or a restatement still continues.
+  if (app.session._agentVia && cur && !cur.agentic && verdict.kind === taskId.KIND.STEER && !verdict.cancelled) {
+    verdict.sameTask = false;
+    verdict.kind = taskId.KIND.NEW;
+    verdict.reason = 'the Coding Agent takes up work; the question before it was not a task';
+  }
 
   if (!verdict.sameTask) {
     // ---- P0 — EXPLICIT CANCELLATION RETIRES THE OLD TASK, FOR REAL --------
@@ -116,6 +162,7 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
     app.session.task = new taskId.Task(verdict.cancelled ? (verdict.newText || text) : text);
     if (app.ui.enabled) app.ui.clearExtras();   // a new task, a new story
     app.session.lifecycle = new Lifecycle(text);
+    app.session.lifecycle.thread = app.session.thread || null;   // the thread its request was typed in (promptstate.js)
     // ---- UNLESS LAIN'S OWN MACHINERY SAID THIS CONTINUES EXISTING WORK ----
     //
     // A goal and a plan can exist with no task object at all — `/goal` and
@@ -160,7 +207,12 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
     // and a plan that is genuinely still in progress is untouched.
     const plan = app.session.plan;
     if (plan && plan.isLive && plan.isFinished) plan.retire('the plan finished before this request');
-    if (verdict.kind === taskId.KIND.STEER) {
+    // A STEER IS THE PERSON'S. LAIN's own continuation ("Continue the approved plan: phase 1 — …",
+    // an auto-resume, a provider restart) restates the plan; recorded as a steer it listed machinery
+    // under the person's redirections in /task, and plan.steer() could rewrite what is left from it.
+    // `handover`, `steer` and `messaging` are not machinery: they carry the words the person typed.
+    const machinery = from !== 'handover' && (require('./autocontinue').AUTOMATIC.has(from || '') || COMPOSED.has(from || ''));
+    if (verdict.kind === taskId.KIND.STEER && !machinery) {
       app.session.task.steer(text);
       // A steer adjusts what is LEFT. Completed steps are evidence and are
       // never rewritten or deleted (see plan.js).
@@ -168,6 +220,9 @@ function identify(app, text, isPaste, forceMode = null, sameTask = false) {
     }
   }
   app.session.task.turnIds.push(text.slice(0, 60));
+  // THE CODING AGENT TAKES THIS TASK (the session journey): marked here, where the
+  // task in hand is certainly this turn's. Set by harnessapp/botroute.js.
+  if (app.session._agentVia) require('./journey').agentStarted(app, app.session._agentVia);
   // ---- WHO IS ABOUT TO RUN THIS, RECORDED FROM WHAT WILL ACTUALLY RUN ------
   //
   // Every turn passes through here, so this is the one place that sees the

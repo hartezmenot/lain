@@ -98,4 +98,20 @@ function onCut(record, finish) {
   return null;
 }
 
-module.exports = { normalize, parseArgs, malformedResult, onCut, resumable, continueNote, CONTINUE_NOTE, STALL_NOTE, MAX_CUT_RESUMES, MAX_STALL_RESUMES };
+/**
+ * ONE COMPLETION PER TURN (2026-09-25). A turn that changed files and has not
+ * run the project's final smoke gets ONE hidden wake-up (wakeup.js /
+ * finalsmoke.js). That extra request is intended; what was not is its answer
+ * being stored when it only REPEATS the final reply already given — two
+ * identical "done" messages, one durable record twice. A text-only reply equal
+ * to the message right before it (the previous final, with only the hidden
+ * note between) is not a new message. One that differs, or calls a tool, is.
+ */
+function repeatsFinal(messages, text, calls) {
+  const last = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  const flat = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+  return Boolean(String(text || '').trim()) && !(calls && calls.length) && Boolean(last)
+    && last.role === 'assistant' && !last.tool_calls && flat(last.content) === flat(text);
+}
+
+module.exports = { normalize, parseArgs, malformedResult, onCut, resumable, continueNote, repeatsFinal, CONTINUE_NOTE, STALL_NOTE, MAX_CUT_RESUMES, MAX_STALL_RESUMES };

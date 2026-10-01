@@ -26,6 +26,8 @@ const NL = String.fromCharCode(10);
  */
 function describeTarget(name, input) {
   const i = input || {};
+  // A background shell is named by its job id: `waited for shell · #3`.
+  if (i.id && /^job_(wait|status|stop)$/.test(name)) return `#${String(i.id).replace(/^#/, '')}`;
   // A DISPATCHED CALL IS ABOUT ITS OPERATION. `computer` carries the real
   // subject in `op`, and none of the branches below look at it — so without
   // this, every computer action in the feed and in the status strip reads as a

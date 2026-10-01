@@ -142,7 +142,13 @@ function state(live, now = Date.now()) {
   // 9router, 2026-09-23: 6.6 KB of arguments arrived in 4 frames after ~10 s),
   // so a long silence before the first frame is said as what it may be.
   if (!live.lastDataAt) {
-    return { word: 'WAITING', detail: quietMs >= 30_000 ? 'no data yet — the route may be holding a tool call until it is complete' : 'for the first response from the model', quietMs, elapsed, stalled: false };
+    // THE HEARTBEAT (2026-10-01): a wait says how long it has been once it is long enough to wonder about — never a
+    // fake progress figure, and never "first response" on step 4.
+    const secs = Math.floor(quietMs / 1000);
+    const detail = quietMs >= 30_000 ? `provider response pending · ${secs}s · the route may be holding a tool call until it is complete`
+      : quietMs >= 8_000 ? `provider response pending · ${secs}s`
+        : quietMs >= 2_500 ? `waiting for model · ${secs}s` : 'waiting for model';
+    return { word: 'WAITING', detail, quietMs, elapsed, stalled: false };
   }
   // The most recent kind of data decides the word.
   const latest = Math.max(live.lastToolAt, live.lastTextAt, live.lastReasoningAt);
@@ -150,9 +156,11 @@ function state(live, now = Date.now()) {
     const n = live.tool.calls > 1 ? ` · call ${live.tool.index + 1}/${live.tool.calls}` : '';
     return { word: 'PREPARING TOOL', detail: `${live.tool.name || 'tool call'} · ${size(live.tool.bytes)}${n}`, quietMs, elapsed, stalled: false };
   }
-  if (live.lastTextAt && latest === live.lastTextAt) return { word: 'STREAMING', detail: 'the model is writing', quietMs, elapsed, stalled: false };
-  if (live.lastReasoningAt) return { word: 'THINKING', detail: `reasoning · ${size(live.reasoningChars)}`, quietMs, elapsed, stalled: false };
-  return { word: 'WAITING', detail: 'for the model', quietMs, elapsed, stalled: false };
+  if (live.lastTextAt && latest === live.lastTextAt) return { word: 'WRITING', detail: '', quietMs, elapsed, stalled: false };
+  // HOW MUCH reasoning arrived, as an ESTIMATED token figure (marked `~`) — the provider's exact count lands with the
+  // receipt (ui/activityline.receipt). Never the reasoning itself.
+  if (live.lastReasoningAt) return { word: 'THINKING', detail: require('./ui/activityline').estTokens(live.reasoningChars) || '', quietMs, elapsed, stalled: false };
+  return { word: 'WAITING', detail: 'waiting for model', quietMs, elapsed, stalled: false };
 }
 
 module.exports = { STALL_MS, FIRST_STALL_MS, begin, bytes, data, toolDelta, reasoning, text, state, size, clock, commentaryLine };

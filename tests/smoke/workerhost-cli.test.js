@@ -46,7 +46,7 @@ module.exports = async function run() {
     fs.writeFileSync(path.join(cwd, 'server', 'store.js'), '// Workspace settings persisted to a JSON file.\nfunction putSettings() {}\nmodule.exports = { putSettings };\n');
     for (let i = 0; i < 14; i++) fs.writeFileSync(path.join(cwd, `w${i}.js`), `// Widget ${i}.\nfunction w${i}() {}\nmodule.exports = { w${i} };\n`);
     const hostDir = path.join(dir, 'host');
-    const env = { LAIN_WORKER_LAYA: 'on', LAIN_LOCATE: 'on', LAIN_WORKERHOST_DIR: hostDir, FAKE_LOAD_MS: String(LOAD_MS) };
+    const env = { LAIN_WORKER_LAYA: 'on', LAIN_LOCATE: 'on', LAIN_ROLE_SOURCE_FILE_RANKER: 'FORCE', LAIN_WORKERHOST_DIR: hostDir, FAKE_LOAD_MS: String(LOAD_MS) };
     const cfgFor = (name) => {
       const configDir = path.join(dir, name);
       fs.mkdirSync(configDir, { recursive: true });
@@ -73,7 +73,7 @@ module.exports = async function run() {
       assert.ok(['LOADING', 'UNLOADED', 'UNAVAILABLE'].includes(row1.layaBypass), `bypass recorded: ${row1.layaBypass}`);
       assert.strictEqual(row1.warmWaitMs, 0);
       const s = await host.status();
-      assert.ok(s.ok && s.workers.laya && s.workers.laya.state === 'LOADING', 'the load carries on after LAIN exited');
+      assert.ok(s.ok && s.workers.laya && s.workers.laya.state === 'LOADING', 'the load carries on after Noema exited');
       const until = Date.now() + LOAD_MS + 15000;
       while (Date.now() < until && (await host.status()).workers.laya.state !== 'HOT_IDLE') await sleep(250);
       assert.strictEqual((await host.status()).workers.laya.state, 'HOT_IDLE');
@@ -82,7 +82,7 @@ module.exports = async function run() {
       assert.strictEqual(r2.code, 0, r2.stderr);
       const row2 = sessionOf(c2).workerLedger.find((x) => x.contract === 'evidence_narrower');
       assert.strictEqual(row2.tier, 'laya', 'the next process is served by the hot worker');
-      assert.strictEqual((await host.status()).workers.laya.loads, 1, 'no reload across LAIN processes');
+      assert.strictEqual((await host.status()).workers.laya.loads, 1, 'no reload across Noema processes');
     } finally {
       await host.pending();
       await host.shutdown('test over');

@@ -35,7 +35,7 @@ function isolated(name) {
 module.exports = async function () {
   const saved = process.env.LAIN_CONFIG_DIR;
 
-  await test('INSTANCES: announcing puts this LAIN in the registry, and withdrawing removes it', () => {
+  await test('INSTANCES: announcing puts this Noema in the registry, and withdrawing removes it', () => {
     const inst = isolated('announce');
     assert.strictEqual(inst.list().length, 0, 'it starts empty');
     inst.announce({ port: 5100, project: 'alpha', cwd: 'C:/alpha', session: 's1', model: 'm1', state: 'ACTIVE', task: 'do the thing' });

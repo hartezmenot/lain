@@ -127,7 +127,7 @@ module.exports = async function () {
     assert.strictEqual(fs.readFileSync(path.join(dir, 'p.js'), 'utf8'), `b${NL}`);
   });
 
-  await test("STALE: LAIN's OWN write is never reported as somebody else's change", async () => {
+  await test("STALE: Noema's OWN write is never reported as somebody else's change", async () => {
     // `observe` clears the ledger entry after every mutation, so a session that
     // reads, writes, and writes again must not accuse itself. A guard that
     // false-positives on its own work is a guard that gets switched off.

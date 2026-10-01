@@ -77,7 +77,7 @@ module.exports = async function () {
     assert.ok(!/TASK {2}fix the telegram/.test(f), 'no banner pins it a second time');
   });
 
-  await test('SCREEN: what the MODEL said and what LAIN DID are labelled apart', async () => {
+  await test('SCREEN: what the MODEL said and what Noema DID are labelled apart', async () => {
     // CALLS THAT LEAVE A ROW. A successful read is live state only and leaves
     // nothing behind (ui/durable.js), so `list_dir` / `plan_write` can never be
     // what an ordering assertion about the settled account is made of.
@@ -132,7 +132,7 @@ module.exports = async function () {
     const out = plain(r.out);
     assert.ok(!/^\s+ACTIONS\s*$/m.test(out), 'labels are the decoration that goes first');
     assertIncludes(out, '✓', 'but the action marker still separates a call from a sentence');
-    assertIncludes(out, 'Ask LAIN', 'and the input region is never sacrificed');
+    assertIncludes(out, 'Ask Noema', 'and the input region is never sacrificed');
   });
 
   // ------------------------------------------------------------- context ---
@@ -188,7 +188,7 @@ module.exports = async function () {
       stdin: 'fix the telegram toggle\nActually make it disabled by default.\n/exit\n',
       script: [{ text: 'Looking.' }, { text: 'Understood.' }], timeoutMs: 40000,
     });
-    const token = (first.out.match(/lain --resume (\S+)/) || [])[1];
+    const token = (first.out.match(/noema --resume (\S+)/) || [])[1];
     assert.ok(token, 'no resume token was printed');
 
     const again = await runCli(['--resume', token], {

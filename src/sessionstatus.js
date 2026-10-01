@@ -76,8 +76,8 @@ function clock(app, running, now) {
 }
 
 function question(app) {
-  if (app._harnessAsk) return String(app._harnessAsk.question || app._harnessAsk.title || 'LAIN asked you something');
-  if (app.pendingAsk) return 'LAIN asked you something in the terminal';
+  if (app._harnessAsk) return String(app._harnessAsk.question || app._harnessAsk.title || 'Noema asked you something');
+  if (app.pendingAsk) return 'Noema asked you something in the terminal';
   try {
     const parked = (app.jobs && app.jobs.all ? app.jobs.all() : []).find((j) => j && j.needsInput && !j.done);
     if (parked) return `background task #${parked.id} needs an answer`;

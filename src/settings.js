@@ -6,8 +6,9 @@
  * ------------------------------------------------------------------------
  * ONLY SETTINGS WITH A BACKEND. Each field names the authority that honours it:
  *
- *   general.startAtLogin     src/startup.js — a per-user Startup-folder
- *                            shortcut to LAIN.exe (only when LAIN.exe exists)
+ *   general.startup.*        src/startup.js — cfg.startup (harness, minimized,
+ *                            restoreWorkspace), projected onto a per-user
+ *                            Startup-folder shortcut to `Noema Harness.exe --startup`
  *   general.closeToTray      native/host.cs OnClosing — FIXED behaviour, shown
  *   general.background       Core outlives the window — FIXED behaviour, shown
  *   general.maxSteps         cfg.maxSteps, honoured by turn.js
@@ -33,17 +34,12 @@
  * whether a restart is needed. An unknown key is refused.
  */
 
-const fs = require('fs');
 const path = require('path');
 
 function root(app) { return (app && app._sibling) || app; }
 function cfgOf(app) { return root(app).cfg; }
 
 function save(app) { require('./config').save(cfgOf(app)); }
-
-function launcher() {
-  try { const p = require('./desktop').launcherPath(); return fs.existsSync(p) ? p : null; } catch { return null; }
-}
 
 function notif(cfg, k) {
   const n = cfg.notifications || {};
@@ -67,7 +63,6 @@ function chromeField(app) {
 /** The whole schema, with current values. Cheap: no browser, no network. */
 async function schema(app) {
   const cfg = cfgOf(app);
-  const exe = launcher();
   const node = (() => { try { return require('./noderesolve').find({ cfg }); } catch (e) { return { ok: false, why: e.message }; } })();
   const sources = await (async () => {
     try {
@@ -81,12 +76,20 @@ async function schema(app) {
     sections: [
       {
         id: 'GENERAL', label: 'General', fields: [
-          f('general.startAtLogin', 'Start LAIN when I sign in to Windows', 'boolean',
-            require('./startup').enabled(),
-            process.platform !== 'win32' ? { supported: false, editable: false, why: 'Windows only' }
-              : !exe ? { supported: false, editable: false, why: 'LAIN.exe is not installed yet — run the installer or `lain --desktop` once' } : {}),
-          f('general.closeToTray', 'Closing the window keeps LAIN running in the tray', 'boolean', true,
-            { editable: false, why: 'Quit from the tray icon ends LAIN.' }),
+          // STARTUP (startup.js): one canonical setting; Windows is made to match it. Defaults OFF / OFF / ON —
+          // nobody is opted into starting with Windows without choosing it.
+          ...(() => {
+            const st = require('./startup').setting(cfg);
+            const win = process.platform !== 'win32' ? { supported: false, editable: false, why: 'Windows only' } : {};
+            const noHarness = !require('./startup').launcher() ? { why: 'Noema Harness is not installed — the setting is kept and applied when it is' } : {};
+            return [
+              f('general.startup.harness', 'Start Noema Harness when I sign in to Windows', 'boolean', st.harness, { group: 'Startup', ...win, ...noHarness }),
+              f('general.startup.minimized', 'Start minimized', 'boolean', st.minimized, { group: 'Startup', ...win }),
+              f('general.startup.restoreWorkspace', 'Restore previous workspace', 'boolean', st.restoreWorkspace, { group: 'Startup', ...win }),
+            ];
+          })(),
+          f('general.closeToTray', 'Closing the window keeps Noema running in the tray', 'boolean', true,
+            { editable: false, why: 'Quit from the tray icon ends Noema.' }),
           f('general.background', 'Work, background tasks and messaging continue while the window is hidden', 'boolean', true,
             { editable: false }),
           f('general.maxSteps', 'Tool-step budget per turn (0 = no limit)', 'integer', Number(cfg.maxSteps) || 0, { min: 0, max: 10000 }),
@@ -100,15 +103,15 @@ async function schema(app) {
           f('models.defaultCoding', 'Default Coding model', 'model', cfg.model ? { source: 'lain', modelId: cfg.model } : null,
             { lane: 'coding', search: 'POST /api/models/search' }),
           f('models.sources', 'Model sources', 'list', sources, { editable: false }),
-          f('models.customs', 'Customs… (custom providers)', 'info', 'Add or edit custom providers with /api in the LAIN terminal.', { editable: false }),
+          f('models.customs', 'Customs… (custom providers)', 'info', 'Add or edit custom providers with /api in the Noema terminal.', { editable: false }),
         ],
       },
       {
         id: 'PATHS', label: 'Paths & projects', fields: [
           f('paths.defaultProjectRoot', 'Default folder for projects', 'directory', cfg.defaultProjectRoot || null),
           f('paths.nodePath', 'Node.js executable (empty = find it)', 'file', cfg.nodePath || null, { restartRequired: true }),
-          f('paths.detectedNode', 'Node.js LAIN uses', 'text', node.ok ? node.exe : null, { editable: false, why: node.ok ? node.how : node.why }),
-          f('paths.configDir', 'LAIN settings folder', 'directory', config.configDir(), { editable: false }),
+          f('paths.detectedNode', 'Node.js Noema uses', 'text', node.ok ? node.exe : null, { editable: false, why: node.ok ? node.how : node.why }),
+          f('paths.configDir', 'Noema settings folder', 'directory', config.configDir(), { editable: false }),
           f('paths.sessionsDir', 'Sessions folder', 'directory', config.sessionsDir(), { editable: false }),
         ],
       },
@@ -118,7 +121,7 @@ async function schema(app) {
           f('connections.webModels', 'Website model sign-in', 'list',
             sources.filter((s) => s.kind === 'WEB').map((s) => ({ source: s.source, label: s.label, state: s.state, connect: { route: 'POST /api/source/connect', body: { source: s.source } } })),
             { editable: false }),
-          f('connections.chrome', 'LAIN for Chrome — tabs you explicitly authorize', 'link', chromeField(app),
+          f('connections.chrome', 'Noema for Chrome — tabs you explicitly authorize', 'link', chromeField(app),
             { editable: false, connect: { route: 'POST /api/chrome/connect' }, disconnect: { route: 'POST /api/chrome/disconnect' } }),
         ],
       },
@@ -126,12 +129,12 @@ async function schema(app) {
         id: 'NOTIFICATIONS', label: 'Notifications', fields: [
           f('notifications.completion', 'When work finishes or is verified', 'boolean', notif(cfg, 'completion')),
           f('notifications.errors', 'When a turn fails or verification fails', 'boolean', notif(cfg, 'errors')),
-          f('notifications.needsInput', 'When LAIN is waiting for me', 'boolean', notif(cfg, 'needsInput')),
+          f('notifications.needsInput', 'When Noema is waiting for me', 'boolean', notif(cfg, 'needsInput')),
         ],
       },
       {
         id: 'PRIVACY', label: 'Privacy & security', fields: [
-          f('privacy.trustedDirectories', 'Folders LAIN may work in', 'list',
+          f('privacy.trustedDirectories', 'Folders Noema may work in', 'list',
             (cfg.trustedPaths || []).filter((e) => e && e.path).map((e) => ({ path: e.path, level: e.level, at: e.at || null })),
             { editable: false, actions: ['forget'] }),
         ],
@@ -153,14 +156,19 @@ async function update(app, key, value) {
   const field = fieldOf(s, key);
   if (!field) return refuse(key, `"${key}" is not a setting`);
   if (!field.supported) return refuse(key, field.why || 'not supported here');
-  if (!field.editable) return refuse(key, `"${field.label}" is not something LAIN can change`);
+  if (!field.editable) return refuse(key, `"${field.label}" is not something Noema can change`);
   const cfg = cfgOf(app);
 
   switch (key) {
-    case 'general.startAtLogin': {
+    case 'general.startup.harness':
+    case 'general.startup.minimized':
+    case 'general.startup.restoreWorkspace': {
       if (typeof value !== 'boolean') return refuse(key, 'on or off');
-      const r = value ? require('./startup').enable(launcher()) : require('./startup').disable();
-      if (!r.ok) return refuse(key, r.why);
+      const startup = require('./startup');
+      cfg.startup = { ...startup.setting(cfg), [key.split('.').pop()]: value };
+      save(app);
+      const r = startup.sync(cfg);
+      if (!r.ok) return refuse(key, `saved, but Windows was not updated: ${r.why}`);
       break;
     }
     case 'general.maxSteps': {
@@ -212,7 +220,7 @@ async function update(app, key, value) {
       if (value === null || value === '') { delete cfg.nodePath; save(app); break; }
       const p = String(value);
       if (!path.isAbsolute(p)) return refuse(key, 'give the full path to node.exe');
-      if (!require('./noderesolve').usable(p)) return refuse(key, `${p} is not a Node.js executable LAIN can run`);
+      if (!require('./noderesolve').usable(p)) return refuse(key, `${p} is not a Node.js executable Noema can run`);
       cfg.nodePath = p;
       save(app);
       break;

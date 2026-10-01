@@ -243,11 +243,11 @@ module.exports = async function () {
   });
 
   await test('SAID: a click on the model\'s own text still begins a selection, not a recall', () => {
-    const { screen } = drawn(oneTurn('a question', 'the answer LAIN gave'));
+    const { screen } = drawn(oneTurn('a question', 'the answer Noema gave'));
     const userRows = new Set(Object.keys(screen.lastFeedLines.userAt || {}).map(Number));
     let modelRow = -1;
     for (let i = 0; i < screen.lastFeedLines.length; i++) {
-      if (!userRows.has(i) && /the answer LAIN gave/.test(T.strip(screen.lastFeedLines[i]))) { modelRow = i; break; }
+      if (!userRows.has(i) && /the answer Noema gave/.test(T.strip(screen.lastFeedLines[i]))) { modelRow = i; break; }
     }
     assert.ok(modelRow >= 0, 'the model line must be on screen to click');
     const input = { line: '', setLine() { throw new Error('a model line must never be recalled to the input'); }, emit() {}, selectFrom() {} };

@@ -151,7 +151,7 @@ function inspector(app) {
       if (!all.length) {
         return [
           { label: 'Nothing has changed yet.', selectable: false },
-          { label: 'Everything LAIN writes is captured first, so this fills as the work lands.', selectable: false },
+          { label: 'Everything Noema writes is captured first, so this fills as the work lands.', selectable: false },
         ];
       }
       const width = Math.max(...all.map((f) => f.rel.length));

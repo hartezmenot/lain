@@ -1,9 +1,19 @@
 'use strict';
 
-/** Implementation work ends on the FINAL SMOKE step (finalsmoke.js). */
+/**
+ * A FINAL SMOKE STEP only where the verification contract asks for broad proof (finalsmoke.js, verifycontract.js) —
+ * a task the person framed as a release, or one whose changes already reach project-wide files. Never a ritual
+ * appended to every plan.
+ */
 function terminalSmoke(session) {
   const cls = session && session.taskClassVerdict && session.taskClassVerdict.cls;
-  if (cls === 'PROJECT_IMPLEMENTATION') require('../finalsmoke').ensureTerminal(session.plan, session.cwd);
+  if (cls !== 'PROJECT_IMPLEMENTATION') return;
+  const life = session.lifecycle;
+  const fs = require('../finalsmoke');
+  const objective = (life && life.objective) || (session.task && session.task.objective) || '';
+  const broad = life && life.evidence && life.evidence.filesChanged.size ? fs.state(life, session.cwd) !== 'NOT_REQUIRED'
+    : require('../verifycontract').requirement(session.cwd || process.cwd(), [], { objective }).needsSuite;
+  if (broad) fs.ensureTerminal(session.plan, session.cwd);
 }
 
 /**
@@ -92,7 +102,7 @@ const tools = {
           objective: {
             type: 'string',
             description: 'optional short LABEL for this plan, for display. It is not the goal and not '
-              + 'the task: LAIN owns those, and a label that contradicts them is ignored.',
+              + 'the task: Noema owns those, and a label that contradicts them is ignored.',
           },
         },
         required: ['steps'],
@@ -130,43 +140,46 @@ const tools = {
       // so the next call does not repeat it.
       const note = clash.length
         ? ` — the objective you gave ("${clash[0].stated}") was not kept: it contradicts the `
-          + `${clash[0].contradicts} ("${clash[0].authority}"), which LAIN owns. The plan is filed `
+          + `${clash[0].contradicts} ("${clash[0].authority}"), which Noema owns. The plan is filed `
           + 'under that instead. Use plan steps to say HOW; the goal and the task belong to the user.'
         : '';
 
+      const cp = require('../taskcheckpoint');
       if (!session.plan) {
         session.plan = new Plan(objective);
         session.plan.addSteps(steps);
         terminalSmoke(session);
+        const c = cp.commit(session, 'plan recorded');
+        const first = session.plan.current();
         return {
-          output: `plan recorded — ${steps.length} step(s). Step 1: ${steps[0]}${note}`,
-          meta: { steps: steps.length, completed: 0, objectiveRejected: clash.length > 0 },
+          output: `plan recorded — ${session.plan.steps.length} step(s). Step 1 of ${session.plan.steps.length}: ${first ? first.text : steps[0]}${note}`,
+          meta: { steps: session.plan.steps.length, completed: 0, objectiveRejected: clash.length > 0, checkpoint: c && c.generation },
         };
       }
 
-      // A REVISION. Completed steps are evidence: plan.steer() drops the open
-      // ones and appends the new list, and refuses to touch anything done. So a
-      // model that rethinks its approach halfway keeps its receipts.
+      // A REVISION — RECONCILED (plan.revise): an open step the new list still names keeps its place, id and
+      // findings; finished steps are never re-added; only work that is gone is dropped. The numbers the model
+      // is told are the ones every surface shows, so "step 3" means the same thing to both.
       const plan = session.plan;
-      const nextOpen = steps.map((s) => s.trim());
-      const currentOpen = plan.remaining.map((s) => String(s.text || '').trim());
-      if (nextOpen.length === currentOpen.length
-          && nextOpen.every((text, i) => text === currentOpen[i])) {
+      const r = plan.revise(steps);
+      if (r.unchanged) {
         const cur = plan.current();
+        const pos = plan.position(cur);
         return {
           output: `plan unchanged — ${plan.completed.length} step(s) already done, `
-            + `${nextOpen.length} step(s) still ahead${cur ? `; next: ${cur.text}` : ''}`,
+            + `${plan.remaining.length} still ahead${cur ? `; in hand: step ${pos.index} of ${pos.total}: ${cur.text}` : ''}`,
           meta: { steps: plan.steps.length, completed: plan.completed.length, unchanged: true },
         };
       }
-      const openBefore = plan.remaining.map((s) => s.n);
-      plan.steer('plan revised by the model', { drop: openBefore, append: steps });
       terminalSmoke(session);
+      const c = cp.commit(session, 'plan revised');
       const cur = plan.current();
+      const pos = plan.position(cur);
       return {
-        output: `plan revised — ${plan.completed.length} step(s) already done are unchanged, `
-          + `${steps.length} step(s) now ahead.${cur ? ` Next: ${cur.text}` : ''}`,
-        meta: { steps: plan.steps.length, completed: plan.completed.length },
+        output: `plan revised — ${plan.completed.length} done (unchanged), ${r.kept} kept, ${r.added} added, ${r.dropped} dropped`
+          + `${r.skippedDone ? ` (${r.skippedDone} already-finished step(s) not re-added)` : ''}.`
+          + `${cur ? ` In hand: step ${pos.index} of ${pos.total}: ${cur.text}` : ''}`,
+        meta: { steps: plan.steps.length, completed: plan.completed.length, kept: r.kept, added: r.added, dropped: r.dropped, checkpoint: c && c.generation },
       };
     },
   },
@@ -227,6 +240,46 @@ const tools = {
     },
   },
 
+  /**
+   * A FINDING the person should know about — structured Core state (supervision.js),
+   * turned by Chat into a decision. Blocking findings stop Long Context Phasing.
+   * Work beyond the approved plan goes in `adds_work`: it is PROPOSED to the person,
+   * never silently added (unless `consequence` says it is a direct consequence).
+   */
+  report_finding: {
+    mutates: false,
+    schema: {
+      name: 'report_finding',
+      description:
+        'Report something you found that the person should decide on or know: an architectural choice, a '
+        + 'problem outside the step, a risk, or extra work the approved plan did not include. Do not use it '
+        + 'for progress narration. If the finding needs work beyond the approved plan, put that work in '
+        + 'adds_work — it is proposed to the person, not added; do not start it until approved.',
+      parameters: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['info', 'minor', 'major', 'critical'] },
+          summary: { type: 'string', description: 'one sentence' },
+          evidence: { type: 'array', items: { type: 'string' }, description: 'pointers: file:line, symbol, command output' },
+          affected: { type: 'array', items: { type: 'string' }, description: 'plan steps, files or systems affected' },
+          possible_fix: { type: 'string' },
+          blocking: { type: 'boolean', description: 'true when the plan cannot continue correctly without a decision' },
+          adds_work: { type: 'string', description: 'work beyond the approved plan this finding needs' },
+          consequence: { type: 'boolean', description: 'true when adds_work is a small direct consequence of the approved plan' },
+        },
+        required: ['summary'],
+      },
+    },
+    async run(input, ctx) {
+      const session = sessionOf(ctx);
+      if (!session) return { output: 'no session is active', isError: true };
+      const r = require('../supervision').reportFinding(session, input || {}, 'agent');
+      if (!r.ok) return { output: r.why, isError: true };
+      try { session.save(); } catch { /* recorded in memory */ }
+      return { output: `finding recorded (${r.finding.severity}${r.finding.blocking ? ', blocking' : ''}).${r.delta ? (r.delta.state === 'PROPOSED' ? ' The extra work is PROPOSED to the person — do not start it until it is approved.' : ' Added to the plan as a consequence.') : ''}`, meta: { finding: r.finding.id, blocking: r.finding.blocking } };
+    },
+  },
+
   plan_step_done: {
     mutates: false,
     schema: {
@@ -253,12 +306,14 @@ const tools = {
       const note = String(input.note || '').trim();
       const r = plan.complete(note);
       if (!r) return { output: 'every step in the plan is already done', isError: true };
+      // THE CHECKPOINT COMMIT: the step's completion is on disk before the model hears it moved on.
+      require('../taskcheckpoint').commit(session, `step ${r.done.n} done`);
 
       const done = plan.completed.length;
-      const total = plan.steps.filter((s) => s.status !== 'dropped').length;
+      const total = plan.steps.length;
       if (r.next) {
         return {
-          output: `step ${r.done.n} done (${done}/${total}). Next: ${r.next.n}. ${r.next.text}`,
+          output: `step ${r.done.n} of ${total} done (${done}/${total}). Next: step ${r.next.n} of ${total}: ${r.next.text}`,
           meta: { completed: done, total },
         };
       }

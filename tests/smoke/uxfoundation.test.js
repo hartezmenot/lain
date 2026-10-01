@@ -3,7 +3,7 @@
 /**
  * THE INPUT FOUNDATION, THROUGH THE REAL BINARY.
  *
- * Everything here spawns bin/lain.js and asserts on frames it actually drew.
+ * Everything here spawns bin/noema.js and asserts on frames it actually drew.
  *
  * LIMITATION, STATED PLAINLY: `LAIN_FORCE_TUI` runs the real draw path over a
  * PIPE, not an attached terminal. The mouse bytes below are exactly what a
@@ -26,7 +26,7 @@ const tui = (cols = 100, rows = 30) => ({ LAIN_FORCE_TUI: '1', COLUMNS: String(c
 /** The row the INPUT box's text sits on, for a given geometry. */
 function inputRowOf(frame) {
   const rows = frame.replace(/(.{100})/g, '$1\n').split('\n');
-  return rows.findIndex((r) => /Ask LAIN|ANSWER — /.test(r)) + 1;   // 1-based, as the terminal counts
+  return rows.findIndex((r) => /Ask Noema|ANSWER — /.test(r)) + 1;   // 1-based, as the terminal counts
 }
 
 /**
@@ -80,8 +80,8 @@ module.exports = async function () {
       `a numbered pane label was drawn:\n${r.out.slice(-800)}`);
     // AND THE SURFACE IS UNMOVED. Every frame draws the same regions.
     for (const f of frames(r.out)) {
-      if (!f.includes('Ask LAIN')) continue;
-      assert.ok(f.includes('LAIN'), 'the header is on every frame');
+      if (!f.includes('Ask Noema')) continue;
+      assert.ok(f.includes('Noema'), 'the header is on every frame');
     }
   });
 

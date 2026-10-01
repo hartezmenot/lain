@@ -161,6 +161,27 @@ function register({ define }) {
         }
       }
 
+      // ---- 2b. WARM UNCACHED INPUT (cacheledger.js) ------------------------
+      //
+      // The SLO: warm median ≤ 5 %, normal ceiling ≤ 8 %. Cold requests and
+      // epoch resets are counted apart; unreported cache figures are not zeros.
+      {
+        const cl = require('./cacheledger');
+        const rows = cl.rows(app.session);
+        if (rows.length) {
+          const s = cl.summary(rows);
+          const p = (v) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
+          w(EOL + C.bold('Uncached input') + C.dim(`  — warm target ≤ ${p(s.target)}, ceiling ≤ ${p(s.ceiling)}`) + EOL);
+          w(C.dim(`  ${s.warm} warm · ${s.cold} cold · ${s.epochResets} epoch reset(s) · ${s.unreported} not reported`) + EOL);
+          w(`  median ${p(s.median)} · p90 ${p(s.p90)} · worst normal ${p(s.worstNormal)} · over ceiling ${s.overCeiling}` + EOL);
+          w(C.dim(`  warm totals: input ${s.totals.input.toLocaleString('en-US')} · cached ${s.totals.cached.toLocaleString('en-US')} · uncached ${s.totals.uncached.toLocaleString('en-US')} · mean prompt ${s.meanPrompt == null ? '—' : s.meanPrompt.toLocaleString('en-US')}`) + EOL);
+          const last = rows[rows.length - 1];
+          w(C.dim(`  last: ${last.warmth}${last.epochReason ? ` (${last.epochReason})` : ''} · epoch ${last.epoch} · billed ${p(last.actual.ratio)} · expected ${p(last.expected.ratio)}`
+            + `${last.owners.length ? ` · new bytes: ${last.owners.slice(0, 3).map((o) => `${o.owner} ${o.chars}`).join(', ')}` : ''}`) + EOL);
+          for (const e of s.exceptions.slice(-3)) w(C.yellow(`  exception ${p(e.ratio)}: ${e.reason} — ${e.owners.map((o) => o.owner).join(', ')}`) + EOL);
+        }
+      }
+
       // ---- 3. THE SESSION LEDGER ------------------------------------------
       //
       // Every figure labelled MEASURED, ESTIMATED, PENDING or UNKNOWN, so a

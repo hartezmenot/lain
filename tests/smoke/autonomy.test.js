@@ -75,7 +75,7 @@ module.exports = async function () {
     assert.ok(reached.size <= 4,
       `${reached.size} distinct calls (${[...reached].join(', ')}) means the bound did not hold`);
 
-    assert.ok(!/CONTINUING/.test(out), 'LAIN must not announce carrying on, because it must not carry on');
+    assert.ok(!/CONTINUING/.test(out), 'Noema must not announce carrying on, because it must not carry on');
     assert.ok(!/automatic carry-ons/.test(out), 'there is no continuation budget');
     assert.ok(!/Continue from exactly where you stopped/i.test(out),
       'no synthetic continuation prompt may enter the conversation');

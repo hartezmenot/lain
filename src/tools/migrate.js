@@ -83,8 +83,9 @@ tools.migration_plan = {
   schema: {
     name: 'migration_plan',
     description:
-      'Turn "migrate X to Y", "replace X with Y", "merge these three into one" or "change this button into a '
-      + 'lever" into a MIGRATION CONTRACT before writing any code. "Migrate X to Y" does NOT mean "add Y" — it '
+      'Offered only when Core found a real state transition in the request (an established representation, owner '
+      + 'or contract — JSON storage, React, API v1, module ownership — moving to another). Turn it into a MIGRATION '
+      + 'CONTRACT before writing any code. "Migrate X to Y" does NOT mean "add Y" — it '
       + 'means the final state contains Y and NOT X, and this produces the document that says so: the exact '
       + 'scope, a file-by-file replacement map, the structure (responsibilities, not syntax) to carry across, '
       + 'which data and config to leave strictly alone, which code is OUTSIDE the scope and must survive '

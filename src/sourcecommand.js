@@ -50,8 +50,8 @@ function register({ define, C }) {
   define('/source', {
     // MACHINERY: about LAIN, not about the work. Goes to the command surface.
     surface: true,
-    args: '[ lain | chatgpt | gemini | models [refresh] | use <model> | connect | disconnect | forget | check ]',
-    desc: 'Which model answers a chat turn — LAIN, ChatGPT.com or Gemini.google.com',
+    args: '[ lain | models [refresh] | use <model> ]',
+    desc: 'Which model answers a chat turn — Noema, ChatGPT.com or Gemini.google.com',
     async run(app, { args = [], rest = '' } = {}) {
       const w = (x) => app.render.write(x);
       const sub = String(args[0] || '').toLowerCase();
@@ -59,22 +59,24 @@ function register({ define, C }) {
       // ---- WHAT IS SELECTED, AND WHAT EACH SOURCE WOULD COST ------------
       if (!sub || sub === 'status') {
         const view = await registry.overview(app);
-        w('\n' + C.bold('Chat source') + C.dim('  — who answers a chat turn; coding is always LAIN\n\n'));
+        w('\n' + C.bold('Chat source') + C.dim('  — who answers a chat turn; coding is always Noema\n\n'));
         for (const s of view.sources) {
           const mark = s.chosen ? C.green('●') : C.dim('○');
           const model = s.selected ? C.bold(s.selected) : C.dim('no model chosen');
           w(`  ${mark} ${String(s.label).padEnd(22)} ${paint(C, s.state)}  ${model}\n`);
           if (s.why) w(C.dim(`      ${s.why}\n`));
         }
-        w(C.dim('\n  /source chatgpt   then  /source models   then  /source use <model>\n'));
+        // (the ChatGPT and Gemini website sources were retired — an account or a runtime answers instead)
+        w(C.dim('\n  Another answerer is an account: /account  ·  /model to choose its model\n'));
         // WHERE THE NEXT TURN WOULD GO, said plainly. It is the one thing a
         // person actually wants to know and the one thing that is not obvious
         // from the list — a coding sentence goes to LAIN whatever is selected.
-        w(C.dim('  A coding request always runs on LAIN\'s runtime, whatever is selected here.\n'));
+        w(C.dim('  A coding request always runs on Noema\'s runtime, whatever is selected here.\n'));
         return;
       }
 
       const ALIAS = { lain: registry.SOURCE.LAIN, chatgpt: registry.SOURCE.CHATGPT_WEB, gemini: registry.SOURCE.GEMINI_WEB };
+      if (sub === 'chatgpt' || sub === 'gemini') { w(C.dim('  The ChatGPT and Gemini website sources were retired. Connect the provider as an account or runtime instead (/account, MODEL › Sources).\n')); return; }
       if (ALIAS[sub]) {
         const r = registry.selectSource(app, ALIAS[sub]);
         if (!r.ok) { w('  ' + C.yellow(r.why) + '\n'); return; }
@@ -95,7 +97,7 @@ function register({ define, C }) {
           // AUTHENTICATION IS THE PERSON'S. LAIN opened the window; it does not
           // type a password, answer an MFA prompt or solve a CAPTCHA, and it
           // never will. See webmodel.js.
-          w(C.dim('    Log in in the browser window LAIN opened, then /source models.\n'));
+          w(C.dim('    Log in in the browser window Noema opened, then /source models.\n'));
         }
         return;
       }
@@ -145,22 +147,7 @@ function register({ define, C }) {
         return;
       }
 
-      if (sub === 'check') {
-        // LIVE CERTIFICATION, run deliberately and never by a test tier. See
-        // modelsource/check.js for what it proves and what it costs.
-        //
-        // `fixture` runs the same five steps against a fake site, which is how
-        // a red live run is told apart from a broken check.
-        const checkMod = require('./modelsource/check');
-        const which = String(args[1] || '').toLowerCase();
-        const lines = which === 'fixture' || which === 'self'
-          ? await checkMod.selfTest(app)
-          : await checkMod.run(app, src, { rest: String(args[1] || '') });
-        for (const l of lines) w('  ' + l + '\n');
-        return;
-      }
-
-      w(C.dim('  /source [lain | chatgpt | gemini | models | use <model> | connect | disconnect | forget | check]\n'));
+      w(C.dim('  /source [lain | models | use <model>]\n'));
     },
   });
 }

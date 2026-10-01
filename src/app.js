@@ -190,13 +190,14 @@ class App {
     // inputgate.js, which is the only thing that sets it.
     this._handover = null;
     // WHAT GIT SAYS ABOUT THIS TREE — reset for the same reason as the brief. See gitsnapshot.js.
-    require('./gitsnapshot').reset(this); require('./locateassist').prewarm(this);   // + a recruited narrower loads off the hot path
+    require('./gitsnapshot').reset(this); require('./layacontext').prewarm(this);   // + a consuming (or explicitly shadowed) Laya role loads off the hot path
     this.refreshSupervisedJobs();
     // AND WHICH ROUTES ARE SHUT. Read, never re-adopted — see the constructor.
     // Without this the handover's route section would be whatever was true when
     // the process started, and a limit hit an hour into a long session is
     // exactly the one a replacement model most needs to be told about.
     require('./providerhealth').refresh(this);
+    try { require('./autocontinue').scheduleRecovery(this); } catch { /* a crashed Coding turn resumes by itself — autocontinue.js */ }
     return session;
   }
 
@@ -241,13 +242,14 @@ class App {
 
   // Decide what this input MEANS. The decision lives in identify.js; this is
   // the seam, so app.js stays the REPL shell.
-  identify(text, isPaste, forceMode = null, sameTask = false) {
-    return require('./identify').identify(this, text, isPaste, forceMode, sameTask);
+  identify(text, isPaste, forceMode = null, sameTask = false, from = null) {
+    return require('./identify').identify(this, text, isPaste, forceMode, sameTask, from);
   }
 
   /** One user message end-to-end. Returns the turn record. */
   async submit(text, { isPaste = false, forceMode = null, sameTask = false, from = null, typed = false } = {}) {
-    const verdict = this.identify(text, isPaste, forceMode, sameTask);
+    require('./perfmark').reset(); if (!from || typed) this._lastInputAt = Date.now();   // perfmark: where this turn's ms went; the CLI self-updates only after a quiet minute (update/cli.js)
+    const verdict = this.identify(text, isPaste, forceMode, sameTask, from);
     if (process.env.LAIN_DEBUG_TASK) this.render.notice('info', `[task ${verdict.kind} · mode ${verdict.mode}] ${verdict.reason} · ${verdict.modeReason}`);
     // Elapsed time is measured from the start of the TASK, not the turn, and
     // restarts when the task does.
@@ -289,16 +291,14 @@ class App {
     const ctx = { liveText: '', record: null };
     try {
       text = await require('./interaction').prepareInput(this, text);   // always: staged Cowork inputs reach the turn from EVERY surface
-      // ONE LOOP, TWO SOURCES OF EVENTS: with LAIN's runtime selected (the
-      // default) this is false and nothing changes, and a CODING turn never
-      // diverts whatever is selected. See chatdispatch.js for both boundaries.
-      const chat = require('./chatdispatch');
-      const stream = chat.routes(this, verdict).yes
-        ? chat.run(this, text, verdict, { from, typed, signal: this.abort.signal })
-        : runTurn(this.session, text, require('./jobrunner').turnOptions(this, {
+      // ONE LOOP, SEVERAL SOURCES OF EVENTS: a runtime Coding Agent (runtimedispatch.js), Core finishing a
+      // bounded job (geometryjob.js, assistant/turn.js); otherwise LAIN's own turn. (Phase 8.3: no website source.)
+      const direct = require('./assistant/turn').routes(this, text, from) || (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : require('./geometryjob').routes(this, verdict));
+      const stream = direct.runtime ? require('./runtimedispatch').run(this, text, verdict, { from, typed, signal: this.abort.signal })
+        : direct.yes ? require('./geometryjob').run(this, text, verdict, { from, typed, plan: direct.plan }) : runTurn(this.session, text, require('./jobrunner').turnOptions(this, {
         session: this.session,
         signal: this.abort.signal,
-        from, typed,
+        from, typed, text,
         // Absent when there is no interactive UI, so ask_user reports that
         // rather than returning a null the model reads as a dismissal.
         // ONE CORE DECISION per question, answerable from here or Telegram (decisions.js).
@@ -690,7 +690,7 @@ class App {
     try { this.session.save(); } catch { /* best effort */ }
     // /resume is the ONLY way state crosses a session boundary, so a one-shot
     // run that never names its own session leaves no way back to it.
-    this.render.write(C.dim(`  session ${this.session.id}  ·  resume with: lain --resume ${Session.shortId(this.session.id)}`) + '\n');
+    this.render.write(C.dim(`  session ${this.session.id}  ·  resume with: noema --resume ${Session.shortId(this.session.id)}`) + '\n');
     return this.exitCode;
   }
 }

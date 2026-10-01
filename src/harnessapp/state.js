@@ -47,6 +47,8 @@ const SESSION_LIMIT = 40;
 const TURN_LIMIT = 200;
 /** How much of one message body travels. The app renders prose, not a log. */
 const MESSAGE_CHARS = 20_000;
+/** The product line the window draws beside its name. Read once; it cannot change while Core runs. */
+const PRODUCT = Object.freeze({ name: 'Noema', version: (() => { try { return String(require('../../package.json').version); } catch { return ''; } })() });
 
 /**
  * WHICH LANE A SESSION BELONGS TO.
@@ -108,6 +110,9 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
     } catch { /* a session that cannot describe itself is left to the next poll */ }
   }
   const out = { engineering: [], cowork: [] };
+  // LAIN'S OWN FOLDERS AND THE NO-PROJECT PLACEHOLDER are not projects: a session there is Unassigned.
+  let own = [];
+  try { const sv = require('../sessionviews'); own = [...sv.lainOwnDirs(), path.resolve(sv.unattachedDir()).toLowerCase()]; } catch { own = []; }
   for (const s of rows) {
     const lane = laneOf(s.data || s);
     const entry = {
@@ -115,6 +120,7 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
       short: s.short || (s.id || '').split('-').pop(),
       title: require('../sessionindex').headline(s),
       project: s.cwd ? path.basename(s.cwd) : '',
+      assigned: Boolean(s.cwd) && !own.includes(path.resolve(s.cwd).toLowerCase()),
       cwd: s.cwd || '',
       when: s.when && s.when.text ? s.when.text : '',
       // WHEN IT WAS LAST TOUCHED, as a time — the Session view groups by day,
@@ -165,7 +171,11 @@ function conversation(session) {
   if (!session) return [];
   const msgs = Array.isArray(session.messages) ? session.messages : [];
   const out = [];
-  for (const m of msgs.slice(-TURN_LIMIT)) {
+  const first = Math.max(0, msgs.length - TURN_LIMIT);
+  const role = session._role || null;
+  const roleFrom = Number(session._roleFrom) || 0;
+  for (let i = first; i < msgs.length; i++) {
+    const m = msgs[i];
     if (!m || m.role === 'system') continue;
     // TOOL RESULTS ARE NOT CONVERSATION. They are the bulk, they are already
     // summarised by the activity projection, and shipping them here would make
@@ -183,6 +193,14 @@ function conversation(session) {
       // WHO ANSWERED, when it was not LAIN's own runtime. Stamped at execution
       // time by chatdispatch.js and carried on the message ever since.
       provenance: m.provenance ? { label: m.provenance.label, source: m.provenance.sourceId } : null,
+      // WHICH ROLE, in the IDE: the BOT or the Coding Agent (botroute.js).
+      by: m.by === 'bot' || m.by === 'agent' || m.by === 'handoff' ? m.by
+        : (role && m.role === 'assistant' && i >= roleFrom ? role : null),
+      // WHICH SUB-TAB (BOT | AGENT) a person's message went to, and from which
+      // surface — Chat's agentic coding is shown in Chat and in the AGENT tab.
+      to: m.to === 'agent' || m.to === 'bot' ? m.to : null,
+      via: m.via === 'chat' || m.via === 'ide' ? m.via
+        : (role && m.role === 'assistant' && i >= roleFrom && (session._roleVia === 'chat' || session._roleVia === 'ide') ? session._roleVia : null),
     });
   }
   return out;
@@ -240,6 +258,8 @@ function workshop(app) {
       viewport: live ? (live.viewport || 'desktop') : null,
       observations: live ? ws.observations(cwd) : null,
       before: Boolean(ws.before(cwd, live ? live.viewport || 'desktop' : 'desktop')),
+      // THE FRAME PREVIEW (the real frontend in the window): URL, shared viewport, page, capabilities — or null.
+      frame: typeof ws.frameState === 'function' ? ws.frameState(cwd) : null,
       // THE DEV SERVER AS ITS OWN OBJECT — status from the process authority,
       // never inferred from whether a preview happens to be showing.
       devServer: require('./stateviews').devServer(app),
@@ -365,6 +385,8 @@ function environment(app) {
  * halves that are expensive are absent by construction rather than by a flag.
  */
 async function read(app) {
+  // A SESSION HANDED BACK FROM THE CLI is reloaded before it is drawn (surfacehandoff.js).
+  try { require('../surfacehandoff').sync(app); } catch { /* drawn as it is */ }
   const s = app.session;
   const harness = (() => {
     try { return require('../harnesssurface').project(app); } catch { return null; }
@@ -374,6 +396,8 @@ async function read(app) {
   })();
   const out = {
     at: Date.now(),
+    // WHAT IS RUNNING — the product and its version, for the window's brand line.
+    product: PRODUCT,
     // WHICH SESSION IS OPEN IN THE TERMINAL. The application does not get to
     // change this: `/resume` is how a session becomes current, and a second way
     // in would be a second answer to "which session am I in".
@@ -394,6 +418,12 @@ async function read(app) {
     sessions: sessions(app),
     conversation: conversation(s),
     changes: changes(app),
+    // THE USAGE TRACKER'S RINGS (usagetracker.js): per lane, what remains of the route's tightest REPORTED window —
+    // Core's figure; the window's top-right tracker draws it and computes nothing of its own.
+    tracker: (() => { try { return s.cowork ? null : require('../usagetracker').lanes(app); } catch { return null; } })(),
+    // THE QUICK CHANGES (changeclass.js): each DIRECT or NARROW turn's request, the files it changed, and whether
+    // it landed — what the IDE's Changes panel lists, so a small edit's result never needs a conversation.
+    quickChanges: (Array.isArray(s.quickChanges) ? s.quickChanges : []).slice(-10),
     // A PICTURE THE PERSON ASKED TO SEE. The bytes are NOT here — this says
     // which image is open and what is known about it, and the viewer fetches it
     // once by reference. Putting a screenshot in a poll payload would ship it
@@ -414,7 +444,9 @@ async function read(app) {
         live: s.plan.isLive,
         done: s.plan.completed.length,
         total: s.plan.steps.length,
-        steps: s.plan.steps.slice(0, 40).map((x) => ({ text: x.text, status: x.status, origin: x.origin || 'llm' })),
+        steps: s.plan.steps.slice(0, 40).map((x) => ({ id: x.id || null, n: x.n, text: x.text, status: x.status, origin: x.origin || 'llm' })),
+        // THE COMMITTED CHECKPOINT (taskcheckpoint.js) — the one position every surface shows.
+        checkpoint: require('../taskcheckpoint').view(s),
       }
       : null,
     // The neutral Cowork projection reads the same Session, Harness, approval,
@@ -429,6 +461,23 @@ async function read(app) {
     // the lain_workspace tool on the shared root App; the window applies each
     // `seq` once. UI navigation only: it opens a view, it changes nothing.
     navigate: ((app && app._sibling) || app)._uiNavigate || null,
+    // THE SESSION JOURNEY — surface, the Agent's task pointer, the waiting
+    // transfer, the project generation, the canonical Selection; see journey.js.
+    journey: (() => { try { return require('../journey').project(app); } catch { return null; } })(),
+    // CHAT'S SUPERVISION OF THE CODING AGENT — phase, strategy, profile, pending
+    // steers, findings, phase summaries, plan deltas, LAIN's open offers, quota pause.
+    workbench: (() => { try { return s.cowork ? null : require('../supervision').state(app); } catch { return null; } })(),
+    // THE SESSION'S FACTS, ACCOUNT FIRST — the same projection the terminal's /status and Telegram's print (sessionfacts.js).
+    facts: (() => { try { return s.cowork ? null : require('../sessionfacts').facts(app); } catch { return null; } })(),
+    // UPDATES (update/updater.js, cached state — never the network) and WHAT THIS WINDOW IS: the full Harness, the
+    // CLI's Model Dashboard, or the CLI's standalone Preview (desktopwindow.js `mode`), plus the installed components.
+    update: (() => { try { return require('./updateroutes').view((app && app._sibling) || app); } catch { return null; } })(),
+    surface: {
+      mode: ((app && app._sibling) || app)._surfaceMode || 'harness',
+      // `noema preview` while this Noema runs (corelock.js): when it was asked, so the window opens the Preview once.
+      previewWanted: (((app && app._sibling) || app)._previewWanted || {}).at || null,
+      components: (() => { try { return require('../components').read(); } catch { return null; } })(),
+    },
   };
   // THE ENGINEERING SESSION CONTRACT — header, Chat/Coding views, plans and
   // handoff, composer prefill, workspace panels, per-view models. Reshaped by

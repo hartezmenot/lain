@@ -69,6 +69,13 @@ const ledger = [];
 let seq = 0;
 
 /**
+ * THIS PROCESS, in every id: `r14.k3f9a2` — so a request recorded by the
+ * Harness and one recorded by a CLI on the same session never share an id,
+ * and either can be named from the other (see `forSession`).
+ */
+const PROC = `${process.pid.toString(36)}${require('crypto').randomBytes(2).toString('hex')}`;
+
+/**
  * The trace context for one step of the agent loop.
  *
  * `refit` is the case worth telling apart: a step whose request was refused for
@@ -82,6 +89,7 @@ let seq = 0;
  * vocabulary, not about the turn loop.
  */
 function forStep(turnId, step, { refit = false } = {}) {
+  require('./perfmark').mark('request');   // the request is about to leave (perfmark.js)
   if (refit) return { turn: turnId, step, reason: REASON.REFIT };
   // A RETRY IS DERIVED, NOT DECLARED. turn.js's retry counter is turn-wide and
   // never resets, so asking it "is this a retry" answers yes for every step
@@ -104,7 +112,7 @@ function forStep(turnId, step, { refit = false } = {}) {
 function begin({ turn = null, step = null, reason = REASON.MACHINERY, model = '', connection = '' } = {}) {
   seq += 1;
   const r = {
-    id: `r${seq}`,
+    id: `r${seq}.${PROC}`,
     turn: turn || null,
     step: Number.isFinite(step) ? step : null,
     reason: String(reason || REASON.MACHINERY),
@@ -152,6 +160,18 @@ function end(r, { ok = true, status = 0, failure = '', receipt = null } = {}) {
       // object carried no cache field at all) records neither figure.
       ...(receipt.cacheReported !== false && receipt.cacheReadTokens != null ? { cacheReadTokens: Number(receipt.cacheReadTokens) || 0 } : {}),
       ...(receipt.cacheReported !== false && receipt.cacheCreationTokens != null ? { cacheCreationTokens: Number(receipt.cacheCreationTokens) || 0 } : {}),
+      // Reported or absent — never zero-filled (usage.js tells "not reported" apart).
+      ...(receipt.reasoningTokens != null ? { reasoningTokens: Number(receipt.reasoningTokens) || 0 } : {}),
+      ...(receipt.costUsd != null && Number.isFinite(Number(receipt.costUsd)) ? { costUsd: Number(receipt.costUsd) } : {}),
+      ...(Number.isFinite(receipt.toolCalls) ? { toolCalls: receipt.toolCalls } : {}),
+      ...(receipt.estimated ? { estimated: true } : {}),
+      // A LOCAL RUNTIME'S OWN COUNTERS (llama.cpp timings, Ollama durations) and
+      // what a runtime said about its own run — kept as reported, apart from tokens.
+      ...(receipt.local && typeof receipt.local === 'object' ? { local: { ...receipt.local } } : {}),
+      ...(receipt.runtime && typeof receipt.runtime === 'object' ? { runtime: { ...receipt.runtime } } : {}),
+      ...(receipt.costBasis ? { costBasis: String(receipt.costBasis) } : {}),
+      // WHAT LAIN OBSERVED of a website exchange (ChatGPT Chat): sizes, never billed tokens.
+      ...(receipt.observed && typeof receipt.observed === 'object' ? { observed: { ...receipt.observed } } : {}),
     };
   } else {
     r.receipt = null;
@@ -180,19 +200,73 @@ function end(r, { ok = true, status = 0, failure = '', receipt = null } = {}) {
  * offered on every request but never called is pure input cost.
  */
 function sized(r, messages, tools) {
-  if (!r || !process.env.LAIN_REQTRACE) return r;
+  if (!r) return r;
+  // SIZES ALWAYS (the /focus metrics compare what was sent); the tool NAMES
+  // only when a benchmark asked for the trace. Never the content.
   try {
     r.messageChars = JSON.stringify(messages || []).length;
+    // THE FIXED PART: the system prompt, sent again on every request.
+    const sys = (messages || []).find((m) => m && m.role === 'system');
+    r.systemChars = sys ? (typeof sys.content === 'string' ? sys.content.length : JSON.stringify(sys.content || '').length) : 0;
     r.toolSchemaChars = JSON.stringify(tools || []).length;
-    r.tools = (tools || []).map((t) => t && t.name).filter(Boolean);
+    r.toolCount = (tools || []).length;
+    if (process.env.LAIN_REQTRACE) r.tools = (tools || []).map((t) => t && t.name).filter(Boolean);
   } catch { /* measurement only */ }
   return r;
 }
 
 function sink(r) {
   const p = process.env.LAIN_REQTRACE;
-  if (!p) return;
-  try { require('fs').appendFileSync(p, JSON.stringify(r) + '\n'); } catch { /* never fatal */ }
+  if (p) { try { require('fs').appendFileSync(p, JSON.stringify(r) + '\n'); } catch { /* never fatal */ } }
+  if (r && r.session) sessionSink(r);
+}
+
+/**
+ * THE SESSION'S REQUESTS, ACROSS PROCESSES. A request that belongs to a session
+ * (the envelope says which) is also appended to that session's own small trace
+ * file, so a CLI resuming the session can account for requests the Harness
+ * made, and the other way round. Identity and accounting only — id, turn, step,
+ * reason, transport, model, connection, outcome, the usage receipt — never a
+ * prompt, a reply or a key. Bounded: past 256 KB the older half is dropped.
+ */
+const SESSION_TRACE_BYTES = 256 * 1024;
+const SAFE = ['id', 'turn', 'step', 'reason', 'transport', 'model', 'connection', 'provider', 'protocol', 'project', 'role', 'session', 'task', 'at', 'ms', 'ok', 'status', 'failure', 'receipt', 'messageChars', 'systemChars', 'toolSchemaChars', 'toolCount'];
+function sessionFile(id) {
+  const safe = String(id).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80);
+  return require('path').join(require('./config').configDir(), 'reqtrace', `${safe}.jsonl`);
+}
+function sessionSink(r) {
+  try {
+    const fs = require('fs');
+    const f = sessionFile(r.session);
+    fs.mkdirSync(require('path').dirname(f), { recursive: true });
+    try {
+      if (fs.statSync(f).size > SESSION_TRACE_BYTES) {
+        const keep = fs.readFileSync(f, 'utf8').split('\n').filter(Boolean);
+        fs.writeFileSync(f, `${keep.slice(Math.floor(keep.length / 2)).join('\n')}\n`);
+      }
+    } catch { /* first request of this session */ }
+    const row = {};
+    for (const k of SAFE) if (r[k] !== undefined) row[k] = r[k];
+    fs.appendFileSync(f, `${JSON.stringify(row)}\n`);
+  } catch { /* never fatal */ }
+}
+
+/**
+ * EVERY REQUEST OF A SESSION, whichever process made it: the session's trace
+ * file, plus this process's requests still in flight. Oldest first, once per id.
+ */
+function forSession(sessionId) {
+  if (!sessionId) return [];
+  const byId = new Map();
+  try {
+    for (const ln of require('fs').readFileSync(sessionFile(sessionId), 'utf8').split('\n')) {
+      if (!ln) continue;
+      try { const r = JSON.parse(ln); if (r && r.id) byId.set(r.id, r); } catch { /* a torn line */ }
+    }
+  } catch { /* none yet */ }
+  for (const r of ledger) if (r.session === sessionId && !byId.has(r.id)) byId.set(r.id, r);
+  return [...byId.values()].sort((a, b) => (a.at || 0) - (b.at || 0));
 }
 
 /** Everything recorded, oldest first. */
@@ -241,6 +315,8 @@ function explain(turnId) {
 }
 
 /** Forget everything. For the tests only. */
-function reset() { ledger.length = 0; seq = 0; }
+// THE LEDGER EMPTIES; IDS NEVER REPEAT in a process — a usage receipt is deduplicated by
+// id (usage.js), so reusing r1 after a reset silently merged a new request into an old one.
+function reset() { ledger.length = 0; }
 
-module.exports = { REASON, begin, end, sized, forStep, all, forTurn, last, explain, reset, MAX };
+module.exports = { REASON, begin, end, sized, forStep, all, forTurn, forSession, last, explain, reset, MAX, PROC };

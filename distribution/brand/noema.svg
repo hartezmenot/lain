@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Noema</title>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#141B24" stroke="#26303F" stroke-width="4"/>
+  <circle cx="120" cy="136" r="64" fill="none" stroke="#9B8AFB" stroke-width="24"/>
+  <circle cx="174" cy="82" r="40" fill="#141B24"/>
+  <circle cx="174" cy="82" r="25" fill="#2DD4BF"/>
+</svg>

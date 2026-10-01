@@ -87,18 +87,18 @@ module.exports = async function () {
     // the NEXT question does.
     const { App } = require('../../src/app');
     const app = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
-    require('../../src/modelsource/registry').selectSource(app, 'chatgpt-web');
-    app.session.sourceSelections['chatgpt-web'] = 'gpt-x';
+    // (Phase 8.1: the website sources are retired, so the durable source is LAIN's own.)
+    assert.strictEqual(require('../../src/modelsource/registry').selectSource(app, 'chatgpt-web').ok, false);
     const text = continuity.resumeSummary(rich(), app).map((r) => `${r.ok ? '+' : '-'} ${r.text}`).join('\n');
-    assert.match(text, /chat source: ChatGPT\.com · gpt-x/);
+    assert.match(text, /chat source: Noema/);
     assert.match(text, /desktop permission: nothing granted/);
   });
 
-  await test('CONT: a session that never chose a source says so as LAIN, not as nothing', () => {
+  await test('CONT: a session that never chose a source says so as Noema, not as nothing', () => {
     const { App } = require('../../src/app');
     const app = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
     const text = continuity.resumeSummary(rich(), app).map((r) => `${r.ok ? '+' : '-'} ${r.text}`).join('\n');
-    assert.match(text, /chat source: LAIN's own runtime/);
+    assert.match(text, /chat source: Noema's own runtime/);
   });
 
   await test('CONT: a restored TRANSCRIPT is not reported as a restored context', () => {

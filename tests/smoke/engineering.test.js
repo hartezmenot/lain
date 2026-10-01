@@ -3,7 +3,7 @@
 /**
  * THE ENGINEERING TOOLS, THROUGH THE REAL BINARY.
  *
- * Everything here spawns `bin/lain.js` as a child process and drives it with a
+ * Everything here spawns `bin/noema.js` as a child process and drives it with a
  * scripted model. Nothing require()s an application module — that is the whole
  * difference between LIVE-VERIFIED and UNIT-VERIFIED, and it is what catches
  * the class of defect the unit tier structurally cannot: a tool that is

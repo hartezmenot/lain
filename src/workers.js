@@ -55,6 +55,18 @@ const CONTRACTS = Object.freeze({
     escalate_when: ['abstain', 'label outside the candidates', 'model error'],
     deterministic: 'mode.js',
   }),
+  // HOW MUCH MACHINERY A CODE CHANGE GETS (changeclass.js). Escalation only: Core's deterministic class and its safety floor win.
+  change_class: Object.freeze({
+    id: 'change_class', worker: 'JEV', kind: 'decision',
+    question: 'Is this code change DIRECT, NARROW, AGENT or PHASED?',
+    owns: ['execution-class tie-breaking', 'escalation signal'],
+    forbidden: ['lowering the deterministic class', 'crossing the safety floor', 'orchestration', 'permissions', 'plans', 'completion', 'calling another worker'],
+    input: 'decision_packet { decision, facts[], candidates[] }  (≤ 600 chars)',
+    output: 'decision_result { label | ABSTAIN }',
+    labels: ['DIRECT', 'NARROW', 'AGENT', 'PHASED'],
+    escalate_when: ['abstain', 'label outside the candidates', 'model error'],
+    deterministic: 'changeclass.js',
+  }),
   evidence_narrower: Object.freeze({
     id: 'evidence_narrower', worker: 'LAYA', kind: 'evidence',
     question: 'Where exactly is the relevant thing?',
@@ -67,21 +79,26 @@ const CONTRACTS = Object.freeze({
     // would only re-rank when the deterministic score abstains.
     deterministic: 'evidenceslice.js',
   }),
-  geometry_solver: Object.freeze({
-    id: 'geometry_solver', worker: 'VIOLETTO', kind: 'geometry',
-    question: 'What are the numeric consequences of this geometric change?',
-    owns: ['dimensions', 'ratios', 'alignment', 'constraints', 'interpolation'],
-    forbidden: ['UX semantics', 'colour', 'typography', 'accessibility policy', 'component existence', 'architecture', 'source ownership', 'user intent'],
-    input: 'geometry_slice (GUG nodes + constraints)',
-    output: 'geometry_patch',
-    escalate_when: ['conflicting constraints', 'semantic change required', 'low confidence'],
-    // NOT BUILT: no geometry model on this machine and no GUG to feed it — see docs/WORKERS.md.
+  // THE HARNESS CONTEXT ROLES (layacontext.js). The `geometry_solver`
+  // contract that stood here was Violetto's, RETIRED 2026-09-24: geometry is
+  // Core's (geometryjob.js) and the GUG is Core's (gug.js).
+  context_correlator: Object.freeze({
+    id: 'context_correlator', worker: 'LAYA', kind: 'context',
+    question: 'What is the person looking at, touching or referring to, and what small context should Core have ready?',
+    owns: ['referent correlation', 'cross-surface correlation', 'Harness context compression'],
+    forbidden: ['project truth', 'AST', 'FGM', 'GUG', 'wiring', 'permissions', 'task completion', 'choosing the flagship', 'dispatching', 'calling another worker'],
+    input: 'Core-supplied candidate referents (ids + short texts) and a query',
+    output: 'hypothesis { refs[] } — validated by Core at the current generation before any use',
+    escalate_when: ['no candidates', 'validation fails', 'the context moved on (late)'],
+    deterministic: 'harnesscontext.referent',
   }),
 });
 
 /** A recorded recruitment with a passing gate, or null. */
 function binding(cfg, contractId) {
   const b = cfg && cfg.workers && cfg.workers[contractId];
+  // A WORKER IS NEVER THE CHATGPT CHAT SOURCE (modelroles.js: CHAT ONLY).
+  if (b && b.model && require('./modelroles').isChatOnly({ modelId: b.model, source: b.source })) return null;
   return b && b.model && b.gate && b.gate.pass ? b : null;
 }
 

@@ -72,9 +72,10 @@ function tokensFor(el) {
   const id = String((el && el.id) || '').trim();
   if (id && !generated(id)) out.push({ token: id, kind: 'id', weight: 100 });
 
+  // An array, or one string as the page inspector reports it ("a b c").
   const classes = Array.isArray(el && el.classes)
     ? el.classes
-    : String((el && el.className) || '').split(/\s+/);
+    : String((el && (el.classes || el.className)) || '').split(/\s+/);
   for (const c of classes) {
     const name = String(c || '').trim();
     if (!name || generated(name)) continue;

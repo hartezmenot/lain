@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * REAL CLI SMOKE TESTS. Every case spawns bin/lain.js as a child process.
+ * REAL CLI SMOKE TESTS. Every case spawns bin/noema.js as a child process.
  *
  * This file may not require() a single application module. If it did, a green
  * run would prove only that the modules work — which is exactly how V1 shipped a
@@ -17,7 +17,7 @@ module.exports = async function () {
   await test('SMOKE: --version exits 0 and prints a version', async () => {
     const r = await runCli(['--version']);
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'lain 2.');
+    assert.match(r.stdout, /^Noema CLI \d+\.\d+\.\d+ \(/);
   });
 
   await test('SMOKE: --help exits 0 and documents explicit resume', async () => {
@@ -221,7 +221,7 @@ module.exports = async function () {
       script: [],
     });
     assert.strictEqual(second.code, 0);
-    assertIncludes(second.stdout, 'messages        0', 'the new session starts with zero messages');
+    assert.ok(/^\s*context\b.*· 0 messages ·/m.test(second.stdout), 'the new session starts with zero messages');
     assertNotIncludes(second.stdout, 'trading refactor');
   });
 
@@ -243,7 +243,7 @@ module.exports = async function () {
     assert.strictEqual(second.code, 0);
     assertIncludes(second.stdout, '(resumed)');
     assertIncludes(second.stdout, id);
-    assertNotIncludes(second.stdout, 'messages        0');
+    assert.ok(!/^\s*context\b.*· 0 messages ·/m.test(second.stdout), 'the resumed session carries its messages');
   });
 
   await test('SMOKE: /resume with an unknown id refuses and does not invent a session', async () => {
@@ -361,6 +361,6 @@ module.exports = async function () {
   await test('SMOKE: clean exit via /exit saves the session and prints the resume hint', async () => {
     const r = await runCli([], { stdin: '/exit\n', script: [] });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'lain --resume');
+    assertIncludes(r.stdout, 'noema --resume');
   });
 };

@@ -72,7 +72,7 @@ function stub(w) {
 const result = (name, input, output = 'x') => ({ type: 'tool_result', name, input, output, isError: false });
 
 module.exports = async function () {
-  await test('LOOK: a READ never draws a change, even of a file LAIN edited earlier', () => {
+  await test('LOOK: a READ never draws a change, even of a file Noema edited earlier', () => {
     // The exact reported shape. `noteEdit` would find `src/parser.js` among the
     // changed files and replay its diff — green additions, under a `reading`
     // card, for a call that added nothing.

@@ -65,7 +65,7 @@ module.exports = async function () {
       const opened = await routes.dispatch(app, 'POST', '/api/terminal/open', { cols: 100, rows: 30 });
       assert.strictEqual(opened.code, 200, JSON.stringify(opened.body));
       id = opened.body.id;
-      assert.strictEqual(opened.body.cwd, cwd, 'it opens in the project, not wherever LAIN is');
+      assert.strictEqual(opened.body.cwd, cwd, 'it opens in the project, not wherever Noema is');
 
       let since = 0;
       const readAll = async () => {
@@ -118,7 +118,7 @@ module.exports = async function () {
     }
   });
 
-  await test('TERMINAL: ending LAIN takes its shells with it', async () => {
+  await test('TERMINAL: ending Noema takes its shells with it', async () => {
     if (process.platform !== 'win32') return note('the project terminal is a Windows pseudoconsole');
     const pty = require(path.join(ROOT, 'src', 'pty'));
     if (!pty.ensureBridge().ok) return note('the bridge could not be built');
@@ -145,7 +145,7 @@ module.exports = async function () {
       // eslint-disable-next-line no-await-in-loop -- watching it exit.
       await new Promise((s) => setTimeout(s, 150));
     }
-    assert.strictEqual(t.alive, false, 'the shell went with LAIN');
+    assert.strictEqual(t.alive, false, 'the shell went with Noema');
     try { fs.rmSync(cwd, { recursive: true, force: true }); } catch { /* windows holds it */ }
   });
 };

@@ -12,7 +12,7 @@ module.exports = async () => {
     const env = { ...process.env, LAIN_CONFIG_DIR: path.join(root, 'config'), LAIN_HOME: path.join(root, 'supervisor') };
     let child;
     try {
-      child = spawn(process.execPath, [path.resolve(__dirname, '../../bin/lain.js'), '--bot', '--cwd', root], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(process.execPath, [path.resolve(__dirname, '../../bin/noema.js'), '--bot', '--cwd', root], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
       let output = ''; child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; });
       const exited = new Promise(resolve => child.once('exit', resolve));
       const end = Date.now() + 10000;

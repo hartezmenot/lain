@@ -46,7 +46,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const LINKED = ['node_modules', '.venv', 'venv'];
-const SNAPSHOT_SKIP = new Set(['node_modules', '.git', '.venv', 'venv', 'dist', 'build', 'out', 'target', '.lain', '.next', 'coverage', '__pycache__']);
+const SNAPSHOT_SKIP = new Set(['node_modules', '.git', '.venv', 'venv', 'dist', 'build', 'out', 'target', '.lain', '.noema', '.next', 'coverage', '__pycache__']);
 const SNAPSHOT_MAX_FILE = 5 * 1024 * 1024;
 const SNAPSHOT_MAX_FILES = 20000;
 const MAX_LINES = 5000;
@@ -143,7 +143,7 @@ function baseHashOf(ws, rel) { return (ws.scoped && ws.scoped.get(rel)) || 'abse
  * the workspace too; counted, every candidate came back REJECTED as writing
  * outside its scope. It is never integrated.
  */
-const OWN = /(^|\/)\.lain\//;
+const OWN = /(^|\/)\.(?:lain|noema)\//;
 
 /** What the child changed, relative to the project root. */
 function changes(ws) {

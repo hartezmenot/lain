@@ -107,7 +107,7 @@ const common = ab ? {
   const correct = grows.filter((x) => x.violetto.correct).length;
   const r = valid('violetto')[0] || null;
   const d = delta('violetto');
-  const schemaChars = (() => { try { return JSON.stringify(require('../../src/tools/geometry').tools.geometry_specialist.schema).length; } catch { return null; } })();
+  const schemaChars = 0;   // no flagship tool since 2026-09-24: Core dispatches geometry jobs (src/violettojob.js)
   write('violetto', {
     candidate: 'Limite 1B Violetto', model: manifest.violetto.model, sha256: manifest.violetto.sha256, license: manifest.violetto.license, contract: 'geometry_solver',
     geometryEval: { cases: grows.length, correctWithinHalfPx: correct, deterministicSolver: `${grows.length}/${grows.length} in < 0.2 ms`, finishedWithinBudget: grows.filter((x) => x.violetto.finish === 'stop').length },

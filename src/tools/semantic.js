@@ -40,11 +40,8 @@ const renameMod = require('../rename');
 const MAX_LISTED = 12;
 const MAX_SYMBOL_CHARS = 20_000;
 
-function resolve(cwd, p) {
-  const s = String(p || '');
-  if (!s) return null;
-  return path.isAbsolute(s) ? s : path.resolve(cwd || process.cwd(), s);
-}
+/** One resolver for every file tool — including the `/tmp/…` a Windows shell wrote (pathmap.js). */
+function resolve(cwd, p) { return require('./pathmap').resolve(cwd, p); }
 
 function at(cwd, abs) {
   try {
@@ -441,7 +438,10 @@ tools.rename_symbol = {
   schema: {
     name: 'rename_symbol',
     description:
-      'Rename an identifier across the whole project, on TOKENS rather than by text — so the name inside a '
+      'Rename an identifier across the whole project. When a language server covers the file (TypeScript, '
+      + 'Python, Rust, Go, C/C++, C# …) the SERVER renames it — declaration, references, imports, implementations — '
+      + 'from the canonical selection, or from `at` ("file:line[:col]") when given; otherwise, for JavaScript, on '
+      + 'TOKENS rather than by text — so the name inside a '
       + 'string, a comment, a regex or a URL is never rewritten by accident. Those occurrences are COUNTED '
       + 'AND REPORTED instead, because a string holding the old name is often a real reference. Member '
       + 'accesses (x.name) are reported and left alone unless include_members is set, since nothing here can '
@@ -451,6 +451,7 @@ tools.rename_symbol = {
       type: 'object',
       properties: {
         from: { type: 'string', description: 'the current identifier' },
+        at: { type: 'string', description: 'where the symbol is, "file:line[:col]" — lets the language server rename it exactly (optional when it is the selection or has one declaration)' },
         to: { type: 'string', description: 'the new identifier' },
         include: { type: 'string', description: 'glob limiting which files are touched, e.g. "src/**/*.js"' },
         include_members: { type: 'boolean', description: 'also rewrite x.from and { from: … } (default false)' },
@@ -467,6 +468,16 @@ tools.rename_symbol = {
     if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(from) || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(to)) {
       return { output: 'both names must be plain identifiers — use grep and apply_patch for free text', isError: true };
     }
+    // THE LANGUAGE SERVER FIRST (semanticrename.js): a semantic rename in any
+    // language it covers. It says when it cannot, and the token rename runs.
+    let viaServer = null;
+    if (ctx.app && ctx.session && !input.include && !input.include_members) {
+      try { viaServer = await require('../semanticrename').rename(ctx.app, ctx.session, { from, to, at: input.at || null, dryRun: Boolean(input.dry_run) }); } catch (e) { viaServer = { used: false, why: e.message }; }
+      if (viaServer && viaServer.used) {
+        if (!viaServer.ok) return { output: `rename_symbol (language server): ${viaServer.why}`, isError: true, meta: { via: 'lsp', server: viaServer.server || null } };
+        return { output: viaServer.text, isError: false, mutated: viaServer.mutated, meta: { via: 'lsp', server: viaServer.server, renamed: viaServer.mutated.length, edits: viaServer.count, errorsAfter: viaServer.diagnostics.length } };
+      }
+    }
     const root = ctx.cwd || process.cwd();
     const r = await renameMod.rename(root, from, to, {
       include: input.include ? String(input.include) : '',
@@ -475,10 +486,11 @@ tools.rename_symbol = {
     });
     const mutated = r.dryRun ? [] : r.changed.filter((c) => !c.rolledBack).map((c) => c.abs);
     return {
-      output: renameMod.describe(r),
+      output: `${viaServer && viaServer.why ? `(no language-server rename: ${viaServer.why} — renamed on JavaScript tokens instead)
+` : ''}${renameMod.describe(r)}`,
       isError: r.changed.some((c) => c.rolledBack),
       mutated,
-      meta: { renamed: mutated.length, sites: r.sites, textOnly: r.textOnly.length },
+      meta: { via: 'tokens', renamed: mutated.length, sites: r.sites, textOnly: r.textOnly.length },
     };
   },
 };

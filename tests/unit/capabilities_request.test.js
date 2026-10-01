@@ -69,7 +69,7 @@ module.exports = async function () {
     assert.ok(names.includes('request_browser') && names.includes('request_computer'));
   });
 
-  await test('BROWSER ROUTER: the user\'s Chrome, the frontend dev server, or an isolated browser — chosen by LAIN', () => {
+  await test('BROWSER ROUTER: the user\'s Chrome, the frontend dev server, or an isolated browser — chosen by Noema', () => {
     const r = require('../../src/browserrouter');
     const chromeApp = { _lainChrome: { status: () => ({ connected: true, extensionSeen: true, authorizedTabs: [{ id: 1, url: 'https://mail.example.com', title: 'Mail' }] }) } };
     assert.strictEqual(r.choose(chromeApp, { target: 'current' }).backend, 'chrome');
@@ -162,7 +162,7 @@ module.exports = async function () {
     } finally { await srv.close(); }
   });
 
-  await test('WEBAPP: endpoint selection is AUTHENTICATED — the page\'s own probe accepts the real LAIN and refuses an impostor answering {lain:true}', async () => {
+  await test('WEBAPP: endpoint selection is AUTHENTICATED — the page\'s own probe accepts the real Noema and refuses an impostor answering {lain:true}', async () => {
     // Audit 2026-09-19: any server answering /ping {lain:true} was chosen and then sent the signed
     // initData — a stale LAN/VPN address held by another device could collect and replay it.
     const w = require('../../src/webapp');
@@ -180,7 +180,7 @@ module.exports = async function () {
       const src = w.PAGE.match(/const K=[\s\S]*?async function probe[^\n]*\n/)[0];
       const probeWith = (k) => new Function('location', 'window', `${src}; return probe;`)({ search: `?k=${k}` }, { crypto: globalThis.crypto });
       const probe = probeWith(srv.pingKey);
-      assert.strictEqual(await probe(real), true, 'the genuine LAIN proves itself');
+      assert.strictEqual(await probe(real), true, 'the genuine Noema proves itself');
       assert.strictEqual(await probe(fake), false, 'an impostor answering {lain:true} is refused');
       assert.strictEqual(await probeWith('0'.repeat(64))(real), false, 'a wrong key verifies nothing');
       assert.strictEqual(await probeWith('')(real), false, 'no key (an old button) sends initData nowhere');

@@ -123,7 +123,7 @@ module.exports = async function () {
     assert.strictEqual(r.openSurface('STATUS'), false, 'a command\'s output does not replace the inspector');
     assert.strictEqual(panel.kind, KIND.INSPECTOR);
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'ui', 'index.js'), 'utf8');
-    assert.match(src, /awaitingUser:[^\n]*!this\.panel\.isInspector/, 'the header does not claim LAIN is waiting on you');
+    assert.match(src, /awaitingUser:[^\n]*!this\.panel\.isInspector/, 'the header does not claim Noema is waiting on you');
     const commands = require('../../src/commands');
     assert.strictEqual(commands.REGISTRY.get('/diff').flashMs || 0, 0, 'no timer takes it off the screen');
   });

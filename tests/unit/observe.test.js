@@ -280,7 +280,7 @@ module.exports = async function () {
     const computer = require('../../src/computer');
     let captures = 0;
     const app = { desktop: () => ({ bridge: { call: async (op) => {
-      if (op === 'window.list') return { ok: true, result: { windows: [{ title: 'LAIN', rect: { x: 0, y: 0, width: 10, height: 10 } }] } };
+      if (op === 'window.list') return { ok: true, result: { windows: [{ title: 'Noema', rect: { x: 0, y: 0, width: 10, height: 10 } }] } };
       if (op === 'screen.capture') { captures += 1; return { ok: true, result: { path: 'all.png' } }; }
       return { ok: false, error: 'no' };
     } } }) };
@@ -288,7 +288,7 @@ module.exports = async function () {
     assert.strictEqual(r.ok, false);
     assert.strictEqual(captures, 0, 'nothing may be captured when the aim could not be established');
     assert.match(r.why, /no window titled/);
-    assert.match(r.why, /LAIN/, 'and it says what IS open, so the next call can be right');
+    assert.match(r.why, /Noema/, 'and it says what IS open, so the next call can be right');
   });
 
   await test('AIM: a transport that cannot take a region says so instead of faking it', async () => {

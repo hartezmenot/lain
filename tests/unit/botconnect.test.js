@@ -3,7 +3,7 @@
 /**
  * TELEGRAM APPROVAL RULES, WITHOUT A NETWORK OR A SUPERVISOR.
  *
- *   · only an unauthorized PRIVATE `/start` from a person is recorded as a candidate
+ *   · only an unauthorized PRIVATE message from a person is recorded as a candidate
  *   · recording grants nothing
  *   · only a recorded candidate can be approved, and approval takes effect on
  *     the running gateway's own settings object — no restart
@@ -32,7 +32,7 @@ function msg(sender, text, kind = 'dm') {
 }
 
 module.exports = async function () {
-  await test('BOT: only a private /start from an unapproved person becomes a candidate, and it grants nothing', async () => {
+  await test('BOT: only a private message from an unapproved person becomes a candidate, and it grants nothing', async () => {
     const settings = { enabled: true, accountId: 'default', allowUsers: [] };
     const ran = [];
     const gw = new Gateway({
@@ -48,7 +48,7 @@ module.exports = async function () {
       await gw.receive(msg(777, '/start', 'group'));
       await gw.receive({ ...msg(666, '/start'), bot: true });
       const cands = Object.values(gw.store.data.candidates || {});
-      assert.deepStrictEqual(cands.map((c) => c.senderId), ['999'], 'only the private /start from a person');
+      assert.deepStrictEqual(cands.map((c) => c.senderId).sort(), ['888', '999'], 'any private message from a person — never a group, never a bot');
       assert.strictEqual(ran.length, 0, 'no turn ran for anyone');
       assert.strictEqual(authorized(require('../../src/bot/contract').event(msg(999, 'hi')), settings), false);
 

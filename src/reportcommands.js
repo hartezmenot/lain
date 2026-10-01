@@ -83,7 +83,7 @@ function register({ define, C, config }) {
   define('/ready', {
     surface: true,
     flashMs: 0,
-    desc: 'Is LAIN ready? RC-readiness for the CLI itself (not the project)',
+    desc: 'Is Noema ready? RC-readiness for the CLI itself (not the project)',
     run(app, ctx) { return require('./health').runCommand(app, ctx, { C }); },
   });
 
@@ -180,10 +180,34 @@ function register({ define, C, config }) {
   });
 
   /** The environment report. The checks themselves live in diagnose.js. */
+  // CACHE AND TEMPORARY FILES (cachecare.js) — the same owner as `lain cache` and Settings › Storage.
+  define('/cache', {
+    surface: true,
+    flashMs: 0,
+    args: '[inspect | clear [ids…] [--yes]]',
+    desc: 'Show or clear Noema\'s disposable cache and temporary files — sessions, accounts and settings stay',
+    async run(app, { args = [] } = {}) {
+      const verb = args[0] || 'inspect';
+      const out = { write: (s) => app.render.write(s) };
+      await require('./cachecare').cli([verb === 'clear' || verb === 'inspect' ? verb : 'help', ...args.slice(1)], { out, app });
+    },
+  });
+
+  define('/update', {
+    surface: true,
+    flashMs: 0,
+    args: '[now | after-checkpoint | after-task | later | check]',
+    desc: 'Check for a Noema update, or choose when a downloaded one restarts Noema — never in the middle of a step',
+    async run(app, { args = [] } = {}) {
+      app.render.write(`  ${await require('./update/cli').command(app, args[0] || '')}
+`);
+    },
+  });
+
   define('/doctor', {
     surface: true,
     flashMs: 0,
-    desc: 'Check the environment LAIN is running in',
+    desc: 'Check the environment Noema is running in',
     async run(app) {
       app.render.write('\n' + C.bold('Doctor') + '\n');
       app.render.write(require('./bot/service').describe(await require('./bot/service').control()) + '\n');

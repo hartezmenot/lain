@@ -47,7 +47,12 @@ async function start(app) {
   // NOT FATAL, and quiet. A LAIN that cannot claim the lock works completely; it
   // is simply not the one a later launch will find, and saying so at startup
   // would be noise about a file nobody asked about. See src/corelock.js.
+  // THE KEYS, READ WHILE THE REST STARTS (Phase 8.2): the first listing finds them warm.
+  try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
+  // The messaging the person connected comes back with LAIN (see desktoprun.js).
+  require('./botconnect').resume(app).catch(() => {});
+  try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
 
   // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
   //
@@ -79,25 +84,13 @@ async function start(app) {
     try {
       const r = await require('./dash').start(app, { lan: Boolean(app.cfg.dashLan) });
       if (r.ok) {
-        // THE STARTUP PASSWORD IS NOT PRINTED ONCE A CHOSEN ONE EXISTS: a
-        // second, equally valid credential on every startup would make the
-        // chosen password decorative.
-        //
-        // THE VALUE GETS ITS OWN ROW. This is ordinary scrollback written before
-        // the UI exists, so nothing clips or wraps it for us and it has to fit a
-        // 40-column terminal on its own. `  password <32 hex>` is 43 and wraps;
-        // the label alone is 12 and the value alone is 34, so both fit. It used
-        // to say `key` purely because that word is short — which is how the one
-        // thing a person actually has to type ended up with a name nothing else
-        // in the program used.
+        // NO CREDENTIAL IN THE TERMINAL (consolidation §11). Scrollback is history: it is copied, logged, screenshotted
+        // and shared, so the startup password it used to print was a secret in exactly the place secrets must never
+        // be. A browser signs in with the password the person chose (`/dash password`, typed hidden); until one is
+        // set the line says how. The address is not a secret and is still shown.
         const locked = require('./dashauth').configured(app.cfg);
         app.render.write(C.dim(`  dashboard ${r.urls[0]}\n`));
-        if (locked) {
-          app.render.write(C.dim('  password required\n'));
-        } else {
-          app.render.write(C.dim('  password\n'));
-          app.render.write(C.dim(`  ${r.startupPassword}\n`));
-        }
+        app.render.write(C.dim(locked ? '  password required\n' : '  no password yet — /dash password\n'));
       } else {
         app.render.write(C.dim(`  dashboard  did not start: ${r.error} — /dash on to retry\n`));
       }
@@ -147,6 +140,9 @@ async function start(app) {
   // Keys, in priority order. An open completion menu gets first refusal, then
   // the UI (modal panels, scrolling); ↑/↓ mean HISTORY only when
   // nothing is open, which is why the two can never be confused.
+  // THE PERSON IS HERE: any key, edit, paste or click — not only a sent message — keeps a self-update from
+  // restarting under a half-typed draft (update/cli.js restarts only after a quiet minute).
+  for (const ev of ['key', 'edit', 'input', 'mouse', 'clipboard']) input.on(ev, () => { app._lastInputAt = Date.now(); });
   input.on('key', (k) => {
     app.disarmExit();              // any deliberate key clears the exit confirmation
     if (!tui) return;
@@ -538,6 +534,8 @@ async function start(app) {
   await require('./teardown').shutdown(app, { why: 'the session ended' });
   process.removeListener('unhandledRejection', onRejection);
   app.ui.disable();                       // restore the user's terminal
+  // CLOSING THE CLI PAUSES THE TASK, never ends it: the Harness shows Paused · CLI closed and ▶ Continue.
+  try { require('./surfacehandoff').release(app); } catch { /* best effort */ }
   try { app.session.save(); } catch { /* best effort on the way out */ }
   app.render.nl();
   // The REAL persisted session id — never a fresh one generated at exit.
@@ -545,7 +543,7 @@ async function start(app) {
   // Session.match) — a shorter thing to type, not a different thing.
   app.render.write(C.dim('  Session saved.') + '\n\n');
   app.render.write(C.dim('  Resume with:') + '\n');
-  app.render.write(`    lain --resume ${Session.shortId(app.session.id)}` + '\n');
+  app.render.write(`    noema --resume ${Session.shortId(app.session.id)}` + '\n');
   return app.exitCode;
 }
 

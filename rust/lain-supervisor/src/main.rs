@@ -112,7 +112,10 @@ fn home() -> PathBuf {
     let base = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(base).join(".lain-v2")
+    // NOEMA'S HOME (~/.noema), or LAIN's (~/.lain-v2) on a machine that has not moved it yet. Noema always
+    // passes --home; this is only the fallback for a supervisor started by hand.
+    let noema = PathBuf::from(&base).join(".noema");
+    if noema.is_dir() { noema } else { PathBuf::from(base).join(".lain-v2") }
 }
 
 fn state_dir() -> PathBuf {

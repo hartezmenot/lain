@@ -49,8 +49,7 @@ const SOURCE = (() => { const h = harness(); return h.ok ? h.hostSource : ''; })
 
 /** Where a built host and its packaged assets live, outside the source tree. */
 function homeDir() {
-  const base = process.env.LAIN_CONFIG_DIR
-    || path.join(os.homedir(), '.lain-v2');
+  const base = require('./home').resolve();
   return path.join(base, 'desktop');
 }
 
@@ -82,6 +81,23 @@ function writeAssets(dir) {
   const html = h.html();
   const file = path.join(dir, 'index.html');
   fs.writeFileSync(file, html);
+  // THE HARNESS'S OTHER ASSETS (its vendored editor) are served from the same
+  // origin as the page — web workers require it. COPIED, not linked: WebView2's
+  // virtual host refuses to follow a junction (ERR_ACCESS_DENIED, measured), so
+  // the files must really be under the mapped folder. Copied once per version:
+  // a VERSION file that matches means the copy is already current.
+  for (const a of (typeof h.assetDirs === 'function' ? h.assetDirs() : [])) {
+    const at = path.join(dir, ...String(a.url).split('/'));
+    try {
+      const want = fs.readFileSync(path.join(a.dir, 'VERSION'), 'utf8');
+      let have = null;
+      try { have = fs.readFileSync(path.join(at, 'VERSION'), 'utf8'); } catch { have = null; }
+      if (have === want && !fs.lstatSync(at).isSymbolicLink()) continue;
+      fs.rmSync(at, { recursive: true, force: true });
+      fs.mkdirSync(path.dirname(at), { recursive: true });
+      fs.cpSync(a.dir, at, { recursive: true });
+    } catch { /* the page falls back to its built-in editor */ }
+  }
   return { dir, file, bytes: Buffer.byteLength(html) };
 }
 
@@ -90,8 +106,13 @@ function writeAssets(dir) {
  *
  * @returns {{ok: boolean, why?: string, exe?: string, built?: boolean}}
  */
-function build({ quiet = true } = {}) {
-  if (process.platform !== 'win32') return { ok: false, why: 'LAIN Desktop is Windows-only for now' };
+/** The Noema icon the host carries (title bar, taskbar, Alt+Tab). */
+const ICON = path.join(__dirname, '..', 'distribution', 'brand', 'noema.ico');
+/** A host built by the release (distribution/release.js) — an installed Noema never needs a compiler. */
+const PREBUILT = path.join(__dirname, '..', 'native', 'prebuilt');
+
+function build({ quiet = true, out: outDir = null } = {}) {
+  if (process.platform !== 'win32') return { ok: false, why: 'Noema Desktop is Windows-only for now' };
   let src;
   const h = harness();
   if (!h.ok) return { ok: false, why: h.why };
@@ -107,11 +128,12 @@ function build({ quiet = true } = {}) {
   const stamp = crypto.createHash('sha256')
     .update(src)
     .update(fs.readFileSync(sdk.refs[0]))
+    .update(fs.existsSync(ICON) ? fs.readFileSync(ICON) : Buffer.alloc(0))
     .digest('hex')
     .slice(0, 12);
-  const out = homeDir();
+  const out = outDir || homeDir();
   fs.mkdirSync(out, { recursive: true });
-  const exe = path.join(out, `lain-desktop-${stamp}.exe`);
+  const exe = path.join(out, `noema-harness-${stamp}.exe`);
 
   // THE LOADER AND THE ASSEMBLIES MUST SIT BESIDE THE EXE, because that is
   // where the CLR and the WebView2 loader look for them.
@@ -123,9 +145,13 @@ function build({ quiet = true } = {}) {
   if (!fs.existsSync(loader)) fs.copyFileSync(sdk.loader, loader);
 
   if (fs.existsSync(exe)) return { ok: true, exe, built: false, dir: out };
+  // THE RELEASE SHIPPED THIS VERY BUILD: copied, not compiled.
+  const shipped = path.join(PREBUILT, path.basename(exe));
+  if (!outDir && fs.existsSync(shipped)) { fs.copyFileSync(shipped, exe); return { ok: true, exe, built: false, prebuilt: true, dir: out }; }
 
   const args = [
     '/nologo', '/target:winexe', '/platform:x64', '/optimize+',
+    ...(fs.existsSync(ICON) ? [`/win32icon:${ICON}`] : []),
     `/out:${exe}`,
     '/reference:System.dll',
     '/reference:System.Core.dll',
@@ -145,7 +171,13 @@ function build({ quiet = true } = {}) {
 }
 
 /** Where a shortcut points. Stable across rebuilds, unlike the hashed name. */
-function launcherPath() { return path.join(homeDir(), 'LAIN.exe'); }
+function launcherPath() { return path.join(homeDir(), 'Noema Harness.exe'); }
+
+/** The release build: compile the host (and its SDK files) into `dir` for distribution/release.js. */
+function prebuild(dir) { return build({ out: dir }); }
+
+/** The window host for this build, or null — also what tells Explorer that "Open with" changed. */
+function hostExe() { const b = build(); return b.ok ? b.exe : null; }
 
 /**
  * MAKE THE APPLICATION LAUNCHABLE FROM A SHORTCUT.
@@ -155,7 +187,7 @@ function launcherPath() { return path.join(homeDir(), 'LAIN.exe'); }
  *
  * A STABLE NAME. The build is cached under the hash of its inputs, which is
  * right for a cache and useless for a shortcut: the target would break on the
- * next change to the host. `LAIN.exe` is a copy under a name that does not
+ * next change to the host. `Noema Harness.exe` is a copy under a name that does not
  * move.
  *
  * AND A WAY TO FIND NODE. Started from Explorer the host has no Core, no
@@ -173,10 +205,10 @@ function launcherPath() { return path.join(homeDir(), 'LAIN.exe'); }
 function installLauncher(built, { cfg = {}, at = null } = {}) {
   if (!built || !built.ok) return { ok: false, why: (built && built.why) || 'the host is not built' };
   const node = require('./noderesolve').find({ cfg });
-  const entry = path.join(__dirname, '..', 'bin', 'lain.js');
+  const entry = path.join(__dirname, '..', 'bin', 'noema.js');
   // WHERE THE FRONT DOOR GOES. By default LAIN's own directory, which is what a
   // developer running from a checkout wants. An INSTALL passes `at`, because
-  // LAIN.exe belongs with the program it launches — and the uninstaller then
+  // Noema Harness.exe belongs with the program it launches — and the uninstaller then
   // removes it with everything else it put there.
   //
   // `launch.json` goes BESIDE THE LAUNCHER, wherever that is: native/host.cs
@@ -208,7 +240,7 @@ function installLauncher(built, { cfg = {}, at = null } = {}) {
  *
  * @returns {Promise<{ok: boolean, why?: string, pid?: number, pipe?: string}>}
  */
-async function open(app, { dev = false, wait = false, debugPort = 0 } = {}) {
+async function open(app, { dev = false, wait = false, debugPort = 0, mode = null, section = null, minimized = false } = {}) {
   const built = build();
   if (!built.ok) return built;
 
@@ -216,15 +248,34 @@ async function open(app, { dev = false, wait = false, debugPort = 0 } = {}) {
   const started = await ipc.start(app);
   if (!started.ok) return { ok: false, why: started.why };
 
+  // THE EDITOR'S CODE, fetched once (pinned, verified) and bounded so a slow
+  // network never holds the window: without it the page uses its own editor.
+  const h = harness();
+  if (h.ok && typeof h.ensureVendor === 'function') {
+    await require('./deadline').race(h.ensureVendor().catch(() => null), 90_000);
+  }
   const assets = writeAssets(path.join(built.dir, 'assets'));
 
+  // THE WINDOW'S OWN FILES FOLLOW THE CONFIG HOME. Under the real home these
+  // are exactly the host's defaults; under a test profile they are the
+  // profile's, so a test window never writes the person's window state or
+  // renderer profile.
+  const base = path.dirname(homeDir());
   const args = [
     '--pipe', started.pipe,
     '--secret', started.secret,
     '--assets', assets.dir,
+    '--window-state', path.join(base, mode ? `desktop-window-${mode}.json` : 'desktop-window.json'),
+    '--user-data', dev ? path.join(homeDir(), 'dev') : homeDir(),
+    // THE CORE THIS WINDOW BELONGS TO: the host ends itself when this process is gone (no orphan windows).
+    '--core-pid', String(process.pid),
   ];
   // A DEBUGGING PORT IS A DEVELOPMENT AFFORDANCE AND IS GATED TWICE — here and
   // again in the host — so a release build cannot open one by accident.
+  // A SMALL NOEMA WINDOW (packaging pass §E, §M): the Model Dashboard or the Preview alone — the same page and components
+  // as the Harness, drawn in that mode, with the ordinary Windows title bar.
+  if (mode === 'dashboard' || mode === 'preview') args.push('--mode', mode, '--native-caption', ...(section ? ['--section', String(section)] : []));
+  if (minimized) args.push('--minimized');   // started at sign-in with "Start minimized" (startup.js)
   if (dev) args.push('--dev');
   if (dev && debugPort) args.push('--debug-port', String(debugPort));
 
@@ -254,7 +305,7 @@ function status() {
   const out = homeDir();
   let exe = null;
   try {
-    const rows = fs.readdirSync(out).filter((f) => /^lain-desktop-[0-9a-f]+\.exe$/.test(f));
+    const rows = fs.readdirSync(out).filter((f) => /^noema-harness-[0-9a-f]+\.exe$/.test(f));
     exe = rows.length ? path.join(out, rows[rows.length - 1]) : null;
   } catch { /* nothing built yet */ }
   return {
@@ -268,4 +319,4 @@ function status() {
   };
 }
 
-module.exports = { build, open, status, writeAssets, compiler, homeDir, installLauncher, launcherPath, SOURCE };
+module.exports = { build, prebuild, hostExe, open, status, writeAssets, compiler, homeDir, installLauncher, launcherPath, SOURCE };

@@ -87,9 +87,9 @@ module.exports = async function () {
     // transient row above the caret instead — see ui/operation.js. The
     // requirement is unchanged and is what is asserted: the person is told.
     assertIncludes(out, 'Recovering interrupted turn',
-      'LAIN says the sentence was caught rather than sent');
+      'Noema says the sentence was caught rather than sent');
     // AND IT IS NOT PROSE. The old sentence must not come back.
-    assert.ok(!/Recovering with what LAIN observed rather than sending/.test(out),
+    assert.ok(!/Recovering with what Noema observed rather than sending/.test(out),
       'the recovery paragraph must not be glued into the conversation again');
 
     // ---- AND IT CONTINUED ------------------------------------------------

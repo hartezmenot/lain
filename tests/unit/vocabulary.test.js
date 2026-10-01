@@ -58,13 +58,13 @@ module.exports = async function () {
     }
   });
 
-  await test('VOCAB: WAITING FOR A TOOL is a different ACTOR from LAIN thinking', () => {
+  await test('VOCAB: WAITING FOR A TOOL is a different ACTOR from Noema thinking', () => {
     // These two share a family of words on purpose — RUNNING npm test IS the
     // working state — so what separates them is the actor column: LAIN is
     // waiting on a model, TOOL is this machine doing something.
     const thinking = st.liveState({ phase: { phase: 'WAITING_MODEL' } });
     const tool = st.liveState({ phase: { phase: 'RUNNING_TOOL', tool: 'run_bash', target: 'npm test' } });
-    assert.strictEqual(thinking.actor, 'LAIN');
+    assert.strictEqual(thinking.actor, 'Noema');
     assert.strictEqual(tool.actor, 'TOOL');
     assert.notStrictEqual(thinking.word, tool.word);
   });

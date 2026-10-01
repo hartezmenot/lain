@@ -96,7 +96,7 @@ module.exports = async function () {
     assert.strictEqual(week.word, 'WEEKLY LIMIT');
     assert.match(week.detail, /reset in 4d 0h · [A-Z][a-z]+day \d\d:\d\d$/);
     const w = require('../../src/ui/status').liveState({ failed: { kind: 'RATE_LIMITED', resumeAt: Date.now() + 86400000 * 4 } }, Date.now());
-    assert.strictEqual(w.actor, 'NET', 'a limit is the provider, not LAIN');
+    assert.strictEqual(w.actor, 'NET', 'a limit is the provider, not Noema');
     const said = [];
     require('../../src/turnevents').noteInterruption({ ui: { enabled: true, noteActor: (k, t) => said.push(t) } },
       { stopReason: 'rate-limited', providerFailure: { kind: 'RATE_LIMITED' } });

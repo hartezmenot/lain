@@ -109,16 +109,12 @@ module.exports = async function () {
     const text = JSON.stringify(schema);
     for (const field of findings.FIELDS) assert.ok(text.includes(field), `${field} is part of the contract`);
 
-    // AND THE MODEL IS TOLD IT EXISTS. A tool that is registered but never
-    // named in guidance is one nothing reaches for — the schema list is long,
-    // and the plan tools beside it are introduced by name for the same reason.
-    const prompt = require('../../src/prompt');
-    const built = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm', separate: true });
-    assert.match(`${built.stable}\n${built.live}`, /plan_findings/,
-      'the prompt introduces it where it introduces plan_write and plan_step_done');
+    // THE TOOL DESCRIBES ITSELF. The standing policy no longer introduces tools by name (it teaches judgment; the
+    // schemas carry the mechanics), so what the model reads about plan_findings is its own description.
+    assert.ok(String(schema.description || '').length >= 20, 'the schema says what it is for');
   });
 
-  await test('DERIVED: LAIN knows what landed even if the model never said so', () => {
+  await test('DERIVED: Noema knows what landed even if the model never said so', () => {
     // ---- THE LIMITATION THIS CLOSES -------------------------------------
     //
     // `plan_findings` is written by the MODEL, and a model that forgets to call
@@ -203,21 +199,13 @@ module.exports = async function () {
     assert.strictEqual((await close.after(app, rec, 'x')).text, 'finished');
   });
 
-  await test('POLICY: the prompt says to stop reading once the reading is done', () => {
-    // §23. The policy is the half a mechanism cannot supply: non-progress
-    // detection catches the SAME read repeated, and this catches the endless
-    // sequence of DIFFERENT reads that each look reasonable alone.
+  await test('POLICY: the investigation stops when no further observation would change the next action', () => {
+    // §43 of the execution discipline: one question replaces the old list of loop excuses — "would another available
+    // observation change what I do next?" — answering both blind action and repository tourism.
     const prompt = require('../../src/prompt');
     const built = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm', separate: true });
     const all = `${built.stable}\n${built.live}`;
-    assert.match(all, /WHEN THE READING IS DONE, PATCH/);
-    // IT NAMES THE SENTENCES A LOOP TELLS ITSELF, because a general instruction
-    // to "be efficient" is one every loop already believes it is following.
-    for (const excuse of ['exact idiom', 'one more look', 'anchors', 'decisive batch']) {
-      assert.ok(all.includes(excuse), `the policy names "${excuse}" as a non-reason`);
-    }
-    // AND IT LEAVES A REAL QUESTION A WAY THROUGH — the rule is "name it", not
-    // "never read again", which would be a worse failure in the other direction.
-    assert.match(all, /CONCRETE UNRESOLVED QUESTION/);
+    assert.match(all, /when no further observation would change what you do next, act/i);
+    assert.match(all, /cheapest observation closest to the ground truth/i);
   });
 };

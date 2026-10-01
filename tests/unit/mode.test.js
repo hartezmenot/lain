@@ -83,7 +83,7 @@ module.exports = async function () {
     assert.strictEqual(m('explain why the parser crashes on empty input'), K.BUGFIX);
   });
 
-  await test('MODE: pleasantries do not send LAIN into the repository', () => {
+  await test('MODE: pleasantries do not send Noema into the repository', () => {
     for (const t of ['hi', 'thanks', 'ok', 'nice, thank you']) {
       assert.strictEqual(m(t), K.CHAT, t);
     }
@@ -195,9 +195,24 @@ module.exports = async function () {
       ['add a --json flag to the export command', K.IMPLEMENT],
       ['fix the login bug in src/auth.js', K.BUGFIX],
       ['rename the module and move it into core', K.REFACTOR],
+      ['move the helper functions into utils.js', K.REFACTOR],
+      ['move this to lib/', K.REFACTOR],                                     // used to THROW in dispatch.kindOf
+      // A VISUAL NUDGE IS NOT A RESTRUCTURING (2026-10-01): it was given "run the tests first, behaviour is correct".
+      ['Move the Add one button down by 6px. Verify it in the Preview.', K.IMPLEMENT],
     ]) {
       assert.strictEqual(mode.classify(text, { projectEmpty: false }).mode, want, text);
     }
+  });
+
+  await test('MODE: a folder whose source sits at the top level (index.html, app.py) is a project, not EMPTY', () => {
+    const fs = require('fs'); const path = require('path');
+    const dir = require('../helpers').tmpdir('flat-');
+    const isEmpty = (d) => require('../../src/projectcache').isEmpty({ session: { cwd: d } });
+    assert.strictEqual(isEmpty(dir), true, 'nothing at all is EMPTY');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'x');
+    assert.strictEqual(isEmpty(dir), true, 'a note is not a project');
+    fs.writeFileSync(path.join(dir, 'index.html'), '<p>x</p>');
+    assert.strictEqual(isEmpty(dir), false, 'one page is');
   });
 
   await test('MODE: a plain question is EXPLAIN, not the IMPLEMENT default; defects and change requests keep their modes', () => {

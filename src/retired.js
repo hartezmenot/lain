@@ -94,7 +94,7 @@ function unavailableText(sel) {
   if (!sel) return '';
   const what = sel.model ? `"${sel.model}"` : 'The selected model';
   return `Unavailable · provider removed — ${what} was served by ${sel.connection || sel.system}, `
-    + `a ${sel.system} route LAIN no longer supports. /model to choose another.`;
+    + `a ${sel.system} route Noema no longer supports. /model to choose another.`;
 }
 
 /** Delete on-disk catalog caches written for removed connections. Best effort. */

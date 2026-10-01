@@ -349,7 +349,7 @@ pub fn respond(kernel: &Arc<Kernel>, chat_id: i64, label: &str, text: &str) -> O
         }
         if cmd == "/start" || rest.is_empty() {
             return Some(
-                "LAIN remote control.\n\nThis chat is not authorized yet. Run /rc in the LAIN \
+                "Noema remote control.\n\nThis chat is not authorized yet. Run /rc in the Noema \
                  terminal to get a pairing code, then send:\n\n/pair XXXX-XXXX"
                     .to_string(),
             );
@@ -368,7 +368,7 @@ pub fn respond(kernel: &Arc<Kernel>, chat_id: i64, label: &str, text: &str) -> O
         // whether LAIN is running at all. A sentence rather than silence,
         // because the person who most often lands here is the legitimate user.
         return Some(
-            "This chat is not authorized. Run /rc in the LAIN terminal for a pairing code."
+            "This chat is not authorized. Run /rc in the Noema terminal for a pairing code."
                 .to_string(),
         );
     }
@@ -402,7 +402,7 @@ pub fn respond(kernel: &Arc<Kernel>, chat_id: i64, label: &str, text: &str) -> O
     if !cfg.configured() {
         return Some(format!(
             "No local model is configured, so I can only answer commands.\n\
-             Run /rc in the LAIN terminal to choose one.\n\n{}",
+             Run /rc in the Noema terminal to choose one.\n\n{}",
             help()
         ));
     }

@@ -12,7 +12,7 @@
  * test builds its own state object, and a defect in how the real app ASSEMBLES
  * that state would be invisible to it.
  *
- * This spawns `bin/lain.js` in a real TUI at a real width, takes the last frame
+ * This spawns `bin/noema.js` in a real TUI at a real width, takes the last frame
  * it painted, and measures the columns every primary surface actually landed on.
  * It is the check the steer asked for in as many words: draw imaginary vertical
  * lines down both sides and have every surface touch them.

@@ -477,7 +477,9 @@ class Renderer {
     if (record.toolCalls) bits.push(`${record.toolCalls} tool call${record.toolCalls === 1 ? '' : 's'}`);
     if (record.mutations.length) bits.push(`${record.mutations.length} file${record.mutations.length === 1 ? '' : 's'} changed`);
     const u = record.usage;
-    if (u.inputTokens || u.outputTokens) bits.push(`↑${u.inputTokens} ↓${u.outputTokens}`);
+    // THE RECEIPT IN WORDS (ui/activityline.receipt): `in 18.2k · reasoning 7.4k · out 1.1k · cache 12.8k`, only what was stated.
+    const receipt = require('./ui/activityline').receipt(u);
+    if (receipt) bits.push(receipt);
     if (record.stopReason && record.stopReason !== 'end') bits.push(`stopped: ${record.stopReason}`);
     if (bits.length) this.write(C.dim(`  ${bits.join(' · ')}`) + '\n');
   }

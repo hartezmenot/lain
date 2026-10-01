@@ -135,7 +135,8 @@ function derive(session, step) {
   const receipts = Array.isArray(session.mutationReceipts) ? session.mutationReceipts : [];
   for (const r of receipts) {
     if (!r || r.verdict !== 'KEEP') continue;            // a reverted change did not land
-    if (Number(r.planStep) !== n) continue;              // and it belongs to THIS step
+    // AND IT BELONGS TO THIS STEP — by the step's id when the receipt has one (numbers move when a plan is revised).
+    if (r.planStepId && step.id ? r.planStepId !== step.id : Number(r.planStep) !== n) continue;
     for (const t of (r.targets || [])) {
       if (t) landed.push(String(t));
     }

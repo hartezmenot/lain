@@ -162,7 +162,7 @@ class DevServers {
   async restart(root, opts = {}) {
     const key = this._key(root);
     const rec = this._rec.get(key);
-    if (rec && rec.adopted) return { ok: false, why: 'this dev server was already running when LAIN found it — restart it where it was started', devServer: this.get(key) };
+    if (rec && rec.adopted) return { ok: false, why: 'this dev server was already running when Noema found it — restart it where it was started', devServer: this.get(key) };
     if (rec) {
       rec.status = STATUS.RESTARTING;
       if (rec.processId && this.processes) { try { await this.processes.stop(rec.processId); } catch { /* the start below reports */ } }

@@ -59,6 +59,33 @@ const VERDICT = Object.freeze({
 
 const MAX_RECEIPTS = 60;
 
+/**
+ * WHO MADE THE CHANGE. One transaction lifecycle for every actor; the actor
+ * decides attribution, never the path the bytes took.
+ *
+ *   USER    the person — an editor save, a create / rename / delete / replace
+ *           in the IDE, a rename the person asked the language server for
+ *   MODEL   a model's tool call (the Coding Agent, a worker)
+ *   CORE    Core itself, on the person's request, with no model (the
+ *           deterministic geometry and selection jobs)
+ *   TOOL    an attached tool acting for the person: an extension's edit, a
+ *           git operation that rewrote the working tree
+ *
+ * `ctx.origin` refines provenance where the ledger has a sharper word:
+ * 'FORMATTER', 'extension:<id>', 'language-server', 'git'.
+ */
+const ACTOR = Object.freeze({ USER: 'USER', MODEL: 'MODEL', CORE: 'CORE', TOOL: 'TOOL' });
+
+function provenanceSource(actor, origin) {
+  const o = String(origin || '');
+  if (o === 'FORMATTER') return 'FORMATTER';
+  if (o.startsWith('extension:')) return 'EXTENSION';
+  if (actor === ACTOR.USER) return 'USER';
+  if (actor === ACTOR.CORE) return 'CORE';
+  if (actor === ACTOR.TOOL) return 'TOOL';
+  return 'AGENT';
+}
+
 const PATH_TOOLS = new Set([
   'write_file', 'edit_file', 'apply_patch', 'append_file', 'insert_at', 'delete_range', 'delete_file',
   'replace_symbol', 'insert_near_symbol', 'remove_symbol',
@@ -225,12 +252,17 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   if (!t) return apply();
 
   const seq = session ? (session._txSeq = (session._txSeq || 0) + 1) : Date.now();
+  const actor = ACTOR[ctx.actor] ? ctx.actor : ACTOR.MODEL;
   const tx = {
+    actor,
+    origin: ctx.origin ? String(ctx.origin).slice(0, 80) : null,
     id: `T${seq}`,
     tool: name,
     startedAt: Date.now(),
     taskId: (session && session.task && session.task.id) || '',
     planStep: openStep >= 0 ? openStep + 1 : null,
+    // THE STEP'S IDENTITY (plan.js ids): a receipt still belongs to its step after the plan is revised and renumbered.
+    planStepId: openStep >= 0 ? plan.steps[openStep].id || null : null,
     workOrderId: order ? order.id : '',
     bounded: guard.isBounded(order),
     targets: t.paths.map((p) => path.relative(cwd, p).replace(/\\/g, '/')),
@@ -282,10 +314,21 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
 
   // The project's first LAIN-controlled write is measured against a baseline.
   try { require('./freshness').ensureBaseline(cwd); } catch { /* intelligence is a convenience; the write is not */ }
+  // A FILE THAT MOVED UNDER LAIN since its provenance was last recorded is an
+  // EXTERNAL change, recorded before this one is attributed (editledger.js).
+  for (const x of tx._targets) {
+    if (!x.before || !x.before.bytes) continue;
+    try {
+      if (require('./editledger').observe(cwd, x.abs, x.before.bytes.toString('utf8'), { sessionId: session ? session.id : null })) {
+        require('./harnesscontext').noteSourceEdit(ctx.app || null, session, { file: x.rel, by: 'external' });
+      }
+    } catch { /* provenance never costs a write */ }
+  }
 
   // ---- CHECKPOINT -------------------------------------------------------------
   let checkpoint = null;
-  if (ctx.checkpoints && t.paths.length) {
+  // A PERSON'S OWN SAVE IS NOT A TURN: /undo reverts LAIN's work, never theirs.
+  if (ctx.checkpoints && t.paths.length && actor !== ACTOR.USER) {
     try { checkpoint = ctx.checkpoints.capture(ctx.turnId || null, t.paths); } catch { checkpoint = null; }
   }
   stage('CHECKPOINT', checkpoint ? checkpoint.id : 'in-memory');
@@ -312,6 +355,16 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   }
   const changed = tx._targets.filter((x) => x.before.fp !== x.afterFp);
   stage('APPLY', r.isError ? `error; ${changed.length} file(s) changed` : `${changed.length} file(s) changed`);
+  if (changed.length) require('./writeclock').mark();   // a page loaded before this is stale (browserharness.js)
+  // TEST INTEGRITY (discipline/integrity.js): what this write did to the measurements, read from the real bytes.
+  const owner = session || (ctx.app && ctx.app.session) || null;
+  const discipline = owner && owner.lifecycle && owner.lifecycle.discipline;
+  if (discipline && actor !== ACTOR.USER) {
+    for (const x of changed) {
+      const text = (b) => (b ? b.toString('utf8') : null);
+      try { discipline.noteWrite(x.rel, x.before.existed ? text(x.before.bytes) : null, x.afterFp ? text(x.afterBytes) : null); } catch { /* bookkeeping never costs a write */ }
+    }
+  }
   if (!changed.length) {
     tx.verdict = VERDICT.NOT_APPLIED;
     tx.endedAt = Date.now();
@@ -381,6 +434,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   } else {
     tx.verdict = VERDICT.KEEP;
     stage('SETTLE', VERDICT.KEEP);
+    consequences(ctx, tx, changed, { cwd, session, name, order, input });
     if (st.note) output += st.note;
     if (st.lint) output += st.lint;
   }
@@ -403,6 +457,103 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   };
 }
 
+/**
+ * WHAT EVERY KEPT CHANGE MEANS FOR THE REST OF CORE — once, here, whoever made
+ * it. Before this lived in five places (the editor save route, turnclose, the
+ * geometry and selection jobs, and each writer's own ledger call), and a path
+ * that forgot one left the project generation, the GUG or the provenance
+ * ledger describing a project that no longer existed.
+ *
+ *   provenance       editledger.record — who wrote which lines
+ *   generation       harnesscontext.noteSourceEdit — the ONE project
+ *                    generation, the GUG nodes the file sizes marked stale,
+ *                    the recent-actions ledger, the journey
+ *   PROJECT_DELTA    one event per transaction with the files and the actor
+ *
+ * (freshness, evidence invalidation and the receipt are done above, in the
+ * lifecycle itself.)
+ */
+function consequences(ctx, tx, changed, { cwd, session, name, order, input }) {
+  const source = provenanceSource(tx.actor, tx.origin);
+  const by = { USER: 'user', MODEL: 'agent', CORE: 'core', TOOL: 'tool' }[tx.actor] || 'agent';
+  const files = [];
+  for (const x of changed) {
+    files.push(x.rel);
+    // Too large to hold in memory is too large to diff; that write is not described.
+    if ((x.before.existed && !x.before.bytes) || (x.afterFp && !x.afterBytes)) continue;
+    try {
+      require('./editledger').record(cwd, {
+        source, path: x.abs,
+        before: x.before.bytes ? x.before.bytes.toString('utf8') : null,
+        after: x.afterBytes ? x.afterBytes.toString('utf8') : null,
+        sessionId: session ? session.id : null,
+        taskId: tx.actor === ACTOR.MODEL && session && session.task ? session.task.id : null,
+        actor: tx.origin || (guard.isBounded(order) ? 'worker' : (session && session._pluginGrant ? `plugin:${session._pluginGrant.id || ''}` : { USER: 'editor', MODEL: 'coding-agent', CORE: 'core', TOOL: 'tool' }[tx.actor])),
+        tool: name,
+      });
+    } catch { /* provenance never costs a write */ }
+  }
+  let generation = null;
+  for (const rel of files) {
+    try {
+      const r = require('./harnesscontext').noteSourceEdit(ctx.app || null, session, { file: rel, by, what: ctx.what || '' });
+      if (r) generation = r.generation;
+    } catch { /* the generation is Core's; a missing session only means no Harness context */ }
+  }
+  const app = ctx.app || null;
+  if (app && app.events && typeof app.events.emit === 'function') {
+    try { app.events.emit('project.delta', { actor: tx.actor, origin: tx.origin, files, generation, transaction: tx.id, tool: name }); } catch { /* observers never cost a write */ }
+  }
+  tx.generation = generation;
+}
+
+/**
+ * A CHANGE THAT IS NOT A MODEL'S TOOL CALL — the person's save in the editor,
+ * a create / rename / delete / replace in the IDE, a rename the person asked
+ * the language server for, an extension's edit, a git operation that rewrote
+ * the working tree. The SAME lifecycle as a tool write (baseline, checkpoint
+ * when it is a model's, apply, structural check, freshness, evidence
+ * invalidation, receipt, and `consequences`: provenance, the one project
+ * generation, the GUG, PROJECT_DELTA) — only the actor differs.
+ *
+ * `targets` are absolute file paths known before the write; `write` performs
+ * it and returns the caller's own result object (kept on the reply). A write
+ * that turns out to touch other files names them in `mutated`.
+ */
+async function change(app, { actor = ACTOR.USER, origin = null, name, targets, write, what = '' }) {
+  const session = app && app.session;
+  const ctx = {
+    app, session, cwd: (session && session.cwd) || process.cwd(), actor, origin, what,
+    checkpoints: actor === ACTOR.MODEL && app ? app.checkpoints : null,
+  };
+  return transact({
+    name, input: {}, ctx, targets: (targets || []).map((p) => path.resolve(String(p))),
+    apply: async () => {
+      const r = await write();
+      const out = r && typeof r === 'object' ? r : {};
+      return { output: out.output || (out.ok === false ? String(out.why || 'refused') : 'done'), ...out, isError: out.ok === false };
+    },
+  });
+}
+
+/** Every file under a folder (bounded) — what a folder rename or delete changes. */
+function filesUnder(dir, max = 5000) {
+  const out = [];
+  const walk = (d) => {
+    if (out.length >= max) return;
+    let list;
+    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of list) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p); else if (e.isFile()) out.push(p);
+      if (out.length >= max) return;
+    }
+  };
+  walk(dir);
+  return out;
+}
+
 module.exports = {
-  VERDICT, transact, targetsOf, isSourceMutation, snapshot, reverseHunk, revert, MAX_RECEIPTS,
+  change, filesUnder,
+  ACTOR, provenanceSource, VERDICT, transact, targetsOf, isSourceMutation, snapshot, reverseHunk, revert, MAX_RECEIPTS,
 };

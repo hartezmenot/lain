@@ -193,7 +193,7 @@ module.exports = async function () {
     assert.strictEqual(after.ok, false, 'further control fails closed');
   });
 
-  await test('LAIN FOR CHROME: a suspended MV3 worker is woken to resume polling (alarms keep-alive)', () => {
+  await test('NOEMA FOR CHROME: a suspended MV3 worker is woken to resume polling (alarms keep-alive)', () => {
     // Real Chrome 153, 2026-09-19: once the worker was idle, every request timed
     // out until the popup was opened; nothing woke the poll loop.
     const fs = require('fs');

@@ -4,7 +4,7 @@
  * THE CHAT SOURCES, THE DASHBOARD AND THE DESKTOP SEAM — through the real binary.
  *
  * A unit test proves a function returns the right thing; only this proves the
- * thing reaches a user. Everything here spawns bin/lain.js and asserts on what
+ * thing reaches a user. Everything here spawns bin/noema.js and asserts on what
  * a person would have read, or talks to the dashboard over real HTTP.
  *
  * LIMITATION, STATED: the model is the scripted mock provider. The PATH is real
@@ -40,6 +40,24 @@ function probot(cfg = {}) {
 // (Two scripted FACT / EVIDENCE / HYPOTHESIS / RECOMMENDATION reviews stood
 // here — the reviewer's half of the bounded relay these tests used to drive.
 // They went with it; nothing scripts a second model any more.)
+
+// NOTHING SECRET IS PRINTED (consolidation §11), so a client gets in the way the page does: a password the person
+// set (stored only as a scrypt hash) proved once at /api/login, which mints the session key every later call sends.
+const PW = 'correct horse battery staple';
+const withPassword = (cfg = {}) => ({ ...cfg, dashPassword: require('../../src/dashauth').hash(PW) });
+function login(port) {
+  return new Promise((resolve) => {
+    const data = JSON.stringify({ password: PW });
+    const req = http.request({ host: '127.0.0.1', port, path: '/api/login', method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } }, (res) => {
+      let b = '';
+      res.on('data', (d) => { b += d; });
+      res.on('end', () => { try { resolve(JSON.parse(b).session || null); } catch { resolve(null); } });
+    });
+    req.on('error', () => resolve(null));
+    req.end(data);
+  });
+}
+const SECRET_RE = /\b[a-f0-9]{32}\b/;
 
 function get(port, p, headers = {}) {
   return new Promise((resolve) => {
@@ -87,7 +105,7 @@ module.exports = async function () {
     assertNotIncludes(out, 'external reviewer');
   });
 
-  await test('SOURCE: the real binary answers /source, and defaults to LAIN', async () => {
+  await test('SOURCE: the real binary answers /source, and defaults to Noema', async () => {
     // THE REPLACEMENT, DRIVEN END TO END. It must list the three sources, mark
     // LAIN as the one in force with nothing configured, and — the sentence that
     // matters most — say that coding stays LAIN's whatever is selected.
@@ -101,26 +119,27 @@ module.exports = async function () {
     const out = plain(r.out);
     assert.strictEqual(r.code, 0);
     assertIncludes(out, 'Chat source');
-    assertIncludes(out, 'LAIN');
-    assertIncludes(out, 'ChatGPT.com');
-    assertIncludes(out, 'Gemini.google.com');
-    assertIncludes(out, "coding request always runs on LAIN's runtime");
+    assertIncludes(out, 'Noema');
+    // THE WEBSITE SOURCES WERE RETIRED (Phase 8.1): not listed, and nothing on screen points at them.
+    assert.ok(!/ChatGPT\.com|Gemini\.google\.com|\/source chatgpt/.test(out), 'a retired website source is neither listed nor suggested');
+    assertIncludes(out, "coding request always runs on Noema's runtime");
   });
 
-  await test('SOURCE: selecting a website source changes chat and NOT coding', async () => {
-    // Selected without connecting: choosing a source is a local decision and
-    // must not launch a browser, so this stays a smoke test and not a live one.
+  await test('SOURCE: a retired website source is refused, says what to use instead, and chat stays Noema', async () => {
+    // Selecting one is a local decision that must not launch a browser — and since
+    // Phase 8.1 the answer is a refusal with the way forward, never a half-selection.
     const { cwd, configDir } = probot({});
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/source chatgpt\n/source\n/source lain\n/exit\n',
+      stdin: '/source chatgpt\n/source\n/exit\n',
       script: [],
       timeoutMs: 40000,
     });
     const out = plain(r.out);
-    assertIncludes(out, 'chat source: ChatGPT.com');
-    assertIncludes(out, 'no model chosen yet');
-    assertIncludes(out, 'chat source: LAIN');
+    assertIncludes(out, 'website sources were retired');
+    assertIncludes(out, '/account');
+    assert.ok(!/chat source: ChatGPT\.com/.test(out), 'nothing was selected');
+    assert.match(out, /●\s+Noema/, 'chat is still Noema');
   });
 
   // ----------------------------------------------------------------- dash ---
@@ -146,23 +165,22 @@ module.exports = async function () {
     // its own line for the person who can see this terminal.
     assert.match(out, /http:\/\/127\.0\.0\.1:\d+\//, 'a localhost URL');
     assert.ok(!/\?t=/.test(out), 'no credential may be in the URL');
-    // THE STARTUP PASSWORD, ON ITS OWN ROW under a `password` label. It used to
-    // read `key <32 hex>` on one line — the last place the old token vocabulary
-    // survived. See repl.js on why the value gets a row of its own.
-    assert.match(out, /\bpassword[ \t]*\r?\n?[ \t]*[a-f0-9]{32}/,
-      'and the startup password is printed separately');
+    // AND NO CREDENTIAL ANYWHERE IN THE TERMINAL (§11): the startup password used to be printed on its own row;
+    // terminal output is history, so now it says how to set the password the page asks for instead.
+    assert.ok(!SECRET_RE.test(out), `a 32-hex credential reached the terminal:\n${out.slice(-600)}`);
+    assert.match(out, /no password (set|yet)/);
     assertIncludes(out, 'read-only');
     assert.ok(!/0\.0\.0\.0/.test(out), 'the default must not bind every interface');
     assert.strictEqual(r.code, 0);
   });
 
   await test('DASH: it really answers over HTTP, and really stops with the session', async () => {
-    const { cwd, configDir } = probot({});
+    const { cwd, configDir } = probot(withPassword());
     const { spawn } = require('child_process');
     const env = { ...process.env };
     for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
     Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
+    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'noema.js')], { cwd, env, windowsHide: true });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -179,11 +197,11 @@ module.exports = async function () {
       // is asserted is the LABEL followed by the value — not the layout.
       const m = /http:\/\/127\.0\.0\.1:(\d+)\//.exec(out);
       assert.ok(m, `no dashboard URL was printed:\n${out.slice(-400)}`);
-      const tm = /\bpassword[ \t]*\r?\n?[ \t]*([a-f0-9]{32})/.exec(out);
-      assert.ok(tm, `no startup password was printed:\n${out.slice(-400)}`);
+      assert.ok(!SECRET_RE.test(out), `a credential reached the terminal:\n${out.slice(-400)}`);
       const port = Number(m[1]);
-      const t = tm[1];
       assert.strictEqual((await get(port, '/api/state')).code, 401, 'no password, no answer');
+      const t = await login(port);
+      assert.ok(t, 'proving the configured password mints a session key');
       // THE HEADER FORM, which is how the page actually asks — this is the path
       // that has to work, and testing only the query form would leave it unproven.
       const state = await get(port, '/api/state', { 'x-lain-session': t });
@@ -195,7 +213,7 @@ module.exports = async function () {
       // token and no project. Fetched with NO credential at all, deliberately.
       const page = await get(port, '/');
       assert.strictEqual(page.code, 200, 'the shell must load so it can ask for the password');
-      assert.match(page.body, /LAIN/);
+      assert.match(page.body, /Noema/);
       assert.match(page.body, /id="gate"/, 'and it must be the gate that loads');
       assert.ok(!page.body.includes(t), 'THE TOKEN MUST NOT BE IN THE PAGE');
       assert.ok(!page.body.includes(s.project.name),
@@ -235,12 +253,12 @@ module.exports = async function () {
     // WHAT THIS PROVES, and it is the point of the feature: the URL is printed
     // and the port ANSWERS, without `/dash` ever being run. Asserting only the
     // printed line would prove a message, not a server.
-    const { cwd, configDir } = probot({ dashAutostart: true });
+    const { cwd, configDir } = probot(withPassword({ dashAutostart: true }));
     const { spawn } = require('child_process');
     const env = { ...process.env };
     for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
     Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
+    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'noema.js')], { cwd, env, windowsHide: true });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -262,13 +280,13 @@ module.exports = async function () {
     try {
       const m = await until(/dashboard\s+http:\/\/127\.0\.0\.1:(\d+)\//);
       assert.ok(m, `no dashboard was started by itself:\n${plain(out).slice(-400)}`);
-      const tm = await until(/\bpassword[ \t]*\r?\n?[ \t]*([a-f0-9]{32})/);
-      assert.ok(tm, `the startup password must be printed, since the URL no longer carries it:
-${plain(out).slice(0, 400)}`);
+      assert.ok(await until(/password required/), `the banner says a password is required:\n${plain(out).slice(0, 400)}`);
+      assert.ok(!SECRET_RE.test(plain(out)), 'and prints no credential (§11)');
       const port = Number(m[1]);
+      const sessionKey = await login(port);
       // IT REALLY ANSWERS — and still refuses without the token.
       assert.strictEqual((await get(port, '/api/state')).code, 401, 'autostart must not mean unlocked');
-      const ok = await get(port, '/api/state', { 'x-lain-session': tm[1] });
+      const ok = await get(port, '/api/state', { 'x-lain-session': sessionKey });
       assert.strictEqual(ok.code, 200, 'the autostarted server must actually serve');
       assert.strictEqual(JSON.parse(ok.body).control.actions, false, 'and be read-only, like any other');
     } finally {
@@ -284,7 +302,7 @@ ${plain(out).slice(0, 400)}`);
     const out = plain(r.out);
     assertIncludes(out, 'NOT CONFIGURED');
     assertIncludes(out, 'The bridge is a separate program you provide');
-    assertIncludes(out, 'LAIN automates nothing itself');
+    assertIncludes(out, 'Noema automates nothing itself');
   });
 
   await test('MCP: configured, it connects and grants NOTHING on its own', async () => {

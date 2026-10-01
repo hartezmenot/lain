@@ -95,7 +95,7 @@ module.exports = async function () {
     const first = sent[0];
     assert.ok(first.messages <= 800,
       `the FIRST request carried ${first.messages} messages against an 800 cap — `
-      + 'LAIN sent a payload it already knew would be refused');
+      + 'Noema sent a payload it already knew would be refused');
     // AND IT STILL WORKED. Compacting to fit is not the same as giving up.
     assert.match(plain(r.out), /Done\./, 'the turn must still complete');
   });

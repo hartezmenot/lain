@@ -95,7 +95,8 @@ function commit(app, mode, line) {
   } else {
     plan.addSteps(steps, { origin: 'user' });
   }
-  // NO RECEIPT: the plan is state, not news — `/plan` shows it on its shelf.
+  // NO RECEIPT: the plan is state, not news — `/plan` shows it on its shelf. It IS a checkpoint: committed now.
+  try { require('./taskcheckpoint').commit(session, mode === 'replace' ? 'plan replaced by the person' : 'steps added by the person'); } catch { /* the plan stands */ }
   return plan;
 }
 

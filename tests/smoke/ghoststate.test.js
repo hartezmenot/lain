@@ -55,7 +55,7 @@ function finalFrame(out) {
 function strip(out, which = -1) {
   const f = frames(out);
   const rows = rowsOf(f.at(which) || out);
-  const at = rows.findIndex((l) => /Ask LAIN|ANSWER — /.test(l));
+  const at = rows.findIndex((l) => /Ask Noema|ANSWER — /.test(l));
   return at <= 0 ? '' : rows.slice(Math.max(0, at - 3), at).join('\n');
 }
 
@@ -142,7 +142,7 @@ module.exports = async function () {
     // what the trail was a worse second copy of. Asked of the WHOLE frame, not
     // of the three rows above the input: that is the point of the move.
     assert.match(finalFrame(r.out), /Wrote|gen[\/]note\.js/,
-      'what LAIN DID is still visible, in the account above');
+      'what Noema DID is still visible, in the account above');
     // AND THE ROUTINE HALF LEAVES NOTHING AT ALL - not a trail above the input,
     // and not a row in the conversation either. The list and the search happened,
     // were shown while they happened, and are over.

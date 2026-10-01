@@ -192,6 +192,7 @@ class BrowserSession {
 
   async navigate(url, timeoutMs = NAV_TIMEOUT_MS) {
     const target = String(url);
+    this.loadedAt = Date.now();   // a project write after this makes the page stale (writeclock.js)
     let finish;
     const loaded = new Promise((resolve) => {
       const off = this.conn.on((method) => {
@@ -343,10 +344,22 @@ class BrowserSession {
     }
   }
 
-  /** A PNG of the page, as a Buffer, or null with the reason. */
-  async screenshot() {
+  /**
+   * A PNG of the page, as a Buffer, or null with the reason. With a `selector`, ONLY THAT ELEMENT'S AREA (and a
+   * margin of `pad` CSS px) — the four-gate spec §103: a vision model is shown the relevant area, not the page.
+   */
+  async screenshot({ selector = null, pad = 16 } = {}) {
     try {
-      const r = await this.conn.send('Page.captureScreenshot', { format: 'png' }, 20000);
+      let clip = null;
+      if (selector) {
+        const at = await this.conn.send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const e = document.querySelector(${JSON.stringify(String(selector))}); if (!e) return null;
+          e.scrollIntoView({ block: 'nearest', inline: 'nearest' }); const b = e.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; })()` }, 10000);
+        const b = at && at.result ? at.result.value : null;
+        if (!b || !(b.w > 0 && b.h > 0)) return { ok: false, why: `${selector} is not on the page, or has no area` };
+        const x = Math.max(0, b.x - pad); const y = Math.max(0, b.y - pad);
+        clip = { x, y, width: Math.ceil(b.w + (b.x - x) + pad), height: Math.ceil(b.h + (b.y - y) + pad), scale: 1 };
+      }
+      const r = await this.conn.send('Page.captureScreenshot', clip ? { format: 'png', clip, captureBeyondViewport: true } : { format: 'png' }, 20000);
       if (!r || !r.data) return { ok: false, why: 'the browser returned no image data' };
       return { ok: true, buffer: Buffer.from(r.data, 'base64') };
     } catch (e) {

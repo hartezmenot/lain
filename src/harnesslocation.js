@@ -45,11 +45,11 @@ let cached = null;
  */
 function load() {
   const dir = root();
-  if (!dir) return { ok: false, why: `LAIN Harness is not installed (looked in: ${candidates().join(', ')})` };
+  if (!dir) return { ok: false, why: `Noema Harness is not installed (looked in: ${candidates().join(', ')})` };
   if (cached && cached.root === dir) return cached;
   let mod;
-  try { mod = require(path.join(dir, 'index.js')); } catch (e) { return { ok: false, why: `LAIN Harness at ${dir} failed to load: ${e.message}` }; }
-  if (mod.CONTRACT !== CONTRACT) return { ok: false, why: `LAIN Harness at ${dir} speaks contract ${mod.CONTRACT}; this Core speaks ${CONTRACT}` };
+  try { mod = require(path.join(dir, 'index.js')); } catch (e) { return { ok: false, why: `Noema Harness at ${dir} failed to load: ${e.message}` }; }
+  if (mod.CONTRACT !== CONTRACT) return { ok: false, why: `Noema Harness at ${dir} speaks contract ${mod.CONTRACT}; this Core speaks ${CONTRACT}` };
   cached = { ok: true, root: dir, ...mod };
   return cached;
 }

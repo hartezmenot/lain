@@ -30,8 +30,10 @@ function alive() {
  *
  * @returns {Promise<{ok: boolean, why?: string, already?: boolean, pid?: number}>}
  */
-async function open(app, { dev = false, debugPort = 0 } = {}) {
+async function open(app, { dev = false, debugPort = 0, mode = null, section = null, minimized = false } = {}) {
   if (alive()) {
+    // STARTED MINIMIZED AT SIGN-IN and a window already exists: leave it where it is — never steal the foreground.
+    if (minimized) return { ok: true, already: true, pid: held.pid, shown: false, why: '' };
     // ---- A SECOND `/app` IS "SHOW ME THE WINDOW" -------------------------
     //
     // And since X sends LAIN to the TRAY rather than ending it, "the host is
@@ -45,7 +47,8 @@ async function open(app, { dev = false, debugPort = 0 } = {}) {
     const shown = require('./harnessapp/ipc').toHost('show');
     return { ok: true, already: true, pid: held.pid, shown: Boolean(shown.ok), why: shown.ok ? '' : shown.why };
   }
-  const r = await desktop.open(app, { dev, debugPort });
+  if (mode) app._surfaceMode = mode;
+  const r = await desktop.open(app, { dev, debugPort, mode, section, minimized });
   if (!r.ok) return r;
 
   held = r;

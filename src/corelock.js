@@ -39,6 +39,11 @@
  *     show     open/focus the desktop window of the running LAIN
  *     status   is it up, since when, what is it hosting
  *     quit     shut down, through the ordinary shutdown path
+ *     dashboard:<section>   open the window at MODEL › <section> (a name from a
+ *              fixed list — Phase 8.3's /model manage, /account add, /api add)
+ *     open     { path } — a file or folder, opened in the IDE (Windows' "Open with
+ *              LAIN", 2026-09-29): a path, never a credential; it runs nothing
+ *              (openpath.js)
  *
  * It reads no conversation, starts no turn, grants no permission, reveals no
  * credential and names no session. A Windows named pipe created with default
@@ -87,16 +92,29 @@ function lockFile() { return path.join(config.configDir(), 'core.json'); }
  * installations pointed at different `~/.lain` directories (a test run, a second
  * account) are genuinely separate instances rather than fighting over one name.
  */
-function controlPipe() {
+function controlPipe({ legacy = false } = {}) {
   const key = require('crypto').createHash('sha256')
     .update(path.resolve(config.configDir()).toLowerCase()).digest('hex').slice(0, 16);
-  return `\\\\.\\pipe\\lain-core-${key}`;
+  return `\\\\.\\pipe\\${legacy ? 'lain' : 'noema'}-core-${key}`;
 }
 
 /** Is this process id one we could plausibly still be? Cheap, and advisory. */
 function alive(pid) {
   if (!pid || pid === process.pid) return pid === process.pid;
   try { process.kill(pid, 0); return true; } catch (e) { return e && e.code === 'EPERM'; }
+}
+
+/** THE LOCK FILE, when it names a Core that is gone (a crash left it) — else null. A live Core's lock is never stale. */
+function staleLock() {
+  const d = read();
+  return d && d.pid && !alive(Number(d.pid)) ? lockFile() : null;
+}
+
+/** Remove a stale lock (cachecare's "Stale process records") — only one whose process is gone. */
+function sweepStale() {
+  const f = staleLock();
+  if (!f) return false;
+  try { fs.unlinkSync(f); return true; } catch { return false; }
 }
 
 /** What the lock file says, or null. Never trusted on its own — see the header. */
@@ -110,20 +128,28 @@ function read() {
 /**
  * ASK THE RUNNING LAIN SOMETHING. Resolves `null` when there is not one.
  *
- * @param {string} verb  'show' | 'status' | 'quit'
+ * @param {string} verb  'show' | 'status' | 'quit' | 'open' (with `path`)
  * @returns {Promise<object|null>}
  */
-function ask(verb, { timeout = VERB_MS } = {}) {
+async function ask(verb, opts = {}) {
+  // A LAIN STILL RUNNING ON THIS HOME (from before the rename) listens under its old name: asked second, only when
+  // no Noema answers the door at all — so a new Noema never starts a second Core beside it.
+  const r = await askOn(controlPipe(), verb, opts);
+  return r.connected ? r.reply : (await askOn(controlPipe({ legacy: true }), verb, opts)).reply;
+}
+
+function askOn(pipe, verb, { timeout = VERB_MS, path: target = null } = {}) {
   return new Promise((resolve) => {
-    if (process.platform !== 'win32') { resolve(null); return; }
+    if (process.platform !== 'win32') { resolve({ connected: false, reply: null }); return; }
     let done = false;
-    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    let connected = false;
+    const finish = (v) => { if (!done) { done = true; resolve({ connected, reply: v }); } };
     let sock;
-    try { sock = net.connect(controlPipe()); } catch { finish(null); return; }
+    try { sock = net.connect(pipe); } catch { finish(null); return; }
     const timer = setTimeout(() => { try { sock.destroy(); } catch { /* gone */ } finish(null); }, timeout);
     if (timer.unref) timer.unref();
     let buf = '';
-    sock.on('connect', () => { try { sock.write(`${JSON.stringify({ verb })}\n`); } catch { /* gone */ } });
+    sock.on('connect', () => { connected = true; try { sock.write(`${JSON.stringify(target ? { verb, path: String(target) } : { verb })}\n`); } catch { /* gone */ } });
     sock.on('data', (chunk) => {
       buf += chunk.toString('utf8');
       const nl = buf.indexOf('\n');
@@ -149,7 +175,7 @@ async function discover() {
   const lock = read();
   const reply = await ask('status', { timeout: PROBE_MS });
   if (!reply || !reply.ok) return { running: false, stale: Boolean(lock && !alive(lock.pid)) };
-  return { running: true, pid: reply.pid, since: reply.since, surface: reply.surface, desktop: reply.desktop };
+  return { running: true, pid: reply.pid, since: reply.since, surface: reply.surface, desktop: reply.desktop, version: reply.version || null, protocol: reply.protocol == null ? null : reply.protocol };
 }
 
 /**
@@ -182,7 +208,7 @@ function announce(app, { surface = 'cli' } = {}) {
         let msg = null;
         try { msg = JSON.parse(buf.slice(0, nl)); } catch { reply({ ok: false, why: 'unparseable' }); return; }
         clearTimeout(cap);
-        reply(await handle(app, String((msg && msg.verb) || ''), { surface }));
+        reply(await handle(app, String((msg && msg.verb) || ''), { surface, path: msg && typeof msg.path === 'string' ? msg.path.slice(0, 1024) : null }));
       });
     });
     server.on('error', (e) => { server = null; resolve({ ok: false, why: e.message }); });
@@ -204,18 +230,58 @@ function announce(app, { surface = 'cli' } = {}) {
  * THE THREE VERBS. Nothing else is reachable from here, by construction: an
  * unknown verb is refused rather than falling through to anything.
  */
-async function handle(app, verb, { surface }) {
+async function handle(app, verb, { surface, path: target = null }) {
+  // OPEN A FILE OR FOLDER (Windows "Open with LAIN", 2026-09-29): the project it belongs to and the file, in the IDE.
+  // It carries a PATH and nothing else, runs nothing and grants nothing (openpath.js) — a process running as this
+  // user could open that file itself — which is what keeps it inside this pipe's rule.
+  if (verb === 'open') {
+    try {
+      const r = await require('./openpath').open(app, target);
+      if (!r.ok) return { ok: false, why: r.why };
+      const w = await require('./desktopwindow').open(app);
+      return { ok: Boolean(w.ok || w.already), opened: r.file || r.root, why: w.why || '' };
+    } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
+  }
   if (verb === 'status') {
     let desktop = false;
     try { desktop = require('./desktopwindow').alive(); } catch { desktop = false; }
-    return { ok: true, pid: process.pid, since: announced ? announced.since : 0, surface, desktop };
+    // WHICH NOEMA answers: a launch of another version is told when it and this Core differ (update/compat.js).
+    let build = null;
+    try { const b = require('./update/updater').build(); build = { version: b.version, protocol: b.protocol }; } catch { build = null; }
+    return { ok: true, pid: process.pid, since: announced ? announced.since : 0, surface, desktop, ...(build || {}) };
   }
-  if (verb === 'show') {
+  if (verb === 'show' || verb === 'show:minimized') {
     // THE RUNNING LAIN OPENS ITS OWN WINDOW. The launcher that asked does not
-    // get a channel, a secret or a handle — it gets a yes or a no.
+    // get a channel, a secret or a handle — it gets a yes or a no. `show:minimized` is a sign-in launch with
+    // "Start minimized" (startup.js): the window opens minimized, or an existing one is left where it is.
     try {
-      const r = await require('./desktopwindow').open(app);
+      const r = await require('./desktopwindow').open(app, { minimized: verb === 'show:minimized' });
       return { ok: Boolean(r.ok || r.already), already: Boolean(r.already), why: r.why || '' };
+    } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
+  }
+  // THE MODEL DASHBOARD, asked for by a terminal (fabric/dashlaunch.js, Phase 8.3): this LAIN opens its
+  // own window at MODEL. The verb names a section from a fixed list — no data, no credential.
+  if (verb.startsWith('dashboard:')) {
+    const dl = require('./fabric/dashlaunch');
+    const sec = verb.slice('dashboard:'.length);
+    if (!Object.values(dl.SECTIONS).includes(sec)) return { ok: false, why: 'unknown section' };
+    try {
+      const ipc = require('./harnessapp/ipc');
+      if (ipc.status().clients > 0) { ipc.navigate({ tab: 'model', section: sec }); ipc.toHost('show'); return { ok: true, navigated: true }; }
+      ipc.queueNavigation({ tab: 'model', section: sec });
+      const r = await require('./desktopwindow').open(app);
+      return { ok: Boolean(r.ok || r.already), why: r.why || '' };
+    } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
+  }
+  // THE PREVIEW, asked for by `noema preview` while this Noema runs: the Harness shows its Preview (the IDE's).
+  if (verb === 'preview') {
+    try {
+      app._previewWanted = { at: Date.now(), reason: 'noema preview' };
+      const ipc = require('./harnessapp/ipc');
+      if (ipc.status().clients > 0) { ipc.navigate({ tab: 'ide', preview: true }); ipc.toHost('show'); return { ok: true, navigated: true }; }
+      ipc.queueNavigation({ tab: 'ide', preview: true });
+      const r = await require('./desktopwindow').open(app);
+      return { ok: Boolean(r.ok || r.already), why: r.why || '' };
     } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
   }
   if (verb === 'quit') {
@@ -225,7 +291,7 @@ async function handle(app, verb, { surface }) {
     // sequence exists to prevent.
     app.wantExit = true;
     setTimeout(async () => {
-      try { await require('./teardown').shutdown(app, { why: 'you quit LAIN' }); } catch { /* going anyway */ }
+      try { await require('./teardown').shutdown(app, { why: 'you quit Noema' }); } catch { /* going anyway */ }
       process.exit(0);
     }, 10);
     return { ok: true, quitting: true };
@@ -248,4 +314,4 @@ function status() {
   return announced ? { holding: true, pipe: announced.pipe, since: announced.since, surface: announced.surface } : { holding: false };
 }
 
-module.exports = { announce, discover, ask, release, status, read, controlPipe, lockFile, alive, PROBE_MS };
+module.exports = { announce, discover, ask, release, status, read, controlPipe, lockFile, alive, staleLock, sweepStale, PROBE_MS };

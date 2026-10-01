@@ -48,7 +48,7 @@ const { test } = require('../helpers');
 const witnessMod = require('../../tools/keywitness');
 const win = require('../../tools/wininput');
 
-const TITLE = 'LAIN KEY WITNESS';
+const TITLE = 'Noema KEY WITNESS';
 
 function logPath(name) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-key-'));

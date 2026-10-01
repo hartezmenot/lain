@@ -41,6 +41,8 @@ const { EVENT, busOf } = require('../events');
 
 /** Bounded, because a tool result rides in the context window. */
 const MAX_OUTPUT = 6000;
+/** A receipt page is bounded by rows (observationstore.SHOW), not cut mid-row at 6,000 chars. */
+const RECEIPT_OUTPUT = 20000;
 
 function harnessOf(ctx) {
   const app = ctx && ctx.app;
@@ -256,13 +258,26 @@ tools.observe = {
         path: { type: 'string', description: 'for file/code — which file' },
         name: { type: 'string', description: 'for process/logs — the managed service name' },
         lines: { type: 'number', description: 'for logs — how many lines' },
+        receipt: { type: 'string', description: 'an observation receipt (obs_…): answer page/element/requests/errors/system from that captured live observation instead of looking again' },
+        ref: { type: 'string', description: 'with receipt, for element — one node by its ref (e.g. "n42"): the node, its path and its children' },
+        query: { type: 'string', description: 'with receipt, for element — words to match against node roles, names, text, ids and classes' },
+        offset: { type: 'number', description: 'with receipt, for page — the node to start the page at' },
       },
       required: ['goal'],
     },
   },
   async run(input, ctx) {
-    const h = harnessOf(ctx);
     const goal = String(input.goal || '').toLowerCase();
+    // A CAPTURED OBSERVATION answers from its receipt (observationstore.js):
+    // the same state every time, every node reachable by ref, reads measured.
+    if (input.receipt) {
+      const session = (ctx && ctx.session) || (ctx && ctx.app && ctx.app.session) || null;
+      const r = require('../observationstore').answer(goal, input, session);
+      if (!r.ok) return { output: `nothing could answer "${goal}": ${r.why}`, isError: true, meta: { goal, ok: false } };
+      const v = String(r.value);
+      return { output: `[${r.source}] ${r.summary}\n${v.length > RECEIPT_OUTPUT ? `${v.slice(0, RECEIPT_OUTPUT)}…` : v}`, meta: { goal, source: r.source, receipt: input.receipt } };
+    }
+    const h = harnessOf(ctx);
     const r = await h.observe(goal, input, h.runtime.activeId);
     if (!r.ok) {
       return {

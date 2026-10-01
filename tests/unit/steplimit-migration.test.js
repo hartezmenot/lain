@@ -47,7 +47,7 @@ module.exports = async function () {
     // The exact shape found in a real config file.
     const cfg = withConfig({ model: 'claude-opus-5', maxSteps: 30, stream: true });
     assert.strictEqual(cfg.maxSteps, 0,
-      'a saved 30 is the old default LAIN wrote itself, not a limit the user asked for');
+      'a saved 30 is the old default Noema wrote itself, not a limit the user asked for');
     assert.strictEqual(cfg.model, 'claude-opus-5', 'and nothing else in the config is disturbed');
     assert.strictEqual(cfg.stream, true);
   });
@@ -71,7 +71,7 @@ module.exports = async function () {
     // Both halves matter: if the default ever goes back to a number, the
     // migration above would be dropping a value that is once again the default,
     // and the ceiling would return without anything failing.
-    assert.strictEqual(config.DEFAULTS.maxSteps, 0, 'LAIN does not choose a step ceiling');
+    assert.strictEqual(config.DEFAULTS.maxSteps, 0, 'Noema does not choose a step ceiling');
     assert.strictEqual(config.LEGACY_MAX_STEPS, 30, 'and 30 is retired, not current');
   });
 

@@ -46,7 +46,7 @@ function baseCommit(root) {
     const tree = git(root, ['write-tree'], { env });
     if (!tree.ok) return { ok: false, why: 'could not write the working tree' };
     const commit = git(root, ['commit-tree', tree.out.trim(), '-p', head.out.trim(), '-m', 'lain a/b base'], {
-      env: { GIT_AUTHOR_NAME: 'LAIN', GIT_AUTHOR_EMAIL: 'lain@localhost', GIT_COMMITTER_NAME: 'LAIN', GIT_COMMITTER_EMAIL: 'lain@localhost' },
+      env: { GIT_AUTHOR_NAME: 'Noema', GIT_AUTHOR_EMAIL: 'lain@localhost', GIT_COMMITTER_NAME: 'Noema', GIT_COMMITTER_EMAIL: 'lain@localhost' },
     });
     if (!commit.ok) return { ok: false, why: `could not record the base: ${commit.err}` };
     return { ok: true, base: commit.out.trim() };

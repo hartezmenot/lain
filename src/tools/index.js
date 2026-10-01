@@ -88,6 +88,14 @@ const TOOLS = {
   // LAIN describing itself — models, usage, MCP, where a setting lives — from
   // the same projection the window reads. Read-only; see tools/lainself.js.
   ...require('./lainself').tools,
+  // The BOT handing implementation to the Coding Agent — tools/handoff.js.
+  ...require('./handoff').tools,
+  // Addressable evidence: an earlier deterministic result, by id (evidencerefs.js).
+  ...require('./recall').tools,
+  // The model's own pointer and keyboard — inside the Noema Preview only (tools/preview.js): added by `active` once a
+  // Preview is attached (below), like `computer` follows its transport.
+  // The task contract and the request to finish — Noema decides completion (tools/contract.js, discipline/).
+  ...require('./contract').tools,
 };
 
 /**
@@ -145,11 +153,48 @@ function active(ctxApp) {
   // (LAIN's browser ownership — the `browser` tool and the Chromium-driving
   // `web_search` — was removed in 2026-09; the plain fetch survives.)
   out = { ...out, ...require('./web').fetchTools };
+  // CONNECTED MCP SERVERS' TOOLS (integrations.js): only while connected and enabled;
+  // a tool its server does not mark read-only asks before it runs (EXTERNAL effect).
+  try { const mcpTools = require('../integrations').toolDefs(app); if (Object.keys(mcpTools).length) out = { ...out, ...mcpTools }; } catch { /* none */ }
   if (app?.session?.cowork) out = { ...out, ...require('./cowork').tools };
-  // THE GEOMETRY SPECIALIST exists only where policy lets Violetto serve — its
-  // gate failed, so that is only when forced on for an experiment (tools/geometry.js).
-  try { if (app && require('../workerruntime').uses(app, 'violetto', 'geometry')) out = { ...out, ...require('./geometry').tools }; } catch { /* not offered */ }
+  // ---- SPECIALIST MACHINERY IS NOT FLAGSHIP VOCABULARY (dispatch.js) -------
+  //
+  // CORE ASSIGNS; CAPABILITIES DO NOT VOLUNTEER. A tool that exists is not a
+  // tool every request needs to be told about:
+  //   - the migration tools only when Core found a real old → new transition
+  //     in this input, or a migration contract is already in flight;
+  //   - `hand_to_coding_agent` only on the IDE BOT's own turn, the one place it
+  //     can do anything;
+  //   - workers, Laya, GUG maintenance and background preprocessing never:
+  //     Core runs them and the flagship receives compact, validated slices
+  //     (harnesscontext.js packet, gug.js slice, geometryjob.js facts). The
+  //     retired `geometry_specialist` tool (Violetto) is gone.
+  const session = app && app.session;
+  // THE PREVIEW TOOLS FOLLOW THE PREVIEW (2026-10-01): eleven schemas (~11 KB) were described on every request of every
+  // CLI session, with nothing to click. Offered once a Preview has been attached in this session, then kept for it —
+  // the tool list is part of the cached prefix and must not flicker as the window opens and closes.
+  if (session && !session._previewTools) { try { if (require('../workshop/previewinput').attached(app)) session._previewTools = true; } catch { /* none */ } }
+  if (!app || (session && session._previewTools) || process.env.NOEMA_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
+  if (!require('../dispatch').offersMigration(session)) out = without(out, MIGRATION_TOOLS);
+  if (!(session && session._botTurn)) out = without(out, BOT_TOOLS);
   return out;
+}
+
+const MIGRATION_TOOLS = ['migration_plan', 'migration_verify', 'migration_activate'];
+const BOT_TOOLS = ['hand_to_coding_agent'];
+function without(all, names) {
+  if (!names.some((n) => Object.prototype.hasOwnProperty.call(all, n))) return all;
+  const o = { ...all };
+  for (const n of names) delete o[n];
+  return o;
+}
+
+/** Why a registered tool is not part of this input's vocabulary, or '' when it simply does not exist. */
+function notOffered(name) {
+  if (MIGRATION_TOOLS.includes(name)) return 'it is offered only when Core identifies a real migration (a current representation, a target one and the boundary between them) or one is in flight. Plan this work with the ordinary tools.';
+  if (BOT_TOOLS.includes(name)) return 'it exists only on the IDE BOT turn.';
+  if (/^preview_/.test(name)) return 'no Noema Preview is attached to this session — open the project in the Preview (`noema preview`) first.';
+  return '';
 }
 
 /**
@@ -160,11 +205,30 @@ function active(ctxApp) {
  * working for. A reader with none (a unit test, a cold start) gets the
  * connection-only vocabulary, which is the same answer it always gave.
  */
-function schemas(app) {
+function schemas(app, { turn = false } = {}) {
   const all = active(() => app);
+  // A TURN WITH NO FOCUSED SHAPE is sent the whole registry — and so is every
+  // later turn of this session (toolfunnel.js: the list never narrows again).
+  // FAST / ECO SHOW THE CORE SET (profile.js, 2026-10-01). Decided when the profile CHANGES, not per turn, so the
+  // tool list — part of the cached prefix — moves once per switch and then stays put.
+  if (turn && app && app.session) {
+    const s = app.session;
+    const prof = require('../profile').of(s, app.cfg);
+    const lean = prof === 'FAST' || prof === 'ECO';
+    if (s._funnelProfile !== prof) {
+      s._funnelProfile = prof;
+      s._funnelSticky = lean ? null : 'all';
+      s._toolFunnel = null;
+      if (lean) require('../toolfunnel').open(s, 'core', { why: `${prof} profile — core tools` });
+    } else if (lean && !s._toolFunnel) require('../toolfunnel').reopen(s);
+  }
+  if (turn && app && app.session && !app.session._toolFunnel) app.session._funnelSticky = 'all';
   // A DECLARED READ-ONLY task is not offered the file writers at all (readonly.js):
   // a tool the model never sees is a write it can never attempt.
-  return require('../readonly').offered(Object.keys(all), app && app.session).map((n) => all[n].schema);
+  const offered = require('../readonly').offered(Object.keys(all), app && app.session);
+  // THE TURN'S FUNNEL (toolfunnel.js): what this task is SHOWN. Exposure only —
+  // `execute` below still reads the whole active set.
+  return require('../toolfunnel').filter(app && app.session, offered).map((n) => all[n].schema);
 }
 
 function has(name, app) { return Object.prototype.hasOwnProperty.call(active(() => app), name); }
@@ -176,8 +240,28 @@ function names(app) { return Object.keys(active(() => app)); }
  * Execute one call. An unknown name is a normal, recoverable result — the model
  * gets told what does exist and picks again.
  */
-async function execute(name, input, ctx) {
+async function execute(name, input, ctx, { canonical = false } = {}) {
   const app = (ctx && ctx.app) || null;
+  // ---- A MODEL'S OWN TOOL DIALECT (discipline/dialect.js) ------------------------------------------------------
+  // Claude's Read/Edit/Grep, Codex's shell/apply_patch, GLM's bash/str_replace: translated here and run as the
+  // canonical tool through this same door, so every gate, permission and ledger below applies unchanged.
+  if (!canonical) {
+    const s0 = (ctx && ctx.session) || (app && app.session) || null;
+    const family = s0 && s0._toolDialect;
+    const dl = family ? require('../discipline/dialect').resolve(name, input, family) : null;
+    if (dl) {
+      if (!dl.calls.length) return { output: `${name}: nothing to apply — no file operation was recognised`, isError: true };
+      const outs = []; const mutated = []; let last = null;
+      for (const c of dl.calls) {
+        // eslint-disable-next-line no-await-in-loop -- one patch's file operations apply in order.
+        last = await execute(c.name, c.input, ctx, { canonical: true });
+        outs.push(dl.calls.length > 1 ? `${c.name} ${(c.input && c.input.path) || ''}: ${last.output}` : last.output);
+        for (const m of last.mutated || []) mutated.push(m);
+        if (last.isError) break;
+      }
+      return { ...last, output: outs.join('\n'), mutated, dialect: dl.from };
+    }
+  }
   const tool = active(() => app)[name];
   if (!tool) {
     // A NAME THAT IS NOT OURS BUT WHOSE MEANING IS — a foreign namespace
@@ -199,8 +283,13 @@ async function execute(name, input, ctx) {
       return { output: `unknown tool "${name}"${again ? ' — already reported this turn; do not call it again' : ''}. It does not exist; the available tools were listed earlier in this turn.`, isError: true };
     }
     if (seen) seen.listed = true;
+    const gated = notOffered(name);
+    if (gated) return { output: `"${name}" is not offered for this task: ${gated}`, isError: true };
     return { output: `unknown tool "${name}". Available: ${offered.join(', ')}`, isError: true };
   }
+  // A REGISTERED TOOL THE TURN'S FUNNEL DID NOT SHOW still runs — the funnel is
+  // exposure, not permission — and is counted; its family is shown from now on.
+  try { require('../toolfunnel').miss((ctx && ctx.session) || (app && app.session), name); } catch { /* metrics only */ }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
   // ONE GATE, HERE, because this is the one door every tool call goes through.
@@ -230,6 +319,18 @@ async function execute(name, input, ctx) {
   if (chatView && tool.mutates) {
     return { output: `DENIED CHAT_VIEW_READ_ONLY: ${name} changes things, and the Chat view only reads and plans. Put it in the plan; the Coding view implements it.`, isError: true, denied: true };
   }
+  // THE BOT IN THE IDE READS; THE CODING AGENT WRITES. The same structural
+  // refusal, for the BOT's turn — and the way forward is named: hand the work
+  // over, and the Coding Agent takes it (harnessapp/botroute.js).
+  const botTurn = ctx && ctx.app && ctx.app.session && ctx.app.session._botTurn;
+  if (botTurn && tool.mutates) {
+    return { output: `DENIED BOT_READ_ONLY: ${name} changes things, and the BOT does not edit. Call hand_to_coding_agent with the task and the Coding Agent will do it.`, isError: true, denied: true };
+  }
+  // A PLUGIN COMMAND'S TURN CARRIES ITS GRANT (plugins.js): a tool outside the
+  // permissions the person granted that plugin is refused here, whatever the
+  // model asks.
+  const pluginDenied = require('../plugins').denies(ctx && ctx.app && ctx.app.session, name, tool);
+  if (pluginDenied) return { output: pluginDenied, isError: true, denied: true };
   // ---- A DECLARED READ-ONLY TASK: THE WRITE IS REFUSED, NOT THE TASK --------
   //
   // readonly.js. Structural, like the Chat view above: whatever model asked,
@@ -239,6 +340,24 @@ async function execute(name, input, ctx) {
   const roSession = (ctx && ctx.app && ctx.app.session) || (ctx && ctx.session) || null;
   const roDenied = require('../readonly').denies(name, input, roSession, Boolean(tool.mutates));
   if (roDenied) return { output: roDenied, isError: true, denied: true };
+  // ---- EXECUTION DISCIPLINE, MECHANICALLY (discipline/) — contextual, only when it applies ------------------------
+  const lifeNow = roSession && roSession.lifecycle;
+  if (lifeNow && lifeNow.discipline) {
+    // NO BLIND RETRIES: the same failing command with nothing changed since would observe the same thing again.
+    const blind = require('../discipline/retry').check(lifeNow, name, input);
+    if (blind) return { output: blind, isError: true, denied: true, blindRetry: true };
+    // OUTCOME SATISFIED: every acceptance criterion is evidenced — further changes are beyond what was asked.
+    // Removing or keeping the task's own scaffolding is still allowed.
+    // A FILE CHANGE, not a command: a final check after the outcome is evidenced is still a legitimate observation.
+    if (require('../mutation').isSourceMutation(name) && require('../discipline/arbiter').outcomeSatisfied(lifeNow)) {
+      const cwd0 = (ctx && ctx.cwd) || roSession.cwd || process.cwd();
+      const scaffold = new Set(lifeNow.discipline.contract.scaffolding.map((x) => x.path));
+      const targets = require('../gate').pathsIn(input, cwd0).map((p) => require('path').relative(cwd0, p).replace(/\\/g, '/'));
+      if (!targets.length || !targets.every((t) => scaffold.has(t))) {
+        return { output: 'OUTCOME SATISFIED: every acceptance criterion of this task is evidenced by a current observation, so further changes are beyond what was asked. Report the result and call request_completion. If the person wants more, that is a new request.', isError: true, denied: true, outcomeSatisfied: true };
+      }
+    }
+  }
   const order = ctx && ctx.workOrder;
   if (order && order.bounded) {
     const guard = require('../workorderguard');

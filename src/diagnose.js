@@ -124,6 +124,15 @@ function checks(app) {
  * from raw provider events by hand: read tokens near zero next to real
  * conversation history is the signature of a broken or invalidated cache.
  */
+/** A token count a person reads at a glance: 950 · 12.4k · 3.1M (/token has the exact figures). */
+function short(n) {
+  const v = Number(n) || 0;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e4) return `${Math.round(v / 1000)}k`;
+  if (v >= 1e3) return `${(v / 1000).toFixed(1)}k`;
+  return String(v);
+}
+
 function cacheSuffix(u) {
   const read = u.cacheReadTokens || 0;
   const cached = read + (u.cacheCreationTokens || 0);
@@ -133,23 +142,27 @@ function cacheSuffix(u) {
 }
 
 function statusRows(app, { dim = (s) => s } = {}) {
-  const pc = providerMod.resolve(app.cfg);
+  // THE ROUTE THIS SESSION'S NEXT TURN TAKES (Phase 8.2) — its lane, not the
+  // process default: after the window chose another account, the default named
+  // a route the next turn would not take.
+  let pc;
+  try { pc = providerMod.resolve(require('./sessionviews').turnCfg(app, app.session)); } catch { pc = providerMod.resolve(app.cfg); }
   const room = sessionMod.budgetChars(pc);
   const used = app.session.contextChars();
   const u = app.session.usage;
+  // ACCOUNT FIRST, the same facts Telegram's /status and the window read (sessionfacts.js).
+  const sf = require('./sessionfacts');
+  const key = pc.protocol === 'runtime' ? 'the runtime holds the sign-in' : (pc.apiKey ? 'key present' : dim('no key'));
+  const routeText = pc.unavailable ? dim(pc.unavailable.why || 'none') : (pc.connectionId ? `${pc.routeId || pc.connectionId} · ${pc.model}${pc.canonicalModel && pc.canonicalModel !== pc.model ? ` (${pc.canonicalModel})` : ''} · ${key}` : dim('none configured'));
+  // THE BACKING ACCOUNT'S ROW CARRIES THE EXACT ROUTE (Phase 8.3): an account is where a route goes.
+  const facts = sf.rows(sf.facts(app)).map(([k, v]) => (k === 'session' && app.resumedFrom ? [k, `${v} (resumed)`] : k === 'account' ? [k, `${v} · route ${routeText}`] : [k, v]));
+  // THIRTEEN ROWS: what the panel shows unscrolled at an ordinary terminal size (statuspanel.test.js) —
+  // related facts share a row; `session`, `context` and `config` keep their own.
   return [
-    ['session', app.session.id + (app.resumedFrom ? ' (resumed)' : '')],
-    ['cwd', app.session.cwd],
-    ['messages', String(app.session.messages.length)],
+    ...facts,
     // The window is the resource that silently ends long tasks, so it is a
     // headline number rather than something you have to know to ask for.
-    ['context', `${Math.round(used / 1000)}k / ${Math.round(room / 1000)}k chars (${room > 0 ? Math.round((used / room) * 100) : 0}%)`],
-    ['turns', String(app.session.turns.length)],
-    ['provider', pc.provider || dim('none configured')],
-    ['model', pc.model || dim('none')],
-    ['credential', pc.apiKey ? 'present' : dim('missing')],
-    ['tokens', `↑${u.inputTokens} ↓${u.outputTokens} · ${u.requests} requests${cacheSuffix(u)}`],
-    ['tools', String(require('./tools').names().length)],
+    ['context', `${Math.round(used / 1000)}k / ${Math.round(room / 1000)}k chars (${room > 0 ? Math.round((used / room) * 100) : 0}%) · ↑${short(u.inputTokens)} ↓${short(u.outputTokens)} · ${u.requests} requests${cacheSuffix(u)} · ${app.session.messages.length} messages · ${app.session.turns.length} turns`],
     // WHAT LAIN KNOWS ABOUT THIS PROJECT WITHOUT READING IT AGAIN.
     //
     // One line, because it is the line that would have made a silent failure
@@ -158,19 +171,27 @@ function statusRows(app, { dim = (s) => s } = {}) {
     // reads on every turn. A count says that in one glance. It reads the index
     // that is already on disk and never builds one — asking for status must not
     // start a scan. See projectindex.coverage.
-    ['project', projectRow(app.session.cwd, dim)],
-    // WHICH SURFACE IS ACTUALLY UP. The application is a window now, not a URL,
-    // so "is the Harness open" is answered by the window and its channel.
-    ['app', appRow(dim)],
+    // (and, at its end, which surface is up — the window is the application now, not a URL)
+    ['index', `${projectRow(app.session.cwd, dim)} · ${appBrief(dim)}`],
+    // ONE LINE, THE PATH ALONE: a row that wraps is a row the panel cannot fit at its foot.
     ['config', config.configDir()],
   ];
+}
+
+/** Whether LAIN Desktop is up, in a few words (appRow says it in full, for /doctor). */
+function appBrief(dim) {
+  try {
+    const win = require('./desktopwindow').status();
+    if (win.open) return `desktop open · pid ${win.pid}${require('./harnessapp/ipc').status().running ? '' : dim(' · channel down')}`;
+    return dim('desktop closed');
+  } catch { return dim('desktop unknown'); }
 }
 
 function appRow(dim) {
   try {
     const win = require('./desktopwindow').status();
     const chan = require('./harnessapp/ipc').status();
-    if (win.open) return `LAIN Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
+    if (win.open) return `Noema Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
     // AND WHETHER THIS PROCESS IS THE ONE A LAUNCH WOULD FIND. The window is
     // opened by launching LAIN, not by a command here, so the useful fact is
     // whether a launch would reach THIS session or start its own. The browser
@@ -178,8 +199,8 @@ function appRow(dim) {
     // (2026-09-15). See src/corelock.js.
     const lock = require('./corelock').status();
     return dim(lock.holding
-      ? 'closed — launching LAIN Desktop opens this session'
-      : 'closed — another LAIN would answer a Desktop launch');
+      ? 'closed — launching Noema Desktop opens this session'
+      : 'closed — another Noema would answer a Desktop launch');
   } catch (e) {
     return dim(`unavailable (${(e && e.message) || e})`);
   }

@@ -108,7 +108,7 @@ const P = {
  * desktop bridge, or the user.
  */
 const ACTOR = Object.freeze({
-  LAIN: { id: 'LAIN', short: 'LAIN', paint: 'info' },
+  LAIN: { id: 'Noema', short: 'Noema', paint: 'info' },
   EXTERNAL: { id: 'EXTERNAL', short: 'EXT', paint: 'external' },
   TOOL: { id: 'TOOL', short: 'TOOL', paint: 'ok' },
   MCP: { id: 'MCP', short: 'MCP', paint: 'warn' },
