@@ -250,7 +250,7 @@ class App {
   async submit(text, { isPaste = false, forceMode = null, sameTask = false, from = null, typed = false } = {}) {
     require('./perfmark').reset(); if (!from || typed) this._lastInputAt = Date.now();   // perfmark: where this turn's ms went; the CLI self-updates only after a quiet minute (update/cli.js)
     // ONE WRITER PER SESSION, on EVERY path into a turn (typed, Harness, auto-resume, messaging): sessionlease.js.
-    { const sh = require('./surfacehandoff'); if (!sh.claim(this)) { const why = sh.check(this).why || 'another surface holds this session'; try { this.render.notice('warn', why); } catch { /* no renderer */ } return { held: 'surface', why }; } }
+    { const sh = require('./surfacehandoff'); if (!(await sh.claimWaiting(this))) { const why = sh.check(this).why || 'another surface holds this session'; try { this.render.notice('warn', why); } catch { /* no renderer */ } return { held: 'surface', why }; } }
     const verdict = this.identify(text, isPaste, forceMode, sameTask, from);
     if (process.env.LAIN_DEBUG_TASK) this.render.notice('info', `[task ${verdict.kind} · mode ${verdict.mode}] ${verdict.reason} · ${verdict.modeReason}`);
     // Elapsed time is measured from the start of the TASK, not the turn, and

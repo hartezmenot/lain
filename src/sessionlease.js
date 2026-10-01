@@ -30,7 +30,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const BEAT_MS = 10_000;
+// 2 s: an idle owner notices a hand-over request this quickly (a beat is one small file write per held session).
+const BEAT_MS = 2_000;
 const STALE_MS = 60_000;
 const MUTEX_STALE_MS = 5_000;
 const MUTEX_WAIT_MS = 2_000;
@@ -191,6 +192,12 @@ function reserve(id, { surface, to, handoff = null } = {}) {
   return { ok: true, lease: r.lease };
 }
 
+/** Is there a hand-over request from THIS process and surface still waiting on the owner? */
+function requested(id, { surface } = {}) {
+  const r = read(id);
+  return Boolean(r && r.request && r.request.pid === process.pid && r.request.nonce === NONCE && r.request.surface === surfaceName(surface) && Date.now() - r.request.at < REQUEST_TTL_MS);
+}
+
 /** Ask the live owner to hand the session over at its next idle moment. */
 function request(id, { surface } = {}) {
   const me = surfaceName(surface);
@@ -286,4 +293,4 @@ function ids() { try { return fs.readdirSync(dir()).filter((n) => n.endsWith('.j
 /** A deleted session takes its lease record with it — only when nobody live holds it. */
 function forget(id) { const r = read(id); if (r && r.owner && ownerAlive(r)) return false; try { fs.unlinkSync(fileOf(id)); } catch { /* none */ } return true; }
 
-module.exports = { acquire, release, reserve, request, reap, note, read, view, tick, releaseAll, heldIds, ids, forget, ownerAlive, fileOf, NONCE, BEAT_MS, STALE_MS, _setOwnerPid, _reset };
+module.exports = { acquire, release, reserve, request, requested, reap, note, read, view, tick, releaseAll, heldIds, ids, forget, ownerAlive, fileOf, NONCE, BEAT_MS, STALE_MS, _setOwnerPid, _reset };

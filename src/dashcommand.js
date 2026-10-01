@@ -67,7 +67,7 @@ function register({ define, C }) {
         // report "autostart off" while the dashboard had in fact autostarted
         // thirty seconds earlier. A status line that contradicts the behaviour
         // it describes is worse than no status line.
-        w(C.dim(`  autostart ${app.cfg.dashAutostart !== false ? 'ON' : 'off'}`)
+        w(C.dim(`  autostart ${app.cfg.dashAutostart === true ? 'ON' : 'off'}`)
           + C.dim(' — /dash autostart on starts it with every session\n'));
         if (s.lan) w('  ' + C.yellow('reachable from your network. Anyone with the password can see this.') + '\n');
         w(C.dim('  The page asks for the password; it is not in the link. Do not paste it anywhere public.\n'));
@@ -98,7 +98,7 @@ function register({ define, C }) {
       if (sub === 'autostart') {
         const word = String(args[1] || '').toLowerCase();
         if (word !== 'on' && word !== 'off') {
-          w(C.dim(`  /dash autostart is ${app.cfg.dashAutostart !== false ? 'ON' : 'OFF'} — /dash autostart on|off\n`));
+          w(C.dim(`  /dash autostart is ${app.cfg.dashAutostart === true ? 'ON' : 'OFF'} — /dash autostart on|off\n`));
           return;
         }
         app.cfg.dashAutostart = word === 'on';

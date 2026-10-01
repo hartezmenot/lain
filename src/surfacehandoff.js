@@ -77,6 +77,34 @@ function claim(app) {
   return lease.view(s.id, { surface: me });
 }
 
+/**
+ * CLAIM, WAITING A MOMENT FOR A HAND-OVER THIS SURFACE ASKED FOR (`noema --resume`, /takeover): an idle owner lets go
+ * at its next beat (≤ 2 s). A busy owner is never displaced — after the wait the claim is refused as usual.
+ */
+async function claimWaiting(app, { waitMs = 4000 } = {}) {
+  const got = claim(app);
+  if (got) return got;
+  const s = app && app.session;
+  if (!s || !s.id || !lease.requested(s.id, { surface: surfaceOf(app) })) return null;
+  const until = Date.now() + waitMs;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 150));
+    const v = lease.view(s.id, { surface: surfaceOf(app) });
+    if (!v || !v.pid || v.mine) return claim(app);
+  }
+  return null;
+}
+
+/** RESUMED IN THIS SURFACE ON PURPOSE (`noema --resume <id>`): ask whoever holds it to hand it over when idle. */
+function askOnResume(app) {
+  const s = app && app.session;
+  if (!s || !s.id) return null;
+  const v = lease.view(s.id, { surface: surfaceOf(app) });
+  if (!v || !v.pid || v.mine) return null;
+  lease.request(s.id, { surface: surfaceOf(app) });
+  return v;
+}
+
 /** Is there work this session had not finished? (a turn in flight, a plan with steps left, a paused quota) */
 function unfinished(s) {
   try {
@@ -198,4 +226,4 @@ function releaseAll(app) {
   });
 }
 
-module.exports = { check, handoff, takeBack, sync, surfaceOf, persisted, claim, release, releaseAll, reapDeadCli, resumeHere, unfinished, notePause, SURFACES };
+module.exports = { check, handoff, takeBack, sync, surfaceOf, persisted, claim, claimWaiting, askOnResume, release, releaseAll, reapDeadCli, resumeHere, unfinished, notePause, SURFACES };

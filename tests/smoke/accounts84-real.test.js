@@ -83,7 +83,7 @@ module.exports = async function () {
       assert.deepStrictEqual(codexRows, ['Alpha', 'Bravo', 'Charlie'], 'the three connected accounts, in order');
       assert.strictEqual(await count('#vModel [data-setup]'), 0, 'an imported pool is NEVER a row of the main screen');
       assert.match(await text('[data-notice=setup]'), /1 account needs setup/, 'it is one line above the list');
-      assert.match(await text('[data-family=codex]'), /3 connected/);
+      assert.match(await text('[data-family=codex]'), /3 accounts/);
       assert.ok(!(await d.js("/Imported pool|Imported Codex|9Router|OmniRoute|Finish setup/i.test(document.getElementById('vModel').innerText)")), 'no router branding, no migration vocabulary on the main screen');
       assert.ok(await count('[data-family=claude] [data-account]') >= 1, 'Claude has its own section');
       // EACH PROVIDER IS ITS OWN PLANE: a flat surface off the page's, separated from the next by clear space — no card grid.
@@ -93,7 +93,7 @@ module.exports = async function () {
       assert.ok(planes.slice(1).every((p, i) => p.top - planes[i].bottom >= 8), 'a clear divider between providers: ' + JSON.stringify(planes.map((p) => [Math.round(p.top), Math.round(p.bottom)])));
       assert.strictEqual(await count('#vModel .fcard, #vModel .dsh-grid'), 0, 'no provider-card grid');
       // A ROW: friendly name, masked identity, status, quota, and ONE control — the ⋯ menu. No internal id anywhere.
-      assert.ok(await d.js("Array.from(document.querySelectorAll('[data-family=codex] [data-account]')).every((r) => r.querySelectorAll('button').length === 1)"), 'each account row has exactly one control (⋯)');
+      assert.ok(await d.js("Array.from(document.querySelectorAll('[data-family=codex] [data-account]')).every((r) => r.querySelectorAll('button:not(.dsh-grip)').length === 1)"), 'each account row has exactly one control (⋯), beside the priority grip');
       assert.ok(!(await d.js("/codex-[0-9a-f]{6}|claude-[0-9a-f]{6}|priority|profile dir|migration/i.test(document.getElementById('vModel').innerText)")), 'no internal id, priority or profile path in the daily list');
       // QUOTA SAYS WHAT REMAINS (§40): Alpha 74% used → 26% remaining; Bravo 91% used → 9% remaining (amber/red is for LOW remaining).
       const q = await d.js("Array.from(document.querySelectorAll('[data-family=codex] [data-account]:nth-child(1) [data-window]')).map((w) => [w.getAttribute('data-window'), w.getAttribute('data-remaining'), w.getAttribute('data-tone'), w.querySelector('.v').firstChild.textContent])");
@@ -132,12 +132,13 @@ module.exports = async function () {
       await R.click("document.querySelector('[data-family=codex] [data-account]:nth-child(2) .u-ib')");
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const menu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => b.textContent.trim())");
-      assert.deepStrictEqual(menu, ['Details', 'Rename…', 'Use only this account', 'Move priority earlier', 'Move priority later', 'Refresh quota', 'Detach from Noema', 'Sign out'], 'every applicable act, on every account');
+      // 2026-10-02: the order the person asked for — Details · Rename · Refresh quota · Use only · Disable · Move… · Detach · Sign out.
+      assert.deepStrictEqual(menu.map((t) => t.split('kept, never')[0].trim()), ['Details', 'Rename…', 'Refresh quota', 'Use only this account', 'Disable account', 'Move up', 'Move down', 'Move to top', 'Move to bottom', 'Detach from Noema', 'Sign out'], 'every applicable act, on every account');
       await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
       await R.click("document.querySelector('[data-family=codex] .u-sech-a .u-ib:last-child')");
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const pmenu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => b.textContent.trim())");
-      assert.deepStrictEqual(pmenu, ['Manage accounts', 'Refresh all', 'Change account policy', 'Detach all from Noema', 'Sign out all LAIN-owned accounts']);
+      assert.deepStrictEqual(pmenu.map((t) => t.replace('identity, health and quota', '')), ['Manage accounts', 'Refresh accounts', 'Change account policy', 'Detach all from Noema', 'Sign out all LAIN-owned accounts']);
       await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
 
       // ---- §22: THE HOTFIX SCENARIO ----------------------------------------------------------------------------------------------
@@ -155,7 +156,7 @@ module.exports = async function () {
       // ---- BUSY: A is working for the Coding Agent — the window says so, and offers the way out, not Detach ----------------------------
       await d.js('LAIN.dash.load(true)');
       await d.until(`!!document.querySelector('[data-account="${aId}"][data-inuse]')`, 10000);
-      assert.match(await text(`[data-account="${aId}"]`), /In use by Coding Agent/);
+      assert.match(await text(`[data-account="${aId}"]`), /^In use$/m);
       await R.click(`document.querySelector('[data-account="${aId}"] .u-ib')`);
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const busyMenu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => [b.textContent.trim(), b.disabled])");

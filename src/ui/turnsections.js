@@ -141,7 +141,7 @@ function pushChanges(said, changes, ti, ctx) {
   if (!changes.length) return;
   said.push({ kind: 'section', text: 'CHANGE' });
   changes.forEach((c, i) => {
-    const auto = i >= changes.length - MAX_AUTO_FILES;
+    const auto = !ctx.history && i >= changes.length - MAX_AUTO_FILES;
     pushChange(said, c, { turn: ti, ctx, auto });
     pushDiff(said, ctx, ti, c.path, 0, auto);
   });

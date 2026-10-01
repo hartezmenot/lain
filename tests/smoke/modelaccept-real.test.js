@@ -72,7 +72,7 @@ module.exports = async function () {
       // CODEX ONCE — a section, its accounts as rows; no router named on the surface.
       await d.until("!!document.querySelector('[data-family=codex]')", 20000);
       assert.strictEqual(await d.js("document.querySelectorAll('[data-family=codex]').length"), 1);
-      assert.match(await d.js("document.querySelector('[data-family=codex]').innerText"), /Codex[\s\S]*2 connected/i);
+      assert.match(await d.js("document.querySelector('[data-family=codex]').innerText"), /Codex[\s\S]*2 accounts/i);
       assert.strictEqual(await d.js("document.querySelectorAll('[data-family=codex] [data-account]').length"), 2);
       assert.ok(!(await d.js("/9Router|OmniRoute/i.test(document.getElementById('vModel').innerText)")), 'no router branding on MODEL');
 

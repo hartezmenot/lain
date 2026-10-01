@@ -377,7 +377,9 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // RESULT (ui/turnsections.js); any other turn keeps the interleaved form.
     const sectioned = narration && require('./turnsections').pushTurn(said, t, ti, {
       actions, kept, narration, steers, settled, feed: { pushUser, pushModel, pushAction },
-      ctx: { openDiff, closedDiffs, shownDiffs, checkpoints, cwd: cwd || (session && session.cwd) || '' },
+      // A TURN FROM AN EARLIER PROCESS (a resumed session) keeps its diffs closed until asked: drawing every one of them
+      // re-read every changed file on every redraw (measured: 150–200 ms and ~1,000 file reads per frame, 2026-10-02).
+      ctx: { openDiff, closedDiffs, shownDiffs, checkpoints, cwd: cwd || (session && session.cwd) || '', history: ti < historyTurns },
     });
     if (sectioned) { /* drawn */ } else if (narration) {
       const steps = [...new Set([

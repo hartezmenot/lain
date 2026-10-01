@@ -134,7 +134,6 @@ const ROUTES = {
   // THERE IS NO SKILL LOADER IN THIS BUILD, and the answer says so rather than
   // the window drawing an empty list that reads as "you have none installed".
   'POST /api/skills': async (app) => ok({ supported: true, skills: require('../integrations').listSkills(app), why: '' }),
-  'POST /api/skills/legacy': async () => ok({ supported: false, skills: [], why: 'this build of Noema Core has no skill loader; nothing is installed or loaded' }),
 
   'POST /api/project/open': async (app, body = {}) => openProject(app, body.path),
 

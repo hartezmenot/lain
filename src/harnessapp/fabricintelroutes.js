@@ -173,7 +173,6 @@ const ROUTES = {
     if (role === 'coding' && execution) { const cfg = ((app && app._sibling) || app).cfg; cfg.executionProfile = execution; try { require('../config').save(cfg); } catch { /* in memory */ } }
     return ok({ role, value: S().roleDefault(role) });
   },
-  'POST /api/intel/tray': async (app) => ok({ tray: require('../fabric/tray').summary(app) }),
   /**
    * REFRESH MODELS (2026-10-02) — the provider's own listing, as a new catalog generation (modelcatalog.js). All
    * providers, or one (`family`: codex · claude · antigravity · api · api:<connection>). Distinct from Refresh account.
@@ -285,7 +284,6 @@ const ROUTES = {
     tray(app);
     return ok({ id: r.id, family: r.family, refreshed: r.refreshed });
   },
-  'POST /api/intel/events': async (app, body = {}) => ok({ events: S().events({ since: Number(body.since) || 0, type: body.type || null }) }),
   'POST /api/migrate/discover': async (app, body = {}) => {
     const m = require('../fabric/migrate');
     const d = m.discover(app, { exportFile: body.exportFile || null, routers: body.routers !== false });
@@ -305,19 +303,6 @@ const ROUTES = {
   },
   // A WINDOW OPENED FOR THE MODEL DASHBOARD (fabric/dashlaunch.js) asks once where to start.
   'POST /api/desktop/startnav': async () => ok({ nav: require('./ipc').takeNavigation() }),
-  // DISCARD what is waiting under "Finish setup": a discovered-and-imported placeholder, or an imported router
-  // pool (LAIN forgets it; whatever holds the sign-in is not touched).
-  'POST /api/migrate/finish': async (app, body = {}) => {
-    const id = String(body.id || '');
-    const r = require('../fabric/migrate').finish(id);
-    if (r.ok) return ok({});
-    const pool = F().families(app).flatMap((fm) => fm.setup).find((p) => p.id === id && p.source === 'pool');
-    if (!pool) return bad(r.why, 404);
-    const d = require('../ninerouter').detach(app, id.slice(id.lastIndexOf(':') + 1));
-    if (!d.ok) return bad(d.why, 404);
-    tray(app);
-    return ok({});
-  },
 };
 
 module.exports = { ROUTES };

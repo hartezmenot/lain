@@ -101,11 +101,6 @@ async function describe(app, topic) {
       }
     }
     for (const s of a.sources.filter((x) => x.kind === 'WEB')) out.push(`  website session ${s.label}: ${s.state}${s.why ? ` — ${s.why}` : ''} (a signed-in site, not an API key)`);
-    // THE CHATGPT IDENTITY is its own credential kind: identity only, never model access.
-    try {
-      const id = require('../chatgptauth').status(app);
-      out.push(`  ChatGPT identity (Sign in with ChatGPT): ${id.state}${id.identity ? ` as ${id.identity.name || id.identity.email || 'connected'}` : ''}${id.why ? ` — ${id.why}` : ''}. Identity only: it grants no model access, usage, conversations or memory.`);
-    } catch { /* the rest of the answer stands */ }
   }
   if (want('accounts') || want('quota')) {
     // EACH ACCOUNT ON ITS OWN, as its provider reported it. No credential is

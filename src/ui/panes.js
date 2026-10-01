@@ -39,7 +39,33 @@ function rel(cwd, p) {
  *
  * @returns {Array<{path, rel, kind, added, removed, before, after}>}
  */
+/**
+ * MEMOISED PER CHECKPOINT GENERATION (2026-10-02): the answer only changes when a checkpoint is added or removed, or a
+ * file on disk changes — so each file is re-read only when its size or mtime moved. A redraw costs a stat per file.
+ */
+const changedMemo = new WeakMap();   // checkpoints → { gen, cwd, files: Map(path → { mtimeMs, size, row }) , out }
 function changedFiles({ checkpoints, cwd }) {
+  if (!checkpoints || !Array.isArray(checkpoints.entries)) return changedFilesNow({ checkpoints, cwd });
+  const last = checkpoints.entries[checkpoints.entries.length - 1];
+  const gen = `${checkpoints.entries.length}|${last ? last.id : ''}`;
+  let m = changedMemo.get(checkpoints);
+  if (!m || m.gen !== gen || m.cwd !== cwd) { m = { gen, cwd, stamps: new Map(), out: null }; changedMemo.set(checkpoints, m); }
+  let fresh = Boolean(m.out);
+  if (fresh) {
+    for (const [p, st0] of m.stamps) {
+      let st = null;
+      try { const s = fs.statSync(p); st = `${s.mtimeMs}:${s.size}`; } catch { st = 'gone'; }
+      if (st !== st0) { fresh = false; break; }
+    }
+  }
+  if (fresh) return m.out;
+  const out = changedFilesNow({ checkpoints, cwd });
+  m.stamps = new Map();
+  for (const e of checkpoints.entries) for (const f of e.files) if (!m.stamps.has(f.path)) { let st = 'gone'; try { const s = fs.statSync(f.path); st = `${s.mtimeMs}:${s.size}`; } catch { st = 'gone'; } m.stamps.set(f.path, st); }
+  m.out = out;
+  return out;
+}
+function changedFilesNow({ checkpoints, cwd }) {
   const byPath = new Map();
   for (const entry of (checkpoints && checkpoints.entries) || []) {
     for (const f of entry.files) {

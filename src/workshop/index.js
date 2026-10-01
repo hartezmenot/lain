@@ -518,38 +518,20 @@ class Workshop {
     };
   }
 
-  // ------------------------------------------------------ live preview (8.2) --
-
-  /** Stream the page's frames to the window (stream.js). Idempotent. */
-  async stream(projectPath, on = true) {
-    const p = this._page(projectPath);
-    if (!p.ok) return p;
-    const s = require('./stream');
-    return on ? s.start(p.session) : s.stop(p.session);
-  }
-
-  /** The newest frame after "since". */
-  frame(projectPath, since = 0) {
-    const p = this._page(projectPath);
-    return p.ok ? require('./stream').frame(p.session, since) : p;
-  }
-
-  /** The person's pointer, wheel and keys, delivered to the page. */
-  async input(projectPath, events) {
-    const p = this._page(projectPath);
-    return p.ok ? require('./stream').input(p.session, events) : p;
-  }
-
-  /** The element under a point (Pick mode's outline). */
-  async hover(projectPath, x, y) {
-    const p = this._page(projectPath);
-    return p.ok ? require('./stream').hover(p.session, x, y) : p;
-  }
+  // (The 8.2 screencast preview — frames of a headless page streamed to the window, with input sent back — was
+  // removed 2026-10-02: the Preview is the real frontend in the window (frameOpen below) and the model's input goes
+  // through the page's own bridge (previewinput.js). No pixels are streamed.)
 
   /** Where the page is now — the page a change request targets when nothing is selected. */
   async pageUrl(projectPath) {
     const p = this._page(projectPath);
-    return p.ok ? require('./stream').url(p.session) : null;
+    if (!p.ok) return null;
+    const s = p.session;
+    if (s && typeof s.evaluate === 'function') {
+      const r = await s.evaluate('location.href', 3000).catch(() => null);
+      if (r && r.ok && r.value) return String(r.value);
+    }
+    return (s && s.url) || null;
   }
 
   // ------------------------------------------------ the frame preview (2026-09-30) --
@@ -649,7 +631,6 @@ class Workshop {
     const key = path.resolve(projectPath);
     if (this._frames && this._frames.has(key)) await this.frameClose(key, { keepServer: true });
     const held = this._open.get(key);
-    if (held && held.session) { try { await require('./stream').stop(held.session); } catch { /* closing anyway */ } }
     this._open.delete(key);
     this._before.delete(`${key}:desktop`);
     if (!held) return { ok: true };

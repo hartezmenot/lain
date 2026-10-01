@@ -169,6 +169,16 @@ async function main(opts = {}) {
     await require('./teardown').shutdown(app, { why: 'the desktop did not open' });
     return 1;
   }
+  // THE CLI THAT HOSTED THIS WINDOW CLOSED WITH WORK LEFT (repl.js, `--continue-session`): the same session, taken
+  // over through its lease and continued — the same task, plan and checkpoint; no new session, no replayed prompt.
+  if (!mode && opts.continueSession && opts.resume) {
+    setTimeout(() => {
+      try {
+        const route = require('./harnessapp/workbenchroutes').ROUTES['POST /api/workbench/continue'];
+        Promise.resolve(route(app, {})).catch(() => {});
+      } catch { /* the window shows Paused · CLI closed and ▶ Continue */ }
+    }, 400);
+  }
   // THE HARNESS LOOKS FOR UPDATES (check only — the person chooses Download / Restart from the Update button).
   if (!mode) { try { require('./update/cli').watch(app); } catch { /* updates are optional */ } }
   if (!mode && opts.afterUpdate) { try { require('./update/cli').afterRestart(app); } catch { /* not after an update */ } }

@@ -44,26 +44,6 @@ function pair(app, account, model) {
 }
 
 const ROUTES = {
-  'POST /api/intel/defaults': async (app) => {
-    const cfg = ((app && app._sibling) || app).cfg || {};
-    const si = require('../sessionintel');
-    const out = {
-      global: {
-        chat: pair(app, (cfg.defaultChat && cfg.defaultChat.connection) || null, (cfg.defaultChat && cfg.defaultChat.model) || null),
-        coding: pair(app, cfg.connection || null, cfg.model || null),
-      },
-      project: null,
-      session: { chat: si.lane(app, app.session, 'chat'), coding: si.lane(app, app.session, 'coding') },
-    };
-    const sv = require('../sessionviews');
-    const p = sv.project(app.session);
-    if (p.attached && !p.missing) {
-      const pid = require('../journey').projectId(app.session.cwd);
-      const layer = (cfg.projects && cfg.projects[pid]) || {};
-      out.project = { name: p.name, root: p.root, chat: pair(app, layer.bot && layer.bot.connection, layer.bot && layer.bot.model), coding: pair(app, layer.coding && layer.coding.connection, layer.coding && layer.coding.model) };
-    }
-    return ok(out);
-  },
   'POST /api/intel/accounts': async (app) => {
     try { await app.ensureCatalog({ announce: false }); } catch { /* cached catalog */ }
     return ok({ groups: grouped(app), lanes: lanes(app) });
@@ -80,25 +60,6 @@ const ROUTES = {
     if (!r.ok) return bad(r.why, 409, { code: r.code || null, offering: r.offering || null });
     save(app);
     return ok({ lane: r.lane, needsModel: r.needsModel, lanes: lanes(app) });
-  },
-  'POST /api/intel/models': async (app, body = {}) => {
-    const A = require('../accountcatalog');
-    const acct = A.accountFor(app, body.account);
-    if (!acct) return bad('choose an account first', 404);
-    const which = body.lane === 'chat' ? 'chat' : body.lane === 'coding' ? 'coding' : null;
-    const rows = A.models(app, acct.id, { query: body.query || '', limit: 2000 }).filter((m) => !which || (which === 'coding' ? m.coding : m.chat));
-    const limit = Math.max(1, Math.min(500, Number(body.limit) || 200));
-    return ok({ account: A.view(acct), models: rows.slice(0, limit), total: rows.length, defaultModel: A.defaultModel(app, acct.id) });
-  },
-  'POST /api/intel/rename': async (app, body = {}) => {
-    const r = require('../accountcatalog').rename(app, String(body.id || ''), body.name);
-    // THE FABRIC'S ALIAS (Phase 8.3) is what every surface shows — one registry for the CLI and the window.
-    if (r.ok) { try { require('../fabric/store').setAlias(String(body.id || ''), body.name); } catch { /* the catalog name still stands */ } }
-    return r.ok ? ok({ groups: grouped(app) }) : bad(r.why);
-  },
-  'POST /api/intel/default': async (app, body = {}) => {
-    const r = require('../accountcatalog').setDefaultModel(app, String(body.id || ''), body.model ? String(body.model) : null);
-    return r.ok ? ok({}) : bad(r.why);
   },
 };
 

@@ -28,7 +28,6 @@ const ROUTES = {
   'POST /api/integrations/mcp/disconnect': async (app, body = {}) => pass(ig.disconnect(app, String(body.id || ''))),
   'POST /api/integrations/mcp/enable': async (app, body = {}) => pass(ig.setEnabled(app, String(body.id || ''), body.enabled !== false)),
   'POST /api/integrations/mcp/remove': async (app, body = {}) => pass(ig.removeMcp(app, String(body.id || ''))),
-  'POST /api/integrations/skill/validate': async (app, body = {}) => ok({ validation: ig.validateSkill(require('path').resolve(String(body.path || ''))) }),
   'POST /api/integrations/skill/add': async (app, body = {}) => pass(ig.addSkill(app, body)),
   // AN EXECUTABLE SKILL (scripts or dependencies) is enabled only with a confirm, after its files were shown (skillshub.js).
   'POST /api/integrations/skill/enable': async (app, body = {}) => pass(body.enabled === false ? ig.setSkill(app, String(body.id || ''), false) : require('../skillshub').enable(app, String(body.id || ''), { confirm: body.confirm === true })),

@@ -16,7 +16,6 @@
 const assert = require('assert');
 const crypto = require('crypto');
 const fs = require('fs');
-const http = require('http');
 const path = require('path');
 const { test } = require('../helpers');
 const isolation = require('../harness/isolation');
@@ -305,81 +304,10 @@ module.exports = async function () {
     for (const bad of ['disable-web-security', 'ignore-certificate-errors', 'allow-running-insecure-content', 'enable-automation']) assert.ok(!src.includes(`'--${bad}`), bad);
   });
 
-  await test('CHATGPT: without a LAIN-registered client it is NOT AVAILABLE and says why; a borrowed client is refused', () => {
-    const auth = require('../../src/chatgptauth');
-    const none = auth.status({ cfg: {} });
-    assert.strictEqual(none.state, 'NOT_AVAILABLE');
-    assert.ok(/partner|registered/i.test(none.why), none.why);
-    assert.strictEqual(none.scope, 'identity');
-    const codex = auth.client({ cfg: { auth: { chatgpt: { clientId: 'app_EMoamEEZ73f0CkXaXp7hrann' } } } });
-    assert.ok(!codex.ok && /Codex/.test(codex.why), 'another application\'s client id is never used');
-    assert.ok(!auth.allowedUrl('http://auth.example.com'), 'plain HTTP is refused off loopback');
-    assert.ok(auth.allowedUrl('http://127.0.0.1:9/x'), 'loopback is the RFC 8252 exception');
-  });
-
-  await test('CHATGPT: with a registered client the flow is PKCE + state + nonce, verified, identity-only, and nothing secret reaches status', async () => {
-    const auth = require('../../src/chatgptauth');
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-    const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', use: 'sig', alg: 'RS256' };
-    let issuer = '';
-    let seen = null;
-    const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const server = http.createServer((req, res) => {
-      const u = new URL(req.url, issuer);
-      const json = (o) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
-      if (u.pathname === '/.well-known/openid-configuration') return json({ issuer, authorization_endpoint: `${issuer}/authorize`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks`, code_challenge_methods_supported: ['S256'] });
-      if (u.pathname === '/jwks') return json({ keys: [jwk] });
-      if (u.pathname === '/token') {
-        let body = '';
-        req.on('data', (d) => { body += d; });
-        req.on('end', () => {
-          const f = new URLSearchParams(body);
-          const ok = crypto.createHash('sha256').update(f.get('code_verifier')).digest('base64url') === seen.get('code_challenge');
-          if (!ok || f.get('code') !== 'the-code') { res.writeHead(400); res.end('{"error":"invalid_grant"}'); return; }
-          const h = b64u({ alg: 'RS256', kid: 'k1' });
-          const c = b64u({ iss: issuer, aud: 'lain-test-client', sub: 'u1', name: 'Test Person', email: 'test@example.com', nonce: seen.get('nonce'), exp: Math.floor(Date.now() / 1000) + 600 });
-          const sig = crypto.sign('RSA-SHA256', Buffer.from(`${h}.${c}`), privateKey).toString('base64url');
-          json({ access_token: 'AT-secret', refresh_token: 'RT-secret', id_token: `${h}.${c}.${sig}` });
-        });
-        return undefined;
-      }
-      res.writeHead(404); res.end();
-      return undefined;
-    });
-    await new Promise((r) => server.listen(0, '127.0.0.1', r));
-    issuer = `http://127.0.0.1:${server.address().port}`;
-    const app = { cfg: { auth: { chatgpt: { clientId: 'lain-test-client', issuer } } } };
-    try {
-      const b = await auth.begin(app);
-      assert.ok(b.ok, b.why);
-      seen = new URL(b.url).searchParams;
-      assert.strictEqual(seen.get('code_challenge_method'), 'S256');
-      assert.ok(seen.get('state') && seen.get('nonce') && seen.get('scope') === 'openid profile email');
-      const redirect = seen.get('redirect_uri');
-      assert.ok(/^http:\/\/127\.0\.0\.1:\d+\/callback$/.test(redirect));
-      // A forged state is refused and does not end anything.
-      const forged = await fetch(`${redirect}?code=the-code&state=forged`);
-      assert.strictEqual(forged.status, 400);
-      const back = await fetch(`${redirect}?code=the-code&state=${encodeURIComponent(seen.get('state'))}`);
-      assert.strictEqual(back.status, 200, await back.text());
-      const st = auth.status(app);
-      assert.strictEqual(st.state, 'CONNECTED', JSON.stringify(st));
-      assert.deepStrictEqual(st.grants, ['name', 'email'], 'identity only');
-      const text = JSON.stringify(st);
-      assert.ok(!/RT-secret|AT-secret|the-code|id_token/.test(text), 'no token or code reaches the window');
-      let cfgText = '';
-      try { cfgText = fs.readFileSync(require('../../src/config').configFile(), 'utf8'); } catch { cfgText = ''; }
-      assert.ok(!/RT-secret/.test(cfgText), 'not in config.json');
-      const d1 = auth.disconnect({});
-      assert.ok(d1.confirm && d1.token);
-      assert.ok(!auth.disconnect({ token: 'nope' }).ok);
-      const d2 = auth.disconnect({});
-      assert.ok(auth.disconnect({ token: d2.token }).ok);
-      assert.strictEqual(auth.status(app).state, 'NOT_CONNECTED');
-    } finally {
-      auth.cancel();
-      server.close();
-    }
+  await test('CHATGPT IDENTITY IS GONE (2026-10-02): it granted no model access, so nothing replaced it', () => {
+    assert.ok(!fs.existsSync(path.join(__dirname, '../../src/chatgptauth.js')), 'no ChatGPT identity sign-in');
+    const routes = fs.readFileSync(path.join(__dirname, '../../src/harnessapp/journeyroutes.js'), 'utf8');
+    assert.ok(!routes.includes('/api/accounts/chatgpt'), 'no ChatGPT identity routes');
   });
 
   await test('ARCHITECTURE: seven rooms; IDE is /focus, the Agent is its sidecar, quick actions own no state, tests use no real store', () => {

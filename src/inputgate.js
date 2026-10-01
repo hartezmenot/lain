@@ -91,7 +91,7 @@ async function admit(app, text, { from = null } = {}) {
   // the CLI holds it, a sentence here is held with the reason — never written twice.
   // TAKEN, NOT JUST CHECKED (sessionlease.js): this surface becomes the session's execution host until it exits or hands over.
   const sh = require('./surfacehandoff');
-  if (!sh.claim(app)) { const lease = sh.check(app); const why = lease.why || 'another surface holds this session'; try { app.render.notice('warn', why); } catch { /* no renderer */ } return { held: true, result: { held: 'surface', why } }; }
+  if (!(await sh.claimWaiting(app))) { const lease = sh.check(app); const why = lease.why || 'another surface holds this session'; try { app.render.notice('warn', why); } catch { /* no renderer */ } return { held: true, result: { held: 'surface', why } }; }
 
   // THE SAME JUDGEMENT THE GUARDIAN MADE, read from the session itself (turnguard.js) — no process to ask.
   const reason = guard.held(app);

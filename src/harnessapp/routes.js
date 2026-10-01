@@ -235,17 +235,6 @@ const ROUTES = {
     return ok({ state: st.state, why: st.why || '' });
   },
 
-  // THE CHAT VIEW'S SOURCE AND MODEL — for THIS session only. It goes through
-  // the same per-view selection as `/api/models/select`, so picking a runtime
-  // model for Chat never moves the Coding model or the process default.
-  'POST /api/source/select': async (app, body) => {
-    const picked = await within(require('../modelinventory').select(app, {
-      lane: 'chat', source: String(body.source || ''), modelId: body.model ? String(body.model) : '',
-    }), ACTION_TIMEOUT_MS, 'selecting the model');
-    if (!picked.ok) return bad(picked.why);
-    try { app.session.save(); } catch { /* the selection still holds for this run */ }
-    return ok({ source: picked.selected.source, model: picked.selected.modelId || null });
-  },
 
   // ------------------------------------------------------------- the turn --
 
@@ -386,11 +375,6 @@ const ROUTES = {
     return ok(await ws.close(app.session.cwd));
   },
 
-  'POST /api/workshop/navigate': async (app, body) => {
-    const ws = require('../workshop').forApp(app);
-    const r = await within(ws.navigate(app.session.cwd, String(body.url || '')), ACTION_TIMEOUT_MS, 'navigation');
-    return r.ok ? ok(r) : bad(r.why);
-  },
 
   'POST /api/workshop/reload': async (app) => {
     const ws = require('../workshop').forApp(app);
@@ -414,18 +398,6 @@ const ROUTES = {
     return ok(r);
   },
 
-  /**
-   * THE WORKSHOP'S GEOMETRIC UI GRAPH (gug.js): re-measure, and say what moved
-   * since the last measurement — "SearchBar height +6px · Results moved +6px"
-   * rather than "SearchView.tsx changed". Optional `id`: that node's slice.
-   */
-  'POST /api/workshop/gug': async (app, body = {}) => {
-    const ws = require('../workshop').forApp(app);
-    const r = await within(require('../harnesscontext').measureWorkshop(app, app.session, ws), 30_000, 'measuring the page');
-    if (!r.ok) return bad(r.why);
-    const slice = body.id ? require('../gug').slice(r.graph, String(body.id)) : null;
-    return ok({ gug: r.summary, impact: r.impact ? { from: r.impact.from, to: r.impact.to, lines: r.impact.lines, affectedRelations: r.impact.affectedRelations } : null, slice: slice && slice.found ? slice.text : null });
-  },
 
   /** SELECT BY CLICKING THE PREVIEW IMAGE: page coordinates, mapped by the page. */
   'POST /api/workshop/pick-at': async (app, body) => {
@@ -435,10 +407,6 @@ const ROUTES = {
     return ok({ element: r.element, ...(r.element ? await pickAnswer(app, ws, r.element) : { source: null, gug: null, binding: null, selection: null, open: null }) });
   },
 
-  'POST /api/workshop/unpick': async (app) => {
-    const ws = require('../workshop').forApp(app);
-    return ok(await ws.unpick(app.session.cwd));
-  },
 
   'POST /api/workshop/element': async (app, body) => {
     const ws = require('../workshop').forApp(app);
@@ -452,11 +420,6 @@ const ROUTES = {
     return r.ok ? ok(r) : bad(r.why);
   },
 
-  'POST /api/workshop/viewport': async (app, body) => {
-    const ws = require('../workshop').forApp(app);
-    const r = await within(ws.viewport(app.session.cwd, String(body.name || 'desktop')), ACTION_TIMEOUT_MS, 'the viewport change');
-    return r.ok ? ok(r) : bad(r.why);
-  },
 
   /** A SCREENSHOT. `as: 'before'` also banks it for the comparison. */
   'POST /api/workshop/capture': async (app, body) => {
@@ -494,74 +457,6 @@ const ROUTES = {
     return { code: 200, body: { ...r, ok: true, passed: Boolean(r.ok) } };
   },
 
-  /**
-   * ATTACH AN OBSERVATION TO THE NEXT TURN.
-   *
-   * The Workshop's whole reason for existing on the same screen as the
-   * conversation: a person selects an element, and what they selected becomes
-   * the context of what they ask next — WITHOUT sending the DOM.
-   *
-   * Bounded and specific by construction: the selector, the accessible name,
-   * the box, and the console/network lines that are actually failing.
-   */
-  'POST /api/workshop/attach': async (app, body) => {
-    const ws = require('../workshop').forApp(app);
-    const text = String(body.text || '').trim();
-    if (!text) return bad('nothing was asked');
-    const el = body.selector
-      ? await within(ws.element(app.session.cwd, String(body.selector)), 30_000, 'inspecting the element')
-      : { ok: false };
-    const obs = ws.observations(app.session.cwd) || {};
-    const lines = [text, ''];
-    if (el.ok && el.element) {
-      const e = el.element;
-      lines.push('THE ELEMENT I SELECTED IN THE PREVIEW:');
-      lines.push(`  selector   ${e.selector || body.selector}`);
-      if (e.role || e.name) lines.push(`  accessible ${[e.role, e.name].filter(Boolean).join(' — ')}`);
-      if (e.tag) lines.push(`  tag        ${e.tag}${e.id ? `#${e.id}` : ''}${e.classes ? `.${String(e.classes).trim().split(/\s+/).join('.')}` : ''}`);
-      if (e.rect) lines.push(`  box        ${e.rect.w}×${e.rect.h} at ${e.rect.x},${e.rect.y}`);
-      // ---- THE COMPUTED VALUES, AND ONLY THE ONES THAT DECIDE LAYOUT ----
-      //
-      // `layout` carries every property inspect.js reads. Sending all of them
-      // would be a wall of defaults; these are the ones an alignment question is
-      // actually answered by. See workshop/inspect.js LAYOUT_PROPS.
-      if (e.layout) {
-        const care = ['display', 'position', 'align-items', 'justify-content', 'margin', 'padding', 'width', 'text-align'];
-        const said = care.filter((k) => e.layout[k]).map((k) => `${k}: ${String(e.layout[k]).trim()}`);
-        if (said.length) lines.push(`  computed   ${said.join('; ')}`);
-      }
-      // THE PARENT DECIDES MOST ALIGNMENT, which is why inspect.js carries it:
-      // a child that will not centre is usually a parent that is not a flex row.
-      if (e.parent) {
-        lines.push(`  parent     <${e.parent.tag}> display: ${e.parent.display}`
-          + `${e.parent.justify ? `; justify-content: ${e.parent.justify}` : ''}`
-          + `${e.parent.align ? `; align-items: ${e.parent.align}` : ''}`);
-      }
-    }
-    // ---- THE REPORTS ARE SUMMARIES, NOT ARRAYS -------------------------
-    //
-    // `consoleReport` and `networkReport` return `{errors,total,entries}` and
-    // `{total,failed,entries}` — already filtered to what is worth reading, and
-    // already bounded. Treating them as raw arrays (which this did until a real
-    // run printed `console undefined`) silently attaches nothing at all.
-    const cons = obs.console || {};
-    const errs = (cons.entries || []).slice(0, 5);
-    if (errs.length) {
-      lines.push('', `CONSOLE ERRORS ON THE PAGE (${cons.errors} of ${cons.total} entries):`);
-      for (const e of errs) lines.push(`  ${String(e.text).slice(0, 200)}`);
-    }
-    const net = obs.network || {};
-    const failed = (net.entries || []).slice(0, 5);
-    if (failed.length) {
-      lines.push('', `FAILED REQUESTS (${net.failed} of ${net.total}):`);
-      for (const n of failed) lines.push(`  ${n.status} ${String(n.url).slice(0, 160)}`);
-    }
-    if (obs.viewport) lines.push('', `Observed at the ${obs.viewport} viewport.`);
-    if (app.abort && !app.abort.signal.aborted) return bad('a turn is already running', 409);
-    const composed = lines.join('\n');
-    Promise.resolve(require('./sessionroutes').withPort(app, () => app.handle(composed, { from: 'harness-app' }))).catch(() => {});
-    return ok({ accepted: true, sent: composed });
-  },
 };
 
 /**

@@ -25,50 +25,7 @@ const ROUTES = {
   /** The person answered "This requires code changes. Move to Agent?". */
   'POST /api/agent/proposal': (app, body = {}) => require('./botroute').answer(app, { id: body.id, accept: body.accept === true }),
 
-  /**
-   * CHATGPT IDENTITY (chatgptauth.js) — identity only, and off unless LAIN has
-   * its own OpenAI-registered client. `begin` returns the official URL; the
-   * window opens it in the default browser.
-   */
-  'POST /api/accounts/chatgpt/status': (app) => ok(require('../chatgptauth').status(app)),
-  'POST /api/accounts/chatgpt/begin': async (app) => reply(await require('../chatgptauth').begin(app)),
-  'POST /api/accounts/chatgpt/disconnect': (app, body = {}) => reply(require('../chatgptauth').disconnect({ token: body.token || null })),
 
-  /**
-   * CREDENTIALS BY KIND — an OAuth identity, an API key and a website session
-   * are three different things and are never shown as one. Per provider, only
-   * the kinds that exist in this build.
-   */
-  'POST /api/accounts/credentials': async (app) => {
-    const a = await require('./accounts').read(app);
-    const providers = a.providers || [];
-    const sources = a.sources || [];
-    const apiOf = (...pids) => {
-      const rows = providers.filter((x) => pids.includes(String(x.provider).toLowerCase()))
-        .flatMap((p) => p.connections.filter((c) => /key/i.test(String(c.auth || ''))));
-      return { kind: 'api_key', label: 'API key', state: rows.length ? 'CONFIGURED' : 'NOT_CONFIGURED', count: rows.length, readiness: rows.map((c) => c.readiness) };
-    };
-    const webOf = (sid, label) => {
-      const s = sources.find((x) => x.source === sid || x.id === sid);
-      return s ? { kind: 'website_session', label: `${label} session`, source: sid, state: s.state, why: s.why || '' } : null;
-    };
-    const chat = require('../chatgptauth').status(app);
-    const out = [
-      {
-        provider: 'openai', label: 'OpenAI',
-        kinds: [
-          { kind: 'oauth_identity', label: 'ChatGPT identity (Sign in with ChatGPT)', state: chat.state, why: chat.why || '', grants: chat.grants, identity: chat.identity || null, note: 'Identity only: name and email. Not model access, usage, conversations or memory.' },
-          apiOf('openai'),
-          webOf('chatgpt-web', 'chatgpt.com'),
-        ].filter(Boolean),
-      },
-      { provider: 'google', label: 'Google', kinds: [apiOf('gemini', 'google'), webOf('gemini-web', 'gemini.google.com')].filter(Boolean) },
-    ];
-    return ok({ providers: out });
-  },
-
-  /** The house doors: what exists, and walking through one. */
-  'POST /api/house/list': () => ok({ doors: require('../house').list() }),
   'POST /api/house/run': async (app, body = {}) => reply(await require('../house').run(app, body.id, body.args || {})),
 
   /** Provenance: which source wrote which lines of one file, as it stands now. */

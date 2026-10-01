@@ -200,7 +200,7 @@ const SMOKE_HARNESS = new Set([
   'desktop-real.test.js', 'terminal-real.test.js', 'workshop-real.test.js', 'computermcp-real.test.js',
   'journey-real.test.js', 'assistant-real.test.js', 'workbench-real.test.js', 'preview-real.test.js',
   // PHASE 8.2 ACCEPTANCE — the IDE, Preview, Chat and MODEL through a person's own input.
-  'ideaccept-real.test.js', 'previewaccept-real.test.js', 'chataccept-real.test.js', 'modelaccept-real.test.js', 'perf83-real.test.js', 'accounts84-real.test.js', 'responsive84-real.test.js', 'codingagent841-real.test.js',
+  'ideaccept-real.test.js', 'previewaccept-real.test.js', 'chataccept-real.test.js', 'modelaccept-real.test.js', 'perf83-real.test.js', 'accounts84-real.test.js', 'responsive84-real.test.js', 'codingagent841-real.test.js', 'phasea-real.test.js',
   // THE FOUR-GATE SPEC §111 — the CLI and the window hand one task back and forth.
   'clihandoff-real.test.js',
 ]);

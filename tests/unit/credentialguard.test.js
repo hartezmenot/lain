@@ -6,7 +6,7 @@
  * STATIC: the code paths a secret could leak through do not touch one.
  *   · only connections.js resolves a credential reference (the transport side)
  *   · only the transport and its owners read `.apiKey`
- *   · only credentials.js and chatgptauth.js read the OS secret store
+ *   · only credentials.js reads the OS secret store
  *
  * DYNAMIC: a known fake key, stored by reference, is present exactly where a
  * request is built and nowhere a person, a model or a log would read it —
@@ -56,9 +56,9 @@ module.exports = async function () {
     }
   });
 
-  await test('GUARD: only credentials.js and chatgptauth.js open the OS secret store', () => {
+  await test('GUARD: only credentials.js opens the OS secret store', () => {
     const users = files.filter((f) => /require\('\.\.?\/secretstore'\)/.test(code(f))).map(rel).sort();
-    assert.deepStrictEqual(users, ['chatgptauth.js', 'credentials.js']);
+    assert.deepStrictEqual(users, ['credentials.js']);
   });
 
   await test('GUARD: a stored key reaches the request and nothing a person, model or log reads', async () => {

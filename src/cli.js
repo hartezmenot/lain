@@ -55,6 +55,7 @@ function parseArgs(argv) {
       case '-v': case '--version': opts.version = true; break;
       case '-p': case '--print': opts.print = argv[++i]; break;
       case '--resume': opts.resume = argv[++i]; break;
+      case '--continue-session': opts.continueSession = true; break;
       case '--sessions': opts.sessions = true; break;
       case '--doctor': opts.doctor = true; break;
       case '--bot': opts.bot = true; break;
@@ -146,7 +147,7 @@ async function main(argv) {
   // Before anything that would build a session: a direct launch may turn out to
   // be a request to SHOW the LAIN that is already running, in which case this
   // process must not construct an App at all. See src/desktoprun.js.
-  if (opts.desktop) return require('./desktoprun').main({ cwd: opts.cwd, dev: opts.dev, open: opts.open || null, resume: opts.resume || null, afterUpdate: Boolean(opts.afterUpdate), startup: Boolean(opts.startup) });
+  if (opts.desktop) return require('./desktoprun').main({ cwd: opts.cwd, dev: opts.dev, open: opts.open || null, resume: opts.resume || null, continueSession: Boolean(opts.continueSession), afterUpdate: Boolean(opts.afterUpdate), startup: Boolean(opts.startup) });
   // WINDOWS' "OPEN WITH" (winassoc.js): the stable launcher is built/installed first, then offered — never made a default.
   if (opts.assoc) {
     const desk = require('./desktop');

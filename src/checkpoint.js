@@ -113,14 +113,18 @@ class Checkpoints {
       if (!manifest || !Array.isArray(manifest.files)) continue;
       const files = [];
       for (const f of manifest.files) {
-        let bytes = null;
-        if (f.blob) {
-          // A missing blob is not a reason to drop the whole entry: the other
-          // files in it are still restorable, and `undo` already reports a file
-          // it could not restore rather than pretending it did.
-          try { bytes = fs.readFileSync(path.join(d, f.blob)); } catch { bytes = null; }
-        }
-        files.push({ path: f.path, existed: Boolean(f.existed), bytes, after: f.after || null });
+        // READ WHEN ASKED (2026-10-02): a resumed session used to load every snapshot's bytes up front (18 MB for one
+        // real session). The bytes are read the first time something needs them — an undo, a diff — and kept.
+        // A missing blob is not a reason to drop the whole entry: undo reports a file it could not restore.
+        const rec = { path: f.path, existed: Boolean(f.existed), after: f.after || null };
+        const blob = f.blob ? path.join(d, f.blob) : null;
+        let loaded = false; let bytes = null;
+        Object.defineProperty(rec, 'bytes', {
+          enumerable: true,
+          get() { if (!loaded) { loaded = true; if (blob) { try { bytes = fs.readFileSync(blob); } catch { bytes = null; } } } return bytes; },
+          set(v) { loaded = true; bytes = v; },
+        });
+        files.push(rec);
       }
       if (files.length) this.entries.push({ id: manifest.id || n, turnId: manifest.turnId || null, at: manifest.at || null, files });
     }

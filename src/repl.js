@@ -50,6 +50,8 @@ async function start(app) {
   // THE KEYS, READ WHILE THE REST STARTS (Phase 8.2): the first listing finds them warm.
   try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
+  // `noema --resume <id>` IS AN EXPLICIT ACT: a session another surface holds is asked for (it hands over when idle).
+  if (app.resumedFrom) { try { const held = require('./surfacehandoff').askOnResume(app); if (held) app.render.write(C.dim(`  Asked the ${held.writer === 'harness' ? 'Harness' : held.writer} to hand this session over — it does when it is idle.\n`)); } catch { /* the first sentence says so */ } }
   // The messaging the person connected comes back with LAIN (see desktoprun.js).
   require('./botconnect').resume(app).catch(() => {});
   try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
@@ -58,7 +60,7 @@ async function start(app) {
 
   // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
   //
-  // ON BY DEFAULT — `dashAutostart: false` in config.json is the way out. It was
+  // OPT-IN SINCE 2026-10-02 (it was on by default) — `dashAutostart: true` in config.json, or `/dash autostart on`. It was
   // opt-in first, on the reasoning that a CLI should not open a listening socket
   // for somebody who never asked; that holds up poorly against what it actually
   // binds — an OS-chosen port on 127.0.0.1, unreachable from the network,
@@ -82,7 +84,8 @@ async function start(app) {
   //
   // FAILING TO START IS NOT FATAL. The REPL is the program; the dashboard is a
   // window onto it.
-  if (!app.cfg || app.cfg.dashAutostart !== false) {
+  // OPT-IN SINCE 2026-10-02: the Harness window replaced the browser dashboard; `/dash autostart on` brings it back.
+  if (app.cfg && app.cfg.dashAutostart === true) {
     try {
       const r = await require('./dash').start(app, { lan: Boolean(app.cfg.dashLan) });
       if (r.ok) {
@@ -533,6 +536,11 @@ async function start(app) {
   // tray's Quit, and a `quit` on the control pipe) and exactly one sequence, so
   // none of them can forget an entry. Every entry on that list is something this
   // repository has already paid for by leaving it running.
+  // THE WINDOW OUTLIVES THE TERMINAL (2026-10-02): a Harness window was showing this CLI's work, and the work is not
+  // finished. The window's Core was this process, so the window closes with it — and the Harness opens again on the
+  // SAME session, takes its lease and continues it (desktoprun.js `--continue-session`).
+  let continueIn = null;
+  try { if (require('./desktopwindow').alive() && app.session && require('./surfacehandoff').unfinished(app.session)) continueIn = app.session.id; } catch { continueIn = null; }
   await require('./teardown').shutdown(app, { why: 'the session ended' });
   process.removeListener('unhandledRejection', onRejection);
   app.ui.disable();                       // restore the user's terminal
@@ -543,6 +551,15 @@ async function start(app) {
   // The REAL persisted session id — never a fresh one generated at exit.
   // The SHORT token, not the filename. It resolves to this exact session (see
   // Session.match) — a shorter thing to type, not a different thing.
+  if (continueIn) {
+    try {
+      const { spawn } = require('child_process');
+      const entry = require('path').join(__dirname, '..', 'bin', 'noema.js');
+      const child = spawn(process.execPath, [entry, '--desktop', '--resume', continueIn, '--continue-session'], { cwd: app.session.cwd || process.cwd(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LAIN_NO_TUI: '1' } });
+      child.unref();
+      app.render.write(C.dim('  The Harness continues this session.') + '\n');
+    } catch { /* ▶ Continue in the Harness picks it up */ }
+  }
   app.render.write(C.dim('  Session saved.') + '\n\n');
   app.render.write(C.dim('  Resume with:') + '\n');
   app.render.write(`    noema --resume ${Session.shortId(app.session.id)}` + '\n');

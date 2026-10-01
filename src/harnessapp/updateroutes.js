@@ -23,10 +23,6 @@ function view(app) {
 }
 
 const ROUTES = {
-  'POST /api/update/check': async (app, body = {}) => {
-    const r = await U().check({ cfg: app.cfg, force: Boolean(body.force) }).catch((e) => ({ state: 'error', why: e.message }));
-    return ok({ update: { ...view(app), ...r } });
-  },
   'POST /api/update/download': async (app) => {
     if (!U().installRoot()) return bad('updates apply to an installed Noema — this is a development checkout', 409);
     const r = await U().stage({ cfg: app.cfg }).catch((e) => ({ ok: false, why: e.message }));

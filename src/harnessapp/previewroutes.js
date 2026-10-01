@@ -119,22 +119,6 @@ const ROUTES = {
     if (!r || r.isError || r.ok === false) return bad((r && (r.why || r.output)) || 'the preview command was not saved', 409);
     return ok({ ...available(app), cleared: Boolean(r.cleared) });
   },
-  'POST /api/workshop/stream': async (app, body = {}) => {
-    const r = await within(require('../workshop').forApp(app).stream(app.session.cwd, body.on !== false), 10000);
-    return r.ok ? ok(r) : bad(r.why, 409);
-  },
-  'POST /api/workshop/frame': async (app, body = {}) => {
-    const r = require('../workshop').forApp(app).frame(app.session.cwd, Number(body.since) || 0);
-    return r.ok ? ok(r) : bad(r.why, 409);
-  },
-  'POST /api/workshop/input': async (app, body = {}) => {
-    const r = await within(require('../workshop').forApp(app).input(app.session.cwd, Array.isArray(body.events) ? body.events : []), 8000);
-    return r.ok ? ok(r) : bad(r.why, 409);
-  },
-  'POST /api/workshop/hover': async (app, body = {}) => {
-    const r = await within(require('../workshop').forApp(app).hover(app.session.cwd, body.x, body.y), 5000);
-    return r.ok ? ok(r) : bad(r.why, 409);
-  },
   // ---- THE FRAME PREVIEW (2026-09-30): real frontend in the window, backend dormant --------------------
   'POST /api/preview/start': async (app, body = {}) => {
     const p = require('../sessionviews').project(app.session);
@@ -173,7 +157,6 @@ const ROUTES = {
   // and answers with what the page's bridge did. Nothing here reaches outside the preview document.
   'POST /api/preview/input/next': async (app, body = {}) => ok({ action: await require('../workshop/previewinput').next(app, { waitMs: Math.min(15000, Number(body.waitMs) || 15000) }) }),
   'POST /api/preview/input/result': async (app, body = {}) => ok({ accepted: require('../workshop/previewinput').result(app, body.id, body.result && typeof body.result === 'object' ? body.result : null) }),
-  'POST /api/preview/scope': async (app, body = {}) => { const s = await scope(app, body.selector || null); return s.ok ? ok({ scope: s }) : bad(s.why, 409); },
   'POST /api/preview/change': async (app, body = {}) => {
     const text = String(body.text || '').trim();
     if (!text) return bad('say what to change');

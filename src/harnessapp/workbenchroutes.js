@@ -89,7 +89,6 @@ async function answer(app, body = {}) {
 }
 
 const ROUTES = {
-  'POST /api/workbench/state': async (app) => ok({ workbench: sup.state(app) }),
   'POST /api/workbench/answer': (app, body = {}) => answer(app, body),
 
   'POST /api/workbench/finding': async (app, body = {}) => {
@@ -111,13 +110,6 @@ const ROUTES = {
     return { code: r.code, body: { ...(r.body || {}), workbench: sup.state(app) } };
   },
 
-  'POST /api/workbench/steer': async (app, body = {}) => {
-    const t = String(body.text || '').trim();
-    if (!t) return bad('nothing to record');
-    const st = sup.addSteer(app.session, t, body.from || 'chat');
-    save(app);
-    return ok({ steer: st, workbench: sup.state(app) });
-  },
 
   'POST /api/workbench/strategy': async (app, body = {}) => {
     const r = rs.request(app, body.kind, { review: body.review || null });
@@ -178,11 +170,6 @@ const ROUTES = {
     return { code: r.code, body: { ...(r.body || {}), workbench: sup.state(app) } };
   },
 
-  'POST /api/workbench/quota/continue': async (app) => {
-    const r = await require('../quotapause').resume(app);
-    if (!r.ok) return bad(r.why, 409);
-    return ok({ ...r, workbench: sup.state(app) });
-  },
 
   /**
    * SEND TO CODING AGENT: the approved plan goes into the SAME session's Coding

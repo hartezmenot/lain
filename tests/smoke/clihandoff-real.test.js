@@ -44,7 +44,9 @@ module.exports = async function () {
     const taskA = a1.task && a1.task.id;
     assert.ok(taskA, 'the CLI task has an id');
     assert.strictEqual(a1.checkpoint && a1.checkpoint.done, 1, `one step committed in the CLI: ${JSON.stringify(a1.checkpoint)}`);
-    assert.strictEqual(a1.workbench && a1.workbench.surface && a1.workbench.surface.pausedBy, 'cli-closed', 'closing the CLI paused the task, it did not end it');
+    // THE LEASE (sessionlease.js) records the pause the closing CLI left.
+    const lease1 = JSON.parse(fs.readFileSync(path.join(configDir, 'sessions', '.lease', `${id}.json`), 'utf8'));
+    assert.strictEqual(lease1.pausedBy, 'cli-closed', 'closing the CLI paused the task, it did not end it');
 
     // ---- A2: THE HARNESS SHOWS IT PAUSED; ▶ CONTINUE (REAL CLICK) FINISHES THE SAME TASK --------------------------
     let d = await drv.open({

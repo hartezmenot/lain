@@ -134,7 +134,6 @@ async function action(app, body = {}) {
 const ROUTES = {
   'POST /api/sources/list': async (app) => ok(await list(app)),
   'POST /api/sources/action': async (app, body = {}) => action(app, body),
-  'POST /api/ninerouter/status': async (app) => ok({ ninerouter: await require('../ninerouter').status(app) }),
   'POST /api/ninerouter/providers': async (app) => { const p = await require('../ninerouter').providers(app); return p.ok ? ok(p) : bad(p.why, 409, p); },
 };
 
