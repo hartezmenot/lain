@@ -409,6 +409,12 @@ function client() {
       var coding = laneOf() === 'coding';
       // EXECUTION (Normal · Fast · Eco) — the session's profile, in either lane.
       var cur = w.profile || 'NORMAL';
+      // PERMISSIONS (Core's execmode): Ask · Accept edits · Plan · Auto — the twin of Shift+Tab in the CLI.
+      var MODE = { ASK: ['Ask', 'Edits, commands and computer input ask you first.'], ACCEPT_EDITS: ['Accept edits', 'Edits go ahead; commands and computer input ask first.'], PLAN: ['Plan', 'Read-only: LAIN investigates and proposes a plan for you to build.'], AUTO: ['Auto', 'No per-action prompts in a trusted project. Computer Control comes with it.'] };
+      var mode = w.mode || 'AUTO';
+      p.appendChild(el('h5', '', 'Permissions'));
+      p.appendChild(L.kit.segmented(Object.keys(MODE).map(function (k) { return [k, MODE[k][0]]; }), mode, function (k) { if (k !== mode) L.api('/api/workbench/mode', { mode: k }).then(function (r) { if (!r || !r.ok) L.toast((r && r.why) || 'could not change the mode', true); return L.poll(); }).then(function () { L.popRefresh(); }); }));
+      p.appendChild(el('div', 'mnote', MODE[mode][1] + (w.modeApplies && w.modeApplies !== mode ? ' This folder is not trusted yet, so ' + MODE[w.modeApplies][0] + ' applies.' : '')));
       p.appendChild(el('h5', '', 'Execution'));
       var sg = L.kit.segmented(Object.keys(PROFILE).map(function (k) { return [k, PROFILE[k].word, { icon: PROFILE[k].icon }]; }), cur, function (k) { if (k !== cur) setProfile(k); });
       p.appendChild(sg);

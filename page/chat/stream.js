@@ -56,6 +56,7 @@ pre.code{margin:8px 0;padding:10px 12px;background:var(--canvas);border-radius:v
 .card .choices{display:flex;gap:8px;flex-wrap:wrap}
 #askCard{min-width:0;box-sizing:border-box;overflow-wrap:anywhere}
 #askCard p{white-space:pre-wrap;overflow-wrap:anywhere}
+#askCard .plandoc{display:block;width:100%;box-sizing:border-box;min-height:220px;max-height:50vh;margin:0 0 10px;padding:10px 12px;resize:vertical;border:0;border-radius:var(--radius-sm);background:var(--canvas);color:var(--text-primary);font:12.5px/1.55 var(--mono)}
 
 /* ---- WIDE: Chat and the full Coding Chat — a centred reading column, each turn on a plane ------------------- */
 .chat-main .convo,.coding-center .convo{flex:1}

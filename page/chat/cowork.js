@@ -101,6 +101,19 @@ LAIN.cowork = (function () {
     card.textContent = '';
     card.hidden = false;
     card.appendChild(el('h4', '', q.title));
+    // A PLAN TO BUILD (Core's exit_plan): the plan as an editable document; Build saves the edits and approves.
+    if (q.plan) {
+      var doc = document.createElement('textarea'); doc.className = 'plandoc'; doc.value = q.plan.text || ''; doc.spellcheck = false;
+      card.appendChild(doc);
+      var prow = el('div', 'choices');
+      var build = el('button', 'btn primary', 'Build');
+      build.onclick = async function () { var r = await api('/api/ask/answer', { id: q.id, answer: 'Approve', text: doc.value }); if (!r.ok) notice(r.why, true); await poll(); };
+      var keep = el('button', 'btn', 'Keep planning');
+      keep.onclick = function () { answer(q, 'Keep planning'); };
+      prow.appendChild(build); prow.appendChild(keep);
+      card.appendChild(prow);
+      return;
+    }
     if (q.question) card.appendChild(el('p', '', q.question));
     var row = el('div', 'choices');
     (q.options.length ? q.options : ['OK']).forEach(function (o, i) {
