@@ -131,6 +131,39 @@ function ensureBridge() {
   return { ok: true, exe, built: true };
 }
 
+/**
+ * THE WINDOWS GRAPHICS CAPTURE HELPER (computermcp/wgc.cs) — one frame of one window, then it exits. Built only where
+ * the Windows SDK's union metadata exists (WinRT from the in-box compiler needs it); elsewhere null, and capture falls
+ * back to the bridge's PrintWindow. Cached by its source hash like the bridge.
+ */
+function unionWinmd() {
+  const root = path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Windows Kits', '10', 'UnionMetadata');
+  let versions = [];
+  try { versions = fs.readdirSync(root).filter((d) => /^\d+\./.test(d)).sort().reverse(); } catch { return null; }
+  for (const v of versions) { const f = path.join(root, v, 'Windows.winmd'); if (fs.existsSync(f)) return f; }
+  return null;
+}
+function ensureWgc() {
+  if (process.platform !== 'win32') return { ok: false, why: 'Windows only' };
+  const src = path.join(__dirname, 'computermcp', 'wgc.cs');
+  let source;
+  try { source = fs.readFileSync(src); } catch (e) { return { ok: false, why: e.message }; }
+  const stamp = require('crypto').createHash('sha256').update(source).digest('hex').slice(0, 12);
+  const exe = path.join(HOME(), 'computermcp', `wgc-${stamp}.exe`);
+  if (fs.existsSync(exe)) return { ok: true, exe };
+  const winmd = unionWinmd();
+  const csc = compiler();
+  if (!winmd || !csc) return { ok: false, why: !winmd ? 'the Windows SDK union metadata is not installed — capture uses PrintWindow' : 'no csc.exe' };
+  const fw = path.dirname(csc);
+  try {
+    fs.mkdirSync(path.dirname(exe), { recursive: true });
+    execFileSync(csc, ['-nologo', '-optimize+', '-target:exe', '-platform:x64', `-out:${exe}`, `-r:${winmd}`,
+      `-r:${path.join(fw, 'System.Runtime.WindowsRuntime.dll')}`, `-r:${path.join(fw, 'System.Runtime.dll')}`, `-r:${path.join(fw, 'System.Threading.Tasks.dll')}`, src],
+    { stdio: 'pipe', timeout: 120_000, windowsHide: true });
+  } catch (e) { return { ok: false, why: `the capture helper did not build: ${String((e && (e.stdout || e.message)) || '').trim().slice(0, 200)}` }; }
+  return fs.existsSync(exe) ? { ok: true, exe } : { ok: false, why: 'the capture helper was not produced' };
+}
+
 /** The synthetic config one Bridge needs to run one program. */
 function bridgeConfig(exe) {
   return { mcp: { servers: { computer: { command: [exe], name: 'LAIN Computer MCP' } } } };
@@ -223,6 +256,7 @@ class ComputerMCP {
   /** End it: the bridge goes, and the authorization goes with it. */
   disconnect(why = 'disconnected') {
     const had = this.authorized;
+    try { const r = (this.app && this.app._sibling) || this.app; if (r && r._computerControl) r._computerControl.on = false; } catch { /* no state */ }
     if (this.bridge) this.bridge.close(why);
     this.bridge = null;
     this.permissions.revoke(why);
@@ -230,13 +264,22 @@ class ComputerMCP {
     return { ok: true, wasAuthorized: had };
   }
 
-  /** One operation. The permission is checked inside the bridge, per call. */
-  async call(op, params = {}) {
-    if (!this.connected) return { ok: false, why: this.why || 'Computer MCP is not connected — /mcp computer' };
-    if (!this.authorized) return { ok: false, why: 'the computer is not authorized for this session — /mcp computer' };
-    const r = await this.bridge.call(op, params);
-    if (!r.ok) return { ok: false, why: r.error || 'the bridge refused', denied: Boolean(r.denied) };
-    return { ok: true, result: r.result };
+  /**
+   * One operation. COMPUTER CONTROL admits it first (computercontrol.js: on for this session, the tier, the target
+   * lock, sensitive surfaces); the permission is checked inside the bridge, per call; the bridge itself refuses input
+   * after the kill switch, while the person is using the machine, or when the target is not in front.
+   */
+  async call(op, params = {}, { internal = false } = {}) {
+    if (!this.connected) return { ok: false, why: this.why || 'Computer MCP is not connected — /computer on' };
+    if (!this.authorized) return { ok: false, why: 'the computer is not authorized for this session — /computer on' };
+    const cc = require('./computercontrol');
+    const a = cc.admit(this.app, op, params, { internal });
+    if (!a.ok) return { ok: false, why: a.why, denied: true };
+    if (op === 'uia.setValue') { const g = await cc.guardValue(this.app, this, a.params); if (!g.ok) return { ok: false, why: g.why, denied: true }; }
+    const r = await this.bridge.call(op, a.params);
+    const out = r.ok ? { ok: true, result: r.result } : { ok: false, why: r.error || 'the bridge refused', denied: Boolean(r.denied) };
+    cc.noteResult(this.app, op, out);
+    return out;
   }
 
   // ------------------------------------------------------------ observing --
@@ -248,6 +291,27 @@ class ComputerMCP {
   async find(params) { return this.call('uia.find', params); }
   async value(params) { return this.call('uia.getValue', params); }
   async capture(params) { return this.call('screen.capture', params); }
+
+  /**
+   * ONE FRAME OF ONE WINDOW, on demand: Windows Graphics Capture when the helper exists (GPU content, occluded
+   * windows), else the bridge's PrintWindow. Admitted as the read it is (computercontrol.admit 'window.capture').
+   */
+  async captureWindow({ handle, path: out = null } = {}) {
+    const a = require('./computercontrol').admit(this.app, 'window.capture', { handle });
+    if (!a.ok) return { ok: false, why: a.why, denied: true };
+    const w = ensureWgc();
+    if (w.ok && handle != null) {
+      const file = out || path.join(require('os').tmpdir(), `lain-wgc-${Date.now()}.png`);
+      try {
+        const said = execFileSync(w.exe, [String(handle), file], { encoding: 'utf8', timeout: 15_000, windowsHide: true });
+        const j = JSON.parse(String(said).trim().split(/\r?\n/).pop());
+        if (j.ok && fs.existsSync(file)) return { ok: true, result: { path: file, region: { width: j.width, height: j.height }, method: 'Windows Graphics Capture' } };
+      } catch { /* the bridge's PrintWindow below */ }
+    }
+    const r = await this.call('window.capture', { handle, path: out });
+    if (r.ok && w && !w.ok) r.result.note = w.why;
+    return r;
+  }
 
   /**
    * WHAT IS TRUE NOW, for one expectation. The vocabulary a caller writes:
@@ -567,4 +631,4 @@ function forApp(app) {
 /** The one that already exists, for readers that must not create one. */
 function existing(app) { return (app && app._computerMcp) || null; }
 
-module.exports = { ComputerMCP, forApp, existing, ensureBridge, compiler, references, CAPS, MAX_BATCH, VERDICT, describeTarget, PERFORM_ACTIONS };
+module.exports = { ComputerMCP, forApp, existing, ensureBridge, ensureWgc, compiler, references, CAPS, MAX_BATCH, VERDICT, describeTarget, PERFORM_ACTIONS };

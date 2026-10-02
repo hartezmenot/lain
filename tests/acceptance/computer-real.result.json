@@ -1,0 +1,90 @@
+{
+  "at": "2026-10-02T11:01:23.849Z",
+  "results": [
+    {
+      "name": "bridge built and connected (temporary home)",
+      "ok": true,
+      "detail": "35 operations"
+    },
+    {
+      "name": "kill switch registered (Ctrl+Alt+Pause)",
+      "ok": true,
+      "detail": "{\"killSwitch\":\"Ctrl+Alt+Pause\"}"
+    },
+    {
+      "name": "OFF by default: input refused before /computer on",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Calculator: 7 + 8 through UI Automation reads 15",
+      "ok": true,
+      "detail": "Display is 15"
+    },
+    {
+      "name": "Notepad: computer_type reaches the target",
+      "ok": true,
+      "detail": "*LAIN acceptance 123 - Notepad"
+    },
+    {
+      "name": "Notepad: a chord (ctrl+a) is sent in INTERACT",
+      "ok": true,
+      "detail": "delivered"
+    },
+    {
+      "name": "FOCUS LOCK: nothing reached the window in front (Notepad unchanged)",
+      "ok": true,
+      "detail": "*LAIN acceptance 123 - Notepad"
+    },
+    {
+      "name": "FOCUS LOCK: with another window in front, input is refused (FOCUS_LOST)",
+      "ok": true,
+      "detail": "NOT SENT: FOCUS_LOST: '*LAIN acceptance 123 - Notepad' is in front, not the target 'Calculator' — paused, nothing was sent"
+    },
+    {
+      "name": "KILL SWITCH: after stop, nothing more is sent",
+      "ok": true,
+      "detail": "computer control is off for this session — the person turns it on with /computer on (or Enable in the Harness)"
+    },
+    {
+      "name": "Browser: address bar + Enter loads a page (title changes)",
+      "ok": true,
+      "detail": "LAIN-CU-OK - Personal - Microsoft​ Edge"
+    },
+    {
+      "name": "Canvas: computer_drag draws in Paint (the captured frame changed)",
+      "ok": true,
+      "detail": "lain-wgc-1790938873629.png vs lain-wgc-1790938874686.png"
+    },
+    {
+      "name": "Capture on demand: one frame per call through Windows Graphics Capture (PrintWindow is the fallback)",
+      "ok": true,
+      "detail": "captured 1522×857 → C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-wgc-1790938873629.png (Windows Graphics Capture). read_file it to look."
+    },
+    {
+      "name": "Raw input: W arrives as a raw key with its scan code (0x11)",
+      "ok": true,
+      "detail": "key make 0x11 vk 0x57 down | key make 0x11 vk 0x57 up"
+    },
+    {
+      "name": "Raw input: relative mouse motion arrives as raw deltas (sum 50,-20)",
+      "ok": true,
+      "detail": "sum 50 -20"
+    },
+    {
+      "name": "Raw input: space and a held left button arrive raw",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "user input wins (physical)",
+      "ok": null,
+      "detail": "the guard compares GetLastInputInfo with the bridge's own last SendInput; a person typing during this run would be refused — not simulated here (a synthetic \"person\" is still injected input)"
+    },
+    {
+      "name": "kill switch hotkey",
+      "ok": null,
+      "detail": "Ctrl+Alt+Pause is registered (above); pressing it needs a person"
+    }
+  ]
+}

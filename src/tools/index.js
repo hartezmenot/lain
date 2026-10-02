@@ -137,8 +137,11 @@ function active(ctxApp) {
   // coordinate-only one, because two ways to press a button is exactly the
   // duplication this file exists to prevent. See src/computermcp.js.
   const computerMcp = require('../computermcp').existing(app);
-  if (computerMcp && computerMcp.connected) out = { ...out, ...require('./computermcp').tools };
-  else if (mcpConfigured) out = { ...out, ...require('./computer').tools };
+  // COMPUTER CONTROL IS OFF UNTIL THE PERSON TURNS IT ON for this session (computercontrol.js): no desktop tool exists
+  // before that; OBSERVE gets the structured reads and one capture, INTERACT/FULL the mouse and keyboard too.
+  const cu = require('../computercontrol');
+  if (computerMcp && computerMcp.connected && cu.enabled(app)) out = { ...out, ...require('./computermcp').tools, ...(cu.tier(app) === 'OBSERVE' ? { computer_capture: require('./computerinput').tools.computer_capture } : require('./computerinput').tools) };
+  else if (mcpConfigured && cu.enabled(app)) out = { ...out, ...require('./computer').tools };
   // LAIN FOR CHROME follows its own transport too, for the same reason: a
   // model on an ordinary coding task is never offered control of the user's
   // real browser. See src/lainchrome.js.
@@ -218,7 +221,7 @@ function schemas(app, { turn = false, session: turnSession = null } = {}) {
   // every SCOUT was described all 63 tools. A child session with a role gets that role's pack instead.
   const sess = turnSession || (app && app.session) || null;
   if (turn && sess && sess._agentRole && sess !== (app && app.session)) {
-    require('../toolfunnel').openForRole(sess, sess._agentRole, { only: sess._agentTools || null });
+    require('../toolfunnel').openForRole(sess, sess._agentRole, { only: sess._agentTools || null, extra: app && app.cfg && app.cfg.computer && app.cfg.computer.agents ? ['computer'] : [] });
   } else if (turn && app && app.session) {
     const s = app.session;
     const cc = s._changeClass || null;
@@ -294,6 +297,9 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
   // A REGISTERED TOOL THE TURN'S FUNNEL DID NOT SHOW still runs — the funnel is
   // exposure, not permission — and is counted; its family is shown from now on.
   try { require('../toolfunnel').miss((ctx && ctx.session) || (app && app.session), name); } catch { /* metrics only */ }
+  // THE DESKTOP IS THE PRIMARY AGENT'S (Phase CU): a subagent never drives it unless the person set cfg.computer.agents —
+  // a permission, not exposure, so it holds even for a tool the funnel did not show.
+  { const s = (ctx && ctx.session) || null; if (s && s._agentRole && require('../toolfunnel').familyOf(name) === 'computer' && !(app && app.cfg && app.cfg.computer && app.cfg.computer.agents)) return { output: `DENIED: ${name} drives the person's desktop, and subagents never do (only the primary agent).`, isError: true, denied: true }; }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
   // ONE GATE, HERE, because this is the one door every tool call goes through.

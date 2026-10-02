@@ -218,17 +218,7 @@ const ROUTES = {
     return ok({ image: `data:image/png;base64,${data}`, region: r.result.region });
   },
 
-  /**
-   * STOP. The authorization goes, the bridge goes, and a turn in flight is
-   * interrupted — one button, and it cannot half-work.
-   */
-  'POST /api/computer/stop': async (app) => {
-    const c = require('../computermcp').existing(app);
-    const interrupted = Boolean(app.abort && !app.abort.signal.aborted);
-    if (interrupted) app.abort.abort();
-    if (c) c.disconnect('you stopped it from the Harness');
-    return ok({ stopped: true, interrupted });
-  },
+  // STOP lives with the rest of Computer Control: harnessapp/computerroutes.js (kill switch + off + disconnect).
 
   'POST /api/ask/answer': async (app, body = {}) => {
     const q = app._harnessAsk;

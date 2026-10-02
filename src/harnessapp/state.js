@@ -472,6 +472,8 @@ async function read(app) {
     // UPDATES (update/updater.js, cached state — never the network) and WHAT THIS WINDOW IS: the full Harness, the
     // CLI's Model Dashboard, or the CLI's standalone Preview (desktopwindow.js `mode`), plus the installed components.
     update: (() => { try { return require('./updateroutes').view((app && app._sibling) || app); } catch { return null; } })(),
+    // COMPUTER CONTROL (Phase CU): the same state /computer reads — the chip, Enable, target and Stop draw from it.
+    computer: (() => { try { return require('../computercontrol').view(app); } catch { return null; } })(),
     surface: {
       mode: ((app && app._sibling) || app)._surfaceMode || 'harness',
       // `lain preview` while this LAIN runs (corelock.js): when it was asked, so the window opens the Preview once.

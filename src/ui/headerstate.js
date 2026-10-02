@@ -25,6 +25,10 @@ function run(ui) {
   // AGENTS n — only while subagents actually run (the job registry, never narration).
   const agents = app.jobs && typeof app.jobs.running === 'function' ? app.jobs.running().filter((j) => j.kind === 'subagent').length : 0;
   if (agents) tags.push(`AGENTS ${agents}`);
+  // COMPUTER CONTROL IS NEVER SILENT (Phase CU): "● Computer · Minecraft" first among the tags while it is on — the
+  // header keeps the first two parts when it is short of room — and the row turns to the warning tone.
+  const cu = require('../computercontrol').label(app);
+  if (cu) tags.unshift(cu);
   if (mode === 'PLAN') return { parts: ['PLAN', 'discussing', ...tags], tone: 'warn' };
   let step = null;
   const plan = require('./progress').livePlan(session);
@@ -38,10 +42,10 @@ function run(ui) {
     // third copy of one state is what made the CLI read as stuttering (2026-10-01). The header keeps the plan step
     // and the mode tags, which nothing else shows.
     void clockText;
-    return { parts: [mode, step, ...tags].filter(Boolean), tone: 'info', busy: true };
+    return { parts: [mode, step, ...tags].filter(Boolean), tone: cu ? 'warn' : 'info', busy: true };
   }
   const idle = [mode, ...tags, step ? `step ${step}` : ''].filter(Boolean);
-  return { parts: idle, tone: 'meta' };
+  return { parts: idle, tone: cu ? 'warn' : 'meta' };
 }
 
 module.exports = { run };

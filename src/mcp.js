@@ -78,6 +78,18 @@ const OPS = Object.freeze({
   'uia.focus': 'window',
   'clipboard.read': 'clipboard',
   'clipboard.write': 'clipboard',
+  // COMPUTER CONTROL (Phase CU): primitives, the target lock, the kill switch, one frame of a window.
+  'mouse.button': 'mouse',
+  'mouse.moveRel': 'mouse',
+  'keyboard.down': 'keyboard',
+  'keyboard.up': 'keyboard',
+  'keyboard.hold': 'keyboard',
+  'window.capture': 'screen',
+  'control.arm': 'window',
+  'control.disarm': 'window',
+  'control.kill': 'window',
+  'control.resume': 'window',
+  'control.state': 'screen',
 });
 
 const STATE = Object.freeze({

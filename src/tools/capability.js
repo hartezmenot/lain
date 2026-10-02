@@ -106,6 +106,9 @@ async function observeComputer(app, target) {
     const permissionsMod = require('../permissions');
     mcp.permissions.grant(require('../computermcp').CAPS, { scope: permissionsMod.SCOPE.COMPUTER });
   }
+  // THE PERSON APPROVED OBSERVATION (admit above), so control is on at OBSERVE — never more (computercontrol.js).
+  const on = await require('../computercontrol').enable(app, { tier: 'OBSERVE', by: 'request', ask: false });
+  if (!on.ok) return { ok: false, why: on.why };
   const windows = await mcp.windows();
   const list = (windows && windows.ok && windows.result && (windows.result.windows || windows.result)) || [];
   let tree = null;

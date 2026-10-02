@@ -647,7 +647,7 @@ require('./observecommand').register({ define, FLASH_MS, DURING_TURN, C });
 require('./compactcommand').register({ define, FLASH_MS, DURING_TURN, C });
 // `/lain` surveys what `.lain/` remembers — architecture, wiring, vocabulary,
 // facts and unfinished turns — in its own module for the same reason.
-require('./laincommand').register({ define, FLASH_MS, C }); require('./capcommands').register({ define, C });   // /skill /hooks (Phase CAP)
+require('./laincommand').register({ define, FLASH_MS, C }); require('./capcommands').register({ define, C }); require('./computercontrol').register({ define, C });   // /skill /hooks (CAP) · /computer (CU)
 require('./provenancecommand').register({ define, C });
 require('./modecommands').register({ define, C });   // /focus /fast /browser (/chrome = hidden alias)
 // AND THE REPORT COMMANDS — /compare, /audit, /health, /ready, /doctor: read

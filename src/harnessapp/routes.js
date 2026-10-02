@@ -581,7 +581,7 @@ Object.assign(ROUTES, require('./ideroutes').ROUTES);
 // Route modules with their quiet reads: the editor profile, VS Code / Cursor import and extensions (extroutes); the
 // session journey, house doors, Laya's provenance and the focused packet (journeyroutes); runtime processes, the
 // extension host and language servers (devtoolroutes); Settings › Storage (cacheroutes); updates and Exit (updateroutes).
-for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes')]) {
+for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes'), require('./computerroutes')]) {   // + Computer Control (Phase CU)
   Object.assign(ROUTES, mod.ROUTES);
   for (const q of mod.QUIET || []) QUIET_READS.add(q);
 }

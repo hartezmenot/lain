@@ -41,6 +41,8 @@ async function run(app, args, { C }) {
     w('  ' + C.yellow('⚠ NOT AUTHORIZED') + C.dim(` — ${r.why || 'the computer was not authorized'}\n`));
     return;
   }
+  // COMPUTER CONTROL ON (computercontrol.js) — `/mcp computer` is the older door to the same switch.
+  try { await require('./computercontrol').enable(app, { tier: 'INTERACT', by: 'cli', ask: false }); } catch { /* reported by /computer status */ }
   w('  ' + C.green('✓ COMPUTER MCP')
     + C.dim(`  ${r.reused ? 'already authorized' : 'authorized for this session'} · ${(r.capabilities || []).length} operations\n`));
   w(C.dim('    It sees windows and their controls, and can press and type into them.\n'));
