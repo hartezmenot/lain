@@ -17,6 +17,9 @@ const CONTRACT = {
     verification: { type: 'string', description: 'what it must run or observe before reporting' },
     completion: { type: 'string', description: 'the condition that means it is finished' },
     model: { type: 'string', description: 'optional: a catalog model id for this subagent (any source, e.g. an OpenRouter model)' },
+    effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh', 'max'], description: 'optional: the effort for this agent (the model native levels when it has them)' },
+    skills: { type: 'array', items: { type: 'string' }, description: 'optional: installed skills whose instructions this agent receives' },
+    tools: { type: 'array', items: { type: 'string' }, description: 'optional: tool families to NARROW its role to (read, intel, web, shell, verify, edit, …) — never widens' },
   },
   required: ['role', 'objective', 'readScope', 'expectedOutput', 'verification', 'completion'],
 };
@@ -45,12 +48,15 @@ const tools = {
         + 'Each subagent gets a FRESH session with only its contract (never this conversation), an enforced read/write scope, and works in an '
         + 'ISOLATED copy of the project: nothing it does touches this tree. What it changes comes back as a CANDIDATE (checked for out-of-scope '
         + 'writes and undeclared deletions) that YOU integrate with integrate_candidate, then wire, refactor and verify. '
-        + 'mode "pipeline" runs stages in order (SCOUT → FOUNDATION → IMPLEMENTER → VERIFIER), pausing after a stage that built a candidate '
-        + 'so the next starts from the integrated tree; mode "parallel" requires disjoint writeScopes. List a file in ownedFiles to allow deleting it.',
+        + 'mode "auto" (default) runs the read-only agents listed first (SCOUT, RESEARCHER) together, then the rest in order; "pipeline" runs stages in order (SCOUT → FOUNDATION → IMPLEMENTER → VERIFIER), pausing after a stage that built a candidate '
+        + 'so the next starts from the integrated tree; mode "parallel" requires disjoint writeScopes. List a file in ownedFiles to allow deleting it. '
+        + 'background: true starts them and returns at once — their result rejoins this session by itself on a later request (never wait or poll). '
+        + 'Each report comes back as a short digest with an evidence id (recall_evidence for the full text).',
       parameters: {
         type: 'object',
         properties: {
-          mode: { type: 'string', enum: ['pipeline', 'parallel'] },
+          mode: { type: 'string', enum: ['auto', 'pipeline', 'parallel'] },
+          background: { type: 'boolean', description: 'start and return at once; the result rejoins this session by itself' },
           agents: { type: 'array', items: CONTRACT, minItems: 1, maxItems: 6 },
         },
         required: ['agents'],
@@ -59,7 +65,9 @@ const tools = {
     async run(input, ctx) {
       const no = refuseInside(ctx, 'delegate');
       if (no) return no;
-      const out = await require('../subagents').run(ctx.app, input.agents || [], { mode: input.mode === 'parallel' ? 'parallel' : 'pipeline', signal: ctx.signal });
+      const mode = ['parallel', 'pipeline'].includes(input.mode) ? input.mode : 'auto';
+      const out = await require('../subagents').run(ctx.app, input.agents || [], { mode, signal: ctx.signal, background: input.background === true });
+      if (out.background) return { output: require('../subagents').report(out), meta: { delegated: (input.agents || []).length, mode, background: true } };
       const mutated = out.results.flatMap((r) => r.mutations || []);
       return { output: require('../subagents').report(out), isError: !out.ok, meta: { delegated: out.results.length, mode: out.mode }, mutated };
     },

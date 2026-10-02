@@ -19,6 +19,17 @@
  * PARALLEL only when write ownership is genuinely separable (`partition`);
  * PIPELINE for the staircase — SCOUT maps, FOUNDATION lays interfaces,
  * IMPLEMENTER builds on them, VERIFIER tests the integrated result.
+ * AUTO (the default, Phase 4 2026-10-02): the read-only agents at the head of the list (SCOUT, RESEARCHER) run
+ * together — independent questions answered at once — and every later stage runs in order, handed their results.
+ *
+ * PER AGENT: `model`, `effort` (the provider's or LAIN's levels — effortcaps.js), `skills` (named skills whose
+ * instructions ride its brief), `tools` (families that NARROW its role's tools; never widen them).
+ * FOREGROUND by default — the main turn waits for the result. BACKGROUND (`background: true`): the turn goes on and
+ * the result rejoins the session as one "Background results" section on the next request (bgdetach.rejoin) — no
+ * job_wait, one job per agent, one result.
+ * SMALL, STRUCTURED RESULTS: the main agent receives a digest (summary · findings with file:line · changed ·
+ * verified · open) and an evidence id; the full report is recall_evidence away, not in the conversation.
+ * NO AGENT TEAMS: a subagent cannot delegate, and agents do not talk to each other — only to the main agent.
  *
  * THE MAIN AGENT STAYS THE INTEGRATOR: results come back to it as evidence; a
  * subagent cannot delegate further and does not redefine architecture.
@@ -37,6 +48,7 @@ const ROLES = Object.freeze({
 });
 
 const WHOLE_PROJECT = /^(?:\*\*?|\.\/?|\*\*\/\*|\/)?$/;
+const EFFORTS = Object.freeze(['low', 'medium', 'high', 'xhigh', 'max']);
 
 /** What a role a model invented most likely meant — named in the refusal, never applied silently. */
 const ROLE_READS_AS = Object.freeze({
@@ -87,6 +99,9 @@ function validate(c = {}, { parentTask = '' } = {}) {
       parentTask: String(c.parentTask || parentTask || '').trim(),
       model: c.model ? String(c.model) : null,
       connection: c.connection ? String(c.connection) : null,
+      effort: c.effort && EFFORTS.includes(String(c.effort).toLowerCase()) ? String(c.effort).toLowerCase() : null,
+      skills: (Array.isArray(c.skills) ? c.skills : []).map(String).filter(Boolean).slice(0, 5),
+      tools: (Array.isArray(c.tools) ? c.tools : []).map((t) => String(t).toLowerCase()).filter(Boolean).slice(0, 12),
       cwd: c.cwd ? String(c.cwd) : null,
       isolated: Boolean(c.isolated),
     },
@@ -118,9 +133,41 @@ function brief(c, { stage = 0, of = 1, inputs = [] } = {}) {
     `You are done when: ${c.completion}`,
     'You do not redefine the architecture and you cannot delegate. Report findings and decisions that need the main agent instead of making them.',
   ];
-  for (const inp of inputs) lines.push('', `From ${inp.role} (stage ${inp.stage + 1}):`, String(inp.output || '').slice(0, 4000));
-  lines.push('', 'Finish with the expected output, stated plainly, and the verification you actually ran.');
+  for (const inp of inputs) lines.push('', `From ${inp.role} (stage ${inp.stage + 1}):`, String(inp.digest ? digestText(inp.digest) : inp.output || '').slice(0, 4000));
+  // NAMED SKILLS ride the brief (skills.js) — the agent does not have to find them.
+  for (const name of c.skills || []) {
+    try {
+      const sk = require('./skills');
+      const e = sk.index({}).byName.get(String(name).toLowerCase());
+      const b = e ? sk.body(e) : null;
+      lines.push('', b && b.ok ? `Skill "${e.name}":\n${b.text.slice(0, 6000)}` : `(skill "${name}" is not installed)`);
+    } catch { /* a missing skill is said above */ }
+  }
+  lines.push('', 'FINISH WITH THIS BLOCK (the main agent reads only it; keep it short):',
+    'RESULT', 'summary: <two or three sentences>', 'findings:', '- <file:line> <one fact>', 'changed: <files, or none>',
+    'verified: <what you ran or observed, or "not verified">', 'open: <what remains, or none>');
   return lines.join('\n');
+}
+
+/** The RESULT block of a report → { summary, findings[], changed, verified, open }; tolerant of a missing block. */
+function digest(output) {
+  const text = String(output || '');
+  const at = text.lastIndexOf('RESULT');
+  const block = at >= 0 ? text.slice(at + 6) : '';
+  const field = (k) => { const m = new RegExp(`^\\s*${k}:\\s*(.*)$`, 'im').exec(block); return m ? m[1].trim() : ''; };
+  const findings = [];
+  const fm = /^\s*findings:\s*$/im.exec(block);
+  if (fm) {
+    for (const line of block.slice(fm.index + fm[0].length).split(/\r?\n/)) {
+      const m = /^\s*[-*]\s+(.+)$/.exec(line);
+      if (m) { findings.push(m[1].trim().slice(0, 240)); if (findings.length >= 10) break; } else if (line.trim() && /^\s*\w+:/.test(line)) break;
+    }
+  }
+  const summary = field('summary') || text.replace(/\s+/g, ' ').trim().slice(0, 400);
+  return { summary: summary.slice(0, 600), findings, changed: field('changed').slice(0, 300), verified: field('verified').slice(0, 300), open: field('open').slice(0, 300), structured: at >= 0 };
+}
+function digestText(d) {
+  return [d.summary, ...(d.findings.length ? ['findings:', ...d.findings.map((f) => `- ${f}`)] : []), d.changed ? `changed: ${d.changed}` : '', d.verified ? `verified: ${d.verified}` : '', d.open ? `open: ${d.open}` : ''].filter(Boolean).join('\n');
 }
 
 /**
@@ -158,6 +205,7 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
   session.workOrder = order;
   // ROLE TOOLS (toolfunnel.ROLE_PACKS): a SCOUT is described read + code intelligence, not the parent's registry.
   session._agentRole = c.role;
+  session._agentTools = c.tools && c.tools.length ? c.tools.slice() : null;   // narrows the role's pack (toolfunnel.openForRole)
   const job = app.jobs.create({ request: `${c.role} · ${c.objective}`, primary: false, session, kind: 'subagent' });
   job.parentSessionId = app.session.id;
   job.scope = c.writeScope.slice();
@@ -175,6 +223,7 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
       const { runTurn } = require('./turn');
       const opts = require('./jobrunner').turnOptions(app, { session, signal: signal || job.abort.signal, from: 'subagent' });
       if (c.model) opts.cfg = { ...opts.cfg, model: c.model, ...(c.connection ? { connection: c.connection } : {}) };
+      if (c.effort) opts.cfg = { ...opts.cfg, effort: c.effort };
       opts.workOrder = order;
       opts.requiresExecution = false;
       opts.ask = (q) => require('./decisions').ask(app, { type: 'ASK_USER', title: `${c.role} subagent asks`, question: q && q.question, options: (q && q.options) || [] });
@@ -203,7 +252,11 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
       return { ok: false, role: c.role, stage, why: `${unfinished}${output ? ` — what it said: ${output.slice(-400)}` : ''}`, mutations: ws ? [] : (record && record.mutations) || [], candidate, holder };
     }
     job._finish('SUCCEEDED', { result: record });
-    return { ok: true, role: c.role, stage, output, mutations: ws ? [] : (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, candidate, holder };
+    // THE FULL REPORT IS EVIDENCE, the conversation gets the digest (recall_evidence <id> for the rest).
+    const d = digest(output);
+    let evidence = null;
+    try { const e = require('./evidencerefs').put(app.session, { kind: 'agent', source: `${c.role} subagent`, summary: d.summary, content: output, words: [c.role.toLowerCase(), 'agent'] }); evidence = e ? e.id : null; } catch { evidence = null; }
+    return { ok: true, role: c.role, stage, output, digest: d, evidence, mutations: ws ? [] : (record && record.mutations) || [], toolCalls: (record && record.toolCalls) || 0, settlement, candidate, holder };
   } catch (e) {
     fate = { failed: true, why: (e && e.message) || String(e), candidate: null };
     job._finish('FAILED', { error: (e && e.message) || String(e) });
@@ -239,7 +292,7 @@ function currentStep(app) {
  * Run a set of contracts. `pipeline` runs them in order, each stage handed the
  * earlier stages' outputs; `parallel` requires disjoint write ownership.
  */
-async function run(app, raw = [], { mode = 'pipeline', runner = null, signal = null } = {}) {
+async function run(app, raw = [], { mode = 'auto', runner = null, signal = null, background = false } = {}) {
   const parentTask = (app.session.task && app.session.task.objective) || '';
   const contracts = [];
   for (const r of raw) {
@@ -248,6 +301,28 @@ async function run(app, raw = [], { mode = 'pipeline', runner = null, signal = n
     contracts.push(v.contract);
   }
   if (!contracts.length) return { ok: false, why: 'no subagents were described', results: [] };
+  if (background) return runInBackground(app, raw, { mode, runner });
+  // AUTO: the read-only head runs together (independent questions), the rest in order with their results.
+  if (mode === 'auto') {
+    let head = 0;
+    while (head < contracts.length && !ROLES[contracts[head].role].write && !ROLES[contracts[head].role].commands) head += 1;
+    if (head < 2) mode = 'pipeline';
+    else if (head === contracts.length) mode = 'parallel';
+    else {
+      const first = await run(app, raw.slice(0, head), { mode: 'parallel', runner, signal });
+      if (!first.ok) return { ...first, mode: 'auto', remaining: contracts.slice(head) };
+      const inputs = first.results;
+      const results = [...first.results];
+      for (let i = head; i < contracts.length; i++) {
+        const r = await runOne(app, contracts[i], { stage: i, of: contracts.length, inputs: [...inputs, ...results.slice(head).filter((x) => x.ok)], runner, signal });
+        results.push(r);
+        if (!r.ok) break;
+        if (r.candidate && r.candidate.files.length && i < contracts.length - 1) { r.awaitsIntegration = true; break; }
+      }
+      const paused = results.some((r) => r.awaitsIntegration);
+      return { ok: (results.length === contracts.length || paused) && results.every((r) => r.ok), mode: 'auto', results, remaining: contracts.slice(results.length), paused, parallelHead: head };
+    }
+  }
   if (mode === 'parallel') {
     const p = partition(contracts);
     if (!p.ok) return { ok: false, why: p.why, results: [] };
@@ -275,16 +350,36 @@ async function run(app, raw = [], { mode = 'pipeline', runner = null, signal = n
   return { ok: (results.length === contracts.length || paused) && results.every((r) => r.ok), mode, results, remaining: contracts.slice(results.length), paused };
 }
 
+/**
+ * BACKGROUND: the agents run as jobs and the main turn goes on. When they finish, ONE result rejoins the session
+ * (bgdetach.rejoin → "Background results" on the next request) — no job_wait, nothing to poll.
+ */
+function runInBackground(app, raw, { mode = 'auto', runner = null } = {}) {
+  const session = app.session;
+  const t0 = Date.now();
+  const p = run(app, raw, { mode, runner, background: false });
+  const jobs = (app.jobs && typeof app.jobs.all === 'function' ? app.jobs.all() : []).filter((j) => j.kind === 'subagent' && (j.createdAt || j.startedAt || 0) >= t0 - 5).map((j) => j.id);
+  p.then((out) => {
+    const done = out.results.filter((r) => r.ok).length;
+    const summary = `${done}/${out.results.length + (out.remaining || []).length} agents done${out.results.some((r) => r.candidate && r.candidate.files.length) ? ' · candidates to integrate' : ''}`;
+    require('./bgdetach').rejoin(app, session, { jobId: jobs.join(',') || 'agents', kind: 'agent', label: `${raw.length} agent${raw.length === 1 ? '' : 's'}`, ok: out.ok, summary, counts: null, tail: report(out).slice(0, 3500), at: Date.now() });
+  }).catch((e) => {
+    require('./bgdetach').rejoin(app, session, { jobId: jobs.join(',') || 'agents', kind: 'agent', label: 'agents', ok: false, summary: `failed: ${(e && e.message) || e}`, counts: null, tail: '', at: Date.now() });
+  });
+  return { ok: true, background: true, mode, jobs, results: [], promise: p };
+}
+
 function report(out) {
+  if (out.background) return `AGENTS STARTED IN THE BACKGROUND · ${out.jobs.length ? out.jobs.map((j) => `#${j}`).join(' ') : 'starting'} · their result rejoins this session as one "Background results" section — carry on with other work; do not wait or poll.`;
   if (!out.ok && !out.results.length) return `DELEGATION REFUSED: ${out.why}`;
   const rest = out.remaining || [];
   const done = out.results.filter((r) => r.ok).length;
   const failed = out.results.length - done;
   const total = out.results.length + rest.length;
-  const lines = [`SUBAGENTS · ${out.mode} · ${done}/${total} completed${failed ? ` · ${failed} failed` : ''}${rest.length ? ` · ${rest.length} not run` : ''}`];
+  const lines = [`SUBAGENTS · ${out.mode}${out.parallelHead ? ` (first ${out.parallelHead} in parallel)` : ''} · ${done}/${total} completed${failed ? ` · ${failed} failed` : ''}${rest.length ? ` · ${rest.length} not run` : ''}`];
   for (const r of out.results) {
-    lines.push('', `[${r.stage + 1}] ${r.role} — ${r.ok ? 'DONE' : 'FAILED'}${r.mutations && r.mutations.length ? ` · changed ${r.mutations.join(', ')}` : ''}`);
-    lines.push(r.ok ? (r.output || '(no output)').slice(0, 3000) : `why: ${r.why}`);
+    lines.push('', `[${r.stage + 1}] ${r.role} — ${r.ok ? 'DONE' : 'FAILED'}${r.mutations && r.mutations.length ? ` · changed ${r.mutations.join(', ')}` : ''}${r.evidence ? ` · full report: recall_evidence {"id":"${r.evidence}"}` : ''}`);
+    lines.push(r.ok ? (r.digest ? digestText(r.digest) : (r.output || '(no output)').slice(0, 1500)).slice(0, 1800) : `why: ${r.why}`);
     if (r.candidate && (r.candidate.files.length || r.candidate.discarded.length)) lines.push(require('./candidates').describe(r.candidate));
   }
   const cands = out.results.filter((r) => r.candidate && r.candidate.files.length);
@@ -321,4 +416,4 @@ function running(app) {
   return app && app.jobs && typeof app.jobs.running === 'function' ? app.jobs.running().filter((j) => j.kind === 'subagent') : [];
 }
 
-module.exports = { ROLES, validate, partition, brief, runOne, run, report, settings, running, DEFAULT_MAX };
+module.exports = { ROLES, EFFORTS, validate, partition, brief, digest, runOne, run, report, settings, running, DEFAULT_MAX };

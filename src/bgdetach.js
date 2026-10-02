@@ -125,7 +125,7 @@ function takeContext(session) {
   for (const r of fresh) r.delivered = true;
   const lines = ['# Background results (rejoined)'];
   for (const r of fresh) {
-    lines.push(`#${r.jobId} ${r.kind === 'branch' ? 'branch' : 'process'} · ${r.label} · ${r.ok ? 'OK' : 'NOT OK'} · ${r.summary}${r.step ? ` · plan step: ${r.step}` : ''}`);
+    lines.push(`#${r.jobId} ${r.kind === 'branch' ? 'branch' : r.kind === 'agent' ? 'agents' : 'process'} · ${r.label} · ${r.ok ? 'OK' : 'NOT OK'} · ${r.summary}${r.step ? ` · plan step: ${r.step}` : ''}`);
     if (r.tail) lines.push(r.tail.slice(-MAX_TAIL));
   }
   return lines.join('\n');
