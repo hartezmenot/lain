@@ -116,7 +116,7 @@ function client() {
     pane.textContent = '';
     pane.dataset.sig = '';
     pane.appendChild(el('h2', '', 'Native sessions'));
-    pane.appendChild(el('div', 'sub', 'Sessions Codex and Claude Code keep themselves. Noema lists them; it does not change them. Resume one where it lives, or continue it as a new Noema session.'));
+    pane.appendChild(el('div', 'sub', 'Sessions Codex and Claude Code keep themselves. LAIN lists them; it does not change them. Resume one where it lives, or continue it as a new LAIN session.'));
     if (!native) {
       pane.appendChild(el('div', 'missing', 'Reading…'));
       if (!nativeLoading) { nativeLoading = true; L.api('/api/external/sessions', {}).then(function (r) { nativeLoading = false; native = r && r.ok ? r : { sessions: [], adapters: {}, errors: [{ why: (r && r.why) || 'could not read' }] }; if (selected === NATIVE) nativeDetail(pane); }); }
@@ -146,13 +146,13 @@ function client() {
       };
       acts.appendChild(ro);
       if (x.runtime === 'codex' || x.runtime === 'opencode') {
-        var ci = el('button', 'btn small primary', 'Continue in Noema');
+        var ci = el('button', 'btn small primary', 'Continue in LAIN');
         ci.onclick = async function () {
           ci.disabled = true;
           var r = await L.api('/api/external/continue', { origin: x.origin, account: acct, cwd: x.cwd });
           ci.disabled = false;
           if (!r.ok) return L.toast(r.why, true);
-          L.toast('A new Noema session continues it (' + r.turns + ' turn(s) imported' + (r.truncated ? ', the earliest trimmed' : '') + '). The ' + (x.runtime === 'opencode' ? 'OpenCode session' : 'Codex thread') + ' is unchanged.');
+          L.toast('A new LAIN session continues it (' + r.turns + ' turn(s) imported' + (r.truncated ? ', the earliest trimmed' : '') + '). The ' + (x.runtime === 'opencode' ? 'OpenCode session' : 'Codex thread') + ' is unchanged.');
           L.poll(); selected = r.session;
         };
         acts.appendChild(ci);
@@ -175,7 +175,7 @@ function client() {
     pane.textContent = '';
     if (!s) { pane.appendChild(el('div', 'missing', 'Choose a session.')); return; }
     pane.appendChild(el('h2', '', s.title || '(untitled)'));
-    pane.appendChild(el('div', 'sub', (s.at ? new Date(s.at).toLocaleString() : s.when) + (s.current ? '  ·  in front now' : s.live ? '  ·  open in this Noema' : '')));
+    pane.appendChild(el('div', 'sub', (s.at ? new Date(s.at).toLocaleString() : s.when) + (s.current ? '  ·  in front now' : s.live ? '  ·  open in this LAIN' : '')));
     var dl = el('dl', 'sd-facts');
     var put = function (k, v) { if (v == null || v === '') return; dl.appendChild(el('dt', '', k)); dl.appendChild(el('dd', '', v)); };
     put('Kind', s.lane === 'cowork' ? 'Conversation with files' + (s.source && s.source !== 'harness' ? ' · from ' + s.source : '') : 'Chat / IDE');
@@ -238,7 +238,7 @@ function client() {
       });
       pane.appendChild(f);
     }
-    if (!s.current) pane.appendChild(el('div', 'missing', 'Restoring brings back what Noema keeps for a session: its conversation, project, model choices, changes, plan and handoff.'));
+    if (!s.current) pane.appendChild(el('div', 'missing', 'Restoring brings back what LAIN keeps for a session: its conversation, project, model choices, changes, plan and handoff.'));
   }
 
   function render(S) {

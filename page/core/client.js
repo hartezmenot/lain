@@ -130,7 +130,7 @@ function client() {
     });
   }
   async function api(path, body) {
-    if (!desk) throw new Error('this page is not running inside Noema Desktop');
+    if (!desk) throw new Error('this page is not running inside LAIN Desktop');
     return post({ method: body === undefined ? 'GET' : 'POST', path: path, body: body || {} });
   }
   /** A verb the native host answers itself. Null when this host predates it. */
@@ -365,7 +365,7 @@ function client() {
       var back = el('div', 'dlg-back');
       var box = el('div', 'dlg');
       box.setAttribute('role', 'dialog');
-      box.appendChild(el('h3', '', o.title || 'Noema'));
+      box.appendChild(el('h3', '', o.title || 'LAIN'));
       if (o.text) box.appendChild(el('p', '', o.text));
       // A READ DOOR'S ANSWER (the focus packet, who changed what): text to read, as it came.
       if (o.pre) {
@@ -436,7 +436,7 @@ function client() {
   var openFinish = null;
   /** Close the dialog that is open (its caller's promise resolves false). */
   function closeDialog() { if (openFinish) openFinish(false); }
-  function confirmBox(text, o) { return dialog(Object.assign({ title: 'Noema', text: text }, o || {})); }
+  function confirmBox(text, o) { return dialog(Object.assign({ title: 'LAIN', text: text }, o || {})); }
 
   // ---- sessions: the verbs, once -----------------------------------------
   async function newSession(lane) {
@@ -567,7 +567,7 @@ function client() {
       var wrap = el('div', 'msg ' + m.role);
       var chat = lane() === 'chat';
       var name = m.role === 'user' ? (m.by === 'handoff' ? 'Plan \u2192 Coding Agent' : 'You')
-        : (chat ? 'Noema' : 'Coding Agent');
+        : (chat ? 'LAIN' : 'Coding Agent');
       // THE WHO-LINE: a small mark, the name, the time (the wide layout shows the mark; the sidecar a caps heading).
       var who = el('div', 'who');
       who.appendChild(el('span', 'av'));
@@ -639,7 +639,7 @@ function client() {
     var eng = S.current.lane === 'engineering';
     var coding = lane() === 'coding';
     var c = eng && S.composer ? S.composer[coding ? 'coding' : 'chat'] : null;
-    $('ask').placeholder = coding ? 'Message the Coding Agent\u2026' : (eng ? 'Message Noema\u2026' : 'Message Noema, or attach files to work on\u2026');
+    $('ask').placeholder = coding ? 'Message the Coding Agent\u2026' : (eng ? 'Message LAIN\u2026' : 'Message LAIN, or attach files to work on\u2026');
     $('composerHint').textContent = coding && c && !c.canSend ? 'add a project folder to start coding' : '';
   }
 
@@ -709,7 +709,7 @@ function client() {
         pollAgain = false;
         try {
           var r = await api('/api/state');
-          if (r && r.ok) { S = r.state; render(); if (!firstState) { firstState = true; mark('noema:first-state'); } }
+          if (r && r.ok) { S = r.state; render(); if (!firstState) { firstState = true; mark('lain:first-state'); } }
         } catch (e) { /* Core restarting; the next poll is the reconnect */ }
       } while (pollAgain);
     })();
@@ -725,7 +725,7 @@ function client() {
   }
 
   function boot() {
-    mark('noema:boot');
+    mark('lain:boot');
     // THE BOX GROWS WITH WHAT IS TYPED, then scrolls: ~200 px in Chat, ~120 px in the IDE sidecar.
     $('ask').addEventListener('input', function () {
       this.style.height = 'auto';
@@ -745,7 +745,7 @@ function client() {
     var deps = { api: api, notice: notice, poll: poll, render: render, ui: ui };
     L.boots.forEach(function (b) { try { b(deps); } catch (e) { if (window.console) console.error('boot', e); } });
     $('app').hidden = false;
-    mark('noema:shown');
+    mark('lain:shown');
     poll();
     // IDLE COST (Gate 3 §93): the snapshot is read every 1.5 s while the window is seen, every 15 s while it is
     // hidden (the tray, minimised) — Core notifies natively meanwhile — and at once when it comes back.

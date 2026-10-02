@@ -51,7 +51,7 @@ function client() {
     if (tab === 'home') return [
       ['Open project…', door('ide.open_project')],
       ['New project…', door('ide.new_project')],
-      ['Search Noema', on('home', function () { var s = document.getElementById('hsearch'); if (s) s.focus(); })],
+      ['Search LAIN', on('home', function () { var s = document.getElementById('hsearch'); if (s) s.focus(); })],
     ];
     if (tab === 'ide') return [
       ['+ New Project', door('ide.new_project')],

@@ -81,7 +81,7 @@ function client() {
   async function connectToken() {
     var v = await L.dialog({
       title: 'Connect with a fine-grained token',
-      text: 'Create a fine-grained personal access token on GitHub limited to the repositories Noema should see (Contents: read & write; Pull requests and Issues if you want those actions). Classic tokens are refused. Noema keeps it in the Windows secret store; it never appears again, in a log or in a prompt.',
+      text: 'Create a fine-grained personal access token on GitHub limited to the repositories LAIN should see (Contents: read & write; Pull requests and Issues if you want those actions). Classic tokens are refused. LAIN keeps it in the Windows secret store; it never appears again, in a log or in a prompt.',
       fields: [{ key: 'token', label: 'Token', value: '', type: 'password', placeholder: 'github_pat_…' }], ok: 'Connect',
     });
     if (!v || !v.token) return;
@@ -96,7 +96,7 @@ function client() {
     if (!r || !r.ok) { L.toast((r && r.why) || 'could not use that repository', true); return false; }
     await L.poll();
     if (r.cloned) { L.toast(full + ' attached to this conversation'); if (then) then(); return true; }
-    var ok = await L.dialog({ title: 'Clone ' + full + '?', text: r.why + ' Noema clones it into a local folder and attaches it; nothing on GitHub changes.', fields: [{ key: 'dir', label: 'Location (optional)', value: '', placeholder: 'default: ~/Noema Projects/' + full.split('/')[1], action: { label: 'Choose…', run: function () { return L.ide.pickFolder('Clone into'); } } }], ok: 'Clone project' });
+    var ok = await L.dialog({ title: 'Clone ' + full + '?', text: r.why + ' LAIN clones it into a local folder and attaches it; nothing on GitHub changes.', fields: [{ key: 'dir', label: 'Location (optional)', value: '', placeholder: 'default: ~/LAIN Projects/' + full.split('/')[1], action: { label: 'Choose…', run: function () { return L.ide.pickFolder('Clone into'); } } }], ok: 'Clone project' });
     if (!ok) return false;
     return clone(full, ok.dir, then);
   }
@@ -159,7 +159,7 @@ function client() {
   async function action(kind) {
     var args = {};
     if (kind === 'branch') { var b = await L.dialog({ title: 'New branch', fields: [{ key: 'name', label: 'Branch name', value: '' }], ok: 'Create branch' }); if (!b || !b.name) return; args.name = b.name.trim(); }
-    if (kind === 'commit') { var c = await L.dialog({ title: 'Commit', text: 'Commits every change in the local working tree (Noema’s own .lain folder excluded from the count).', fields: [{ key: 'message', label: 'Message', value: '' }], ok: 'Commit' }); if (!c || !c.message) return; args.message = c.message; }
+    if (kind === 'commit') { var c = await L.dialog({ title: 'Commit', text: 'Commits every change in the local working tree (LAIN’s own .lain folder excluded from the count).', fields: [{ key: 'message', label: 'Message', value: '' }], ok: 'Commit' }); if (!c || !c.message) return; args.message = c.message; }
     if (kind === 'pr-create') { var p = await L.dialog({ title: 'Create pull request', fields: [{ key: 'title', label: 'Title', value: '' }, { key: 'base', label: 'Into branch', value: 'main' }, { key: 'body', label: 'Description', value: '' }], ok: 'Continue' }); if (!p) return; args = p; }
     if (kind === 'issue-create') { var i = await L.dialog({ title: 'New issue', fields: [{ key: 'title', label: 'Title', value: '' }, { key: 'body', label: 'Description', value: '' }], ok: 'Continue' }); if (!i || !i.title) return; args = i; }
     var confirm = false;
@@ -186,17 +186,17 @@ function client() {
   async function switchTo(a) {
     var r = await L.api('/api/github/switch', { id: a.id });
     if (!r || !r.ok) { L.toast((r && r.why) || 'could not switch', true); return; }
-    L.toast('GitHub: now @' + a.login + ' in Noema');
+    L.toast('GitHub: now @' + a.login + ' in LAIN');
     st.repos = null; await refresh(); if (L.shellGithub) L.shellGithub();
   }
   async function renameAcct(a) {
-    var v = await L.dialog({ title: 'Name this account', text: 'Shown instead of @' + a.login + ' in Noema only.', fields: [{ key: 'n', label: 'Name', value: a.name || '' }], ok: 'Save' });
+    var v = await L.dialog({ title: 'Name this account', text: 'Shown instead of @' + a.login + ' in LAIN only.', fields: [{ key: 'n', label: 'Name', value: a.name || '' }], ok: 'Save' });
     if (!v) return;
     await L.api('/api/github/rename', { id: a.id, name: v.n || '' }); await refresh(); if (L.shellGithub) L.shellGithub();
   }
   async function forget(a) {
     var gh = a.via === 'gh';
-    var ok = await L.confirm(gh ? 'Hide @' + a.login + ' from Noema? GitHub CLI keeps its own sign-in (gh auth logout signs it out); no other account changes.' : 'Forget @' + a.login + '? Its token is deleted from the Windows secret store. No other account is touched.', { ok: gh ? 'Hide' : 'Forget', danger: true });
+    var ok = await L.confirm(gh ? 'Hide @' + a.login + ' from LAIN? GitHub CLI keeps its own sign-in (gh auth logout signs it out); no other account changes.' : 'Forget @' + a.login + '? Its token is deleted from the Windows secret store. No other account is touched.', { ok: gh ? 'Hide' : 'Forget', danger: true });
     if (!ok) return;
     var r = await L.api('/api/github/disconnect', { id: a.id });
     if (!r || !r.ok) { L.toast((r && r.why) || 'could not forget it', true); return; }
@@ -206,7 +206,7 @@ function client() {
   async function signInWithGithub() {
     var v = await L.dialog({
       title: 'Sign in with GitHub',
-      text: 'GitHub shows a code; you approve it in your browser. Choose what Noema may do — you can add another account later with different access.',
+      text: 'GitHub shows a code; you approve it in your browser. Choose what LAIN may do — you can add another account later with different access.',
       fields: [{ key: 'access', label: 'Access', type: 'select', value: 'read', options: [['read', 'Read only — see your profile and public repositories'], ['public', 'Public repositories — read and write (public_repo)'], ['private', 'Private and public — read and write (repo: every private repository you can reach)']] }],
       ok: 'Get a code',
     });
@@ -236,7 +236,7 @@ function client() {
     tick(r.interval || 5);
   }
   async function setClientId() {
-    var v = await L.dialog({ title: 'Your GitHub OAuth App', text: 'Register an OAuth App on GitHub (Settings › Developer settings › OAuth Apps), enable Device Flow, and paste its Client ID. Noema never borrows another application’s. No client secret is needed or taken.', fields: [{ key: 'id', label: 'Client ID', value: '' }], ok: 'Save' });
+    var v = await L.dialog({ title: 'Your GitHub OAuth App', text: 'Register an OAuth App on GitHub (Settings › Developer settings › OAuth Apps), enable Device Flow, and paste its Client ID. LAIN never borrows another application’s. No client secret is needed or taken.', fields: [{ key: 'id', label: 'Client ID', value: '' }], ok: 'Save' });
     if (!v || !v.id) return;
     var r = await L.api('/api/github/client', { clientId: v.id.trim() });
     if (!r || !r.ok) { L.toast((r && r.why) || 'that is not a client id', true); return; }
@@ -247,7 +247,7 @@ function client() {
     var h1 = el('h4'); h1.appendChild(L.icon('github', 20)); h1.appendChild(document.createTextNode('Accounts')); c1.appendChild(h1);
     var list = s.accounts || [];
     if (list.length) {
-      c1.appendChild(el('p', '', 'Noema acts as the active account. A repository keeps the account it was opened with — switching here never changes GitHub CLI’s own account, and nothing is pushed without your say-so.'));
+      c1.appendChild(el('p', '', 'LAIN acts as the active account. A repository keeps the account it was opened with — switching here never changes GitHub CLI’s own account, and nothing is pushed without your say-so.'));
       var rows = el('div', 'gh-alist');
       list.forEach(function (a) {
         var row = el('div', 'gh-acct' + (a.active ? ' on' : '')); row.setAttribute('data-gh-account', a.id);
@@ -258,7 +258,7 @@ function client() {
         row.appendChild(L.kit.overflow([
           { label: 'Rename…', run: function () { renameAcct(a); } },
           { sep: true },
-          { label: a.via === 'gh' ? 'Hide from Noema' : 'Forget this account', danger: true, run: function () { forget(a); } },
+          { label: a.via === 'gh' ? 'Hide from LAIN' : 'Forget this account', danger: true, run: function () { forget(a); } },
         ], 'More about @' + a.login));
         rows.appendChild(row);
       });
@@ -283,7 +283,7 @@ function client() {
     var pf = el('div', 'pf'); pane.appendChild(pf);
     var head = el('div', 'pf-sec');
     head.appendChild(el('h3', '', 'GitHub'));
-    head.appendChild(el('p', 'lede', 'Repositories become Noema projects by cloning them into a real local folder. Nothing is pushed, merged or opened on GitHub unless you press the button for it.'));
+    head.appendChild(el('p', 'lede', 'Repositories become LAIN projects by cloning them into a real local folder. Nothing is pushed, merged or opened on GitHub unless you press the button for it.'));
     pf.appendChild(head);
     if (!st.status) { pf.appendChild(el('div', 'missing', 'Reading…')); refresh(); return; }
     var s = st.status;

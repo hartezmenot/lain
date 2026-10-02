@@ -138,7 +138,7 @@ function html() {
 <html lang="en" data-mode="dark" data-palette="slate"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Noema</title>
+<title>LAIN</title>
 <style>${css()}</style>
 </head><body>
 

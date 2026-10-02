@@ -86,7 +86,7 @@ const CSS = `
 :root[data-mode=light][data-palette=slate]{
   --accent-primary:#6D5AE6; --on-accent:#FFFFFF; --accent-secondary:#0F9E8D; --on-secondary:#FFFFFF; --accent-tertiary:#D6428F; --on-tertiary:#FFFFFF;
 }
-/* ---- Noema CYAN (optional) --------------------------------------------------------------------------------- */
+/* ---- LAIN CYAN (optional) --------------------------------------------------------------------------------- */
 :root[data-mode=dark][data-palette=lain]{
   --canvas:#0A1A1E; --nav:#071418; --nav-text:#E2F1F1; --nav-muted:#7C9FA3;
   --surface-base:#0F252A; --surface-raised:#153036; --surface-panel:#12292F; --surface-active:#1C3B42;

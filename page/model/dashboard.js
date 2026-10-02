@@ -90,7 +90,7 @@ function client() {
   var EFF = { minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'XHigh', max: 'Max' };
   var POLICY = {
     auto: ['Automatic', 'Automatic fallback', 'The next healthy account that serves the same model and effort'],
-    ask: ['Ask on limit', 'Ask before switching', 'Noema proposes the next account and waits for you'],
+    ask: ['Ask on limit', 'Ask before switching', 'LAIN proposes the next account and waits for you'],
     pinned: ['One account', 'Use one account only', 'Never switched without asking'],
   };
   var AUTH = { oauth: 'OAuth — signed in through the provider’s own flow', runtime: 'Runtime — the provider’s own program keeps the sign-in', api: 'API key', local: 'Local — nothing to sign in to' };
@@ -237,7 +237,7 @@ function client() {
     var list = D.disc || [];
     var sec = U.section({ id: 'discovered', title: 'Discovered on this PC', meta: 'Sign-ins that already exist here. Nothing is used until you choose it — and nothing is copied.' });
     sec.classList.add('first');
-    if (!list.length) { sec.appendChild(U.empty('Nothing new found', 'Refresh looks again. A profile Noema already uses is not listed.', 'Refresh', function () { refresh(); })); pane.appendChild(sec); return; }
+    if (!list.length) { sec.appendChild(U.empty('Nothing new found', 'Refresh looks again. A profile LAIN already uses is not listed.', 'Refresh', function () { refresh(); })); pane.appendChild(sec); return; }
     var rows = el('div', 'u-rows');
     list.forEach(function (d) {
       var row = el('div', 'u-row plain'); row.setAttribute('data-discovered', d.key);
@@ -247,7 +247,7 @@ function client() {
       id.appendChild(el('div', 'u-who', d.label + ' · ' + d.where));
       row.appendChild(id);
       var busy = Boolean(D.using[d.key]);
-      var b = U.button(busy ? 'Adding…' : 'Use in Noema', 'pri sm', function () { useDiscovered(d); }); b.disabled = busy; b.setAttribute('data-use', d.key);
+      var b = U.button(busy ? 'Adding…' : 'Use in LAIN', 'pri sm', function () { useDiscovered(d); }); b.disabled = busy; b.setAttribute('data-use', d.key);
       row.appendChild(b);
       rows.appendChild(row);
     });
@@ -259,7 +259,7 @@ function client() {
     var r = await L.api('/api/intel/use', { key: d.key });
     delete D.using[d.key];
     if (!r || !r.ok) L.toast((r && r.why) || 'could not use that profile', true);
-    else L.toast(d.familyLabel + ' profile added — Noema asked it who it is.');
+    else L.toast(d.familyLabel + ' profile added — LAIN asked it who it is.');
     await loadDisc(true); await load(true); L.poll(); redraw();
   }
 
@@ -289,7 +289,7 @@ function client() {
       { label: 'Refresh accounts', note: 'identity, health and quota', run: function () { refreshFamily(f); } },
       { label: 'Change account policy', run: function () { setTimeout(function () { pol.click(); }, 0); } },
       { sep: true },
-      { label: 'Detach all from Noema', danger: true, run: function () { detachAll(f, false); } },
+      { label: 'Detach all from LAIN', danger: true, run: function () { detachAll(f, false); } },
       owned ? { label: 'Sign out all LAIN-owned accounts', danger: true, run: function () { detachAll(f, true); } } : null,
     ], 'More about ' + f.label));
     var sec = U.section({ id: f.id, title: f.label, mark: f.id, meta: meta, actions: acts });
@@ -503,7 +503,7 @@ function client() {
     }
     if (a.verified === false && !off) items.push({ label: 'Run a test message', disabled: used, run: function () { verifyAccount(f, a); } });
     items.push({ sep: true });
-    items.push({ label: 'Detach from Noema', danger: true, disabled: used, run: function () { detach(f, a); } });
+    items.push({ label: 'Detach from LAIN', danger: true, disabled: used, run: function () { detach(f, a); } });
     if (a.ownership === 'lain') items.push({ label: 'Sign out', danger: true, disabled: used, run: function () { signOut(f, a); } });
     return items;
   }
@@ -558,7 +558,7 @@ function client() {
   /** A refusal because a request is running through the account: said plainly, with the way out. */
   function refusedBusy(r) { L.toast((r && r.why) || 'That account is in use.', true); return load(true).then(redraw); }
   function detach(f, a) {
-    confirmThen('Detach ' + a.name + ' from Noema? Noema forgets it — nothing is signed out' + (a.ownership === 'lain' ? '' : ', and your own profile is untouched') + '.', 'Detach', async function () {
+    confirmThen('Detach ' + a.name + ' from LAIN? LAIN forgets it — nothing is signed out' + (a.ownership === 'lain' ? '' : ', and your own profile is untouched') + '.', 'Detach', async function () {
       var r = await L.api('/api/intel/detach', { id: a.id, mode: 'detach' });
       if (r && r.busy) return refusedBusy(r);
       await after(r, a.name + ' detached'); redraw();
@@ -572,7 +572,7 @@ function client() {
     });
   }
   function removeProfile(f, a) {
-    confirmThen('Sign ' + a.name + ' out and delete the profile Noema made for it? Other accounts are not touched.', 'Remove profile', async function () {
+    confirmThen('Sign ' + a.name + ' out and delete the profile LAIN made for it? Other accounts are not touched.', 'Remove profile', async function () {
       var r = await L.api('/api/intel/detach', { id: a.id, mode: 'remove-profile', confirm: true });
       if (r && r.busy) return refusedBusy(r);
       await after(r, 'Profile removed'); redraw();
@@ -590,12 +590,12 @@ function client() {
     var busy = f.accounts.filter(function (a) { return a.inUse; });
     var owned = f.accounts.filter(function (a) { return a.ownership === 'lain'; });
     if (!signOutOwned) {
-      var text = 'Detach all ' + names.length + ' ' + f.label + ' account' + (names.length === 1 ? '' : 's') + ' from Noema (' + names.join(', ') + ')? Noema forgets them. Nothing is signed out, and your own profiles are untouched.';
+      var text = 'Detach all ' + names.length + ' ' + f.label + ' account' + (names.length === 1 ? '' : 's') + ' from LAIN (' + names.join(', ') + ')? LAIN forgets them. Nothing is signed out, and your own profiles are untouched.';
       if (busy.length) text += '\n\n' + busy.map(function (a) { return a.name; }).join(', ') + ' ' + (busy.length === 1 ? 'is' : 'are') + ' in use right now and will be left.';
       var y = await L.confirm(text, { ok: 'Detach all', danger: true });
       if (!y) return;
     } else {
-      var v = await L.dialog({ title: 'Sign out all LAIN-owned ' + f.label + ' accounts', text: 'This signs out ' + owned.length + ' account' + (owned.length === 1 ? '' : 's') + ' Noema made (' + owned.map(function (a) { return a.name; }).join(', ') + ') through the provider’s own sign-out, in each one’s own directory, and deletes those profiles. Your own profiles are never signed out. Accounts in use are left.', fields: [{ key: 'w', label: 'Type SIGN OUT to confirm', value: '' }], ok: 'Sign out all' });
+      var v = await L.dialog({ title: 'Sign out all LAIN-owned ' + f.label + ' accounts', text: 'This signs out ' + owned.length + ' account' + (owned.length === 1 ? '' : 's') + ' LAIN made (' + owned.map(function (a) { return a.name; }).join(', ') + ') through the provider’s own sign-out, in each one’s own directory, and deletes those profiles. Your own profiles are never signed out. Accounts in use are left.', fields: [{ key: 'w', label: 'Type SIGN OUT to confirm', value: '' }], ok: 'Sign out all' });
       if (!v || String(v.w).trim() !== 'SIGN OUT') { if (v) L.toast('Nothing was signed out — the confirmation did not match.', true); return; }
     }
     var r = await L.api('/api/intel/detach-all', { family: f.id, signOut: signOutOwned, confirm: true });
@@ -630,7 +630,7 @@ function client() {
     D.fams.forEach(function (f) { (f.setup || []).forEach(function (p) { (p.obsolete ? old : fresh).push({ f: f, p: p }); }); });
     pane.appendChild(el('h2', 'dsh-h', 'Setup'));
     pane.appendChild(el('p', 'u-note', 'These are not used until they are signed in — never counted, never chosen for fallback. A sign-in that could be carried over was migrated or adopted already; the ones here could not, and each says why.'));
-    if (!fresh.length) { var none = U.section({ id: 'setup', title: '' }); none.appendChild(U.empty('Nothing needs setup', 'Every account Noema knows about is either connected or was dealt with.')); pane.appendChild(none); }
+    if (!fresh.length) { var none = U.section({ id: 'setup', title: '' }); none.appendChild(U.empty('Nothing needs setup', 'Every account LAIN knows about is either connected or was dealt with.')); pane.appendChild(none); }
     var byFam = {}; var order = [];
     fresh.forEach(function (x) { if (!byFam[x.f.id]) { byFam[x.f.id] = []; order.push(x.f); } byFam[x.f.id].push(x); });
     order.forEach(function (f) {
@@ -670,7 +670,7 @@ function client() {
     connect(f.id);
   }
   function discard(f, p) {
-    confirmThen((p.instanceId ? 'Remove ' : 'Discard ') + p.name + ' from Noema? Nothing is signed out anywhere.', p.instanceId ? 'Remove' : 'Discard', async function () {
+    confirmThen((p.instanceId ? 'Remove ' : 'Discard ') + p.name + ' from LAIN? Nothing is signed out anywhere.', p.instanceId ? 'Remove' : 'Discard', async function () {
       var r = await L.api('/api/intel/detach', { id: p.id, mode: 'detach' });
       if (r && r.busy) return refusedBusy(r);
       await after(r, 'Removed'); redraw();
@@ -778,11 +778,11 @@ function client() {
     }
     act('Refresh quota', 'ghost', function () { sh.close(); refreshAccount(f, a); });
     if (a.verified === false) act('Run a test message', 'ghost', function () { sh.close(); verifyAccount(f, a); }, used);
-    act('Detach from Noema', 'danger', function () { sh.close(); detach(f, a); }, used);
+    act('Detach from LAIN', 'danger', function () { sh.close(); detach(f, a); }, used);
     if (a.ownership === 'lain') {
       act('Sign out', 'danger', function () { sh.close(); signOut(f, a); }, used);
       act('Remove LAIN-owned profile', 'danger', function () { sh.close(); removeProfile(f, a); }, used);
-    } else col.appendChild(el('div', 'u-note', 'This is your own profile. Detach only makes Noema forget it — to sign out, do it inside ' + f.label + '.'));
+    } else col.appendChild(el('div', 'u-note', 'This is your own profile. Detach only makes LAIN forget it — to sign out, do it inside ' + f.label + '.'));
     g3.appendChild(col); b.appendChild(g3);
     // DETAILS — the technical facts, for the rare time they are wanted.
     var g4 = U.group('Details'); b.appendChild(g4);
@@ -813,7 +813,7 @@ function client() {
     ['codex', 'Codex', 'ChatGPT subscription or an OpenAI API key', 'OAuth · API'],
     ['claude', 'Claude', 'Claude subscription or an Anthropic API key', 'OAuth · API'],
     ['antigravity', 'Antigravity', 'Google sign-in through Antigravity', 'OAuth'],
-    ['zai', 'Z.ai', 'Noema integrates Z.ai through its API', 'API'],
+    ['zai', 'Z.ai', 'LAIN integrates Z.ai through its API', 'API'],
     ['opencode', 'OpenCode', 'OpenCode keeps its own sign-in', 'Runtime'],
   ];
   /**
@@ -825,7 +825,7 @@ function client() {
     codex: { oauth: 'Your ChatGPT subscription, through Codex’s own sign-in in your browser. Its 5-hour and weekly windows are the subscription’s.', api: ['openai', 'An OpenAI API key — billed per token by OpenAI. Its limits are the API’s, never the subscription’s.'] },
     claude: { oauth: 'Your Claude subscription (Pro or Max), signed in through Claude’s own flow in a private profile.', api: ['anthropic', 'An Anthropic API key — billed per token by Anthropic. Its limits are the API’s, never the subscription’s.'] },
     antigravity: { oauth: 'Google sign-in through Antigravity’s own server.' },
-    zai: { api: ['zai', 'Noema integrates Z.ai through its API.'] },
+    zai: { api: ['zai', 'LAIN integrates Z.ai through its API.'] },
   };
   /** OAuth or API key? A small dialog of two choices; resolves 'oauth', 'api' or null. */
   function chooseMethod(fid, m) {
@@ -885,7 +885,7 @@ function client() {
       if (how === 'api') { go('api'); return L.keys.add(m.api[0]); }
     }
     // A NAME for the new account (optional) — the account itself is created by the sign-in, never by this dialog.
-    var v = await L.dialog({ title: 'Add ' + (LABEL[fid] || fid) + ' account', text: 'A new account, signed in through ' + (LABEL[fid] || fid) + '’s own flow in your browser. Noema never sees the password, and the accounts you already have are not changed.', fields: [{ key: 'n', label: 'Name (optional)', value: '', placeholder: 'Personal, Work…' }], ok: 'Continue' });
+    var v = await L.dialog({ title: 'Add ' + (LABEL[fid] || fid) + ' account', text: 'A new account, signed in through ' + (LABEL[fid] || fid) + '’s own flow in your browser. LAIN never sees the password, and the accounts you already have are not changed.', fields: [{ key: 'n', label: 'Name (optional)', value: '', placeholder: 'Personal, Work…' }], ok: 'Continue' });
     if (!v) return;
     return startAuth(fid, { name: v.n || '' });
   }
@@ -925,7 +925,7 @@ function client() {
     var st = await L.api('/api/intel/antigravity/status', {}).then(function (r) { return r && r.ok ? r.status : null; }, function () { return null; });
     var rel = (st && st.release) || {};
     var mb = rel.bytes ? Math.round(rel.bytes / 1048576) + ' MB' : 'a large download';
-    var text = (st && st.need ? st.need + '\n\n' : '') + 'It is ' + mb + ' from ' + (rel.source || 'dl.google.com') + (rel.version ? ' (version ' + rel.version + ')' : '') + ', checked against its published checksum before it is unpacked, and kept in Noema’s own folder. Nothing else on this PC is changed.'
+    var text = (st && st.need ? st.need + '\n\n' : '') + 'It is ' + mb + ' from ' + (rel.source || 'dl.google.com') + (rel.version ? ' (version ' + rel.version + ')' : '') + ', checked against its published checksum before it is unpacked, and kept in LAIN’s own folder. Nothing else on this PC is changed.'
       + (st && st.installedCli ? '\n\nAlready installed: ' + st.installedCli.note + '.' : '');
     var y = await L.dialog({ title: 'Antigravity needs Google’s ACP server', text: text, ok: 'Download ' + mb, cancel: 'Not now' });
     if (!y) return;
@@ -1019,7 +1019,7 @@ function client() {
     return importDone(pane, p);
   }
   function importFind(pane) {
-    var sec = U.section({ id: 'import', title: 'Import accounts', meta: 'A one-time move from another installation (9Router, OmniRoute, an export file). A sign-in that is complete and portable is migrated into Noema’s own profile and verified; a native profile is adopted as it is. Only a sign-in that cannot be carried over asks you to sign in again — and says why. Noema does not depend on the other product afterwards.' });
+    var sec = U.section({ id: 'import', title: 'Import accounts', meta: 'A one-time move from another installation (9Router, OmniRoute, an export file). A sign-in that is complete and portable is migrated into LAIN’s own profile and verified; a native profile is adopted as it is. Only a sign-in that cannot be carried over asks you to sign in again — and says why. LAIN does not depend on the other product afterwards.' });
     sec.classList.add('first');
     var acts = el('div', 'u-acts'); acts.style.marginTop = 'var(--space-4)';
     var d1 = U.button('Find accounts', 'pri', function () { discover(null); }); d1.setAttribute('data-import-find', '1');
@@ -1099,13 +1099,13 @@ function client() {
     pane.appendChild(sec);
   }
   function resultText(r) {
-    if (r.result === 'transferred') return 'Connected — ' + (r.label || 'the API') + ' is now a Noema API source.';
-    if (r.result === 'migrated') return 'Migrated — the sign-in now lives in Noema’s own profile, and the provider confirmed it. No sign-in was needed.';
-    if (r.result === 'connected') return 'Adopted — Noema uses the profile on this PC. No sign-in was needed.';
+    if (r.result === 'transferred') return 'Connected — ' + (r.label || 'the API') + ' is now a LAIN API source.';
+    if (r.result === 'migrated') return 'Migrated — the sign-in now lives in LAIN’s own profile, and the provider confirmed it. No sign-in was needed.';
+    if (r.result === 'connected') return 'Adopted — LAIN uses the profile on this PC. No sign-in was needed.';
     if (r.result === 'connected-other') return 'The profile on this PC is a different account — it is connected. This one still needs to sign in.';
     if (r.result === 'reauth-required') return 'Needs sign-in' + (r.reason ? ' — ' + r.reason : '') + '. It waits under Finish setup.';
     if (r.result === 'unsupported') return r.how || 'No supported sign-in yet.';
-    if (r.result === 'kept-existing') return 'Kept the account Noema already has.';
+    if (r.result === 'kept-existing') return 'Kept the account LAIN already has.';
     if (r.result === 'needs-decision') return 'This account appears to already exist — choose Keep existing, Replace or Add separately.';
     return r.why || r.result;
   }
@@ -1250,8 +1250,8 @@ function client() {
       { label: 'Test', run: function () { L.keys.test(base); } },
       { label: 'Replace credential', run: async function () { await L.keys.add(null); await load(true); redraw(); } },
       { sep: true },
-      { label: 'Remove credential', danger: true, run: function () { confirmThen('Delete the key Noema keeps for ' + f.label + '? The endpoint stays, waiting for a new key. Your provider account is not touched.', 'Remove credential', async function () { await after(await L.api('/api/sources/action', { kind: 'remove-credential', id: base, confirm: true }), 'Credential removed'); redraw(); }); } },
-      { label: 'Remove endpoint', danger: true, run: function () { confirmThen('Remove ' + f.label + ' and its key from Noema? Your provider account is not touched.', 'Remove', async function () { await after(await L.api('/api/sources/action', { kind: 'remove-source', id: base, confirm: true }), 'Removed'); D.apiInfo = null; redraw(); }); } },
+      { label: 'Remove credential', danger: true, run: function () { confirmThen('Delete the key LAIN keeps for ' + f.label + '? The endpoint stays, waiting for a new key. Your provider account is not touched.', 'Remove credential', async function () { await after(await L.api('/api/sources/action', { kind: 'remove-credential', id: base, confirm: true }), 'Credential removed'); redraw(); }); } },
+      { label: 'Remove endpoint', danger: true, run: function () { confirmThen('Remove ' + f.label + ' and its key from LAIN? Your provider account is not touched.', 'Remove', async function () { await after(await L.api('/api/sources/action', { kind: 'remove-source', id: base, confirm: true }), 'Removed'); D.apiInfo = null; redraw(); }); } },
     ], 'More about ' + f.label));
     return row;
   }

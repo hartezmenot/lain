@@ -22,8 +22,8 @@
 
 const HTML = `
 <div class="palette-back" id="palette" hidden>
-  <div class="palette" role="dialog" aria-label="Search Noema">
-    <input id="paletteQ" placeholder="Search Noema, or type > for commands" autocomplete="off" spellcheck="false">
+  <div class="palette" role="dialog" aria-label="Search LAIN">
+    <input id="paletteQ" placeholder="Search LAIN, or type > for commands" autocomplete="off" spellcheck="false">
     <div class="presults" id="presults"></div>
   </div>
 </div>`;
@@ -108,8 +108,8 @@ function client() {
     var pane = function (p) { return ide(function () { L.ide.showPane(p, true); }); };
     var panel = function (p) { return ide(function () { L.ide.showPanel(p); }); };
     return [
-      { title: 'Noema: Open Preview', sub: 'Preview · Ctrl+Shift+V', icon: 'preview', kw: 'workshop dev server browser page run', run: function () { if (L.preview) L.preview.open(); } },
-      { title: 'Noema: Configure Preview…', sub: 'Preview', icon: 'preview', kw: 'dev server command port workshop', run: ide(function () { if (L.preview) L.preview.configure(); }) },
+      { title: 'LAIN: Open Preview', sub: 'Preview · Ctrl+Shift+V', icon: 'preview', kw: 'workshop dev server browser page run', run: function () { if (L.preview) L.preview.open(); } },
+      { title: 'LAIN: Configure Preview…', sub: 'Preview', icon: 'preview', kw: 'dev server command port workshop', run: ide(function () { if (L.preview) L.preview.configure(); }) },
       { title: 'File: New File…', sub: 'IDE', icon: 'plus', kw: 'create', run: ide(function () { if (L.editor) L.editor.newFile(''); }) },
       { title: 'File: New Folder…', sub: 'IDE', icon: 'folder', kw: 'create directory', run: ide(function () { if (L.editor) L.editor.newFolder(''); }) },
       { title: 'File: Save', sub: 'IDE · Ctrl+S', icon: 'check', kw: 'write', run: ide(function () { L.source.save(false); }) },
@@ -160,21 +160,21 @@ function client() {
   function lainCommands() {
     var inv = function (id, args) { return L.house.invoke(id, args); };
     return [
-      { title: 'Noema: Ask About Selection', sub: 'Focus', icon: 'chat', kw: 'question explain selection this', run: function () { inv('focus.ask_bot'); } },
-      { title: 'Noema: Move to Agent', sub: 'Focus', icon: 'spark', kw: 'coding agent pane task', run: function () { inv('focus.move_to_agent'); } },
-      { title: 'Noema: Pick UI Element', sub: 'Focus · preview', icon: 'preview', kw: 'workshop select element visual picker', run: function () { inv('focus.pick_element'); } },
-      { title: 'Noema: Who Changed This?', sub: 'Focus · provenance', icon: 'files', kw: 'provenance who wrote lines blame user agent', run: function () {
+      { title: 'LAIN: Ask About Selection', sub: 'Focus', icon: 'chat', kw: 'question explain selection this', run: function () { inv('focus.ask_bot'); } },
+      { title: 'LAIN: Move to Agent', sub: 'Focus', icon: 'spark', kw: 'coding agent pane task', run: function () { inv('focus.move_to_agent'); } },
+      { title: 'LAIN: Pick UI Element', sub: 'Focus · preview', icon: 'preview', kw: 'workshop select element visual picker', run: function () { inv('focus.pick_element'); } },
+      { title: 'LAIN: Who Changed This?', sub: 'Focus · provenance', icon: 'files', kw: 'provenance who wrote lines blame user agent', run: function () {
         var p = currentFile();
         inv('changes.who', p ? { path: p } : {}).then(function (r) { showRead(p ? 'Who changed ' + p : 'Who changed what', r); });
       } },
-      { title: 'Noema: Open Task in Chat', sub: 'Chat · same session', icon: 'chat', kw: 'conversation task continue', run: function () { inv('chat.open'); } },
-      { title: 'Noema: Open in /focus', sub: 'IDE · same task', icon: 'ide', kw: 'focus workspace task files', run: function () { inv('ide.enter_focus'); } },
-      { title: 'Noema: Restart Language Server', sub: 'IDE', icon: 'refresh', kw: 'lsp typescript pyright rust analyzer restart', run: function () {
+      { title: 'LAIN: Open Task in Chat', sub: 'Chat · same session', icon: 'chat', kw: 'conversation task continue', run: function () { inv('chat.open'); } },
+      { title: 'LAIN: Open in /focus', sub: 'IDE · same task', icon: 'ide', kw: 'focus workspace task files', run: function () { inv('ide.enter_focus'); } },
+      { title: 'LAIN: Restart Language Server', sub: 'IDE', icon: 'refresh', kw: 'lsp typescript pyright rust analyzer restart', run: function () {
         var p = currentFile();
         if (!p) { L.toast('Open a file first — its language decides which server restarts.', true); return; }
         inv('lsp.restart', { path: p }).then(function (r) { if (r && r.ok !== false) L.toast(r.text || 'restarted'); });
       } },
-      { title: 'Noema: Reconcile Project', sub: 'Architecture vs disk', icon: 'check', kw: 'architecture drift missing damaged reconcile', run: function () { inv('project.reconcile').then(function (r) { showRead('Reconcile project', r); }); } },
+      { title: 'LAIN: Reconcile Project', sub: 'Architecture vs disk', icon: 'check', kw: 'architecture drift missing damaged reconcile', run: function () { inv('project.reconcile').then(function (r) { showRead('Reconcile project', r); }); } },
     ];
   }
 
@@ -302,7 +302,7 @@ function client() {
     });
     if (q && q.trim() && q.trim().charAt(0) !== '>') {
       box.appendChild(el('div', 'rgroup', 'Ask'));
-      var ask = { group: 'Ask', title: 'Ask Noema: “' + q.trim() + '”', icon: 'ask', run: function () { askLain(q.trim()); } };
+      var ask = { group: 'Ask', title: 'Ask LAIN: “' + q.trim() + '”', icon: 'ask', run: function () { askLain(q.trim()); } };
       flat.push(ask);
       box.appendChild(resRow(ask, flat.length - 1, done));
     }

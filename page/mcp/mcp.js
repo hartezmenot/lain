@@ -115,7 +115,7 @@ function client() {
     if (s.capabilities) {
       var body = el('div', 'ig-body');
       var col = function (title, items, cls) { var d = el('div'); d.appendChild(el('div', 'kicker', title)); var ch = el('div', 'chips'); if (!items.length) ch.appendChild(el('span', '', 'none')); items.forEach(function (x) { var sp = el('span', typeof x === 'object' ? x.cls : '', typeof x === 'object' ? x.t : x); if (typeof x === 'object' && x.title) sp.title = x.title; ch.appendChild(sp); }); d.appendChild(ch); body.appendChild(d); };
-      col('Tools', s.capabilities.tools.map(function (x) { return { t: x.name, cls: x.readOnly ? '' : 'ask', title: (x.readOnly ? 'read-only — runs without asking. ' : 'changes things — Noema asks before it runs. ') + x.description }; }));
+      col('Tools', s.capabilities.tools.map(function (x) { return { t: x.name, cls: x.readOnly ? '' : 'ask', title: (x.readOnly ? 'read-only — runs without asking. ' : 'changes things — LAIN asks before it runs. ') + x.description }; }));
       col('Resources', s.capabilities.resources.map(function (x) { return x.name; }));
       col('Prompts', s.capabilities.prompts.map(function (x) { return x.name; }));
       c.appendChild(body);
@@ -127,7 +127,7 @@ function client() {
     if (s.enabled && s.state !== 'CONNECTED') acts.appendChild(btn('Connect', 'primary', function () { act('/api/integrations/mcp/connect', { id: s.id }, s.name + ' connected'); }));
     if (s.state === 'CONNECTED') acts.appendChild(btn('Disconnect', 'ghost', function () { act('/api/integrations/mcp/disconnect', { id: s.id }); }));
     acts.appendChild(btn(s.enabled ? 'Disable' : 'Enable', 'ghost', function () { act('/api/integrations/mcp/enable', { id: s.id, enabled: !s.enabled }); }));
-    acts.appendChild(btn('Remove', 'ghost', async function () { if (await L.confirm('Remove ' + s.name + ' from Noema? Its stored secrets are deleted too. Nothing is uninstalled from your machine.', { ok: 'Remove', danger: true })) act('/api/integrations/mcp/remove', { id: s.id }, 'Removed'); }));
+    acts.appendChild(btn('Remove', 'ghost', async function () { if (await L.confirm('Remove ' + s.name + ' from LAIN? Its stored secrets are deleted too. Nothing is uninstalled from your machine.', { ok: 'Remove', danger: true })) act('/api/integrations/mcp/remove', { id: s.id }, 'Removed'); }));
     c.appendChild(acts);
     return c;
   }
@@ -147,7 +147,7 @@ function client() {
     acts.appendChild(btn(k.enabled ? 'Disable' : 'Enable', k.enabled ? 'ghost' : 'primary', function () { k.enabled ? act('/api/integrations/skill/enable', { id: k.id, enabled: false }, 'Disabled') : enableSkill(k); }));
     if (hk && hk.update && hk.update.updateAvailable) acts.appendChild(btn('Update…', 'primary', function () { updateSkill(k); }));
     acts.appendChild(btn('Remove', 'ghost', async function () {
-      var del = k.source === 'git' ? await L.dialog({ title: 'Remove ' + k.name, text: 'Remove it from Noema. The copy Noema cloned can be deleted too.', ok: 'Remove and delete the copy', cancel: 'Cancel', extra: { label: 'Remove, keep the copy', value: 'keep' } }) : await L.confirm('Remove ' + k.name + ' from Noema? The folder stays where it is.', { ok: 'Remove' });
+      var del = k.source === 'git' ? await L.dialog({ title: 'Remove ' + k.name, text: 'Remove it from LAIN. The copy LAIN cloned can be deleted too.', ok: 'Remove and delete the copy', cancel: 'Cancel', extra: { label: 'Remove, keep the copy', value: 'keep' } }) : await L.confirm('Remove ' + k.name + ' from LAIN? The folder stays where it is.', { ok: 'Remove' });
       if (!del) return;
       act('/api/integrations/skill/remove', { id: k.id, deleteFiles: del === true && k.source === 'git' }, 'Removed');
     }));
@@ -207,7 +207,7 @@ function client() {
     var r = await L.api('/api/skills/inspect', { key: row.key });
     if (!r || !r.ok) { L.toast((r && r.why) || 'could not inspect it', true); return; }
     var s = r.skill;
-    if (s.compatible === false) { L.dialog({ title: s.name || row.name, text: 'Not a compatible skill: ' + (s.why || 'it has no SKILL.md with a name and a description') + '. Noema does not pretend to support it.', ok: 'Close', cancel: null }); return; }
+    if (s.compatible === false) { L.dialog({ title: s.name || row.name, text: 'Not a compatible skill: ' + (s.why || 'it has no SKILL.md with a name and a description') + '. LAIN does not pretend to support it.', ok: 'Close', cancel: null }); return; }
     var lines = ['Source: ' + s.source.label + (s.source.where ? ' (' + s.source.where + ')' : ''), 'Author: ' + (s.author || 'not stated'), 'Version: ' + (s.version || 'not stated'), 'License: ' + (s.license || 'not stated'),
       'Capabilities it asks for: ' + ((s.capabilities || []).join(', ') || 'none stated'), 'Dependencies: ' + ((s.dependencies || []).join(', ') || 'none'), 'Scripts: ' + ((s.scripts || []).join(', ') || 'none'),
       '', 'Files (' + s.files.length + '):', s.files.slice(0, 60).join('\n'), '', s.policy];
@@ -285,7 +285,7 @@ function client() {
     var sr = el('div', 'row');
     sr.appendChild(btn('Add source', 'primary', async function () { var body = stype === 'folder' ? { type: 'folder', path: sin.value } : { type: stype, url: sin.value }; var r = await act('/api/skills/source/add', body, 'Source added — refreshing it'); if (r && r.ok) { await L.api('/api/skills/source/refresh', { id: r.id, wait: true }); tab = 'discover'; load(); } }));
     sf.appendChild(sr);
-    sf.appendChild(el('div', 'note', 'Skills are READ as files into Noema\u2019s own skill store — Noema never starts another agent runtime to run them, and never runs a downloaded script on its own.'));
+    sf.appendChild(el('div', 'note', 'Skills are READ as files into LAIN\u2019s own skill store — LAIN never starts another agent runtime to run them, and never runs a downloaded script on its own.'));
     pane.appendChild(sf);
 
     section(pane, 'Add an MCP server', 'you choose what it may use; secrets go to the Windows secret store');
@@ -298,7 +298,7 @@ function client() {
     var cmd = field('Command', 'command', 'npx -y @coding-solo/godot-mcp');
     var url = field('Server URL', 'url', 'https://example.com/mcp'); url.parentNode.hidden = true;
     var env = field('Environment (one KEY=value per line; mark secrets with !KEY=value)', 'env', 'GODOT_PATH=C:\\Godot\\godot.exe\n!API_TOKEN=…', true);
-    f.appendChild(el('div', 'note', 'Noema starts a local server with only the environment you give it — never your whole environment. A tool the server does not mark read-only asks you before it runs.'));
+    f.appendChild(el('div', 'note', 'LAIN starts a local server with only the environment you give it — never your whole environment. A tool the server does not mark read-only asks you before it runs.'));
     var row = el('div', 'row');
     row.appendChild(btn('Add server', 'primary', async function () {
       var envObj = {}; var secretEnv = []; var headers = {};
@@ -319,9 +319,9 @@ function client() {
     g.appendChild(r2);
     var rp = el('label', '', 'Or a Git repository'); var rin = document.createElement('input'); rin.placeholder = 'https://github.com/owner/skill.git'; rp.appendChild(rin); g.appendChild(rp);
     var r3 = el('div', 'row');
-    r3.appendChild(btn('Clone and add', 'primary', async function () { if (!(await L.confirm('Clone ' + rin.value + ' into Noema\'s skills folder? Nothing in it runs until you enable the skill and a task uses it.', { ok: 'Clone' }))) return; var r = await act('/api/integrations/skill/add', { repo: rin.value }, 'Cloned and added (disabled)'); if (r && r.ok) { tab = 'skills'; draw(); } }));
+    r3.appendChild(btn('Clone and add', 'primary', async function () { if (!(await L.confirm('Clone ' + rin.value + ' into LAIN\'s skills folder? Nothing in it runs until you enable the skill and a task uses it.', { ok: 'Clone' }))) return; var r = await act('/api/integrations/skill/add', { repo: rin.value }, 'Cloned and added (disabled)'); if (r && r.ok) { tab = 'skills'; draw(); } }));
     g.appendChild(r3);
-    g.appendChild(el('div', 'note', 'Scripts inside a skill are listed and never run by Noema on its own — the Agent may use them in a task, with your permission like any other command.'));
+    g.appendChild(el('div', 'note', 'Scripts inside a skill are listed and never run by LAIN on its own — the Agent may use them in a task, with your permission like any other command.'));
     pane.appendChild(g);
   }
 
@@ -333,7 +333,7 @@ function client() {
     if (L.popDepth && L.popDepth() > 0) { clearTimeout(redrawLater); redrawLater = setTimeout(draw, 400); return; }
     var host = $('mcpPane'); var keep = host.scrollTop; host.textContent = '';
     var page = el('div', 'u-page wide');
-    page.appendChild(L.kit.head('MCP & Skills', 'Connect Noema to the applications you work in, and teach it how your team works.'));
+    page.appendChild(L.kit.head('MCP & Skills', 'Connect LAIN to the applications you work in, and teach it how your team works.'));
     page.appendChild(tabsBar());
     var pane = el('div', 'mcpbody'); page.appendChild(pane); host.appendChild(page);
     if (!data) { pane.appendChild(el('div', 'u-empty', loading ? 'Reading…' : 'Not read yet.')); if (!loading) load(); return; }
@@ -342,7 +342,7 @@ function client() {
     if (tab === 'installed') {
       if (recs.length) { section(list, 'This project recommends'); recs.forEach(function (r) { list.appendChild(catalogCard(r.item, r.why)); }); }
       section(list, 'MCP servers', data.mcp.length + ' configured');
-      if (!data.mcp.length) empty(list, 'No MCP servers yet', 'An MCP server lets Noema work inside another application — a Godot scene, a Blender file, a browser, a database. Find one in Discover, or describe your own under Custom.', btn('Discover', 'primary', function () { tab = 'discover'; draw(); }));
+      if (!data.mcp.length) empty(list, 'No MCP servers yet', 'An MCP server lets LAIN work inside another application — a Godot scene, a Blender file, a browser, a database. Find one in Discover, or describe your own under Custom.', btn('Discover', 'primary', function () { tab = 'discover'; draw(); }));
       data.mcp.forEach(function (s) { list.appendChild(mcpCard(s)); });
       section(list, 'Skills', data.skills.length + ' added');
       if (!data.skills.length) empty(list, 'No skills yet', 'A skill is a folder of instructions (SKILL.md) the Agent reads when a task needs it — how your team builds scenes, releases a build, writes a migration.', btn('Add a skill', 'primary', function () { tab = 'custom'; draw(); }));

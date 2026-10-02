@@ -34,7 +34,7 @@
 const HTML = `
       <div class="box">
         <div class="chips" id="ctxChips"></div>
-        <textarea id="ask" rows="1" placeholder="Message Noema…"></textarea>
+        <textarea id="ask" rows="1" placeholder="Message LAIN…"></textarea>
         <div class="cbar">
           <button class="cbtn" id="addBtn" aria-label="Add files or context"></button>
           <button class="cbtn at" id="atBtn" aria-label="Reference context">@</button>
@@ -444,7 +444,7 @@ function client() {
         };
         seg('Project context', 'context', [['on', 'On', 'The file in front, selection, problems and terminal go with the message'], ['off', 'Off', 'Only what you type and pin']], 'on');
         if (agentPane()) seg('Agent context', 'agentContext', [['focused', 'Focused', 'A focused packet: the selected symbol and what references it, your recent hand-edits, constraints'], ['standard', 'Standard', 'The Agent surveys the project itself']], 'focused');
-        else seg('Code changes', 'mode', [['auto', 'Ask first', 'Questions are answered; for code changes Noema asks "Move to Agent?"'], ['bot', 'Read only', 'Everything stays read-only']], 'auto');
+        else seg('Code changes', 'mode', [['auto', 'Ask first', 'Questions are answered; for code changes LAIN asks "Move to Agent?"'], ['bot', 'Read only', 'Everything stays read-only']], 'auto');
       }
       var foot = el('div', 'mfoot');
       if (agentPane()) foot.appendChild(L.kit.button('What the Agent would be given…', 'sm ghost', function () { L.closePop(); previewPacket(); }));

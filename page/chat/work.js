@@ -120,7 +120,7 @@ function client() {
 
   function offerCard(o) {
     var c = el('div', 'wcard offer' + (o.kind === 'URGENT_STEER' || o.kind === 'LONG_CONTEXT_WARNING' ? ' warn' : ''));
-    c.appendChild(el('div', 'wk', OFFER_KICKER[o.kind] || 'Noema asks'));
+    c.appendChild(el('div', 'wk', OFFER_KICKER[o.kind] || 'LAIN asks'));
     c.appendChild(el('div', 'wt', o.text || ''));
     if (o.kind === 'PLAN_FIRST' && o.request) c.appendChild(el('div', 'wb', o.request.length > 400 ? o.request.slice(0, 400) + '…' : o.request));
     if (o.kind === 'URGENT_STEER') c.appendChild(el('div', 'wb', '“' + o.steer + '”'));
@@ -263,7 +263,7 @@ function client() {
     items2.push({ label: p.attached ? 'Move to another folder…' : 'Choose a folder…', note: 'an existing folder on this machine', run: async function () { var dir = await L.ide.pickFolder('Choose the project folder'); if (dir) attach(dir); } });
     items2.push({ label: 'Create project…', note: 'a new folder, bound to this conversation', run: async function () {
       var rec = null; try { rec = await L.api('/api/project/recent', {}); } catch (e) { rec = null; }
-      var v = await L.dialog({ title: 'Create project', text: 'Noema creates the folder and binds this conversation to it.', fields: [{ key: 'name', label: 'Name', value: 'new-project' }, { key: 'parent', label: 'Location', value: (rec && rec.defaultProjectRoot) || '', action: { label: 'Choose…', run: function () { return L.ide.pickFolder('Where the project lives'); } } }], ok: 'Create' });
+      var v = await L.dialog({ title: 'Create project', text: 'LAIN creates the folder and binds this conversation to it.', fields: [{ key: 'name', label: 'Name', value: 'new-project' }, { key: 'parent', label: 'Location', value: (rec && rec.defaultProjectRoot) || '', action: { label: 'Choose…', run: function () { return L.ide.pickFolder('Where the project lives'); } } }], ok: 'Create' });
       if (v) done(await L.api('/api/project/create', { parent: v.parent, name: v.name, attach: true }));
     } });
     items2.push({ label: 'Clone from GitHub…', note: 'a repository you can access, cloned into a local folder', run: function () { if (L.github) L.github.pick({ then: opts.then }); } });

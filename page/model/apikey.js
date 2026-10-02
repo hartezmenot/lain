@@ -93,7 +93,7 @@ function client() {
       var urlRow = field('Base URL', url);
       var state = el('div', 'kstate', '');
       box.appendChild(state);
-      box.appendChild(el('div', 'kfine', 'Noema checks the key with the provider before keeping it, stores it in its own config, and never shows it again — only its first and last characters.'));
+      box.appendChild(el('div', 'kfine', 'LAIN checks the key with the provider before keeping it, stores it in its own config, and never shows it again — only its first and last characters.'));
       var pick = function () { return list.filter(function (p) { return p.id === sel.value; })[0] || list[0]; };
       var sync = function () {
         var p = pick();
@@ -156,7 +156,7 @@ function client() {
     var ask = await L.api('/api/accounts/remove', { id: id });
     if (!ask || !ask.ok) { L.toast((ask && ask.why) || 'It cannot be removed here.', true); return; }
     var im = ask.impact || {};
-    var text = 'Remove ' + id + '? Its stored key is deleted from Noema’s config'
+    var text = 'Remove ' + id + '? Its stored key is deleted from LAIN’s config'
       + (im.models ? ', and its ' + im.models + ' model' + (im.models === 1 ? '' : 's') + ' leave the model list' : '') + '.'
       + (im.usedBy && im.usedBy.length ? '\n\nIt is currently ' + im.usedBy.join(' and ') + '.' : '');
     if (!(await L.confirm(text, { ok: 'Remove', danger: true }))) return;

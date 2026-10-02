@@ -39,7 +39,7 @@ function client() {
   var L = window.LAIN;
   var el = L.el;
   var deco = null, lastKey = '', busy = false, stamp = 0;
-  var WHO = { USER: 'you', AGENT: 'the Coding Agent', FORMATTER: 'the formatter', EXTERNAL: 'outside Noema', BOT: 'the BOT', EXTENSION: 'an extension', UNKNOWN: 'unknown' };
+  var WHO = { USER: 'you', AGENT: 'the Coding Agent', FORMATTER: 'the formatter', EXTERNAL: 'outside LAIN', BOT: 'the BOT', EXTENSION: 'an extension', UNKNOWN: 'unknown' };
 
   function ago(ms) {
     var m = Math.max(0, Math.round((Date.now() - ms) / 60000));
@@ -69,7 +69,7 @@ function client() {
         options: {
           isWholeLine: true,
           linesDecorationsClassName: 'prov-' + g.source.toLowerCase(),
-          hoverMessage: { value: 'Written by ' + WHO[g.source] + ', ' + ago(g.at) + (g.taskId ? ' (task ' + g.taskId + ')' : '') + (r.approximate ? ' — the file also changed outside Noema since, so these lines are approximate' : '') },
+          hoverMessage: { value: 'Written by ' + WHO[g.source] + ', ' + ago(g.at) + (g.taskId ? ' (task ' + g.taskId + ')' : '') + (r.approximate ? ' — the file also changed outside LAIN since, so these lines are approximate' : '') },
         },
       };
     });
@@ -97,7 +97,7 @@ function client() {
       list.textContent = '';
       if (!r.ok) { sum.textContent = r.why || 'no project'; return; }
       var c = r.counts || {};
-      sum.textContent = Object.keys(c).length ? Object.keys(c).map(function (k) { return (WHO[k] || k) + ': ' + c[k]; }).join(' · ') : 'Nothing recorded yet. Noema records who changed a file from the moment it sees the change; older history is in git, without who.';
+      sum.textContent = Object.keys(c).length ? Object.keys(c).map(function (k) { return (WHO[k] || k) + ': ' + c[k]; }).join(' · ') : 'Nothing recorded yet. LAIN records who changed a file from the moment it sees the change; older history is in git, without who.';
       (r.rows || []).forEach(function (row) {
         var d = el('div', 'prow');
         var b = el('span', 'pbadge ' + row.source, row.source);
@@ -110,7 +110,7 @@ function client() {
         list.appendChild(d);
       });
     };
-    [['all', 'Everything'], ['USER', 'What I changed'], ['Noema', 'What Noema changed'], ['EXTERNAL', 'Outside Noema']].forEach(function (x) {
+    [['all', 'Everything'], ['USER', 'What I changed'], ['LAIN', 'What LAIN changed'], ['EXTERNAL', 'Outside LAIN']].forEach(function (x) {
       var b = el('button', 'btn small', x[1]);
       b.dataset.f = x[0];
       b.onclick = function () { want = x[0]; load(); };

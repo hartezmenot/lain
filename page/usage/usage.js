@@ -285,8 +285,8 @@ function client() {
         var d = el('div'); d.appendChild(el('span', '', x[0])); d.appendChild(el('b', '', x[1] == null ? '\u2014' : x[0] === 'Requests' ? String(x[1]) : kfmt(x[1]))); g.appendChild(d);
       });
       c.appendChild(g);
-      c.appendChild(el('div', 'wc-note', 'LAIN-observed inside this window' + (o.costUsd != null ? ' \u00b7 reported cost $' + o.costUsd : '') + '. The provider % covers all use of the account, in Noema or not.'));
-    } else c.appendChild(el('div', 'wc-note', w.why || 'Noema cannot place this window in time.'));
+      c.appendChild(el('div', 'wc-note', 'LAIN-observed inside this window' + (o.costUsd != null ? ' \u00b7 reported cost $' + o.costUsd : '') + '. The provider % covers all use of the account, in LAIN or not.'));
+    } else c.appendChild(el('div', 'wc-note', w.why || 'LAIN cannot place this window in time.'));
     return c;
   }
   function windows(pane) {
@@ -302,7 +302,7 @@ function client() {
     pane.appendChild(tools);
     if (!wins) { pane.appendChild(el('div', 'u-empty', winLoading ? 'Reading provider windows…' : 'Not read yet.')); if (!winLoading) loadWindows(); return; }
     var bounded = wins.filter(function (w) { return w.category !== 'CREDITS'; });
-    if (!bounded.length) pane.appendChild(U.empty('No provider has reported a usage window yet', 'Windows appear when a provider states them — Claude Code after its first run through Noema, a Codex account when it is read. Noema never invents a window or a percentage.'));
+    if (!bounded.length) pane.appendChild(U.empty('No provider has reported a usage window yet', 'Windows appear when a provider states them — Claude Code after its first run through LAIN, a Codex account when it is read. LAIN never invents a window or a percentage.'));
     // PROVIDER → ACCOUNT → the windows THAT ACCOUNT reported (5-hour, weekly, monthly, credits — never an empty label).
     var provs = {}; var order = [];
     wins.forEach(function (w) {
@@ -332,7 +332,7 @@ function client() {
           var q = U.qbar({ label: w.label || w.window, usedPercent: used, resetsAt: winWhich === 'current' ? w.resetsAt : null, credits: w.category === 'CREDITS' && w.credits ? w.credits.available : null });
           if (q) {
             var o = cur.observed;
-            if (winWhich === 'current' && w.resetsAt) { var rs = U.resetText(w.resetsAt); if (rs) q.title = 'Resets ' + rs + (o ? ' · Noema observed ' + kfmt((o.input || 0) + (o.output || 0)) + ' tokens in this window' : ''); }
+            if (winWhich === 'current' && w.resetsAt) { var rs = U.resetText(w.resetsAt); if (rs) q.title = 'Resets ' + rs + (o ? ' · LAIN observed ' + kfmt((o.input || 0) + (o.output || 0)) + ' tokens in this window' : ''); }
             qs.appendChild(q);
           }
           if (cur.breakdown && cur.breakdown.length && (!biggest || (w.durationMins || 0) > (biggest.w.durationMins || 0))) biggest = { w: w, rows: cur.breakdown };
@@ -351,7 +351,7 @@ function client() {
       var ow = winWhich === 'previous' && obsW.previous ? obsW.previous.observed : obsW.observed;
       var ob = el('div', 'wobs');
       ob.appendChild(el('div', 'title3', 'LAIN-observed usage'));
-      ob.appendChild(el('p', 'lede', 'Tokens Noema sent and received in the ' + (winWhich === 'previous' ? 'previous ' : 'current ') + (obsW.label || obsW.window) + ' window — not provider quota.'));
+      ob.appendChild(el('p', 'lede', 'Tokens LAIN sent and received in the ' + (winWhich === 'previous' ? 'previous ' : 'current ') + (obsW.label || obsW.window) + ' window — not provider quota.'));
       var parts = [['Input', ow.input, 'var(--text-primary)'], ['Output', ow.output, 'var(--accent-primary)'], ['Cache read', ow.reported && ow.reported.cache ? ow.cacheRead : 0, 'color-mix(in srgb,var(--accent-primary) 55%,var(--surface-base))'], ['Cache write', ow.reported && ow.reported.cache ? ow.cacheWrite : 0, 'var(--accent-tertiary)']];
       var tot = parts.reduce(function (a, p) { return a + (p[1] || 0); }, 0);
       ob.appendChild(el('div', 'kicker', 'Total tokens'));
@@ -386,8 +386,8 @@ function client() {
       pane.appendChild(bd);
     }
     var info = el('div', 'winfo' + (obsW ? ' side' : ''));
-    var i1 = el('div'); i1.appendChild(el('b', '', 'Provider quota')); i1.appendChild(el('p', '', 'Limits set by the provider \u2014 a 5-hour, weekly or monthly window, or credits. Tracked by the provider and covering all use of your account, including use outside Noema.'));
-    var i2 = el('div'); i2.appendChild(el('b', '', 'LAIN-observed tokens')); i2.appendChild(el('p', '', 'What Noema itself sent and received inside each window, from its own request receipts. It explains where the usage went; it is not the provider\u2019s quota unless that quota is itself counted in tokens.'));
+    var i1 = el('div'); i1.appendChild(el('b', '', 'Provider quota')); i1.appendChild(el('p', '', 'Limits set by the provider \u2014 a 5-hour, weekly or monthly window, or credits. Tracked by the provider and covering all use of your account, including use outside LAIN.'));
+    var i2 = el('div'); i2.appendChild(el('b', '', 'LAIN-observed tokens')); i2.appendChild(el('p', '', 'What LAIN itself sent and received inside each window, from its own request receipts. It explains where the usage went; it is not the provider\u2019s quota unless that quota is itself counted in tokens.'));
     info.appendChild(i1); info.appendChild(i2);
     mid.appendChild(info);
     // The observed bar and the explanation sit between the windows and the breakdown.
@@ -448,7 +448,7 @@ function client() {
   function emptyState(pane) {
     var box = el('div', 'uempty');
     box.appendChild(el('b', '', Object.keys(filters).length ? 'No requests match these filters in this period.' : 'No usage ' + (range === 'all' ? 'recorded yet' : 'in ' + RANGE_WORD[range]) + '.'));
-    box.appendChild(el('div', 'missing', 'Once Noema makes a request, input, output, cache and latency appear here — per model, account, role and source. Run a model, or choose another date range.'));
+    box.appendChild(el('div', 'missing', 'Once LAIN makes a request, input, output, cache and latency appear here — per model, account, role and source. Run a model, or choose another date range.'));
     // WHAT IS CONNECTED — from the one fabric (model/intel.js), so an empty range never reads as "nothing set up".
     var fams = (L.intel && L.intel.families()) || [];
     var ul = el('ul', '');
@@ -527,7 +527,7 @@ function client() {
       body.appendChild(L.kit.donut(segs, { size: 150, stroke: 16, label: e.hitRatio != null ? Math.round(e.hitRatio * 100) + '%' : '—', sub: e.hitRatio != null ? 'reused' : 'not reported', empty: 'No provider reported cache use in this period.' }));
       p.appendChild(body);
       p.appendChild(el('div', 'ub-note', e.reportedRows
-        ? 'The provider served ' + L.kit.fmtNum(cached) + ' input tokens from its cache on ' + e.reportedRows + ' of Noema’s API requests. Runtime sessions (Codex, Claude Code) are counted under Cache read above; neither is ever turned into quota.'
+        ? 'The provider served ' + L.kit.fmtNum(cached) + ' input tokens from its cache on ' + e.reportedRows + ' of LAIN’s API requests. Runtime sessions (Codex, Claude Code) are counted under Cache read above; neither is ever turned into quota.'
         : 'No request in this period reported provider caching.'));
       return p;
     }
@@ -535,7 +535,7 @@ function client() {
     var segs2 = shareSegments(groups, 5);
     body.appendChild(L.kit.donut(segs2, { size: 150, stroke: 16, sub: 'tokens', onPick: breakTab === 'account' ? function (s) { if (s.key) { filters.account = s.key; load(); } } : function (s) { if (s.key) { filters.via = s.key; load(); } } }));
     p.appendChild(body);
-    p.appendChild(el('div', 'ub-note', breakTab === 'account' ? 'Account instances as Noema recorded them — never merged by e-mail. Click one to filter.' : 'Where the requests went: an API route, a runtime, a local model or a website session. Click one to filter.'));
+    p.appendChild(el('div', 'ub-note', breakTab === 'account' ? 'Account instances as LAIN recorded them — never merged by e-mail. Click one to filter.' : 'Where the requests went: an API route, a runtime, a local model or a website session. Click one to filter.'));
     return p;
   }
   function timePlane() {
@@ -592,10 +592,10 @@ function client() {
     return tile;
   }
   function windowsPlane() {
-    var p = planeOf('layers', 'Provider token windows', 'Each provider’s own windows, with what Noema observed inside them. A provider’s % covers all use of the account, in Noema or not.', 'u-wins', [L.kit.button('Manage providers', 'sm ghost', function () { L.nav.go('model'); }, 'arrow')]);
+    var p = planeOf('layers', 'Provider token windows', 'Each provider’s own windows, with what LAIN observed inside them. A provider’s % covers all use of the account, in LAIN or not.', 'u-wins', [L.kit.button('Manage providers', 'sm ghost', function () { L.nav.go('model'); }, 'arrow')]);
     if (!wins) { p.appendChild(el('div', 'u-note', winLoading ? 'Reading provider windows…' : 'Not read yet.')); if (!winLoading) loadWindows(); return p; }
     var list = wins.filter(function (w) { return w.category !== 'CREDITS'; });
-    if (!list.length) { p.appendChild(el('div', 'u-note', 'No provider has reported a usage window yet — Claude Code reports after its first run through Noema, a Codex account when it is read. Noema never invents one.')); return p; }
+    if (!list.length) { p.appendChild(el('div', 'u-note', 'No provider has reported a usage window yet — Claude Code reports after its first run through LAIN, a Codex account when it is read. LAIN never invents one.')); return p; }
     var fams = {}; var order = [];
     list.forEach(function (w) {
       var fk = w.family || 'other';
@@ -643,7 +643,7 @@ function client() {
     pane.appendChild(box);
   }
   function overview(pane) {
-    if (!data) { pane.appendChild(el('div', 'u-empty', loading ? 'Reading Noema’s receipts…' : 'Not read yet.')); return; }
+    if (!data) { pane.appendChild(el('div', 'u-empty', loading ? 'Reading LAIN’s receipts…' : 'Not read yet.')); return; }
     var t = data.totals;
     filterChips(pane);
     if (!t.requests) { emptyState(pane); pane.appendChild(windowsPlane()); return; }
@@ -686,7 +686,7 @@ function client() {
       tb.appendChild(tr);
     });
     tbl.appendChild(tb); wrap.appendChild(tbl); pane.appendChild(wrap);
-    pane.appendChild(el('div', 'uhint', '— means the source did not report that figure; Noema does not fill it in. "est." is estimated by Noema from observed sizes (a website session), never a billed count. Local models have no provider cache.'));
+    pane.appendChild(el('div', 'uhint', '— means the source did not report that figure; LAIN does not fill it in. "est." is estimated by LAIN from observed sizes (a website session), never a billed count. Local models have no provider cache.'));
   }
 
   function localTable(pane) {
@@ -734,11 +734,11 @@ function client() {
     });
     tbl.appendChild(tb); wrap.appendChild(tbl); pane.appendChild(wrap);
     pane.appendChild(el('div', 'uhint', '"Computed by runtime" is a runtime’s own figure for its run — Claude Code reports an API-equivalent cost even on a subscription, where no per-token charge is made. It is never added to billed cost.'));
-    if (!data.priced) pane.appendChild(el('div', 'uhint', 'No prices are configured (Settings › usage.prices, per 1M tokens). Noema ships no price list it cannot keep current.'));
+    if (!data.priced) pane.appendChild(el('div', 'uhint', 'No prices are configured (Settings › usage.prices, per 1M tokens). LAIN ships no price list it cannot keep current.'));
   }
 
   function efficiency(pane) {
-    top(pane, 'Context efficiency', 'Provider caching and Noema’s own reuse are different mechanisms, reported apart.');
+    top(pane, 'Context efficiency', 'Provider caching and LAIN’s own reuse are different mechanisms, reported apart.');
     if (!data) { pane.appendChild(el('div', 'missing', 'Reading…')); return; }
     var e = data.efficiency; var t = data.totals; var c = data.context || { packets: 0 };
     var row = function (host, k, v) { var r = el('div', 'effrow'); r.appendChild(el('span', '', k)); r.appendChild(el('span', '', v)); host.appendChild(r); };
@@ -749,7 +749,7 @@ function client() {
     if (total) {
       var lg = el('div', 'legend'); parts.forEach(function (p) { var s = el('span', ''); var i = el('i', ''); i.style.background = p[2]; s.appendChild(i); s.appendChild(document.createTextNode(p[0] + ' ' + Math.round(((p[1] || 0) / total) * 100) + '% · ' + fmt(p[1]) + ' chars')); lg.appendChild(s); }); why.appendChild(lg);
       var st = el('div', 'stack'); parts.forEach(function (p) { var s = el('span', ''); s.style.width = ((p[1] || 0) / total * 100) + '%'; s.style.background = p[2]; st.appendChild(s); }); why.appendChild(st);
-      why.appendChild(el('div', 'uhint', 'Average per API request in this range (' + e.lain.requests + ' request(s)' + (e.lain.avgToolCount != null ? ', ' + e.lain.avgToolCount + ' tools offered on average' : '') + '). Measured by Noema from what it sent.'));
+      why.appendChild(el('div', 'uhint', 'Average per API request in this range (' + e.lain.requests + ' request(s)' + (e.lain.avgToolCount != null ? ', ' + e.lain.avgToolCount + ' tools offered on average' : '') + '). Measured by LAIN from what it sent.'));
     } else why.appendChild(el('div', 'missing', 'No API requests in this range to break down.'));
     pane.appendChild(why);
     var pc = el('div', 'usec'); pc.appendChild(el('h4', '', 'Provider caching (as reported)'));
@@ -760,7 +760,7 @@ function client() {
     row(pc, 'Requests reporting cache', fmt(e.provider.reportedRows) + (e.provider.notReportedRows ? ' (' + e.provider.notReportedRows + ' did not report)' : ''));
     if (t.local.rows) row(pc, 'Local models', 'no provider cache — unsupported for local runtimes');
     pane.appendChild(pc);
-    var lc = el('div', 'usec'); lc.appendChild(el('h4', '', 'Noema context efficiency'));
+    var lc = el('div', 'usec'); lc.appendChild(el('h4', '', 'LAIN context efficiency'));
     row(lc, 'FocusPacket', c.packets ? fmt(c.packets) + ' packet(s) · avg ' + fmt(c.avgChars) + ' chars (~' + fmt(Math.round(c.avgChars / 4)) + ' tokens)' : 'none built in this range');
     row(lc, 'Fixed prompt (avg chars)', fmt(e.lain.avgSystemChars));
     row(lc, 'Tool schemas (avg chars)', fmt(e.lain.avgToolSchemaChars));
@@ -811,7 +811,7 @@ function client() {
     var G = lim.grouped || { active: [], plans: [], none: [], local: [] };
     if (limitView === 'grouped') {
       var g1 = el('div', 'lgrp'); g1.setAttribute('data-lgroup', 'active'); g1.appendChild(el('h4', '', 'Active limits'));
-      if (!G.active.length) g1.appendChild(el('div', 'missing', 'No account has reported a window yet. Codex accounts report when refreshed; Claude Code after its first run through Noema; an API route when its responses carry rate-limit headers.'));
+      if (!G.active.length) g1.appendChild(el('div', 'missing', 'No account has reported a window yet. Codex accounts report when refreshed; Claude Code after its first run through LAIN; an API route when its responses carry rate-limit headers.'));
       else { var grid = el('div', 'lcards'); G.active.forEach(function (a) { accountCard(grid, a); }); g1.appendChild(grid); }
       pane.appendChild(g1);
       if (G.none.length) {

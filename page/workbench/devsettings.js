@@ -53,7 +53,7 @@ function client() {
 
   // ---- Extensions -----------------------------------------------------------------------
   function extensions(pane) {
-    head(pane, 'Extensions', 'VS Code-format extensions whose code runs in Noema’s extension host, each in its own process under the permissions you granted. Compatibility is measured, not claimed.');
+    head(pane, 'Extensions', 'VS Code-format extensions whose code runs in LAIN’s extension host, each in its own process under the permissions you granted. Compatibility is measured, not claimed.');
     var d = wrap(pane);
     var r = ensure('ext', '/api/exthost/status');
     if (r.loading) { d.appendChild(el('div', 'missing', 'Reading extensions…')); return; }
@@ -82,7 +82,7 @@ function client() {
 
   // ---- Language servers -------------------------------------------------------------------
   function servers(pane) {
-    head(pane, 'Language Servers', 'Deterministic language intelligence for /focus: definitions, references, rename and diagnostics come from these servers, not from a model. Noema finds installed servers; it downloads nothing on its own.');
+    head(pane, 'Language Servers', 'Deterministic language intelligence for /focus: definitions, references, rename and diagnostics come from these servers, not from a model. LAIN finds installed servers; it downloads nothing on its own.');
     var d = wrap(pane);
     var r = ensure('lsp', '/api/lsp/status');
     if (r.loading) { d.appendChild(el('div', 'missing', 'Reading language servers…')); return; }
@@ -103,13 +103,13 @@ function client() {
       t.appendChild(tr);
     });
     d.appendChild(t);
-    d.appendChild(el('div', 'sub', 'Add or override a server in Noema’s config: lsp.servers = [{ id, command, args, languages, extensions }].'));
+    d.appendChild(el('div', 'sub', 'Add or override a server in LAIN’s config: lsp.servers = [{ id, command, args, languages, extensions }].'));
     d.appendChild(btn('Refresh', function () { load('lsp', '/api/lsp/status'); }));
   }
 
   // ---- Runtime processes ---------------------------------------------------------------------
   function runtime(pane) {
-    head(pane, 'Runtime Processes', 'What Noema is running — terminals, language servers, extension hosts, debug adapters, services — read from the runtime registry, where each was recorded by the part of Noema that started it, with its process identity. Nothing is listed or stopped because of its name.');
+    head(pane, 'Runtime Processes', 'What LAIN is running — terminals, language servers, extension hosts, debug adapters, services — read from the runtime registry, where each was recorded by the part of LAIN that started it, with its process identity. Nothing is listed or stopped because of its name.');
     var d = wrap(pane);
     var r = ensure('rt', '/api/runtime/list');
     if (r.loading) { d.appendChild(el('div', 'missing', 'Reading the registry…')); }
@@ -121,7 +121,7 @@ function client() {
         tr.appendChild(el('td', '', p.purpose));
         tr.appendChild(el('td', 'w', p.label || p.command || ''));
         tr.appendChild(el('td', '', p.pid));
-        tr.appendChild(el('td', 'w', (p.mine ? 'this Noema' : p.owner) + (p.ownerAlive === false ? ' (owner gone)' : '')));
+        tr.appendChild(el('td', 'w', (p.mine ? 'this LAIN' : p.owner) + (p.ownerAlive === false ? ' (owner gone)' : '')));
         var a = el('td');
         a.appendChild(btn('Stop', function () {
           L.confirm('Stop ' + (p.label || p.purpose) + ' (pid ' + p.pid + ')?', { ok: 'Stop', danger: true }).then(function (yes) {
@@ -138,7 +138,7 @@ function client() {
 
     // THE ONE-TIME LEGACY DIAGNOSTIC — look first; stop only what you select.
     d.appendChild(el('h3', '', 'Leaked test supervisors (before the registry)'));
-    d.appendChild(el('div', 'sub', 'Test runs before the runtime registry existed could leave lain-supervisor processes behind. This scan only reports evidence — start time, command line, temporary home, port, parent, and whether current Noema state references each — and classifies it. Only processes you select, re-checked as verified orphans at that moment, are stopped.'));
+    d.appendChild(el('div', 'sub', 'Test runs before the runtime registry existed could leave lain-supervisor processes behind. This scan only reports evidence — start time, command line, temporary home, port, parent, and whether current LAIN state references each — and classifies it. Only processes you select, re-checked as verified orphans at that moment, are stopped.'));
     if (!legacy) { d.appendChild(btn('Scan', function () { legacy = { loading: true }; L.settings.draw(); L.api('/api/runtime/legacy/scan', {}).then(function (x) { legacy = x; picked = {}; L.settings.draw(); }); })); return; }
     if (legacy.loading) { d.appendChild(el('div', 'missing', 'Scanning…')); return; }
     var counts = legacy.counts || {};
@@ -215,7 +215,7 @@ function client() {
 
   // ---- Debugging ---------------------------------------------------------------------------------
   function debugging(pane) {
-    head(pane, 'Debugging', 'Debug adapters Noema can run (Debug Adapter Protocol over stdio). Each runs as an owned process; the IDE’s Debug panel (F5) drives it.');
+    head(pane, 'Debugging', 'Debug adapters LAIN can run (Debug Adapter Protocol over stdio). Each runs as an owned process; the IDE’s Debug panel (F5) drives it.');
     var d = wrap(pane);
     var r = ensure('dbg', '/api/debug/status');
     if (r.loading) { d.appendChild(el('div', 'missing', 'Reading…')); return; }
@@ -231,7 +231,7 @@ function client() {
     d.appendChild(t);
     var s = r.session;
     d.appendChild(el('div', 'sub2', s ? 'Session ' + s.id + ': ' + s.program + ' — ' + s.state.toLowerCase() + (s.why ? ' (' + s.why + ')' : '') : 'No debug session.'));
-    d.appendChild(el('div', 'sub', 'Configure another adapter in Noema’s config: dap.adapters = [{ id, name, command, args, extensions, launch }]; the Python used for debugpy: dap.python.'));
+    d.appendChild(el('div', 'sub', 'Configure another adapter in LAIN’s config: dap.adapters = [{ id, name, command, args, extensions, launch }]; the Python used for debugpy: dap.python.'));
     d.appendChild(btn('Refresh', function () { load('dbg', '/api/debug/status'); }));
   }
 

@@ -97,7 +97,7 @@ function client() {
   // THE SWATCHES ARE THE PALETTES' OWN TOKENS (ui/tokens.js): canvas · surface · primary · secondary · tertiary.
   var PALS = [
     ['slate', 'Slate', 'Default — deep navy planes, a violet action, teal highlights', ['#0E131A', '#141B24', '#9B8AFB', '#2DD4BF', '#F472B6'], ['#EEF1F5', '#FFFFFF', '#6D5AE6', '#0F9E8D', '#D6428F']],
-    ['lain', 'Noema Cyan', 'Dark cyan', ['#0A1A1E', '#0F252A', '#27D9D2', '#0FA3A8', '#FF5C83'], ['#E8F2F2', '#FFFFFF', '#0FA7A2', '#0B7F84', '#FF5C83']],
+    ['lain', 'LAIN Cyan', 'Dark cyan', ['#0A1A1E', '#0F252A', '#27D9D2', '#0FA3A8', '#FF5C83'], ['#E8F2F2', '#FFFFFF', '#0FA7A2', '#0B7F84', '#FF5C83']],
     ['violet', 'Violet', 'Modern and bold', ['#12111B', '#1A1826', '#A08CF6', '#6F8EF2', '#D383F5'], ['#EEF1F5', '#FFFFFF', '#6A4ADF', '#4A6CD6', '#9F3FCB']],
     ['coral', 'Coral', 'Warm and energetic', ['#16111A', '#1F1822', '#FF7A92', '#FFA07F', '#FFC56B'], ['#EEF1F5', '#FFFFFF', '#D8405F', '#D86A48', '#B47A12']],
     ['mono', 'Monochrome', 'Minimal and clean', ['#111111', '#1A1A1A', '#E8E8E8', '#A8A8A8', '#C9C9C9'], ['#EEF1F5', '#FFFFFF', '#1A1A1A', '#555555', '#3A3A3A']],
@@ -143,7 +143,7 @@ function client() {
 
     if (u.palette === 'custom') {
       var g2 = U.group('Custom palette');
-      g2.appendChild(el('p', 'u-note', 'Five colours; Noema derives the rest (text, lines, raised surfaces) with readable contrast. Light or dark follows the background you choose.'));
+      g2.appendChild(el('p', 'u-note', 'Five colours; LAIN derives the rest (text, lines, raised surfaces) with readable contrast. Light or dark follows the background you choose.'));
       var cust = el('div', 'cust');
       Object.keys(CUST_NAMES).forEach(function (k) {
         var lab = el('label');
@@ -165,7 +165,7 @@ function client() {
     // DISPLAY — one row per setting, the control on the right.
     var g3 = U.group('Display');
     g3.appendChild(U.setting('Theme', 'Light or dark, with any palette.', pick([['light', 'Light'], ['dark', 'Dark'], ['system', 'System']], u.mode, function (v) { A.set({ mode: v }).then(redraw); }, 'set-mode')));
-    g3.appendChild(U.setting('Text size', 'Text across Noema — settings included.', pick([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], u.type, function (v) { A.set({ type: v }).then(redraw); }, 'set-type')));
+    g3.appendChild(U.setting('Text size', 'Text across LAIN — settings included.', pick([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], u.type, function (v) { A.set({ type: v }).then(redraw); }, 'set-type')));
     g3.appendChild(U.setting('Interface scale', 'Everything scales, not only the editor. Ctrl + / Ctrl − / Ctrl 0.', pick((A ? A.ZOOMS : [80, 90, 100, 110, 125, 150, 175, 200]).map(function (z) { return [z, z + '%']; }), u.zoom, function (v) { A.set({ zoom: v }).then(redraw); }, 'set-zoom')));
     g3.appendChild(U.setting('Icon size', 'Navigation and interface icons.', pick([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], u.icons, function (v) { A.set({ icons: v }).then(redraw); }, 'set-icons')));
     g3.appendChild(U.setting('Density', 'Spacing between rows.', pick([['comfortable', 'Comfortable'], ['compact', 'Compact']], u.density || 'comfortable', function (v) { A.set({ density: v }).then(redraw); }, 'set-density')));
@@ -180,7 +180,7 @@ function client() {
 
     // EDITOR THEME PRESET
     var g4 = U.group('Editor theme');
-    var opts = [['lain', 'Noema'], ['vscode', 'VS Code'], ['cursor', 'Cursor'], ['jetbrains', 'JetBrains']];
+    var opts = [['lain', 'LAIN'], ['vscode', 'VS Code'], ['cursor', 'Cursor'], ['jetbrains', 'JetBrains']];
     (themeList || []).forEach(function (t) { opts.push([t.id, t.label]); });
     var note = themeList === null ? 'Looking for colour themes in installed extensions…' : themeList.length ? 'Includes colour themes from your installed extensions, read as data (their code does not run).' : 'Themes from installed extensions appear here.';
     g4.appendChild(U.setting('Preset', 'The code editor’s and terminal’s colours, independent of the keymap. ' + note, pick(opts, u.theme || 'lain', function (v) { A.set({ theme: v }).then(redraw); }, 'set-theme')));
@@ -188,7 +188,7 @@ function client() {
     pf.appendChild(g4);
 
     var g5 = U.group('Reset');
-    var ra = U.button('Reset to Slate', 'line', async function () { if (await L.confirm('Reset every appearance setting to Noema’s defaults (Slate, dark)?', { ok: 'Reset all' })) { await A.set({ reset: 'all' }); redraw(); } });
+    var ra = U.button('Reset to Slate', 'line', async function () { if (await L.confirm('Reset every appearance setting to LAIN’s defaults (Slate, dark)?', { ok: 'Reset all' })) { await A.set({ reset: 'all' }); redraw(); } });
     g5.appendChild(U.setting('Back to defaults', 'Palette, mode, scale, text and icon size, theme and keymap.', ra));
     pf.appendChild(g5);
   }
@@ -200,9 +200,9 @@ function client() {
     var pf = el('div', 'pf'); pane.appendChild(pf);
     if (!K) { pf.appendChild(el('div', 'missing', 'Keymaps are not available in this build.')); return; }
     var cur = u.keymap || 'lain';
-    var s1 = section(pf, 'Keymap preset', 'Which editor’s shortcuts Noema answers to. Separate from the theme preset. Editor commands work while the code editor has focus; IDE commands inside the IDE.');
+    var s1 = section(pf, 'Keymap preset', 'Which editor’s shortcuts LAIN answers to. Separate from the theme preset. Editor commands work while the code editor has focus; IDE commands inside the IDE.');
     s1.appendChild(seg(['lain', 'vscode', 'cursor', 'jetbrains', 'custom'].map(function (k) { return [k, K.LABELS[k]]; }), cur, function (v) { A.set({ keymap: v }).then(redraw); }));
-    if (cur === 'custom') s1.appendChild(el('p', 'lede', 'Custom starts from Noema’s chords. Press Change, then the new combination; Esc cancels, Backspace unbinds.'));
+    if (cur === 'custom') s1.appendChild(el('p', 'lede', 'Custom starts from LAIN’s chords. Press Change, then the new combination; Esc cancels, Backspace unbinds.'));
     var b = K.bindings(cur);
     var conf = {}; K.conflicts(cur).forEach(function (c) { conf[c[0]] = 1; conf[c[1]] = 1; });
     var t = el('table', 'kmtable');
@@ -297,7 +297,7 @@ function client() {
     });
     head.appendChild(sg);
     if (ag.file) {
-      head.appendChild(el('span', 'tag ' + (!ag.file.exists ? '' : ag.file.isDefault ? 'ok' : 'accent'), !ag.file.exists ? 'Not created' : ag.file.isDefault ? 'Noema default' : 'Edited'));
+      head.appendChild(el('span', 'tag ' + (!ag.file.exists ? '' : ag.file.isDefault ? 'ok' : 'accent'), !ag.file.exists ? 'Not created' : ag.file.isDefault ? 'LAIN default' : 'Edited'));
       head.appendChild(el('span', 'ag-file', ag.file.file));
     }
     s1.appendChild(head);
@@ -312,7 +312,7 @@ function client() {
       body.appendChild(ta);
       setTimeout(function () { ta.focus(); }, 0);
     } else {
-      body.appendChild(el('pre', '', f.exists ? (f.text || '(empty file)') : 'No ' + (ag.scope === 'global' ? 'global' : 'project') + ' AGENTS.md yet. Edit to write one, or Reset to start from Noema’s default.'));
+      body.appendChild(el('pre', '', f.exists ? (f.text || '(empty file)') : 'No ' + (ag.scope === 'global' ? 'global' : 'project') + ' AGENTS.md yet. Edit to write one, or Reset to start from LAIN’s default.'));
     }
     s1.appendChild(body);
     var bar = el('div', 'ag-bar');
@@ -343,12 +343,12 @@ function client() {
       reset.onclick = async function () {
         var p = await L.api('/api/agents/preview-reset', { scope: ag.scope });
         if (!p || !p.ok) { L.toast((p && p.why) || 'could not compare', true); return; }
-        if (!p.changes && p.exists) { L.toast('This file already matches Noema’s default.'); return; }
-        var ok = await diffDialog('Reset to Noema’s default?', p.diff, (p.exists ? p.changes + ' line change' + (p.changes === 1 ? '' : 's') + '. ' : 'The file will be created. ') + (p.modified ? 'Your edited file is kept beside it as a backup.' : ''), p.exists ? 'Replace with default' : 'Create from default');
+        if (!p.changes && p.exists) { L.toast('This file already matches LAIN’s default.'); return; }
+        var ok = await diffDialog('Reset to LAIN’s default?', p.diff, (p.exists ? p.changes + ' line change' + (p.changes === 1 ? '' : 's') + '. ' : 'The file will be created. ') + (p.modified ? 'Your edited file is kept beside it as a backup.' : ''), p.exists ? 'Replace with default' : 'Create from default');
         if (!ok) return;
         var r = await L.api('/api/agents/reset', { scope: ag.scope, confirm: true });
         if (!r || !r.ok) { L.toast((r && r.why) || 'could not reset', true); return; }
-        L.toast(r.backup ? 'Reset — backup at ' + r.backup : 'Reset to Noema’s default'); agLoad();
+        L.toast(r.backup ? 'Reset — backup at ' + r.backup : 'Reset to LAIN’s default'); agLoad();
       };
       bar.appendChild(reset);
     }

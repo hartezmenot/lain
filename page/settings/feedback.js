@@ -44,7 +44,7 @@ function client() {
   var el = L.el;
   var TYPES = [['bug', 'Bug'], ['ux', 'UX problem'], ['model', 'Model/provider problem'], ['performance', 'Performance'], ['feature', 'Feature request'], ['other', 'Other']];
   var ATTACH = [
-    ['version', 'App version', 'Noema, Node and Windows versions'],
+    ['version', 'App version', 'LAIN, Node and Windows versions'],
     ['surface', 'Current surface', 'which view you were in (e.g. Chat)'],
     ['errors', 'Recent errors', 'anonymised: paths, names and emails removed'],
     ['runtime', 'Runtime status', 'which runtimes are detected and ready'],

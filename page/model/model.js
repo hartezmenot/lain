@@ -74,7 +74,7 @@ function client() {
 
   // ---- SECURITY: plaintext keys still in config (reached from Settings) ------------------------------------
   async function security(pane) {
-    var sec = U.section({ id: 'security', title: 'Security', meta: 'Where Noema keeps credentials. Keys live in the Windows secret store; config.json holds only a reference.' });
+    var sec = U.section({ id: 'security', title: 'Security', meta: 'Where LAIN keeps credentials. Keys live in the Windows secret store; config.json holds only a reference.' });
     var r = await L.api('/api/security/legacy-keys', {});
     var keys = (r && r.keys) || [];
     sec.appendChild(el('p', 'u-note', keys.length ? keys.length + ' legacy key(s) remain in config.json' : 'No plaintext keys in config.json'));

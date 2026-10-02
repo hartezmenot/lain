@@ -50,7 +50,7 @@ function client() {
   /** The shared transport when the shell provides one; otherwise its own. */
   function call(path, body) {
     if (typeof L.api === 'function') return L.api(path, body);
-    if (!host) return Promise.reject(new Error('this page is not running inside Noema Desktop'));
+    if (!host) return Promise.reject(new Error('this page is not running inside LAIN Desktop'));
     return new Promise(function (resolve, reject) {
       var id = 'c' + (++seq);
       var timer = setTimeout(function () { delete waiting[id]; reject(new Error('the desktop host did not answer')); }, 180000);

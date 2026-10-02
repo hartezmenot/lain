@@ -184,7 +184,7 @@ LAIN.cowork = (function () {
   }
 
   /**
-   * THE COMPUTER, WHILE Noema IS USING IT.
+   * THE COMPUTER, WHILE LAIN IS USING IT.
    *
    * What it is doing and what it has done, with two things a person may want:
    * SEE it, and STOP it. No reasoning, no coordinates, no live video — a frame

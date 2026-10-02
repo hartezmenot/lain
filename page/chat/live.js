@@ -12,7 +12,7 @@
  *   MESSAGES     prose and code blocks (language, Copy code, Wrap); Copy on every message; Edit on the latest user
  *                message (a new branch — Core's turnedit.js); Retry and Continue on the latest answer. Actions stay
  *                hidden until hover or focus.
- *   NEVER        reasoning content, a raw tool call, or a sentence Noema made up about what it might be doing.
+ *   NEVER        reasoning content, a raw tool call, or a sentence LAIN made up about what it might be doing.
  */
 
 const CSS = `

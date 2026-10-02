@@ -27,7 +27,7 @@
 
 const HTML = `
 <section class="view setv" id="vSettings" data-view="settings" hidden>
-  <div class="setv-head"><h1 class="u-title">Settings</h1><p class="u-sub">How Noema looks, which keys it answers to, and what the Agent is told.</p></div>
+  <div class="setv-head"><h1 class="u-title">Settings</h1><p class="u-sub">How LAIN looks, which keys it answers to, and what the Agent is told.</p></div>
   <div class="setbody">
     <nav class="setnav" id="settingsNav" aria-label="Settings pages"></nav>
     <div class="spane setpane" id="settingsPane"></div>
@@ -204,20 +204,20 @@ function client() {
         if (cur) { box.setAttribute('data-group', cur); box.appendChild(el('h4', '', cur)); }
         pane.appendChild(box);
       }
-      field(box, f.label, f.restartRequired ? 'takes effect after Noema restarts' : (f.why || ''), fieldNode(f));
+      field(box, f.label, f.restartRequired ? 'takes effect after LAIN restarts' : (f.why || ''), fieldNode(f));
     });
   }
 
   function about(pane) {
     pane.appendChild(el('h2', '', 'About'));
-    pane.appendChild(el('div', 'sub', 'Noema — a persistent AI workspace.'));
+    pane.appendChild(el('div', 'sub', 'LAIN — a persistent AI workspace.'));
     var box = el('div', 'fields');
     var S = L.state() || {};
     var e = S.environment || {};
-    field(box, 'This window', 'Presentation only. Noema Core owns every piece of state.', el('span', 'val', 'Noema'));
+    field(box, 'This window', 'Presentation only. LAIN Core owns every piece of state.', el('span', 'val', 'LAIN'));
     field(box, 'Environment', '', el('span', 'val', e.kind === 'vm' ? 'VM' : 'Host'));
     field(box, 'Browser for previews', '', el('span', 'val', e.browser ? (e.browser.owned ? 'LAIN-owned Chromium ' : 'Borrowed browser ') + (e.browser.version || '') : (e.why || 'none')));
-    field(box, 'Windows integration', '"Open with Noema" for development files and "Open folder in Noema" — registered for this user, never as a default.', el('span', 'val', 'lain --register-open-with'));
+    field(box, 'Windows integration', '"Open with LAIN" for development files and "Open folder in LAIN" — registered for this user, never as a default.', el('span', 'val', 'lain --register-open-with'));
     pane.appendChild(box);
   }
 
@@ -256,10 +256,10 @@ function client() {
     var pane = $('settingsPane');
     var keep = pane.scrollTop;
     pane.textContent = '';
-    if (page === 'general') core(pane, 'general', 'General', 'How Noema runs on this machine.');
-    else if (page === 'notifications') core(pane, 'notifications', 'Notifications', 'When Noema may interrupt you. Only meaningful endings notify, and never while the window is in front.');
-    else if (page === 'storage') { core(pane, 'storage', 'Storage', 'Where Noema keeps projects, sessions and settings — and what it can clear.'); if (L.cacheCare) L.cacheCare.draw(pane); }
-    else if (page === 'privacy') core(pane, 'privacy', 'Security', 'Folders Noema may work in.');
+    if (page === 'general') core(pane, 'general', 'General', 'How LAIN runs on this machine.');
+    else if (page === 'notifications') core(pane, 'notifications', 'Notifications', 'When LAIN may interrupt you. Only meaningful endings notify, and never while the window is in front.');
+    else if (page === 'storage') { core(pane, 'storage', 'Storage', 'Where LAIN keeps projects, sessions and settings — and what it can clear.'); if (L.cacheCare) L.cacheCare.draw(pane); }
+    else if (page === 'privacy') core(pane, 'privacy', 'Security', 'Folders LAIN may work in.');
     else if (page === 'integrations') core(pane, 'integrations', 'Integrations', 'Browser extension and account connections.');
     else if (L.prefs && L.prefs.draw(page, pane)) { /* appearance · keymap · agents: settings/prefs.js */ }
     else if (L.routerPrefs && L.routerPrefs.draw(page, pane)) { /* router server · bots & channels: settings/router.js */ }

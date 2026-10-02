@@ -47,12 +47,12 @@ function client() {
   async function loadServer() { var r = await L.api('/api/server/status', {}); srv = r && r.ok ? r : { server: null, why: (r && r.why) || 'not available' }; redraw(); }
   function server(pane) {
     var pf = el('div', 'pf'); pane.appendChild(pf);
-    head(pf, 'Router Server', 'Let other applications use the models Noema is connected to — without giving each one your API keys or accounts.');
+    head(pf, 'Router Server', 'Let other applications use the models LAIN is connected to — without giving each one your API keys or accounts.');
     if (!srv) { pf.appendChild(el('div', 'missing', 'Reading…')); loadServer(); return; }
     var s = srv.server || {};
     var grid = el('div', 'rs-grid');
     var c1 = el('div', 'rs-card');
-    var h = el('h4'); h.appendChild(L.icon('server', 20)); h.appendChild(document.createTextNode('Noema Server')); h.appendChild(el('span', 'tag ' + (s.running ? 'ok' : ''), s.running ? 'On' : 'Off')); c1.appendChild(h);
+    var h = el('h4'); h.appendChild(L.icon('server', 20)); h.appendChild(document.createTextNode('LAIN Server')); h.appendChild(el('span', 'tag ' + (s.running ? 'ok' : ''), s.running ? 'On' : 'Off')); c1.appendChild(h);
     var kv = el('div', 'rs-kv');
     var row = function (k, v) { kv.appendChild(el('span', '', k)); var b = el('b'); if (v instanceof Node) b.appendChild(v); else b.textContent = v; kv.appendChild(b); };
     row('Address', s.running ? el('code', '', s.url) : (s.host + ':' + s.port + ' (when on)'));
@@ -66,13 +66,13 @@ function client() {
     grid.appendChild(c1);
     var c2 = el('div', 'rs-card');
     var h2 = el('h4'); h2.appendChild(L.icon('shield', 20)); h2.appendChild(document.createTextNode('Access')); c2.appendChild(h2);
-    c2.appendChild(el('p', '', 'Clients use a Noema access token. Your provider keys and sign-ins stay inside Noema and never reach a client.'));
+    c2.appendChild(el('p', '', 'Clients use a LAIN access token. Your provider keys and sign-ins stay inside LAIN and never reach a client.'));
     var kv2 = el('div', 'rs-kv');
     kv2.appendChild(el('span', '', 'Access token')); kv2.appendChild(el('b', '', s.token && s.token.present ? (s.token.masked || 'configured') : 'created on first start'));
     kv2.appendChild(el('span', '', 'Listens on')); kv2.appendChild(el('b', '', s.allowRemote ? s.host + ' (remote access allowed)' : 'this computer only (127.0.0.1)'));
     c2.appendChild(kv2);
     var a2 = el('div', 'rs-acts');
-    a2.appendChild(btn('Copy token', 'ghost', async function () { var r = await L.api('/api/server/token', { reveal: true }); if (r && r.ok && r.token) { try { await navigator.clipboard.writeText(r.token); L.toast('Noema access token copied'); } catch (e) { L.dialog({ title: 'Noema access token', pre: r.token, ok: 'Close', cancel: 'Close' }); } } }));
+    a2.appendChild(btn('Copy token', 'ghost', async function () { var r = await L.api('/api/server/token', { reveal: true }); if (r && r.ok && r.token) { try { await navigator.clipboard.writeText(r.token); L.toast('LAIN access token copied'); } catch (e) { L.dialog({ title: 'LAIN access token', pre: r.token, ok: 'Close', cancel: 'Close' }); } } }));
     a2.appendChild(btn('Regenerate', 'ghost', async function () { if (!(await L.confirm('Make a new access token? Clients using the old one stop working until you give them the new one.', { ok: 'Regenerate' }))) return; await L.api('/api/server/regenerate', {}); L.toast('New token made — copy it into your clients'); loadServer(); }));
     c2.appendChild(a2);
     grid.appendChild(c2);
@@ -82,12 +82,12 @@ function client() {
     var kv3 = el('div', 'rs-kv');
     kv3.appendChild(el('span', '', 'Port')); var pb = el('b'); pb.appendChild(port); kv3.appendChild(pb);
     c3.appendChild(kv3);
-    var sw = el('label', 'bt-perms'); var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = Boolean(s.startWithLain); var lab = el('label'); lab.appendChild(cb); lab.appendChild(document.createTextNode('Start with Noema')); sw.appendChild(lab); c3.appendChild(sw);
+    var sw = el('label', 'bt-perms'); var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = Boolean(s.startWithLain); var lab = el('label'); lab.appendChild(cb); lab.appendChild(document.createTextNode('Start with LAIN')); sw.appendChild(lab); c3.appendChild(sw);
     var a3 = el('div', 'rs-acts'); a3.style.marginTop = '12px';
     a3.appendChild(btn('Save', 'primary', async function () { var r = await L.api('/api/server/configure', { port: Number(port.value), startWithLain: cb.checked }); if (!r || !r.ok) L.toast((r && r.why) || 'not saved', true); else L.toast(s.running ? 'Saved — turn the server off and on to use the new port' : 'Saved'); loadServer(); }));
     a3.appendChild(btn(s.allowRemote ? 'Back to this computer only' : 'Allow remote access…', 'ghost', async function () {
       if (s.allowRemote) { await L.api('/api/server/configure', { allowRemote: false, host: '127.0.0.1' }); loadServer(); return; }
-      var v = await L.dialog({ title: 'Allow remote access?', text: 'Other machines on your network could use your Noema models (and spend your quota) with the access token. Only do this on a network you trust.', fields: [{ key: 'host', label: 'Listen on', value: '0.0.0.0' }], ok: 'Allow', danger: true });
+      var v = await L.dialog({ title: 'Allow remote access?', text: 'Other machines on your network could use your LAIN models (and spend your quota) with the access token. Only do this on a network you trust.', fields: [{ key: 'host', label: 'Listen on', value: '0.0.0.0' }], ok: 'Allow', danger: true });
       if (!v) return;
       var r = await L.api('/api/server/configure', { allowRemote: true, host: v.host });
       if (!r || !r.ok) L.toast((r && r.why) || 'not saved', true);
@@ -114,10 +114,10 @@ function client() {
   var PERM_LABEL = { projects: 'Projects', schedules: 'Schedules', channels: 'Channels', mcp: 'MCP', skills: 'Skills', delegate: 'Coding Agent delegation', runtime: 'Runtime & account choice' };
   function botsPage(pane) {
     var pf = el('div', 'pf'); pane.appendChild(pf);
-    head(pf, 'Bots & Channels', 'External bots can join the Noema house: Noema supervises them and lends them capabilities you allow. Your own assistant is Chat.');
+    head(pf, 'Bots & Channels', 'External bots can join the LAIN house: LAIN supervises them and lends them capabilities you allow. Your own assistant is Chat.');
     var top = el('div', 'rs-acts'); top.style.marginBottom = '18px';
     top.appendChild(btn('Connect a bot…', 'primary', async function () {
-      var v = await L.dialog({ title: 'Connect a bot', text: 'The bot stays where it runs; Noema only reads its status and lends it what you allow. A bot reports its state at a status address (JSON: state, task).', fields: [{ key: 'name', label: 'Name', value: '' }, { key: 'statusUrl', label: 'Status address (optional)', value: '', placeholder: 'http://127.0.0.1:8080/status' }], ok: 'Connect' });
+      var v = await L.dialog({ title: 'Connect a bot', text: 'The bot stays where it runs; LAIN only reads its status and lends it what you allow. A bot reports its state at a status address (JSON: state, task).', fields: [{ key: 'name', label: 'Name', value: '' }, { key: 'statusUrl', label: 'Status address (optional)', value: '', placeholder: 'http://127.0.0.1:8080/status' }], ok: 'Connect' });
       if (!v) return;
       var r = await L.api('/api/bots/connect', { name: v.name, statusUrl: v.statusUrl || null, permissions: {} });
       if (!r || !r.ok) L.toast((r && r.why) || 'not connected', true); else L.toast('Connected — choose what it may use');
@@ -145,8 +145,8 @@ function client() {
       c.appendChild(pp);
       var a = el('div', 'rs-acts'); a.style.marginTop = '12px';
       a.appendChild(btn('Refresh status', 'ghost small', async function () { await L.api('/api/bots/status', { id: b.id }); loadBots(); }));
-      if (b.mode !== 'migrated' && st.migratable) a.appendChild(btn('Migrate to Noema…', 'ghost small', async function () { if (!(await L.confirm('Import this bot\'s declared setup into a Noema bot profile? The external bot is not changed or stopped.', { ok: 'Migrate' }))) return; var r = await L.api('/api/bots/migrate', { id: b.id }); L.toast(r && r.ok ? r.note : (r && r.why) || 'not migrated', !(r && r.ok)); loadBots(); }));
-      a.appendChild(btn('Disconnect', 'ghost small', async function () { if (!(await L.confirm('Disconnect ' + b.name + ' from Noema? The bot keeps running wherever it runs.', { ok: 'Disconnect' }))) return; await L.api('/api/bots/remove', { id: b.id }); loadBots(); }));
+      if (b.mode !== 'migrated' && st.migratable) a.appendChild(btn('Migrate to LAIN…', 'ghost small', async function () { if (!(await L.confirm('Import this bot\'s declared setup into a LAIN bot profile? The external bot is not changed or stopped.', { ok: 'Migrate' }))) return; var r = await L.api('/api/bots/migrate', { id: b.id }); L.toast(r && r.ok ? r.note : (r && r.why) || 'not migrated', !(r && r.ok)); loadBots(); }));
+      a.appendChild(btn('Disconnect', 'ghost small', async function () { if (!(await L.confirm('Disconnect ' + b.name + ' from LAIN? The bot keeps running wherever it runs.', { ok: 'Disconnect' }))) return; await L.api('/api/bots/remove', { id: b.id }); loadBots(); }));
       c.appendChild(a);
       list.appendChild(c);
     });

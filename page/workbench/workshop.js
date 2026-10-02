@@ -331,7 +331,7 @@ function client() {
     else if (m.type === 'acted' && relay.waiting[m.id]) { var w = relay.waiting[m.id]; delete relay.waiting[m.id]; var r = Object.assign({}, m); delete r.lain; delete r.type; w(r); }
   }
 
-  // ---- THE MODEL'S POINTER AND KEYBOARD (Noema §L) -------------------------------------------------------------------
+  // ---- THE MODEL'S POINTER AND KEYBOARD (LAIN §L) -------------------------------------------------------------------
   // Core queues what the model asked for (preview_click, preview_type_text …); while this Preview is open it fetches
   // the next action, hands it to the page's bridge — which acts on the page's own document and refuses anything that
   // would leave the Preview — and returns the answer. There is no OS input anywhere on this path.
@@ -538,7 +538,7 @@ function client() {
       b.onclick = function () {
         L.kit.menu(b, [
           { header: c.name },
-          { label: 'Off', note: c.awake ? 'stops the backend Noema woke for it' : 'the page sees a dormant backend', checked: c.mode === 'off', run: function () { setCap(c.name, 'off'); } },
+          { label: 'Off', note: c.awake ? 'stops the backend LAIN woke for it' : 'the page sees a dormant backend', checked: c.mode === 'off', run: function () { setCap(c.name, 'off'); } },
           c.adapter ? { label: 'Preview data', note: 'answered from .lain preview data', checked: c.mode === 'adapter', run: function () { setCap(c.name, 'adapter'); } } : null,
           c.live ? { label: 'Live', note: c.wakes ? 'starts ' + c.command + ' when the page first needs it — nothing else wakes' : 'this capability’s real backend — nothing else wakes', checked: c.mode === 'live', run: function () { setCap(c.name, 'live'); } } : null,
           { sep: true },
@@ -562,7 +562,7 @@ function client() {
       { label: 'Open in browser', note: 'the dev server’s own address', icon: 'openext', run: function () { var S = L.state(); var t = S && S.workshop && S.workshop.frame && S.workshop.frame.target; if (t && L.openExternal) L.openExternal(new URL(P.path || '/', t).href); } },
       { sep: true },
       { label: 'Configure Preview…', note: 'the command, the port, the backend capabilities', icon: 'gear', run: function () { if (L.preview && L.preview.configure) L.preview.configure(); } },
-      { label: 'Stop the preview', note: 'the dev server stops if Noema started it', icon: 'stop', danger: true, run: close },
+      { label: 'Stop the preview', note: 'the dev server stops if LAIN started it', icon: 'stop', danger: true, run: close },
     ], { alignRight: true });
   }
 

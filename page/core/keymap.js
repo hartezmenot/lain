@@ -63,7 +63,7 @@ function client() {
     ['editor.deleteLine', 'Delete line', 'Editor', edAction('editor.action.deleteLines'), 'editor'],
     ['editor.duplicate', 'Duplicate line', 'Editor', edAction('editor.action.copyLinesDownAction'), 'editor'],
     ['editor.gotoLine', 'Go to line', 'Editor', edAction('editor.action.gotoLine'), 'editor'],
-    ['editor.ask', 'Ask Noema about the selection', 'Editor', function () { if (L.ide && L.ide.askAboutSelection) L.ide.askAboutSelection(); }, 'editor'],
+    ['editor.ask', 'Ask LAIN about the selection', 'Editor', function () { if (L.ide && L.ide.askAboutSelection) L.ide.askAboutSelection(); }, 'editor'],
   ];
   var BY_ID = {};
   COMMANDS.forEach(function (c) { BY_ID[c[0]] = c; });
@@ -87,7 +87,7 @@ function client() {
       'editor.deleteLine': 'Ctrl+Y', 'editor.duplicate': 'Ctrl+D', 'editor.gotoLine': 'Ctrl+G', 'editor.ask': 'Ctrl+Shift+L',
     },
   };
-  var LABELS = { lain: 'Noema', vscode: 'VS Code', cursor: 'Cursor', jetbrains: 'JetBrains', custom: 'Custom' };
+  var LABELS = { lain: 'LAIN', vscode: 'VS Code', cursor: 'Cursor', jetbrains: 'JetBrains', custom: 'Custom' };
 
   function ui() { return (L.appearance && L.appearance.get()) || {}; }
   /** The binding table in force: command id → chord (or null). */
@@ -248,7 +248,7 @@ function client() {
       var r = await L.api('/api/themes/read', { id: u.theme });
       if (n !== applying) return;
       imported = { id: u.theme, theme: r && r.ok ? r.theme : null };
-      if (!(r && r.ok) && L.toast) L.toast((r && r.why) || 'that theme could not be read — using Noema’s', true);
+      if (!(r && r.ok) && L.toast) L.toast((r && r.why) || 'that theme could not be read — using LAIN’s', true);
     }
     // After the palette's CSS has landed (the tokens are read back from it).
     requestAnimationFrame(function () {

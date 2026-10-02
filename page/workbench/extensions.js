@@ -56,9 +56,9 @@ function client() {
     r.setAttribute('data-found', f.product + ':' + f.id);
     var t = el('div', 'xt'); t.appendChild(el('b', '', f.name)); t.appendChild(el('span', '', ' ' + f.id + ' ' + f.version)); r.appendChild(t);
     var lvl = f.compatibility.level;
-    r.appendChild(el('small', '', f.productLabel + ' · ' + lvl + (lvl !== 'FULL' ? ' — ' + f.compatibility.rows.filter(function (x) { return !x.ok; }).slice(0, 3).map(function (x) { return x.what; }).join(', ') : '') + (f.reused ? ' · in Noema ' + f.reused.version : '')));
+    r.appendChild(el('small', '', f.productLabel + ' · ' + lvl + (lvl !== 'FULL' ? ' — ' + f.compatibility.rows.filter(function (x) { return !x.ok; }).slice(0, 3).map(function (x) { return x.what; }).join(', ') : '') + (f.reused ? ' · in LAIN ' + f.reused.version : '')));
     var a = el('div', 'xa');
-    if (lvl !== 'UNSUPPORTED' && !(f.reused && f.reused.sameVersion)) a.appendChild(btn(f.reused ? 'Update from ' + f.productLabel : 'Use in Noema', function () {
+    if (lvl !== 'UNSUPPORTED' && !(f.reused && f.reused.sameVersion)) a.appendChild(btn(f.reused ? 'Update from ' + f.productLabel : 'Use in LAIN', function () {
       act('Copying ' + f.name + '…', async function () {
         report(await L.api('/api/extensions/reuse', { product: f.product, id: f.id }), function (x) { return (x.copied ? 'Copied ' : 'Already stored: ') + f.name + ' ' + x.version + ' — ' + f.productLabel + '’s folder was not changed'; });
         loadFound();
@@ -101,7 +101,7 @@ function client() {
       report(r, function (x) {
         var e = x.extension;
         return (x.updated ? 'Updated ' : 'Installed ') + e.name + ' ' + e.version + (E.scope === 'workspace' ? ' (this project)' : '')
-          + (e.uses.length ? ' · Noema uses its ' + e.uses.join(', ') : ' · nothing in it that Noema runs');
+          + (e.uses.length ? ' · LAIN uses its ' + e.uses.join(', ') : ' · nothing in it that LAIN runs');
       });
     });
   }
@@ -135,8 +135,8 @@ function client() {
     t.appendChild(el('span', 'tag' + (e.enabled ? ' ok' : ' off'), e.enabled ? 'enabled' : 'disabled'));
     r.appendChild(t);
     r.appendChild(el('small', '', e.id + (e.source ? ' · from ' + e.source.kind : '')));
-    if (e.uses && e.uses.length) r.appendChild(el('small', '', 'Noema uses: ' + e.uses.join('; ')));
-    if (e.notUsed && e.notUsed.length) r.appendChild(el('small', '', 'Not used by Noema: ' + e.notUsed.join('; ')));
+    if (e.uses && e.uses.length) r.appendChild(el('small', '', 'LAIN uses: ' + e.uses.join('; ')));
+    if (e.notUsed && e.notUsed.length) r.appendChild(el('small', '', 'Not used by LAIN: ' + e.notUsed.join('; ')));
     var a = el('div', 'xa');
     a.appendChild(btn(e.enabled ? 'Disable' : 'Enable', function () {
       act('…', async function () { report(await L.api('/api/extensions/enable', { id: e.id, scope: e.scope, enabled: !e.enabled }), function (x) { return e.name + (x.enabled ? ' enabled' : ' disabled'); }); });
@@ -182,7 +182,7 @@ function client() {
     var notRun = [];
     if (p.notRun && p.notRun.hooks) notRun.push('hooks (not run in this build)');
     if (p.notRun && p.notRun.mcp) notRun.push('MCP servers ' + p.mcp.map(function (m) { return m.name; }).join(', ') + ' (add them in Settings › MCP yourself)');
-    if (p.notRun && p.notRun.skills) notRun.push('skills (listed; Noema has no skill loader yet)');
+    if (p.notRun && p.notRun.skills) notRun.push('skills (listed; LAIN has no skill loader yet)');
     if (notRun.length) r.appendChild(el('small', '', 'Declared, not run: ' + notRun.join('; ')));
     var a = el('div', 'xa');
     if (p.enabled) {
@@ -197,7 +197,7 @@ function client() {
     } else {
       a.appendChild(btn('Enable…', async function () {
         var extra = p.permissions.filter(function (x) { return x !== 'read'; });
-        var text = p.name + ' asks to ' + (extra.length ? 'read the project and: ' + extra.join(', ') : 'read the project only') + '.\n\nIts commands run as Coding Agent turns, and Noema refuses any tool outside these permissions.';
+        var text = p.name + ' asks to ' + (extra.length ? 'read the project and: ' + extra.join(', ') : 'read the project only') + '.\n\nIts commands run as Coding Agent turns, and LAIN refuses any tool outside these permissions.';
         if (!(await L.confirm(text, { ok: 'Grant and enable' }))) return;
         act('…', async function () { report(await L.api('/api/plugins/enable', { id: p.id, grant: p.permissions }), function () { return p.name + ' enabled'; }); });
       }, 'primary'));
@@ -217,7 +217,7 @@ function client() {
     var box = el('div', 'dlg impdlg');
     box.setAttribute('role', 'dialog');
     box.appendChild(el('h3', '', 'Import from ' + r.label));
-    box.appendChild(el('p', '', 'Noema reads ' + r.label + '’s files and never changes them. Only what Noema can apply is imported; everything else is listed below with the reason.'));
+    box.appendChild(el('p', '', 'LAIN reads ' + r.label + '’s files and never changes them. Only what LAIN can apply is imported; everything else is listed below with the reason.'));
     var body = el('div', 'ibody');
     var ck = function (label, on) { var l = el('label', 'ck'); var c = document.createElement('input'); c.type = 'checkbox'; c.checked = on; c.disabled = !on; l.appendChild(c); l.appendChild(el('span', '', label)); body.appendChild(l); return c; };
     var list = function (title, rows) {
@@ -228,10 +228,10 @@ function client() {
       body.appendChild(d);
     };
     body.appendChild(el('div', 'isec', 'Settings'));
-    var cS = ck(r.settings.applied.length + ' editor setting' + (r.settings.applied.length === 1 ? '' : 's') + ' Noema applies', r.settings.applied.length > 0);
+    var cS = ck(r.settings.applied.length + ' editor setting' + (r.settings.applied.length === 1 ? '' : 's') + ' LAIN applies', r.settings.applied.length > 0);
     list('Will apply', r.settings.applied.map(function (s) { return s.key + ' = ' + JSON.stringify(s.value); }));
     list(r.settings.unsupported.length + ' not imported', r.settings.unsupported.map(function (s) { return s.key + ' — ' + s.why; }));
-    if (r.settings.theme) body.appendChild(el('div', 'inote', 'Colour theme “' + r.settings.theme + '” is not applied — Noema keeps its own palette.'));
+    if (r.settings.theme) body.appendChild(el('div', 'inote', 'Colour theme “' + r.settings.theme + '” is not applied — LAIN keeps its own palette.'));
     body.appendChild(el('div', 'isec', 'Keybindings'));
     var cK = ck(r.keybindings.applied.length + ' keybinding' + (r.keybindings.applied.length === 1 ? '' : 's') + ' for editor commands', r.keybindings.applied.length > 0);
     list('Will apply', r.keybindings.applied.map(function (k) { return k.key + ' → ' + k.from; }));
@@ -239,7 +239,7 @@ function client() {
     body.appendChild(el('div', 'isec', 'Snippets'));
     var cN = ck(r.snippets.count + ' snippet' + (r.snippets.count === 1 ? '' : 's') + (r.snippets.languages.length ? ' for ' + r.snippets.languages.join(', ') : ''), r.snippets.count > 0);
     body.appendChild(el('div', 'isec', 'Extensions (' + r.extensions.length + ')'));
-    list('None of these run in Noema — why, for each', r.extensions.map(function (x) { return x.id + ' ' + x.version + ' — ' + x.why; }));
+    list('None of these run in LAIN — why, for each', r.extensions.map(function (x) { return x.id + ' ' + x.version + ' — ' + x.why; }));
     box.appendChild(body);
     var acts = el('div', 'dlg-actions');
     var cancel = el('button', 'btn', 'Cancel');
@@ -279,7 +279,7 @@ function client() {
     box.appendChild(s);
     var sc = el('div', 'xscope');
     sc.appendChild(el('span', '', 'Install to'));
-    [['global', 'Noema'], ['workspace', 'This project']].forEach(function (o) {
+    [['global', 'LAIN'], ['workspace', 'This project']].forEach(function (o) {
       var b = el('button', '', o[1]);
       b.setAttribute('aria-pressed', String(E.scope === o[0]));
       b.disabled = o[0] === 'workspace' && !E.workspace;
@@ -310,7 +310,7 @@ function client() {
       if (!E.found) box.appendChild(el('div', 'none', 'Looking…'));
       else if (!E.found.length) box.appendChild(el('div', 'none', 'No VS Code or Cursor extensions were found.'));
       (E.found || []).forEach(function (f) { box.appendChild(foundRow(f)); });
-      box.appendChild(el('div', 'xnote', 'Read-only: Noema reads each package.json and never writes in the editors’ folders. “Use in Noema” copies the package once into Noema’s content-addressed store, verified by hash; its settings and state in Noema are Noema’s own.'));
+      box.appendChild(el('div', 'xnote', 'Read-only: LAIN reads each package.json and never writes in the editors’ folders. “Use in LAIN” copies the package once into LAIN’s content-addressed store, verified by hash; its settings and state in LAIN are LAIN’s own.'));
     }
     if (E.view === 'updates') {
       head(box, 'Updates');
@@ -392,24 +392,24 @@ function client() {
       r2.appendChild(el('small', '', 'In use: imported from ' + imp.label + ' ' + new Date(imp.at).toLocaleString() + ' — ' + imp.settings + ' settings, ' + imp.keybindings + ' keybindings, ' + imp.snippets + ' snippets.'));
       var a2 = el('div', 'xa');
       a2.appendChild(btn('Clear imported', async function () {
-        if (!(await L.confirm('Remove the imported settings, keybindings and snippets from Noema? ' + imp.label + ' itself is not affected.', { ok: 'Clear' }))) return;
+        if (!(await L.confirm('Remove the imported settings, keybindings and snippets from LAIN? ' + imp.label + ' itself is not affected.', { ok: 'Clear' }))) return;
         act('…', async function () { report(await L.api('/api/editor/profile/clear', {}), function () { return 'Cleared the imported editor profile'; }); });
       }));
       r2.appendChild(a2);
       box.appendChild(r2);
     }
     // ---- LAIN plugins ----
-    head(box, 'Noema plugins' + (E.plugins ? ' · ' + E.plugins.length : ''));
+    head(box, 'LAIN plugins' + (E.plugins ? ' · ' + E.plugins.length : ''));
     if (E.plugins && !E.plugins.length) box.appendChild(el('div', 'none', 'No plugins installed.'));
     (E.plugins || []).forEach(function (p) { box.appendChild(pluginRow(p)); });
     var pb = el('div', 'xbtns');
     pb.appendChild(btn('Install plugin from folder…', async function () {
-      var p = await L.hostCall('pickFolder', { title: 'A Noema plugin folder (with lain-plugin.json)' });
+      var p = await L.hostCall('pickFolder', { title: 'A LAIN plugin folder (with lain-plugin.json)' });
       if (!p || !p.ok || p.cancelled || !p.path) return;
       act('Installing…', async function () { report(await L.api('/api/plugins/install', { folder: p.path }), function (x) { return 'Installed ' + x.plugin.name + ' — disabled until you grant ' + x.plugin.permissions.join(', '); }); });
     }));
     box.appendChild(pb);
-    box.appendChild(el('div', 'xnote', 'Extensions are VS Code packages. Noema uses what its API supports — each one says FULL, PARTIAL or UNSUPPORTED and why — and runs extension code only in its own host, with the permissions you allow. Noema plugins are Noema’s own: their commands run as Coding Agent turns limited to the permissions you grant. MCP servers live in Settings › MCP; skills are instructions for models.'));
+    box.appendChild(el('div', 'xnote', 'Extensions are VS Code packages. LAIN uses what its API supports — each one says FULL, PARTIAL or UNSUPPORTED and why — and runs extension code only in its own host, with the permissions you allow. LAIN plugins are LAIN’s own: their commands run as Coding Agent turns limited to the permissions you grant. MCP servers live in Settings › MCP; skills are instructions for models.'));
     host.appendChild(box);
     host.scrollTop = keepScroll;
   }

@@ -578,7 +578,7 @@ function client() {
       M.editor.getModelMarkers({}).forEach(function (m) {
         var rel = relOf(m.resource);
         if (!models[rel]) return;
-        out.push({ path: rel, line: m.startLineNumber, col: m.startColumn, severity: sev(m.severity), message: m.message, source: m.owner === lintOwner ? 'Noema' : (m.source || m.owner) });
+        out.push({ path: rel, line: m.startLineNumber, col: m.startColumn, severity: sev(m.severity), message: m.message, source: m.owner === lintOwner ? 'LAIN' : (m.source || m.owner) });
       });
     }
     Object.keys(coreMarkers).forEach(function (p) {
@@ -593,7 +593,7 @@ function client() {
   async function checkSaved(p) {
     var r = await L.api('/api/files/check', { path: p });
     if (!r || !r.ok || r.inconclusive) { coreMarkers[p] = []; }
-    else coreMarkers[p] = r.clean ? [] : [{ path: p, line: r.line || 1, col: 1, severity: 'error', message: r.message, source: 'Noema' }];
+    else coreMarkers[p] = r.clean ? [] : [{ path: p, line: r.line || 1, col: 1, severity: 'error', message: r.message, source: 'LAIN' }];
     if (M && models[p]) {
       M.editor.setModelMarkers(models[p].model, lintOwner, coreMarkers[p].map(function (m) {
         return { severity: M.MarkerSeverity.Error, message: m.message, startLineNumber: m.line, startColumn: 1, endLineNumber: m.line, endColumn: 1000 };

@@ -169,7 +169,7 @@ function client() {
       if (area) { i.rows = 3; i.style.width = '100%'; } else i.style.width = '260px';
       inputs[key] = i; field(f, label, desc, i);
     };
-    inp('name', 'Name', 'How the BOT refers to itself.', 'Noema');
+    inp('name', 'Name', 'How the BOT refers to itself.', 'LAIN');
     inp('tone', 'Tone', 'e.g. concise and direct; warm; formal.', 'not set');
     inp('language', 'Language', '"auto" answers in the language it is addressed in.', 'auto');
     inp('behavior', 'Behaviour', 'Anything about how it should work with you — kept short; it is part of every BOT request.', 'not set', true);
@@ -211,7 +211,7 @@ function client() {
     var go = el('button', 'btn small', 'Open Model › Defaults');
     go.onclick = function () { L.nav.go('model', { section: 'defaults' }); };
     field(f, 'Defaults', 'What each kind of work starts with when a session has not chosen — Chat, Assistant, Coding, Research, Vision.', go);
-    field(f, 'When an account is limited', 'Each provider’s account policy (Automatic · Ask · One account) decides — set it on its plane in Model › Accounts. Noema never switches to a different model on its own.', el('span', 'val', 'Per provider'));
+    field(f, 'When an account is limited', 'Each provider’s account policy (Automatic · Ask · One account) decides — set it on its plane in Model › Accounts. LAIN never switches to a different model on its own.', el('span', 'val', 'Per provider'));
     pane.appendChild(f);
   }
 
@@ -291,7 +291,7 @@ function client() {
       restart.onclick = async function () { var r = await L.api('/api/bot/service', { action: 'restart' }); if (!r.ok) L.toast(r.why, true); load(false); };
       var disc = el('button', 'btn small danger', 'Disconnect');
       disc.onclick = async function () {
-        if (!(await L.confirm('Disconnect Telegram? Noema stops polling, deletes the credential it holds and clears every approved user. The token stays valid at Telegram until you revoke it with @BotFather.', { ok: 'Disconnect', danger: true }))) return;
+        if (!(await L.confirm('Disconnect Telegram? LAIN stops polling, deletes the credential it holds and clears every approved user. The token stays valid at Telegram until you revoke it with @BotFather.', { ok: 'Disconnect', danger: true }))) return;
         var r = await L.api('/api/bot/telegram/disconnect', {});
         if (!r.ok) return L.toast(r.why, true);
         L.toast('Disconnected. ' + (r.notRevoked || ''));
@@ -342,13 +342,13 @@ function client() {
       c.checks.forEach(function (chk) { box.appendChild(el('div', '', chk.name + ': ' + chk.value)); });
       card.appendChild(box);
     }
-    if (!c.configured) card.appendChild(el('div', 'summary', 'Configured through environment variables, then restart Noema — see docs/BOT.md.'));
+    if (!c.configured) card.appendChild(el('div', 'summary', 'Configured through environment variables, then restart LAIN — see docs/BOT.md.'));
     return card;
   }
 
   function connections(pane) {
     pane.appendChild(el('h2', '', 'Connections'));
-    pane.appendChild(el('div', 'sub', 'Channels the BOT can be reached on.' + (data && data.service ? '  Messaging service: ' + (data.service.running ? 'running' + (data.service.owner === 'external' ? ' in another Noema process' : '') : 'stopped') + '.' : '')));
+    pane.appendChild(el('div', 'sub', 'Channels the BOT can be reached on.' + (data && data.service ? '  Messaging service: ' + (data.service.running ? 'running' + (data.service.owner === 'external' ? ' in another LAIN process' : '') : 'stopped') + '.' : '')));
     if (!data) { pane.appendChild(el('div', 'missing', loading ? 'Reading connection state…' : 'Not read yet.')); return; }
     (data.platforms || []).forEach(function (c) {
       if (c.platform === 'telegram') pane.appendChild(telegramCard(c));
@@ -360,7 +360,7 @@ function client() {
   // ---- permissions ------------------------------------------------------------------------
   function permissions(pane) {
     pane.appendChild(el('h2', '', 'Permissions'));
-    pane.appendChild(el('div', 'sub', 'Who may talk to the BOT through a channel. Only accounts that messaged the bot can be approved — that is how Noema knows the account is real. Nobody gets a reply until approved.'));
+    pane.appendChild(el('div', 'sub', 'Who may talk to the BOT through a channel. Only accounts that messaged the bot can be approved — that is how LAIN knows the account is real. Nobody gets a reply until approved.'));
     if (!data) { pane.appendChild(el('div', 'missing', loading ? 'Reading…' : 'Not read yet.')); return; }
     var tg = platform('telegram');
     pane.appendChild(el('h3', '', 'Telegram allowlist'));
@@ -428,10 +428,10 @@ function client() {
     cap('plug', 'Computer (MCP)', comp ? (comp.why || '') : 'Read from Settings › MCP', comp ? comp.state.toLowerCase().replace(/_/g, ' ') : '—', comp && comp.state === 'CONNECTED' ? 'on' : 'off');
     var mcpN = tools && tools.servers ? tools.servers.filter(function (s) { return s.state === 'CONNECTED'; }).length : null;
     cap('plug', 'MCP servers', tools && tools.servers ? tools.servers.length + ' configured · ' + mcpN + ' connected' : 'Read from Settings › MCP', mcpN ? 'On' : 'Off', mcpN ? 'on' : 'off');
-    cap('spark', 'Skills', 'This build of Noema Core has no skill loader — nothing is installed or loaded', 'Not in this build', 'off');
+    cap('spark', 'Skills', 'This build of LAIN Core has no skill loader — nothing is installed or loaded', 'Not in this build', 'off');
     cap('files', 'Files and images', 'Spreadsheets, documents and images attached in a Chat conversation; image reading needs a VISION model (e.g. a paired local projector)', 'In file conversations', 'on');
     cap('search', 'Web fetch', 'Plain HTTP reads for changelogs and docs — no browser, no cookies', 'On', 'on');
-    cap('model', 'Noema itself', 'Models, quota, MCP, settings — the BOT reads the same state this window shows, and can open views', 'On', 'on');
+    cap('model', 'LAIN itself', 'Models, quota, MCP, settings — the BOT reads the same state this window shows, and can open views', 'On', 'on');
   }
 
   function draw() {

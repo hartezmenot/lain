@@ -101,7 +101,7 @@ function client() {
     rf.onclick = function () { start('/api/cache/inspect', { refresh: true }); };
     head.appendChild(rf);
     card.appendChild(head);
-    card.appendChild(el('p', 'cc-sub', 'What Noema can rebuild or no longer needs. Your sessions, accounts, settings and project files are never part of it.'));
+    card.appendChild(el('p', 'cc-sub', 'What LAIN can rebuild or no longer needs. Your sessions, accounts, settings and project files are never part of it.'));
     var list = cats();
     if (!list) { card.appendChild(el('div', 'cc-busy', 'Measuring…')); return; }
     var safe = list.filter(function (c) { return c.tier === 'safe'; });

@@ -315,7 +315,7 @@ function client() {
     var mine = (S2 && S2.changes) || [];
     if (mine.length) {
       var h2 = el('div', 'scm-head');
-      h2.appendChild(el('span', '', 'Changed by Noema this session'));
+      h2.appendChild(el('span', '', 'Changed by LAIN this session'));
       h2.appendChild(el('span', 'n', mine.length));
       box.appendChild(h2);
       mine.forEach(function (c) {

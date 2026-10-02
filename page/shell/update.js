@@ -1,14 +1,14 @@
 'use strict';
 
 /**
- * UPDATES AND EXIT (Noema packaging pass §J, §K) — drawn only from Core's state (S.update, S.workbench).
+ * UPDATES AND EXIT (LAIN packaging pass §J, §K) — drawn only from Core's state (S.update, S.workbench).
  *
  *   Update           beside Usage, ONLY when an update is available or downloaded; hidden otherwise. The dropdown
- *                    says what is new and offers Download / Restart Noema / Later — and while the Coding Agent
- *                    works, "Restart after current checkpoint" and "Restart after task". Nothing restarts Noema
+ *                    says what is new and offers Download / Restart LAIN / Later — and while the Coding Agent
+ *                    works, "Restart after current checkpoint" and "Restart after task". Nothing restarts LAIN
  *                    without the person choosing it (src/harnessapp/updateroutes.js, src/update/lifecycle.js).
- *   ⏻ Exit Noema     in the rail's footer. The window's X closes the WINDOW (Noema keeps working in the tray);
- *                    Exit ends Noema — after a confirmation when idle, and by the person's choice when the Agent is
+ *   ⏻ Exit LAIN     in the rail's footer. The window's X closes the WINDOW (LAIN keeps working in the tray);
+ *                    Exit ends LAIN — after a confirmation when idle, and by the person's choice when the Agent is
  *                    working: keep it running with the window closed, exit at the next checkpoint, or stop and exit.
  */
 
@@ -36,7 +36,7 @@ function client() {
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function agentBusy() { var w = S && S.workbench; return Boolean(w && (w.running || (w.autoRun && w.autoRun.waiting))); }
 
-  /** A choice in Noema's own dialog: resolves with the chosen value, or null for Cancel / Escape. */
+  /** A choice in LAIN's own dialog: resolves with the chosen value, or null for Cancel / Escape. */
   function choose(title, text, options) {
     return new Promise(function (resolve) {
       var back = el('div', 'dlg-back'); var box = el('div', 'dlg'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', title);
@@ -69,7 +69,7 @@ function client() {
     b.setAttribute('data-state', st);
     var v = st === 'staged' ? u.staged.version : u.available.version;
     b.querySelector('.ud-t').textContent = st === 'staged' ? 'Update ready' : 'Update';
-    var tip = st === 'staged' ? 'Noema ' + v + ' is downloaded — restart to use it' : 'Noema ' + v + ' is available';
+    var tip = st === 'staged' ? 'LAIN ' + v + ' is downloaded — restart to use it' : 'LAIN ' + v + ' is available';
     b.setAttribute('aria-label', tip); b.setAttribute('data-tip', tip);
   }
 
@@ -84,8 +84,8 @@ function client() {
     var u = S && S.update; if (!u) return;
     var staged = u.state === 'staged';
     var info = staged ? (u.staged || {}) : (u.available || {});
-    p.appendChild(el('h4', '', 'Noema ' + (info.version || '')));
-    p.appendChild(el('div', 'up-sub', staged ? 'Downloaded and verified · ready to restart' : 'Available · you have Noema ' + (u.current || '')));
+    p.appendChild(el('h4', '', 'LAIN ' + (info.version || '')));
+    p.appendChild(el('div', 'up-sub', staged ? 'Downloaded and verified · ready to restart' : 'Available · you have LAIN ' + (u.current || '')));
     var notes = info.summary || (u.available && u.available.summary) || [];
     if (notes.length) { p.appendChild(el('div', 'up-sub', 'What’s new')); var ul = el('ul'); notes.slice(0, 6).forEach(function (n) { ul.appendChild(el('li', '', n)); }); p.appendChild(ul); }
     var link = info.notes || (u.available && u.available.notes);
@@ -95,26 +95,26 @@ function client() {
     var btn = function (label, cls, run) { var x = el('button', 'btn ' + (cls || ''), label); x.onclick = async function () { x.disabled = true; L.closePop(); await run(); }; acts.appendChild(x); };
     if (!staged) {
       if (u.installed) btn('Download', 'primary', function () { return act('/api/update/download'); });
-      else p.appendChild(el('div', 'up-busy', 'This is a development checkout — install the update with the Noema installer.'));
+      else p.appendChild(el('div', 'up-busy', 'This is a development checkout — install the update with the LAIN installer.'));
     } else if (agentBusy()) {
-      p.appendChild(el('div', 'up-busy', 'The Coding Agent is working. Noema restarts only when you choose — the task continues after the restart from its committed checkpoint.'));
+      p.appendChild(el('div', 'up-busy', 'The Coding Agent is working. LAIN restarts only when you choose — the task continues after the restart from its committed checkpoint.'));
       btn('Restart after current checkpoint', 'primary', function () { return act('/api/update/restart', { when: 'checkpoint' }); });
       btn('Restart after task', '', function () { return act('/api/update/restart', { when: 'task' }); });
-    } else btn('Restart Noema', 'primary', function () { return act('/api/update/restart', { when: 'now' }); });
+    } else btn('Restart LAIN', 'primary', function () { return act('/api/update/restart', { when: 'now' }); });
     btn('Later', '', function () { return act('/api/update/later'); });
     p.appendChild(acts);
   }
   function open(anchor) { L.popover(anchor, draw, { cls: 'updpop', toggle: true }); }
 
-  /** EXIT NOEMA — distinct from closing the window. */
-  async function exitNoema() {
+  /** EXIT LAIN — distinct from closing the window. */
+  async function exitLain() {
     L.closePop();
     if (!agentBusy()) {
-      if (!(await L.confirm('Exit Noema? Bots and background jobs stop. Closing the window instead keeps Noema running in the tray.', { ok: 'Exit Noema', danger: true }))) return null;
+      if (!(await L.confirm('Exit LAIN? Bots and background jobs stop. Closing the window instead keeps LAIN running in the tray.', { ok: 'Exit LAIN', danger: true }))) return null;
       return act('/api/app/exit', { mode: 'now' });
     }
-    var mode = await choose('Exit Noema', 'The Coding Agent is working.', [
-      { value: 'close', label: 'Close window and keep task running', note: 'Noema keeps working in the tray — open it again any time.' },
+    var mode = await choose('Exit LAIN', 'The Coding Agent is working.', [
+      { value: 'close', label: 'Close window and keep task running', note: 'LAIN keeps working in the tray — open it again any time.' },
       { value: 'checkpoint', label: 'Exit after current checkpoint', note: 'The task stops at its next committed checkpoint and continues from there next time.', primary: true },
       { value: 'stop', label: 'Stop task and exit', note: 'The task is stopped now and saved — continue it next time.' },
     ]);
@@ -123,7 +123,7 @@ function client() {
     return act('/api/app/exit', { mode: mode });
   }
 
-  L.update = { paint: paint, open: open, exit: exitNoema, choose: choose };
+  L.update = { paint: paint, open: open, exit: exitLain, choose: choose };
 }
 
 function js() {

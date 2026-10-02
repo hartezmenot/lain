@@ -164,13 +164,13 @@ function client() {
       var srv = x.server;
       var dl2 = el('dl', '');
       if (srv) { kv(dl2, 'State', srv.state); kv(dl2, 'PID', srv.pid); kv(dl2, 'Port', srv.port); kv(dl2, 'Context', srv.ctx); kv(dl2, 'Process memory', srv.memoryBytes ? gb(srv.memoryBytes) + ' (working set, measured — not VRAM)' : 'not readable'); kv(dl2, 'Requests', srv.requests); if (srv.lastError) kv(dl2, 'Last error', srv.lastError); }
-      else { kv(dl2, 'State', 'not running — Noema starts it on first use'); kv(dl2, 'Needs about', x.estimate ? gb(x.estimate.total) + ' (weights ' + gb(x.estimate.weights) + (x.estimate.projector ? ', projector ' + gb(x.estimate.projector) : '') + ', context)' : null); }
+      else { kv(dl2, 'State', 'not running — LAIN starts it on first use'); kv(dl2, 'Needs about', x.estimate ? gb(x.estimate.total) + ' (weights ' + gb(x.estimate.weights) + (x.estimate.projector ? ', projector ' + gb(x.estimate.projector) : '') + ', context)' : null); }
       d.appendChild(dl2);
       var sp = x.speed || {};
       if (sp.requests) {
         d.appendChild(el('h5', '', 'Measured on this machine'));
         var dl3 = el('dl', ''); kv(dl3, 'Prompt', sp.promptTokPerSec == null ? '—' : sp.promptTokPerSec + ' tok/s'); kv(dl3, 'Generation', sp.tokPerSec == null ? '—' : sp.tokPerSec + ' tok/s'); kv(dl3, 'Requests', sp.requests); d.appendChild(dl3);
-        if (sp.firstReplySecs && sp.firstReplySecs > 60) d.appendChild(el('div', 'warnline', 'Noema’s BOT request is about ' + sp.botRequestTokens.toLocaleString() + ' tokens (instructions and tool schemas). At ' + sp.promptTokPerSec + ' tok/s the first reply takes about ' + Math.round(sp.firstReplySecs / 60) + ' min here; later turns reuse that prefix and only process what is new.'));
+        if (sp.firstReplySecs && sp.firstReplySecs > 60) d.appendChild(el('div', 'warnline', 'LAIN’s BOT request is about ' + sp.botRequestTokens.toLocaleString() + ' tokens (instructions and tool schemas). At ' + sp.promptTokPerSec + ' tok/s the first reply takes about ' + Math.round(sp.firstReplySecs / 60) + ' min here; later turns reuse that prefix and only process what is new.'));
       }
       // ADVANCED: runtime defaults, kept out of the picker.
       var adv = el('details', ''); adv.appendChild(el('summary', '', 'Advanced — runtime defaults'));
@@ -233,7 +233,7 @@ function client() {
       d.appendChild(el('div', 'note', 'Agent: ' + (rt.execution.agent.ok ? rt.execution.agent.how : rt.execution.agent.why)));
     }
     windowsBlock(d, r.usage);
-    if (r.kind === 'runtime' && (r.roles || []).indexOf('BOT') >= 0) d.appendChild(el('div', 'note', 'As the BOT, a runtime model answers in text; Noema\u2019s own tools are not handed to another program. As the Agent, it works in the project with its own tools.'));
+    if (r.kind === 'runtime' && (r.roles || []).indexOf('BOT') >= 0) d.appendChild(el('div', 'note', 'As the BOT, a runtime model answers in text; LAIN\u2019s own tools are not handed to another program. As the Agent, it works in the project with its own tools.'));
     var acts = el('div', 'acts');
     if (r.modelId && (r.roles || []).indexOf('BOT') >= 0) acts.appendChild(act('Use for BOT', function () { return useAs(r, 'bot'); }, 'primary'));
     if (r.modelId && (r.roles || []).indexOf('AGENT') >= 0) acts.appendChild(act('Use for Agent', function () { return useAs(r, 'coding'); }));
@@ -248,11 +248,11 @@ function client() {
     if (rt && rt.install && rt.install.docs) acts.appendChild(act('Open docs ↗', function () { return L.openExternal(rt.install.docs); }));
     if (rt && rt.kind === 'runtime') acts.appendChild(disconnectBtn(rt));
     d.appendChild(acts);
-    if (rt && rt.id === 'claude-code') d.appendChild(el('div', 'note', 'Choosing another model disconnects nothing: Claude Code keeps its own sign-in. Signing out of Claude is done in Claude Code (claude auth logout), never by Noema.'));
+    if (rt && rt.id === 'claude-code') d.appendChild(el('div', 'note', 'Choosing another model disconnects nothing: Claude Code keeps its own sign-in. Signing out of Claude is done in Claude Code (claude auth logout), never by LAIN.'));
   }
   function disconnectBtn(rt) {
-    return act(rt.disconnected ? 'Reconnect to Noema' : 'Disconnect from Noema', async function () {
-      if (!rt.disconnected) { var ok = await L.confirm('Stop offering ' + rt.label + '’s models in Noema? This does not sign you out of ' + rt.label + ' — its own sign-in stays where it is.', { ok: 'Disconnect from Noema' }); if (!ok) return; }
+    return act(rt.disconnected ? 'Reconnect to LAIN' : 'Disconnect from LAIN', async function () {
+      if (!rt.disconnected) { var ok = await L.confirm('Stop offering ' + rt.label + '’s models in LAIN? This does not sign you out of ' + rt.label + ' — its own sign-in stays where it is.', { ok: 'Disconnect from LAIN' }); if (!ok) return; }
       var r = await L.api('/api/runtimes/disconnect', { id: rt.id, reconnect: Boolean(rt.disconnected) });
       L.toast(r.ok ? (rt.disconnected ? rt.label + ' is offered again.' : r.note) : r.why, !r.ok); await load();
     }, rt.disconnected ? '' : 'danger');
@@ -309,7 +309,7 @@ function client() {
     sec.classList.add('first'); sec.setAttribute('data-local', 'ollama');
     var olRows = allRows().filter(function (r) { return r.kind === 'local' && r.provider === 'ollama'; });
     if (olRows.length) modelRows(olRows, sec);
-    else sec.appendChild(el('div', 'u-note', od.running ? 'Ollama lists no models. Pull one with Ollama, then Refresh.' : 'Noema does not start or install Ollama. When it runs at this address, its models appear here.'));
+    else sec.appendChild(el('div', 'u-note', od.running ? 'Ollama lists no models. Pull one with Ollama, then Refresh.' : 'LAIN does not start or install Ollama. When it runs at this address, its models appear here.'));
     pane.appendChild(sec);
 
     // LLAMA.CPP
@@ -326,7 +326,7 @@ function client() {
     // MODEL DIRECTORIES
     var dActs = [U.button('Add directory', 'line sm', addDir, 'plus')];
     if (dirs.length) dActs.unshift(U.button('Rescan all', 'ghost sm', async function () { await L.api('/api/local/dirs/rescan', {}); await load(); }));
-    sec = U.section({ id: 'dirs', title: 'Model directories', meta: 'Folders with .gguf files. Noema keeps only the path, reads each file’s header, and never copies, moves or deletes a model.', actions: dActs });
+    sec = U.section({ id: 'dirs', title: 'Model directories', meta: 'Folders with .gguf files. LAIN keeps only the path, reads each file’s header, and never copies, moves or deletes a model.', actions: dActs });
     var dl = el('div', 'u-rows');
     dirs.forEach(function (dd) {
       var row = el('div', 'u-row plain'); row.setAttribute('data-dir', dd.id);
@@ -336,7 +336,7 @@ function client() {
       row.appendChild(U.overflow([
         { label: 'Rescan', run: async function () { await L.api('/api/local/dirs/rescan', { id: dd.id }); await load(); } },
         { label: 'Remove reference', danger: true, run: async function () {
-          var ok = await L.confirm('Forget ' + dd.path + '? Only Noema’s reference is removed — the folder and every model in it stay exactly where they are.', { ok: 'Remove reference' });
+          var ok = await L.confirm('Forget ' + dd.path + '? Only LAIN’s reference is removed — the folder and every model in it stay exactly where they are.', { ok: 'Remove reference' });
           if (!ok) return; var r = await L.api('/api/local/dirs/remove', { id: dd.id }); L.toast(r.ok ? r.note : r.why, !r.ok); await load();
         } },
       ], 'More about ' + dd.path));
@@ -350,7 +350,7 @@ function client() {
     var p = null;
     try { var r = await L.hostCall('pickFolder', { title: 'Model directory (folders with .gguf files)' }); p = r && (r.path || r.value || (typeof r === 'string' ? r : null)); } catch (e) { p = null; }
     if (!p) {
-      var v = await L.dialog({ title: 'Add Model Directory', text: 'The folder that holds your .gguf models. Noema keeps only this path.', fields: [{ key: 'path', label: 'Folder', placeholder: 'E:\\AI\\models' }], ok: 'Add' });
+      var v = await L.dialog({ title: 'Add Model Directory', text: 'The folder that holds your .gguf models. LAIN keeps only this path.', fields: [{ key: 'path', label: 'Folder', placeholder: 'E:\\AI\\models' }], ok: 'Add' });
       p = v && v.path;
     }
     if (!p) return;
@@ -406,7 +406,7 @@ function client() {
       c.appendChild(a);
       pane.appendChild(c);
     });
-    pane.appendChild(el('div', 'missing', 'Every runtime runs as its own program with its own sign-in. Noema never copies a runtime\u2019s credentials, never calls the service behind it, and never downloads a runtime by itself. Processes Noema starts are registered and stopped by Noema; nothing is stopped by name.'));
+    pane.appendChild(el('div', 'missing', 'Every runtime runs as its own program with its own sign-in. LAIN never copies a runtime\u2019s credentials, never calls the service behind it, and never downloads a runtime by itself. Processes LAIN starts are registered and stopped by LAIN; nothing is stopped by name.'));
   }
   /** VERIFY an OpenCode model for CHAT / BOT / AGENT — LAIN's compatibility test, run through OpenCode itself. */
   function verifyPicker(rt) {

@@ -47,7 +47,7 @@ const HTML = `
       <h1>IDE</h1>
       <p class="is-sub">Open a folder to browse, edit and build it with the Coding Agent beside you.</p>
       <div class="is-actions">
-        <button class="is-btn" id="ideNew"><span class="ib-ic" id="ideNewIc"></span><span><b>New Project</b><small>Choose where it lives; Noema creates it</small></span></button>
+        <button class="is-btn" id="ideNew"><span class="ib-ic" id="ideNewIc"></span><span><b>New Project</b><small>Choose where it lives; LAIN creates it</small></span></button>
         <button class="is-btn" id="ideOpen"><span class="ib-ic" id="ideOpenIc"></span><span><b>Open Folder</b><small>Pick an existing folder</small></span></button>
       </div>
       <div class="is-handoff" id="isHandoff" hidden></div>
@@ -367,7 +367,7 @@ function client() {
     var base = (recent && recent.defaultProjectRoot) || '';
     var v = await L.dialog({
       title: 'New Project',
-      text: 'Noema creates the folder and opens it here.',
+      text: 'LAIN creates the folder and opens it here.',
       fields: [
         { key: 'name', label: 'Name', value: 'new-project' },
         { key: 'parent', label: 'Location', value: base, placeholder: 'D:\\projects', action: { label: 'Choose\u2026', run: function () { return pickFolder('Choose where the project lives'); } } },
@@ -949,7 +949,7 @@ function client() {
     var a = await L.api('/api/preview/available', {});
     var v = await L.dialog({
       title: 'Configure Preview',
-      text: 'The command that serves this project, run in the project folder. Noema gives it a free port in PORT; name a port only if the command always uses one. Kept in .lain/preview.json. Empty the command to go back to detection.',
+      text: 'The command that serves this project, run in the project folder. LAIN gives it a free port in PORT; name a port only if the command always uses one. Kept in .lain/preview.json. Empty the command to go back to detection.',
       fields: [
         { key: 'command', label: 'Command', value: (a && a.configured && a.command) || '', placeholder: 'npm run dev' },
         { key: 'port', label: 'Port (optional)', value: a && a.configured && a.port ? String(a.port) : '', placeholder: '5173' },
@@ -1024,7 +1024,7 @@ function client() {
     var r = null;
     try { r = await L.api('/api/terminal/processes', {}); } catch (e) { r = null; }
     var procs = (r && r.processes) || [];
-    if (!procs.length) { sel.appendChild(el('option', '', 'Tasks')); pre.textContent = 'Nothing Noema started in this project has written output yet. Scripts and tasks run from Run and Debug appear here, and the dev server once Preview starts it.'; return; }
+    if (!procs.length) { sel.appendChild(el('option', '', 'Tasks')); pre.textContent = 'Nothing LAIN started in this project has written output yet. Scripts and tasks run from Run and Debug appear here, and the dev server once Preview starts it.'; return; }
     procs.forEach(function (p) { var o = el('option', '', (p.kind === 'service' ? 'Service \u00b7 ' : 'Task \u00b7 ') + (p.command || p.id).slice(0, 60) + (p.running ? '' : ' (ended)')); o.value = p.id; sel.appendChild(o); });
     if (!O.channel || !procs.some(function (p) { return p.id === O.channel; })) O.channel = procs[procs.length - 1].id;
     sel.value = O.channel;

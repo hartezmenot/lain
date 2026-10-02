@@ -284,10 +284,10 @@ LAIN.terminal = (function () {
     var head = el('div', 'termhead');
     // OPEN CLI — an explicit secondary action, never the default. It opens a
     // REAL terminal on this session outside the application; the conversation
-    // you are looking at IS the Noema interface, so this is for people who want
+    // you are looking at IS the LAIN interface, so this is for people who want
     // the terminal-native one. See terminalroutes.js.
     var cli = el('button', 'btn', 'Open CLI');
-    cli.title = 'Open a terminal running Noema on this session. The session moves to it.';
+    cli.title = 'Open a terminal running LAIN on this session. The session moves to it.';
     cli.onclick = async function () {
       var r = await api('/api/desktop/opencli', {});
       notice(r.ok ? 'A terminal opened on this session.' : r.why, !r.ok);
@@ -354,7 +354,7 @@ LAIN.terminal = (function () {
     // that froze the window the first time the panel opened before its list.
     if (T.procs === null) { body.appendChild(el('div', 'obs', 'Reading the project\\u2019s processes\\u2026')); if (!T.busy) terminalRefresh().then(render); return; }
     if (!T.procs.length) {
-      body.appendChild(el('div', 'obs', 'Nothing is running in this project. Commands Noema starts in the background, and any dev server it owns, appear here.'));
+      body.appendChild(el('div', 'obs', 'Nothing is running in this project. Commands LAIN starts in the background, and any dev server it owns, appear here.'));
       return;
     }
     T.procs.forEach(function (p) {

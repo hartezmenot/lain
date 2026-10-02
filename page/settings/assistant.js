@@ -166,7 +166,7 @@ function client() {
     var inc = field('Include data', el('select', ''));
     [['', 'nothing'], ['limits', 'model limits'], ['usage', 'today’s usage'], ['limits,usage', 'limits and usage']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; inc.appendChild(x); });
     var tg = field('Deliver to', el('select', ''));
-    [['desktop', 'Desktop'], ['desktop,telegram', 'Desktop + Telegram'], ['telegram', 'Telegram'], ['chat', 'Noema Chat only']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; tg.appendChild(x); });
+    [['desktop', 'Desktop'], ['desktop,telegram', 'Desktop + Telegram'], ['telegram', 'Telegram'], ['chat', 'LAIN Chat only']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; tg.appendChild(x); });
     var save = el('button', 'btn small primary', 'Save');
     f.appendChild(el('span', ''));
     f.appendChild(save);
@@ -177,7 +177,7 @@ function client() {
       var task = { type: once ? 'scheduled' : 'recurring', title: title.value.trim() || instr.value.trim().slice(0, 60), instruction: instr.value.trim(), action: { kind: 'bot_prompt', args: { include: inc.value ? inc.value.split(',') : [] } }, modelPolicy: pol.value, schedule: sched, delivery: { targets: tg.value.split(',') } };
       var r = await L.api('/api/assistant/task', { task: task });
       if (r && r.needsConfirm) {
-        var ok = await L.confirm('This task runs ' + (POLICY[r.modelPolicy] || r.modelPolicy) + (r.model ? ' (' + r.model + ')' : ' — no model is available for this policy right now') + ' every time it fires. Its cost is whatever that model’s usage is; Noema records it under USAGE › Origin. Save it?', { ok: 'Save' });
+        var ok = await L.confirm('This task runs ' + (POLICY[r.modelPolicy] || r.modelPolicy) + (r.model ? ' (' + r.model + ')' : ' — no model is available for this policy right now') + ' every time it fires. Its cost is whatever that model’s usage is; LAIN records it under USAGE › Origin. Save it?', { ok: 'Save' });
         if (!ok) return;
         r = await L.api('/api/assistant/task', { task: task, confirmPolicy: r.modelPolicy });
       }
@@ -267,16 +267,16 @@ function client() {
     var draw = function () {
       wrap.textContent = '';
       wrap.appendChild(el('h2', '', 'Assistant'));
-      wrap.appendChild(el('div', 'sub', 'Reminders, schedules and watches run in Noema’s Core on a timer — no model stays loaded for them. A task uses a model only when its policy says so.'));
+      wrap.appendChild(el('div', 'sub', 'Reminders, schedules and watches run in LAIN’s Core on a timer — no model stays loaded for them. A task uses a model only when its policy says so.'));
       if (!data) { wrap.appendChild(el('div', 'missing', loading ? 'Reading…' : 'Not read yet.')); return; }
       var st = data.settings;
       var sc = data.scheduler || {};
-      wrap.appendChild(el('div', 'hint', sc.running ? 'Scheduler running in this Noema (pid ' + sc.pid + ')' + (sc.lastTick ? ' · last check ' + when(sc.lastTick) : '') + (sc.lastError ? ' · last error: ' + sc.lastError : '') : 'Scheduler not running here: ' + (sc.why || 'unknown')));
+      wrap.appendChild(el('div', 'hint', sc.running ? 'Scheduler running in this LAIN (pid ' + sc.pid + ')' + (sc.lastTick ? ' · last check ' + when(sc.lastTick) : '') + (sc.lastError ? ' · last error: ' + sc.lastError : '') : 'Scheduler not running here: ' + (sc.why || 'unknown')));
       wrap.appendChild(el('h3', '', 'Notifications'));
       var f1 = el('div', 'fields');
       fieldRow(f1, 'Desktop notifications', 'A Windows notification; clicking it opens the task here.', toggle(st.notifications, function (v) { setSettings({ notifications: v }); }));
       var dt = el('select', '');
-      [['desktop', 'Desktop'], ['desktop,telegram', 'Desktop + Telegram'], ['telegram', 'Telegram'], ['chat', 'Noema Chat only']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; if (o[0] === st.defaultTargets.join(',')) x.selected = true; dt.appendChild(x); });
+      [['desktop', 'Desktop'], ['desktop,telegram', 'Desktop + Telegram'], ['telegram', 'Telegram'], ['chat', 'LAIN Chat only']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; if (o[0] === st.defaultTargets.join(',')) x.selected = true; dt.appendChild(x); });
       dt.onchange = function () { setSettings({ defaultTargets: dt.value.split(',') }); };
       fieldRow(f1, 'Default delivery', 'Where a task delivers when it does not say.', dt);
       var q = el('div', 'quiet');
@@ -295,11 +295,11 @@ function client() {
       wrap.appendChild(el('h3', '', 'Schedules'));
       var f2 = el('div', 'fields');
       fieldRow(f2, 'Background execution', 'Run tests and model tasks unattended. Off: they report that they were due instead.', toggle(st.background, function (v) { setSettings({ background: v }); }));
-      fieldRow(f2, 'Condition checks', 'Evaluate watches (resets, channel and runtime state) from Noema’s own state.', toggle(st.conditionChecks, function (v) { setSettings({ conditionChecks: v }); }));
+      fieldRow(f2, 'Condition checks', 'Evaluate watches (resets, channel and runtime state) from LAIN’s own state.', toggle(st.conditionChecks, function (v) { setSettings({ conditionChecks: v }); }));
       var mp = el('select', '');
       [['deliver_late', 'Deliver late, saying it was missed'], ['run_once', 'Run once now'], ['skip', 'Skip to the next time']].forEach(function (o) { var x = el('option', '', o[1]); x.value = o[0]; if (o[0] === st.missedPolicy) x.selected = true; mp.appendChild(x); });
       mp.onchange = function () { setSettings({ missedPolicy: mp.value }); };
-      fieldRow(f2, 'Missed runs', 'When Noema was not running at the time. Applies to new tasks.', mp);
+      fieldRow(f2, 'Missed runs', 'When LAIN was not running at the time. Applies to new tasks.', mp);
       wrap.appendChild(f2);
       wrap.appendChild(el('h3', '', 'What Telegram may do'));
       var f3 = el('div', 'fields');

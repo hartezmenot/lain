@@ -151,7 +151,7 @@ const PANE_HTML = `
       </div>
     </div>
     <div class="srcEmpty" id="srcEmpty">
-      <div>No file is open.<div class="kb"><span>Open file</span><span>Ctrl+P</span><span>Search Noema</span><span>Ctrl+K</span><span>Toggle panel</span><span>Ctrl+J</span><span>Terminal</span><span>Ctrl+&#96;</span></div></div>
+      <div>No file is open.<div class="kb"><span>Open file</span><span>Ctrl+P</span><span>Search LAIN</span><span>Ctrl+K</span><span>Toggle panel</span><span>Ctrl+J</span><span>Terminal</span><span>Ctrl+&#96;</span></div></div>
     </div>
   </div>
 </section>
@@ -184,7 +184,7 @@ window.LAIN.source = (function () {
     expanded: {},      // path -> true
     tree: {},          // path -> entries
     hits: [],          // find/patch results, as line numbers
-    patch: null,       // the last edit Noema made to an open file
+    patch: null,       // the last edit LAIN made to an open file
     patchTimer: 0,
     quickSel: 0,
   };
@@ -627,7 +627,7 @@ window.LAIN.source = (function () {
     var r = await api('/api/files/tree', { path: '' });
     if (!r.ok) { notice(r.why, true); return; }
     st.tree['.'] = r.entries;
-    // EVERY EXPANDED FOLDER IS READ AGAIN TOO: a file made outside Noema (a terminal, another
+    // EVERY EXPANDED FOLDER IS READ AGAIN TOO: a file made outside LAIN (a terminal, another
     // editor, git) appears where it was made — Refresh used to re-read the top level only.
     var open = Object.keys(st.expanded).filter(function (d) { return st.expanded[d]; });
     await Promise.all(open.map(async function (d) {
@@ -738,7 +738,7 @@ window.LAIN.source = (function () {
     });
     if (r.stale) {
       // THE INTERESTING CASE, and the one this product creates constantly:
-      // Noema edited the file while it was open. Both versions exist; the
+      // LAIN edited the file while it was open. Both versions exist; the
       // person decides. Nothing is overwritten by default.
       note(r.why, true, {
         label: 'Reload from disk',
@@ -761,7 +761,7 @@ window.LAIN.source = (function () {
   /**
    * DID ANYTHING MOVE UNDER US? Called from the ordinary poll.
    *
-   * A CLEAN buffer is reloaded silently — that is Noema editing a file the
+   * A CLEAN buffer is reloaded silently — that is LAIN editing a file the
    * person is watching, which is the feature. A DIRTY one is never touched;
    * it says so and waits, because the alternative is discarding typing.
    */
@@ -789,7 +789,7 @@ window.LAIN.source = (function () {
       if (!fresh.ok) continue;
       // ---- THE PATCH, NOT A SILENT SWAP ---------------------------------
       //
-      // The blueprint asks the person to SEE what Noema changed:
+      // The blueprint asks the person to SEE what LAIN changed:
       //     - opacity: 0.2
       //     + opacity: 0.5
       // Replacing the buffer and repainting would show the RESULT and hide the
@@ -841,7 +841,7 @@ window.LAIN.source = (function () {
     n.className = 'srcNote';
     n.textContent = '';
     var head = document.createElement('div');
-    head.textContent = 'Noema edited ' + p + '  ·  line ' + (patch.head + 1);
+    head.textContent = 'LAIN edited ' + p + '  ·  line ' + (patch.head + 1);
     n.appendChild(head);
     var show = function (rows, sign, cls) {
       rows.slice(0, 6).forEach(function (l) {

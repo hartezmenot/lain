@@ -34,7 +34,7 @@ const HTML = `
     <p class="greet-sub" id="greetSub">What will you build today?</p>
     <div class="hsearch" id="hsearchBox">
       <span class="hs-ic" id="hsIcon"></span>
-      <input id="hsearch" placeholder="Ask Noema anything or search projects, files, models…" autocomplete="off" spellcheck="false">
+      <input id="hsearch" placeholder="Ask LAIN anything or search projects, files, models…" autocomplete="off" spellcheck="false">
       <span class="kbd">Ctrl K</span>
       <div class="hresults" id="hresults" hidden></div>
     </div>
@@ -313,7 +313,7 @@ function client() {
     var W = S.workbench || {};
     var st = S.header && S.header.status;
     var busy = W.running || (st && (st.state === 'RUNNING' || st.state === 'VERIFYING'));
-    rows.push({ icon: 'cpu', title: 'Core service', sub: busy ? (W.status || 'Working') : 'Noema is ready', tone: st && st.state === 'FAILED' ? 'bad' : 'ok', v: busy ? 'Working' : 'Online', vt: busy ? 'acc' : 'ok', go: ['chat'] });
+    rows.push({ icon: 'cpu', title: 'Core service', sub: busy ? (W.status || 'Working') : 'LAIN is ready', tone: st && st.state === 'FAILED' ? 'bad' : 'ok', v: busy ? 'Working' : 'Online', vt: busy ? 'acc' : 'ok', go: ['chat'] });
     var fams = (L.intel && L.intel.families && L.intel.families()) || null;
     var accts = fams ? fams.reduce(function (a, f) { return a + (f.accounts || []).length; }, 0) : null;
     var usable = fams ? fams.reduce(function (a, f) { return a + (f.accounts || []).filter(function (x) { return x.usable; }).length; }, 0) : null;
@@ -369,19 +369,19 @@ function client() {
       var c = el('div', 'xcard');
       var h = el('div', 'xi'); h.appendChild(L.icon('box', 16)); h.appendChild(el('b', '', f.name)); c.appendChild(h);
       c.appendChild(el('small', '', 'In ' + f.productLabel + ' · ' + (f.compatibility && f.compatibility.level === 'FULL' ? 'compatible' : 'needs an adapter')));
-      c.appendChild(L.kit.button('Use in Noema', 'sm line', function () { L.nav.go('ext', { focus: f.id }); }));
+      c.appendChild(L.kit.button('Use in LAIN', 'sm line', function () { L.nav.go('ext', { focus: f.id }); }));
       box.appendChild(c);
     });
   }
 
   // ---- TIPS: true things about LAIN, one at a time -----------------------------------------------------------------
   var TIPS = [
-    ['Type <b>/</b> in any composer to list Noema’s controls — they change Noema itself and never reach a model.'],
+    ['Type <b>/</b> in any composer to list LAIN’s controls — they change LAIN itself and never reach a model.'],
     ['<span class="kbd">Ctrl K</span> searches projects, files, commands, models and accounts from anywhere.'],
     ['<b>Chat</b> plans; the <b>Coding Agent</b> implements — the same session, one plan, one project.'],
     ['<span class="kbd">Alt 1</span>…<span class="kbd">Alt 7</span> switch between Home, IDE, Chat, Model, Usage, MCP & Skills and Settings.'],
-    ['The ring at the top right is what remains of the active route’s quota. Click it for Noema’s own usage and every reported window.'],
-    ['Closing the window keeps Noema in the tray: bots and running work carry on. Quit from the tray menu ends them.'],
+    ['The ring at the top right is what remains of the active route’s quota. Click it for LAIN’s own usage and every reported window.'],
+    ['Closing the window keeps LAIN in the tray: bots and running work carry on. Quit from the tray menu ends them.'],
   ];
   var tip = 0;
   try { tip = Number(localStorage.getItem('lain.home.tip') || 0) % TIPS.length; } catch (e) { tip = 0; }

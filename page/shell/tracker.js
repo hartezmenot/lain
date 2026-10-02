@@ -126,7 +126,7 @@ function client() {
     }), { id: 'tracker-range', alignRight: true });
     sec.appendChild(sectionHead('Overall', pick));
     var o = drop && drop.overall;
-    if (!o) { sec.appendChild(el('div', 'tk-load', 'Reading Noema’s receipts…')); return sec; }
+    if (!o) { sec.appendChild(el('div', 'tk-load', 'Reading LAIN’s receipts…')); return sec; }
     var colors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-6)'];
     var top = (o.models || []).map(function (m, i) { return { key: m.key, label: m.label || m.key, value: m.tokens, color: m.key === 'other' ? 'var(--chart-6)' : colors[i] }; });
     var row = el('div', 'tk-over');
@@ -157,7 +157,7 @@ function client() {
     sec.appendChild(el('div', 'tk-route' + (v.route.resolved ? '' : ' need'), v.route.text));
     if (!v.route.resolved) { if (v.route.problem) sec.appendChild(el('div', 'tk-none', v.route.problem)); return sec; }
     if (v.account) sec.appendChild(el('div', 'tk-acct', 'Account · ' + v.account.name + (v.route.policy ? ' · ' + v.route.policy : '')));
-    if (!v.windows.length) { sec.appendChild(el('div', 'tk-none', (v.note || 'This provider has not reported quota for this account yet') + '. Noema does not estimate it.')); return sec; }
+    if (!v.windows.length) { sec.appendChild(el('div', 'tk-none', (v.note || 'This provider has not reported quota for this account yet') + '. LAIN does not estimate it.')); return sec; }
     v.windows.forEach(function (w) {
       var box = el('div', 'tk-win');
       box.setAttribute('data-window', L.kit.winLabel(w.label));

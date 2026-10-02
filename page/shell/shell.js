@@ -38,11 +38,11 @@
  */
 
 const HTML = `
-<aside id="rail" aria-label="Noema">
+<aside id="rail" aria-label="LAIN">
   <div class="rail-brand" data-drag="1">
-    <span class="rb-mark" aria-hidden="true"><svg viewBox="0 0 16 16" width="18" height="18"><circle cx="7" cy="9" r="3.9" fill="none" stroke="#9B8AFB" stroke-width="1.8"/><circle cx="11" cy="5" r="2.9" class="rbm-cut"/><circle cx="11" cy="5" r="1.9" fill="#2DD4BF"/></svg></span><span class="rb-word">Noema</span><span class="rb-ver" id="railVer"></span>
+    <span class="rb-mark" aria-hidden="true"><svg viewBox="0 0 16 16" width="18" height="18"><circle cx="7" cy="9" r="3.9" fill="none" stroke="#9B8AFB" stroke-width="1.8"/><circle cx="11" cy="5" r="2.9" class="rbm-cut"/><circle cx="11" cy="5" r="1.9" fill="#2DD4BF"/></svg></span><span class="rb-word">LAIN</span><span class="rb-ver" id="railVer"></span>
   </div>
-  <nav id="tabs" role="tablist" aria-label="Noema workspace" aria-orientation="vertical">
+  <nav id="tabs" role="tablist" aria-label="LAIN workspace" aria-orientation="vertical">
     <button class="gtab" role="tab" data-tab="home" id="tabHome">Home</button>
     <button class="gtab" role="tab" data-tab="ide" id="tabIde">IDE</button>
     <button class="gtab" role="tab" data-tab="chat" id="tabChat">Chat</button>
@@ -58,13 +58,13 @@ const HTML = `
     <button class="rail-gh" id="railGh" aria-haspopup="menu"><span class="gh-mark" id="railGhMark"></span><span class="gh-av" id="railGhAv"></span><span class="gh-t"><b id="railGhName">GitHub</b><small id="railGhSub">Connect an account</small></span><span class="gh-car" id="railGhCar"></span></button>
     <div class="rail-row">
       <button class="rail-small" id="railFeedback"><span class="rs-ic" id="railFeedbackIc"></span><span class="rs-t">Feedback</span></button>
-      <button class="rail-exit" id="railExit" aria-label="Exit Noema" data-tip="Exit Noema"></button>
+      <button class="rail-exit" id="railExit" aria-label="Exit LAIN" data-tip="Exit LAIN"></button>
       <button class="rail-fold" id="railFold" aria-label="Collapse navigation"></button>
     </div>
   </div>
 </aside>
 <header id="topbar">
-  <button class="surf" id="surfBtn" aria-haspopup="menu" aria-label="Noema — go to another room (Alt+1…7)"><span class="rb-mark" aria-hidden="true"><svg viewBox="0 0 16 16" width="18" height="18"><circle cx="7" cy="9" r="3.9" fill="none" stroke="#9B8AFB" stroke-width="1.8"/><circle cx="11" cy="5" r="2.9" class="rbm-cut"/><circle cx="11" cy="5" r="1.9" fill="#2DD4BF"/></svg></span><span class="rb-word">Noema</span><span class="rb-ver" id="surfVer"></span><span class="sf-car" id="surfCar"></span><span class="sf-name" id="surfName" hidden>IDE</span></button>
+  <button class="surf" id="surfBtn" aria-haspopup="menu" aria-label="LAIN — go to another room (Alt+1…7)"><span class="rb-mark" aria-hidden="true"><svg viewBox="0 0 16 16" width="18" height="18"><circle cx="7" cy="9" r="3.9" fill="none" stroke="#9B8AFB" stroke-width="1.8"/><circle cx="11" cy="5" r="2.9" class="rbm-cut"/><circle cx="11" cy="5" r="1.9" fill="#2DD4BF"/></svg></span><span class="rb-word">LAIN</span><span class="rb-ver" id="surfVer"></span><span class="sf-car" id="surfCar"></span><span class="sf-name" id="surfName" hidden>IDE</span></button>
   <div class="menus" id="menus" role="menubar">
     <button class="mb" data-menu="file">File</button>
     <button class="mb" data-menu="edit">Edit</button>
@@ -72,7 +72,7 @@ const HTML = `
     <button class="mb" data-menu="help">Help</button>
   </div>
   <span class="tb-drag" data-drag="1"></span>
-  <button class="topsearch" id="topSearch" data-tip="Search Noema (Ctrl+K)"><span id="topSearchIc"></span><span class="ts-t">Search files, symbols, or ask Noema…</span><span class="kbd">Ctrl K</span></button>
+  <button class="topsearch" id="topSearch" data-tip="Search LAIN (Ctrl+K)"><span id="topSearchIc"></span><span class="ts-t">Search files, symbols, or ask LAIN…</span><span class="kbd">Ctrl K</span></button>
   <span class="tb-drag" data-drag="1"></span>
   <span class="conn" id="conn"></span>
   <button class="tracker" id="tracker" aria-haspopup="dialog"><span class="trk-ring" id="trackerRing"></span><span class="trk-t" id="trackerText">Usage</span><span class="trk-x" id="trackerExtra"></span><span class="trk-car" id="trackerCar"></span></button>
@@ -101,7 +101,7 @@ const CSS = `
 /* ---- the rail ------------------------------------------------------------------------------------------ */
 .rail-brand{flex:none;display:flex;align-items:center;gap:8px;height:var(--topbar-h);padding:0 22px;box-shadow:inset 0 -1px 0 var(--separator)}
 .rb-word{font:600 16px/1 var(--display);letter-spacing:.34em;color:var(--nav-text)}
-/* THE NOEMA MARK — a violet ring with a teal point, cut from the surface it sits on (distribution/brand/noema.svg). */
+/* THE LAIN MARK — a violet ring with a teal point, cut from the surface it sits on (distribution/brand/lain.svg). */
 .rb-mark{display:flex;flex:none}
 .rb-mark .rbm-cut{fill:var(--nav)}
 #topbar .rb-mark .rbm-cut{fill:var(--canvas)}
@@ -144,7 +144,7 @@ const CSS = `
 .rail-exit{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--nav-muted);flex:none}
 .rail-exit:hover{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent)}
 #app[data-navw=compact] .rail-row{flex-direction:column}
-/* THE MODEL DASHBOARD WINDOW (\`noema model\` — #dashboard=<section>): the Model room alone, no rail, no menus. */
+/* THE MODEL DASHBOARD WINDOW (\`lain model\` — #dashboard=<section>): the Model room alone, no rail, no menus. */
 body.dashboard-mode #app{--nav-w:0px}
 body.dashboard-mode #rail,body.dashboard-mode #menus,body.dashboard-mode #topSearch,body.dashboard-mode #surfCar,body.dashboard-mode #updateBtn{display:none!important}
 .rail-fold{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--nav-muted);opacity:0;transition:opacity var(--t-hover) var(--ease)}
@@ -236,7 +236,7 @@ function client() {
   var shows = {};
   var navSeq = null;
   var previewSeen = null;
-  // THE MODEL DASHBOARD WINDOW (`noema model|account|api|local` from the CLI): #dashboard=<section>, the Model room only.
+  // THE MODEL DASHBOARD WINDOW (`lain model|account|api|local` from the CLI): #dashboard=<section>, the Model room only.
   var DASHBOARD = (function () { var m = /^#dashboard=([a-z]+)$/.exec(location.hash || ''); return m ? m[1] : null; })();
 
   // ---- navigation ------------------------------------------------------------------------------------------
@@ -338,11 +338,11 @@ function client() {
       items.push({ header: 'GitHub' });
       var list = gh.accounts && gh.accounts.length ? gh.accounts : [{ id: gh.active, name: gh.name || gh.user, login: gh.user, active: true }];
       list.forEach(function (a) {
-        items.push({ label: (a.name || a.login) + (a.login && a.name && a.name !== a.login ? ' · @' + a.login : ''), note: a.active ? 'Active in Noema' + (a.viaLabel ? ' · ' + a.viaLabel : '') : 'Switch to this account' + (a.viaLabel ? ' · ' + a.viaLabel : ''), checked: Boolean(a.active),
+        items.push({ label: (a.name || a.login) + (a.login && a.name && a.name !== a.login ? ' · @' + a.login : ''), note: a.active ? 'Active in LAIN' + (a.viaLabel ? ' · ' + a.viaLabel : '') : 'Switch to this account' + (a.viaLabel ? ' · ' + a.viaLabel : ''), checked: Boolean(a.active),
           run: function () {
             if (a.active) return;
             // LAIN'S ACTIVE ACCOUNT ONLY: GitHub CLI's own account and every repository's bound account stay as they are.
-            L.api('/api/github/switch', { id: a.id }).then(function (r) { if (!r || !r.ok) L.toast((r && r.why) || 'could not switch', true); else L.toast('GitHub: @' + a.login + ' is active in Noema'); loadGithub(true); });
+            L.api('/api/github/switch', { id: a.id }).then(function (r) { if (!r || !r.ok) L.toast((r && r.why) || 'could not switch', true); else L.toast('GitHub: @' + a.login + ' is active in LAIN'); loadGithub(true); });
           } });
       });
       items.push({ sep: true });
@@ -402,11 +402,11 @@ function client() {
     var kb = function (id, fallback) { if (!L.keymap) return fallback; var b = L.keymap.bindings()[id]; return b === undefined ? fallback : (b || ''); };
     return {
       lain: [
-        cmd('About Noema', '', function () { var v = (S.product && S.product.version) || ''; L.dialog({ title: 'Noema' + (v ? ' ' + v : ''), text: 'A persistent AI workspace. The Harness draws; Noema Core owns every piece of state.', ok: 'Close', cancel: 'Diagnostics' }).then(function (x) { if (x === false) diagnostics(); }); }),
+        cmd('About LAIN', '', function () { var v = (S.product && S.product.version) || ''; L.dialog({ title: 'LAIN' + (v ? ' ' + v : ''), text: 'A persistent AI workspace. The Harness draws; LAIN Core owns every piece of state.', ok: 'Close', cancel: 'Diagnostics' }).then(function (x) { if (x === false) diagnostics(); }); }),
         cmd('Settings', kb('settings', 'Alt+7'), function () { go('settings'); }),
         null,
         cmd('Close window', '', function () { L.hostCall('hide', {}); }),
-        cmd('Exit Noema', '', function () { if (L.update) L.update.exit(); }),
+        cmd('Exit LAIN', '', function () { if (L.update) L.update.exit(); }),
       ],
       file: [
         cmd('New Project…', kb('project.new', 'Ctrl+Shift+N'), function () { L.ide.newProject(); }),
@@ -422,7 +422,7 @@ function client() {
         cmd('Redo', 'Ctrl+Y', function () { document.execCommand('redo'); }),
         null,
         cmd('Find in File', 'Ctrl+F', function () { L.ide.find(); }, ide && projectOpen),
-        cmd('Search Noema', kb('search', 'Ctrl+K'), function () { L.search.palette(''); }),
+        cmd('Search LAIN', kb('search', 'Ctrl+K'), function () { L.search.palette(''); }),
         cmd('Command Palette', kb('palette', 'Ctrl+Shift+P'), function () { L.search.palette('>'); }),
       ],
       view: TABS.map(function (t, i) { return cmd(NAMES[t], 'Alt+' + (i + 1), function () { go(t); }); })
@@ -475,7 +475,7 @@ function client() {
     var e = (S.diagnostics && S.diagnostics.environment) || S.environment || {};
     var ex = S.execution || {};
     var lines = [
-      'Noema: ' + ((S.product && S.product.version) || 'unknown version'),
+      'LAIN: ' + ((S.product && S.product.version) || 'unknown version'),
       'Environment: ' + (e.kind === 'vm' ? 'VM' : 'Host'),
       'Browser: ' + (e.browser ? (e.browser.owned ? 'LAIN-owned Chromium ' : 'Borrowed browser ') + (e.browser.version || '') : (e.why || 'none')),
       'Running: ' + ((e.running || []).join(', ') || 'nothing'),
@@ -519,7 +519,7 @@ function client() {
     // "v2.0 alpha" — the release line; the whole version is in the tooltip and in About.
     var m = /^(\d+)\.(\d+)(?:\.(\d+))?(?:-([a-z]+))?/i.exec(v);
     var shortV = m ? 'v' + m[1] + '.' + m[2] + (m[3] && m[3] !== '0' ? '.' + m[3] : '') + (m[4] ? ' ' + m[4] : '') : '';
-    if ($('railVer').textContent !== shortV) { $('railVer').textContent = shortV; $('surfVer').textContent = shortV; $('railVer').title = v ? 'Noema ' + v : ''; }
+    if ($('railVer').textContent !== shortV) { $('railVer').textContent = shortV; $('surfVer').textContent = shortV; $('railVer').title = v ? 'LAIN ' + v : ''; }
   }
 
   // ---- keys ------------------------------------------------------------------------------------------------
@@ -570,7 +570,7 @@ function client() {
     $('topSearch').onclick = function () { L.search.palette(''); };
     $('themeBtn').onclick = function () { if (L.appearance && L.appearance.toggleMode) L.appearance.toggleMode().then(paintTheme, paintTheme); };
     $('winMin').innerHTML = GLYPH.min; $('winMin').setAttribute('data-tip', 'Minimize');
-    $('winClose').innerHTML = GLYPH.close; $('winClose').setAttribute('data-tip', 'Close — Noema keeps running in the tray');
+    $('winClose').innerHTML = GLYPH.close; $('winClose').setAttribute('data-tip', 'Close — LAIN keeps running in the tray');
     $('winMin').onclick = function () { winDo('min'); };
     $('winMax').onclick = function () { winDo('max'); };
     $('winClose').onclick = function () { winDo('close'); };
@@ -616,7 +616,7 @@ function client() {
       navSeq = n.seq;
       if (!(n.capability && L.house && L.house.run(n.capability, n.args || {}))) go(n.surface, Object.assign({}, n.args || {}, { section: n.section }));
     }
-    // `noema preview` WHILE THIS NOEMA RUNS: the IDE with its Preview open — once per request, like navigate above.
+    // `lain preview` WHILE THIS LAIN RUNS: the IDE with its Preview open — once per request, like navigate above.
     var pw = S.surface && S.surface.previewWanted;
     if (previewSeen === null) previewSeen = pw && Date.now() - pw < 15000 ? 0 : (pw || 0);
     if (pw && pw > previewSeen && !DASHBOARD) { previewSeen = pw; go('ide'); if (L.workshop && L.workshop.open) L.workshop.open(); }

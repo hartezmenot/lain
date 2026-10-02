@@ -1,4 +1,4 @@
-// NOEMA HARNESS — the native application host (renamed from LAIN Desktop).
+// LAIN HARNESS — the native application host (LAIN Desktop, then LAIN Harness, now LAIN Harness again).
 //
 // ---------------------------------------------------------------------------
 // WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT.
@@ -145,10 +145,10 @@ static class Launcher {
     } catch (Exception ex) { why = ex.Message; }
 
     if (String.IsNullOrEmpty(node) || !File.Exists(node)) node = Probe();
-    if (String.IsNullOrEmpty(node)) { Fail("Noema could not find Node on this machine.", why); return; }
+    if (String.IsNullOrEmpty(node)) { Fail("LAIN could not find Node on this machine.", why); return; }
     if (String.IsNullOrEmpty(entry) || !File.Exists(entry)) {
-      Fail("Noema could not find its own program files.",
-        "launch.json did not name a readable entry point. Reinstall Noema, or run `noema --desktop` once from a terminal to rewrite it.");
+      Fail("LAIN could not find its own program files.",
+        "launch.json did not name a readable entry point. Reinstall LAIN, or run `lain --desktop` once from a terminal to rewrite it.");
       return;
     }
 
@@ -168,7 +168,7 @@ static class Launcher {
       psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
       System.Diagnostics.Process.Start(psi);
     } catch (Exception ex) {
-      Fail("Noema could not start.", node + Environment.NewLine + ex.Message);
+      Fail("LAIN could not start.", node + Environment.NewLine + ex.Message);
     }
   }
 
@@ -202,8 +202,8 @@ static class Launcher {
         + (String.IsNullOrEmpty(detail) ? "" : detail + Environment.NewLine + Environment.NewLine)
         + "Looked for node.exe in Program Files and on PATH."
         + Environment.NewLine
-        + "Install Node from https://nodejs.org, or set \"nodePath\" in your Noema config.json.",
-      "Noema", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        + "Install Node from https://nodejs.org, or set \"nodePath\" in your LAIN config.json.",
+      "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
     Environment.Exit(2);
   }
 }
@@ -405,19 +405,24 @@ class Shell : Form {
     ToRenderer("{\"win\":{\"max\":" + (max ? "true" : "false") + ",\"min\":" + (min ? "true" : "false") + ",\"own\":" + (ownFrame ? "true" : "false") + "}}");
   }
 
+  /// LAIN's home when Core did not say (it always passes --window-state / --user-data): the override, else ~/.lain.
+  static string LainHome() {
+    foreach (string v in new[] { "LAIN_CONFIG_DIR", "LAIN_HOME", "LAIN_CONFIG_DIR", "LAIN_HOME" }) { string o = Environment.GetEnvironmentVariable(v); if (!String.IsNullOrEmpty(o)) return o; }
+    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain");
+  }
+
   public Shell(Args a) {
     args = a;
     ownFrame = !a.Has("native-caption") && Environment.GetEnvironmentVariable("LAIN_NATIVE_CAPTION") != "1";
     core = new Core(a.Get("pipe"), a.Get("secret"));
-    stateFile = a.Get("window-state") ?? Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema", "desktop-window.json");
+    stateFile = a.Get("window-state") ?? Path.Combine(LainHome(), "desktop-window.json");
 
-    // WHAT THIS WINDOW IS (`--mode`): the full Harness, or one of the two surfaces the Noema CLI opens on its own —
-    // the Model Dashboard (`noema model`) and the Preview (`noema preview`). A mode window has no tray: closing it
+    // WHAT THIS WINDOW IS (`--mode`): the full Harness, or one of the two surfaces the LAIN CLI opens on its own —
+    // the Model Dashboard (`lain model`) and the Preview (`lain preview`). A mode window has no tray: closing it
     // closes it, and the CLI's Core that opened it ends with it (src/desktoprun.js).
     mode = a.Get("mode");
     if (mode != "dashboard" && mode != "preview") mode = null;
-    Text = mode == "dashboard" ? "Noema Model Dashboard" : mode == "preview" ? "Noema Preview" : "Noema";
+    Text = mode == "dashboard" ? "LAIN Model Dashboard" : mode == "preview" ? "LAIN Preview" : "LAIN";
     try { Icon = TrayIcon(); } catch { /* the system icon */ }
     MinimumSize = new Size(880, 560);
     BackColor = Color.FromArgb(11, 13, 16);
@@ -447,7 +452,7 @@ class Shell : Form {
     if (mode == null) BuildTray();
 
     core.Connected += () => BeginInvoke((Action)(() => Banner(null)));
-    core.Lost += why => BeginInvoke((Action)(() => Banner("Noema Core is not responding — reconnecting. " + why)));
+    core.Lost += why => BeginInvoke((Action)(() => Banner("LAIN Core is not responding — reconnecting. " + why)));
     core.Message += line => BeginInvoke((Action)(() => FromCore(line)));
 
     // THE CORE THAT STARTED THIS WINDOW (`--core-pid`): when that process has ended, there is nothing left to show and
@@ -503,8 +508,7 @@ class Shell : Form {
     // a different folder.
     var userData = args.Get("user-data");
     if (String.IsNullOrEmpty(userData)) {
-      string home = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema", "desktop");
+      string home = Path.Combine(LainHome(), "desktop");
       userData = args.Has("dev") ? Path.Combine(home, "dev") : home;
     }
     Directory.CreateDirectory(userData);
@@ -520,7 +524,7 @@ class Shell : Form {
     // itself, and absent from every release launch.
     // AUTOPLAY WITHOUT A GESTURE: a model driving the Preview (src/tools/preview.js) clicks with synthesized events,
     // which a browser does not count as a person's gesture — so a project's Play button would silently fail to play.
-    // The renderer only ever shows Noema's page and the project's own Preview, so this changes nothing elsewhere.
+    // The renderer only ever shows LAIN's page and the project's own Preview, so this changes nothing elsewhere.
     // Every window on this profile passes the same options (WebView2 requires it), so it is unconditional.
     var browserArgs = "--disable-features=msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
     var debugPort = args.Get("debug-port");
@@ -548,20 +552,20 @@ class Shell : Form {
       int hr = System.Runtime.InteropServices.Marshal.GetHRForException(ex);
       string headline, advice;
       if (hr == unchecked((int)0x8007139F)) {           // ERROR_INVALID_STATE
-        headline = "Noema could not open a second window with different settings.";
-        advice = "Another Noema window is already using this renderer profile."
-          + "\r\n\r\nExit Noema from the tray and open it again.";
+        headline = "LAIN could not open a second window with different settings.";
+        advice = "Another LAIN window is already using this renderer profile."
+          + "\r\n\r\nExit LAIN from the tray and open it again.";
       } else if (hr == unchecked((int)0x80004005) || ex is DllNotFoundException) {
-        headline = "Noema needs the Microsoft Edge WebView2 runtime, which is part of Windows.";
-        advice = "Install the WebView2 runtime from Microsoft, then open Noema again.";
+        headline = "LAIN needs the Microsoft Edge WebView2 runtime, which is part of Windows.";
+        advice = "Install the WebView2 runtime from Microsoft, then open LAIN again.";
       } else {
-        headline = "Noema could not start its renderer.";
+        headline = "LAIN could not start its renderer.";
         advice = "The profile it uses is:\r\n" + userData;
       }
       MessageBox.Show(
         headline + "\r\n\r\n" + advice
           + "\r\n\r\n" + ex.Message + "  (0x" + hr.ToString("X8", CultureInfo.InvariantCulture) + ")",
-        "Noema", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
       Close();
       return;
     }
@@ -676,9 +680,9 @@ class Shell : Form {
       body["cancelled"] = picked == null;
       body["path"] = picked;
     } else if (ask == "trayTip") {
-      string text = m.ContainsKey("text") ? Convert.ToString(m["text"], CultureInfo.InvariantCulture) : "Noema";
+      string text = m.ContainsKey("text") ? Convert.ToString(m["text"], CultureInfo.InvariantCulture) : "LAIN";
       // NotifyIcon.Text is capped at 63 characters by Windows.
-      if (tray != null) { try { tray.Text = String.IsNullOrEmpty(text) ? "Noema" : (text.Length > 63 ? text.Substring(0, 63) : text); } catch { } }
+      if (tray != null) { try { tray.Text = String.IsNullOrEmpty(text) ? "LAIN" : (text.Length > 63 ? text.Substring(0, 63) : text); } catch { } }
       body["ok"] = true;
     } else if (ask == "hide") {
       Hide();
@@ -714,7 +718,7 @@ class Shell : Form {
       if (mode != "preview" || sharedEnv == null) { body["ok"] = false; body["why"] = mode != "preview" ? "only the preview can be detached" : "the window is still starting"; }
       else {
         if (preview == null || preview.IsDisposed) {
-          preview = new Satellite(args, sharedEnv, "Noema \u2014 Preview", "https://lain.app/index.html#detached-preview");
+          preview = new Satellite(args, sharedEnv, "LAIN \u2014 Preview", "https://lain.app/index.html#detached-preview");
           preview.FormClosed += (o, e2) => { preview = null; };
           preview.Show();
         } else { preview.Activate(); }
@@ -820,7 +824,7 @@ class Shell : Form {
     if (tray == null || String.IsNullOrEmpty(text)) return;
     if (Visible && WindowState != FormWindowState.Minimized && ContainsFocus) return;
     try {
-      tray.BalloonTipTitle = "Noema";
+      tray.BalloonTipTitle = "LAIN";
       tray.BalloonTipText = text.Length > 240 ? text.Substring(0, 240) : text;
       tray.BalloonTipIcon = ToolTipIcon.Info;
       tray.ShowBalloonTip(5000);
@@ -841,7 +845,7 @@ class Shell : Form {
     try {
       var o = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>;
       if (o == null) return;
-      string title = o.ContainsKey("title") ? Convert.ToString(o["title"], CultureInfo.InvariantCulture) : "Noema";
+      string title = o.ContainsKey("title") ? Convert.ToString(o["title"], CultureInfo.InvariantCulture) : "LAIN";
       string text = o.ContainsKey("text") ? Convert.ToString(o["text"], CultureInfo.InvariantCulture) : "";
       pendingNav = o.ContainsKey("nav") ? new JavaScriptSerializer().Serialize(o["nav"]) : null;
       tray.BalloonTipTitle = title.Length > 63 ? title.Substring(0, 63) : title;
@@ -972,7 +976,7 @@ class Shell : Form {
   void BuildTray() {
     tray = new NotifyIcon();
     tray.Icon = TrayIcon();
-    tray.Text = "Noema";
+    tray.Text = "LAIN";
     tray.Visible = true;
     RebuildTrayMenu();
     tray.DoubleClick += (s, e) => ShowWindow();
@@ -990,7 +994,7 @@ class Shell : Form {
   void RebuildTrayMenu() {
     if (tray == null) return;
     var menu = new ContextMenuStrip();
-    // THE QUOTA LINES (the first is the "Noema" title — the menu does not repeat it).
+    // THE QUOTA LINES (the first is the "LAIN" title — the menu does not repeat it).
     for (int i = 1; i < trayLines.Count && i < 24; i++) {
       var line = new ToolStripMenuItem(trayLines[i]);
       line.Enabled = false;
@@ -998,14 +1002,14 @@ class Shell : Form {
     }
     if (!String.IsNullOrEmpty(trayNote)) { var n = new ToolStripMenuItem(trayNote); n.Enabled = false; menu.Items.Add(n); }
     if (menu.Items.Count > 0) menu.Items.Add(new ToolStripSeparator());
-    menu.Items.Add("Open Noema", null, (s, e) => ShowWindow());
+    menu.Items.Add("Open LAIN", null, (s, e) => ShowWindow());
     menu.Items.Add("Models & Accounts", null, (s, e) => ShowAt("model", "accts"));
     menu.Items.Add("Usage", null, (s, e) => ShowAt("usage", null));
     menu.Items.Add("Active Tasks", null, (s, e) => ShowAt("chat", null));
     if (trayWork == "running") menu.Items.Add("Pause task", null, (s, e) => CorePost("/api/interrupt"));
     else if (trayWork == "paused") menu.Items.Add("Continue task", null, (s, e) => CorePost("/api/workbench/continue"));
     menu.Items.Add(new ToolStripSeparator());
-    menu.Items.Add("Exit Noema", null, (s, e) => QuitLain());
+    menu.Items.Add("Exit LAIN", null, (s, e) => QuitLain());
     var old = tray.ContextMenuStrip;
     tray.ContextMenuStrip = menu;
     if (old != null) old.Dispose();
@@ -1023,7 +1027,7 @@ class Shell : Form {
     trayLines = lines;
     trayNote = m.ContainsKey("note") && m["note"] != null ? Convert.ToString(m["note"], CultureInfo.InvariantCulture) : null;
     trayWork = m.ContainsKey("task") && m["task"] != null ? Convert.ToString(m["task"], CultureInfo.InvariantCulture) : null;
-    SetTrayText(m.ContainsKey("tooltip") ? Convert.ToString(m["tooltip"], CultureInfo.InvariantCulture) : "Noema");
+    SetTrayText(m.ContainsKey("tooltip") ? Convert.ToString(m["tooltip"], CultureInfo.InvariantCulture) : "LAIN");
     int pct = -1; bool limited = false;
     var act = m.ContainsKey("active") ? m["active"] as Dictionary<string, object> : null;
     if (act != null) {
@@ -1037,7 +1041,7 @@ class Shell : Form {
 
   /** Windows shows up to 127 tooltip characters; NotifyIcon.Text accepts 63, so the field is set directly. */
   void SetTrayText(string text) {
-    if (String.IsNullOrEmpty(text)) text = "Noema";
+    if (String.IsNullOrEmpty(text)) text = "LAIN";
     if (text.Length > 127) text = text.Substring(0, 127);
     try {
       var t = typeof(NotifyIcon);
@@ -1136,8 +1140,8 @@ class Shell : Form {
    */
   void QuitLain() {
     if (MessageBox.Show(
-          "Exit Noema? Bots, background jobs and any work in progress will stop.",
-          "Exit Noema", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
+          "Exit LAIN? Bots, background jobs and any work in progress will stop.",
+          "Exit LAIN", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
     quitting = true;
     var msg = new Dictionary<string, object>();
     msg["id"] = 0;
