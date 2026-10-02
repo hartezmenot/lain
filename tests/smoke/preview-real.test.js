@@ -107,7 +107,7 @@ module.exports = async function () {
       await d.click('#wsSayGo');
       assert.ok(await answerAsks("LAIN.state().conversation.some((m) => m.role !== 'user' && /The Settings heading is larger/.test(m.text))"), 'the Agent answered');
       const sent2 = await said();
-      assert.match(sent2, /page currently shown in the preview: \/settings\.html/, 'the page on screen');
+      assert.match(sent2, /page currently shown in the preview: \/settings\.html/, `the page on screen — sent: ${(sent2.match(/TARGET.*/) || [sent2.slice(0, 300)])[0]}`);
       assert.ok(!/selector {3}#pay/.test(sent2), 'no stale element');
       assert.match(fs.readFileSync(path.join(dir, 'settings.css'), 'utf8'), /font-size:32px/);
       assert.strictEqual(await d.js('LAIN.state().current.id'), sessionId, 'the same session throughout');

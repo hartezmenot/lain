@@ -147,7 +147,7 @@ function devServer(app) {
 
 /** The debug session's state for the panel tab ("paused"), or nothing. */
 function debugBadge(app) {
-  try { const d = require('../dap/manager').status(app).session; return d && d.state !== 'ENDED' && d.state !== 'FAILED' ? d.state.toLowerCase() : null; } catch { return null; }
+  try { const d = require('../dap/manager').sessionState(app); return d && d.state !== 'ENDED' && d.state !== 'FAILED' ? d.state.toLowerCase() : null; } catch { return null; }
 }
 
 module.exports = { project, header, panels, devServer, usage };

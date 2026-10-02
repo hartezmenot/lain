@@ -152,8 +152,12 @@ async function main(opts = {}) {
   if (!held.ok) out(`(Noema could not claim the single-instance lock: ${held.why})\n`);
 
   await app.prepare();
-  require('./botconnect').resume(app).catch(() => {});
-  try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  // THE BOT AND THE ASSISTANT'S CLOCK START AFTER THE WINDOW (Phase P, 2026-10-02) — below, queued behind the first-state
+  // warm-up desktop.open schedules — so neither stands between a launch and the first paint.
+  const background = () => {
+    require('./botconnect').resume(app).catch(() => {});
+    try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  };
   // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
   try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
@@ -169,6 +173,7 @@ async function main(opts = {}) {
     await require('./teardown').shutdown(app, { why: 'the desktop did not open' });
     return 1;
   }
+  setImmediate(background);
   // THE CLI THAT HOSTED THIS WINDOW CLOSED WITH WORK LEFT (repl.js, `--continue-session`): the same session, taken
   // over through its lease and continued — the same task, plan and checkpoint; no new session, no replayed prompt.
   if (!mode && opts.continueSession && opts.resume) {

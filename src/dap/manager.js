@@ -360,6 +360,9 @@ function view(rec) {
   };
 }
 
+/** The debug session alone — what every state poll needs. Never probes adapters (launching `python` costs ~170 ms). */
+function sessionState(app) { return view(current(app)); }
+
 function status(app) {
   const rec = current(app);
   return { adapters: adapters(app, { wait: false }).map((a) => ({ id: a.id, name: a.name, available: a.available, why: a.why, configured: a.configured, extensions: a.extensions, types: a.types })), session: view(rec), breakpoints: listBreakpoints(app) };
@@ -408,4 +411,4 @@ function pausedAt(app) {
 
 function _reset() { sessions.clear(); breakpoints.clear(); pyCache.clear(); }
 
-module.exports = { STATE, adapters, start, control, setBreakpoints, listBreakpoints, evaluate: evaluateIn, expand, selectFrame, setWatches, stop, stopAll, status, context, pausedAt, _reset };
+module.exports = { STATE, adapters, start, control, setBreakpoints, listBreakpoints, evaluate: evaluateIn, expand, selectFrame, setWatches, stop, stopAll, status, sessionState, context, pausedAt, _reset };

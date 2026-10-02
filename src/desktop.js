@@ -286,6 +286,9 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
     stdio: 'ignore',
   });
   if (!wait) child.unref();
+  // WARM THE FIRST STATE WHILE THE RENDERER STARTS (Phase P, 2026-10-02): Core is otherwise idle for ~0.5 s here, and
+  // the page's first /api/state then reads memoised indexes (fabric, catalog, sessions) instead of building them cold.
+  if (!mode) setImmediate(() => { try { Promise.resolve(require('./harnessapp/routes').ROUTES['GET /api/state'](app, {})).catch(() => null); } catch { /* the page builds it */ } });
 
   return {
     ok: true,
