@@ -16,11 +16,19 @@
 
 const WATCH_MS = 2000;
 
+/**
+ * IS ANYTHING WORKING? A turn, the Coding Agent's run — and BACKGROUND WORK (Phase 7): an in-process job
+ * (run_background) or a background agent ends with this process, so a restart over one would kill it. A supervised job
+ * outlives LAIN and does not count.
+ */
 function busy(app) {
   try {
     if (app.abort) return true;
     const w = require('../workbench').of(app.session);
-    return Boolean(w && ((w.autoRun && w.autoRun.waiting && w.autoRun.waiting.until > Date.now()) || w.running));
+    if (w && ((w.autoRun && w.autoRun.waiting && w.autoRun.waiting.until > Date.now()) || w.running)) return true;
+    const local = app._jobs && typeof app._jobs.running === 'function' ? app._jobs.running() : [];
+    const agents = app.jobs && typeof app.jobs.running === 'function' ? app.jobs.running().filter((j) => !j.primary) : [];
+    return local.length > 0 || agents.length > 0;
   } catch { return Boolean(app && app.abort); }
 }
 

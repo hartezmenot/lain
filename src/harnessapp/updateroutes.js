@@ -15,18 +15,14 @@ const U = () => require('../update/updater');
 const LC = () => require('../update/lifecycle');
 
 /** What the window draws (state.js: `update`). Cheap — reads the cached state file, never the network. */
-function view(app) {
-  let st = null;
-  try { st = U().status(); } catch { st = null; }
-  const b = U().build();
-  return { ...(st || { state: 'current' }), current: b.version, channel: b.channel, installed: Boolean(U().installRoot()), pendingRestart: LC().pending(app, 'update') };
-}
+/** THE ONE VIEW (update/ux.js) — the same words and state the CLI reads. */
+function view(app) { return require('../update/ux').view(app, { fresh: true }); }
 
 const ROUTES = {
   'POST /api/update/download': async (app) => {
     if (!U().installRoot()) return bad('updates apply to an installed LAIN — this is a development checkout', 409);
     const r = await U().stage({ cfg: app.cfg }).catch((e) => ({ ok: false, why: e.message }));
-    return r.ok ? ok({ update: view(app), said: `LAIN ${r.staged.version} is downloaded — restart when you are ready` }) : bad(r.why, 409);
+    return r.ok ? ok({ update: view(app), said: require('../update/ux').INSTALLED }) : bad(r.why, 409);
   },
   'POST /api/update/restart': async (app, body = {}) => {
     const when = ['now', 'checkpoint', 'task'].includes(body.when) ? body.when : 'task';

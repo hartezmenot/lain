@@ -24,7 +24,7 @@ function ico(pngs) {
 }
 
 (async () => {
-  const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'noema-render-'));
+  const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-render-'));
   const br = spawn('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--no-first-run', '--force-device-scale-factor=1', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore', windowsHide: true });
   const out = [];
   try {
@@ -42,7 +42,7 @@ function ico(pngs) {
       await wait(300);
       const r = await c.send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: s, height: s, scale: 1 } });
       const buf = Buffer.from(r.data, 'base64');
-      fs.writeFileSync(path.join(dir, 'png', `noema-${s}.png`), buf);
+      fs.writeFileSync(path.join(dir, 'png', `lain-${s}.png`), buf);
       out.push({ size: s, buf });
     }
     // A REVIEW SHEET: each size at 1× on dark and light, and the small ones magnified 6×.

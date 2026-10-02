@@ -5,11 +5,11 @@
  *
  *   CHECK      once, 30 s after an interactive CLI starts, then at most every six hours (cached) — never a loop.
  *   STAGE      download + verify + unpack in the background, independent of whatever task is running.
- *   IDLE       no turn running and nothing typed for a minute → "LAIN X is ready — restarting; your session
- *              continues" → the launcher restarts into it, same terminal, same session.
- *   BUSY       the Coding Agent is working → never interrupted. Once: "LAIN X installed and ready. Restart to
- *              update." — and by default it restarts AFTER THE TASK (lifecycle.arm 'task'). The person can choose:
- *              /update now · /update after-checkpoint · /update after-task · /update later.
+ *   SAY IT     once per version, in the words every surface uses (update/ux.js): "↑ LAIN X ready to update", then
+ *              "✓ Update installed · Restart to activate". The header carries the same words until it is done.
+ *   NEVER BY ITSELF (Phase 7): LAIN does not restart because it found an update — the launcher starts the installed
+ *              version next time anyway. The person chooses /update now (only when nothing is working) ·
+ *              /update after-checkpoint · /update after-task · /update later. The active task is never killed.
  */
 
 // LAIN_UPDATE_IDLE_MS / LAIN_UPDATE_FIRST_CHECK_MS shorten the waits for the acceptance run; nothing else changes.
@@ -21,8 +21,6 @@ function L() { return require('./lifecycle'); }
 
 function say(app, text, tone = 'info') { try { app.render.notice(tone, text); } catch { process.stderr.write(`${text}\n`); } }
 
-function idle(app) { return !L().busy(app) && Date.now() - (app._lastInputAt || 0) > IDLE_MS; }
-
 async function tick(app, { force = false } = {}) {
   const st = app._update || (app._update = { told: null });
   const r = await U().check({ cfg: app.cfg, force }).catch((e) => ({ state: 'error', why: e.message }));
@@ -31,17 +29,14 @@ async function tick(app, { force = false } = {}) {
     const s = await U().stage({ cfg: app.cfg }).catch((e) => ({ ok: false, why: e.message }));
     status = s.ok ? U().status() : { ...r, why: s.why };
   }
-  if (status.state !== 'staged') return status;
-  const v = status.staged.version;
-  if (idle(app)) {
-    say(app, `LAIN ${v} is ready — restarting now; this session continues.`);
-    await L().perform(app, 'update');
-    return status;
-  }
-  if (st.told !== v) {
-    st.told = v;
-    if (!L().pending(app, 'update')) L().arm(app, 'update', L().busy(app) ? 'task' : 'checkpoint');
-    say(app, `LAIN ${v} installed and ready. Restart to update — it restarts after the current task (/update now · /update after-checkpoint · /update later).`);
+  const ux = require('./ux').view(app, { fresh: true });
+  const key = `${status.state}:${ux.version}`;
+  if (ux.label && st.told !== key) {
+    st.told = key;
+    say(app, status.state === 'staged'
+      ? `${ux.label} — ${L().busy(app) ? '/update after-checkpoint · /update after-task (nothing running is stopped)' : '/update now'} · /update later`
+      : `${ux.label} — /update to install it${U().installRoot() ? '' : ' (with the LAIN installer)'}`);
+    try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* the header shows it next frame */ }
   }
   return status;
 }
@@ -69,7 +64,7 @@ function watch(app) {
   return { first, every };
 }
 
-/** `/update [now|after-checkpoint|after-task|later|check]` */
+/** `/update [install|now|after-checkpoint|after-task|later|check]` */
 async function command(app, arg = '') {
   const a = String(arg || '').trim().toLowerCase();
   const u = U();
@@ -77,11 +72,18 @@ async function command(app, arg = '') {
   if (a === 'later') { L().cancel(app, 'update'); return 'Update postponed — it stays downloaded; /update now when you are ready.'; }
   if (a === 'after-checkpoint' || a === 'checkpoint') { const r = L().arm(app, 'update', 'checkpoint'); return r.when === 'now' ? 'Restarting now (nothing is running).' : 'LAIN restarts at the next committed checkpoint; the task continues after it.'; }
   if (a === 'after-task' || a === 'task') { L().arm(app, 'update', 'task'); return 'LAIN restarts when the current task is done.'; }
-  if (a === 'now' || a === 'restart' || a === 'install') {
+  if (a === 'install') {
+    // INSTALL = download, verify, unpack — nothing restarts (Phase 7). Activating it is a separate choice.
     let st = u.status();
     if (st.state === 'available') { const s = await u.stage({ cfg: app.cfg }); if (!s.ok) return `Update not installed: ${s.why}`; st = u.status(); }
     if (st.state !== 'staged') return st.state === 'current' ? `LAIN ${st.current} is up to date.` : `No update is ready (${st.why || st.state}).`;
-    if (L().busy(app)) return 'The Coding Agent is working. /update after-checkpoint or /update after-task — or stop the task first.';
+    return `${require('./ux').INSTALLED} — ${L().busy(app) ? '/update after-checkpoint or /update after-task (nothing running is stopped)' : '/update now'}.`;
+  }
+  if (a === 'now' || a === 'restart') {
+    let st = u.status();
+    if (st.state === 'available') { const s = await u.stage({ cfg: app.cfg }); if (!s.ok) return `Update not installed: ${s.why}`; st = u.status(); }
+    if (st.state !== 'staged') return st.state === 'current' ? `LAIN ${st.current} is up to date.` : `No update is ready (${st.why || st.state}).`;
+    if (L().busy(app)) return 'Something is working (a turn, a background job or agent) — it is never stopped for an update. /update after-checkpoint or /update after-task.';
     await L().perform(app, 'update');
     return `Restarting into LAIN ${st.staged.version}…`;
   }
@@ -90,8 +92,8 @@ async function command(app, arg = '') {
   const head = `LAIN ${b.version} (${b.channel}${b.revision ? `, ${b.revision}` : ''})`;
   if (r.state === 'unconfigured') return `${head} — no update source is configured for this build.`;
   if (r.state === 'error') return `${head} — ${r.why}`;
-  if (r.state === 'available') return `${head} — LAIN ${r.available.version} is available.${u.installRoot() ? '' : ' (install it with the LAIN installer)'}`;
-  if (r.state === 'staged') return `${head} — LAIN ${r.staged.version} is downloaded and ready. /update now to restart into it.`;
+  if (r.state === 'available') return `${head} — ${require('./ux').availableLabel(r.available.version)}.${u.installRoot() ? ' /update install to download it.' : ' (install it with the LAIN installer)'}`;
+  if (r.state === 'staged') return `${head} — ${require('./ux').INSTALLED} (LAIN ${r.staged.version}). ${L().busy(app) ? '/update after-checkpoint or /update after-task — nothing running is stopped.' : '/update now.'}`;
   return `${head} — up to date.`;
 }
 

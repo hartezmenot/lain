@@ -42,12 +42,23 @@ those arguments (`--resume <session> --after-update`, plus `--desktop` for the H
 **Rollback:** a pending version that exits with a failure before reporting healthy (within 60 s) is replaced by
 `previous` automatically, recorded in `rolled-back`, and the person is told.
 
-## When it restarts (never silently)
+## What it says, and when it restarts (never by itself)
 
-| Situation | CLI | Harness |
+One canonical view in Core (`src/update/ux.js`), read by the CLI and the Harness alike:
+
+| State | Words (CLI notice and header; Harness popover) | Harness button |
 |---|---|---|
-| idle (no turn, nothing typed for a minute) | "LAIN X is ready — restarting now; this session continues." → restarts in the same terminal, same session | the **Update** button appears beside Usage; nothing restarts until chosen |
-| a task is running | "LAIN X installed and ready. Restart to update — it restarts after the current task" (default); `/update now · after-checkpoint · after-task · later` | the dropdown offers **Restart after current checkpoint** / **Restart after task** / **Later**; "Restart now" is refused while the Agent works |
+| a release is available | `↑ LAIN x.y.z ready to update` — `/update install` downloads it | **Update ready ●** |
+| downloaded, verified, unpacked | `✓ Update installed · Restart to activate` | **Update ready ●** |
+| up to date | nothing | hidden |
+
+LAIN never restarts because it found an update: the launcher starts the installed version the next time LAIN
+starts anyway. Restarting sooner is the person's choice — `/update now` (offered only when nothing is working),
+`/update after-checkpoint`, `/update after-task`, `/update later`; the Harness offers the same.
+
+**The active task is never killed.** "Working" (`lifecycle.busy`) is a turn, the Coding Agent's run, an in-process
+background job, or a background agent — each ends with the process, so "now" is refused for all of them (a supervised
+job outlives LAIN and does not count).
 
 Safe restart sequence (`src/update/lifecycle.js`): commit the task checkpoint → save the session → release the
 writer lease (a pause, not an ending) → stop the turn **at** the checkpoint → apply → exit 75 → the launcher starts

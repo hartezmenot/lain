@@ -29,6 +29,8 @@ function run(ui) {
   // header keeps the first two parts when it is short of room — and the row turns to the warning tone.
   const cu = require('../computercontrol').label(app);
   if (cu) tags.unshift(cu);
+  // AN UPDATE, in the words every surface uses (update/ux.js) — cached state, never the network.
+  try { const up = require('../update/ux').view(app); if (up.label) tags.push(up.label); } catch { /* no updater state */ }
   if (mode === 'PLAN') return { parts: ['PLAN', 'discussing', ...tags], tone: 'warn' };
   let step = null;
   const plan = require('./progress').livePlan(session);
