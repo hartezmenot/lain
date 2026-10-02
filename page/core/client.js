@@ -537,7 +537,7 @@ function client() {
     var msgs = visibleMessages();
     var pr = S.journey && S.journey.proposal;
     var showPr = pr && ui.mode === 'ide' && pane() === 'bot' ? pr : null;
-    var sig = JSON.stringify([ui.mode, S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, S.plans && S.plans.prompt, showPr && showPr.id, S.journey && S.journey.agent && S.journey.agent.running, L.work ? L.work.sig(S) : '']);
+    var sig = JSON.stringify([ui.mode, S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, msgs.length ? (msgs[msgs.length - 1].facts || []).length : 0, S.plans && S.plans.prompt, showPr && showPr.id, S.journey && S.journey.agent && S.journey.agent.running, L.work ? L.work.sig(S) : '']);
     if (box.dataset.sig === sig && !L.plan.dirty) return;
     box.dataset.sig = sig;
     box.textContent = '';
@@ -579,6 +579,8 @@ function client() {
       wrap.appendChild(who);
       // THE BODY AND ITS ACTIONS (chat/live.js): prose and code blocks; Copy · Edit · Retry · Continue on hover.
       wrap.appendChild(L.live ? L.live.body(m.text) : body(m.text));
+      // THE FACT FOOTER: what Core recorded during the turn (files, commands, jobs, agents) — never sent to the model.
+      if (m.facts && m.facts.length) { var ff = el('div', 'facts'); m.facts.forEach(function (l) { ff.appendChild(el('div', 'fl', l)); }); wrap.appendChild(ff); }
       if (L.live) {
         L.live.decorate(wrap, m, { lastUser: i === lastUser, lastAssistant: i === lastAsst && lastAsst > lastUser, running: running });
         if (i === lastAsst && lastAsst > lastUser && !running) L.live.summaryFor(wrap);

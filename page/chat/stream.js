@@ -37,6 +37,7 @@ const CSS = `
 .msg .who .prov{color:var(--accent-primary);font-weight:500;font-size:var(--fs-small)}
 .msg .body{font-size:var(--fs-chat);line-height:1.62;color:var(--text-primary);overflow-wrap:anywhere}
 .prose{white-space:pre-wrap;overflow-wrap:anywhere}
+.msg .facts{margin-top:10px;padding-top:8px;border-top:1px solid var(--separator);font:12px/1.55 var(--mono);color:var(--text-muted);overflow-wrap:anywhere}
 .msg.agent .who{color:var(--accent-primary)}
 .msg.user.handoff .who{color:var(--accent-primary)}
 pre.code{margin:8px 0;padding:10px 12px;background:var(--canvas);border-radius:var(--radius-sm);overflow-x:auto;font:12.5px/1.55 var(--mono);color:var(--text-primary);white-space:pre}
