@@ -132,8 +132,12 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       }
       if (!args[0]) {
         if (!lane.effortKnown) { app.render.write(`  effort: ${current || C.dim('default')}` + C.dim('  ·  choose a model first (/model)\n')); return; }
-        app.render.write(`  ${lane.modelLabel}: ${lane.effortLabel || C.dim('not configurable')}`
-          + (levels.length ? C.dim(`  ·  offers ${labels.join(', ')}`) : C.dim('  ·  this model has no configurable effort')) + '\n');
+        // ONE CONTROL, TWO HONEST MEANINGS (2026-10-02): a model with native effort gets the provider's own levels;
+        // one without gets LAIN's execution depth — never presented as hidden model reasoning.
+        const kind = lane.effortSource === 'lain' ? 'LAIN effort' : 'Provider effort';
+        const what = lane.effortSource === 'lain' ? C.dim('  ·  this model has no native effort; LAIN sets how much context, exploration and delegation it uses') : '';
+        app.render.write(`  ${lane.modelLabel}\n  ${kind}: ${lane.effortLabel && lane.effortLabel !== 'Default' ? lane.effortLabel : C.dim(`Default (${(require('./profile').of(app.session, app.cfg) || 'NORMAL')})`)}`
+          + (levels.length ? C.dim(`  ·  ${labels.join(' / ')}`) : '') + what + '\n');
         return;
       }
       const want = String(args[0]).toLowerCase();
@@ -146,7 +150,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       }
       const r = await choose(want);
       if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
-      app.render.write(C.green(`  ${r.lane.modelLabel} · ${r.lane.effortLabel}`) + '\n');
+      app.render.write(C.green(`  ${r.lane.modelLabel} · ${r.lane.effortSource === 'lain' ? 'LAIN' : 'Provider'} effort: ${r.lane.effortLabel}`) + '\n');
     },
   });
 

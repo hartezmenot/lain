@@ -84,7 +84,10 @@ function charsFor(pc, cfg = {}) {
     : (Number.isFinite(set) && set > 0 ? set : DEFAULT_BUDGET_TOKENS);
   // FAST spends more context, ECO less (profile.js) — within the same floor and ceiling.
   const scale = require('./profile').scale(cfg && cfg.executionProfile);
-  const budget = Math.max(MIN_BUDGET_TOKENS, Math.round(want * scale)) * CHARS_PER_TOKEN;
+  // LAIN EXECUTION EFFORT (a model with no native effort — effortcaps.forRequest): Low keeps a small context packet,
+  // Max allows a broader one. A model WITH native effort is untouched here: its effort goes to the provider.
+  const lain = { low: 0.6, high: 1, max: 1.4 }[(pc && pc.lainEffort) || 'high'] || 1;
+  const budget = Math.max(MIN_BUDGET_TOKENS, Math.round(want * scale * lain)) * CHARS_PER_TOKEN;
   const ceiling = require('./session').budgetChars(pc);
   return Math.floor(Math.min(budget, ceiling));
 }

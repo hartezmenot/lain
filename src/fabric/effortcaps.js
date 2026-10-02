@@ -39,16 +39,58 @@ function label(e) { return LABEL[norm(e)] || (e ? String(e) : ''); }
  * holds for the Anthropic API's `output_config.effort`.
  */
 const CLAUDE_DECLARED = [
+  // Claude Code's model-config documentation (2026-10): 4.6 models take low/medium/high/max; Opus 4.7+, Sonnet 5+
+  // and Opus 5+ add xhigh. Haiku has no configurable effort.
+  [/(^|[/:-])(opus|sonnet)[-.]?4[-.]6/i, ['low', 'medium', 'high', 'max']],
   [/(^|[/:-])opus/i, ['low', 'medium', 'high', 'xhigh', 'max']],
+  [/(^|[/:-])sonnet[-.]?[5-9]/i, ['low', 'medium', 'high', 'xhigh', 'max']],
   [/(^|[/:-])sonnet/i, ['low', 'medium', 'high']],
 ];
 
-function declared({ runtime = null, protocol = null, upstreamId = '' } = {}) {
+/**
+ * GLM-5.3 (Z.ai's own documentation): reasoning is always on; `reasoning_effort` takes low | high | max and the
+ * PROVIDER default is max. LAIN's default is HIGH (measured 2026-10-02: provider-default GLM steps reasoned ~8× more
+ * than ZCode's and took 2–10× longer; low found the same bug in 1.8–2.5 s vs 6–15 s). Only Z.ai / BigModel endpoints
+ * are known to honour the field — a router in between gets nothing invented.
+ */
+const GLM_RE = /(^|[/:-])glm-5\.3/i;
+const ZAI_HOST = /(^|\.)(z\.ai|bigmodel\.cn)(:|\/|$)/i;
+
+function declared({ runtime = null, protocol = null, upstreamId = '', provider = null, baseUrl = '' } = {}) {
   const id = String(upstreamId || '');
   if (runtime === 'claude-code' || (protocol === 'anthropic' && /claude/i.test(id))) {
-    for (const [re, levels] of CLAUDE_DECLARED) if (re.test(id)) return { levels: levels.slice(), source: runtime === 'claude-code' ? 'Claude Code --effort' : 'Anthropic API effort' };
+    for (const [re, levels] of CLAUDE_DECLARED) if (re.test(id)) return { levels: levels.slice(), source: runtime === 'claude-code' ? 'Claude Code --effort' : 'Anthropic API effort', wire: runtime ? 'runtime' : 'output_config' };
+  }
+  if (!runtime && GLM_RE.test(id) && (/^(zai|bigmodel)$/i.test(String(provider || '')) || ZAI_HOST.test(String(baseUrl || '').replace(/^https?:\/\//i, '')))) {
+    return { levels: ['low', 'high', 'max'], default: 'high', source: 'Z.ai reasoning_effort', wire: protocol === 'anthropic' ? 'output_config' : 'reasoning_effort' };
   }
   return null;
+}
+
+/**
+ * THE EFFORT A REQUEST CARRIES — chosen once, at send time, from what the route ACTUALLY supports.
+ *   requested   the person's explicit level (or null / 'auto' for "the default")
+ *   profile     FAST · NORMAL · ECO — FAST and ECO default to the LOWEST native level; NORMAL to the model's default
+ * Returns { effort, source: 'provider' | 'lain', wire, levels, explicit }. With no native levels the effort is LAIN's
+ * execution budget (lainEffort) and NOTHING is put on the wire.
+ */
+const LAIN_LEVELS = Object.freeze(['low', 'high', 'max']);
+function forRequest({ levels = [], defaultEffort = null, wire = null, requested = null, profile = 'NORMAL' } = {}) {
+  const want = requested && requested !== 'auto' ? norm(requested) : null;
+  if (levels.length) {
+    const explicit = Boolean(want && levels.includes(want));
+    let effort = explicit ? want : null;
+    if (!effort) {
+      const p = String(profile || 'NORMAL').toUpperCase();
+      if (p === 'FAST' || p === 'ECO') effort = levels.includes('low') ? 'low' : levels[0];
+      else effort = defaultEffort && levels.includes(defaultEffort) ? defaultEffort : null;   // null: the provider's own default
+    }
+    return { effort, source: 'provider', wire: effort ? wire : null, levels: levels.slice(), explicit };
+  }
+  // NO NATIVE EFFORT: LAIN execution effort (context, tools, exploration, delegation) — never sent to the model.
+  const p = String(profile || 'NORMAL').toUpperCase();
+  const lainEffort = want && LAIN_LEVELS.includes(want) ? want : (p === 'FAST' || p === 'ECO' ? 'low' : 'high');
+  return { effort: null, lainEffort, source: 'lain', wire: null, levels: [], explicit: Boolean(want) };
 }
 
 /**
@@ -60,8 +102,8 @@ function forRoute({ family, model, row = null, route = null, conn = null, overri
   if (ov && Array.isArray(ov.levels)) return { levels: order(ov.levels), default: norm(ov.default) || null, source: 'your override' };
   if (row && Array.isArray(row.efforts) && row.efforts.length) return { levels: order(row.efforts), default: norm(row.defaultEffort) || null, source: 'reported by the provider' };
   if (route && Array.isArray(route.efforts) && route.efforts.length) return { levels: order(route.efforts), default: null, source: 'the route\'s own model ids' };
-  const d = declared({ runtime: (conn && conn.runtime) || (row && row.runtime) || null, protocol: conn && conn.protocol, upstreamId: (route && (route.upstreamId || model)) || model });
-  if (d) return { levels: d.levels, default: null, source: d.source };
+  const d = declared({ runtime: (conn && conn.runtime) || (row && row.runtime) || null, protocol: conn && conn.protocol, upstreamId: (route && (route.upstreamId || model)) || model, provider: conn && conn.provider, baseUrl: conn && conn.baseUrl });
+  if (d) return { levels: d.levels, default: d.default || null, source: d.source };
   return { levels: [], default: null, source: null };
 }
 
@@ -82,4 +124,4 @@ function runtimeArgs(runtime, effort) {
   return [];
 }
 
-module.exports = { LEVELS, LABEL, norm, order, label, declared, forRoute, allowed, runtimeArgs };
+module.exports = { LEVELS, LABEL, LAIN_LEVELS, norm, order, label, declared, forRoute, forRequest, allowed, runtimeArgs };

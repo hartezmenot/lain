@@ -165,9 +165,14 @@ module.exports = async function () {
       r = await si.choose(app, app.session, { lane: 'coding', model: 'model-c' });
       assert.ok(r.ok, r.why);
       assert.strictEqual(r.effortReset, true, 'a stored level the new model does not take goes back to its default — and says so');
-      assert.deepStrictEqual([r.lane.efforts, r.lane.effort], [[], null], 'no effort selector for Model C');
-      assert.strictEqual(require('../../src/sessionviews').turnCfg(app, app.session).effort, undefined, 'no effort on the wire');
-      assert.strictEqual((await si.set(app, app.session, { lane: 'reasoning', value: 'high', scope: 'session' })).ok, false, 'and none can be set');
+      // 2026-10-02: a model with NO native effort offers LAIN execution effort (Low / High / Max) — honestly labelled,
+      // and never sent to the provider as if it were hidden reasoning.
+      assert.deepStrictEqual([r.lane.efforts, r.lane.effort, r.lane.effortSource], [['low', 'high', 'max'], null, 'lain'], 'Model C offers LAIN effort, not a native selector');
+      assert.strictEqual(require('../../src/sessionviews').turnCfg(app, app.session).effort, undefined, 'no stored level, nothing chosen');
+      await si.set(app, app.session, { lane: 'reasoning', value: 'high', scope: 'session' });
+      const pcC = require('../../src/provider').resolve(require('../../src/sessionviews').turnCfg(app, app.session));
+      assert.ok(!pcC.effortWire && !pcC.reasoningEffort, 'LAIN effort never reaches the wire');
+      assert.notStrictEqual(pcC.effortSource, 'provider');
       // THE RUNTIMES' OWN SYNTAX, in one place (fabric/effortcaps.js).
       const argv = require('../../src/drivers/codexexec').argsFor('gpt-6-sol', 'xhigh');
       assert.ok(argv.join(' ').includes('-c model_reasoning_effort="xhigh"'), argv.join(' '));

@@ -106,6 +106,16 @@ function levelsFor(fam, entry, pinned) {
   return entry.efforts.slice();
 }
 
+/**
+ * WHAT THE EFFORT CONTROL OFFERS (2026-10-02): the model's NATIVE levels when it has them (source 'provider' — sent
+ * to the provider exactly as declared), otherwise LAIN's Low / High / Max (source 'lain' — LAIN's execution depth:
+ * context, tools, exploration, delegation; never sent to the model and never presented as hidden reasoning).
+ */
+function offered(fam, entry, pinned) {
+  const l = levelsFor(fam, entry, pinned);
+  return l.length ? { levels: l, source: 'provider' } : { levels: caps().LAIN_LEVELS.slice(), source: 'lain' };
+}
+
 /** THE LANE — family › model › effort, its backing account and route. Every surface reads this. */
 function lane(app, session = app.session, which = 'coding') {
   const L = which === 'chat' ? 'chat' : 'coding';
@@ -149,9 +159,10 @@ function lane(app, session = app.session, which = 'coding') {
   // EFFORT — only a level the model declares ever leaves here.
   const eff = storedEffort(app, s, L, layer, g);
   let effort = eff.value && eff.value !== 'auto' ? caps().norm(eff.value) : null;
-  let levels = null; let effortAdjusted = false;
+  let levels = null; let effortAdjusted = false; let effortSource = null;
   if (entry) {
-    levels = levelsFor(fam, entry, pinned);
+    const off = offered(fam, entry, pinned);
+    levels = off.levels; effortSource = off.source;
     if (effort && !levels.includes(effort)) { effortAdjusted = true; effort = entry.defaultEffort && levels.includes(entry.defaultEffort) ? entry.defaultEffort : null; }
     if (!levels.length) effort = null;
   }
@@ -203,7 +214,7 @@ function lane(app, session = app.session, which = 'coding') {
     backing: b ? { id: b.id, name: b.name, identity: b.identity, state: b.state, stateLabel: b.stateLabel, limited: b.limited } : null,
     accountCount: fam ? fam.accounts.length : 0,
     model: entry ? entry.id : (model.value || null), catalogModel: catalogModel || (model.value || null), modelScope: model.scope, modelLabel,
-    effort, effortLabel, effortScope: eff.scope, effortAdjusted,
+    effort, effortLabel, effortScope: eff.scope, effortAdjusted, effortSource,
     efforts: levels || [], effortLabels: (levels || []).map(caps().label), defaultEffort: entry ? entry.defaultEffort || null : null, effortKnown: Boolean(entry),
     route, ok: Boolean(route), needs, why,
     pending: (s.intel && s.intel.pending && s.intel.pending.lane === L) ? s.intel.pending : null,
@@ -321,7 +332,7 @@ async function choose(app, session, { lane: which = 'coding', family, account, m
     modelId = entry.id;   // THE LOGICAL ID is what the lane keeps; each account's catalog id is resolved at send time
     // EFFORT: a stored level this model does not take goes back to the model's default — and says so.
     const pinned = f.policy === 'pinned' ? (f.pinned || acctId) : null;
-    const levels = levelsFor(f, entry, pinned);
+    const levels = offered(f, entry, pinned).levels;
     if (effort !== undefined) {
       const e = effort && effort !== 'auto' ? caps().norm(effort) : null;
       if (effort && effort !== 'auto' && !e) return { ok: false, code: 'BAD_EFFORT', why: `effort is one of ${levels.map(caps().label).join(', ') || 'none for this model'}` };
