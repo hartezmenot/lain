@@ -53,6 +53,11 @@ function checks(app) {
   } catch (e) {
     warn(`Config directory is NOT writable (${dir}): ${e.message} — sessions and undo will not persist`);
   }
+  // PLAINTEXT CREDENTIALS LEFT BEHIND by an older version — counted only (legacysecrets.js).
+  try {
+    const s = require('./legacysecrets').summary(dir);
+    if (s) warn(s.text); else ok('No plaintext credential backups beside the config');
+  } catch { /* the scan is advisory */ }
 
   const cwd = path.resolve(app.session.cwd);
   try {

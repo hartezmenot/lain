@@ -111,9 +111,13 @@ function decide(record, text, { required = false, wakeups = 0, cls = null, smoke
     // CHANGED, BUT THE FINAL SMOKE HAS NOT PASSED SINCE (finalsmoke.js): one
     // wake-up to run it as the last step. A second idle ends the turn; the
     // strip then says NOT VERIFIED, never DONE.
+    // ONLY 'MISSING' — a suite the contract REQUIRES (finalsmoke.state is NOT_REQUIRED otherwise) that has not run.
+    // A FAILED suite is no longer a wake-up (2026-10-02): the arbiter attributes the failure — caused by this change
+    // keeps the task open on the model's own request; anything else is disclosed — and a hidden "go fix the suite"
+    // turn is how an unrelated red test became an out-of-scope repair.
     const said = String(text || record.text || '').trim();
-    if ((smoke === 'MISSING' || smoke === 'FAILED') && wakeups < MAX_WAKEUPS && !(said && (ASKS.test(said.slice(-240)) || BLOCKER.test(said)))) {
-      record.wakeFor = smoke === 'FAILED' ? 'smoke-failed' : 'smoke';
+    if (smoke === 'MISSING' && wakeups < MAX_WAKEUPS && !(said && (ASKS.test(said.slice(-240)) || BLOCKER.test(said)))) {
+      record.wakeFor = 'smoke';
       return 'wake';
     }
     return null;

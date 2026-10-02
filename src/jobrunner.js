@@ -54,6 +54,9 @@ const { STATE } = require('./jobs');
  * `app.session` — that is what makes a forked job actually forked.
  */
 function turnOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null, text = null }) {
+  // THE CHANGE CLASS FOR EVERY SURFACE (2026-10-02): the Harness classified its own submits; the CLI never did, so a
+  // one-word label edit typed in the terminal ran with the whole machinery. One deterministic call, every native turn.
+  try { if (session === (app && app.session)) require('./changeclass').ensure(app, text, { from }); } catch { /* unclassified runs as before */ }
   // THE BOT'S CONTEXT PROFILE (botcontext.js): a BOT question that needs nothing
   // but the conversation gets a short prompt and no tools; everything else is unchanged.
   return require('./botcontext').apply({

@@ -32,7 +32,7 @@ function maybeComplete(app, record = null) {
     const granted = life.state === 'DONE' && life.discipline && life.discipline.verdict && life.discipline.verdict.state === 'DONE' && !life._completionShown;
     const satisfied = life.state === 'ACTIVE' && require('./discipline/arbiter').outcomeSatisfied(life);
     if (!granted && !satisfied) return false;
-    if (satisfied) { const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app) }); if (!r.ok) { app.pendingCompletion = r.why; return false; } }
+    if (satisfied) { const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app), changeClass: (app.session._changeClass && app.session._changeClass.class) || null }); if (!r.ok) { app.pendingCompletion = r.why; return false; } }
     life._completionShown = true;
     app.pendingCompletion = null;
     if (plan) plan.retire('task complete');
@@ -53,7 +53,7 @@ function maybeComplete(app, record = null) {
     return false;
   }
 
-  const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app) });
+  const r = life.complete({ cwd: app.session.cwd, discretion: discretionOf(app), changeClass: (app.session._changeClass && app.session._changeClass.class) || null });
   if (!r.ok) {
     // A refusal here is INFORMATION: every step is ticked off and LAIN is
     // declining to call it done. Silence made that indistinguishable from

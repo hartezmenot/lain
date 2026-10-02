@@ -86,14 +86,15 @@ module.exports = async function () {
     assert.deepStrictEqual(kinds('test/new.test.js', null, "it('x', () => assert.ok(1));\n"), [], 'adding a test is not a flag');
   });
 
-  await test('INTEGRITY: an undisclosed test change holds the task open; disclosed, it may finish', () => {
+  await test('INTEGRITY: an undisclosed test change is never plain DONE — Noema discloses it; disclosed by the model, it may finish', () => {
     const life = new Lifecycle('make the test pass');
     life.discipline.noteWrite('test/add.test.js', "it('a', () => { assert.ok(x); assert.ok(y); });", "it.skip('a', () => { assert.ok(x); });");
     write(life, '/p/test/add.test.js');
     run(life, 'node test/add.test.js', true);
     const r = life.complete({ cwd: tmpdir('d-') });
     assert.strictEqual(r.ok, false);
-    assert.match(r.why, /test changes must be disclosed.*SKIP_ADDED|test changes must be disclosed.*ASSERTION_REMOVED/);
+    assert.strictEqual(r.verdict, 'DONE_UNVERIFIED', 'the outcome carries the disclosure instead of costing a turn');
+    assert.match(r.why, /test change affects verification.*(SKIP_ADDED|ASSERTION_REMOVED)/);
     life.discipline.disclose(['all'], 'the assertion was wrong: y is optional by spec');
     assert.strictEqual(life.complete({ cwd: tmpdir('d-') }).ok, true);
   });

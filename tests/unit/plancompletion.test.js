@@ -63,7 +63,7 @@ module.exports = async function () {
     edited(life, '/p/src/a.js');
     const app = appWith(finishedPlan(), life);
     assert.strictEqual(app.maybeComplete({ text: 'All steps are complete.' }), false);
-    assert.match(app.pendingCompletion, /nothing has been run to check/);
+    assert.match(app.pendingCompletion, /no current check exercises what changed/);
     assert.notStrictEqual(life.state, STATE.DONE);
   });
 
@@ -95,7 +95,7 @@ module.exports = async function () {
     ran(life, 'pytest', 1);
     const app = appWith(finishedPlan(), life);
     assert.strictEqual(app.maybeComplete({ text: 'Done.' }), false);
-    assert.match(app.pendingCompletion, /last command failed/i);
+    assert.match(app.pendingCompletion, /pytest fails/);
     assert.notStrictEqual(life.state, STATE.DONE);
   });
 

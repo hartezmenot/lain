@@ -161,7 +161,15 @@ function decide(session, record, cls, { problems = [], strategy = 'NORMAL', plan
   // WITHOUT ONE — THE GOAL LOOP (2026-10-01): a model turn that ended while its own closing words name the next
   // piece of the work is a MODEL boundary, not the goal's end. It used to stop here and wait for `continue`.
   if (!shape.remaining.length) {
-    const cue = goalCue(session, record);
+    // DURABLE UNFINISHED WORK, NOT WORDS (2026-10-02). Closing words alone ("next I'll look at…") used to start
+    // another turn — Noema deciding activity should continue. A continuation now needs state that SAYS the work is
+    // unfinished: explicit asks still open, acceptance criteria not yet met, or a goal the person set — and no
+    // settled verdict, blocker or decision. The model's named next step stays orientation for that turn.
+    const unfinished = durableUnfinished(session);
+    // Open asks / unmet criteria continue on their own; a standing /goal (long-lived, spans tasks) continues only
+    // when the model ALSO named the next piece of work toward it.
+    const cue = unfinished && unfinished.kind === 'contract' ? (goalCue(session, record) || { next: unfinished.next })
+      : unfinished && unfinished.kind === 'goal' ? goalCue(session, record) : null;
     if (!cue) return stop(shape.total ? 'the plan is complete' : 'the request is answered', { complete: shape.total > 0 });
     if (c.goalTurns >= BUDGET.goalTurns) return stop(`${BUDGET.goalTurns} automatic turns toward this goal — continue when ready`, { needsUser: true });
     if (!moved) {
@@ -305,6 +313,29 @@ function lastSentences(text, n = 3) {
   const parts = t.split(/(?<=[.!?])\s+(?=[A-Z0-9*_`-])/);
   return parts.slice(-n).join(' ');
 }
+/**
+ * WHAT DURABLE STATE SAYS IS STILL OPEN — or null. Settled verdicts (DONE, DONE_UNVERIFIED, BLOCKED, NEEDS_DECISION)
+ * end it; open asks, unmet acceptance criteria or an active /goal keep it going.
+ */
+function durableUnfinished(session) {
+  const life = session && session.lifecycle;
+  const d = life && life.discipline;
+  if (life && life.state && life.state !== 'ACTIVE') return null;
+  const verdict = d && d.verdict && d.verdict.state;
+  if (verdict && ['DONE', 'DONE_UNVERIFIED', 'BLOCKED', 'NEEDS_DECISION'].includes(verdict)) return null;
+  try {
+    if (d && d.contract.asks.length > 1) { const open = d.contract.openAsks(); if (open.length) return { kind: 'contract', next: `address the open ask ${open[0].id}: ${String(open[0].text).slice(0, 120)}` }; }
+    if (d) {
+      const gen = life.mutationSeq || 0;
+      const unmet = d.contract.liveCriteria().filter((c) => !require('./discipline/arbiter').criterionHolds(c, d, gen));
+      if (unmet.length) return { kind: 'contract', next: `evidence the acceptance criterion ${unmet[0].id}` };
+    }
+  } catch { /* no contract: fall through to the goal */ }
+  const g = session && session.goal;
+  if (g && g.text) return { kind: 'goal', next: `continue toward the goal: ${String(g.text).slice(0, 160)}` };
+  return null;
+}
+
 function goalCue(session, record) {
   // THE CLOSING WORDS ARE THE LAST STEP'S: record.text joins every step's prose, and an early "I will look into it"
   // followed by "Fixed and verified." is a finished turn, not an announcement.

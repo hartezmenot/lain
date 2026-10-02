@@ -426,7 +426,14 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
   // saying nothing is the default.
   if (r.mutated && r.mutated.length && !r.isError) {
     try {
-      const note = await require('../diagnostics').reportFor(r.mutated, ctx && ctx.cwd);
+      // THE PARSE IS EVIDENCE (discipline/checks.js `parse`): a clean parse proves a DIRECT change; a broken one is
+      // this task's own failure. Never a gate on anything the model does next.
+      const life = (ctx && ctx.app && ctx.app.session && ctx.app.session.lifecycle) || (ctx && ctx.session && ctx.session.lifecycle) || null;
+      const onResult = life && life.discipline ? (abs, res) => {
+        const rel = require('path').relative((ctx && ctx.cwd) || process.cwd(), abs).replace(/\\/g, '/');
+        life.discipline.checks.parse({ rel, ok: res.ok !== false, message: res.message || '', gen: life.mutationSeq || 0 });
+      } : null;
+      const note = await require('../diagnostics').reportFor(r.mutated, ctx && ctx.cwd, { onResult });
       if (note) r = { ...r, output: String(r.output || '') + note, syntaxError: true };
     } catch { /* a checker that fails must never fail the edit it was checking */ }
     // ---- AND THE THIRD RUNG: THE PROJECT'S OWN LINTER, ON THIS FILE --------

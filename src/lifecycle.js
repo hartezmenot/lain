@@ -480,11 +480,11 @@ class Lifecycle {
    * final smoke for every changed tree — which made one ritual the universal measure and duplicated the contract.
    * The legacy gates below are the arbiter's when no discipline state exists (a restored pre-Noema session).
    */
-  complete({ verified = false, userConfirmed = false, note = '', cwd = null, discretion = 'STRONG', objective = '' } = {}) {
+  complete({ verified = false, userConfirmed = false, note = '', cwd = null, discretion = 'STRONG', objective = '', changeClass = null } = {}) {
     if (verified) this.evidence.verifiedChecks += 1;
     if (userConfirmed) this.evidence.userConfirmed = true;
     if (this.discipline) {
-      const v = require('./discipline/arbiter').evaluate(this, { cwd, discretion, objective: objective || this.objective });
+      const v = require('./discipline/arbiter').evaluate(this, { cwd, discretion, objective: objective || this.objective, changeClass });
       this.discipline.verdict = { state: v.state, why: v.why, at: Date.now() };
       if (!v.ok) return { ok: false, state: this.state, verdict: v.state, why: v.why, ...(v.failedCheck ? { failedCheck: v.failedCheck } : {}), ...(v.unverified ? { unverified: true } : {}), ...(v.smoke ? { smoke: v.smoke } : {}), remaining: v.remaining || [] };
       this.state = STATE.DONE;

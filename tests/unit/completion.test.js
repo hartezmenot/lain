@@ -111,14 +111,16 @@ module.exports = async function () {
 
   // ------------------------------------------------ the red-check refusal ----
 
-  await test('COMPLETION: a change whose LAST check FAILED does not complete', () => {
+  // 2026-10-02: a failure NOT shown to be caused by this change (no baseline, the command names no changed file) is
+  // DISCLOSED as DONE_UNVERIFIED. It used to hold the task ACTIVE, which pushed models into repairing unrelated code.
+  await test('COMPLETION: a change whose LAST check FAILED is never plain DONE — disclosed, never a repair order', () => {
     const life = new Lifecycle('fix it');
     edited(life, '/p/src/auth.js');
     ran(life, 'npm test', 1);
     const r = life.complete();
     assert.strictEqual(r.ok, false, 'a red suite is not finished work, however much changed');
-    assert.match(r.why, /last command failed/i);
-    assert.match(r.why, /npm test/);
+    assert.strictEqual(r.verdict, 'DONE_UNVERIFIED');
+    assert.match(r.why, /npm test fails/);
     assert.ok(r.failedCheck, 'the caller needs the failure to report it');
   });
 
@@ -156,7 +158,7 @@ module.exports = async function () {
     ran(life, 'npm test', 1);
     const restored = Lifecycle.from(JSON.parse(JSON.stringify(life.toJSON())));
     assert.strictEqual(restored.complete().ok, false);
-    assert.match(restored.complete().why, /last command failed/i);
+    assert.match(restored.complete().why, /npm test fails/);
   });
 
   await test('COMPLETION: a passing command with nothing changed is still evidence', () => {

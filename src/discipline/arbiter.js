@@ -4,17 +4,19 @@
  * THE COMPLETION ARBITER (Execution Discipline §26–§27). Completion is decided by Noema; a model may REQUEST it and
  * never certify it.
  *
- *   DONE                    every explicit ask addressed or deferred · acceptance criteria evidenced · no known
- *                           relevant contradiction · scaffolding accounted for · test-integrity changes disclosed ·
- *                           nothing pending that would change the report · the verification contract satisfied
- *   DONE_UNVERIFIED(reason) the work is finished but the evidence the contract asks for is missing
+ *   DONE                    an answer (nothing changed), or a change whose required proof is on record · every
+ *                           explicit ask addressed · nothing to disclose
+ *   DONE_UNVERIFIED(reason) finished, with something DISCLOSED: proof the contract asks for is missing, a failure not
+ *                           caused by this change (pre-existing / unknown), a test change that affects verification
  *   PARTIAL(remaining)      explicit asks still open
  *   BLOCKED(layer, reason)  the model reports a blocker it cannot pass
  *   NEEDS_DECISION(q)       a question only the person can answer
- *   ACTIVE                  not finished: a contradiction, an unchecked change, a pending suite, undisclosed test edits
+ *   ACTIVE                  not finished: a failure CAUSED BY THIS CHANGE, scaffolding left in place, a required suite
+ *                           not yet run or still running
  *
- * HOW MUCH PROOF is verifycontract.requirement()'s answer — the single verification authority. The final smoke runs
- * only where that contract asks for broad proof (PROJECT/RELEASE), never as a universal last step.
+ * ORDER (2026-10-02): verifycontract.requirement() is asked FIRST — it is the single verification authority — and
+ * everything after is evidence measured against it. Activity alone ("a command ran") is never what finishes or
+ * blocks a task. The final smoke runs only where the contract asks for broad proof (PROJECT/RELEASE).
  *
  * THE SIGNAL THAT STOPS OVER-EXECUTION: `outcomeSatisfied` — every acceptance criterion the model set is evidenced
  * by a current observation and no ask is open. Further changes are then refused until the person asks for more.
@@ -57,7 +59,7 @@ function outcomeSatisfied(life) {
  * @param {object} o  { cwd, requested: the model asked to complete, request: {state, layer, reason, question},
  *                      claims: typed claims, discretion: STRONG|MEDIUM|WEAK, objective }
  */
-function evaluate(life, { cwd = null, requested = false, request = null, claims = null, discretion = 'STRONG', objective = '' } = {}) {
+function evaluate(life, { cwd = null, requested = false, request = null, claims = null, discretion = 'STRONG', objective = '', changeClass = null, readOnly = false } = {}) {
   const d = life.discipline;
   const e = life.evidence;
   const gen = life.mutationSeq || 0;
@@ -71,80 +73,98 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
   if (requested && request && request.state === STATE.BLOCKED) return out(STATE.BLOCKED, `${request.layer || 'unknown layer'}: ${String(request.reason || 'blocked').slice(0, 300)}`, { layer: request.layer || null, claims: cl });
   if (e.userConfirmed) return out(STATE.DONE, 'confirmed by the person', { claims: cl });
 
-  const observed = d ? d.checks.all().filter((c) => c.kind === 'OBSERVATION' && c.latest && c.latest.gen === gen) : [];
-  const has = changed.length > 0 || e.commandsRun > 0 || e.verifiedChecks > 0 || observed.length > 0;
-  if (!has) return out(STATE.ACTIVE, 'no completion evidence: nothing changed, no command ran, nothing verified', { claims: cl });
-
-  // A RELEVANT CONTRADICTION: a check failing at the current generation that is not explained away.
-  const contra = d ? d.checks.contradictions(gen) : [];
+  // ---- 1. HOW MUCH PROOF THIS TASK NEEDS — asked FIRST (2026-10-02) -------------------------------------------
+  //
+  // Universal activity gates used to run ahead of this ("nothing ran", "the last command failed", "changed but
+  // unchecked"), so proportionality never got a vote: a read-only answer had to invent a command, and an unrelated
+  // red suite forced a model to repair code nobody asked about just to finish. The contract decides; every check
+  // below is evidence measured against it, and only a failure CAUSED BY THIS CHANGE keeps the task open.
+  const objectiveText = objective || (d && d.contract.request) || '';
+  const vc = require('../verifycontract');
+  const req = vc.requirement(cwd || process.cwd(), changed.map((p) => rel(cwd, p)), { objective: objectiveText, discretion });
+  const disclose = [];   // what the report must say — never a reason to keep working
   const last = life.lastCommand;
-  // RED IS NOT AUTOMATICALLY "THE IMPLEMENTATION IS WRONG": a failure classified as the environment, a transient
-  // fault or something that was already failing before the task is information, not a verdict on the change.
-  const lastCheck = d ? d.checks.commands().filter((c) => c.latest).sort((a, b) => a.latest.at - b.latest.at).pop() : null;
-  const explained = Boolean(lastCheck && lastCheck.latest.state === 'FAIL' && require('./checks').explained(lastCheck));
-  if (last && last.ok === false && !explained) {
-    return out(STATE.ACTIVE, `the last command failed${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}: ${last.command}`, { failedCheck: last, claims: cl });
-  }
-  if (contra.length) {
-    const k = contra[contra.length - 1];
-    return out(STATE.ACTIVE, `a check is failing: ${k.command} (${k.latest.classification || 'UNKNOWN'})`, { failedCheck: k, claims: cl });
-  }
   const passingNow = d ? d.checks.all().filter((c) => c.latest && c.latest.gen === gen && ['PASS', 'OBSERVED'].includes(c.latest.state)) : [];
-  if (last && last.ok === null && !passingNow.length) {
-    return out(STATE.ACTIVE, `the last command does not verify this: ${last.command}${last.note ? ` — ${last.note}` : ''}`, { failedCheck: last, claims: cl });
-  }
-  if (changed.length && e.verifiedChecks === 0 && !observed.length) {
-    return out(STATE.ACTIVE, `${changed.length} file(s) changed but nothing has been run to check them`, { unverified: true, claims: cl });
-  }
+  const failing = d ? d.checks.commands().filter((c) => c.latest && c.latest.state === 'FAIL' && c.latest.gen === gen && !require('./checks').explained(c)) : [];
+  const unrelatedNote = (c) => `${c.command} fails (${String(c.latest.classification || 'UNKNOWN').toLowerCase()}${c.latest.classification === 'PREEXISTING' ? ', already failing before this task' : ', not shown to be caused by this change'})`;
 
   // PENDING WORK that would change the report.
-  if (life.smoke && life.smoke.running) return out(STATE.ACTIVE, require('../finalsmoke').why('RUNNING', cwd), { smoke: 'RUNNING', claims: cl });
+  if (life.smoke && life.smoke.running) return out(STATE.ACTIVE, require('../finalsmoke').why('RUNNING', cwd), { smoke: 'RUNNING', level: req.level, claims: cl });
 
-  // TEST INTEGRITY — disclosed, or the task is not finished.
-  const flags = d ? d.integrity.filter((f) => f.status === 'UNDISCLOSED') : [];
-  if (flags.length) {
-    const f = flags[0];
-    return out(STATE.ACTIVE, `test changes must be disclosed before this counts as verified: ${f.id} ${f.kind} in ${f.file} (${f.detail})`, { integrity: flags, claims: cl });
+  // ---- 2. NOTHING CHANGED: an answer, a report, an investigation ----------------------------------------------
+  //
+  // The observation IS the evidence: "what is the package name" is finished when the model has read it and says so.
+  // No mutation, command or smoke is owed. A request that asked for a CHANGE and changed nothing finishes honestly
+  // as DONE_UNVERIFIED — the model may know none was needed; the report says nothing was changed.
+  if (!changed.length) {
+    // TICKING BOXES IS NOT DOING WORK: on the PLAN path (the model never asked to finish), a plan marked done with
+    // nothing observed at all — no change, no command, no observation — is not an answer either.
+    const observedAny = e.commandsRun > 0 || e.verifiedChecks > 0 || (d && d.checks.all().some((c) => c.latest));
+    if (!requested && !observedAny) return out(STATE.ACTIVE, 'no completion evidence: nothing changed, no command ran, nothing verified', { level: req.level, claims: cl });
+    // …and Noema does not PASSIVELY call a plan finished over a red check (this costs no model turn — the task simply
+    // stays open). When the model ASKS, the failure is reported instead (below).
+    if (!requested && failing.length) return out(STATE.ACTIVE, unrelatedNote(failing[failing.length - 1]), { failedCheck: failing[failing.length - 1], level: req.level, claims: cl });
+    for (const c of failing) disclose.push(unrelatedNote(c));
+    const wantsChange = require('../wakeup').asksForChange(objectiveText) && !readOnly;
+    const nothingNeeded = passingNow.length > 0;
+    if (wantsChange && !nothingNeeded) {
+      return out(STATE.DONE_UNVERIFIED, ['the request asked for a change and nothing was changed', ...disclose].join('; '), { level: req.level, claims: cl, nothingChanged: true });
+    }
+    const said = disclose.length ? ` — reported: ${disclose.join('; ')}` : '';
+    return out(STATE.DONE, `answered — nothing changed${said}`, { level: req.level, claims: cl });
   }
 
-  // SCAFFOLDING the task added and has not removed or chosen to keep.
+  // ---- 3. THE TASK'S OWN UNFINISHED WORK -----------------------------------------------------------------------
   const scaffold = d ? d.contract.scaffolding.filter((s) => s.status === 'ACTIVE') : [];
-  if (scaffold.length) return out(STATE.ACTIVE, `temporary scaffolding is still in place: ${scaffold.map((s) => s.path).join(', ')}`, { claims: cl });
-
-  // THE VERIFICATION CONTRACT — the one authority on how much proof this change needs.
-  const vc = require('../verifycontract');
-  const req = vc.requirement(cwd || process.cwd(), changed.map((p) => rel(cwd, p)), { objective: objective || (d && d.contract.request) || '', discretion });
-  if (changed.length && req.needsSuite && cwd) {
-    const fs = require('../finalsmoke');
-    const st = fs.state(life, cwd);
-    if (st !== 'NOT_REQUIRED' && st !== 'PASSED') return out(STATE.ACTIVE, fs.why(st, cwd), { smoke: st, level: req.level, claims: cl });
-  }
-
-  // EXPLICIT ASKS — tracked separately, so a long task cannot quietly drop one.
+  if (scaffold.length) return out(STATE.ACTIVE, `temporary scaffolding is still in place: ${scaffold.map((s) => s.path).join(', ')}`, { level: req.level, claims: cl });
   if (d && d.contract.asks.length > 1) {
     const open = d.contract.openAsks();
     if (open.length) return out(STATE.PARTIAL, `explicit asks not yet addressed: ${open.map((a) => `${a.id} ${a.text.slice(0, 60)}`).join('; ')}`, { remaining: open.map((a) => a.id), level: req.level, claims: cl });
   }
 
-  // ACCEPTANCE CRITERIA the model set — each needs current evidence.
-  const unmet = d ? d.contract.liveCriteria().filter((c) => !criterionHolds(c, d, gen)) : [];
-  if (unmet.length) return out(STATE.DONE_UNVERIFIED, `acceptance criteria without current evidence: ${unmet.map((c) => c.id).join(', ')}`, { remaining: unmet.map((c) => c.id), level: req.level, claims: cl });
+  // ---- 4. A FAILURE CAUSED BY THIS CHANGE keeps it open; any other failure is DISCLOSED -----------------------
+  //
+  // Caused-by-this-change: it passed before and fails now (TASK_CAUSED), or it is a check that exercises a changed
+  // file and was not already failing. Everything else — pre-existing, unknown causality on an unrelated check — is
+  // information the report carries. It never authorises repairing code outside the task.
+  const ours = failing.filter((c) => c.latest.classification === 'TASK_CAUSED' || (c.targeted && c.latest.classification !== 'PREEXISTING'));
+  if (ours.length) {
+    const k = ours[ours.length - 1];
+    return out(STATE.ACTIVE, `a check that exercises this change fails: ${k.command}${k.static ? '' : ` (${k.latest.classification || 'UNKNOWN'})`}`, { failedCheck: k, level: req.level, claims: cl });
+  }
+  for (const c of failing) disclose.push(unrelatedNote(c));
 
-  // EVIDENCE QUALITY for what changed — the same standard for every model; a weaker one has less latitude in meeting it.
-  if (changed.length && d) {
-    const best = passingNow.reduce((m, c) => Math.max(m, rankOf(DISCRIMINATION, d.checks.discrimination(c, gen))), 0);
+  // ---- 5. WHAT THE CONTRACT ASKS FOR ----------------------------------------------------------------------------
+  if (req.needsSuite && cwd) {
+    const fsm = require('../finalsmoke');
+    const st = fsm.state(life, cwd);
+    if (st === 'MISSING') return out(STATE.ACTIVE, fsm.why(st, cwd), { smoke: st, level: req.level, claims: cl });
+    if (st === 'FAILED') disclose.push(fsm.why(st, cwd));
+  }
+  const unmet = d ? d.contract.liveCriteria().filter((c) => !criterionHolds(c, d, gen)) : [];
+  if (unmet.length) disclose.push(`acceptance criteria without current evidence: ${unmet.map((c) => c.id).join(', ')}`);
+  if (d) {
+    // A DIRECT change (a label, a colour, one element) is proved by a clean parse of what it touched; anything else
+    // needs a check that exercises the change. The standard is the same for every model; a weaker one has less latitude.
+    const staticCounts = changeClass === 'DIRECT';
+    const best = passingNow.reduce((m, c) => Math.max(m, rankOf(DISCRIMINATION, d.checks.discrimination(c, gen, { staticCounts }))), 0);
     if (best < rankOf(DISCRIMINATION, req.minDiscrimination)) {
-      return out(STATE.DONE_UNVERIFIED, discretion === 'WEAK'
-        ? 'this model needs an independent check that exercises the change itself (none of the current checks does)'
-        : 'no current check exercises what changed', { level: req.level, claims: cl });
+      disclose.push(discretion === 'WEAK' ? 'this model needs an independent check that exercises the change itself (none of the current checks does)' : 'no current check exercises what changed');
     }
   }
   if (req.needsPackaging && d) {
     const packaged = passingNow.some((c) => c.kind === 'COMMAND' && require('./claims').DOMAINS[0].evidence.test(c.command || ''));
-    if (!packaged) return out(STATE.DONE_UNVERIFIED, 'the task is about a release/package and no packaging run is on record for the current state', { level: req.level, claims: cl });
+    if (!packaged) disclose.push('the task is about a release/package and no packaging run is on record for the current state');
   }
 
+  // ---- 6. TEST INTEGRITY — Noema discloses it; the outcome cannot be plain DONE while it stands ---------------
+  const flags = d ? d.integrity.filter((f) => f.status === 'UNDISCLOSED') : [];
+  for (const f of flags) disclose.push(`test change affects verification: ${f.id} ${f.kind} in ${f.file} (${f.detail})`);
+
   const note = downgraded.length ? ` — ${downgraded.length} claim(s) not verified: ${downgraded.map((c) => `"${c.text.slice(0, 60)}" (${c.why})`).join('; ')}` : '';
+  if (disclose.length) {
+    return out(STATE.DONE_UNVERIFIED, `${changed.length} file(s) changed · ${disclose.join('; ')}${note}`, { level: req.level, claims: cl, integrity: flags.length ? flags : undefined, remaining: unmet.map((c) => c.id), foreign: failing.map((c) => c.id), ...(failing.length ? { failedCheck: failing[failing.length - 1] } : {}) });
+  }
   return out(STATE.DONE, `${changed.length} file(s) changed, ${e.commandsRun} command(s) run${last && last.ok ? `, last check passed: ${last.command}` : ''}${note}`, { level: req.level, claims: cl });
 }
 

@@ -188,8 +188,10 @@ const tools = {
       // `force: true` runs the suite anyway. A clean check is NOT treated as
       // proof the code works: when nothing is found, everything below runs
       // exactly as it did before. See src/pretest.js.
+      // ADVISORY (2026-10-02): the finding rides along with the run; it no longer refuses it. A checker can be
+      // wrong (JSX was misparsed for months) and a useful check must never wait on a cheaper one's opinion.
       const gate = await require('../pretest').guard(ctx, cwd, input);
-      if (gate.stop) return gate.result;
+      const advisory = gate.advisory ? `${gate.advisory}\n\n` : '';
 
       const report = testing.discover(cwd);
 
@@ -295,7 +297,7 @@ const tools = {
       }
 
       return {
-        output: `${head.join('\n')}\n\n${execution.leadWith(body, text)}`,
+        output: `${advisory}${head.join('\n')}\n\n${execution.leadWith(body, text)}`,
         // A BLOCKED RUN IS AN ERROR RESULT and a PASSED one is not; PARTIAL is
         // not an error either, because the tests that ran really did pass.
         isError: v.state === testing.STATE.TESTS_FAILED || v.state === testing.STATE.TESTS_BLOCKED,

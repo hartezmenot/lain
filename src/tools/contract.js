@@ -96,7 +96,10 @@ const tools = {
       for (const [id, st] of Object.entries(input.asks || {})) d.contract.ask(id, { status: String(st).toUpperCase() });
       const claims = (input.claims || []).map((c) => ({ type: String(c.type || 'VERIFIED').toUpperCase().replace(' ', '_'), text: String(c.text || ''), check: c.check || null }));
       const discretion = require('../discipline/profile').discretion(modelOf(ctx)).level;
-      const v = require('../discipline/arbiter').evaluate(life, { cwd: (ctx && ctx.cwd) || (session && session.cwd), requested: true, request: { state: input.state, layer: input.layer, reason: input.reason, question: input.question }, claims, discretion });
+      const changeClass = (session && session._changeClass && session._changeClass.class) || null;
+      let readOnly = false;
+      try { readOnly = require('../readonly').active(session); } catch { readOnly = false; }
+      const v = require('../discipline/arbiter').evaluate(life, { cwd: (ctx && ctx.cwd) || (session && session.cwd), requested: true, request: { state: input.state, layer: input.layer, reason: input.reason, question: input.question }, claims, discretion, changeClass, readOnly });
       d.claims = v.claims || [];
       d.verdict = { state: v.state, why: v.why, at: Date.now() };
       life._completionRequests = (life._completionRequests || 0) + 1;
@@ -107,9 +110,11 @@ const tools = {
       if (v.state === 'DONE') { settle('DONE', v.why); head = `DONE — ${v.why}`; }
       else if (v.state === 'BLOCKED') { settle('BLOCKED', v.why); head = `BLOCKED — ${v.why}`; }
       else if (v.state === 'NEEDS_DECISION') { life.needsUser(v.why); head = `NEEDS_DECISION — ${v.why}`; }
-      else if (v.state === 'DONE_UNVERIFIED' && input.accept_unverified) { settle('DONE_UNVERIFIED', v.why); head = `DONE_UNVERIFIED — ${v.why}. Report exactly what was not verified.`; }
+      // DONE_UNVERIFIED SETTLES AT ONCE (2026-10-02): the disclosure is the outcome. Asking for a second call with
+      // accept_unverified cost a whole model turn to restate an honest result.
+      else if (v.state === 'DONE_UNVERIFIED') { settle('DONE_UNVERIFIED', v.why); head = `DONE_UNVERIFIED — ${v.why}. Report the change and exactly what is not verified, in a sentence or two.`; }
       else if (v.state === 'PARTIAL' && input.accept_partial) { settle('PARTIAL', v.why); head = `PARTIAL — ${v.why}. Report what remains.`; }
-      else head = `NOT COMPLETE (${v.state}) — ${v.why}. ${v.state === 'DONE_UNVERIFIED' ? 'Produce the evidence, or call again with accept_unverified to finish and say what is unverified.' : v.state === 'PARTIAL' ? 'Address or defer the remaining asks, or call again with accept_partial.' : 'Resolve this before requesting completion again.'}`;
+      else head = `NOT COMPLETE (${v.state}) — ${v.why}. ${v.state === 'PARTIAL' ? 'Address or defer the remaining asks, or call again with accept_partial.' : 'Resolve this before requesting completion again.'}`;
       const output = [head, ...(claimLines.length ? ['claims:', ...claimLines] : [])].join('\n');
       // A SETTLED TASK ENDS THE TURN (turn.js): the verdict is Noema's, so there is nothing left to re-verify — a model
       // that kept going re-checked a finished task four times in a real GLM run (2026-10-01).

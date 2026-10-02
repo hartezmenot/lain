@@ -134,6 +134,8 @@ async function start(app) {
     const rec = app.session && app.session.recovered;
     if (rec && !rec.shown) { rec.shown = true; require('./ui/operation').say(app, rec.line); }
   } catch { /* startup chrome never blocks the session */ }
+  // PLAINTEXT CREDENTIALS LEFT BY AN OLDER VERSION (legacysecrets.js): counted, never shown, never deleted for you.
+  try { const s = require('./legacysecrets').summary(); if (s) app.render.notice('warn', s.text); } catch { /* a scan never blocks the session */ }
 
   if (!tui) app.banner();
   const input = new Input({ stdin: process.stdin, stdout: process.stdout });

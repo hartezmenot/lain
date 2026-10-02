@@ -113,7 +113,7 @@ module.exports = async function () {
     assert.strictEqual(g.result.meta.pretest, 'blocked');
   });
 
-  await test('PRETEST: a file that does not parse stops the suite on every machine', async () => {
+  await test('PRETEST: a file that does not parse is REPORTED with the run — advisory, never a refusal', async () => {
     // ---- THE RUNG THAT NEEDS NO TOOLING ---------------------------------
     //
     // Rung three — the project's own linter — is what catches `pirnt("hello")`,
@@ -127,10 +127,10 @@ module.exports = async function () {
     fs.writeFileSync(file, `function half( {${NL}  return 1;${NL}`);
     const before = `function half() { return 1; }${NL}`;
     const g = await pretest.guard({ app: appWith([{ path: file, before }]) }, cwd, {});
-    assert.strictEqual(g.stop, true, 'an unparseable file must not reach a suite run');
-    assert.match(g.result.output, /TESTS NOT RUN/);
-    assert.match(g.result.output, /broken\.js/, 'and it must name the file');
-    assert.match(g.result.output, /force: true/);
+    // 2026-10-02: advisory. A checker can be wrong (JSX was misparsed as JS), so it never stops a useful check.
+    assert.strictEqual(g.stop, false, 'the suite always runs');
+    assert.match(g.advisory, /Diagnostics currently report/);
+    assert.match(g.advisory, /broken\.js/, 'and it must name the file');
   });
 
   await test('PRETEST: correct code is not blocked — a clean check is not a claim', async () => {

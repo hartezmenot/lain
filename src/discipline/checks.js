@@ -84,6 +84,19 @@ class CheckLedger {
     return c;
   }
 
+  /**
+   * A STATIC CHECK OF A CHANGED FILE — the parse the edit path runs after every write (diagnostics.js). Recorded as a
+   * command-kind check so a later failure of the same file is the same check; marked `static` so it never stands in
+   * for behavioural proof (see discrimination).
+   */
+  parse({ rel, ok, message = '', gen = 0 }) {
+    const c = this.command({ command: `parse ${rel}`, ok, output: message, gen, changed: [rel] });
+    c.static = true; c.realism = 'STATIC'; c.targeted = true;
+    // A FILE THIS TASK JUST WROTE THAT DOES NOT PARSE is this task's failure — never "pre-existing".
+    if (!ok && c.latest) c.latest.classification = 'TASK_CAUSED';
+    return c;
+  }
+
   /** A PREVIEW (or other runtime) OBSERVATION: what the model did there and what came back. */
   observation({ tool, target = null, actor = 'MODEL', ok = true, text = '', gen = 0 }) {
     const c = this._new('P', `obs:${Date.now()}:${Math.random()}`, { kind: 'OBSERVATION', tool, target, actor, realism: 'RUNTIME', text: String(text || '').slice(0, 2000) });
@@ -97,11 +110,14 @@ class CheckLedger {
   commands() { return this.all().filter((c) => c.kind === 'COMMAND'); }
 
   /** Would this evidence differ if the claim were false? Judged against the CURRENT generation. */
-  discrimination(c, gen) {
+  discrimination(c, gen, { staticCounts = false } = {}) {
     if (!c || !c.latest) return 'NIL';
     if (c.latest.gen !== gen) return 'NIL';                       // stale: a change landed after it
     if (c.kind === 'OBSERVATION') return c.latest.state === 'OBSERVED' ? 'MODERATE' : 'NIL';
     if (c.latest.state !== 'PASS') return 'NIL';
+    // A STATIC CHECK (the post-write parse of a changed file) proves a DIRECT change — a label, a colour — and
+    // nothing about behaviour: it counts only where the arbiter says static proof is the proportional proof.
+    if (c.static) return staticCounts && c.targeted ? 'MODERATE' : 'NIL';
     if (c.baseline === 'FAIL') return 'HIGH';                      // failed before, passes after
     if (c.targeted) return 'MODERATE';                             // exercises what changed
     return 'LOW';                                                  // passed, but would also have passed before

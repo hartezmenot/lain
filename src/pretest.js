@@ -121,31 +121,15 @@ async function guard(ctx, cwd, input = {}) {
   }
   if (!report) return { stop: false, checked: paths.length };
 
+  // ADVISORY ONLY (2026-10-02). This used to return `stop: true` and refuse the suite. A checker can be wrong — JSX
+  // was misparsed as JavaScript for months — and a refusal on a false finding pushed models into forced reruns and
+  // out-of-scope repairs. The finding now rides at the top of the run's own output: evidence, never a gate.
   const rel = paths.map((p) => path.relative(cwd, p).replace(/\\/g, '/'));
-  const output = [
-    'TESTS NOT RUN — the checker found an error in what you just changed.',
-    '',
-    report,
-    '',
-    `Checked ${paths.length} file(s) changed in this session:`,
-    ...rel.slice(0, 10).map((r) => `  ${r}`),
-    rel.length > 10 ? `  [${rel.length - 10} more]` : null,
-    '',
-    'A suite run takes minutes and this took milliseconds. Fix the error and run',
-    'the tests again. If this is pre-existing or you want the suite anyway, call',
-    'run_tests again with force: true.',
-  ].filter((l) => l !== null).join('\n');
-
-  return {
-    stop: true,
-    checked: paths.length,
-    result: {
-      output,
-      // NOT `isError`. Nothing failed — a cheap check found a problem before an
-      // expensive one could, which is the gate working rather than breaking.
-      meta: { testState: null, pretest: 'blocked', checked: paths.length },
-    },
-  };
+  const advisory = [
+    `Diagnostics currently report a problem in ${rel.length === 1 ? rel[0] : `${rel.length} changed file(s)`} (checked before this run):`,
+    report.trim(),
+  ].join('\n');
+  return { stop: false, checked: paths.length, advisory };
 }
 
 module.exports = { guard, changedPaths, BUDGET_MS, MAX_FILES };

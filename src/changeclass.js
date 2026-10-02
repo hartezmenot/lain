@@ -153,6 +153,20 @@ function begin(app, text, { fromPreview = false, via = null } = {}) {
   return r;
 }
 
+/**
+ * EVERY SURFACE, ONE CLASS: called for each native turn (jobrunner.turnOptions). A continuation (goal/phase/auto-resume,
+ * a subagent) keeps the class of the task it continues; a class a Harness route set for this same text a moment ago is
+ * kept; otherwise the request is classified here. The BOT and the Chat view are never classified (they do not edit).
+ */
+const AUTOMATIC_FROM = /^(goal-continue|phase-continue|auto-resume|provider-restart|subagent|wake|recovery|continue)/;
+function ensure(app, text, { from = null } = {}) {
+  const s = app && app.session;
+  if (!s || s._role === 'bot' || s.thread === 'chat' || text == null) return null;
+  const cur = s._changeClass;
+  if (cur && (AUTOMATIC_FROM.test(String(from || '')) || (cur.text === String(text).slice(0, 200) && Date.now() - (cur.at || 0) < 10_000))) return cur;
+  return begin(app, text, { via: from || 'cli' });
+}
+
 /** A TURN ENDED: a DIRECT or NARROW change leaves its result where the IDE's panel shows it (Quick changes). */
 const QUICK_MAX = 20;
 function end(app, { ok = true, why = null } = {}) {
@@ -170,4 +184,4 @@ function end(app, { ok = true, why = null } = {}) {
   return row;
 }
 
-module.exports = { classify, decide, section, mark, begin, end, selectionOf, CLASS, ORDER };
+module.exports = { classify, decide, section, mark, begin, ensure, end, selectionOf, CLASS, ORDER };

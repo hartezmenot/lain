@@ -42,8 +42,16 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-/** Extensions this can say anything about at all. */
-const JS = /\.(?:js|cjs|mjs|jsx)$/i;
+/**
+ * Extensions this can say anything about at all.
+ *
+ * NOT `.jsx` (2026-10-02): `vm.Script` is a JavaScript parser, and JSX is not JavaScript — every valid component
+ * failed it, so every edit to a React file was reported as a SYNTAX ERROR at a line that did not exist, and models
+ * spent turns disproving it (measured: +80 s on a one-word label change). JSX and TypeScript go to the project's own
+ * TypeScript compiler when it has one (a syntax-only parse with JSX on) and are otherwise "cannot judge".
+ */
+const JS = /\.(?:js|cjs|mjs)$/i;
+const TSX = /\.(?:jsx|tsx|ts|mts|cts)$/i;
 const JSON_RE = /\.(?:json)$/i;
 const PY = /\.py$/i;
 
@@ -183,12 +191,40 @@ function checkPython(abs) {
  *   means "parses, or nothing here can judge it" — the two are deliberately the
  *   same answer to the caller, because neither is something to report.
  */
+/**
+ * JSX / TypeScript through the PROJECT'S OWN compiler — a syntax-only parse (no type check, no emit, nothing run).
+ * No TypeScript in the project means no answer, never a guess: a parser that does not understand the file must not
+ * report it broken.
+ */
+const tsCache = new Map();
+function projectTypeScript(abs) {
+  const dir = path.dirname(abs);
+  if (tsCache.has(dir)) return tsCache.get(dir);
+  let ts = null;
+  try { ts = require(require.resolve('typescript', { paths: [dir] })); } catch { ts = null; }
+  tsCache.set(dir, ts);
+  return ts;
+}
+function checkTsx(source, abs) {
+  const ts = projectTypeScript(abs);
+  if (!ts || typeof ts.transpileModule !== 'function') return { ok: true, inconclusive: true };
+  try {
+    const r = ts.transpileModule(source, { fileName: abs, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit ? ts.JsxEmit.Preserve : 1, allowJs: true, isolatedModules: true } });
+    const errs = (r.diagnostics || []).filter((d) => d.category === (ts.DiagnosticCategory ? ts.DiagnosticCategory.Error : 1));
+    if (!errs.length) return { ok: true };
+    const d = errs[0];
+    const line = d.file && typeof d.start === 'number' ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : null;
+    return { ok: false, message: ts.flattenDiagnosticMessageText(d.messageText, ' '), line };
+  } catch { return { ok: true, inconclusive: true }; }
+}
+
 async function checkFile(abs) {
   const name = path.basename(abs);
   let source;
   if (PY.test(name)) return checkPython(abs);
   try { source = fs.readFileSync(abs, 'utf8'); } catch { return { ok: true, inconclusive: true }; }
   if (JSON_RE.test(name)) return checkJson(source);
+  if (TSX.test(name)) return checkTsx(source, abs);
   if (!JS.test(name)) return { ok: true, inconclusive: true };
   const quick = checkJs(source, abs);
   if (!quick.inconclusive) return quick;
@@ -207,13 +243,15 @@ async function checkFile(abs) {
  * @param {string[]} paths  absolute paths, as `mutated` reports them
  * @returns {Promise<string>} '' when there is nothing worth saying
  */
-async function reportFor(paths, cwd) {
+async function reportFor(paths, cwd, { onResult = null } = {}) {
   if (!Array.isArray(paths) || !paths.length) return '';
   const bad = [];
   const unresolved = [];
   for (const abs of paths) {
     let r;
     try { r = await checkFile(abs); } catch { r = { ok: true }; }
+    // EVIDENCE, NOT A GATE: a conclusive parse (either way) is recorded by the caller as a static check.
+    if (onResult && r && !r.inconclusive) { try { onResult(abs, r); } catch { /* recording is best effort */ } }
     const where = cwd ? path.relative(cwd, abs) || abs : abs;
     if (r && r.ok === false) {
       bad.push(`${where}${r.line ? `:${r.line}` : ''} — ${r.message}`);
