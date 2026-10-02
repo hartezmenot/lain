@@ -158,7 +158,8 @@ function decide(record, text, { required = false, wakeups = 0, cls = null, smoke
 const REFUSES_FOR_WRITES = /\b(?:can(?:no|')t|cannot|unable to|not able to|won'?t be able to)\b[^.\n]{0,60}\b(?:fulfil+|proceed|comply|complete|implement|modify|make (?:the |any )?(?:code )?changes?|change (?:the )?code|help with (?:that|this))\b|\b(?:requires?|would require) (?:making )?(?:code )?(?:changes|modifications)\b/i;
 
 /** A request for a CHANGE to the project, negated clauses removed (see NEGATED). */
-const CHANGE_RE = /\b(?:fix|repair|patch|implement|add|build|create|write|change|update|edit|refactor|rename|remove|delete|migrate|wire|hook up|install|upgrade|bump|port|convert|replace|move)\b/i;
+// `port` only as the verb ("port this to Rust") — "confirm the port is free" asks nothing to change.
+const CHANGE_RE = /\b(?:fix|repair|patch|implement|add|build|create|write|change|update|edit|refactor|rename|remove|delete|migrate|wire|hook up|install|upgrade|bump|port\s+(?:\S+\s+){1,3}(?:to|from)|convert|replace|move)\b/i;
 function asksForChange(text) { return CHANGE_RE.test(stripNegated(text)); }
 /** A passing one of these is evidence that no change was needed. */
 const CHECKS = new Set(['run_tests', 'validate']);

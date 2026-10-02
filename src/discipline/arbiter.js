@@ -83,6 +83,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
   const vc = require('../verifycontract');
   const req = vc.requirement(cwd || process.cwd(), changed.map((p) => rel(cwd, p)), { objective: objectiveText, discretion });
   const disclose = [];   // what the report must say — never a reason to keep working
+  let unverified = false; // no check exercises what changed — the status strip says NOT VERIFIED
   const last = life.lastCommand;
   const passingNow = d ? d.checks.all().filter((c) => c.latest && c.latest.gen === gen && ['PASS', 'OBSERVED'].includes(c.latest.state)) : [];
   const failing = d ? d.checks.commands().filter((c) => c.latest && c.latest.state === 'FAIL' && c.latest.gen === gen && !require('./checks').explained(c)) : [];
@@ -106,7 +107,9 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     if (!requested && failing.length) return out(STATE.ACTIVE, unrelatedNote(failing[failing.length - 1]), { failedCheck: failing[failing.length - 1], level: req.level, claims: cl });
     for (const c of failing) disclose.push(unrelatedNote(c));
     const wantsChange = require('../wakeup').asksForChange(objectiveText) && !readOnly;
-    const nothingNeeded = passingNow.length > 0;
+    // A PASSING OBSERVATION proves no change was needed ("confirm the port is free" → checked, it is) — a ledger check
+    // or a verification the caller recorded.
+    const nothingNeeded = passingNow.length > 0 || e.verifiedChecks > 0;
     if (wantsChange && !nothingNeeded) {
       return out(STATE.DONE_UNVERIFIED, ['the request asked for a change and nothing was changed', ...disclose].join('; '), { level: req.level, claims: cl, nothingChanged: true });
     }
@@ -149,7 +152,19 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     const staticCounts = changeClass === 'DIRECT';
     const best = passingNow.reduce((m, c) => Math.max(m, rankOf(DISCRIMINATION, d.checks.discrimination(c, gen, { staticCounts }))), 0);
     if (best < rankOf(DISCRIMINATION, req.minDiscrimination)) {
-      disclose.push(discretion === 'WEAK' ? 'this model needs an independent check that exercises the change itself (none of the current checks does)' : 'no current check exercises what changed');
+      unverified = true;
+      // THE RELEVANT EVIDENCE SET, not `lastCommand`: an inconclusive result (a masked command — `… & echo DONE`, a
+      // no-match grep) is named for what it is when it was the only supposed proof. It is never called a failure,
+      // and it never satisfies the contract. When real evidence exists, an inconclusive last command is irrelevant.
+      const inconclusive = d.checks.commands().filter((c) => c.latest && c.latest.gen === gen && c.latest.state === 'UNVERIFIED');
+      if (inconclusive.length) {
+        const k = inconclusive[inconclusive.length - 1];
+        const { keyOf } = require('./checks');
+        const why = k.note || (last && last.ok === null && last.note && keyOf(k.command).startsWith(keyOf(last.command)) ? last.note : '');
+        disclose.push(`the last check does not verify this: ${k.command}${why ? ` — ${why}` : ' (inconclusive)'}`);
+      } else {
+        disclose.push(discretion === 'WEAK' ? 'this model needs an independent check that exercises the change itself (none of the current checks does)' : 'no current check exercises what changed');
+      }
     }
   }
   if (req.needsPackaging && d) {
@@ -163,7 +178,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
 
   const note = downgraded.length ? ` — ${downgraded.length} claim(s) not verified: ${downgraded.map((c) => `"${c.text.slice(0, 60)}" (${c.why})`).join('; ')}` : '';
   if (disclose.length) {
-    return out(STATE.DONE_UNVERIFIED, `${changed.length} file(s) changed · ${disclose.join('; ')}${note}`, { level: req.level, claims: cl, integrity: flags.length ? flags : undefined, remaining: unmet.map((c) => c.id), foreign: failing.map((c) => c.id), ...(failing.length ? { failedCheck: failing[failing.length - 1] } : {}) });
+    return out(STATE.DONE_UNVERIFIED, `${changed.length} file(s) changed · ${disclose.join('; ')}${note}`, { level: req.level, claims: cl, integrity: flags.length ? flags : undefined, remaining: unmet.map((c) => c.id), foreign: failing.map((c) => c.id), ...(unverified ? { unverified: true } : {}), ...(failing.length ? { failedCheck: failing[failing.length - 1] } : {}) });
   }
   return out(STATE.DONE, `${changed.length} file(s) changed, ${e.commandsRun} command(s) run${last && last.ok ? `, last check passed: ${last.command}` : ''}${note}`, { level: req.level, claims: cl });
 }
