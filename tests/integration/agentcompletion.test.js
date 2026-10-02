@@ -62,7 +62,7 @@ async function runAgent(script) {
   }
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('AGENT COMPLETION: a wake-up answer that repeats the final reply is stored once', async () => {
     const r = await runAgent([
       { text: 'Renaming.', tool_calls: [{ name: 'rename_symbol', input: { from: 'fixButton', to: 'ButtonFix' } }, PROJECT_WIDE] },
@@ -83,4 +83,4 @@ module.exports = async function () {
     ]);
     assert.deepStrictEqual(r.finals, ['Renamed fixButton to ButtonFix.', 'Ran the test: it passes.']);
   });
-};
+});

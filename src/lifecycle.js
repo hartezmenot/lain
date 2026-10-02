@@ -62,6 +62,7 @@ const ASKS_USER = [
 
 const STATE = Object.freeze({
   ACTIVE: 'ACTIVE',
+  IDLE: 'IDLE',   // the simple path (simple.js): no turn running, nothing judged
   DONE: 'DONE',
   // THE ARBITER'S HONEST ENDINGS (discipline/arbiter.js): finished without the evidence the contract asks for, or
   // finished with explicit asks still open — each said as what it is, never rounded up to DONE.

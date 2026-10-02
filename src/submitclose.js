@@ -120,7 +120,8 @@ async function after(app, record, text) {
   //
   // What remains here is a CLASSIFICATION, not a control flow: it reads the turn
   // and sets lifecycle state. It starts nothing.
-  if (app.session.lifecycle && require('./lifecycle').Lifecycle.asksUserToAct(record.text)) {
+  const simple = require('./simple').on(app);   // simple: no prose classifier, no checkpoint phase (simple.js)
+  if (!simple && app.session.lifecycle && require('./lifecycle').Lifecycle.asksUserToAct(record.text)) {
     const why = 'it asked you to do something and is waiting for you';
     app.session.lifecycle.needsUser(why);
     // THE ONE STATE WHERE NOTHING HAPPENS UNTIL A PERSON ACTS. A companion that
@@ -157,7 +158,7 @@ async function after(app, record, text) {
       return await app.submit(require('./ratelimit').RESUME_PROMPT, { sameTask: true, from: 'account-fallback' });
     }
   }
-  if (require('./sessionviews').current(app.session) === 'coding' && !app.session.cowork) {
+  if (!simple && require('./sessionviews').current(app.session) === 'coding' && !app.session.cowork) {
     try {
       if (record.stopReason === 'rate-limited' && record.providerFailure) require('./quotapause').pause(app, record);
       const cp = require('./supervision').checkpoint(app, record);

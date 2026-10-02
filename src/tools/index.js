@@ -183,10 +183,13 @@ function active(ctxApp) {
   if (!app || (session && session._previewTools) || process.env.LAIN_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
   if (!require('../dispatch').offersMigration(session)) out = without(out, MIGRATION_TOOLS);
   if (!(session && session._botTurn)) out = without(out, BOT_TOOLS);
+  if (require('../simple').on(app)) out = without(out, [...SIMPLE_OFF]);   // offered and dispatchable are one list
   return out;
 }
 
 const MIGRATION_TOOLS = ['migration_plan', 'migration_verify', 'migration_activate'];
+/** Off in simple mode (S1): the model reports its own result; nothing certifies it. */
+const SIMPLE_OFF = new Set(['request_completion', 'task_contract']);
 const BOT_TOOLS = ['hand_to_coding_agent'];
 function without(all, names) {
   if (!names.some((n) => Object.prototype.hasOwnProperty.call(all, n))) return all;
@@ -214,6 +217,8 @@ function notOffered(name) {
  */
 function schemas(app, { turn = false, session: turnSession = null } = {}) {
   const all = active(() => app);
+  // SIMPLE (simple.js): no task-shaped packs and no completion ceremony — the registry as it stands.
+  if (require('../simple').on(app)) return Object.keys(all).map((n) => all[n].schema);
   // EVERY PROFILE GETS CORE + THE PACKS ITS TASK NEEDS (2026-10-02, toolfunnel.packsFor). Opened ONCE per classified
   // request (keyed by the change class's mark), so the list — part of the cached prefix — never moves between two
   // steps of one turn, and only grows across a session. A focus packet's own shape (explain / rename / geometry) wins.
@@ -369,7 +374,7 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
     }
   }
   const order = ctx && ctx.workOrder;
-  if (order && order.bounded) {
+  if (order && order.bounded && !require('../simple').on(app)) {   // legacy: bounded work orders
     const guard = require('../workorderguard');
     const p = input && (input.path || input.file);
     if (p && !tool.mutates) {

@@ -239,6 +239,7 @@ function prepareCli(o = {}) {
     ...(process.env.LAIN_SUPERVISOR_BIN ? { LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN } : {}),
     ...(process.env.LAIN_SUPERVISOR_LEASE_PORT ? { LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT } : {}),
     LAIN_NO_COLOR: '1',
+    ...(process.env.LAIN_EXECUTION ? { LAIN_EXECUTION: process.env.LAIN_EXECUTION } : {}),   // legacyOnly() reaches the child
     NO_COLOR: '1',
     // ---- THE RETRY SCHEDULE, WITHOUT WAITING FOR IT ---------------------
     //
@@ -368,8 +369,15 @@ function harnessPath(...parts) {
   return path.join(root, ...parts);
 }
 
+/** A test of the LEGACY execution path (simple.js); deleted with it in Simplify S10. */
+async function legacyOnly(fn) {
+  const was = process.env.LAIN_EXECUTION;
+  process.env.LAIN_EXECUTION = 'legacy';
+  try { return await fn(); } finally { if (was == null) delete process.env.LAIN_EXECUTION; else process.env.LAIN_EXECUTION = was; }
+}
+
 module.exports = {
-  ROOT, BIN, test, results, setFile, tmpdir, runCli, prepareCli, writeScript, harnessPath,
+  ROOT, BIN, legacyOnly, test, results, setFile, tmpdir, runCli, prepareCli, writeScript, harnessPath,
   frames, rowsOf, lastFrameRows,
   headerMark, isRuleRow, ruleRowIndex,
   assertIncludes, assertNotIncludes,

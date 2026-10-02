@@ -251,26 +251,13 @@ class App {
     require('./perfmark').reset(); if (!from || typed) this._lastInputAt = Date.now();   // perfmark: where this turn's ms went; the CLI self-updates only after a quiet minute (update/cli.js)
     // ONE WRITER PER SESSION, on EVERY path into a turn (typed, Harness, auto-resume, messaging): sessionlease.js.
     { const sh = require('./surfacehandoff'); if (!(await sh.claimWaiting(this))) { const why = sh.check(this).why || 'another surface holds this session'; try { this.render.notice('warn', why); } catch { /* no renderer */ } return { held: 'surface', why }; } }
-    const verdict = this.identify(text, isPaste, forceMode, sameTask, from);
-    if (process.env.LAIN_DEBUG_TASK) this.render.notice('info', `[task ${verdict.kind} · mode ${verdict.mode}] ${verdict.reason} · ${verdict.modeReason}`);
-    // Elapsed time is measured from the start of the TASK, not the turn, and
-    // restarts when the task does.
-    if (this.ui.enabled && (!verdict.sameTask || !this.ui.startedAt)) this.ui.startedAt = Date.now();
-
+    // SIMPLE (simple.js): the message is the person's; nothing classifies it. LEGACY: identify.js.
+    const simple = require('./simple').on(this);
+    const verdict = simple ? require('./simple').identify(this, text) : this.identify(text, isPaste, forceMode, sameTask, from);
+    if (this.ui.enabled && (!verdict.sameTask || !this.ui.startedAt)) this.ui.startedAt = Date.now();   // elapsed is the task's
     require('./ui/alert').cancelPendingWait(this); this.abort = new AbortController(); require('./admissiontrace').note(this, 'submit:begin', { from });  // order matters: ui/alert.js
-    // GIT STATE, measured while the request is assembled. Fire-and-forget: the
-    // section it feeds rides the volatile tail (gitsnapshot.js) and may never
-    // delay the request that carries it — a turn that outruns the measurement
-    // renders no section. Same shape as refreshSupervisedJobs.
-    require('./gitsnapshot').prefetch(this, this.gitTouched());
-    // THE RUNTIME IS TOLD A TURN IS STARTING, AND WHICH PROCESS OWNS IT — the
-    // only evidence that will later prove nobody is going to finish it. Free
-    // with no supervisor, never awaited. See turnauthority.js.
-    require('./turnauthority').begin(this);
-    // TASK STARTED, OR THE SAME TASK CARRYING ON — and a companion needs those
-    // apart. Showing every turn as a new task makes an eight-turn investigation
-    // look like eight unrelated jobs. `sameTask` is the identifier's verdict,
-    // not a guess made here. See identify.js and events.js.
+    if (!simple) require('./gitsnapshot').prefetch(this, this.gitTouched());   // legacy: git state on the live tail
+    require('./turnauthority').begin(this);   // the runtime learns which process owns this turn
     {
       const { EVENT } = require('./events');
       this.events.emit(verdict.sameTask ? EVENT.TASK_PROGRESS : EVENT.TASK_STARTED, {
@@ -279,9 +266,7 @@ class App {
         turns: (this.session.turns || []).length,
         from: from || 'user',
       });
-      // AND THE TASK RECORD, which outlives this session. The same verdict, no
-      // second classification: see src/harnesslink.js.
-      require('./harnesslink').beginTurn(this, verdict, text);
+      if (!simple) require('./harnesslink').beginTurn(this, verdict, text);   // legacy: the harness task record
     }
     // Whatever was outstanding last time is no longer the news; this turn will
     // decide again when it ends.
@@ -293,9 +278,9 @@ class App {
     const ctx = { liveText: '', record: null };
     try {
       text = await require('./interaction').prepareInput(this, text);   // always: staged Cowork inputs reach the turn from EVERY surface
-      // ONE LOOP, SEVERAL SOURCES OF EVENTS: a runtime Coding Agent (runtimedispatch.js), Core finishing a
-      // bounded job (geometryjob.js, assistant/turn.js); otherwise LAIN's own turn. (Phase 8.3: no website source.)
-      const direct = require('./assistant/turn').routes(this, text, from) || (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : require('./geometryjob').routes(this, verdict));
+      // A runtime Coding Agent (runtimedispatch.js) is a provider; legacy also routes to assistant/turn and geometryjob.
+      const direct = simple ? (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : {})
+        : require('./assistant/turn').routes(this, text, from) || (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : require('./geometryjob').routes(this, verdict));
       const stream = direct.runtime ? require('./runtimedispatch').run(this, text, verdict, { from, typed, signal: this.abort.signal })
         : direct.yes ? require('./geometryjob').run(this, text, verdict, { from, typed, plan: direct.plan }) : runTurn(this.session, text, require('./jobrunner').turnOptions(this, {
         session: this.session,
@@ -360,27 +345,13 @@ class App {
       }
     }
     this.render.nl();
-    // INTERRUPTED is a RESTING state, not a flash: it was set in the `finally`
-    // above and stays on the header until the next thing the user does, so
-    // "did my Ctrl+C land?" is answerable a second later and not only at the
-    // instant it happened.
-    // DECIDED BEFORE THE SCREEN IS TOLD THE TURN ENDED.
-    //
-    // setBusy(false) redraws, and a redraw with nothing outstanding recorded
-    // yet drew "DONE · 4 tool calls" for one frame, over a task that was about
-    // to be declared unverified. Deciding first means the strip goes straight
-    // from working to VERIFYING and never flashes a completion that did not
-    // happen.
-    this.maybeComplete(record);
+    // SIMPLE: the lifecycle only describes the turn (IDLE now). LEGACY: the completion policy decides, before the redraw.
+    if (simple) require('./simple').settle(this); else this.maybeComplete(record);
     if (this.ui.enabled) this.ui.setBusy(false);
     if (record) {
       this.render.turnSummary(record);
-      // A SUCCESS CLAIM IS CHECKED AGAINST THE EVIDENCE, every turn — not only
-      // when a plan runs out of steps. The model's closing sentence is the last
-      // thing the user reads, so an unchallenged "all tests pass" over a red
-      // suite is the whole failure mode in one line. Costs nothing: a string
-      // against an exit code.
-      const disagree = (this.session.lifecycle && this.session.lifecycle.contradiction(record.text)) || require('./runcheck').check(record.text, this.session.cwd);
+      // LEGACY ONLY: the closing sentence checked against the evidence (simple has no judges of prose).
+      const disagree = !simple && ((this.session.lifecycle && this.session.lifecycle.contradiction(record.text)) || require('./runcheck').check(record.text, this.session.cwd));
       if (disagree) {
         // ON THE TURN IT IS ABOUT: a TUI notice floats under every later turn.
         const kept = (this.session.turns || [])[this.session.turns.length - 1];
@@ -391,14 +362,8 @@ class App {
       const pc = providerMod.resolve({ ...this.cfg, _evidence: this.connectionEvidence });
       connectionsMod.noteTurn(this.connectionEvidence, pc.connectionId || pc.provider, record);
     }
-    // AND HOW IT ENDED. What an ending MEANS for the next sentence a person
-    // types is the Guardian's judgement; the translation into its terms is
-    // turnauthority.js, which is where the one interesting case lives — a
-    // cancellation is not a failure and must not arm a recovery.
-    require('./turnauthority').end(this, record);
-    // AND THE TASK RECORD IS TOLD THE SAME THING. `DONE` becomes VERIFYING —
-    // a model that stopped has stopped, not proved anything. See harnesslink.js.
-    require('./harnesslink').endTurn(this, record);
+    require('./turnauthority').end(this, record);   // how it ended, for the runtime (a cancel is not a failure)
+    if (!simple) require('./harnesslink').endTurn(this, record);   // legacy: the harness task record
     try { this.session.save(); } catch (e) { this.render.notice('warn', `could not save session: ${e.message}`); } require('./admissiontrace').note(this, 'submit:settled', { stop: record && record.stopReason });
 
     // WHETHER ANOTHER TURN FOLLOWS THIS ONE — a queued steer, a question

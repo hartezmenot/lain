@@ -62,7 +62,7 @@ function harness(proj, steps) {
 
 async function turn(app, text) { await app.handle(text, { from: 'harness-app' }); for (let i = 0; i < 50 && app.abort; i++) await delay(20); }
 
-module.exports = async () => {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   const prev = { p: process.env.LAIN_PROVIDER, s: process.env.LAIN_MOCK_SCRIPT };
   const back = () => { process.env.LAIN_PROVIDER = prev.p || ''; if (!prev.p) delete process.env.LAIN_PROVIDER; if (prev.s) process.env.LAIN_MOCK_SCRIPT = prev.s; else delete process.env.LAIN_MOCK_SCRIPT; };
   require('../../src/gug')._reset(); require('../../src/harnesscontext')._reset();
@@ -182,4 +182,4 @@ module.exports = async () => {
       assert.strictEqual(treeHash(proj), before, 'byte-identical (.lain included)');
     } finally { h.restore(); back(); }
   });
-};
+});

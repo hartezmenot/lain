@@ -53,7 +53,7 @@ async function fixture(fn) {
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
-module.exports = async () => {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('BOT TELEGRAM MEDIA: observational status/check never attach, drain, latch, save or expose credentials', async () => fixture(async ({ root, token, rpc, start, adapter, state, calls }) => {
     assert.ok((await supervisor.ensure()).running);
     const mailbox = path.join(root, 'home', 'supervisor', 'bot-mailbox.json');
@@ -93,4 +93,4 @@ module.exports = async () => {
     await deliveryQueue.sendFile(target, file, { id: 'unknown-file', artifactId: 'a', turnId: 't' }); assert.equal(uploads.length, count + 1, 'unknown delivery must never auto-resend');
     assert.ok(!fs.readFileSync(path.join(root, 'delivery', 'transport.json'), 'utf8').includes(file.bytes.toString()));
   }));
-};
+});

@@ -231,7 +231,8 @@ function scheduleRecovery(app) {
     if (why) w.strategy.pausedForReview = why;
     try { s.save(); } catch { /* in memory */ }
   };
-  const fresh = rec.lastActiveAt && Date.now() - rec.lastActiveAt < FRESH_MS;
+  // SIMPLE: a crash reopens the session; nothing sends a turn — ▶ Continue (the person) resumes it.
+  const fresh = !require('./simple').on(app) && rec.lastActiveAt && Date.now() - rec.lastActiveAt < FRESH_MS;
   if (!fresh) { rec.autoResumeDecided = true; pause('the execution host stopped mid-turn'); return { scheduled: false, why: 'not a recent crash — ▶ Continue resumes it' }; }
   rec.autoResumeScheduled = true;
   const t = setTimeout(async () => {

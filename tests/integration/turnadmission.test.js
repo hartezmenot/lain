@@ -61,7 +61,7 @@ async function send(app, text, label = text) {
   return app.session.turns[app.session.turns.length - 1];
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   const registry = require('../../src/modelsource/registry');
   const { SOURCE } = require('../../src/modelsource/contract');
 
@@ -182,4 +182,4 @@ module.exports = async function () {
     await said('fix a.js to export 4', /lain codes again/, 'back to LAIN coding');
   });
 
-};
+});

@@ -36,7 +36,7 @@ function project() {
   return root;
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('DISCIPLINE: explicit asks are only what the person enumerated; anything else is one ask', () => {
     const asks = extractAsks('Do these:\n1. startup setting\n2. remove old executable\n3. keep the virtual mouse\n- rerun the tests');
     assert.deepStrictEqual(asks.map((a) => a.id), ['A1', 'A2', 'A3', 'A4']);
@@ -304,4 +304,4 @@ module.exports = async function () {
       mock._reset();
     }
   });
-};
+});

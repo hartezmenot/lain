@@ -49,7 +49,7 @@ const BRIEF = [
   'If the project is understandable from source evidence, simply report what exists.',
 ].join('\n');
 
-module.exports = async () => {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('READ-ONLY: a pasted brief is AUDIT with a write mask; writes refused, .lain untouched, model slips recovered, refusal woken, report ends it', async () => {
     const proj = tmpdir('readonly-task-');
     fs.mkdirSync(path.join(proj, 'webapp', 'src'), { recursive: true });
@@ -164,4 +164,4 @@ module.exports = async () => {
       if (prev.s === undefined) delete process.env.LAIN_MOCK_SCRIPT; else process.env.LAIN_MOCK_SCRIPT = prev.s;
     }
   });
-};
+});

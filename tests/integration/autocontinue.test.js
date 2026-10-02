@@ -45,7 +45,7 @@ const until = async (fn, ms = 20000) => { const end = Date.now() + ms; while (Da
 const write = (p, c) => ({ name: 'write_file', input: { path: p, content: c } });
 const done = (n) => ({ name: 'plan_step_done', input: { n, note: `step ${n}` } });
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('STALL (§57, §44): four phases, five recoverable failures, ONE message — the task finishes without a single `continue`', async () => {
     const cwd = sandbox();
     script([
@@ -197,4 +197,4 @@ module.exports = async function () {
       delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT;
     }
   });
-};
+});

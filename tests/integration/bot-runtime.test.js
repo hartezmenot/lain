@@ -10,7 +10,7 @@ const { Runtime } = require('../../src/bot/runtime');
 const supervisor = require('../../src/supervisor');
 const tick = () => new Promise(r => setImmediate(r));
 const source = (changes = {}) => ({ platform: 'fixture', accountId: 'default', chatId: 'chat', senderId: 'alice', messageId: '1', text: 'Say hello', ...changes });
-module.exports = async () => {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('BOT RUNTIME: real App turn, background work, prompt consent, exact resume and clean shutdown', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-bot-runtime-'));
     const previous = Object.fromEntries(['LAIN_HOME', 'LAIN_PROVIDER', 'LAIN_MOCK_SCRIPT'].map(k => [k, process.env[k]]));
@@ -76,4 +76,4 @@ module.exports = async () => {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   });
-};
+});

@@ -16,7 +16,7 @@ const source = (changes = {}) => ({
   messageId: '1', text: 'Create a sales workbook and send it back.', paired: true, ...changes,
 });
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('COWORK REMOTE: Telegram uses the shared spreadsheet tool and returns its owned artifact', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-cowork-remote-'));
     const previous = Object.fromEntries(['LAIN_HOME', 'LAIN_PROVIDER', 'LAIN_MOCK_SCRIPT'].map(k => [k, process.env[k]]));
@@ -176,4 +176,4 @@ module.exports = async function () {
       fs.rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
     }
   });
-};
+});

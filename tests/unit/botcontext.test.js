@@ -13,7 +13,7 @@
 const assert = require('assert');
 const { test, tmpdir } = require('../helpers');
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   const bc = require('../../src/botcontext');
   const { App } = require('../../src/app');
   const app = new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: tmpdir('botctx-') });
@@ -50,4 +50,4 @@ module.exports = async function () {
     assert.match(p, /Tone: dry/);
     assert.match(p, /French/);
   });
-};
+});

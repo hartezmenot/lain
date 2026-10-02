@@ -20,7 +20,7 @@ const { test, tmpdir, runCli } = require('../helpers');
 
 const STEPS = ['scaffold the parser package', 'write the lexer', 'write the recursive-descent parser', 'report syntax errors with positions', 'document the grammar'];
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('STALE RECOVERY (§110): killed after checkpoint 3, restarted — resumes AFTER the commit, at step 4 of 5, never step 3 again', async () => {
     const cwd = tmpdir('stalerec-');
     const configDir = path.join(cwd, '.config');
@@ -83,4 +83,4 @@ module.exports = async function () {
     assert.strictEqual(s2.checkpoint.done, 5, 'the last commit is 5/5');
     for (const n of [1, 2, 3, 4, 5]) assert.strictEqual(fs.readFileSync(path.join(cwd, `s${n}.txt`), 'utf8'), `step ${n}`);
   });
-};
+});

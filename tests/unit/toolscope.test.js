@@ -23,7 +23,7 @@ function turnTools(app, { cls = null, thread = 'coding', text = '' } = {}) {
   return require('../../src/tools').schemas(app, { turn: true }).map((t) => t.name);
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('TOOL SCOPE: a small DIRECT edit gets the core set only — no account, Preview, computer, release, agent or ceremony tools', () => {
     const names = turnTools(appFor(), { cls: 'DIRECT', text: 'Change the button label from Save to Apply.' });
     assert.ok(names.length <= 15, `${names.length} tools: ${names.join(', ')}`);
@@ -70,4 +70,4 @@ module.exports = async function () {
     const v = reg.schemas(app, { turn: true, session: verifier }).map((t) => t.name);
     assert.ok(v.includes('run_tests') && v.includes('run_bash') && !v.includes('edit_file'), v.join(', '));
   });
-};
+});

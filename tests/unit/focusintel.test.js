@@ -17,7 +17,7 @@ const isolation = require('../harness/isolation');
 
 const FAKE = path.join(__dirname, '..', 'fixtures', 'lsp', 'fakels.js');
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   const root = isolation.tmp('focusintel-');
   const w = (rel, text) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), text); };
   w('ui/button.lt', 'let fixButton = 1\n# fixButton is the toolbar action\nprint "fix_button"\n');
@@ -172,4 +172,4 @@ module.exports = async function () {
   } finally {
     await require('../../src/lsp/manager').stopAll();
   }
-};
+});

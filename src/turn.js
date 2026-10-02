@@ -532,7 +532,7 @@ async function* runTurn(session, userInput, opts = {}) {
     if (usage) {
       for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']) record.usage[k] += usage[k] || 0; if (Number.isFinite(usage.reasoningTokens)) record.usage.reasoningTokens = (record.usage.reasoningTokens || 0) + usage.reasoningTokens;   // reasoning only when STATED
     } require('./cacheledger').settle(session, fitted.cache, usage, pc);   // expected (cachebudget) vs billed, per request
-    const repeatsFinal = require('./finish').repeatsFinal(session.messages, text, calls);   // one completion per turn (finish.js)
+    const repeatsFinal = !opts.simple && require('./finish').repeatsFinal(session.messages, text, calls);   // legacy: one completion per turn (finish.js)
     if (repeatsFinal) record.repeatedFinal = (record.repeatedFinal || 0) + 1;
     if (text.trim() && !repeatsFinal) {
       record.text += (record.text ? '\n' : '') + text.trim();
@@ -585,7 +585,7 @@ async function* runTurn(session, userInput, opts = {}) {
       if (cut === 'continue') { wakeNote = require('./finish').continueNote(finish); continue; } else if (cut) { record.stopReason = cut; break; }
       // AN EXECUTION TURN THAT WENT IDLE gets ONE hidden wake-up on the
       // framed tail, never a user message. See wakeup.js.
-      const idle = require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution) && record.from !== 'goal-continue', wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd), readOnly: require('./readonly').active((opts.app && opts.app.session) || session) });
+      const idle = opts.simple ? null : require('./wakeup').decide(record, text, { required: Boolean(opts.requiresExecution) && record.from !== 'goal-continue', wakeups: record.wakeups || 0, cls: opts.taskClass || null, smoke: require('./finalsmoke').state(life, session.cwd), readOnly: require('./readonly').active((opts.app && opts.app.session) || session) });
       if (idle === 'wake') { record.wakeups = (record.wakeups || 0) + 1; wakeNote = require('./wakeup').noteFor(record); continue; }
       if (idle === 'no-progress') record.stopReason = 'no-progress';
       record.stopReason = record.stopReason || 'end';

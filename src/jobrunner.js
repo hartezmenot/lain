@@ -53,7 +53,27 @@ const { STATE } = require('./jobs');
  * Everything session-shaped is taken FROM THE SESSION PASSED IN, never from
  * `app.session` — that is what makes a forked job actually forked.
  */
-function turnOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null, text = null }) {
+/** SIMPLE (simple.js): the model runs the loop — no classification, no wake-up, no lifecycle gate, no context profile. */
+function simpleOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null }) {
+  const parts = require('./promptparts');
+  const p = parts.of(app, { session });
+  return {
+    cfg: require('./sessionviews').turnCfg(app, session),
+    cfgNow: () => require('./sessionviews').turnCfg(app, session),
+    systemPrompt: p.stable, live: p.live, liveContinuing: parts.of(app, { opened: true, session }).live,
+    from, typed, signal, evidence: session.evidence, lifecycle: null, availability: app.availability, checkpoints: app.checkpoints,
+    app, ask, onStatus, steer,
+    sideContext: async () => require('./bgdetach').takeContext(session),   // background results, delivered once
+    taskClass: null, requiresExecution: false, simple: true,
+  };
+}
+
+function turnOptions(app, opts) {
+  if (require('./simple').on(app)) return simpleOptions(app, opts);
+  return legacyOptions(app, opts);
+}
+
+function legacyOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null, text = null }) {
   // THE CHANGE CLASS FOR EVERY SURFACE (2026-10-02): the Harness classified its own submits; the CLI never did, so a
   // one-word label edit typed in the terminal ran with the whole machinery. One deterministic call, every native turn.
   try { if (session === (app && app.session)) require('./changeclass').ensure(app, text, { from }); } catch { /* unclassified runs as before */ }

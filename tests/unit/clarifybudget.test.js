@@ -27,7 +27,7 @@ const { test } = require('../helpers');
 const { Clarifications } = require('../../src/clarify');
 const prompt = require('../../src/prompt');
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('BUDGET: exhausted is false until the last round is spent', () => {
     const b = new Clarifications({ maxRounds: 2 });
     assert.strictEqual(b.exhausted, false);
@@ -110,4 +110,4 @@ module.exports = async function () {
     assert.strictEqual(refused.meta && refused.meta.clarify, 'REFUSED');
     assert.match(refused.output, /budget for this task is spent/);
   });
-};
+});

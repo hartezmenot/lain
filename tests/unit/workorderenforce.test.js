@@ -44,7 +44,7 @@ function project() {
   return { root, session: s };
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('WO G: a proposal computed against baseline A is refused when disk is now B — nothing is overwritten', async () => {
     const { root, session } = project();
     const order = authority.issue(session, { id: 'W52', objective: 'reject empty tokens', writeScope: ['src/auth/session.js'], bounded: true });
@@ -204,4 +204,4 @@ module.exports = async function () {
     const back = authority.WorkOrder.from(order.toJSON());
     assert.strictEqual(back.bounded, true, 'boundedness survives serialisation');
   });
-};
+});

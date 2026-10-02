@@ -169,7 +169,7 @@ module.exports = async function () {
     assert.strictEqual(wb.of(app.session).pendingProfile, null);
   });
 
-  await test('QUOTA: a limit pauses the task resumably; ▶ Continue re-checks NOW (ignores the stale 4h prediction) and resumes the same task', async () => {
+  await test('QUOTA: a limit pauses the task resumably; ▶ Continue re-checks NOW (ignores the stale 4h prediction) and resumes the same task', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const app = mk();
     seedPlan(app, ['p1', 'p2']);
     app.session.thread = 'coding';
@@ -187,7 +187,7 @@ module.exports = async function () {
     assert.strictEqual(sent.length, 1, 'resumed immediately');
     await new Promise((x) => setImmediate(x));
     assert.strictEqual(wb.of(app.session).quota, null, 'running again');
-  });
+  }));
 
   await test('SEND TO CODING AGENT: needs a project; then the SAME session runs the approved plan, seeded as its phases', async () => {
     const app = mk();

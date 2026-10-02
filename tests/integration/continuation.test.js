@@ -90,7 +90,7 @@ const PLAN = [
   { text: 'Provider inspected.', tool_calls: [{ name: 'plan_step_done', input: { n: 1, note: 'read the provider' } }] },
 ];
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   if (process.platform === 'win32') {
     for (const persistent of [false, true]) {
       await test(`TEARDOWN: a ${persistent ? 'persistent cwd lock still fails visibly' : 'temporary cwd lock is retried until removal succeeds'}`, async () => {
@@ -398,4 +398,4 @@ module.exports = async function () {
       delete process.env.LAIN_MOCK_SCRIPT;
     }
   });
-};
+});

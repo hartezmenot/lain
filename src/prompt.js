@@ -431,7 +431,7 @@ function build({ cwd, platform, model, mode = null, session = null, checkpoints 
   // model. See clarify.js `directive`.
   try {
     const clarify = require('./clarify');
-    const budget = app && app._clarify instanceof clarify.Clarifications ? app._clarify : null;
+    const budget = app && !require('./simple').on(app) && app._clarify instanceof clarify.Clarifications ? app._clarify : null;
     if (budget && budget.exhausted) {
       established = established ? `${established}\n\n${budget.directive()}` : budget.directive();
     }

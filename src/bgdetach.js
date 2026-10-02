@@ -110,7 +110,7 @@ function rejoin(app, session, r) {
   try { require('./notify').attention(app, 'BACKGROUND_COMPLETE', `${r.label} · ${r.summary}`, { jobId: r.jobId }); } catch { /* notifications are best effort */ }
   try { app.render.notice(r.ok ? 'info' : 'warn', `BG COMPLETE · ${r.label} · ${r.summary}`); } catch { /* no renderer */ }
   // THE FINAL SMOKE settles the task on its own when it comes back (finalsmoke.js).
-  try { require('./finalsmoke').settleBackground(app, session, r); } catch { /* the result is still recorded above */ }
+  if (!require('./simple').on(app)) { try { require('./finalsmoke').settleBackground(app, session, r); } catch { /* the result is still recorded above */ } }   // legacy: the final smoke settles the task
   try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* nothing drawn */ }
 }
 

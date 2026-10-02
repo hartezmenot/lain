@@ -86,7 +86,7 @@ const tools = {
       // model can talk its way past is a suggestion, and "ask sparingly" in a
       // tool description has no way to know that this is the fourth time.
       const clarify = require('../clarify');
-      const budget = ctx.app ? clarify.forTask(ctx.app) : null;
+      const budget = ctx.app && !require('../simple').on(ctx.app) ? clarify.forTask(ctx.app) : null;   // legacy: question budget
       if (budget) {
         const may = budget.mayAsk(question);
         if (!may.ok) {
