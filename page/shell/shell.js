@@ -76,6 +76,7 @@ const HTML = `
   <span class="tb-drag" data-drag="1"></span>
   <span class="conn" id="conn"></span>
   <button class="tracker" id="tracker" aria-haspopup="dialog"><span class="trk-ring" id="trackerRing"></span><span class="trk-t" id="trackerText">Usage</span><span class="trk-x" id="trackerExtra"></span><span class="trk-car" id="trackerCar"></span></button>
+  <button class="cubtn" id="cuBtn" aria-haspopup="dialog" data-on="false"><span class="cu-dot"></span><span class="cu-t">Computer</span></button>
   <button class="updbtn" id="updateBtn" hidden aria-haspopup="dialog"><span class="ud-ic" id="updateIc"></span><span class="ud-t">Update</span></button>
   <button class="tb-ib" id="themeBtn"></button>
   <div class="winctl" id="winctl" hidden>
@@ -146,7 +147,7 @@ const CSS = `
 #app[data-navw=compact] .rail-row{flex-direction:column}
 /* THE MODEL DASHBOARD WINDOW (\`lain model\` — #dashboard=<section>): the Model room alone, no rail, no menus. */
 body.dashboard-mode #app{--nav-w:0px}
-body.dashboard-mode #rail,body.dashboard-mode #menus,body.dashboard-mode #topSearch,body.dashboard-mode #surfCar,body.dashboard-mode #updateBtn{display:none!important}
+body.dashboard-mode #rail,body.dashboard-mode #menus,body.dashboard-mode #topSearch,body.dashboard-mode #surfCar,body.dashboard-mode #updateBtn,body.dashboard-mode #cuBtn{display:none!important}
 .rail-fold{width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--nav-muted);opacity:0;transition:opacity var(--t-hover) var(--ease)}
 .rail-foot:hover .rail-fold,.rail-fold:focus-visible{opacity:1}
 .rail-fold:hover{color:var(--nav-text);background:color-mix(in srgb,var(--nav-text) 6%,transparent)}
@@ -564,6 +565,7 @@ function client() {
     $('railExit').onclick = function () { if (L.update) L.update.exit(); };
     $('updateIc').appendChild(L.icon('update', 15));
     $('updateBtn').onclick = function (e) { e.stopPropagation(); if (L.update) L.update.open($('updateBtn')); };
+    $('cuBtn').onclick = function (e) { e.stopPropagation(); if (L.computer) L.computer.open($('cuBtn')); };
     $('railExt').onclick = function () { go('ext'); };
     $('railExt').setAttribute('data-tip', 'Extensions');
     $('railGh').onclick = function (e) { e.stopPropagation(); githubMenu(); };
@@ -621,6 +623,7 @@ function client() {
     if (previewSeen === null) previewSeen = pw && Date.now() - pw < 15000 ? 0 : (pw || 0);
     if (pw && pw > previewSeen && !DASHBOARD) { previewSeen = pw; go('ide'); if (L.workshop && L.workshop.open) L.workshop.open(); }
     if (L.update) L.update.paint(S);
+    if (L.computer) L.computer.paint(S);
   });
 }
 
