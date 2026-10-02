@@ -415,7 +415,7 @@ function resolve(app, session = app.session) {
   return {
     project,
     bot: { source: 'lain', model: chatL.model, account: chatL.account, family: chatL.family, scope: chatL.modelScope, accountScope: chatL.accountScope },
-    chat: { source: 'lain', model: chatL.model, account: chatL.account, family: chatL.family, scope: chatL.modelScope, accountScope: chatL.accountScope, label: 'Noema', chatOnly: false, lane: chatL },
+    chat: { source: 'lain', model: chatL.model, account: chatL.account, family: chatL.family, scope: chatL.modelScope, accountScope: chatL.accountScope, label: 'LAIN', chatOnly: false, lane: chatL },
     coding: { model: codingL.model, account: codingL.account, family: codingL.family, scope: codingL.modelScope, accountScope: codingL.accountScope, lane: codingL },
     reasoning,
     efforts: { chat: chatL.efforts, coding: codingL.efforts },

@@ -90,7 +90,7 @@ async function verify(rootPid, port) {
   const pids = await tree(rootPid);
   if (!pids) return { ok: null, owner, why: 'the process tree could not be read' };
   if (pids.has(owner.pid)) return { ok: true, owner };
-  return { ok: false, owner, why: `:${port} is served by process ${owner.pid}, which is not the dev server Noema started for this project (pid ${rootPid}) — another application holds that port` };
+  return { ok: false, owner, why: `:${port} is served by process ${owner.pid}, which is not the dev server LAIN started for this project (pid ${rootPid}) — another application holds that port` };
 }
 
 module.exports = { ownerOf, tree, verify };

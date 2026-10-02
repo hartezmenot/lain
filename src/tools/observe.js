@@ -91,7 +91,7 @@ tools.observe_start = {
     name: 'observe_start',
     description:
       'Run something and WATCH IT WITHOUT LOOKING AT IT — a bot, a game script, a long automation. '
-      + 'Say what it should do and which output lines matter; Noema then stays quiet while it runs '
+      + 'Say what it should do and which output lines matter; LAIN then stays quiet while it runs '
       + 'and captures the screen only when a rule you marked `capture` fires. '
       + 'DO NOT take screenshots in a loop while it runs: that costs a request per glance and still '
       + 'misses anything shorter than the gap between them. Call observe_stop ONCE when it should '

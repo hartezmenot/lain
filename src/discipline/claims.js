@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * CLAIM PROVENANCE (Execution Discipline §28) — a completion report is a set of TYPED claims, and Noema checks each
+ * CLAIM PROVENANCE (Execution Discipline §28) — a completion report is a set of TYPED claims, and LAIN checks each
  * against what it actually observed:
  *
  *   CHANGED       something was modified          → the mutation ledger must show it
@@ -53,13 +53,13 @@ function crossCheck(claims, { ledger, gen = 0, changed = [] } = {}) {
     if (type === 'INFERRED' || type === 'NOT_CHECKED') return { ...cl, type, accepted: true, as: type, why: '', checkIds: [] };
     if (type === 'CHANGED') {
       const ok = changed.length > 0;
-      return { ...cl, type, accepted: ok, as: ok ? 'CHANGED' : 'NOT_CHECKED', why: ok ? '' : 'Noema recorded no change in this task', checkIds: [] };
+      return { ...cl, type, accepted: ok, as: ok ? 'CHANGED' : 'NOT_CHECKED', why: ok ? '' : 'LAIN recorded no change in this task', checkIds: [] };
     }
     // VERIFIED
     if (cl.check) {
       const c = ledger && ledger.get(cl.check);
       const ok = Boolean(c && current.includes(c));
-      return { ...cl, type, accepted: ok, as: ok ? 'VERIFIED' : 'NOT_CHECKED', why: ok ? '' : c ? `${cl.check} is not a passing check of the current state` : `${cl.check} is not a check Noema observed`, checkIds: ok ? [c.id] : [] };
+      return { ...cl, type, accepted: ok, as: ok ? 'VERIFIED' : 'NOT_CHECKED', why: ok ? '' : c ? `${cl.check} is not a passing check of the current state` : `${cl.check} is not a check LAIN observed`, checkIds: ok ? [c.id] : [] };
     }
     const domains = DOMAINS.filter((d) => d.claim.test(cl.text));
     const support = current.filter((c) => {

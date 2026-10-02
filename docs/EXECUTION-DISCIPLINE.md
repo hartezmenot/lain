@@ -1,11 +1,11 @@
 # Execution discipline (internal)
 
-**Noema owns execution discipline. The model owns judgment. Tools provide observations. Evidence controls claims.
+**LAIN owns execution discipline. The model owns judgment. Tools provide observations. Evidence controls claims.
 The requested observable outcome controls completion.** Different models, same discipline — and they are not made to
 think or speak alike. A weaker model gets less *discretion*, never a lower standard of evidence.
 
 The discipline is state and code in Core (`src/discipline/`), not a longer prompt. The standing policy every model
-receives is ~500 tokens (`constitution.js` `POLICY`); everything Noema can enforce mechanically is enforced, and
+receives is ~500 tokens (`constitution.js` `POLICY`); everything LAIN can enforce mechanically is enforced, and
 reaches the model only as a contextual message when it applies.
 
 ## The closed loop
@@ -40,7 +40,7 @@ the state it observed, and a later change makes it stale.
 | `profile.js` | per-model capability profiles (`<home>/models/profiles.json`): measured from invalid calls, patch failures, false completions; family priors until 30 calls → discretion STRONG / STANDARD / WEAK |
 | `dialect.js` | the tool semantic layer: canonical ops rendered in each family's vocabulary (Claude `Read/Edit/Bash`, Codex `shell/rg/apply_patch`, GLM `bash/read/str_replace`, local strict canonical) and resolved back through the one canonical door |
 | `digest.js` · `promptstate.js` | the continuity digest (outcome, asks, criteria, facts with STALE marks, checks baseline → latest, questions, blockers, test changes, scaffolding) and the live "Task state" prompt section; `OUTCOME SATISFIED` when it is |
-| `constitution.js` | `POLICY`; `.noema/NOEMA.md` is the project constitution — CLAUDE.md-style and `<developer_instructions>` forms are rendered from it for Claude Code and Codex, never separate authorities |
+| `constitution.js` | `POLICY`; `.lain/LAIN.md` is the project constitution — CLAUDE.md-style and `<developer_instructions>` forms are rendered from it for Claude Code and Codex, never separate authorities |
 
 ## The arbiter
 

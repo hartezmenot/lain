@@ -67,7 +67,7 @@ function framePair(out, marker) {
  * border and no label now — it is a grey fill (ui/inputbox.js) — so the anchor
  * is what it says when it is empty, which is the row a person looks at anyway.
  */
-const inputAt = (rows) => rows.findIndex((l) => /Ask Noema|ANSWER — /.test(l));
+const inputAt = (rows) => rows.findIndex((l) => /Ask LAIN|ANSWER — /.test(l));
 /** The header's rule — the boundary between metadata and the conversation. */
 const feedAt = (rows) => rows.findIndex((l) => isRuleRow(l));
 

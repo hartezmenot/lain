@@ -278,10 +278,10 @@ function guard(rec, target) {
   const root = real(tempRoot());
   if (!rec || real(rec.dir) !== t) return { ok: false, why: 'DENIED: not the registered workspace directory' };
   const rel = path.relative(root, t);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.split(/[\\/]/).length !== 1) return { ok: false, why: `DENIED: ${t} is not directly inside the Noema temp root ${root}` };
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || rel.split(/[\\/]/).length !== 1) return { ok: false, why: `DENIED: ${t} is not directly inside the LAIN temp root ${root}` };
   // ONLY A NAME LAIN'S OWN mkdtemp PRODUCES — even a misconfigured temp root
   // cannot make a project folder beside it look like a workspace.
-  if (!/^lain-/.test(path.basename(t))) return { ok: false, why: `DENIED: ${path.basename(t)} is not a Noema workspace name` };
+  if (!/^lain-/.test(path.basename(t))) return { ok: false, why: `DENIED: ${path.basename(t)} is not a LAIN workspace name` };
   const protectedRoots = [rec.root, path.join(__dirname, '..'), os.homedir(), require('./config').configDir(), path.dirname(rec.root || t)];
   try { protectedRoots.push(require('./harnesslocation').root && require('./harnesslocation').root()); } catch { /* no harness */ }
   try { for (const w of Object.values(require('./workerruntime').manifest())) if (w.defaultStore) protectedRoots.push(w.defaultStore); } catch { /* no manifest */ }

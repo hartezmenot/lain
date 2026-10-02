@@ -18,7 +18,7 @@
  * write succeeded and then the model response 502'd, retrying the request must
  * not write again. A retry that replays side effects is worse than no retry.
  *
- * Everything here drives `bin/noema.js` with a mock that returns real HTTP
+ * Everything here drives `bin/lain.js` with a mock that returns real HTTP
  * statuses, so the classifier, the backoff, the status strip and the turn loop
  * are all the production ones. Only the socket is a double.
  */
@@ -110,7 +110,7 @@ module.exports = async function () {
 
   // ------------------------------------------- NETWORK IS NOT MODEL FAILURE --
 
-  await test('NET: a 502 reads as NETWORK, not as Noema failing', async () => {
+  await test('NET: a 502 reads as NETWORK, not as LAIN failing', async () => {
     const r = await runCli([], {
       cwd: tmpdir('conn-'),
       env: { LAIN_FORCE_TUI: '1', COLUMNS: '100', LINES: '30' },
@@ -120,7 +120,7 @@ module.exports = async function () {
       timeoutMs: 120000,
     });
     const out = plain(r.out);
-    assert.match(out, /NETWORK/i, 'a gateway failure must not be attributed to Noema or the model');
+    assert.match(out, /NETWORK/i, 'a gateway failure must not be attributed to LAIN or the model');
     assertIncludes(out, '502', 'and the status code is the most useful fact about it');
     assertNotIncludes(out, 'MODEL REFUSED', 'a 502 is not a refusal');
   });

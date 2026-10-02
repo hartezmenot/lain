@@ -71,7 +71,7 @@ module.exports = async function () {
 
   // --------------------------------------------------- PROVIDER RETRY-AFTER --
 
-  await test('BACKOFF: a provider can make Noema wait LONGER, never shorter', () => {
+  await test('BACKOFF: a provider can make LAIN wait LONGER, never shorter', () => {
     // configured 30 · provider 2  -> 30
     assert.strictEqual(backoff.effectiveDelay(3, 2_000), 30_000);
     // configured 30 · provider 90 -> 90

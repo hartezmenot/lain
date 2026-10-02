@@ -137,7 +137,7 @@ module.exports = async function () {
       app.cfg.model = globalModel;
       assert.strictEqual(r.lane.model, 'codex-mini', 'the account\'s declared default, as a logical model');
       const refused = await si.choose(app, app.session, { lane: 'chat', model: 'orca/openai/gpt-6-sol' });
-      assert.strictEqual(refused.ok, false, 'a model only a router pool nobody imported carries is not Noema\'s to use');
+      assert.strictEqual(refused.ok, false, 'a model only a router pool nobody imported carries is not LAIN\'s to use');
       assert.strictEqual(si.lane(app, app.session, 'chat').family, 'codex', 'the refusal changed nothing');
       const unknown = await si.choose(app, app.session, { lane: 'chat', account: 'nope' });
       assert.strictEqual(unknown.ok, false);

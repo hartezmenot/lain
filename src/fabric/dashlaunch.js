@@ -72,15 +72,15 @@ async function open(app, section = 'accounts') {
 /** What the terminal says after `open` — one line, the same for /account, /api and /model manage. */
 function said(r, where = 'Accounts') {
   if (!r || !r.ok) return `The Model Dashboard did not open: ${(r && r.why) || 'unknown'}`;
-  if (r.how === 'running-lain') return `Opened the Model Dashboard at ${where} in the Noema already running.`;
+  if (r.how === 'running-lain') return `Opened the Model Dashboard at ${where} in the LAIN already running.`;
   if (r.how === 'standalone') {
-    const lead = r.windowWhy ? 'The Harness window did not open' : 'The Noema Harness is not installed';
+    const lead = r.windowWhy ? 'The Harness window did not open' : 'The LAIN Harness is not installed';
     // THE ONE-TIME LAUNCH LINK IS NEVER PRINTED (consolidation §11) — it is handed to the browser directly. If no
     // browser could be opened there is nothing to copy: the way forward is the native window or another try.
-    const how = r.opened ? 'opened Noema\'s account page in your browser' : 'no browser could be opened for Noema\'s account page — install the Noema Harness, or run the command again';
+    const how = r.opened ? 'opened LAIN\'s account page in your browser' : 'no browser could be opened for LAIN\'s account page — install the LAIN Harness, or run the command again';
     return r.opened ? `${lead} — ${how}. It is served on this computer only and closes when you press Done.` : `${lead} — ${how}.`;
   }
-  if (r.how === 'dashboard-window') return `Opened the Noema Model Dashboard at ${where}. Keys and sign-ins are entered there, never in this terminal.`;
+  if (r.how === 'dashboard-window') return `Opened the LAIN Model Dashboard at ${where}. Keys and sign-ins are entered there, never in this terminal.`;
   return `Opened the Model Dashboard at ${where}.`;
 }
 

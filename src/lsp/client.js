@@ -134,7 +134,7 @@ class LspClient {
       ...(initializationOptions ? { initializationOptions } : {}),
       rootUri: uriOf(root),
       workspaceFolders: [{ uri: uriOf(root), name: 'workspace' }],
-      clientInfo: { name: 'Noema', version: '1' },
+      clientInfo: { name: 'LAIN', version: '1' },
       capabilities: {
         textDocument: {
           synchronization: { didSave: true, dynamicRegistration: false },

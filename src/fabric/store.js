@@ -140,7 +140,7 @@ function setAlias(accountId, name) {
 /**
  * ENABLED / DISABLED (2026-10-02). A disabled account keeps its sign-in, its quota history, its models and its place
  * in the priority order — it is simply never chosen for a NEW request and never used as a fallback. Different from
- * Detach (forget it), Sign out (end the sign-in) and Delete (remove what Noema made). A request already running on it
+ * Detach (forget it), Sign out (end the sign-in) and Delete (remove what LAIN made). A request already running on it
  * finishes there: disabling changes the next choice, never the one in flight.
  */
 function isEnabled(accountId) { return !read().disabled[String(accountId || '')]; }

@@ -253,7 +253,7 @@ function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT
  * invisible to git. Deleting it commits `.lain/` with the project. Only for a folder
  * LAIN creates; a `.lain/` that already exists (perhaps committed) is left as it is.
  */
-const SELF_IGNORE = '# Written by Noema when it first opened this project: its index, fingerprints and notes\n# stay out of your commits. Delete this file to commit .noema/ with the project.\n*\n';
+const SELF_IGNORE = '# Written by LAIN when it first opened this project: its index, fingerprints and notes\n# stay out of your commits. Delete this file to commit .lain/ with the project.\n*\n';
 function ignoreNew(root) {
   const f = path.join(dirOf(root), '.gitignore');
   try { if (!fs.existsSync(f)) fs.writeFileSync(f, SELF_IGNORE, { flag: 'wx' }); return true; } catch { return false; }

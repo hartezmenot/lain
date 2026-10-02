@@ -47,7 +47,7 @@ const CAPS = Object.freeze({
     unaffectedBy: [/^src\/workshop\//, /^distribution\//] },
   installer: { label: 'setup, PATH, Start Menu, uninstall', tiers: ['distribution'], files: () => true,
     unaffectedBy: [/^src\/(?!boot|home|update\/)/, /^harness:page\//] },
-  updater: { label: 'signed feed, stage, apply, rollback', tiers: ['unit'], files: (f) => /noemaupdate|noemalifecycle|updater/.test(f),
+  updater: { label: 'signed feed, stage, apply, rollback', tiers: ['unit'], files: (f) => /lainupdate|lainlifecycle|updater/.test(f),
     unaffectedBy: [/^src\/(?!update\/|boot|home)/, /^harness:page\//] },
 });
 
@@ -113,7 +113,7 @@ function plan(changed, { release = false } = {}) {
 
 // ---- THE PASS CACHE --------------------------------------------------------------------------------------------------
 
-function cacheFile() { return path.join(ROOT, '.noema-test-cache.json'); }
+function cacheFile() { return path.join(ROOT, '.lain-test-cache.json'); }
 function readCache() { try { return JSON.parse(fs.readFileSync(cacheFile(), 'utf8')); } catch { return { v: 1, files: {} }; } }
 function writeCache(c) { try { fs.writeFileSync(cacheFile(), JSON.stringify(c, null, 1)); } catch { /* a cache */ } }
 
@@ -125,7 +125,7 @@ function treeHashes() {
     let ents = [];
     try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const e of ents) {
-      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'target' || e.name === 'out' || e.name.startsWith('.noema')) continue;
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'target' || e.name === 'out' || e.name.startsWith('.lain')) continue;
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walk(p, prefix);
       else if (/\.(js|cs|rs|json|html|css)$/.test(e.name)) { try { out.set(prefix + path.relative(prefix ? HARNESS_ROOT : ROOT, p).replace(/\\/g, '/'), crypto.createHash('sha1').update(fs.readFileSync(p)).digest('hex')); } catch { /* vanished */ } }

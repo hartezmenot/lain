@@ -74,7 +74,7 @@ const driver = Object.freeze({
     if (config.ownership && !['lain', 'external_native'].includes(config.ownership)) return 'ownership is lain or external_native';
     if (!config.home || typeof config.home !== 'string') return 'a Claude account needs its own configuration directory';
     if ((config.ownership || 'lain') === 'lain') {
-      if (!inside(config.home, accountsRoot()) || norm(config.home) === norm(accountsRoot())) return 'a LAIN-owned Claude account lives in its own directory under Noema\'s accounts folder';
+      if (!inside(config.home, accountsRoot()) || norm(config.home) === norm(accountsRoot())) return 'a LAIN-owned Claude account lives in its own directory under LAIN\'s accounts folder';
       if (norm(config.home) === norm(defaultHome())) return 'a new account is never signed in against the default Claude profile';
     }
     return null;
@@ -100,7 +100,7 @@ const driver = Object.freeze({
       s.version = v.ok ? (v.lines[0] || '').trim().slice(0, 80) : null;
       s.runtime_state = v.ok ? 'INSTALLED' : 'ERROR';
       // ASKED, NOT RUN (claudecontrol.js): identity, the account's live model catalog and its quota windows from one
-      // short status session in THIS account's directory — no prompt, no inference, no token read by Noema.
+      // short status session in THIS account's directory — no prompt, no inference, no token read by LAIN.
       const asked = await ask({ usage: true });
       if (asked.ok) {
         s.authentication_state = asked.signedIn ? 'AUTHENTICATED' : 'LOGIN_REQUIRED';
@@ -139,8 +139,8 @@ const driver = Object.freeze({
     function limits() { try { const t = require('../runtimeadapters').cachedTelemetry(telemetryId); return t && t.limits ? t.limits : null; } catch { return null; } }
     /**
      * THIS ACCOUNT'S QUOTA, NOW — without a model request (2026-10-02). Claude Code's own `get_usage` (claudecontrol.js),
-     * asked in this account's directory: the same for a profile Noema made and for the person's own, because Claude
-     * Code reads — and renews — its own sign-in and Noema reads none. A reading younger than QUOTA_TTL_MS is served
+     * asked in this account's directory: the same for a profile LAIN made and for the person's own, because Claude
+     * Code reads — and renews — its own sign-in and LAIN reads none. A reading younger than QUOTA_TTL_MS is served
      * from the cache unless `force`; ordinary traffic also refreshes it (rate_limit_event, claudecode.js).
      */
     async function refreshQuota({ force = false } = {}) {
@@ -183,8 +183,8 @@ const driver = Object.freeze({
         await require('./cliexec').collect(binary.command, ['auth', 'logout'], { timeoutMs: 20000, env, purpose: 'runtime-probe', label: 'claude auth logout' });
       },
       removeOwned() {
-        if (!lainOwned) return { removed: false, why: 'Noema did not create this profile' };
-        if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of Noema\'s account directories' };
+        if (!lainOwned) return { removed: false, why: 'LAIN did not create this profile' };
+        if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of LAIN\'s account directories' };
         try { fs.rmSync(home, { recursive: true, force: true }); return { removed: true }; } catch (e) { return { removed: false, why: e.message }; }
       },
     };

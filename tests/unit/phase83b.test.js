@@ -63,7 +63,7 @@ module.exports = async function () {
   const resetStore = () => { try { fs.unlinkSync(store.file()); } catch { /* fresh */ } store.reset(); };
 
   try {
-    await test('MIGRATION: the key moves; OAuth waits for Noema\'s own sign-in; a duplicate is asked about; the router can go', async () => {
+    await test('MIGRATION: the key moves; OAuth waits for LAIN\'s own sign-in; a duplicate is asked about; the router can go', async () => {
       resetStore();
       const prov = await fakeProvider(); servers.push(prov);
       const app = mk('p83m-');
@@ -89,7 +89,7 @@ module.exports = async function () {
       const byId = Object.fromEntries(fams.map((f) => [f.id, f]));
       assert.strictEqual(byId.codex.placeholders[0].state, 'REAUTH_REQUIRED');
       assert.strictEqual(byId.antigravity.placeholders[0].state, 'REAUTH_REQUIRED', 'Antigravity has its own sign-in now');
-      assert.ok(byId['api:lain:deepseek'], 'the API is an ordinary Noema API source');
+      assert.ok(byId['api:lain:deepseek'], 'the API is an ordinary LAIN API source');
       assert.ok(!JSON.stringify(fams).includes('OldRouter'), 'the normal UI does not name the router');
       // A SECOND SOURCE with the same identity: asked, never merged on a guess.
       const exp2 = path.join(tmpdir('p83x2-'), 'other.json');
@@ -176,7 +176,7 @@ module.exports = async function () {
       for (const id of [installed.body.id, ui.body.id, dup.body.id]) { try { integ.removeSkill(app, id, { deleteFiles: true }); } catch { /* already gone */ } }
     });
 
-    await test('SKILLS: a Hermes / Agent Skills package is imported into Noema\'s own store — Hermes is never started', async () => {
+    await test('SKILLS: a Hermes / Agent Skills package is imported into LAIN\'s own store — Hermes is never started', async () => {
       const hub = require('../../src/skillshub');
       const root = tmpdir('p83hermes-');
       const d = path.join(root, 'research', 'arxiv-digest');
@@ -200,7 +200,7 @@ module.exports = async function () {
         const r = hub.install(app, row.key, { enable: true });
         assert.ok(r.ok && r.enabled, JSON.stringify(r));
         const dir = require('../../src/integrations').store(app).skills[r.id].path;
-        assert.ok(dir.startsWith(path.join(require('../../src/config').configDir(), 'skills')), 'in Noema\'s own store');
+        assert.ok(dir.startsWith(path.join(require('../../src/config').configDir(), 'skills')), 'in LAIN\'s own store');
         assert.ok(fs.existsSync(path.join(dir, 'references', 'format.md')), 'every file came with it');
         assert.match(require('../../src/integrations').skillsPrompt(app), /arxiv-digest/);
         // THE SHARED TEST HOME IS LEFT AS FOUND (workspaceshell.test.js asserts no skill is installed).
@@ -231,7 +231,7 @@ module.exports = async function () {
       ipc.toHost = (v) => { sent.push(v); return { ok: true, sent: 1 }; };
       try {
         const s = tray.summary(app);
-        assert.deepStrictEqual(s.lines.slice(0, 6), ['Noema', 'Codex', '  Personal  5h 26% left · Weekly 48% left', '  Work  5h 9% left · Weekly 33% left', '  Backup  Limited · Weekly 16% left', '  Trial  Monthly 28% left'], 'what REMAINS, stated as such — monthly only, no invented 5-hour or weekly');
+        assert.deepStrictEqual(s.lines.slice(0, 6), ['LAIN', 'Codex', '  Personal  5h 26% left · Weekly 48% left', '  Work  5h 9% left · Weekly 33% left', '  Backup  Limited · Weekly 16% left', '  Trial  Monthly 28% left'], 'what REMAINS, stated as such — monthly only, no invented 5-hour or weekly');
         assert.ok(s.lines.some((l) => /^Claude( Pro)? {2}5h 37% left · Weekly 59% left$/.test(l)), s.lines.join('\n'));
         assert.ok(s.tooltip.length <= 127);
         tray.bind(app);

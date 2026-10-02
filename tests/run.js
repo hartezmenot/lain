@@ -6,7 +6,7 @@
  *
  *   unit         one module in isolation          -> WIRED / UNIT VERIFIED
  *   integration  real modules wired together      -> INTEGRATION VERIFIED
- *   smoke        spawns bin/noema.js as a process  -> LIVE CLI VERIFIED
+ *   smoke        spawns bin/lain.js as a process  -> LIVE CLI VERIFIED
  *   distribution installs into a temp directory   -> INSTALL VERIFIED
  *   live         contacts a REAL provider          -> LIVE PROVIDER VERIFIED
  *

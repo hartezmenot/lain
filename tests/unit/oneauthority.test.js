@@ -77,9 +77,9 @@ module.exports = async function () {
     const ALLOWED = {
       'harnessapp/fileops.js': 'inside mutation.change write callbacks; the trash move',
       'harnessapp/source.js': 'inside mutation.change write callback',
-      'harnessapp/sessionroutes.js': 'a leftover screenshot frame in Noema temp',
+      'harnessapp/sessionroutes.js': 'a leftover screenshot frame in LAIN temp',
       'harnessapp/workspaceroutes.js': 'creating a NEW project folder (no project yet)',
-      'exthost/manager.js': 'extension storage / state / registry (Noema config), and edits inside mutation.change',
+      'exthost/manager.js': 'extension storage / state / registry (LAIN config), and edits inside mutation.change',
       'lsp/manager.js': 'inside mutation.change write callback',
     };
     const offenders = [];

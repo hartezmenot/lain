@@ -82,7 +82,7 @@ async function ensure(bin, { spawnFn, startTimeoutMs = 30000 } = {}) {
   if (child.unref) child.unref();
   for (const st of [child.stdout, child.stderr]) if (st && st.unref) st.unref();
   if (!exitHooked) { exitHooked = true; process.once('exit', () => { try { stop(); } catch { /* already gone */ } }); }
-  const recordId = require('../runtimeregistry').register(child, { purpose: 'runtime:opencode-server', label: 'opencode serve (Noema)', command: `${bin} serve --hostname 127.0.0.1 --port ${port}`, policy: { onOwnerExit: 'stop' } });
+  const recordId = require('../runtimeregistry').register(child, { purpose: 'runtime:opencode-server', label: 'opencode serve (LAIN)', command: `${bin} serve --hostname 127.0.0.1 --port ${port}`, policy: { onOwnerExit: 'stop' } });
   const s = { bin, port, password, child, recordId, startedAt: Date.now(), lastUsed: Date.now() };
   server = s;
   s.ready = (async () => {
@@ -148,7 +148,7 @@ async function messages(s, sessionId, directory) {
  * (text, runtime_tool, finish, usage). `mode` 'chat' denies side effects; 'agent'
  * lets OpenCode work in `cwd` with its own tools.
  */
-async function* prompt(s, { text, model, mode = 'chat', cwd, signal = null, title = 'Noema', agentShell = false }) {
+async function* prompt(s, { text, model, mode = 'chat', cwd, signal = null, title = 'LAIN', agentShell = false }) {
   const [providerID, ...rest] = String(model || '').split('/');
   const modelRef = providerID && rest.length ? { providerID, id: rest.join('/') } : null;
   const directory = cwd;

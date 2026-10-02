@@ -1,4 +1,4 @@
-# Is Noema overcomplicated? — the audit (2026-10-01)
+# Is LAIN overcomplicated? — the audit (2026-10-01)
 
 ## The house, and what each language is for
 
@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | Node.js (Core, CLI, Harness routes) `src/` | ~151k | ~83 % | everything that decides: turns, tools, evidence, accounts, sessions | — the product |
 | Browser JS (Harness page) `lain-harness/page` | ~20k | ~11 % | the window's UI | the Harness |
-| Rust `rust/lain-supervisor` | ~9.2k | ~5 % | a process that outlives Noema: durable jobs, Telegram/remote gateway, provider-limit memory, Guardian lifecycle mirror, project digests | durable jobs and the phone gateway while Noema is closed |
+| Rust `rust/lain-supervisor` | ~9.2k | ~5 % | a process that outlives LAIN: durable jobs, Telegram/remote gateway, provider-limit memory, Guardian lifecycle mirror, project digests | durable jobs and the phone gateway while LAIN is closed |
 | C# `lain-harness/native/host.cs` + `native/pty.cs` + setup | ~1.9k + 2.3k (distribution) | ~1 % | WebView2 host window + tray; ConPTY helper; installer | the window, the terminal emulator, the installer |
 | Python `workers/` | 169 | ~0 % | an optional local worker | that worker |
 
@@ -56,7 +56,7 @@ Measured over 10 turns in the real home: **16 supervisor connections** (all 175 
 ## Necessary · accidental · redundant complexity
 
 **Necessary** (the house): Core's turn/evidence/verification model, account isolation, session continuity and crash
-recovery, tool semantics, the Preview bridge, the TTY renderer, the native window, a process that outlives Noema for
+recovery, tool semantics, the Preview bridge, the TTY renderer, the native window, a process that outlives LAIN for
 durable jobs and the phone gateway.
 
 **Accidental** (layers created by earlier bugs, now removed or taken off the hot path):
@@ -75,7 +75,7 @@ start only when durable jobs or the gateway are configured — one fewer process
 
 ## Supervisor decision: **REDUCE RUST**
 
-Keep a tiny native process for what must outlive Noema (durable background jobs, the Telegram/remote gateway,
+Keep a tiny native process for what must outlive LAIN (durable background jobs, the Telegram/remote gateway,
 provider-limit memory): it is 1.1 MB, zero dependencies, ~5–10 MB RSS, and its liveness checks are correct. Retiring it
 outright would mean a second long-lived Node process (~40 MB) doing the same. Do **not** keep it as a second
 orchestration system: it is now off the request path (done), and the Guardian mirror should move to Node (next).

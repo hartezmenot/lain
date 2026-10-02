@@ -28,7 +28,7 @@ of them is a bug.
 | Conversation | session transcript | compacted in place; nothing durable deleted |
 | Background shell jobs | supervisor (jobs.rs) | survive CLI death |
 | `/bg` agent jobs | Node process (forked session) | die with the process; scratch survives — see classification below |
-| Phone / Telegram | Rust supervisor polls Telegram ONLY while Noema's gateway (src/bot/) holds the mailbox | the gateway admits and answers; the legacy remote brain and capability catalog were removed 2026-10-02 |
+| Phone / Telegram | Rust supervisor polls Telegram ONLY while LAIN's gateway (src/bot/) holds the mailbox | the gateway admits and answers; the legacy remote brain and capability catalog were removed 2026-10-02 |
 | LLM reasoning | the model | may propose; the runtime decides what is allowed to happen |
 
 ## STEER IS NOT ORDINARY USER INPUT

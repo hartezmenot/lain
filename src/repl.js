@@ -50,7 +50,7 @@ async function start(app) {
   // THE KEYS, READ WHILE THE REST STARTS (Phase 8.2): the first listing finds them warm.
   try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
-  // `noema --resume <id>` IS AN EXPLICIT ACT: a session another surface holds is asked for (it hands over when idle).
+  // `lain --resume <id>` IS AN EXPLICIT ACT: a session another surface holds is asked for (it hands over when idle).
   if (app.resumedFrom) { try { const held = require('./surfacehandoff').askOnResume(app); if (held) app.render.write(C.dim(`  Asked the ${held.writer === 'harness' ? 'Harness' : held.writer} to hand this session over — it does when it is idle.\n`)); } catch { /* the first sentence says so */ } }
   // The messaging the person connected comes back with LAIN (see desktoprun.js).
   require('./botconnect').resume(app).catch(() => {});
@@ -556,7 +556,7 @@ async function start(app) {
   if (continueIn) {
     try {
       const { spawn } = require('child_process');
-      const entry = require('path').join(__dirname, '..', 'bin', 'noema.js');
+      const entry = require('path').join(__dirname, '..', 'bin', 'lain.js');
       const child = spawn(process.execPath, [entry, '--desktop', '--resume', continueIn, '--continue-session'], { cwd: app.session.cwd || process.cwd(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LAIN_NO_TUI: '1' } });
       child.unref();
       app.render.write(C.dim('  The Harness continues this session.') + '\n');
@@ -564,7 +564,7 @@ async function start(app) {
   }
   app.render.write(C.dim('  Session saved.') + '\n\n');
   app.render.write(C.dim('  Resume with:') + '\n');
-  app.render.write(`    noema --resume ${Session.shortId(app.session.id)}` + '\n');
+  app.render.write(`    lain --resume ${Session.shortId(app.session.id)}` + '\n');
   return app.exitCode;
 }
 

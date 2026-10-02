@@ -103,7 +103,7 @@ module.exports = async function () {
     const outgoing = session.task;
     const app = appWith(session);
     identify(app, 'cancel it, do something completely different now', false, null, false);
-    assert.strictEqual(outgoing.state, taskId.STATE.SUPERSEDED, 'the object Noema held a reference to is marked, not merely dropped');
+    assert.strictEqual(outgoing.state, taskId.STATE.SUPERSEDED, 'the object LAIN held a reference to is marked, not merely dropped');
   });
 
   await test('CANCEL: A cannot reappear through a save/resume round trip', () => {
@@ -123,7 +123,7 @@ module.exports = async function () {
     assert.strictEqual(resumed.plan, null, 'A\'s plan did not survive the round trip either');
   });
 
-  await test('CANCEL: only real, typed cancellation retires the task — Noema\'s own machinery cannot', () => {
+  await test('CANCEL: only real, typed cancellation retires the task — LAIN\'s own machinery cannot', () => {
     // sameTask=true is asserted only by LAIN's own machinery (a Continue
     // button, a relay). Even if that path's text happened to contain
     // cancel-shaped words, the machinery's OWN assertion of sameTask must

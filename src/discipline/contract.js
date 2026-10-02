@@ -2,7 +2,7 @@
 
 /**
  * THE TASK CONTRACT — what was asked, what would show it is done, and what is known (Execution Discipline §17–§18,
- * §40–§41, §52). Stored by Noema, revised by the model; never only in transient model prose.
+ * §40–§41, §52). Stored by LAIN, revised by the model; never only in transient model prose.
  *
  *   outcome     the requested OBSERVABLE outcome ("after changing X and pressing Save, X survives a reload")
  *   asks        every explicit ask, tracked separately (A1, A2 …) — completion cannot quietly forget one
@@ -22,7 +22,7 @@ const clip = (s, n = 400) => String(s == null ? '' : s).replace(/\s+/g, ' ').tri
 /**
  * THE EXPLICIT ASKS IN A REQUEST. Only an enumeration the person wrote — a numbered or bulleted list of two or more
  * items, or "1)", "A1", "(a)" markers — becomes separate asks; anything else is ONE ask, the request itself. A
- * guessed split would make Noema hold a task open for asks nobody made.
+ * guessed split would make LAIN hold a task open for asks nobody made.
  */
 function extractAsks(request) {
   const text = String(request || '');

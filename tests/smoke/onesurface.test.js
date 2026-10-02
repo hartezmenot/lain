@@ -12,7 +12,7 @@
  * all pass against a program that composed a perfect frame and then failed to
  * put it on the wire.
  *
- * This spawns `bin/noema.js` with `LAIN_FORCE_TUI=1` — the real draw path over a
+ * This spawns `bin/lain.js` with `LAIN_FORCE_TUI=1` — the real draw path over a
  * pipe — types at it, and reads back the bytes a terminal would have received.
  * It is the closest thing to sitting in front of it, and it is what the mission
  * asks for: do not call the rewrite complete on the strength of unit tests.
@@ -52,7 +52,7 @@ function lastSurface(out) {
     // follows LAIN leaving the alternate buffer arrive in one chunk, so
     // without this the closing summary reads as one enormously wide row.
     const rows = rowsOf(String(all[i]).split('\x1b[?1049l')[0]);
-    if (rows.some((l) => l.includes('Ask Noema'))) return rows;
+    if (rows.some((l) => l.includes('Ask LAIN'))) return rows;
   }
   return lastFrameRows(out);
 }
@@ -76,11 +76,11 @@ module.exports = async function () {
     const out = r.out;
 
     // ---- THE HEADER: LAIN, the project, the model, the output count -------
-    assertIncludes(out, 'Noema', 'the wordmark');
+    assertIncludes(out, 'LAIN', 'the wordmark');
     assertIncludes(out, 'surface-', 'the project folder');
     assertIncludes(out, 'mock-model', 'the active model');
     // ---- THE INPUT, and what it is for -----------------------------------
-    assertIncludes(out, 'Ask Noema', 'the input says what it is for');
+    assertIncludes(out, 'Ask LAIN', 'the input says what it is for');
 
     // ---- AND NONE OF THE MACHINERY THAT IS GONE --------------------------
     for (const label of ['1 activity', '2 context', '3 plan', '4 diff', '5 output',
@@ -139,7 +139,7 @@ ${resting.join(NL)}`);
     });
     assert.strictEqual(r.code, 0);
     assertIncludes(r.out, 'what does this project do?', 'what the user said');
-    assertIncludes(r.out, 'It is an evidence-driven coding agent.', 'and what Noema said');
+    assertIncludes(r.out, 'It is an evidence-driven coding agent.', 'and what LAIN said');
     // THE FIRST MESSAGE IS DRAWN. It used to be suppressed in favour of the
     // pinned banner, which is gone — so a feed that still suppressed it would
     // show nothing at all.
@@ -166,7 +166,7 @@ ${resting.join(NL)}`);
     assert.strictEqual(r.code, 0);
     const out = r.out;
     assertIncludes(out, 'Nothing is running in the background', 'bare /bg on an empty session');
-    assertIncludes(out, 'Nothing is running that Noema owns', '/ps on an empty session');
+    assertIncludes(out, 'Nothing is running that LAIN owns', '/ps on an empty session');
     assertIncludes(out, 'Background #', 'starting one acknowledges it by number');
     // ---- AND THE SESSION STAYED INTERACTIVE ------------------------------
     //
@@ -190,7 +190,7 @@ ${resting.join(NL)}`);
     assert.strictEqual(r.code, 0);
     // With nothing started, the empty answer is the honest one — and it must
     // not have gone looking at the machine to produce it.
-    assertIncludes(r.out, 'Nothing is running that Noema owns');
+    assertIncludes(r.out, 'Nothing is running that LAIN owns');
     assertNotIncludes(r.out, 'System Idle Process', 'the host is not enumerated');
     assertNotIncludes(r.out, 'svchost', 'the host is not enumerated');
   });
@@ -222,7 +222,7 @@ ${resting.join(NL)}`);
         script: [{ text: 'ready' }],
         timeoutMs: 60000,
       });
-      assert.strictEqual(r.code, 0, `Noema did not survive ${cols}x${lines}`);
+      assert.strictEqual(r.code, 0, `LAIN did not survive ${cols}x${lines}`);
       const rows = lastSurface(r.out);
       assert.ok(rows.length, `nothing was drawn at ${cols}x${lines}`);
       for (const line of rows) {
@@ -231,7 +231,7 @@ ${resting.join(NL)}`);
       }
       // THE INPUT IS PRESENT AT EVERY SIZE. It is the one region that is never
       // sacrificed, and a layout that loses it has failed however tidy it looks.
-      assert.ok(rows.some((l) => l.includes('Ask Noema')),
+      assert.ok(rows.some((l) => l.includes('Ask LAIN')),
         `the input vanished at ${cols}x${lines}:\n${rows.join(NL)}`);
     }
   });

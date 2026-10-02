@@ -38,7 +38,7 @@ function eventKey(e) { return digest([e.platform, e.accountId, e.chatId, e.messa
 function whyDenied(e, policy = {}) {
   const contains = (key, value) => Array.isArray(policy[key]) && policy[key].map(String).includes(value);
   if (e.bot) return 'sent by a bot';
-  if (!contains('allowUsers', e.senderId) && !(e.platform === 'telegram' && e.kind === 'dm' && e.paired)) return 'sender is not approved — approve them in Noema › BOT › Connections';
+  if (!contains('allowUsers', e.senderId) && !(e.platform === 'telegram' && e.kind === 'dm' && e.paired)) return 'sender is not approved — approve them in LAIN › BOT › Connections';
   if (policy.allowChats?.length && !contains('allowChats', e.chatId)) return 'this chat is not in the allowed chats';
   if (e.kind === 'group') {
     if (!contains('allowChats', e.chatId) && !contains('allowChannels', e.channelId)) return 'group chat is not allowed';

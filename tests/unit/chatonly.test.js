@@ -53,7 +53,7 @@ module.exports = async function () {
     assert.ok(!coding.rows.some((x) => x.source === 'chatgpt-web' || x.modelId === 'luna-chat-xhigh'), 'never offered to the Agent');
   });
 
-  await test('CHAT ONLY: the BOT is never the chat source — choosing ChatGPT Chat for CHAT leaves the BOT on a Noema route', async () => {
+  await test('CHAT ONLY: the BOT is never the chat source — choosing ChatGPT Chat for CHAT leaves the BOT on a LAIN route', async () => {
     const si = require('../../src/sessionintel');
     const app = mkApp();
     app.cfg.model = 'some-model';
@@ -83,10 +83,10 @@ module.exports = async function () {
     assert.ok(/agentGate\(app, model\.id\)/.test(src) && /agentGate\(app, m\.id\)/.test(src), 'both /model setters are gated');
   });
 
-  await test('CHAT ONLY: ChatGPT Chat usage is its own source — observed, estimated by Noema, never counted as reported tokens', () => {
+  await test('CHAT ONLY: ChatGPT Chat usage is its own source — observed, estimated by LAIN, never counted as reported tokens', () => {
     const usage = require('../../src/usage');
     const web = usage.fromRecord({ id: 'w1', at: Date.now(), transport: 'website', connection: 'chatgpt-web', provider: 'chatgpt-web', ok: true, ms: 1200,
-      receipt: { inputTokens: 250, outputTokens: 100, estimated: true, observed: { inChars: 1000, outChars: 400, basis: 'Estimated by Noema (characters / 4)' } } });
+      receipt: { inputTokens: 250, outputTokens: 100, estimated: true, observed: { inChars: 1000, outChars: 400, basis: 'Estimated by LAIN (characters / 4)' } } });
     const api = usage.fromRecord({ id: 'a1', at: Date.now(), transport: 'api', connection: 'lain:openai', provider: 'openai', model: 'gpt-5', ok: true, ms: 800, receipt: { inputTokens: 10, outputTokens: 5 } });
     assert.strictEqual(web.via, 'Website · ChatGPT Chat'); assert.strictEqual(web.tokens, 'estimated'); assert.strictEqual(web.role, 'chat');
     assert.strictEqual(api.via, 'API');

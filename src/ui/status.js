@@ -147,7 +147,7 @@ const STOPPED_BECAUSE = {
   'no-credential': 'no usable credential',
   length: 'the reply hit the model output limit, even after one resume — not a finished task',
   refused: 'the model stopped with a safety/refusal finish — not a finished task',
-  crashed: 'Noema was closed mid-turn; the turn was recovered — type continue to resume',
+  crashed: 'LAIN was closed mid-turn; the turn was recovered — type continue to resume',
 };
 
 /**
@@ -187,9 +187,9 @@ function liveState(s = {}, now = Date.now()) {
   // turn loop announces LAIN's own phases; the relay announces EXTERNAL; the
   // desktop bridge announces MCP. An unlabelled phase is LAIN's, which is what
   // every existing caller means.
-  const actorOf = (p) => (p && p.actor && ACTOR[p.actor] ? p.actor : 'Noema');
+  const actorOf = (p) => (p && p.actor && ACTOR[p.actor] ? p.actor : 'LAIN');
 
-  if (interrupting) return { actor: 'Noema', word: 'INTERRUPTING', detail: 'cancelling the turn', colour: 'warn', spin: true };
+  if (interrupting) return { actor: 'LAIN', word: 'INTERRUPTING', detail: 'cancelling the turn', colour: 'warn', spin: true };
   // AN EXTERNAL MODEL IS A DIFFERENT KIND OF WAIT and says so in its own words:
   // it is not this machine working and it is not LAIN's own model thinking.
   if (phase && phase.phase === 'EXTERNAL') {
@@ -249,7 +249,7 @@ function liveState(s = {}, now = Date.now()) {
       { text: 'Esc to cancel', short: 'Esc ✕', drop: 3 },
     ];
     const net = word === 'NETWORK' || word === 'RATE LIMITED';
-    return { actor: net ? 'NET' : 'Noema', word, parts, colour: 'warn', spin: true };
+    return { actor: net ? 'NET' : 'LAIN', word, parts, colour: 'warn', spin: true };
   }
   if (phase) {
     switch (phase.phase) {
@@ -260,7 +260,7 @@ function liveState(s = {}, now = Date.now()) {
         // · 9.6 KB, and STALLED only after the stall threshold with no data.
         const st = phase.live ? require('../streamprogress').state(phase.live, now) : null;
         const steer = steerQueued ? ' · steer queued' : '';
-        // `WAITING` for the wire is NOT a wait on the person or a limit — it is Noema working with the model's answer
+        // `WAITING` for the wire is NOT a wait on the person or a limit — it is LAIN working with the model's answer
         // pending, and says so: `Working · waiting for model · 8s`.
         if (st) return { actor: actorOf(phase), word: st.word === 'WAITING' ? 'WORKING' : st.word, detail: st.detail + steer, colour: st.stalled ? 'warn' : 'violet', spin: !st.stalled, age: secs };   // THE PALETTE: the model working is VIOLET (the box that carried it is gone)
         if (phase.phase === 'RECEIVING') return { actor: actorOf(phase), word: 'RECEIVING', detail: 'model response', colour: 'info', spin: true, age: secs };
@@ -304,7 +304,7 @@ function liveState(s = {}, now = Date.now()) {
   // explicitly rather than left to the order of the lines.
   if (s.op && s.op.text && !awaitingUser && !pendingCompletion && !steerQueued) {
     return {
-      actor: 'Noema',
+      actor: 'LAIN',
       word: s.op.text,
       detail: '',
       colour: s.op.level === 'warn' ? 'warn' : 'meta',
@@ -321,7 +321,7 @@ function liveState(s = {}, now = Date.now()) {
     // blame — and the debugging — in the wrong place.
     const f = failureRow(failed);
     const net = ['NETWORK', 'RATE LIMITED', 'DAILY LIMIT', 'WEEKLY LIMIT', 'STREAM STALLED'].includes(f.word);
-    return { actor: net ? 'NET' : 'Noema', word: f.word, detail: f.detail, colour: 'bad' };
+    return { actor: net ? 'NET' : 'LAIN', word: f.word, detail: f.detail, colour: 'bad' };
   }
   if (steerQueued) return { actor: 'USER', word: 'STEERING', detail: 'queued for the next model turn', colour: 'warn' };
   // A FINISHED PLAN IS NOT A FINISHED TASK, and the strip must not imply it is.
@@ -333,10 +333,10 @@ function liveState(s = {}, now = Date.now()) {
   // that as DONE tells somebody their investigation finished when it is in
   // fact waiting for them.
   if (awaitingUser) {
-    return { actor: 'Noema', word: 'WAITING FOR YOU', detail: String(awaitingUser), colour: 'warn' };
+    return { actor: 'LAIN', word: 'WAITING FOR YOU', detail: String(awaitingUser), colour: 'warn' };
   }
   if (pendingCompletion) {
-    return { actor: 'Noema', word: 'VERIFYING', detail: String(pendingCompletion), colour: 'warn' };
+    return { actor: 'LAIN', word: 'VERIFYING', detail: String(pendingCompletion), colour: 'warn' };
   }
   if (lastTurn) {
     const bits = [];
@@ -351,7 +351,7 @@ function liveState(s = {}, now = Date.now()) {
       // NET actor here for the same reason the live row gives it one.
       const net = lastTurn.stopReason === 'provider';
       return {
-        actor: net ? 'NET' : 'Noema',
+        actor: net ? 'NET' : 'LAIN',
         word: STOPPED_WORD[lastTurn.stopReason] || 'INTERRUPTED',
         detail: [STOPPED_BECAUSE[lastTurn.stopReason] || lastTurn.stopReason, ...bits].join(' · '),
         colour: net || lastTurn.stopReason === 'no-credential' ? 'bad' : 'warn',
@@ -372,25 +372,25 @@ function liveState(s = {}, now = Date.now()) {
       const why = `${lastCheckFailed.command}`
         + (lastCheckFailed.exitCode != null ? ` exited ${lastCheckFailed.exitCode}` : ' failed');
       return {
-        actor: 'Noema',
+        actor: 'LAIN',
         word: 'NOT VERIFIED',
         detail: [why, ...bits].join(' · '),
         colour: 'warn',
       };
     }
     // A TURN THAT CLOSED ON A STATED BLOCKER is not a finished task (wakeup.statesBlocker).
-    if (lastTurn.blocker) return { actor: 'Noema', word: 'BLOCKED', detail: ['the model reported a blocker', ...bits].join(' · '), colour: 'warn' };
+    if (lastTurn.blocker) return { actor: 'LAIN', word: 'BLOCKED', detail: ['the model reported a blocker', ...bits].join(' · '), colour: 'warn' };
     // ✓ DONE MEANS THE TASK IS VERIFIED, not that the model stopped: a changed
     // tree whose final smoke has not passed since the change is not done (finalsmoke.js).
     if (finalSmoke && finalSmoke.state && finalSmoke.state !== 'NOT_REQUIRED' && finalSmoke.state !== 'PASSED') {
       const running = finalSmoke.state === 'RUNNING';
-      return { actor: 'Noema', word: running ? 'VERIFYING' : 'NOT VERIFIED', detail: [finalSmoke.why, ...bits].join(' · '), colour: 'warn' };
+      return { actor: 'LAIN', word: running ? 'VERIFYING' : 'NOT VERIFIED', detail: [finalSmoke.why, ...bits].join(' · '), colour: 'warn' };
     }
     // THE RECEIPT closes a finished turn: `✓ DONE · 2 files changed · 4 tool calls · in 18.2k · out 1.1k · cache 12.8k`.
     const receipt = require('./activityline').receipt(lastTurn.usage);
-    return { actor: 'Noema', word: 'DONE', detail: [...bits, receipt].filter(Boolean).join(' · '), colour: 'ok', tick: true };
+    return { actor: 'LAIN', word: 'DONE', detail: [...bits, receipt].filter(Boolean).join(' · '), colour: 'ok', tick: true };
   }
-  return { actor: 'Noema', word: 'READY', detail: '', colour: 'meta' };
+  return { actor: 'LAIN', word: 'READY', detail: '', colour: 'meta' };
 }
 
 /**
@@ -608,8 +608,8 @@ function statusStrip(s = {}, width = 80, rows = 1, now = Date.now()) {
   // and the column said nothing the row did not. What stays labelled is every
   // actor that is NOT this program: the network, the desktop bridge, a second
   // model, and the person at the keyboard.
-  const actor = st.actor || 'Noema';
-  const who = actor === 'Noema' || actor === 'TOOL' ? '' : label(actor);
+  const actor = st.actor || 'LAIN';
+  const who = actor === 'LAIN' || actor === 'TOOL' ? '' : label(actor);
   // A multi-part detail is fitted by dropping the least important part, never
   // by clipping the sentence — see the RETRYING branch above.
   let text = st.detail || '';

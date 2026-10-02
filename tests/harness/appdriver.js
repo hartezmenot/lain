@@ -52,7 +52,7 @@ function scriptFile(steps) {
  * @returns {Promise<Driver>} or `{ skipped: why }`
  */
 async function open({ cwd = null, script = [], width = 1280, height = 820, resume = null } = {}) {
-  if (process.platform !== 'win32') return { skipped: 'Noema Desktop is Windows-only for now' };
+  if (process.platform !== 'win32') return { skipped: 'LAIN Desktop is Windows-only for now' };
   const desktop = require(path.join(ROOT, 'src', 'desktop'));
   const built = desktop.build();
   if (!built.ok) return { skipped: `the desktop host could not be built: ${built.why}` };

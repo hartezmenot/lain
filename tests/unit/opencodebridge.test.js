@@ -56,15 +56,15 @@ module.exports = async function () {
     assert.strictEqual(sel.ok, false, 'refused for the Agent');
   });
 
-  await test('BRIDGE: Noema’s own opencode serve — loopback, ephemeral port, per-start password, registered, reused', async () => {
+  await test('BRIDGE: LAIN’s own opencode serve — loopback, ephemeral port, per-start password, registered, reused', async () => {
     const bin = app.cfg.runtimes.opencode.binary;
     const s = await oc.ensure(bin);
     assert.ok(s.port > 0); assert.ok(s.password.length >= 24);
     const rec = require('../../src/runtimeregistry').list().find((r) => r.pid === s.child.pid);
-    assert.ok(rec && rec.purpose === 'runtime:opencode-server', 'registered with Noema ownership');
+    assert.ok(rec && rec.purpose === 'runtime:opencode-server', 'registered with LAIN ownership');
     assert.ok(/--hostname 127\.0\.0\.1/.test(rec.command), 'bound to loopback');
     const r = await fetch(`http://127.0.0.1:${s.port}/api/info`);
-    assert.strictEqual(r.status, 401, 'the server refuses anyone without Noema’s password');
+    assert.strictEqual(r.status, 401, 'the server refuses anyone without LAIN’s password');
     const again = await oc.ensure(bin);
     assert.strictEqual(again.child.pid, s.child.pid, 'one server, reused');
     const models = await oc.models(s, tmpdir('ocm-'));
@@ -127,7 +127,7 @@ module.exports = async function () {
     assert.ok(!other.roles.includes('AGENT'), 'another model is not assumed to be an Agent');
   });
 
-  await test('SESSIONS: OpenCode’s sessions are read through its API — Resume in OpenCode / Continue in Noema, never its storage', async () => {
+  await test('SESSIONS: OpenCode’s sessions are read through its API — Resume in OpenCode / Continue in LAIN, never its storage', async () => {
     const ocrun = require('../../src/drivers/opencoderun');
     const list = await ocrun.listSessions(app);
     assert.ok(list.length >= 1 && list.every((x) => /^ses_/.test(x.id)));
@@ -146,7 +146,7 @@ module.exports = async function () {
     else assert.match(cont.why, /no messages|did not return/);
   });
 
-  await test('OWNERSHIP: stopping the bridge stops exactly Noema’s server; nothing is left running', async () => {
+  await test('OWNERSHIP: stopping the bridge stops exactly LAIN’s server; nothing is left running', async () => {
     const s = oc._server();
     const pid = s.child.pid;
     oc.stop();

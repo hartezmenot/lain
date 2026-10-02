@@ -238,7 +238,7 @@ const SELF_ASKED = Object.freeze({
   // the user - `carrying on (provider-failover)`. A test now walks the tree and
   // requires every `from:` a submission uses to be here.
   'provider-failover': 'continuing on another provider',
-  handover: 'continuing from what Noema observed',
+  handover: 'continuing from what LAIN observed',
   steer: 'continuing with what you added',
   plan: 'executing the accepted plan',
   'bg-complete': 'continuing with the background result',

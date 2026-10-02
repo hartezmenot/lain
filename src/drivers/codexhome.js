@@ -129,7 +129,7 @@ function authIsPrivate(l) {
  * deleted. Links are unlinked, not followed — the shared home is untouched.
  */
 function removeOwned(l) {
-  if (!l.lainOwned) return { removed: false, why: 'the person named this home; Noema does not delete it' };
+  if (!l.lainOwned) return { removed: false, why: 'the person named this home; LAIN does not delete it' };
   const dir = path.dirname(l.home);
   if (l.mode === 'overlay') {
     let names = [];

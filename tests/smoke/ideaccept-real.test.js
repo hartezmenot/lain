@@ -142,7 +142,7 @@ module.exports = async function () {
       await R.key('g', { ctrl: true, shift: true });
       await d.until("document.getElementById('sideTitle').textContent === 'Source Control' && /cart\\.js/.test(document.getElementById('paneScm').innerText)", 15000);
       const scm = await d.js("document.getElementById('paneScm').innerText");
-      assert.ok(!/\.lain/.test(scm), `Noema's own files are not the person's changes: ${scm}`);
+      assert.ok(!/\.lain/.test(scm), `LAIN's own files are not the person's changes: ${scm}`);
 
       // 10 DIFF — a changed file opens against HEAD.
       await R.click(R.byText('#paneScm button.f', /src\/cart\.js/));

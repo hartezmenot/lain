@@ -65,8 +65,8 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * The directory, inside the project being worked on: `.noema/` — or `.lain/` for a project LAIN already opened
- * (projectmeta.js decides, per project; `noema project migrate` moves it). DIR is the name a NEW project gets.
+ * The directory, inside the project being worked on: `.lain/` — or `.noema/` for a project the Noema era opened
+ * (projectmeta.js decides, per project; `lain project migrate` moves it). DIR is the name a NEW project gets.
  */
 const meta = require('./projectmeta');
 const DIR = meta.CANON;

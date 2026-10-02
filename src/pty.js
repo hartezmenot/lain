@@ -83,7 +83,7 @@ function ensureBridge() {
   try { src = fs.readFileSync(SOURCE); } catch (e) { return { ok: false, why: `the terminal bridge source is missing: ${e.message}` }; }
   const stamp = crypto.createHash('sha256').update(src).digest('hex').slice(0, 12);
   const dir = homeDir();
-  const exe = path.join(dir, `noema-pty-${stamp}.exe`);
+  const exe = path.join(dir, `lain-pty-${stamp}.exe`);
   if (fs.existsSync(exe)) return { ok: true, exe, built: false };
   const csc = compiler();
   if (!csc) return { ok: false, why: 'no C# compiler was found (Microsoft.NET\\Framework64\\v4.*\\csc.exe), so the terminal cannot be built' };
@@ -261,14 +261,14 @@ function open(app, { cwd = null, cols = 120, rows = 30, shell = null } = {}) {
       if (msg.ev === 'data') { try { t._append(Buffer.from(String(msg.data || ''), 'base64')); } catch { /* skip */ } }
       else if (msg.ev === 'ready') t.pid = Number(msg.pid) || 0;
       else if (msg.ev === 'exit') t.exitCode = Number(msg.code) || 0;
-      else if (msg.ev === 'error') { t.error = String(msg.why || ''); t._append(Buffer.from(`\r\n[Noema] ${t.error}\r\n`, 'utf8')); }
+      else if (msg.ev === 'error') { t.error = String(msg.why || ''); t._append(Buffer.from(`\r\n[LAIN] ${t.error}\r\n`, 'utf8')); }
     }
   });
   // THE BRIDGE'S OWN STDERR IS THE BRIDGE FAILING, not the shell's output. It
   // goes into the buffer marked as ours so a person is not left with a blank
   // panel and no reason.
   child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk) => { t._append(Buffer.from(`\r\n[Noema terminal] ${String(chunk).trim()}\r\n`, 'utf8')); });
+  child.stderr.on('data', (chunk) => { t._append(Buffer.from(`\r\n[LAIN terminal] ${String(chunk).trim()}\r\n`, 'utf8')); });
   child.on('exit', (code) => { if (t.exitCode === null) t.exitCode = Number(code) || 0; });
   child.on('error', (e) => { t.error = e.message; if (t.exitCode === null) t.exitCode = -1; });
 

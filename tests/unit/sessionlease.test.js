@@ -19,7 +19,7 @@ const { test, tmpdir } = require('../helpers');
 
 const SRC = path.join(__dirname, '..', '..', 'src');
 
-/** A child Noema-like process holding (or racing for) a lease. Prints JSON lines; ends on stdin close. */
+/** A child LAIN-like process holding (or racing for) a lease. Prints JSON lines; ends on stdin close. */
 function child(id, { surface = 'harness', tickMs = 0, busy = false, race = false } = {}) {
   const code = `
     const lease = require(${JSON.stringify(path.join(SRC, 'sessionlease'))});

@@ -29,7 +29,7 @@ const note = (why) => process.stdout.write(`    (skipped: ${why})\n`);
 
 /** A desktop, a Core behind it, and a way to look at both — or a stated reason. */
 async function desktop({ script = [] } = {}) {
-  if (process.platform !== 'win32') return { skipped: 'Noema Desktop is Windows-only for now' };
+  if (process.platform !== 'win32') return { skipped: 'LAIN Desktop is Windows-only for now' };
   const d = require(path.join(ROOT, 'src', 'desktop'));
   const built = d.build();
   if (!built.ok) return { skipped: `the host could not be built: ${built.why}` };
@@ -71,7 +71,7 @@ async function desktop({ script = [] } = {}) {
 /** Our own host windows on the real desktop — never anything else's. */
 async function ourWindows(c) {
   const w = await c.windows();
-  return ((w.ok && w.result && w.result.windows) || []).filter((x) => /^noema-harness-/i.test(x.process || ''));
+  return ((w.ok && w.result && w.result.windows) || []).filter((x) => /^lain-harness-/i.test(x.process || ''));
 }
 
 /** A connected, authorized desktop observer, or null when unavailable. */
@@ -92,7 +92,7 @@ module.exports = async function () {
     if (d.skipped) return note(d.skipped);
     try {
       assert.strictEqual(d.ipc.status().clients, 1, 'the host proved its secret and is connected');
-      assert.strictEqual(d.win.status().open, true, 'Noema holds the window');
+      assert.strictEqual(d.win.status().open, true, 'LAIN holds the window');
 
       const c = await eyes(d.app);
       if (!c) return note('the computer bridge is unavailable, so the screen cannot be checked');
@@ -100,7 +100,7 @@ module.exports = async function () {
         const mine = await ourWindows(c);
         assert.ok(mine.length >= 1, 'a window of our own host process is on the desktop');
         assert.ok(mine.some((x) => x.pid === d.pid), `the window belongs to the host we started (${d.pid})`);
-        assert.ok(mine.some((x) => /^Noema/.test(String(x.title || ''))), `it is titled Noema: ${JSON.stringify(mine.map((x) => x.title))}`);
+        assert.ok(mine.some((x) => /^LAIN/.test(String(x.title || ''))), `it is titled LAIN: ${JSON.stringify(mine.map((x) => x.title))}`);
 
         // ---- THE CLAIM ITSELF --------------------------------------
         //
@@ -191,7 +191,7 @@ module.exports = async function () {
     if (d.skipped) return note(d.skipped);
     const pid = d.pid;
     await d.close();
-    assert.strictEqual(d.win.status().open, false, 'Noema no longer holds a window');
+    assert.strictEqual(d.win.status().open, false, 'LAIN no longer holds a window');
 
     // THE PROCESS, NOT THE INTENTION. `close()` used to report success while
     // the host was still on the desktop, because the kill was never awaited.
@@ -218,7 +218,7 @@ module.exports = async function () {
   // It attaches to the renderer through the DEVELOPMENT debugging port, which
   // is the only way to reach it and is never opened in a release launch.
   await test('DESKTOP REAL UI: a turn from the window, an answer, and the next prompt after DONE', async () => {
-    if (process.platform !== 'win32') return note('Noema Desktop is Windows-only for now');
+    if (process.platform !== 'win32') return note('LAIN Desktop is Windows-only for now');
     const d = await desktop({
       script: [
         { text: 'a.js exports the number 1.' },
@@ -285,7 +285,7 @@ module.exports = async function () {
       // THE WORKSPACE TABS ARE THERE, and LAIN opens on Home.
       const tabs = await js("Array.from(document.querySelectorAll('#tabs .gtab')).map(function(n){return n.textContent.trim();}).join('|')");
       assert.strictEqual(String(tabs), 'Home|IDE|Chat|Model|Usage|MCP & Skills|Settings', `the primary tabs: ${tabs}`);
-      assert.strictEqual(await js("LAIN.nav.tab()"), 'home', 'Noema opens on Home');
+      assert.strictEqual(await js("LAIN.nav.tab()"), 'home', 'LAIN opens on Home');
 
       // A TURN, SENT FROM THE WINDOW — from Chat, one tab away.
       await js("document.getElementById('tabChat').click()");
@@ -437,7 +437,7 @@ module.exports = async function () {
       const before = await ourWindows(c);
       assert.ok(before.some((x) => x.pid === d.pid), 'the window is on the desktop to begin with');
 
-      const closed = await c.call('window.close', { pid: d.pid, title: 'Noema' });
+      const closed = await c.call('window.close', { pid: d.pid, title: 'LAIN' });
       assert.strictEqual(closed.ok, true, `the close was delivered: ${closed.why || ''}`);
 
       // THE WINDOW GOES.
@@ -457,7 +457,7 @@ module.exports = async function () {
       let alive = true;
       try { process.kill(d.pid, 0); } catch { alive = false; }
       assert.strictEqual(alive, true, 'the host process is still running — it is the tray');
-      assert.strictEqual(d.win.status().open, true, 'and Noema still holds it');
+      assert.strictEqual(d.win.status().open, true, 'and LAIN still holds it');
 
       // CORE IS UNTOUCHED: the channel is up and the turn was never cancelled.
       assert.strictEqual(d.ipc.status().clients, 1, 'the private channel is still connected');
@@ -502,7 +502,7 @@ module.exports = async function () {
       // AND THE SHUTDOWN REALLY CLOSES THE HOST. Not asserted by reading: the
       // window is closed through the one sequence and the process must be gone.
       const pid = d.pid;
-      await require(path.join(ROOT, 'src', 'teardown')).shutdown(d.app, { why: 'the test quit Noema' });
+      await require(path.join(ROOT, 'src', 'teardown')).shutdown(d.app, { why: 'the test quit LAIN' });
       let alive = true;
       try { process.kill(pid, 0); } catch { alive = false; }
       assert.strictEqual(alive, false, `no host process is left behind (pid ${pid})`);
@@ -511,7 +511,7 @@ module.exports = async function () {
   });
 
   // ---------------------------------------------------------------------
-  await test('DESKTOP: one Noema per account — a second launch finds the first', async () => {
+  await test('DESKTOP: one LAIN per account — a second launch finds the first', async () => {
     if (process.platform !== 'win32') return note('the control pipe is a Windows named pipe');
     const lock = require(path.join(ROOT, 'src', 'corelock'));
     const d = await desktop();
@@ -524,7 +524,7 @@ module.exports = async function () {
 
       // A SECOND LAUNCH ASKS, AND IS ANSWERED BY THIS PROCESS.
       const found = await lock.discover();
-      assert.strictEqual(found.running, true, 'a running Noema is discovered');
+      assert.strictEqual(found.running, true, 'a running LAIN is discovered');
       assert.strictEqual(found.pid, process.pid, 'and it is this one');
       assert.strictEqual(found.desktop, true, 'which reports that it has a window');
 
@@ -555,8 +555,8 @@ module.exports = async function () {
   // a hash of the config dir (src/corelock.js), so a temp dir gives this test
   // its own instance namespace — it cannot find, show, or quit the LAIN a
   // person has running on this machine.
-  await test('DESKTOP: double-clicking Noema starts Core and opens a window, with no CLI and no browser', async () => {
-    if (process.platform !== 'win32') return note('Noema Desktop is Windows-only for now');
+  await test('DESKTOP: double-clicking LAIN starts Core and opens a window, with no CLI and no browser', async () => {
+    if (process.platform !== 'win32') return note('LAIN Desktop is Windows-only for now');
     const d = require(path.join(ROOT, 'src', 'desktop'));
     const built = d.build();
     if (!built.ok) return note(`the host could not be built: ${built.why}`);
@@ -617,7 +617,7 @@ module.exports = async function () {
       const names = rows.map((r) => String(r.Name || '').toLowerCase());
       assert.ok(!names.some((n) => /chrome|msedge|chromium|brave|helium/.test(n)),
         `the launch opened no browser: ${names.join(', ')}`);
-      hostPid = (rows.find((r) => /^noema-harness/i.test(String(r.Name || ''))) || {}).ProcessId || 0;
+      hostPid = (rows.find((r) => /^lain-harness/i.test(String(r.Name || ''))) || {}).ProcessId || 0;
       assert.ok(hostPid, `the native host is running under it: ${names.join(', ')}`);
 
       // ---- AND A SECOND LAUNCH FINDS THE FIRST (§28) -------------------

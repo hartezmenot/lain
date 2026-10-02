@@ -15,8 +15,8 @@
  *                                model_scoped[] } — utilization 0–100 USED, resets_at ISO
  *
  * NO USER MESSAGE IS SENT, so nothing is generated and no quota is spent (verified live with Claude Code 2.1.286:
- * both answers in ~2.4 s, stdin closed at once). Claude Code reads — and renews — its own sign-in: Noema never
- * opens `.credentials.json`, for the person's own profile or for one Noema made.
+ * both answers in ~2.4 s, stdin closed at once). Claude Code reads — and renews — its own sign-in: LAIN never
+ * opens `.credentials.json`, for the person's own profile or for one LAIN made.
  *
  * TOLERANT BY DESIGN: `get_usage` is marked experimental by Claude Code. Every field is optional here; a missing
  * window is simply not reported, an unknown subtype answer is "unsupported" (an older Claude Code), and nothing is

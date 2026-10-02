@@ -22,24 +22,24 @@ const { test, tmpdir } = require('../helpers');
 module.exports = async function () {
   const wa = require('../../src/winassoc');
   const op = require('../../src/openpath');
-  const EXE = 'C:\\Users\\me\\.lain-v2\\desktop\\noemaw.exe';
+  const EXE = 'C:\\Users\\me\\.lain-v2\\desktop\\lainw.exe';
 
-  await test('OPEN WITH: every development type offers Noema — and no extension\'s default program is ever written', () => {
+  await test('OPEN WITH: every development type offers LAIN — and no extension\'s default program is ever written', () => {
     const p = wa.plan(EXE);
     const keys = p.map((a) => [a[1], a.includes('/ve') ? '(Default)' : a[a.indexOf('/v') + 1]]);
     for (const e of ['py', 'js', 'ts', 'rs', 'md', 'json', 'sql', 'sh']) {
-      assert.ok(keys.some(([k, v]) => k === `${wa.HIVE}\\.${e}\\OpenWithProgids` && v === 'Noema.File'), `.${e} lists Noema in Open with`);
-      assert.ok(keys.some(([k]) => k === `${wa.HIVE}\\SystemFileAssociations\\.${e}\\shell\\Noema.Open\\command`), `.${e} has "Open with Noema"`);
+      assert.ok(keys.some(([k, v]) => k === `${wa.HIVE}\\.${e}\\OpenWithProgids` && v === 'LAIN.Harness.File'), `.${e} lists LAIN in Open with`);
+      assert.ok(keys.some(([k]) => k === `${wa.HIVE}\\SystemFileAssociations\\.${e}\\shell\\LAIN.Harness.Open\\command`), `.${e} has "Open with LAIN"`);
     }
     // NEVER THE DEFAULT: nothing is written to `.ext` itself (its (Default) is the program a double-click runs), nor UserChoice.
     assert.ok(!keys.some(([k, v]) => /\\\.[a-z0-9]+$/i.test(k) && v === '(Default)'), 'no extension default');
     assert.ok(!p.some((a) => /UserChoice/i.test(a[1])), 'no UserChoice');
     // THE FOLDER: on the folder and inside it.
     const cmd = (key) => { const a = p.find((x) => x[1] === `${wa.HIVE}\\${key}` && x.includes('/ve')); return a && a[a.indexOf('/d') + 1]; };
-    assert.strictEqual(cmd('Directory\\shell\\Noema.Open'), 'Open folder in Noema');
-    assert.strictEqual(cmd('Directory\\shell\\Noema.Open\\command'), `"${EXE}" "%1"`);
-    assert.strictEqual(cmd('Directory\\Background\\shell\\Noema.Open\\command'), `"${EXE}" "%V"`);
-    assert.strictEqual(cmd('Noema.File\\shell\\open\\command'), `"${EXE}" "%1"`);
+    assert.strictEqual(cmd('Directory\\shell\\LAIN.Harness.Open'), 'Open folder in LAIN');
+    assert.strictEqual(cmd('Directory\\shell\\LAIN.Harness.Open\\command'), `"${EXE}" "%1"`);
+    assert.strictEqual(cmd('Directory\\Background\\shell\\LAIN.Harness.Open\\command'), `"${EXE}" "%V"`);
+    assert.strictEqual(cmd('LAIN.Harness.File\\shell\\open\\command'), `"${EXE}" "%1"`);
     assert.strictEqual(wa.EXTENSIONS.length, 39);
     // REMOVAL deletes LAIN's value in OpenWithProgids — never the extension key.
     assert.ok(wa.unplan().every((a) => !/\\\.[a-z0-9]+$/i.test(a[1]) || a.includes('/v')), 'only values under .ext are removed');
@@ -54,14 +54,14 @@ module.exports = async function () {
       assert.ok(r.ok, JSON.stringify(r.failed));
       const st = wa.status({ hive });
       assert.deepStrictEqual([st.registered, st.exe], [true, EXE]);
-      const q = spawnSync('reg.exe', ['query', `${hive}\\.py\\OpenWithProgids`, '/v', 'Noema.File'], { encoding: 'utf8' });
-      assert.strictEqual(q.status, 0, 'OpenWithProgids holds Noema.File');
+      const q = spawnSync('reg.exe', ['query', `${hive}\\.py\\OpenWithProgids`, '/v', 'LAIN.Harness.File'], { encoding: 'utf8' });
+      assert.strictEqual(q.status, 0, 'OpenWithProgids holds LAIN.Harness.File');
       const d = spawnSync('reg.exe', ['query', `${hive}\\.py`, '/ve'], { encoding: 'utf8' });
       assert.ok(d.status !== 0 || !/REG_SZ\s+(?!\(value not set\))\S/.test(d.stdout), `the .py default is untouched: ${d.stdout}`);
       wa.unregister({ hive, extensions: ['py', 'rs'] });
       assert.strictEqual(wa.status({ hive }).registered, false);
-      const gone = spawnSync('reg.exe', ['query', `${hive}\\.py\\OpenWithProgids`, '/v', 'Noema.File'], { encoding: 'utf8' });
-      assert.notStrictEqual(gone.status, 0, 'Noema\'s value is removed');
+      const gone = spawnSync('reg.exe', ['query', `${hive}\\.py\\OpenWithProgids`, '/v', 'LAIN.Harness.File'], { encoding: 'utf8' });
+      assert.notStrictEqual(gone.status, 0, 'LAIN\'s value is removed');
     } finally { spawnSync('reg.exe', ['delete', root, '/f'], { windowsHide: true }); }
   });
 

@@ -108,10 +108,10 @@ function sourceLocationFacts() {
   out.push(F.make({
     area: AREA.SOURCE_LOCATION,
     name: 'Columns',
-    value: 'not produced by Noema; supplied by external analysers only',
+    value: 'not produced by LAIN; supplied by external analysers only',
     confidence: CONFIDENCE.PROVEN,
     via: VIA.EXECUTED,
-    evidence: "Noema's own findings carry line and no column; tsc, go vet and cargo report their own, "
+    evidence: "LAIN's own findings carry line and no column; tsc, go vet and cargo report their own, "
       + 'and each is 1-based by that tool\'s convention',
     at: 'src/langscan.js (line only), src/toolchain.js (column from the tool)',
     notes: 'A finding with a column got it from the named tool. A finding without one has no column, '

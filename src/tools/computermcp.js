@@ -334,7 +334,7 @@ async function run(input, ctx) {
         return {
           output: r.window
             ? `started ${input.command} · pid ${r.pid}\nits window: ${describeWindow(r.window)}\nAim later actions by pid or handle, never by title alone.`
-            : `started ${input.command} · pid ${r.pid}\n${r.why} — a single-instance application may have merged into a copy that was already running, and Noema will not adopt somebody else's window.`,
+            : `started ${input.command} · pid ${r.pid}\n${r.why} — a single-instance application may have merged into a copy that was already running, and LAIN will not adopt somebody else's window.`,
           isError: !r.window,
           meta: { computer: op, pid: r.pid },
         };

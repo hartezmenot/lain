@@ -148,7 +148,7 @@ async function health(port, { timeoutMs = 3000 } = {}) {
 /** STOP one LAIN-owned server (verified through the registry). Refuses while a request is in flight unless forced. */
 function stop(key, { force = false } = {}) {
   const s = servers.get(key);
-  if (!s) return { ok: false, why: 'no such Noema server' };
+  if (!s) return { ok: false, why: 'no such LAIN server' };
   if (s.inflight > 0 && !force) return { ok: false, why: `a request is in flight on ${path.basename(s.cfg.file)}` };
   s.state = 'stopping';
   let r = { ok: true };
@@ -166,7 +166,7 @@ function stopAll() { let n = 0; for (const k of [...servers.keys()]) { if (stop(
  */
 async function ensure(app, modelId, { signal = null, startTimeoutMs = 180000, spawnFn = spawn } = {}) {
   const model = require('./modeldirs').byId(modelId);
-  if (!model) return { ok: false, why: `${modelId} is not in any model directory Noema knows` };
+  if (!model) return { ok: false, why: `${modelId} is not in any model directory LAIN knows` };
   const cfg = configFor(app, model);
   const key = keyOf(cfg);
   const cur = servers.get(key);
@@ -186,7 +186,7 @@ async function ensure(app, modelId, { signal = null, startTimeoutMs = 180000, sp
   const others = [...servers.values()].filter((s) => s.key !== key);
   if (others.length >= max) {
     const idle = others.filter((s) => s.inflight === 0);
-    if (idle.length < others.length - max + 1) return { ok: false, why: `another local model is answering a request; Noema will not stop it mid-request (${others.map((s) => path.basename(s.cfg.file)).join(', ')})` };
+    if (idle.length < others.length - max + 1) return { ok: false, why: `another local model is answering a request; LAIN will not stop it mid-request (${others.map((s) => path.basename(s.cfg.file)).join(', ')})` };
     for (const s of idle.slice(0, others.length - max + 1)) stop(s.key);
   }
 

@@ -1,14 +1,14 @@
 'use strict';
 
 /**
- * EXECUTION DISCIPLINE (src/discipline/) — Noema owns the discipline, the model owns judgment.
+ * EXECUTION DISCIPLINE (src/discipline/) — LAIN owns the discipline, the model owns judgment.
  *
  * Proven here against the real modules: asks and acceptance criteria as state · CheckState with baselines,
  * generations, realism and discrimination · test-integrity detection from real before/after text · typed claims
  * cross-checked and downgraded · the completion arbiter's states · verification proportional to the change, with
  * verifycontract as the one authority (no universal final smoke) · OUTCOME SATISFIED stopping further edits ·
  * no blind retries · tool dialects run through the canonical door · capability profiles reduce discretion, never
- * the standard · the continuity digest · NOEMA.md as the canonical constitution.
+ * the standard · the continuity digest · LAIN.md as the canonical constitution.
  */
 
 const assert = require('assert');
@@ -86,7 +86,7 @@ module.exports = async function () {
     assert.deepStrictEqual(kinds('test/new.test.js', null, "it('x', () => assert.ok(1));\n"), [], 'adding a test is not a flag');
   });
 
-  await test('INTEGRITY: an undisclosed test change is never plain DONE — Noema discloses it; disclosed by the model, it may finish', () => {
+  await test('INTEGRITY: an undisclosed test change is never plain DONE — LAIN discloses it; disclosed by the model, it may finish', () => {
     const life = new Lifecycle('make the test pass');
     life.discipline.noteWrite('test/add.test.js', "it('a', () => { assert.ok(x); assert.ok(y); });", "it.skip('a', () => { assert.ok(x); });");
     write(life, '/p/test/add.test.js');
@@ -104,7 +104,7 @@ module.exports = async function () {
     write(life, '/p/src/parser.js');
     run(life, 'node test/parser.test.js', true);
     const said = life.contradiction('Fixed the parser. The Windows package is verified and the installer works.');
-    assert.match(said, /Not verified by Noema/);
+    assert.match(said, /Not verified by LAIN/);
     assert.match(said, /packaging/);
     const typed = claims.crossCheck([{ type: 'VERIFIED', text: 'parser tests pass', check: life.discipline.checks.commands()[0].id }, { type: 'VERIFIED', text: 'release build works', check: 'K99' }],
       { ledger: life.discipline.checks, gen: life.mutationSeq, changed: ['/p/src/parser.js'] });
@@ -112,7 +112,7 @@ module.exports = async function () {
     assert.strictEqual(life.contradiction('Fixed the parser; the parser tests pass.'), null, 'a supported claim is left alone');
   });
 
-  await test('ARBITER: DONE · DONE_UNVERIFIED · PARTIAL · BLOCKED · NEEDS_DECISION — the model requests, Noema decides', () => {
+  await test('ARBITER: DONE · DONE_UNVERIFIED · PARTIAL · BLOCKED · NEEDS_DECISION — the model requests, LAIN decides', () => {
     const cwd = tmpdir('d-');
     const life = new Lifecycle('1. add the setting\n2. document it');
     write(life, '/p/src/settings.js');
@@ -246,21 +246,21 @@ module.exports = async function () {
     assert.strictEqual(restored.discipline.checks.commands()[0].baseline, 'FAIL', 'it survives a resume');
   });
 
-  await test('CONSTITUTION: the standing policy is short; NOEMA.md is canonical, AGENTS.md is read only until it exists', () => {
+  await test('CONSTITUTION: the standing policy is short; LAIN.md is canonical, AGENTS.md is read only until it exists', () => {
     const { POLICY, render } = require('../../src/discipline/constitution');
     assert.ok(POLICY.length / 4 < 650, `the policy is ~${Math.round(POLICY.length / 4)} tokens`);
     assert.ok(require('../../src/prompt').build({ cwd: process.cwd() }).length / 4 < 1200, 'the whole standing prompt stays small');
     const root = tmpdir('d-proj-');
     const md = require('../../src/agentsmd');
-    fs.mkdirSync(path.join(root, '.noema'));
-    fs.writeFileSync(path.join(root, '.noema', 'AGENTS.md'), 'old rules');
-    assert.match(md.projectFile(root), /AGENTS\.md$/, 'an existing AGENTS.md is read while there is no NOEMA.md');
+    fs.mkdirSync(path.join(root, '.lain'));
+    fs.writeFileSync(path.join(root, '.lain', 'AGENTS.md'), 'old rules');
+    assert.match(md.projectFile(root), /AGENTS\.md$/, 'an existing AGENTS.md is read while there is no LAIN.md');
     md.write('project', root, 'Use pnpm.');
-    assert.strictEqual(fs.readFileSync(path.join(root, '.noema', 'NOEMA.md'), 'utf8'), 'Use pnpm.', 'writes go to NOEMA.md');
-    assert.match(md.projectFile(root), /NOEMA\.md$/);
-    assert.match(md.forPrompt(root), /Project constitution \(NOEMA\.md\)/);
+    assert.strictEqual(fs.readFileSync(path.join(root, '.lain', 'LAIN.md'), 'utf8'), 'Use pnpm.', 'writes go to LAIN.md');
+    assert.match(md.projectFile(root), /LAIN\.md$/);
+    assert.match(md.forPrompt(root), /Project constitution \(LAIN\.md\)/);
     assert.match(render('claude-code', root), /CLAUDE\.md[\s\S]*Use pnpm\./, 'provider-native forms are rendered from it');
-    assert.match(render('codex', root), /<developer_instructions source="Noema">[\s\S]*Use pnpm\./);
+    assert.match(render('codex', root), /<developer_instructions source="LAIN">[\s\S]*Use pnpm\./);
   });
 
   await test('OBSERVE: a live DOM measurement through `observe` is ledger evidence; its file/code reads are not', () => {

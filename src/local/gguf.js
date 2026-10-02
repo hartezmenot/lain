@@ -43,7 +43,7 @@ class Reader {
       if (got <= 0) throw new Error('unexpected end of file in the GGUF header');
       this.filePos += got;
       this.total += got;
-      if (this.total > MAX_HEADER_BYTES) throw new Error('GGUF header larger than Noema reads');
+      if (this.total > MAX_HEADER_BYTES) throw new Error('GGUF header larger than LAIN reads');
       this.buf = Buffer.concat([this.buf.subarray(this.pos), chunk.subarray(0, got)]);
       this.pos = 0;
     }
@@ -83,7 +83,7 @@ function readHeader(file) {
     const magic = r.buf.toString('latin1', 0, 4); r.pos = 4;
     if (magic !== 'GGUF') return { ok: false, why: 'not a GGUF file' };
     const version = r.u32();
-    if (version < 2 || version > 3) return { ok: false, why: `GGUF version ${version} is not one Noema reads` };
+    if (version < 2 || version > 3) return { ok: false, why: `GGUF version ${version} is not one LAIN reads` };
     const tensors = r.u64();
     const kvCount = r.u64();
     if (kvCount > 100000) return { ok: false, why: 'implausible GGUF key count' };

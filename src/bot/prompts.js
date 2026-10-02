@@ -16,7 +16,7 @@ class Prompts {
     const pending = { key: sessionKey(target), choices, close, delivered: false, answered: false, expires: Date.now() + this.ttl };
     this.pending.set(id, pending);
     signal?.addEventListener('abort', abort, { once: true });
-    const text = [question.title || 'Noema needs your answer', question.question || '',
+    const text = [question.title || 'LAIN needs your answer', question.question || '',
       ...choices.map((c, i) => `${i + 1}. ${c}`), `Reply: /answer ${id} ${choices.length ? '<number>' : '<your answer>'}\nExpires in ${Math.round(this.ttl / 1000)} seconds. /stop cancels.`].join('\n');
     try {
       const rows = await this.delivery.sendMessage(target, text, { id: `prompt:${id}`, prompt: { id, choices: choices.map(c => require('../redact').text(c)) } });

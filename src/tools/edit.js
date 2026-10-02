@@ -177,7 +177,7 @@ function whyNotFound(hay, needle, ctx, abs) {
     return [
       'PATCH CONFLICT: this file changed after you read it.',
       `It was ${conflict.was.size} bytes when you read it; it is ${conflict.now.size} now.`,
-      "Noema did not make that change — its own writes clear this record — so another",
+      "LAIN did not make that change — its own writes clear this record — so another",
       'session, an editor or a build step did. Re-read the range you mean to change',
       'and patch against what is there now. NOTHING WAS WRITTEN.',
     ].join(NL);

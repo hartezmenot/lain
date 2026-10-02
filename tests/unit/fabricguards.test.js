@@ -64,9 +64,9 @@ module.exports = async function () {
     assert.ok(!/turn\/start|thread\/delete|thread\/archive|thread\/metadata/.test(code('drivers/codex.js')), 'the Codex driver never writes a thread');
   });
 
-  await test('GUARD: extension reuse shares no mutable state — storage is Noema’s own, per id', () => {
+  await test('GUARD: extension reuse shares no mutable state — storage is LAIN’s own, per id', () => {
     const m = code('exthost/manager.js');
-    assert.ok(/extension-storage/.test(m), 'extension state lives under Noema’s config');
+    assert.ok(/extension-storage/.test(m), 'extension state lives under LAIN’s config');
     const ep = code('extpackages.js');
     assert.ok(!/fs\.(write|append|unlink|rm|rename)\w*\(\s*(row\.location|location)/.test(ep), 'nothing is written at an editor’s location');
   });

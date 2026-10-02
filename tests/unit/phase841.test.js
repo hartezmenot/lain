@@ -99,7 +99,7 @@ module.exports = async function () {
       const credsBefore = fs.readFileSync(path.join(home, '.credentials.json'));
       r = await call(app, '/api/intel/detach', { id: claudeId, mode: 'detach' });
       assert.strictEqual(r.body.ok, true, JSON.stringify(r.body));
-      assert.strictEqual(fam(app, 'claude').accounts.length, 0, 'Claude no longer offered by Noema');
+      assert.strictEqual(fam(app, 'claude').accounts.length, 0, 'Claude no longer offered by LAIN');
       assert.ok(fs.readFileSync(path.join(home, '.credentials.json')).equals(credsBefore), 'the person\'s own Claude sign-in is untouched');
       assert.deepStrictEqual(names(app, 'codex'), ['Alpha', 'Charlie'], 'and Codex did not notice');
       // an external profile can only be detached — never signed out
@@ -139,7 +139,7 @@ module.exports = async function () {
       assert.strictEqual(fam(app, 'antigravity').accounts.length, 0);
     });
 
-    await test('RE-ADD: a detached own profile is discoverable again — Use in Noema brings it back as the person’s own (external) account', async () => {
+    await test('RE-ADD: a detached own profile is discoverable again — Use in LAIN brings it back as the person’s own (external) account', async () => {
       const { app, home } = await fixture('p841g-');
       const savedCcd = process.env.CLAUDE_CONFIG_DIR;
       process.env.CLAUDE_CONFIG_DIR = home;
@@ -157,7 +157,7 @@ module.exports = async function () {
         assert.strictEqual(r.ok, true, JSON.stringify(r));
         const back = fam(app, 'claude').accounts;
         assert.strictEqual(back.length, 1);
-        assert.strictEqual(back[0].ownership, 'external_native', 'never LAIN-owned: signing it out is not Noema’s to do');
+        assert.strictEqual(back[0].ownership, 'external_native', 'never LAIN-owned: signing it out is not LAIN’s to do');
         assert.ok(fs.existsSync(path.join(home, '.credentials.json')), 'and its sign-in never moved');
       } finally { if (savedCcd === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = savedCcd; require('../../src/runtimediscovery')._reset(); }
     });
@@ -200,7 +200,7 @@ module.exports = async function () {
       assert.strictEqual(ph.find((p) => p.id === 'ph-gemini').obsolete, true);
       assert.match(ph.find((p) => p.id === 'ph-gemini').obsoleteWhy, /already connected/);
       assert.strictEqual(ph.find((p) => p.id === 'ph-gemini-new').obsolete, false);
-      assert.strictEqual(agy.accounts.length, 2, 'the two accounts Noema signed in — nothing else counts as capacity');
+      assert.strictEqual(agy.accounts.length, 2, 'the two accounts LAIN signed in — nothing else counts as capacity');
       const api = fams.filter((f) => f.kind === 'api' && /Gemini/i.test(f.label));
       assert.strictEqual(api.length, 1, 'the Gemini API is still its own source');
       assert.ok(!agy.models.some((m) => /gemini-3\.8-flash/.test(m.id) && m.accounts.some((x) => x.kind === 'api')), 'and its models did not move under Antigravity');

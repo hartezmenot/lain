@@ -5,7 +5,7 @@
  * against the actual binaries rather than asserted from the registry alone.
  *
  * `instances.js` is a directory of small files precisely so two independent
- * `bin/noema.js` processes can discover each other with no daemon and no lock —
+ * `bin/lain.js` processes can discover each other with no daemon and no lock —
  * so this is the one place that claim is worth testing with two REAL processes
  * sharing one `LAIN_CONFIG_DIR`, not two in-process `App` objects sharing a
  * module cache no real deployment would share.
@@ -46,7 +46,7 @@ function post(url, headers, payload) {
   });
 }
 
-/** One real, headless `bin/noema.js`, sharing `configDir` so the registry sees it. */
+/** One real, headless `bin/lain.js`, sharing `configDir` so the registry sees it. */
 function spawnLain(configDir, label) {
   const cwd = tmpdir(`lain-dash-proj-${label}-`);
   fs.writeFileSync(path.join(cwd, 'README.md'), `# ${label}\n`);
@@ -188,7 +188,7 @@ module.exports = async function () {
       last = await post(`${t.url}api/login`, {}, { password: `one-more-guess` });
       assert.strictEqual(last.status, 429);
       const rLockedOut = await post(`${t.url}api/login`, {}, { password: 'correct horse battery staple' });
-      assert.strictEqual(rLockedOut.status, 429, 'lockout refuses even the RIGHT password until Noema restarts');
+      assert.strictEqual(rLockedOut.status, 429, 'lockout refuses even the RIGHT password until LAIN restarts');
     } finally {
       try { inst.child.kill('SIGKILL'); } catch { /* already gone */ }
     }

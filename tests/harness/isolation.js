@@ -42,7 +42,7 @@ let state = null;
 function same(a, b) { return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase(); }
 
 function refuse(what, value) {
-  throw new Error(`REFUSING: ${what} points at the real Noema home (${value}). Tests may only write inside their own run root.`);
+  throw new Error(`REFUSING: ${what} points at the real LAIN home (${value}). Tests may only write inside their own run root.`);
 }
 
 /** Establish (or adopt) the isolated profile. Idempotent. */

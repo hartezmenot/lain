@@ -210,7 +210,7 @@ function requestExpansion(order, { paths = [], why = '' } = {}) {
  * tool: the model-facing vocabulary has no door to it.
  */
 function grantExpansion(order, requestId, { by = '' } = {}) {
-  if (by !== 'user' && by !== 'lain') return { ok: false, why: 'scope may be widened only by the user or Noema, never by the worker' };
+  if (by !== 'user' && by !== 'lain') return { ok: false, why: 'scope may be widened only by the user or LAIN, never by the worker' };
   const req = (order.expansionRequests || []).find((r) => r.id === requestId);
   if (!req) return { ok: false, why: `no expansion request ${requestId}` };
   order.writeScope = Object.freeze([...order.writeScope, ...req.paths]);

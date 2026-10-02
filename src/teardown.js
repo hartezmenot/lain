@@ -59,7 +59,7 @@ async function shutdown(viewApp, { why = 'the session ended', closeWindow = true
   await step('the assistant scheduler', () => require('./assistant/scheduler').stop(app));
   await step('the OpenCode server', () => require('./drivers/opencodeserver').stop());
   // THE LAIN SERVER and the MCP servers LAIN started (Phase 8.1) end with LAIN — never orphaned.
-  await step('the Noema server', () => require('./serve').stop());
+  await step('the LAIN server', () => require('./serve').stop());
   await step('MCP servers', () => { for (const id of [...require('./integrations')._live.keys()]) require('./integrations').disconnect(app, id); });
 
   // EACH ACCOUNT'S RUNTIME (a codex app-server per signed-in account) — the

@@ -86,7 +86,7 @@ function compatibility(pkg, record = null, scan = null) {
   const yes = (what) => rows.push({ ok: true, what });
   const no = (what, why) => rows.push({ ok: false, what, why });
   if (pkg && (pkg.main || pkg.browser)) {
-    if (pkg.main) yes('runs its code (extension host, API 0.1)'); else no('runs its code', 'a web-only extension (browser entry); Noema runs Node extensions');
+    if (pkg.main) yes('runs its code (extension host, API 0.1)'); else no('runs its code', 'a web-only extension (browser entry); LAIN runs Node extensions');
   }
   if (Array.isArray(c.commands) && c.commands.length) yes(`${c.commands.length} command(s)`);
   if (Array.isArray(c.snippets) && c.snippets.length) yes('snippets');
@@ -94,20 +94,20 @@ function compatibility(pkg, record = null, scan = null) {
   if (Array.isArray(c.languages) && c.languages.length) yes(`${c.languages.length} language(s): file associations applied to the editor (colouring needs a grammar)`);
   if (c.grammars) no('TextMate grammars', 'not applied to the editor yet');
   if (c.themes) yes('color themes: editor colours, chosen in Settings › Appearance (read as data; no code runs)');
-  if (c.views || c.viewsContainers) no('tree views / view containers', 'no view API in Noema');
+  if (c.views || c.viewsContainers) no('tree views / view containers', 'no view API in LAIN');
   if (c.customEditors) no('custom editors', 'no custom editor API');
-  if (c.debuggers) no('debuggers', 'debug adapters contributed by extensions are not wired; Noema attaches stdio debug adapters itself (Settings › Debugging)');
+  if (c.debuggers) no('debuggers', 'debug adapters contributed by extensions are not wired; LAIN attaches stdio debug adapters itself (Settings › Debugging)');
   if (c.keybindings) no('keybindings', 'contributed keybindings are not applied');
   if (c.menus) no('menus', 'contributed menus are not shown');
   const dependsOnClient = pkg && pkg.dependencies && (pkg.dependencies['vscode-languageclient'] || pkg.dependencies['vscode-languageserver']);
-  if (dependsOnClient) no('language client', 'vscode-languageclient needs APIs Noema does not provide yet; Noema attaches language servers itself (Language Servers in Settings)');
+  if (dependsOnClient) no('language client', 'vscode-languageclient needs APIs LAIN does not provide yet; LAIN attaches language servers itself (Language Servers in Settings)');
   if (scan && scan.ok) {
-    if (scan.missing.length) no(`${scan.missing.length} vscode API(s) its code references`, `not in Noema's API (static scan of ${scan.file}): ${scan.missing.slice(0, 12).join(', ')}${scan.missing.length > 12 ? ` (+${scan.missing.length - 12} more)` : ''}`);
+    if (scan.missing.length) no(`${scan.missing.length} vscode API(s) its code references`, `not in LAIN's API (static scan of ${scan.file}): ${scan.missing.slice(0, 12).join(', ')}${scan.missing.length > 12 ? ` (+${scan.missing.length - 12} more)` : ''}`);
     else if (scan.used.length) yes(`every vscode API its code references (${scan.used.length}, static scan)`);
   }
   if (record) {
     if (record.activation) rows.push(record.activation.ok ? { ok: true, what: 'activation' } : { ok: false, what: 'activation', why: record.activation.why });
-    for (const api of [...record.unsupported]) rows.push({ ok: false, what: `vscode.${api}`, why: 'called at runtime; not in Noema\'s API' });
+    for (const api of [...record.unsupported]) rows.push({ ok: false, what: `vscode.${api}`, why: 'called at runtime; not in LAIN\'s API' });
     if (record.diagnostics.size) rows.push({ ok: true, what: 'diagnostics' });
     for (const k of Object.keys(record.providers)) rows.push({ ok: true, what: `${k} provider` });
   }

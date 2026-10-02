@@ -164,7 +164,7 @@ module.exports = async function () {
       assert.ok(f.ok, `the fixture application started and showed a window: ${f.why}`);
 
       const file = path.join(d.cwd, 'lain-wrote-this.txt');
-      const text = 'Noema typed this through UI Automation.';
+      const text = 'LAIN typed this through UI Automation.';
       // BY HANDLE, because in a moment this process will own two windows and
       // "the window of this pid" will stop being an answer.
       const at = { handle: f.window.handle };
@@ -220,7 +220,7 @@ module.exports = async function () {
 
       // THE FILESYSTEM IS THE WITNESS.
       for (let i = 0; i < 40 && !fs.existsSync(file); i++) await new Promise((r) => setTimeout(r, 250));
-      assert.ok(fs.existsSync(file), 'the file Noema named exists on disk');
+      assert.ok(fs.existsSync(file), 'the file LAIN named exists on disk');
       assert.ok(fs.readFileSync(file, 'utf8').includes(text), 'the file holds what was typed');
 
       // AND THE APPLICATION AGREES, read out of its tree rather than off a

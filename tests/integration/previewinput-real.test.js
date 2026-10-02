@@ -63,7 +63,7 @@ module.exports = async function () {
   const server = http.createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(req.url.startsWith('/inner') ? page(bridge) : OUTER); });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${server.address().port}/`;
-  const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'noema-pvin-'));
+  const prof = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-pvin-'));
   const br = spawn(found.path, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${prof}`, '--no-first-run', '--no-default-browser-check', '--window-size=1000,800', url], { stdio: 'ignore', windowsHide: true });
   let c = null;
   const act = async (cmd) => {
@@ -94,12 +94,12 @@ module.exports = async function () {
     });
 
     await test('PREVIEW INPUT: type into a field named by its label; Enter submits; Tab moves focus', async () => {
-      const t = await act({ action: 'type_text', target: { role: 'textbox', name: 'Search' }, text: 'noema' });
+      const t = await act({ action: 'type_text', target: { role: 'textbox', name: 'Search' }, text: 'lain' });
       assert.ok(t.ok, t.why);
-      assert.strictEqual(t.value, 'noema');
+      assert.strictEqual(t.value, 'lain');
       const k = await act({ action: 'key', key: 'Enter' });
       assert.ok(k.ok, k.why);
-      assert.strictEqual(await val('window.submitted'), 'noema');
+      assert.strictEqual(await val('window.submitted'), 'lain');
       await act({ action: 'key', key: 'Tab' });
       assert.strictEqual(await val('document.activeElement.id'), 'q2');
       const chord = await act({ action: 'key_chord', keys: 'Ctrl+A' });
@@ -146,7 +146,7 @@ module.exports = async function () {
       assert.ok(r.ok, r.why);
       assert.match(r.page.text, /Add one/);
       assert.ok(r.page.elements.some((e) => e.role === 'button' && e.name === 'Add one'), JSON.stringify(r.page.elements.slice(0, 6)));
-      assert.ok(r.page.elements.some((e) => e.role === 'textbox' && e.name === 'Search' && e.value === 'noema'), 'a field and its value');
+      assert.ok(r.page.elements.some((e) => e.role === 'textbox' && e.name === 'Search' && e.value === 'lain'), 'a field and its value');
       const pw = r.page.elements.find((e) => e.role === 'password');
       assert.ok(pw && pw.value === undefined && pw.name === 'Password', JSON.stringify(pw));
       assert.ok(!JSON.stringify(r).includes('hunter2-secret'), 'a credential never leaves the page');

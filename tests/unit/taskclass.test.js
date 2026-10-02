@@ -41,7 +41,7 @@ module.exports = async function () {
     assert.strictEqual(v.surface, 'computer-mcp');
   });
 
-  await test('CLASS: the person\'s own browser routes to Noema for Chrome, not the project', () => {
+  await test('CLASS: the person\'s own browser routes to LAIN for Chrome, not the project', () => {
     const v = taskclass.classify('Look at the Chrome tab I have open', { mode: 'CHAT' });
     assert.strictEqual(v.cls, CLASS.LIVE_EXTERNAL_DIAGNOSTIC);
     assert.strictEqual(v.surface, 'chrome');

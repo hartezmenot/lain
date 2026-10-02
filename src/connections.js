@@ -426,7 +426,7 @@ function authRoutes(provider, connections = []) {
     rows.push({
       kind: 'oauth', label: `${provider} OAuth`, connectionId: null,
       status: 'OAUTH NOT AVAILABLE FOR THIS PROVIDER', action: null, enabled: false,
-      detail: 'Noema has no legitimate OAuth mechanism for this provider. It is not faked, and no protected flow is bypassed.',
+      detail: 'LAIN has no legitimate OAuth mechanism for this provider. It is not faked, and no protected flow is bypassed.',
     });
   }
 
@@ -437,7 +437,7 @@ function authRoutes(provider, connections = []) {
       kind: 'bridge', label: `${provider} via ${c.id}`, connectionId: c.id,
       status: c.readiness === READINESS.REQUEST_READY ? 'Connected (verified)' : 'Connected',
       action: 'Use', enabled: true,
-      detail: `${c.models.length} model(s) — the bridge authenticates upstream itself; Noema holds no credential for it.`,
+      detail: `${c.models.length} model(s) — the bridge authenticates upstream itself; LAIN holds no credential for it.`,
     });
   }
 

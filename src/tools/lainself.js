@@ -81,8 +81,8 @@ async function describe(app, topic) {
     out.push('MODEL ROLES');
     // CHAT and the BOT are separate: ChatGPT Chat (the chatgpt.com website session) is CHAT ONLY.
     const ro = require('../modelroles');
-    if (r.chat) out.push(`  CHAT view: ${r.chat.source === 'lain' ? `Noema · ${r.chat.modelId || 'default'}` : `${ro.labelFor(r.chat.source, r.chat.source)} (CHAT ONLY${r.chat.source === ro.CHATGPT_CHAT.source ? `, ${ro.CHATGPT_CHAT.origin}, Noema alias ${ro.CHATGPT_CHAT.alias} — a Noema route name, not an OpenAI model id` : ''})`}`);
-    out.push(`  BOT (conversation): ${r.bot.source === 'lain' ? (r.bot.modelId || 'Noema default') : `${r.bot.source}${r.bot.modelId ? ` · ${r.bot.modelId}` : ''}`} (${r.bot.scope === 'session' ? 'this session' : 'default'})`);
+    if (r.chat) out.push(`  CHAT view: ${r.chat.source === 'lain' ? `LAIN · ${r.chat.modelId || 'default'}` : `${ro.labelFor(r.chat.source, r.chat.source)} (CHAT ONLY${r.chat.source === ro.CHATGPT_CHAT.source ? `, ${ro.CHATGPT_CHAT.origin}, LAIN alias ${ro.CHATGPT_CHAT.alias} — a LAIN route name, not an OpenAI model id` : ''})`}`);
+    out.push(`  BOT (conversation): ${r.bot.source === 'lain' ? (r.bot.modelId || 'LAIN default') : `${r.bot.source}${r.bot.modelId ? ` · ${r.bot.modelId}` : ''}`} (${r.bot.scope === 'session' ? 'this session' : 'default'})`);
     out.push(`  Coding Agent: ${r.coding.modelId || 'not set'} (${r.coding.scope === 'session' ? 'this session' : 'default'})`);
     for (const role of ['chat', 'coding']) {
       const u = a.usage && a.usage[role];
@@ -145,7 +145,7 @@ async function describe(app, topic) {
       out.push(`    ${m.modelName || m.name} [${m.id}] ${m.quantization || ''} ${m.sizeBytes ? (m.sizeBytes / 1073741824).toFixed(1) + ' GB' : ''} ctx ${m.contextLength || '?'}${m.vision ? ' · VISION (projector paired)' : ''} · Agent: ${v ? v.result : 'not verified'}`);
     }
     const running = llama.status();
-    if (!running.length) out.push('    running: none (Noema starts llama-server when a local model is used)');
+    if (!running.length) out.push('    running: none (LAIN starts llama-server when a local model is used)');
     for (const s of running) out.push(`    RUNNING: ${s.model} · pid ${s.pid} · port ${s.port} · ctx ${s.ctx} · ${s.state}${llama.processMemory(s.pid) ? ` · process memory ${(llama.processMemory(s.pid) / 1073741824).toFixed(1)} GB (working set, not VRAM)` : ''}`);
     const o = require('../local/ollama').cached();
     out.push(`  Ollama: ${o ? (o.running ? `running ${o.version || ''} at ${o.endpoint}, ${(o.models || []).length} model(s)` : `not running at ${o.endpoint}${o.binary ? '' : ' (not installed)'}`) : 'not checked yet'}`);
@@ -164,7 +164,7 @@ async function describe(app, topic) {
     if (want('plans')) {
       out.push('PLANS AND CREDITS');
       // Z.AI IS API-ONLY IN LAIN (2026-09-29): its windows come from Z.ai's monitor (fabric/quotaread.js), shown under MODEL › API.
-      out.push('  Z.ai: through its API only — quota from Z.ai\'s monitor, under MODEL › API. (ZCode\'s Start Plan is not used by Noema.)');
+      out.push('  Z.ai: through its API only — quota from Z.ai\'s monitor, under MODEL › API. (ZCode\'s Start Plan is not used by LAIN.)');
     }
   }
   if (want('project')) {
@@ -175,11 +175,11 @@ async function describe(app, topic) {
     const t = usage.sum(rows, (app._sibling || app).cfg || {});
     const e = usage.efficiency(rows);
     out.push(`THIS PROJECT (${app.session && app.session.cwd ? app.session.cwd : 'no project'}), all time`);
-    out.push(`  ${t.requests} request(s) · input ${t.input} · output ${t.output} tokens (as reported) · cache read ${t.cacheRead} · cache write ${t.cacheWrite}${t.estimated.rows ? ` · website ${t.estimated.input + t.estimated.output} tokens Estimated by Noema` : ''}`);
+    out.push(`  ${t.requests} request(s) · input ${t.input} · output ${t.output} tokens (as reported) · cache read ${t.cacheRead} · cache write ${t.cacheWrite}${t.estimated.rows ? ` · website ${t.estimated.input + t.estimated.output} tokens Estimated by LAIN` : ''}`);
     if (e.lain.requests) {
       const parts = { tool: e.lain.avgToolSchemaChars || 0, sys: e.lain.avgSystemChars || 0, conv: e.lain.avgMessageChars || 0 };
       const tot = parts.tool + parts.sys + parts.conv;
-      out.push(`  per API request on average: tool schemas ${parts.tool} chars (${tot ? Math.round((parts.tool / tot) * 100) : 0}%), fixed prompt ${parts.sys} chars (${tot ? Math.round((parts.sys / tot) * 100) : 0}%), conversation ${parts.conv} chars (${tot ? Math.round((parts.conv / tot) * 100) : 0}%) — measured by Noema from what it sent`);
+      out.push(`  per API request on average: tool schemas ${parts.tool} chars (${tot ? Math.round((parts.tool / tot) * 100) : 0}%), fixed prompt ${parts.sys} chars (${tot ? Math.round((parts.sys / tot) * 100) : 0}%), conversation ${parts.conv} chars (${tot ? Math.round((parts.conv / tot) * 100) : 0}%) — measured by LAIN from what it sent`);
     } else out.push('  no API requests to break down');
   }
   if (want('mcp')) {
@@ -218,15 +218,15 @@ const tools = {
     schema: {
       name: 'lain_workspace',
       description:
-        'Questions about Noema ITSELF, answered from its live state: which model the BOT and the Coding Agent '
+        'Questions about LAIN ITSELF, answered from its live state: which model the BOT and the Coding Agent '
         + 'use, accounts and how much of each provider window they have used, rate limits, token usage, MCP servers, bot '
-        + 'channels, local models (llama.cpp, Ollama), runtimes, plans and credits, this project\'s token use, and where a setting lives in the Noema window. action "describe" reads (topic: models, '
-        + 'quota, providers, accounts, usage, project, local, runtimes, plans, mcp, bot, where, all). action "open" shows a view in the Noema window (surface: '
+        + 'channels, local models (llama.cpp, Ollama), runtimes, plans and credits, this project\'s token use, and where a setting lives in the LAIN window. action "describe" reads (topic: models, '
+        + 'quota, providers, accounts, usage, project, local, runtimes, plans, mcp, bot, where, all). action "open" shows a view in the LAIN window (surface: '
         + 'home, ide, chat, bot, model, usage, session, settings; optional section such as mcp, skills, providers, '
-        + 'connections) — navigation only, it changes nothing. action "doors" lists the capabilities of Noema; action '
+        + 'connections) — navigation only, it changes nothing. action "doors" lists the capabilities of LAIN; action '
         + '"do" walks through one by id with `args` — e.g. settings.open_mcp, ide.open_file {path}, ide.open_symbol '
         + '{name}, ide.get_diagnostics, session.open {when:"yesterday"}, model.assign {role:"coding", model:"opus"}, '
-        + 'task.status, changes.who {source:"USER"|"Noema"}. A navigate door moves the window; model.assign changes '
+        + 'task.status, changes.who {source:"USER"|"LAIN"}. A navigate door moves the window; model.assign changes '
         + 'the model assignment of this session (a setting, never a file). Never guess a percentage: if the tool says a '
         + 'provider has not reported usage, say that.',
       parameters: {
@@ -244,7 +244,7 @@ const tools = {
     },
     async run(input, ctx) {
       const app = ctx && ctx.app;
-      if (!app) return { output: 'Noema state is not available in this run', isError: true };
+      if (!app) return { output: 'LAIN state is not available in this run', isError: true };
       const action = String((input && input.action) || 'describe');
       // THE HOUSE DOORS (house.js): the same registry the window's own menus use.
       if (action === 'doors') {
@@ -254,7 +254,7 @@ const tools = {
         const r = await require('../house').run(app, input && input.id, (input && input.args) || {});
         if (!r.ok) return { output: `${input && input.id}: ${r.why}${r.candidates ? `\ncandidates: ${r.candidates.join(', ')}` : ''}`, isError: true };
         if (r.kind === 'navigate') {
-          return { output: `${r.windows ? 'Opened' : 'No Noema window is open; it will show'} ${r.navigated.surface}${r.navigated.section ? ` › ${r.navigated.section}` : ''}${r.opened ? `: ${r.opened.title} (${r.opened.project || 'no project'})${r.others && r.others.length ? `. ${r.others.length} other match(es): ${r.others.map((o) => o.title).join('; ')}` : ''}` : ''}${r.declared ? ` (declared at ${r.declared.join(', ')})` : ''}.` };
+          return { output: `${r.windows ? 'Opened' : 'No LAIN window is open; it will show'} ${r.navigated.surface}${r.navigated.section ? ` › ${r.navigated.section}` : ''}${r.opened ? `: ${r.opened.title} (${r.opened.project || 'no project'})${r.others && r.others.length ? `. ${r.others.length} other match(es): ${r.others.map((o) => o.title).join('; ')}` : ''}` : ''}${r.declared ? ` (declared at ${r.declared.join(', ')})` : ''}.` };
         }
         return { output: r.text || 'done' };
       }
@@ -267,10 +267,10 @@ const tools = {
         root._uiNavigate = { seq: (prev && prev.seq ? prev.seq : 0) + 1, surface, section, at: Date.now() };
         let windows = 0;
         try { windows = require('../harnessapp/ipc').status().clients; } catch { windows = 0; }
-        return { output: windows ? `Opened ${SURFACES[surface]}${section ? ` › ${section}` : ''} in the Noema window.` : `No Noema window is open; ${SURFACES[surface]}${section ? ` › ${section}` : ''} will show when it is.` };
+        return { output: windows ? `Opened ${SURFACES[surface]}${section ? ` › ${section}` : ''} in the LAIN window.` : `No LAIN window is open; ${SURFACES[surface]}${section ? ` › ${section}` : ''} will show when it is.` };
       }
       const topic = input && input.topic ? String(input.topic) : 'all';
-      try { return { output: await describe(app, topic) }; } catch (e) { return { output: `could not read Noema state: ${(e && e.message) || e}`, isError: true }; }
+      try { return { output: await describe(app, topic) }; } catch (e) { return { output: `could not read LAIN state: ${(e && e.message) || e}`, isError: true }; }
     },
   },
 };

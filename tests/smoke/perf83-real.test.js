@@ -40,8 +40,8 @@ module.exports = async function () {
       await d.until("!document.getElementById('app').hidden", 30000);
       m.harnessStartupMs = Date.now() - t0;
       // WHERE STARTUP GOES (Phase P): Core + host to navigation, the document parsed and run, boot, the first state drawn.
-      await d.until("performance.getEntriesByName('noema:first-state').length > 0", 30000);
-      const tl = await d.js("(() => { const n = performance.getEntriesByType('navigation')[0] || {}; const at = (k) => { const e = performance.getEntriesByName(k)[0]; return e ? Math.round(e.startTime) : null; }; return { responseEnd: Math.round(n.responseEnd || 0), domInteractive: Math.round(n.domInteractive || 0), boot: at('noema:boot'), shown: at('noema:shown'), firstState: at('noema:first-state'), origin: Math.round(performance.timeOrigin) }; })()");
+      await d.until("performance.getEntriesByName('lain:first-state').length > 0", 30000);
+      const tl = await d.js("(() => { const n = performance.getEntriesByType('navigation')[0] || {}; const at = (k) => { const e = performance.getEntriesByName(k)[0]; return e ? Math.round(e.startTime) : null; }; return { responseEnd: Math.round(n.responseEnd || 0), domInteractive: Math.round(n.domInteractive || 0), boot: at('lain:boot'), shown: at('lain:shown'), firstState: at('lain:first-state'), origin: Math.round(performance.timeOrigin) }; })()");
       m.page = tl; m.toNavigationMs = tl.origin - t0;
       process.stdout.write(`      startup: ${m.toNavigationMs} ms to navigation · document read ${tl.responseEnd} · parsed+run ${tl.domInteractive} · boot ${tl.boot} · shown ${tl.shown} · first state ${tl.firstState} (ms from navigation)\n`);
       const root = d.app._sibling || d.app;

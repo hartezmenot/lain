@@ -133,7 +133,7 @@ function ensureBridge() {
 
 /** The synthetic config one Bridge needs to run one program. */
 function bridgeConfig(exe) {
-  return { mcp: { servers: { computer: { command: [exe], name: 'Noema Computer MCP' } } } };
+  return { mcp: { servers: { computer: { command: [exe], name: 'LAIN Computer MCP' } } } };
 }
 
 class ComputerMCP {
@@ -198,12 +198,12 @@ class ComputerMCP {
     let answer = null;
     try {
       answer = await interaction.ask(this.app, {
-        title: 'Allow Noema to observe and control this computer?',
+        title: 'Allow LAIN to observe and control this computer?',
         question: [
-          'Noema will be able to see the windows on this machine, read their controls,',
+          'LAIN will be able to see the windows on this machine, read their controls,',
           'move the mouse, click, type, and use the clipboard.',
           '',
-          'This lasts for THIS Noema SESSION. Disconnect, /mcp revoke or closing Noema ends it.',
+          'This lasts for THIS LAIN SESSION. Disconnect, /mcp revoke or closing LAIN ends it.',
           'Actions that change files or reach outside this machine are still asked about separately.',
         ].join('\n'),
         options: [YES, 'Cancel'],

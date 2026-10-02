@@ -50,7 +50,7 @@ function acquire() {
   me.start = known[process.pid] || null;
   if (cur && cur.pid && !holderGone) {
     const alive = reg.same(cur.pid, cur.start, known);
-    if (alive !== false) return { ok: false, holder: cur, why: `the scheduler runs in another Noema process (pid ${cur.pid})` };
+    if (alive !== false) return { ok: false, holder: cur, why: `the scheduler runs in another LAIN process (pid ${cur.pid})` };
   }
   fs.writeFileSync(leaseFile(), JSON.stringify(me));
   return { ok: true, lease: me };

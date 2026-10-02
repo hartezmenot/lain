@@ -92,9 +92,9 @@ const TOOLS = {
   ...require('./handoff').tools,
   // Addressable evidence: an earlier deterministic result, by id (evidencerefs.js).
   ...require('./recall').tools,
-  // The model's own pointer and keyboard — inside the Noema Preview only (tools/preview.js): added by `active` once a
+  // The model's own pointer and keyboard — inside the LAIN Preview only (tools/preview.js): added by `active` once a
   // Preview is attached (below), like `computer` follows its transport.
-  // The task contract and the request to finish — Noema decides completion (tools/contract.js, discipline/).
+  // The task contract and the request to finish — LAIN decides completion (tools/contract.js, discipline/).
   ...require('./contract').tools,
 };
 
@@ -174,7 +174,7 @@ function active(ctxApp) {
   // CLI session, with nothing to click. Offered once a Preview has been attached in this session, then kept for it —
   // the tool list is part of the cached prefix and must not flicker as the window opens and closes.
   if (session && !session._previewTools) { try { if (require('../workshop/previewinput').attached(app)) session._previewTools = true; } catch { /* none */ } }
-  if (!app || (session && session._previewTools) || process.env.NOEMA_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
+  if (!app || (session && session._previewTools) || process.env.LAIN_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
   if (!require('../dispatch').offersMigration(session)) out = without(out, MIGRATION_TOOLS);
   if (!(session && session._botTurn)) out = without(out, BOT_TOOLS);
   return out;
@@ -193,7 +193,7 @@ function without(all, names) {
 function notOffered(name) {
   if (MIGRATION_TOOLS.includes(name)) return 'it is offered only when Core identifies a real migration (a current representation, a target one and the boundary between them) or one is in flight. Plan this work with the ordinary tools.';
   if (BOT_TOOLS.includes(name)) return 'it exists only on the IDE BOT turn.';
-  if (/^preview_/.test(name)) return 'no Noema Preview is attached to this session — open the project in the Preview (`noema preview`) first.';
+  if (/^preview_/.test(name)) return 'no LAIN Preview is attached to this session — open the project in the Preview (`lain preview`) first.';
   return '';
 }
 

@@ -93,7 +93,7 @@ function run(exe, command) {
  * markers the input layer emits, a non-breaking space from column alignment, a
  * zero-width space, and a CR from a Windows line ending.
  */
-const DECORATED = '\x1b]0;Noema — proj\x07'
+const DECORATED = '\x1b]0;LAIN — proj\x07'
   + '\x1b[200~'
   + '\x1b[32mWrite-Output\x1b[0m "lain​-ok"\r'
   + '\x1b[201~\x1b[K';
@@ -190,7 +190,7 @@ module.exports = async function () {
         `the clipboard must hold exactly what was copied: ${JSON.stringify(back.text.slice(0, 60))}`);
       // AND IT RUNS, which is the claim the clipboard is making.
       const r = run(exe, back.text);
-      assert.strictEqual(r.code, 0, `PowerShell refused what Noema copied:\n${r.out}`);
+      assert.strictEqual(r.code, 0, `PowerShell refused what LAIN copied:\n${r.out}`);
       assert.match(r.out, /lain-clip-ok/);
     } finally {
       if (before && before.ok && before.text) copy.toClipboard(before.text);

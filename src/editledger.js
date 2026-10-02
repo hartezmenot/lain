@@ -267,7 +267,7 @@ function entries(root, { rel = null, source = null, since = null, sessionId = nu
     let e;
     try { e = JSON.parse(line); } catch { continue; }
     if (rel && e.path !== rel) continue;
-    if (source && (source === 'Noema' ? !LAIN_SOURCES.has(e.source) : e.source !== source)) continue;
+    if (source && (source === 'LAIN' ? !LAIN_SOURCES.has(e.source) : e.source !== source)) continue;
     if (since && e.at < since) continue;
     if (sessionId && e.sessionId !== sessionId) continue;
     out.push(e);
@@ -318,7 +318,7 @@ function summary(root, { source = null, since = null, sessionId = null } = {}) {
   const counts = {};
   for (const e of list) counts[e.source] = (counts[e.source] || 0) + 1;
   if (!list.length) {
-    return { counts, text: `No ${want ? `${want === 'Noema' ? 'Noema (Agent)' : want} ` : ''}changes are recorded for this project${since ? ' in that period' : ''}. Provenance is recorded from the moment Noema saw each change; earlier history is only in git, without who.` };
+    return { counts, text: `No ${want ? `${want === 'LAIN' ? 'LAIN (Agent)' : want} ` : ''}changes are recorded for this project${since ? ' in that period' : ''}. Provenance is recorded from the moment LAIN saw each change; earlier history is only in git, without who.` };
   }
   const byFile = new Map();
   for (const e of list) {

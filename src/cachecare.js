@@ -113,12 +113,12 @@ function profileRoots() {
 const CATEGORIES = [
   {
     id: 'browser-cache', tier: 'safe', label: 'Browser caches',
-    note: 'Cache folders of the browsers Noema runs (the window, Preview, the browser tool). Cookies, storage and sign-ins stay.',
+    note: 'Cache folders of the browsers LAIN runs (the window, Preview, the browser tool). Cookies, storage and sign-ins stay.',
     roots: () => profileRoots(),
     targets: () => profileRoots().flatMap(cacheDirsIn),
   },
   {
-    id: 'old-builds', tier: 'safe', label: 'Old Noema builds',
+    id: 'old-builds', tier: 'safe', label: 'Old LAIN builds',
     note: 'Window and terminal programs replaced by newer builds. The newest is kept; one in use is skipped.',
     roots: () => [path.join(home(), 'desktop'), path.join(home(), 'pty')],
     targets: () => {
@@ -132,7 +132,7 @@ const CATEGORIES = [
   },
   {
     id: 'temp', tier: 'safe', label: 'Temporary & test files',
-    note: 'Noema\'s own leftovers in the system temp folder, untouched for a day.',
+    note: 'LAIN\'s own leftovers in the system temp folder, untouched for a day.',
     roots: () => [tmpRoot()],
     targets: ({ now }) => ls(tmpRoot())
       .filter((n) => /^lain-/i.test(n) && n.toLowerCase() !== 'lain-workspaces')
@@ -168,7 +168,7 @@ const CATEGORIES = [
     // gone. Their own modules decide — instances.js sweeps a record whose process is dead, corelock.js a lock whose
     // Core is — so a running LAIN's record is never touched. Found real: ~130 of them in a lived-in home.
     id: 'stale-records', tier: 'safe', label: 'Stale process records',
-    note: 'Records left by Noema processes that are no longer running. A running Noema\'s record is never touched.',
+    note: 'Records left by LAIN processes that are no longer running. A running LAIN\'s record is never touched.',
     delegate: true,
     roots: () => [path.join(home(), 'instances'), home()],
     targets: () => {
@@ -206,7 +206,7 @@ const CATEGORIES = [
   },
   {
     id: 'usage-history', tier: 'advanced', label: 'Usage history',
-    note: 'Noema\'s usage receipts and window readings — the Usage charts start again from now.',
+    note: 'LAIN\'s usage receipts and window readings — the Usage charts start again from now.',
     roots: () => [path.join(home(), 'usage')],
     targets: () => { const d = path.join(home(), 'usage'); return ls(d).filter((f) => /^receipts-.*\.jsonl$|^index-v\d+\.json$|^window-snapshots\.json$/.test(f)).map((f) => path.join(d, f)); },
   },
@@ -331,9 +331,9 @@ function fmtBytes(n) {
 
 /** THE TERMINAL'S VIEW: a table of categories, sizes and what stays. */
 function render(r) {
-  const lines = ['Noema cache and temporary files', ''];
+  const lines = ['LAIN cache and temporary files', ''];
   for (const tier of ['safe', 'advanced']) {
-    lines.push(tier === 'safe' ? 'Safe to clear (`noema cache clear`)' : 'Advanced — only when named (`noema cache clear <id> --yes`)');
+    lines.push(tier === 'safe' ? 'Safe to clear (`lain cache clear`)' : 'Advanced — only when named (`lain cache clear <id> --yes`)');
     for (const c of r.categories.filter((x) => x.tier === tier)) {
       lines.push(`  ${c.label.padEnd(26)} ${fmtBytes(c.bytes).padStart(9)}   ${String(c.items).padStart(5)} item${c.items === 1 ? ' ' : 's'}   ${c.id}`);
     }
@@ -352,9 +352,9 @@ async function cli(args, { out = process.stdout, app = null } = {}) {
   if (verb === 'clear') {
     const ids = rest.filter((a) => !a.startsWith('-'));
     const unknown = ids.filter((id) => !BY_ID.has(id));
-    if (unknown.length) { w(`noema: unknown cache category ${unknown.join(', ')} — \`noema cache inspect\` lists them\n`); return 2; }
+    if (unknown.length) { w(`lain: unknown cache category ${unknown.join(', ')} — \`lain cache inspect\` lists them\n`); return 2; }
     const r = await clear(app, { ids: ids.length ? ids : null, confirmAdvanced: rest.includes('--yes') });
-    if (!r.ok) { w(`noema: ${r.why}. Add --yes to clear ${r.advanced.join(', ')}.\n`); return 3; }
+    if (!r.ok) { w(`lain: ${r.why}. Add --yes to clear ${r.advanced.join(', ')}.\n`); return 3; }
     for (const c of r.categories) {
       const reasons = Object.entries(c.reasons).map(([k, v]) => `${v} ${k}`).join(', ');
       w(`  ${c.label.padEnd(26)} ${fmtBytes(c.freed).padStart(9)} freed   ${c.removed} removed${c.skipped ? `, ${c.skipped} left (${reasons})` : ''}\n`);
@@ -362,9 +362,9 @@ async function cli(args, { out = process.stdout, app = null } = {}) {
     w(`Freed ${fmtBytes(r.freed)}. Sessions, accounts, settings and project files were not touched.\n`);
     return 0;
   }
-  w('noema cache inspect           show what Noema keeps that can be cleared, and its size\n'
-    + 'noema cache clear             clear the safe categories\n'
-    + 'noema cache clear <id…> --yes clear named categories, including advanced ones\n');
+  w('lain cache inspect           show what LAIN keeps that can be cleared, and its size\n'
+    + 'lain cache clear             clear the safe categories\n'
+    + 'lain cache clear <id…> --yes clear named categories, including advanced ones\n');
   return verb === 'help' ? 0 : 2;
 }
 

@@ -23,10 +23,10 @@ const CONTRACT = {
 
 function refuseInside(ctx, name) {
   if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: `DENIED: a subagent cannot use ${name}; report back to the main agent instead.`, isError: true, denied: true };
-  if (!ctx || !ctx.app) return { output: `UNAVAILABLE: ${name} needs a Noema session.`, isError: true };
+  if (!ctx || !ctx.app) return { output: `UNAVAILABLE: ${name} needs a LAIN session.`, isError: true };
   // SUBAGENTS OFF is the person's setting (`/subagents off`), and it covers A/B too.
   if (require('../subagents').settings(ctx.app).mode === 'off') {
-    return { output: `DENIED SUBAGENTS_OFF: ${name} starts other agents, and subagents are turned off for this Noema (/subagents auto to allow). Do the work yourself.`, isError: true, denied: true };
+    return { output: `DENIED SUBAGENTS_OFF: ${name} starts other agents, and subagents are turned off for this LAIN (/subagents auto to allow). Do the work yourself.`, isError: true, denied: true };
   }
   // ECO spends no extra model work on other agents unless the person asked (profile.js).
   const eco = require('../profile').allowsExtraAgents(ctx.session || ctx.app.session, name);
@@ -87,7 +87,7 @@ const tools = {
     },
     async run(input, ctx) {
       if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { output: 'DENIED: a subagent never integrates — its work is a candidate for the main agent.', isError: true, denied: true };
-      if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a Noema session.', isError: true };
+      if (!ctx || !ctx.app) return { output: 'UNAVAILABLE: integrate_candidate needs a LAIN session.', isError: true };
       if (input.reject) {
         // A RESOLUTION, NOT A DELETION: the workspace's lifecycle decides its removal.
         const j = require('../candidates').reject(ctx.app, String(input.id || ''), input.reason || '');
@@ -109,7 +109,7 @@ const tools = {
       name: 'ab_compare',
       description: 'For a DIFFICULT implementation or bug fix with two credible approaches: build candidate A and candidate B in isolated git worktrees, '
         + 'run the SAME verification command in each, select the winner from the evidence (passes, then smaller change, then faster), '
-        + 'integrate only the winner into this tree and verify it here. Its temporary worktrees are removed by Noema once resolved (a failed one is kept for inspection). Asks the person only when the evidence does not decide.',
+        + 'integrate only the winner into this tree and verify it here. Its temporary worktrees are removed by LAIN once resolved (a failed one is kept for inspection). Asks the person only when the evidence does not decide.',
       parameters: {
         type: 'object',
         properties: {

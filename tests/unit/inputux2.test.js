@@ -177,7 +177,7 @@ module.exports = async function () {
   await test('MOUSE: tracking is OFF until the TUI asks for it', () => {
     const i = reader();
     assert.strictEqual(i.mouse, false,
-      'a linear `noema -p` run has nothing to click, and tracking would take text selection away');
+      'a linear `lain -p` run has nothing to click, and tracking would take text selection away');
   });
 
   // ------------------------------------------------------------ hit-testing --

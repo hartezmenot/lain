@@ -83,7 +83,7 @@ function register({ define, C, config }) {
   define('/ready', {
     surface: true,
     flashMs: 0,
-    desc: 'Is Noema ready? RC-readiness for the CLI itself (not the project)',
+    desc: 'Is LAIN ready? RC-readiness for the CLI itself (not the project)',
     run(app, ctx) { return require('./health').runCommand(app, ctx, { C }); },
   });
 
@@ -185,7 +185,7 @@ function register({ define, C, config }) {
     surface: true,
     flashMs: 0,
     args: '[inspect | clear [ids…] [--yes]]',
-    desc: 'Show or clear Noema\'s disposable cache and temporary files — sessions, accounts and settings stay',
+    desc: 'Show or clear LAIN\'s disposable cache and temporary files — sessions, accounts and settings stay',
     async run(app, { args = [] } = {}) {
       const verb = args[0] || 'inspect';
       const out = { write: (s) => app.render.write(s) };
@@ -197,7 +197,7 @@ function register({ define, C, config }) {
     surface: true,
     flashMs: 0,
     args: '[now | after-checkpoint | after-task | later | check]',
-    desc: 'Check for a Noema update, or choose when a downloaded one restarts Noema — never in the middle of a step',
+    desc: 'Check for a LAIN update, or choose when a downloaded one restarts LAIN — never in the middle of a step',
     async run(app, { args = [] } = {}) {
       app.render.write(`  ${await require('./update/cli').command(app, args[0] || '')}
 `);
@@ -207,7 +207,7 @@ function register({ define, C, config }) {
   define('/doctor', {
     surface: true,
     flashMs: 0,
-    desc: 'Check the environment Noema is running in',
+    desc: 'Check the environment LAIN is running in',
     async run(app) {
       app.render.write('\n' + C.bold('Doctor') + '\n');
       app.render.write(require('./bot/service').describe(await require('./bot/service').control()) + '\n');

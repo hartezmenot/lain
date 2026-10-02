@@ -1,23 +1,23 @@
-# Noema performance — what Noema adds, measured (2026-10-01)
+# LAIN performance — what LAIN adds, measured (2026-10-01)
 
-The question this file answers: **is Noema making the model more capable, or making the model wait for Noema?**
-Every number below is Noema's own overhead, measured with a zero-latency fake model so the model contributes ~0 ms,
+The question this file answers: **is LAIN making the model more capable, or making the model wait for LAIN?**
+Every number below is LAIN's own overhead, measured with a zero-latency fake model so the model contributes ~0 ms,
 unless a row says "real provider".
 
 ## How to reproduce
 
 | Command | What it measures | Quota |
 |---|---|---|
-| `node bench/latency/run.js [--n 12] [--only inproc\|cli\|direct] [--profile fast\|eco]` | sandbox home: direct HTTP floor, cold `noema -p`, warm in-process turns (`ok`, one `read_file`, one shell) | none |
+| `node bench/latency/run.js [--n 12] [--only inproc\|cli\|direct] [--profile fast\|eco]` | sandbox home: direct HTTP floor, cold `lain -p`, warm in-process turns (`ok`, one `read_file`, one shell) | none |
 | `node bench/latency/realhome.js [--n 10]` | the person's REAL config/accounts/supervisor, model pointed (in memory) at the fake | none |
-| `node bench/latency/real.js [--connection lain:zai]` | direct provider call vs Noema NORMAL/FAST/ECO, real model | ~20 requests |
+| `node bench/latency/real.js [--connection lain:zai]` | direct provider call vs LAIN NORMAL/FAST/ECO, real model | ~20 requests |
 | `node --cpu-prof … && node bench/latency/profsum.js <file>` | where the CPU went, per file and function | none |
 | `LAIN_TTY_PYTHON=… node bench/cliux/run.js` | what the CLI shows, frame by frame, in a real ConPTY | none |
 | `node tests/run.js harness perf83` | real WebView2 window: startup, MODEL, picker, search, idle CPU | none |
 
 ## Results
 
-### Noema-added latency per turn (fake model, same sandbox supervisor binary, p50)
+### LAIN-added latency per turn (fake model, same sandbox supervisor binary, p50)
 
 | | before | after |
 |---|---|---|
@@ -27,7 +27,7 @@ unless a row says "real provider".
 | one shell (`echo hi`) — tool step | 343 ms | ~23 ms command + cleanup deferred (≤165 ms, hidden behind the next model request) |
 | the person's REAL home — "reply OK" total | 173 ms (pre-request 128 ms) | 55 ms (pre-request 27 ms) |
 | REAL home — first turn of a session | 773 ms | 425 ms |
-| cold `noema -p "reply OK"` (sandbox) | 538 ms | 381–389 ms |
+| cold `lain -p "reply OK"` (sandbox) | 538 ms | 381–389 ms |
 | bare HTTP request (the floor) | 3 ms in-process · 82 ms fresh `node` | — |
 
 What it was (CPU profiles, `bench/latency/profsum.js`):
@@ -54,7 +54,7 @@ What it was (CPU profiles, `bench/latency/profsum.js`):
 | FAST | 77.6 KB | 39.1 KB (~9.8k tok) | 39 (core set) |
 | ECO | 77.6 KB | 29.7 KB (~7.4k tok) | 39 (core set, compact) |
 
-Real provider (Z.ai GLM-5.3-Flash, n=2): direct "reply OK" 2.6 s / 17 input tokens; Noema NORMAL 6.2 s / 15.8k,
+Real provider (Z.ai GLM-5.3-Flash, n=2): direct "reply OK" 2.6 s / 17 input tokens; LAIN NORMAL 6.2 s / 15.8k,
 FAST 6.6 s / 8.9k, ECO 6.3 s / 7.0k. One-tool task: NORMAL 10.2 s / 31.7k, FAST 12.8 s / 17.8k, ECO 10.7 s / 14.2k.
 On this route wall time is dominated by the model; the profiles cut input 44–56 %. FAST's latency gain has to come
 from fewer turns on real tasks (minimal exploration, targeted verification), which n=2 micro-tasks cannot show.

@@ -69,7 +69,7 @@ module.exports = async function () {
       assert.strictEqual(b.done.state, 'CONNECTED', JSON.stringify(b.done)); assert.strictEqual(c.done.state, 'CONNECTED', JSON.stringify(c.done));
       const dirs = [a, b, c].map((x) => path.resolve(x.s.profile).toLowerCase());
       assert.strictEqual(new Set(dirs).size, 3, 'three profiles');
-      assert.ok(dirs.every((d) => d.startsWith(path.resolve(ag.accountsRoot()).toLowerCase())), 'all under Noema\'s accounts folder');
+      assert.ok(dirs.every((d) => d.startsWith(path.resolve(ag.accountsRoot()).toLowerCase())), 'all under LAIN\'s accounts folder');
       assert.ok(fs.readFileSync(path.join(a.s.profile, 'oauth_creds.json')).equals(credsA) && fs.readFileSync(path.join(a.s.profile, 'google_accounts.json')).equals(acctsA), 'A\'s sign-in is the same bytes');
       const during = log().slice(before);
       assert.ok(!during.some((i) => path.resolve(i.acts_on || '').toLowerCase() === dirs[0]), 'nothing touched A\'s profile while B and C signed in');
@@ -189,7 +189,7 @@ module.exports = async function () {
         bare.cfg.runtimes = { antigravity: { install: { url, sha256: sha, exe: 'agy_acp_server.exe' } } };
         assert.ok((await ag.installServer(bare, { confirm: true })).ok);
         assert.ok(await until(() => ag.installStatus(bare).state === 'installed', 20000), JSON.stringify(ag.installStatus(bare)));
-        assert.ok(ag.binaryOf(bare.cfg), 'the verified server is installed in Noema\'s own tools folder');
+        assert.ok(ag.binaryOf(bare.cfg), 'the verified server is installed in LAIN\'s own tools folder');
         assert.ok(ag.binaryOf(bare.cfg).command.startsWith(ag.toolsDir()));
       } finally { srv.close(); try { fs.rmSync(ag.toolsDir(), { recursive: true, force: true }); } catch { /* none */ } }
     });

@@ -73,13 +73,13 @@ function settingsOf(user) {
   for (const [k, v] of Object.entries(raw)) {
     if (k === 'workbench.colorTheme' || k === 'workbench.iconTheme' || k === 'workbench.productIconTheme') {
       if (k === 'workbench.colorTheme') out.theme = String(v);
-      out.unsupported.push({ key: k, why: 'Noema keeps its own palette' });
+      out.unsupported.push({ key: k, why: 'LAIN keeps its own palette' });
       continue;
     }
     const map = profile.SETTINGS[k];
-    if (!map) { out.unsupported.push({ key: k, why: 'no Noema equivalent' }); continue; }
+    if (!map) { out.unsupported.push({ key: k, why: 'no LAIN equivalent' }); continue; }
     const value = map[1](v);
-    if (value === undefined) { out.unsupported.push({ key: k, why: `value ${JSON.stringify(v).slice(0, 40)} is not one Noema accepts` }); continue; }
+    if (value === undefined) { out.unsupported.push({ key: k, why: `value ${JSON.stringify(v).slice(0, 40)} is not one LAIN accepts` }); continue; }
     out.apply[map[0]] = value;
     out.applied.push({ key: k, option: map[0], value });
   }
@@ -130,11 +130,11 @@ function extensionVerdict(pkg) {
   const c = (pkg && pkg.contributes) || {};
   const code = Boolean(pkg && (pkg.main || pkg.browser));
   const parts = Object.keys(c);
-  if (code) return { usable: false, why: 'runs code in the VS Code extension host, which Noema does not run' };
-  if (c.snippets) return { usable: false, why: 'declarative snippets — installable as a Noema extension (Extensions › Install)', installable: true };
-  if (c.themes) return { usable: false, why: 'a colour theme — Noema keeps its own palette' };
-  if (c.grammars || c.languages) return { usable: false, why: 'language grammar — Noema’s editor highlights with its own grammars; TextMate grammars are not loaded' };
-  return { usable: false, why: parts.length ? `contributes ${parts.slice(0, 4).join(', ')} — not supported` : 'no contributions Noema can read' };
+  if (code) return { usable: false, why: 'runs code in the VS Code extension host, which LAIN does not run' };
+  if (c.snippets) return { usable: false, why: 'declarative snippets — installable as a LAIN extension (Extensions › Install)', installable: true };
+  if (c.themes) return { usable: false, why: 'a colour theme — LAIN keeps its own palette' };
+  if (c.grammars || c.languages) return { usable: false, why: 'language grammar — LAIN’s editor highlights with its own grammars; TextMate grammars are not loaded' };
+  return { usable: false, why: parts.length ? `contributes ${parts.slice(0, 4).join(', ')} — not supported` : 'no contributions LAIN can read' };
 }
 
 function extensionsOf(dir) {

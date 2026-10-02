@@ -45,7 +45,7 @@ const DECLARED = Object.freeze([
   { id: SOURCE.LAIN, kind: KIND.RUNTIME },
 ]);
 const RETIRED = Object.freeze(new Set([SOURCE.CHATGPT_WEB, SOURCE.GEMINI_WEB]));
-const RETIRED_WHY = 'The ChatGPT and Gemini website sources were retired in Noema — connect the provider as an account or runtime instead (MODEL › Sources).';
+const RETIRED_WHY = 'The ChatGPT and Gemini website sources were retired in LAIN — connect the provider as an account or runtime instead (MODEL › Sources).';
 
 /** No website source is constructed any more (see DECLARED). */
 const PLANS = Object.freeze({});

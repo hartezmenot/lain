@@ -53,7 +53,7 @@ class McpClient {
     try {
       if (this.spec.transport === 'http') { if (!/^https?:\/\//i.test(String(this.spec.url || ''))) throw new Error('an HTTP MCP server needs an http(s) URL'); }
       else this.start();
-      const init = await this.request('initialize', { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'Noema', version: '1' } });
+      const init = await this.request('initialize', { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'LAIN', version: '1' } });
       this.server = init && init.serverInfo ? init.serverInfo : null;
       this.capabilities = (init && init.capabilities) || {};
       await this.notify('notifications/initialized', {});
@@ -103,7 +103,7 @@ class McpClient {
       if (m.error) p.reject(new Error(m.error.message || 'MCP error')); else p.resolve(m.result);
     } else if (m && m.id != null && m.method) {
       // A request FROM the server (sampling, roots…): LAIN offers none of these; say so politely.
-      this.write({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'Noema does not offer this to MCP servers' } });
+      this.write({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'LAIN does not offer this to MCP servers' } });
     }
   }
 

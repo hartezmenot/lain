@@ -255,8 +255,8 @@ function header({ cwd, model, account = '', effort = null, provider, connection,
   // ACCOUNT FIRST (Phase 8.2): who pays for the next request, then what answers it.
   const who = account ? `${account} › ` : '';
   const what = `${who}${id.model || 'no model'}${effort ? ` (${effort})` : ''}`;
-  const left = [P.head('Noema'), P.plain(name), P.info(what)];
-  const plainLeft = ['Noema', name, what];
+  const left = [P.head('LAIN'), P.plain(name), P.info(what)];
+  const plainLeft = ['LAIN', name, what];
   const SEP = ' · ';
   let leftText = plainLeft.join(SEP);
   let leftPaint = left.join(P.meta(SEP));
@@ -364,7 +364,7 @@ function planView({ plan, expanded = new Set(), width = 80, cursor = -1, evidenc
       '',
       '  No plan yet.',
       '',
-      '  Plans are optional — Noema never requires one.',
+      '  Plans are optional — LAIN never requires one.',
       '  /plan step <text>   add a step',
       '  /plan done <note>   finish the open step',
     ];

@@ -98,7 +98,7 @@ function onLimit(app, { family, model, effort = null, accountId, resetAt = null,
   if (r.decision === DECISION.SWITCHED || (r.ok && r.account && r.account.id !== accountId)) return { ...base, decision: DECISION.SWITCHED, to: { id: r.account.id, name: r.account.name }, reason: `${from ? from.name : 'the account'} ${reason}` };
   if (r.decision === DECISION.ASK) return { ...base, decision: DECISION.ASK, to: { id: r.proposal.id, name: r.proposal.name }, text: `This ${f.label} account is rate limited.\n\nSwitch to ${r.proposal.name}?`, choices: ['switch', 'wait'] };
   if (r.decision === DECISION.PINNED) return { ...base, decision: DECISION.PINNED, candidates: (r.candidates || []).map((a) => ({ id: a.id, name: a.name })), text: `${f.label} is rate limited on this account.`, choices: ['switch-account', 'wait', 'choose-model'] };
-  if (r.decision === DECISION.INCOMPATIBLE) return { ...base, decision: DECISION.INCOMPATIBLE, text: `${r.why}. Noema will not change the model or the effort on its own.`, choices: ['wait', 'choose-model'] };
+  if (r.decision === DECISION.INCOMPATIBLE) return { ...base, decision: DECISION.INCOMPATIBLE, text: `${r.why}. LAIN will not change the model or the effort on its own.`, choices: ['wait', 'choose-model'] };
   return { ...base, decision: DECISION.NONE, text: r.why || '' };
 }
 

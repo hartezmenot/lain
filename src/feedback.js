@@ -123,7 +123,7 @@ async function submit(app, body = {}) {
   if (body.fileIssue === true) {
     if (!repo) return { ok: true, saved: folder, report: r, issue: null, why: 'no feedback repository is configured (Settings › Feedback)' };
     try {
-      const text = `${r.description}\n\n---\n\`\`\`json\n${JSON.stringify(r.attachments, null, 2).slice(0, 50000)}\n\`\`\`\n_Filed from Noema (${r.typeLabel})._`;
+      const text = `${r.description}\n\n---\n\`\`\`json\n${JSON.stringify(r.attachments, null, 2).slice(0, 50000)}\n\`\`\`\n_Filed from LAIN (${r.typeLabel})._`;
       const i = await require('./github').api(app, `repos/${repo}/issues`, { method: 'POST', body: { title: `[${r.typeLabel}] ${r.title}`, body: text, labels: [] } });
       issue = { number: i.number, url: i.html_url };
     } catch (e) { return { ok: true, saved: folder, report: r, issue: null, why: `saved locally; the GitHub issue failed: ${e.message}` }; }

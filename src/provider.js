@@ -133,7 +133,7 @@ function credentialHint(pc, cfg = null) {
     if (hasConnections && cfg.model) {
       return `Model "${cfg.model}" is not served by any configured connection. /model to pick one, or /provider refresh to re-read a route's catalog.`;
     }
-    return `No provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or add an account or API key with \`noema model\` (settings: ${require('./config').configFile()}).`;
+    return `No provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or add an account or API key with \`lain model\` (settings: ${require('./config').configFile()}).`;
   }
   if (!(pc.credentialRef ? require('./credentials').present(pc.credentialRef) : pc.apiKey) && pc.protocol !== PROTOCOL.RUNTIME) return `No credential for provider '${pc.provider}'.`;   // presence only — a hint never decrypts a key; a runtime route holds no LAIN credential
   return null;

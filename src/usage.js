@@ -44,7 +44,7 @@ const DIMS = Object.freeze(['project', 'session', 'task', 'model', 'provider', '
  * Explicit when the caller knows it (modelrequest `origin`); otherwise read
  * from the role — never from a model name.
  */
-const ORIGIN = Object.freeze({ chat: 'Interactive Chat', bot: 'BOT', agent: 'Agent', scheduled: 'Scheduled', recurring: 'Recurring', watch: 'Watch', telegram: 'Telegram', serve: 'Noema Server (external app)', machinery: 'Noema machinery' });
+const ORIGIN = Object.freeze({ chat: 'Interactive Chat', bot: 'BOT', agent: 'Agent', scheduled: 'Scheduled', recurring: 'Recurring', watch: 'Watch', telegram: 'Telegram', serve: 'LAIN Server (external app)', machinery: 'LAIN machinery' });
 function originOf(rec, role) {
   if (rec.origin && ORIGIN[rec.origin]) return ORIGIN[rec.origin];
   if (role === 'chat') return ORIGIN.chat;

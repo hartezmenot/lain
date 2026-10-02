@@ -265,7 +265,7 @@ module.exports = async function () {
 
   // -------------------------------------------------------- THE BOUNDARY --
 
-  await test('BOUNDARY: Noema synthesises no input and grants no permission of its own', async () => {
+  await test('BOUNDARY: LAIN synthesises no input and grants no permission of its own', async () => {
     const fs = require('fs');
     // COMMENTS ARE STRIPPED FIRST. The header names `SendInput` and `user32`
     // because explaining the mechanism is the whole reason the file reads the
@@ -278,7 +278,7 @@ module.exports = async function () {
         `OS input belongs to lain-probe — this orchestrates it (${forbidden})`);
     }
     assert.ok(!/permissions\s*\[|\bgrant\s*\(/.test(src),
-      'and the Probe decides what is allowed; Noema only chooses when it is asked');
+      'and the Probe decides what is allowed; LAIN only chooses when it is asked');
     // Everything it can do, it does by asking the far side.
     assert.strictEqual((src.match(/probe\.call\(/g) || []).length > 0, true);
   });

@@ -164,7 +164,7 @@ async function sections(app, C, args = []) {
     row('registered', 'none');
     // WHY THERE ARE NONE, because an empty list looks like a failure and
     // this one is a deliberate safety property. See §19.
-    row('', 'Noema only controls VMs registered explicitly — it never adopts');
+    row('', 'LAIN only controls VMs registered explicitly — it never adopts');
     row('', 'machines it finds in your VMware library.');
   } else {
     for (const v of vms) {

@@ -50,7 +50,7 @@ async function exitsFrom(steps, label) {
     script: [], timeoutMs: 40000,
   });
   const out = plain(r.out);
-  assert.strictEqual(r.code, 0, `${label}: Noema did not exit — Ctrl+C was swallowed\n${out.slice(-700)}`);
+  assert.strictEqual(r.code, 0, `${label}: LAIN did not exit — Ctrl+C was swallowed\n${out.slice(-700)}`);
   assertIncludes(out, 'Press Ctrl+C again to exit', `${label}: the first press must arm, not exit`);
   assertIncludes(out, 'Session saved', `${label}: the second press must exit cleanly`);
   assert.ok(!/Escape|Esc to/.test(out.split('Press Ctrl+C again')[1] || ''), `${label}: Escape must not be required`);

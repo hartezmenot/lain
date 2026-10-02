@@ -87,7 +87,7 @@ function describe(status) {
 }
 async function foreground({ cwd } = {}) {
   let service;
-  try { service = await start({ cwd }); } catch { process.stderr.write('Noema bot could not start; check configuration or an existing bot service.\n'); return 1; }
+  try { service = await start({ cwd }); } catch { process.stderr.write('LAIN bot could not start; check configuration or an existing bot service.\n'); return 1; }
   const quit = () => service.stop().catch(() => {});
   process.on('SIGINT', quit); process.on('SIGTERM', quit);
   process.stdout.write(describe(service.gateway.status()) + '\n');

@@ -9,7 +9,7 @@
  * project, and nothing ever passed an `onStatus` to receive it. Every liveness
  * function was correct and none of it reached a terminal.
  *
- * So each case spawns bin/noema.js, renders the frames it actually drew, and
+ * So each case spawns bin/lain.js, renders the frames it actually drew, and
  * asserts on the text a person would have read.
  */
 
@@ -147,7 +147,7 @@ module.exports = async function () {
     // wordmark and the input carries what it is for, which is the same
     // guarantee with two fewer rows of chrome.
     assertIncludes(out, headerMark(), 'the header names the program and the project');
-    assertIncludes(out, 'Ask Noema', 'and the interaction region is always identifiable');
+    assertIncludes(out, 'Ask LAIN', 'and the interaction region is always identifiable');
   });
 
   await test('SEE: an open picker NAMES itself, in its own panel below the input', async () => {
@@ -223,7 +223,7 @@ module.exports = async function () {
     // LAIN is doing has one owner, the live row above the caret. The property
     // is unchanged — READY must never flash between INTERRUPTING and
     // INTERRUPTED — only the place it is read from.
-    const between = seen.slice(iAt, dAt).filter((f) => /Noema\s+READY/.test(f));
+    const between = seen.slice(iAt, dAt).filter((f) => /LAIN\s+READY/.test(f));
     assert.deepStrictEqual(between, [], 'READY must never flash between INTERRUPTING and INTERRUPTED');
   });
 
@@ -284,7 +284,7 @@ module.exports = async function () {
       });
       const out = plain(r.out);
       assert.ok(/RUNNING\s+sleep 2|THINKING/i.test(out), `${cols}x${rows}: no live status survived`);
-      assertIncludes(out, 'Ask Noema', `${cols}x${rows}: the input region must always be identifiable`);
+      assertIncludes(out, 'Ask LAIN', `${cols}x${rows}: the input region must always be identifiable`);
     }
   });
 };

@@ -2,17 +2,17 @@
 
 ## Versions
 
-`noema --version` → `Noema CLI <version> (<channel>[, <git revision>]) · node <version>`. The Harness reports
-`Noema Harness <version>` from the same build (`build-info.json`: product, version, channel, revision, built, feed).
-A checkout reports channel `development`. Executables carry the version, product "Noema" and the file description
-("Noema CLI", "Noema", "Noema Harness", "Noema Setup") in their version resources.
+`lain --version` → `LAIN CLI <version> (<channel>[, <git revision>]) · node <version>`. The Harness reports
+`LAIN Harness <version>` from the same build (`build-info.json`: product, version, channel, revision, built, feed).
+A checkout reports channel `development`. Executables carry the version, product "LAIN" and the file description
+("LAIN CLI", "LAIN", "LAIN Harness", "LAIN Setup") in their version resources.
 
 ## Core protocol
 
 `src/update/compat.js` — `PROTOCOL = 1`: the shape of the window ↔ Core messages (IPC routes, state projection) and
 the Core control pipe verbs (`show`, `status`, `open`, `preview`, `quit`, `dashboard:<section>`).
 The Core's `status` answer carries its version and protocol. A launch that finds a running Core of another version
-says so ("Noema 0.1.1 is installed; this Core still runs 0.1.0 — restart it to update"); a **protocol** mismatch
+says so ("LAIN 0.1.1 is installed; this Core still runs 0.1.0 — restart it to update"); a **protocol** mismatch
 refuses to attach and names which one to restart (`attach()`, used by `src/desktoprun.js`).
 
 ## The release manifest
@@ -30,6 +30,6 @@ future split releases.
 
 ## Data
 
-Sessions, accounts and settings written by LAIN are read by Noema unchanged (same formats, moved home). The
-project store accepts `.lain/` and `.noema/` (`docs/MIGRATION.md`). A downgrade to an older Noema (the launcher's
+Sessions, accounts and settings written by LAIN are read by LAIN unchanged (same formats, moved home). The
+project store accepts `.lain/` and `.lain/` (`docs/MIGRATION.md`). A downgrade to an older LAIN (the launcher's
 rollback) reads the same home; nothing written by the newer version is required by the older one.

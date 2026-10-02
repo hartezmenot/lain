@@ -100,9 +100,9 @@ function state(app) {
 
 const STATE_LINE = {
   EMPTY: 'Project state: EMPTY — no source or project structure here yet.',
-  EXISTING_UNINDEXED: 'Project state: EXISTING_UNINDEXED — real source is present and Noema has recorded no architecture, vocabulary or wiring for it. '
+  EXISTING_UNINDEXED: 'Project state: EXISTING_UNINDEXED — real source is present and LAIN has recorded no architecture, vocabulary or wiring for it. '
     + 'No DECLARED architecture is not no architecture: derive what is OBSERVED from the source itself.',
-  EXISTING_INDEXED: 'Project state: EXISTING_INDEXED — real source plus recorded Noema architecture/vocabulary/wiring; the source stays the authority when they disagree.',
+  EXISTING_INDEXED: 'Project state: EXISTING_INDEXED — real source plus recorded LAIN architecture/vocabulary/wiring; the source stays the authority when they disagree.',
 };
 function stateLine(app) {
   try { return STATE_LINE[state(app)] || ''; } catch { return ''; }

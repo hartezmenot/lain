@@ -91,6 +91,6 @@ function open(command, args = [], { env = {}, cwd = process.cwd(), purpose = 'ru
 }
 
 /** initialize → { authMethods, agentCapabilities }. */
-function initialize(client, opts) { return client.request('initialize', { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: 'lain', title: 'Noema', version: '1' } }, opts); }
+function initialize(client, opts) { return client.request('initialize', { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: 'lain', title: 'LAIN', version: '1' } }, opts); }
 
 module.exports = { open, initialize, PROTOCOL_VERSION };

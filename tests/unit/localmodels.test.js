@@ -110,7 +110,7 @@ module.exports = async function () {
     assert.ok(argv.includes('--jinja'), 'chat templates with tools');
     assert.strictEqual(argv[argv.indexOf('-c') + 1], '4096');
     const rec = require('../../src/runtimeregistry').list().find((x) => x.pid === r.server.pid);
-    assert.ok(rec && rec.purpose === 'llama-server', 'registered with Noema ownership');
+    assert.ok(rec && rec.purpose === 'llama-server', 'registered with LAIN ownership');
     const again = await llama.ensure(app, idVL);
     assert.ok(again.ok); assert.strictEqual(again.reused, true); assert.strictEqual(again.server.pid, r.server.pid, 'no second server for the same model');
   });
@@ -139,7 +139,7 @@ module.exports = async function () {
     done();
     const r = await llama.ensure(app, idSmall);
     assert.ok(r.ok, r.why);
-    assert.strictEqual(llama.status().length, 1, 'one Noema server at a time by default');
+    assert.strictEqual(llama.status().length, 1, 'one LAIN server at a time by default');
     assert.notStrictEqual(llama.status()[0].pid, first.pid);
     assert.ok(!require('../../src/runtimeregistry').list().some((x) => x.pid === first.pid && x.alive), 'the old server was stopped');
   });
@@ -205,7 +205,7 @@ module.exports = async function () {
     delete process.env.FAKE_LLAMA_MODE;
   });
 
-  await test('LLAMA.CPP: stop stops only what Noema started; teardown leaves nothing running', async () => {
+  await test('LLAMA.CPP: stop stops only what LAIN started; teardown leaves nothing running', async () => {
     const r = await llama.ensure(app, idSmall);
     assert.ok(r.ok, r.why);
     const pid = r.server.pid;

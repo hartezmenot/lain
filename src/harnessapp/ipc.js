@@ -51,7 +51,7 @@ const HELLO_TIMEOUT_MS = 10_000;
 let server = null;
 let state = null;
 
-function pipeName(id) { return `\\\\.\\pipe\\noema-harness-${id}`; }
+function pipeName(id) { return `\\\\.\\pipe\\lain-harness-${id}`; }
 
 /**
  * START THE CHANNEL. Returns what a host needs to connect and nothing a log

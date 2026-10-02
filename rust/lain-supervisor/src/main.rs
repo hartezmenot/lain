@@ -93,10 +93,14 @@ fn home() -> PathBuf {
     let base = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_else(|_| ".".to_string());
-    // NOEMA'S HOME (~/.noema), or LAIN's (~/.lain-v2) on a machine that has not moved it yet. Noema always
-    // passes --home; this is only the fallback for a supervisor started by hand.
-    let noema = PathBuf::from(&base).join(".noema");
-    if noema.is_dir() { noema } else { PathBuf::from(base).join(".lain-v2") }
+    // LAIN'S HOME (~/.lain), or the Noema-era ~/.noema / the older ~/.lain-v2 on a machine that has not moved it
+    // yet (each move leaves a junction behind, so the first that exists is the one home). LAIN always passes --home;
+    // this is only the fallback for a supervisor started by hand.
+    for name in [".lain", ".noema", ".lain-v2"] {
+        let p = PathBuf::from(&base).join(name);
+        if p.is_dir() { return p; }
+    }
+    PathBuf::from(base).join(".lain")
 }
 
 fn state_dir() -> PathBuf {

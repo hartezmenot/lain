@@ -76,7 +76,7 @@ async function kill(d) {
 async function until(fn, ms = 5000) { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await sleep(30); } return false; }
 
 module.exports = async function run() {
-  await test('Noema starts the host and a load without waiting; a named pipe, never a TCP port', async () => {
+  await test('LAIN starts the host and a load without waiting; a named pipe, never a TCP port', async () => {
     const d = await fresh({ loadMs: 1500 });
     try {
       const app = appFor(fakeWorker());
@@ -177,7 +177,7 @@ module.exports = async function run() {
     } finally { await kill(d); restore(); }
   });
 
-  await test('a Noema process that exits leaves the model hot; the next process pays no load', async () => {
+  await test('a LAIN process that exits leaves the model hot; the next process pays no load', async () => {
     const d = await fresh({ loadMs: 800 });
     try {
       const f = fakeWorker();
@@ -235,7 +235,7 @@ module.exports = async function run() {
     } finally { await kill(d); restore(); }
   });
 
-  await test('no Noema client for the grace window → the host unloads and exits (and records why)', async () => {
+  await test('no LAIN client for the grace window → the host unloads and exits (and records why)', async () => {
     const d = await fresh({ loadMs: 30, grace: '600', tick: '200' });
     try {
       const f = fakeWorker();
@@ -248,7 +248,7 @@ module.exports = async function run() {
       assert.ok(ep, 'the host is up');
       assert.ok(await until(async () => !host.alive(ep.pid), 6000), 'exited after the grace window');
       const events = fs.readFileSync(path.join(d, 'events.jsonl'), 'utf8');
-      assert.match(events, /"hostExit":"no Noema client for/);
+      assert.match(events, /"hostExit":"no LAIN client for/);
       assert.match(events, /"to":"UNLOADED"/);
     } finally { await kill(d); restore(); }
   });

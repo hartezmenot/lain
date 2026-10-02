@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * REAL CLI SMOKE TESTS. Every case spawns bin/noema.js as a child process.
+ * REAL CLI SMOKE TESTS. Every case spawns bin/lain.js as a child process.
  *
  * This file may not require() a single application module. If it did, a green
  * run would prove only that the modules work — which is exactly how V1 shipped a
@@ -17,7 +17,7 @@ module.exports = async function () {
   await test('SMOKE: --version exits 0 and prints a version', async () => {
     const r = await runCli(['--version']);
     assert.strictEqual(r.code, 0);
-    assert.match(r.stdout, /^Noema CLI \d+\.\d+\.\d+ \(/);
+    assert.match(r.stdout, /^LAIN CLI \d+\.\d+\.\d+ \(/);
   });
 
   await test('SMOKE: --help exits 0 and documents explicit resume', async () => {
@@ -361,6 +361,6 @@ module.exports = async function () {
   await test('SMOKE: clean exit via /exit saves the session and prints the resume hint', async () => {
     const r = await runCli([], { stdin: '/exit\n', script: [] });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'noema --resume');
+    assertIncludes(r.stdout, 'lain --resume');
   });
 };

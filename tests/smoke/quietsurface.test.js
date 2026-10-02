@@ -8,7 +8,7 @@
  * tests/unit/workclock.test.js) asserts the rules against the functions that
  * implement them, and every one of those would pass against a program that
  * composed a perfect frame and never put it on the wire. This spawns
- * `bin/noema.js` with `LAIN_FORCE_TUI=1` — the real draw path over a pipe — works
+ * `bin/lain.js` with `LAIN_FORCE_TUI=1` — the real draw path over a pipe — works
  * a real turn through it, and reads back the bytes a terminal would have
  * received.
  *
@@ -38,7 +38,7 @@ function lastSurface(out) {
   for (let i = all.length - 1; i >= 0; i--) {
     // The composer's `▌` edge stands where its pad space was (ui/inputbox.js): read as the pad.
     const rows = rowsOf(String(all[i]).split('\x1b[?1049l')[0]).map((l) => l.replace(/^(\s*)▌/, '$1 '));
-    if (rows.some((l) => l.includes('Ask Noema'))) return rows;
+    if (rows.some((l) => l.includes('Ask LAIN'))) return rows;
   }
   return lastFrameRows(out).map((l) => l.replace(/^(\s*)▌/, '$1 '));
 }
@@ -130,7 +130,7 @@ module.exports = async function () {
     });
     assert.strictEqual(r.code, 0);
     const rows = lastSurface(r.out);
-    const composer = rows.find((l) => l.includes('Ask Noema'));
+    const composer = rows.find((l) => l.includes('Ask LAIN'));
     const said = rows.find((l) => l.includes('All fine'));
     assert.ok(composer && said, 'both regions were drawn');
     // ---- THE FRAME IS SHARED; THE COMPOSER PADS ONE CELL INSIDE IT -------
@@ -163,7 +163,7 @@ module.exports = async function () {
     });
     assert.strictEqual(r.code, 0);
     const rows = lastSurface(r.out);
-    const at = rows.findIndex((l) => l.includes('Ask Noema'));
+    const at = rows.findIndex((l) => l.includes('Ask LAIN'));
     assert.ok(at >= 0, 'the composer was drawn');
     // NO OUTLINE ANYWHERE NEAR IT. The grey fill is the region.
     for (const i of [at - 1, at, at + 1]) {
@@ -218,7 +218,7 @@ module.exports = async function () {
       });
       assert.strictEqual(r.code, 0, 'it survived ' + cols + ' columns');
       const rows = lastSurface(r.out);
-      const composer = rows.find((l) => l.includes('Ask Noema'));
+      const composer = rows.find((l) => l.includes('Ask LAIN'));
       assert.ok(composer, 'the composer is drawn at ' + cols);
       // NOTHING OVERFLOWS, at any width.
       for (const row of rows) {

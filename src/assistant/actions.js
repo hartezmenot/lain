@@ -120,8 +120,8 @@ async function botPrompt(app, t) {
   if (inc.includes('limits')) data.push(limitsText(app));
   if (inc.includes('usage')) data.push(usageText(app, { range: 'today', by: 'project' }));
   const messages = [
-    { role: 'system', content: 'You are Noema’s personal assistant, running a scheduled task. Answer briefly and concretely. Use only the data given; if something is not in it, say it is not known.' },
-    { role: 'user', content: `${t.instruction || t.title}${data.length ? `\n\nData from Noema (deterministic):\n${data.join('\n\n')}` : ''}` },
+    { role: 'system', content: 'You are LAIN’s personal assistant, running a scheduled task. Answer briefly and concretely. Use only the data given; if something is not in it, say it is not known.' },
+    { role: 'user', content: `${t.instruction || t.title}${data.length ? `\n\nData from LAIN (deterministic):\n${data.join('\n\n')}` : ''}` },
   ];
   let text = '';
   for await (const ev of require('../provider').chat(pc, messages, { role: 'bot', origin: t.type === 'recurring' ? 'recurring' : 'scheduled', trace: { reason: 'assistant-task' }, app: pc.adapterCfg ? { cfg: pc.adapterCfg } : null })) if (ev.type === 'text') text += ev.chunk;
@@ -137,7 +137,7 @@ async function run(app, t) {
   if (k === 'runtime_status') return { ok: true, text: await runtimeText(app) };
   if (k === 'run_tests') return runTests(t);
   if (k === 'bot_prompt') return botPrompt(app, t);
-  if (k === 'agent_task') return { ok: true, text: `Agent task ready to start: ${t.instruction || t.title}. Coding Agent work does not run unattended — open Noema to start it.`, followUp: true };
+  if (k === 'agent_task') return { ok: true, text: `Agent task ready to start: ${t.instruction || t.title}. Coding Agent work does not run unattended — open LAIN to start it.`, followUp: true };
   return { ok: false, text: `unknown action ${k}` };
 }
 

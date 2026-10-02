@@ -153,7 +153,7 @@ module.exports = async function () {
       await R.click(`document.querySelector('[data-api="api:${apiId}"] .u-ib')`);
       await d.until("!!document.querySelector('.u-menu')", 5000);
       await R.click(R.byText('.u-menu .opt', 'Remove credential'));
-      await d.until("!!document.querySelector('.dlg') && /Delete the key Noema keeps/.test(document.querySelector('.dlg').innerText)", 5000);
+      await d.until("!!document.querySelector('.dlg') && /Delete the key LAIN keeps/.test(document.querySelector('.dlg').innerText)", 5000);
       await R.click(R.byText('.dlg button', 'Remove credential'));
       const end = Date.now() + 15000;
       while (Date.now() < end && root.cfg.connections[apiId].credentialRef) await R.pause(200);
@@ -173,7 +173,7 @@ module.exports = async function () {
       assert.match(await d.js("Array.from(document.querySelectorAll('[data-import]')).find((r) => /antigravity/i.test(r.innerText)).getAttribute('data-status')"), /Needs sign-in/);
       await R.click("document.querySelector('[data-import-apply]')");
       await d.until("!!document.querySelector('[data-result=reauth-required]')", 15000);
-      assert.ok(Object.values(store.placeholders()).some((p) => p.family === 'antigravity' && p.state === 'REAUTH_REQUIRED'), 'Antigravity waits for Noema\'s own sign-in; nothing borrowed');
+      assert.ok(Object.values(store.placeholders()).some((p) => p.family === 'antigravity' && p.state === 'REAUTH_REQUIRED'), 'Antigravity waits for LAIN\'s own sign-in; nothing borrowed');
       const writes = router.seen.filter((r) => r.method !== 'GET');
       assert.deepStrictEqual(writes, [], 'the router was only read');
       await R.click(R.byText('button', 'Open Accounts'));

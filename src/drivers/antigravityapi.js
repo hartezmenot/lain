@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------------
  * WHY. The first Antigravity integration (drivers/antigravity.js) ran every act — sign-in, identity, models — through
  * Google's `agy_acp_server`, a 468 MB download, because that program performs the login and writes the profile
- * Noema then read. Nothing about OAuth, identity, quota or models needs it: they are plain HTTPS calls, and the
+ * LAIN then read. Nothing about OAuth, identity, quota or models needs it: they are plain HTTPS calls, and the
  * reference routers (9Router, OmniRoute, E:\AI\router — read-only references, never a dependency) have made them
  * live since 2026-09-16. Proven here, not assumed:
  *
@@ -26,7 +26,7 @@
  * its own credential reference (DPAPI, credentials.js). Nothing is read from ~/.gemini or any other program's store,
  * no existing account is touched, nothing is copied.
  *
- * TEST SEAM: NOEMA_ANTIGRAVITY_BASE points every endpoint (auth, token, userinfo, cloudcode) at one fake server.
+ * TEST SEAM: LAIN_ANTIGRAVITY_BASE points every endpoint (auth, token, userinfo, cloudcode) at one fake server.
  */
 
 const crypto = require('crypto');
@@ -40,7 +40,7 @@ const META = Object.freeze({ ideType: 9, platform: 5, pluginType: 2 });
 const MAX_OUTPUT = 16384;   // the provider's ceiling (400 above it — recorded by the references)
 const THINKING = Object.freeze({ none: 0, minimal: 128, low: 1024, medium: 4096, high: 8192, xhigh: 12288, max: 16000 });
 
-function base() { return String(process.env.NOEMA_ANTIGRAVITY_BASE || '').replace(/\/+$/, ''); }
+function base() { return String(process.env.LAIN_ANTIGRAVITY_BASE || '').replace(/\/+$/, ''); }
 function ep() {
   const b = base();
   return {
@@ -77,17 +77,17 @@ function beginLogin({ timeoutMs = 10 * 60 * 1000 } = {}) {
       const u = new URL(req.url, 'http://127.0.0.1');
       if (u.pathname !== '/oauth2callback') { res.writeHead(404); res.end(); return; }
       const page = (title, body) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:15px system-ui;padding:40px;background:#0b0f19;color:#e8ecf5"><h2>${title}</h2><p>${body}</p></body>`); };
-      if (u.searchParams.get('state') !== state) { page('Sign-in refused', 'This response did not belong to the sign-in Noema started.'); return; }
+      if (u.searchParams.get('state') !== state) { page('Sign-in refused', 'This response did not belong to the sign-in LAIN started.'); return; }
       if (u.searchParams.get('error')) { page('Sign-in cancelled', 'You can close this tab.'); close(); settle.reject(Object.assign(new Error(`Google sign-in: ${u.searchParams.get('error')}`), { code: 'DENIED' })); return; }
       const code = u.searchParams.get('code');
       if (!code) { page('Sign-in failed', 'No authorization code came back.'); return; }
       try {
         const port = server.address().port;
         const tokens = await exchange({ code, verifier, redirectUri: `http://127.0.0.1:${port}/oauth2callback` });
-        page('Signed in to Antigravity', 'Noema has the account. You can close this tab.');
+        page('Signed in to Antigravity', 'LAIN has the account. You can close this tab.');
         close();
         settle.resolve(tokens);
-      } catch (e) { page('Sign-in failed', 'The code could not be exchanged — try again from Noema.'); close(); settle.reject(e); }
+      } catch (e) { page('Sign-in failed', 'The code could not be exchanged — try again from LAIN.'); close(); settle.reject(e); }
     });
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -261,7 +261,7 @@ function callId(i, name, args) { return `call_${crypto.createHash('sha256').upda
 function argsOf(a) { if (a && typeof a === 'object') return a; try { const v = JSON.parse(String(a || '{}')); return v && typeof v === 'object' ? v : {}; } catch { return {}; } }
 function resultOf(text) { try { const v = JSON.parse(String(text)); return v && typeof v === 'object' && !Array.isArray(v) ? v : { result: v }; } catch { return { result: String(text || '') }; } }
 
-/** Noema's messages → the Cloud Code envelope. Internal shape: tool_calls [{id, name, arguments}], tool {tool_call_id}. */
+/** LAIN's messages → the Cloud Code envelope. Internal shape: tool_calls [{id, name, arguments}], tool {tool_call_id}. */
 function envelope({ project, model, effort = null }, messages, tools) {
   const contents = []; const system = []; const names = new Map();
   for (const m of messages || []) {
@@ -289,7 +289,7 @@ function envelope({ project, model, effort = null }, messages, tools) {
   return { project, model, userAgent: 'antigravity', requestType: 'agent', requestId: `agent/${crypto.randomUUID()}/${Date.now()}`, request };
 }
 
-/** One generateContent call → Noema's stream events (text, reasoning, tool_calls, usage, finish). */
+/** One generateContent call → LAIN's stream events (text, reasoning, tool_calls, usage, finish). */
 async function* chat({ token, project, model, effort = null }, messages, opts = {}) {
   const body = envelope({ project, model, effort }, messages, opts.tools || []);
   const r = await fetch(`${ep().execute}/v1internal:generateContent`, { method: 'POST', headers: headers(token), body: JSON.stringify(body), signal: opts.signal || undefined });

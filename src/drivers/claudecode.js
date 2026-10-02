@@ -58,7 +58,7 @@ async function telemetry(app, { prev = null } = {}) {
   const bin = binary(app);
   if (!bin) return { ok: false, why: 'not installed' };
   // ASKED, NOT RUN (claudecontrol.js): identity, the live model catalog and the plan windows from one status session in
-  // the person's own profile — Claude Code reads its sign-in; Noema reads none, and nothing is generated.
+  // the person's own profile — Claude Code reads its sign-in; LAIN reads none, and nothing is generated.
   const a = await require('./claudecontrol').ask({ command: bin, args: [] }, {}, { usage: true });
   if (a.ok) {
     const models = (a.models && a.models.length ? a.models : ALIASES.map((x) => ({ id: x, label: `Claude ${x[0].toUpperCase()}${x.slice(1)}`, efforts: [] })))

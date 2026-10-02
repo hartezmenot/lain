@@ -60,7 +60,7 @@ function clientAvailable() {
   if (typeof globalThis.WebSocket !== 'function') {
     return {
       ok: false,
-      why: `this Node (${process.version}) has no global WebSocket, and Noema ships no dependencies — `
+      why: `this Node (${process.version}) has no global WebSocket, and LAIN ships no dependencies — `
         + 'browser observation needs Node 22 or newer',
     };
   }

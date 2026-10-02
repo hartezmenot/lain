@@ -41,7 +41,7 @@ async function one(app, acct, mode = 'detach') {
   const working = inUse(id);
   if (working.length) return { ok: false, busy: true, id, name: acct.name, why: `${acct.name} is in use by ${usedBy(working)} — stop that task first, or let it finish.`, usedBy: usedBy(working) };
   const owned = acct.ownership === 'lain';
-  if ((mode === 'sign-out' || mode === 'remove-profile') && !owned) return { ok: false, id, name: acct.name, why: 'This is your own profile — sign out inside the provider\'s own app. Noema only detaches it.' };
+  if ((mode === 'sign-out' || mode === 'remove-profile') && !owned) return { ok: false, id, name: acct.name, why: 'This is your own profile — sign out inside the provider\'s own app. LAIN only detaches it.' };
   if (acct.instanceId) {
     const d = await require('../accountinstances').disconnect(app, acct.instanceId, { logout: mode !== 'detach', removeProfile: mode === 'remove-profile' });
     if (!d.ok) return { ok: false, busy: Boolean(d.busy), id, name: acct.name, why: d.why };
@@ -57,7 +57,7 @@ async function one(app, acct, mode = 'detach') {
     try { require('../config').save(r.cfg); } catch { /* applies in memory */ }
     try { store.event('source-removed', { kind: 'runtime', id }); } catch { /* reported on the next read */ }
     refresh(app);
-    return { ok: true, id, name: acct.name, steps: ['Noema no longer offers it; the provider\'s own sign-in is untouched'] };
+    return { ok: true, id, name: acct.name, steps: ['LAIN no longer offers it; the provider\'s own sign-in is untouched'] };
   }
   return { ok: false, id, name: acct.name, why: 'That account cannot be removed from here.' };
 }

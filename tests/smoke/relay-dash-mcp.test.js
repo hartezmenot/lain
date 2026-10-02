@@ -4,7 +4,7 @@
  * THE CHAT SOURCES, THE DASHBOARD AND THE DESKTOP SEAM — through the real binary.
  *
  * A unit test proves a function returns the right thing; only this proves the
- * thing reaches a user. Everything here spawns bin/noema.js and asserts on what
+ * thing reaches a user. Everything here spawns bin/lain.js and asserts on what
  * a person would have read, or talks to the dashboard over real HTTP.
  *
  * LIMITATION, STATED: the model is the scripted mock provider. The PATH is real
@@ -105,7 +105,7 @@ module.exports = async function () {
     assertNotIncludes(out, 'external reviewer');
   });
 
-  await test('SOURCE: the real binary answers /source, and defaults to Noema', async () => {
+  await test('SOURCE: the real binary answers /source, and defaults to LAIN', async () => {
     // THE REPLACEMENT, DRIVEN END TO END. It must list the three sources, mark
     // LAIN as the one in force with nothing configured, and — the sentence that
     // matters most — say that coding stays LAIN's whatever is selected.
@@ -119,13 +119,13 @@ module.exports = async function () {
     const out = plain(r.out);
     assert.strictEqual(r.code, 0);
     assertIncludes(out, 'Chat source');
-    assertIncludes(out, 'Noema');
+    assertIncludes(out, 'LAIN');
     // THE WEBSITE SOURCES WERE RETIRED (Phase 8.1): not listed, and nothing on screen points at them.
     assert.ok(!/ChatGPT\.com|Gemini\.google\.com|\/source chatgpt/.test(out), 'a retired website source is neither listed nor suggested');
-    assertIncludes(out, "coding request always runs on Noema's runtime");
+    assertIncludes(out, "coding request always runs on LAIN's runtime");
   });
 
-  await test('SOURCE: a retired website source is refused, says what to use instead, and chat stays Noema', async () => {
+  await test('SOURCE: a retired website source is refused, says what to use instead, and chat stays LAIN', async () => {
     // Selecting one is a local decision that must not launch a browser — and since
     // Phase 8.1 the answer is a refusal with the way forward, never a half-selection.
     const { cwd, configDir } = probot({});
@@ -139,7 +139,7 @@ module.exports = async function () {
     assertIncludes(out, 'website sources were retired');
     assertIncludes(out, '/account');
     assert.ok(!/chat source: ChatGPT\.com/.test(out), 'nothing was selected');
-    assert.match(out, /●\s+Noema/, 'chat is still Noema');
+    assert.match(out, /●\s+LAIN/, 'chat is still LAIN');
   });
 
   // ----------------------------------------------------------------- dash ---
@@ -180,7 +180,7 @@ module.exports = async function () {
     const env = { ...process.env };
     for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
     Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'noema.js')], { cwd, env, windowsHide: true });
+    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -213,7 +213,7 @@ module.exports = async function () {
       // token and no project. Fetched with NO credential at all, deliberately.
       const page = await get(port, '/');
       assert.strictEqual(page.code, 200, 'the shell must load so it can ask for the password');
-      assert.match(page.body, /Noema/);
+      assert.match(page.body, /LAIN/);
       assert.match(page.body, /id="gate"/, 'and it must be the gate that loads');
       assert.ok(!page.body.includes(t), 'THE TOKEN MUST NOT BE IN THE PAGE');
       assert.ok(!page.body.includes(s.project.name),
@@ -258,7 +258,7 @@ module.exports = async function () {
     const env = { ...process.env };
     for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
     Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'noema.js')], { cwd, env, windowsHide: true });
+    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     const wait = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -302,7 +302,7 @@ module.exports = async function () {
     const out = plain(r.out);
     assertIncludes(out, 'NOT CONFIGURED');
     assertIncludes(out, 'The bridge is a separate program you provide');
-    assertIncludes(out, 'Noema automates nothing itself');
+    assertIncludes(out, 'LAIN automates nothing itself');
   });
 
   await test('MCP: configured, it connects and grants NOTHING on its own', async () => {

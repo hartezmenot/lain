@@ -52,7 +52,7 @@ function portFor(app) {
       return new Promise((resolve) => {
         const q = question || {};
         const options = (q.options || []).map((o) => (typeof o === 'string' ? o : (o && (o.label || o.value)) || String(o)));
-        const open = { id: `q${++seq}`, title: String(q.title || 'Noema asks'), question: String(q.question || q.text || ''), options, at: Date.now(), resolve };
+        const open = { id: `q${++seq}`, title: String(q.title || 'LAIN asks'), question: String(q.question || q.text || ''), options, at: Date.now(), resolve };
         app._harnessAsk = open;
         // A QUESTION IS A STATUS CHANGE: the rail says NEEDS_INPUT now.
         require('../sessionstatus').touch(app);

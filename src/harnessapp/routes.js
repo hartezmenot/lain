@@ -171,7 +171,7 @@ const ROUTES = {
   'POST /api/desktop/quit': async (app) => {
     app.wantExit = true;
     setTimeout(async () => {
-      try { await require('../teardown').shutdown(app, { why: 'you quit Noema' }); } catch { /* going anyway */ }
+      try { await require('../teardown').shutdown(app, { why: 'you quit LAIN' }); } catch { /* going anyway */ }
       process.exit(0);
     }, 10);
     return ok({ quitting: true });

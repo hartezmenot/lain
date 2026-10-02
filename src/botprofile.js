@@ -11,7 +11,7 @@
  */
 
 const LIMITS = Object.freeze({ name: 40, tone: 80, language: 40, behavior: 800 });
-const DEFAULTS = Object.freeze({ name: 'Noema', tone: '', language: 'auto', behavior: '' });
+const DEFAULTS = Object.freeze({ name: 'LAIN', tone: '', language: 'auto', behavior: '' });
 
 function root(app) { return (app && app._sibling) || app; }
 

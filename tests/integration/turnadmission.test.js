@@ -136,7 +136,7 @@ module.exports = async function () {
     await send(app, 'fix it');
     await app.handle('/verify tests');
     assertIdle(app, 'after /verify');
-    const tasks = path.join(cwd, '.noema', 'tasks');
+    const tasks = path.join(cwd, '.lain', 'tasks');
     const record = JSON.parse(fs.readFileSync(path.join(tasks, fs.readdirSync(tasks)[0], 'task.json'), 'utf8'));
     assert.strictEqual(record.state, 'FAILED', 'the verification really failed first');
     assert.match(String((await send(app, 'why did it fail')).text), /after verify/);
@@ -160,7 +160,7 @@ module.exports = async function () {
 
   // (Phase 8.1: the ChatGPT.com / Gemini website sources were retired — admission is proven
   // across LAIN's own routes, a local model among them, and a retired source cannot be chosen.)
-  await test('ADMISSION: Chat/Coding across Noema and a local model; a retired website source is refused', async () => {
+  await test('ADMISSION: Chat/Coding across LAIN and a local model; a retired website source is refused', async () => {
     const cwd = sandbox();
     script([
       { text: 'lain explains' },
@@ -173,13 +173,13 @@ module.exports = async function () {
     const app = newApp(cwd);
     const said = async (line, re, label) => assert.match(String((await send(app, line, label)).text), re, label);
 
-    await said('explain what a.js does', /lain explains/, 'Noema chat');
-    await said('fix a.js so it exports 3 and run the tests', /lain codes/, 'Noema coding');
+    await said('explain what a.js does', /lain explains/, 'LAIN chat');
+    await said('fix a.js so it exports 3 and run the tests', /lain codes/, 'LAIN coding');
     assert.strictEqual(registry.selectSource(app, SOURCE.CHATGPT_WEB).ok, false, 'a retired website source is refused');
     app.cfg.model = 'local-model';
     await said('explain what a.js exports', /local explains/, 'local model chat');
-    await said('explain it once more', /lain explains again/, 'still Noema chat');
-    await said('fix a.js to export 4', /lain codes again/, 'back to Noema coding');
+    await said('explain it once more', /lain explains again/, 'still LAIN chat');
+    await said('fix a.js to export 4', /lain codes again/, 'back to LAIN coding');
   });
 
 };

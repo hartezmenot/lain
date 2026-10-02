@@ -44,7 +44,7 @@ function splashLines({ cwd, bold = (s) => s, dim = (s) => s }) {
 /** The non-TTY header. A pipe gets plain text, not a drawn screen. */
 function bannerLines({ cwd, sessionId, resumed = false, tools = 0, bold = (s) => s, dim = (s) => s }) {
   return [
-    bold('Noema') + dim(`  ${cwd}`),
+    bold('LAIN') + dim(`  ${cwd}`),
     dim(`  session ${sessionId}${resumed ? ' (resumed)' : ''} · ${tools} tools · /help`),
     '',
   ];

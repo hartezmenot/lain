@@ -88,13 +88,13 @@ module.exports = async function () {
   fs.mkdirSync(extDir, { recursive: true });
   fs.writeFileSync(path.join(extDir, 'package.json'), JSON.stringify({ name: 'withcode', publisher: 'acme', version: '1.0.0', main: './out/extension.js' }));
 
-  await test('IMPORT: only what Noema applies is imported, and the rest says why', () => {
+  await test('IMPORT: only what LAIN applies is imported, and the rest says why', () => {
     const before = fs.readFileSync(path.join(user, 'settings.json'), 'utf8');
     const p = vscodeimport.preview('vscode', env);
     assert.ok(p.ok, p.why);
     assert.deepStrictEqual(p.settings.applied.map((s) => s.key).sort(), ['editor.fontSize', 'editor.minimap.enabled', 'editor.tabSize']);
     const why = Object.fromEntries(p.settings.unsupported.map((s) => [s.key, s.why]));
-    assert.ok(/not one Noema accepts/.test(why['editor.wordWrap']), 'a value Monaco does not take is reported, not applied');
+    assert.ok(/not one LAIN accepts/.test(why['editor.wordWrap']), 'a value Monaco does not take is reported, not applied');
     assert.ok(/palette/.test(why['workbench.colorTheme']));
     assert.strictEqual(p.settings.theme, 'Monokai');
     assert.deepStrictEqual(p.keybindings.applied.map((k) => k.command), ['editor.action.deleteLines', 'lain.goToDefinition', 'editor.action.addCommentLine'], 'a two-part chord is imported');

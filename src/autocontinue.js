@@ -101,7 +101,7 @@ function failureNote(record) {
  */
 const LEAD = Object.freeze({
   'provider-restart': 'The provider connection failed and has been re-established; nothing in the project was lost. ',
-  'auto-resume': 'The process that was running this task stopped mid-turn and Noema recovered the session (its tool results were repaired from what actually happened on disk). ',
+  'auto-resume': 'The process that was running this task stopped mid-turn and LAIN recovered the session (its tool results were repaired from what actually happened on disk). ',
   'host-closed': 'The execution host that was running this task closed; the session and the project are exactly as it left them. ',
 });
 
@@ -162,7 +162,7 @@ function decide(session, record, cls, { problems = [], strategy = 'NORMAL', plan
   // piece of the work is a MODEL boundary, not the goal's end. It used to stop here and wait for `continue`.
   if (!shape.remaining.length) {
     // DURABLE UNFINISHED WORK, NOT WORDS (2026-10-02). Closing words alone ("next I'll look at…") used to start
-    // another turn — Noema deciding activity should continue. A continuation now needs state that SAYS the work is
+    // another turn — LAIN deciding activity should continue. A continuation now needs state that SAYS the work is
     // unfinished: explicit asks still open, acceptance criteria not yet met, or a goal the person set — and no
     // settled verdict, blocker or decision. The model's named next step stays orientation for that turn.
     const unfinished = durableUnfinished(session);
@@ -240,7 +240,7 @@ function scheduleRecovery(app) {
     const d = onRecovered(s);
     if (!d.continue) { pause(d.why); return; }
     try { require('./surfacehandoff').notePause(app, null); } catch { /* the lease is advisory here */ }
-    app._handover = { reason: `TURN_LOST: the process running this task stopped at step ${rec.step}${rec.during ? ` (during ${rec.during})` : ''}; Noema repaired the transcript from what happened on disk`, kind: 'TURN_LOST', state: null, input: [] };
+    app._handover = { reason: `TURN_LOST: the process running this task stopped at step ${rec.step}${rec.during ? ` (during ${rec.during})` : ''}; LAIN repaired the transcript from what happened on disk`, kind: 'TURN_LOST', state: null, input: [] };
     try { require('./ui/operation').say(app, 'Resuming the interrupted task'); } catch { /* no screen */ }
     try { await app.submit(d.prompt, { sameTask: true, from: 'auto-resume' }); } catch { pause('the resumed turn could not start'); } finally { app._handover = null; }
   }, RECOVERY_DELAY_MS);
@@ -357,7 +357,7 @@ function goalCue(session, record) {
 /**
  * THE CONTINUATION, FROM THE GOAL — not from the last sentence. The continuity digest (discipline/digest.js) carries
  * OUTCOME · ASKS · CRITERIA · FACTS · CHANGES · CHECKS · OPEN QUESTIONS · BLOCKERS; the model's own named next step is
- * ORIENTATION, which evidence may overrule. Noema owns continuity and honesty; the model owns the tactics.
+ * ORIENTATION, which evidence may overrule. LAIN owns continuity and honesty; the model owns the tactics.
  */
 function goalInstruction(session, record, cue) {
   let state = '';

@@ -21,10 +21,10 @@ async function toDesktop(app, task, text) {
     const r0 = (app && app._sibling) || app;
     if (r0 && r0.cfg && r0.cfg.assistant && r0.cfg.assistant.notifications === false) return { state: 'FAILED', why: 'desktop notifications are off (BOT › Assistant)' };
     const ipc = require('../harnessapp/ipc');
-    const payload = JSON.stringify({ title: `Noema · ${task.title}`.slice(0, 64), text: String(text).slice(0, 240), nav: { tab: 'bot', section: 'assistant', task: task.id } });
+    const payload = JSON.stringify({ title: `LAIN · ${task.title}`.slice(0, 64), text: String(text).slice(0, 240), nav: { tab: 'bot', section: 'assistant', task: task.id } });
     const r = ipc.toHost(`remind:${payload}`);
     if (r && r.ok) return { state: 'DELIVERED' };
-    return { state: 'FAILED', why: (r && r.why) || 'no Noema window is running' };
+    return { state: 'FAILED', why: (r && r.why) || 'no LAIN window is running' };
   } catch (e) { return { state: 'FAILED', why: e.message }; }
 }
 
@@ -36,7 +36,7 @@ async function toTelegram(app, task, text) {
     const to = (s.allowUsers || []).map(String);
     if (!to.length) return { state: 'FAILED', why: 'no approved Telegram user' };
     const own = r._botService;
-    if (!own || own.stopped || !own.gateway) { const svc = await bc.service(app).catch(() => ({})); return { state: 'FAILED', why: svc.owner === 'external' ? 'messaging runs in another Noema process' : 'Telegram messaging is not running' }; }
+    if (!own || own.stopped || !own.gateway) { const svc = await bc.service(app).catch(() => ({})); return { state: 'FAILED', why: svc.owner === 'external' ? 'messaging runs in another LAIN process' : 'Telegram messaging is not running' }; }
     const gw = own.gateway;
     const accountId = s.accountId || 'default';
     const bad = [];
@@ -58,7 +58,7 @@ async function deliver(app, task, text, { toDesktopFn = toDesktop, toTelegramFn 
     let r;
     if (target === 'desktop') r = await toDesktopFn(app, task, text);
     else if (target === 'telegram') r = await toTelegramFn(app, task, text);
-    else if (target === 'chat') r = { state: 'DELIVERED', where: 'Noema Chat › Schedules' };
+    else if (target === 'chat') r = { state: 'DELIVERED', where: 'LAIN Chat › Schedules' };
     else r = { state: 'FAILED', why: `unknown target ${target}` };
     deliveries.push({ target, ...r });
   }

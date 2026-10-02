@@ -10,7 +10,7 @@
  * because the request is assembled by a running turn out of a growing session,
  * and the growth is the whole phenomenon.
  *
- * So this drives bin/noema.js through a genuine multi-step task and reads the
+ * So this drives bin/lain.js through a genuine multi-step task and reads the
  * size of every payload the provider was actually handed. `LAIN_MOCK_WIRELOG`
  * is the seam for that and predates this work: one line per request, with the
  * message count and the exact character total of what was about to be sent.

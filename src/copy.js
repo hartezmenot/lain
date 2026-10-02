@@ -325,7 +325,7 @@ const SECTIONS = {
 
   async rc(app) {
     const a = await require('./health').assess(app);
-    const out = [`Noema RC READINESS — ${a.summary.ready}/${a.summary.total} areas ready`];
+    const out = [`LAIN RC READINESS — ${a.summary.ready}/${a.summary.total} areas ready`];
     for (const g of a.groups) {
       out.push('', g.title.toUpperCase());
       for (const r of g.rows) out.push(`  ${r.state.sym} ${r.area.padEnd(24)} ${r.state.word}  ${r.note || ''}`);

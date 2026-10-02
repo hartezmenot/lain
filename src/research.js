@@ -64,7 +64,7 @@ const FETCH_TIMEOUT_MS = 30_000;
  * that disguises itself as a browser it is not is lying to the machine it is
  * asking for a favour.
  */
-const UA = 'Noema/2 (+https://github.com/lain-cli) coding-agent';
+const UA = 'LAIN/2 (+https://github.com/lain-cli) coding-agent';
 
 // ------------------------------------------------------------------ fetch --
 

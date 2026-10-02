@@ -54,15 +54,15 @@ function claims(jwt) {
 }
 
 const REASON = Object.freeze({
-  metadata: () => 'the source exposes only account metadata (which provider, which account) — not a sign-in Noema can use',
+  metadata: () => 'the source exposes only account metadata (which provider, which account) — not a sign-in LAIN can use',
   'app-bound': () => 'the source keeps this sign-in encrypted to its own app — it cannot be exported',
   'no-refresh': () => 'the exported sign-in has no refresh token — once it expires it cannot be renewed',
   expired: () => 'the exported sign-in has expired and cannot be renewed',
-  'other-client': (x) => `the sign-in was issued to another application's OAuth client${x.client ? ` (${x.client})` : ''} — the provider will not accept it from Noema`,
+  'other-client': (x) => `the sign-in was issued to another application's OAuth client${x.client ? ` (${x.client})` : ''} — the provider will not accept it from LAIN`,
   'google-bound': () => 'a Google sign-in is bound to the application that requested it; Antigravity signs in with its own',
-  'unknown-format': () => 'the credential is in a format Noema does not recognise',
+  'unknown-format': () => 'the credential is in a format LAIN does not recognise',
   'no-id-token': () => 'the source keeps no id token, which Codex needs to recognise the sign-in',
-  'provider-oauth': () => 'Noema has no runtime that can take this provider\'s sign-in',
+  'provider-oauth': () => 'LAIN has no runtime that can take this provider\'s sign-in',
   rejected: (x) => `the provider did not accept the migrated sign-in${x.why ? ` (${x.why})` : ''}`,
 });
 function reasonText(r) { const f = REASON[r && r.reason]; return f ? f(r) : String((r && r.reason) || ''); }
@@ -139,7 +139,7 @@ async function install(app, family, cred, { name = '' } = {}) {
     const drop = async (why) => { await ai.disconnect(app, id, { logout: false, removeProfile: true }).catch(() => null); return { ok: false, reason: 'rejected', why: String(why).slice(0, 160) }; };
     if (!signedIn) return drop((v && v.why) || (inst && (inst.error || inst.authentication_state)) || 'no signed-in account');
     // ANTHROPIC ITSELF MUST ACCEPT THE SIGN-IN: Claude Code's own `get_usage` (a status read, no model) only answers
-    // for a sign-in Anthropic accepts — and Noema never reads the token it carries (claudecontrol.js).
+    // for a sign-in Anthropic accepts — and LAIN never reads the token it carries (claudecontrol.js).
     if (family === 'claude') {
       const q = await ai.refreshQuota(app, id, { force: true });
       if (!q || !q.ok || !q.live) return drop((q && (q.why || q.note)) || 'Anthropic did not accept this sign-in');

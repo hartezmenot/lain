@@ -49,10 +49,10 @@ module.exports = async function () {
     // surface that renders them identically reports a quiet healthy machine
     // when it is simply not connected to one.
     assertIncludes(out, 'No runtime is answering', 'it says it could not ask');
-    assert.ok(!/NOEMA SESSIONS/.test(out), 'and draws no list it has no data for');
+    assert.ok(!/LAIN SESSIONS/.test(out), 'and draws no list it has no data for');
   });
 
-  await test('RC: /ready still reports Noema readiness under its new name', async () => {
+  await test('RC: /ready still reports LAIN readiness under its new name', async () => {
     // THE RENAME MUST NOT HAVE LOST THE REPORT. `/ready` is the readiness
     // engine's only name now — `/rc` used to mean this before it meant remote
     // control, and the command itself was removed in 2026-09. The engine is
@@ -95,7 +95,7 @@ module.exports = async function () {
     });
     assert.strictEqual(r.code, 0);
     const out = plain(r.stdout);
-    assertIncludes(out, 'NOEMA SESSIONS', 'the list is drawn from the runtime');
+    assertIncludes(out, 'LAIN SESSIONS', 'the list is drawn from the runtime');
     // ---- THE SESSION IS NAMED, NOT NUMBERED ------------------------------
     //
     // The CLI reports the working directory as the name, so a person reading

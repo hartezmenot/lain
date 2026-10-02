@@ -51,7 +51,7 @@ const { Session } = require('../../src/session');
 const { Task } = require('../../src/task');
 const promptparts = require('../../src/promptparts');
 
-const STEER_TEXT = 'Fix two router bugs: 1. cross-provider rate-limit bleed 2. slow refresh-all. Do not touch Noema.';
+const STEER_TEXT = 'Fix two router bugs: 1. cross-provider rate-limit bleed 2. slow refresh-all. Do not touch LAIN.';
 
 async function driveScriptedTurn(session, steps) {
   process.env.LAIN_PROVIDER = 'mock';

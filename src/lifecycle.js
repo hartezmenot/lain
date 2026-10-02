@@ -349,7 +349,7 @@ class Lifecycle {
       return `The last check was still failing when that was written: ${last.command}`
         + `${last.exitCode != null ? ` (exit ${last.exitCode})` : ''}. Run it again before treating this as done.`;
     }
-    // CLAIM PROVENANCE: a VERIFIED claim Noema has no evidence for is downgraded, and the person is told which.
+    // CLAIM PROVENANCE: a VERIFIED claim LAIN has no evidence for is downgraded, and the person is told which.
     // A turn that did nothing (an answer, an explanation) is not held to it unless the claim names a kind of
     // reality that needs its own evidence — a package, a build, tests, something on screen.
     if (!this.discipline) return null;
@@ -360,7 +360,7 @@ class Lifecycle {
     const bad = crossCheck(claims, { ledger: this.discipline.checks, gen: this.mutationSeq || 0, changed: [...this.evidence.filesChanged] }).filter((c) => !c.accepted);
     if (!bad.length) return null;
     this.discipline.claims = [...(this.discipline.claims || []), ...bad].slice(-20);
-    return `Not verified by Noema — ${bad.map((c) => `"${c.text.slice(0, 80)}" (${c.why})`).join('; ')}. Treat ${bad.length === 1 ? 'it' : 'them'} as NOT_CHECKED.`;
+    return `Not verified by LAIN — ${bad.map((c) => `"${c.text.slice(0, 80)}" (${c.why})`).join('; ')}. Treat ${bad.length === 1 ? 'it' : 'them'} as NOT_CHECKED.`;
   }
 
   noteAuthFailure(provider, detail = '') {
@@ -478,7 +478,7 @@ class Lifecycle {
    * COMPLETION IS THE ARBITER'S DECISION (discipline/arbiter.js), with verifycontract.js as the single authority on
    * how much proof a change needs. This used to apply its own gates — "the last command passed", then a mandatory
    * final smoke for every changed tree — which made one ritual the universal measure and duplicated the contract.
-   * The legacy gates below are the arbiter's when no discipline state exists (a restored pre-Noema session).
+   * The legacy gates below are the arbiter's when no discipline state exists (a restored pre-LAIN session).
    */
   complete({ verified = false, userConfirmed = false, note = '', cwd = null, discretion = 'STRONG', objective = '', changeClass = null } = {}) {
     if (verified) this.evidence.verifiedChecks += 1;

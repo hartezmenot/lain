@@ -35,7 +35,7 @@ const PLAN = '## Plan: fix stalled downloads\n1. Add a stall timer to `DownloadQ
 
 module.exports = async function () {
   await test('HARNESS CONTRACT REAL: Chat → plan → Coding → background status → Project Files → dev server → Bot → Settings → quit', async () => {
-    if (process.platform !== 'win32') { process.stdout.write('    (skipped: Noema Desktop is Windows-only for now)\n'); return; }
+    if (process.platform !== 'win32') { process.stdout.write('    (skipped: LAIN Desktop is Windows-only for now)\n'); return; }
     const proj = tmpdir('contract-proj-');
     fs.writeFileSync(path.join(proj, 'queue.js'), 'class DownloadQueue {}\nmodule.exports = DownloadQueue;\n');
     fs.writeFileSync(path.join(proj, 'package.json'), JSON.stringify({ name: 'contractfixture', private: true, scripts: { dev: 'node server.js' } }));

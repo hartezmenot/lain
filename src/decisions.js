@@ -239,7 +239,7 @@ async function ask(app, q = {}, signal = null, localAsk = null) {
 /** Wrap a turn's `ask` so each ask_user becomes one Core decision; null stays null. */
 function wrapAsk(app, local) {
   if (!local) return null;
-  return (q) => ask(app, { type: 'ASK_USER', title: 'Noema asks', question: q && q.question, options: (q && q.options) || [] },
+  return (q) => ask(app, { type: 'ASK_USER', title: 'LAIN asks', question: q && q.question, options: (q && q.options) || [] },
     app && app.abort ? app.abort.signal : null, () => local(q));
 }
 

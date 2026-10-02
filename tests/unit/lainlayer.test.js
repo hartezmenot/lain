@@ -53,7 +53,7 @@ function pressureSession(body = 12000, steps = 40) {
 }
 
 module.exports = async function () {
-  await test('Noema: the intended architecture survives conversation compaction', async () => {
+  await test('LAIN: the intended architecture survives conversation compaction', async () => {
     const cwd = root();
     try {
       // Record intent through the model-facing door, not the module: the tool
@@ -79,7 +79,7 @@ module.exports = async function () {
     }
   });
 
-  await test('Noema: promoted facts survive compaction AND an explicit clear', async () => {
+  await test('LAIN: promoted facts survive compaction AND an explicit clear', async () => {
     const cwd = root();
     try {
       const p = await call('scratch', {
@@ -102,7 +102,7 @@ module.exports = async function () {
     }
   });
 
-  await test('Noema: scratch is scoped to one session, and orphans exclude the current one', async () => {
+  await test('LAIN: scratch is scoped to one session, and orphans exclude the current one', async () => {
     const cwd = root();
     try {
       await call('scratch', { op: 'note', text: 'session one found this' }, cwd, 's-one');
@@ -129,7 +129,7 @@ module.exports = async function () {
     }
   });
 
-  await test('Noema: compaction never injects a duplicated transcript into the wire', () => {
+  await test('LAIN: compaction never injects a duplicated transcript into the wire', () => {
     const session = pressureSession();
     const before = session.messages.length;
     const decision = session.contextAuthority.compact(PC, {}, { reason: 'test-pressure' });
@@ -155,7 +155,7 @@ module.exports = async function () {
     assert.strictEqual(session.contextChars(), chars, 'a compacted compact is a no-op');
   });
 
-  await test('Noema: the four doors are advertised and dispatchable', async () => {
+  await test('LAIN: the four doors are advertised and dispatchable', async () => {
     const cwd = root();
     try {
       for (const name of ['concept', 'architecture', 'wiring', 'scratch']) {
@@ -171,7 +171,7 @@ module.exports = async function () {
     }
   });
 
-  await test('Noema: seeding records observations, never guessed intent', async () => {
+  await test('LAIN: seeding records observations, never guessed intent', async () => {
     const cwd = root();
     try {
       fs.mkdirSync(path.join(cwd, 'src', 'auth'), { recursive: true });
@@ -197,7 +197,7 @@ module.exports = async function () {
     }
   });
 
-  await test('Noema: verify refuses what is not on disk, with the reconciler as the only observer-writer', async () => {
+  await test('LAIN: verify refuses what is not on disk, with the reconciler as the only observer-writer', async () => {
     const cwd = root();
     try {
       await call('architecture', {

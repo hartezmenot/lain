@@ -115,7 +115,7 @@ async function run(app, text, { surface = 'harness' } = {}) {
       const ws = require('./resetwindows').windows(app).filter((w) => w.category !== 'CREDITS');
       if (!ws.length) return { ok: true, text: 'No provider has reported a usage window yet.' };
       const k = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
-      return { ok: true, text: ws.map((w) => `${w.sourceLabel} · ${w.label}: ${w.usedPercent != null ? `${Math.round(100 - w.usedPercent)}% remaining (provider)` : 'provider % not reported'}${w.observed ? ` · Noema observed ${k(w.observed.input)} in / ${k(w.observed.output)} out / ${w.observed.requests} requests` : ''}`).join('\n') };
+      return { ok: true, text: ws.map((w) => `${w.sourceLabel} · ${w.label}: ${w.usedPercent != null ? `${Math.round(100 - w.usedPercent)}% remaining (provider)` : 'provider % not reported'}${w.observed ? ` · LAIN observed ${k(w.observed.input)} in / ${k(w.observed.output)} out / ${w.observed.requests} requests` : ''}`).join('\n') };
     }
     case '/project': {
       const proj = require('./sessionviews').project(s);
@@ -134,7 +134,7 @@ async function run(app, text, { surface = 'harness' } = {}) {
       if (surface !== 'telegram') return { ok: false, text: '/target chooses the session a messaging chat drives' };
       return { ok: true, target: p.arg || null, text: null };
     }
-    default: return { ok: false, text: `${p.name} is not a Noema control here — /help lists them` };
+    default: return { ok: false, text: `${p.name} is not a LAIN control here — /help lists them` };
   }
 }
 

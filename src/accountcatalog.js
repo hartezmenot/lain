@@ -296,9 +296,9 @@ function describe(app, id, route, base, adopted, nm) {
       name: nm[id] || k.name, auth: k.oauth ? 'OAuth · 9Router' : 'Provider · 9Router', source: '9Router', base: base.id, prefix,
       pinned: false, adopted: took,
       note: k.oauth
-        ? `9Router holds the ${k.name} sign-in and chooses which of its ${k.name} accounts answers; Noema cannot pin one account through 9Router`
+        ? `9Router holds the ${k.name} sign-in and chooses which of its ${k.name} accounts answers; LAIN cannot pin one account through 9Router`
         : `a provider 9Router carries with its own key; 9Router chooses how it is reached`,
-      state: stateOfBase(base), quotaNote: '9Router does not report account quota to Noema',
+      state: stateOfBase(base), quotaNote: '9Router does not report account quota to LAIN',
     };
   }
   // AN API KEY LAIN HOLDS (or a keyless local endpoint)

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE MODEL'S POINTER AND KEYBOARD — for the Noema Preview, and nothing else (packaging pass §L).
+ * THE MODEL'S POINTER AND KEYBOARD — for the LAIN Preview, and nothing else (packaging pass §L).
  *
  *   tool call (preview_click …) ──▶ this queue ──▶ the Preview surface that is open (the Harness, or the standalone
  *   Preview window a CLI opens) fetches it (POST /api/preview/input/next) ──▶ posts it to the page's bridge

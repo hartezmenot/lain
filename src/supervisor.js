@@ -45,7 +45,7 @@ const START_TIMEOUT_MS = 8000;
 
 function home() {
   if (process.env.LAIN_HOME) return process.env.LAIN_HOME;
-  // A run with its OWN home (NOEMA_CONFIG_DIR — a test, a bench, a second identity) has its own sessions, so it must
+  // A run with its OWN home (LAIN_CONFIG_DIR — a test, a bench, a second identity) has its own sessions, so it must
   // never report them to the person's supervisor. 2026-10-01: an ad-hoc bench wrote ~30 fake sessions into the real
   // ~/.noema/supervisor/guardian because this read userHome() and ignored the override.
   return require('./home').resolve();
@@ -86,12 +86,14 @@ function findBinary() {
   if (forced) {
     try { return fs.statSync(forced).isFile() ? forced : null; } catch { return null; }
   }
-  // AN INSTALLED NOEMA ships the supervisor prebuilt as native/prebuilt/noema-supervisor.exe (distribution/release.js);
-  // a development checkout builds rust/lain-supervisor (the crate keeps its directory name; Cargo.toml names the
-  // binary, and so the process, noema-supervisor) and uses the newest build.
-  const exe = process.platform === 'win32' ? 'noema-supervisor.exe' : 'noema-supervisor';
-  const shipped = path.join(__dirname, '..', 'native', 'prebuilt', exe);
-  try { if (fs.statSync(shipped).isFile()) return shipped; } catch { /* a development checkout */ }
+  // AN INSTALLED LAIN ships the supervisor prebuilt as native/prebuilt/lain-supervisor.exe (distribution/release.js);
+  // a development checkout builds rust/lain-supervisor and uses the newest build. A Noema-era build
+  // (noema-supervisor) is still found until it is rebuilt under the LAIN name.
+  const names = process.platform === 'win32' ? ['lain-supervisor.exe', 'noema-supervisor.exe'] : ['lain-supervisor', 'noema-supervisor'];
+  for (const exe of names) {
+    const shipped = path.join(__dirname, '..', 'native', 'prebuilt', exe);
+    try { if (fs.statSync(shipped).isFile()) return shipped; } catch { /* a development checkout */ }
+  }
   const root = path.join(__dirname, '..', 'rust', 'lain-supervisor', 'target');
   // THE NEWEST BUILD WINS, not a fixed preference for `release`. Preferring
   // release unconditionally meant that `cargo build` (which writes debug) left
@@ -99,8 +101,7 @@ function findBinary() {
   // effect — the supervisor answering was one built hours earlier. Whichever was
   // compiled most recently is the one the developer meant.
   let best = null;
-  for (const profile of ['release', 'debug']) {
-    const p = path.join(root, profile, exe);
+  for (const p of ['release', 'debug'].flatMap((profile) => names.map((exe) => path.join(root, profile, exe)))) {
     try {
       const st = fs.statSync(p);
       if (st.isFile() && (!best || st.mtimeMs > best.mtimeMs)) best = { path: p, mtimeMs: st.mtimeMs };

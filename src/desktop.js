@@ -106,13 +106,13 @@ function writeAssets(dir) {
  *
  * @returns {{ok: boolean, why?: string, exe?: string, built?: boolean}}
  */
-/** The Noema icon the host carries (title bar, taskbar, Alt+Tab). */
-const ICON = path.join(__dirname, '..', 'distribution', 'brand', 'noema.ico');
-/** A host built by the release (distribution/release.js) — an installed Noema never needs a compiler. */
+/** The LAIN icon the host carries (title bar, taskbar, Alt+Tab). */
+const ICON = path.join(__dirname, '..', 'distribution', 'brand', 'lain.ico');
+/** A host built by the release (distribution/release.js) — an installed LAIN never needs a compiler. */
 const PREBUILT = path.join(__dirname, '..', 'native', 'prebuilt');
 
 function build({ quiet = true, out: outDir = null } = {}) {
-  if (process.platform !== 'win32') return { ok: false, why: 'Noema Desktop is Windows-only for now' };
+  if (process.platform !== 'win32') return { ok: false, why: 'LAIN Desktop is Windows-only for now' };
   let src;
   const h = harness();
   if (!h.ok) return { ok: false, why: h.why };
@@ -133,7 +133,7 @@ function build({ quiet = true, out: outDir = null } = {}) {
     .slice(0, 12);
   const out = outDir || homeDir();
   fs.mkdirSync(out, { recursive: true });
-  const exe = path.join(out, `noema-harness-${stamp}.exe`);
+  const exe = path.join(out, `lain-harness-${stamp}.exe`);
 
   // THE LOADER AND THE ASSEMBLIES MUST SIT BESIDE THE EXE, because that is
   // where the CLR and the WebView2 loader look for them.
@@ -171,7 +171,7 @@ function build({ quiet = true, out: outDir = null } = {}) {
 }
 
 /** Where a shortcut points. Stable across rebuilds, unlike the hashed name. */
-function launcherPath() { return path.join(homeDir(), 'Noema Harness.exe'); }
+function launcherPath() { return path.join(homeDir(), 'LAIN Harness.exe'); }
 
 /** The release build: compile the host (and its SDK files) into `dir` for distribution/release.js. */
 function prebuild(dir) { return build({ out: dir }); }
@@ -187,7 +187,7 @@ function hostExe() { const b = build(); return b.ok ? b.exe : null; }
  *
  * A STABLE NAME. The build is cached under the hash of its inputs, which is
  * right for a cache and useless for a shortcut: the target would break on the
- * next change to the host. `Noema Harness.exe` is a copy under a name that does not
+ * next change to the host. `LAIN Harness.exe` is a copy under a name that does not
  * move.
  *
  * AND A WAY TO FIND NODE. Started from Explorer the host has no Core, no
@@ -205,10 +205,10 @@ function hostExe() { const b = build(); return b.ok ? b.exe : null; }
 function installLauncher(built, { cfg = {}, at = null } = {}) {
   if (!built || !built.ok) return { ok: false, why: (built && built.why) || 'the host is not built' };
   const node = require('./noderesolve').find({ cfg });
-  const entry = path.join(__dirname, '..', 'bin', 'noema.js');
+  const entry = path.join(__dirname, '..', 'bin', 'lain.js');
   // WHERE THE FRONT DOOR GOES. By default LAIN's own directory, which is what a
   // developer running from a checkout wants. An INSTALL passes `at`, because
-  // Noema Harness.exe belongs with the program it launches — and the uninstaller then
+  // LAIN Harness.exe belongs with the program it launches — and the uninstaller then
   // removes it with everything else it put there.
   //
   // `launch.json` goes BESIDE THE LAUNCHER, wherever that is: native/host.cs
@@ -272,7 +272,7 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
   ];
   // A DEBUGGING PORT IS A DEVELOPMENT AFFORDANCE AND IS GATED TWICE — here and
   // again in the host — so a release build cannot open one by accident.
-  // A SMALL NOEMA WINDOW (packaging pass §E, §M): the Model Dashboard or the Preview alone — the same page and components
+  // A SMALL LAIN WINDOW (packaging pass §E, §M): the Model Dashboard or the Preview alone — the same page and components
   // as the Harness, drawn in that mode, with the ordinary Windows title bar.
   if (mode === 'dashboard' || mode === 'preview') args.push('--mode', mode, '--native-caption', ...(section ? ['--section', String(section)] : []));
   if (minimized) args.push('--minimized');   // started at sign-in with "Start minimized" (startup.js)
@@ -308,7 +308,7 @@ function status() {
   const out = homeDir();
   let exe = null;
   try {
-    const rows = fs.readdirSync(out).filter((f) => /^noema-harness-[0-9a-f]+\.exe$/.test(f));
+    const rows = fs.readdirSync(out).filter((f) => /^lain-harness-[0-9a-f]+\.exe$/.test(f));
     exe = rows.length ? path.join(out, rows[rows.length - 1]) : null;
   } catch { /* nothing built yet */ }
   return {

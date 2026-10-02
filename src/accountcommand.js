@@ -50,7 +50,7 @@ function register({ define }) {
   define('/account', {
     surface: true,
     args: '[<provider>|all|automatic|ask|pin <n|name>|reorder <n,n,…>|rename <n|name> <alias>|use <name>|add|manage|refresh [name]]',
-    desc: 'The provider\'s backing accounts and how Noema uses them (policy) — sign-ins happen in the Model Dashboard',
+    desc: 'The provider\'s backing accounts and how LAIN uses them (policy) — sign-ins happen in the Model Dashboard',
     async run(app, { rest = '' } = {}) {
       const w = (s) => app.render.write(s);
       const words = String(rest).trim().split(/\s+/).filter(Boolean);
@@ -153,7 +153,7 @@ function register({ define }) {
             if (!b.usable && b.why) w(`        ${b.why}\n`);
           });
           if (f.setup.length) w('  Finish setup (not used until signed in):\n');
-          for (const p of f.setup) w(`     •  ${p.name.padEnd(22)} ${p.state === 'UNSUPPORTED' ? 'no Noema sign-in for this provider yet' : p.lifecycle === 'IMPORTED_PENDING_AUTH' ? 'imported — sign in to finish' : p.lifecycle === 'DISCONNECTED' ? 'signed out — sign in again' : 'needs attention'}\n`);
+          for (const p of f.setup) w(`     •  ${p.name.padEnd(22)} ${p.state === 'UNSUPPORTED' ? 'no LAIN sign-in for this provider yet' : p.lifecycle === 'IMPORTED_PENDING_AUTH' ? 'imported — sign in to finish' : p.lifecycle === 'DISCONNECTED' ? 'signed out — sign in again' : 'needs attention'}\n`);
         }
         w(`\n  ${USAGE}\n`);
         return undefined;
@@ -236,7 +236,7 @@ function registerChannels({ define }) {
       if (verb === 'restart') { await bc.stopService(app); const r = await bc.startService(app); w(r.ok ? '  Messaging restarted.\n' : `  ${r.why}\n`); return; }
       if (verb === 'disconnect') {
         const r = await bc.disconnectTelegram(app);
-        w(r.ok ? `  Telegram disconnected: polling stopped, Noema's credential removed, approvals cleared.\n  ${r.notRevoked}\n` : `  ${r.why}\n`);
+        w(r.ok ? `  Telegram disconnected: polling stopped, LAIN's credential removed, approvals cleared.\n  ${r.notRevoked}\n` : `  ${r.why}\n`);
         return;
       }
       const t = await bc.telegram(app);
@@ -252,13 +252,13 @@ function registerChannels({ define }) {
   define('/extensions', {
     surface: true,
     args: '[list|found]',
-    desc: 'Extensions in Noema, and the ones VS Code / Cursor have',
+    desc: 'Extensions in LAIN, and the ones VS Code / Cursor have',
     run(app, { rest = '' } = {}) {
       const w = (s) => app.render.write(s);
       if (String(rest).trim() === 'found') {
         const rows = require('./extpackages').discover();
         if (!rows.length) { w('  No VS Code or Cursor extensions found.\n'); return; }
-        for (const f of rows) w(`  ${f.productLabel.padEnd(8)} ${f.id} ${f.version} — ${f.compatibility.level}${f.reused ? ` (in Noema ${f.reused.version})` : ''}\n`);
+        for (const f of rows) w(`  ${f.productLabel.padEnd(8)} ${f.id} ${f.version} — ${f.compatibility.level}${f.reused ? ` (in LAIN ${f.reused.version})` : ''}\n`);
         w('  Use one from Settings › Extensions › On this machine. Their folders are never changed.\n');
         return;
       }

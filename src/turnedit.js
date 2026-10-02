@@ -11,7 +11,7 @@
  *   · the old request's turn records leave the live history with it — no record of the new branch claims work the
  *     old request asked for (its task and contract are cleared when the old wording started them);
  *   · files the replaced turns CHANGED are not silently left or silently reverted: in the Coding lane the person
- *     chooses — undo them first (Noema's checkpoints, refused if a file changed since) or keep them;
+ *     chooses — undo them first (LAIN's checkpoints, refused if a file changed since) or keep them;
  *   · the other thread's messages are untouched, and nothing older than the latest message is editable here.
  */
 

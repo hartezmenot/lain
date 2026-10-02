@@ -194,7 +194,7 @@ function remove(id) {
   s.dirs = s.dirs.filter((x) => x.id !== id);
   delete s.scans[id];
   write(s);
-  return { ok: true, removed: d.path, note: 'Only Noema\'s reference was removed. The folder and its models are untouched.' };
+  return { ok: true, removed: d.path, note: 'Only LAIN\'s reference was removed. The folder and its models are untouched.' };
 }
 
 function rescan(id = null) {

@@ -43,7 +43,7 @@ module.exports = async function () {
     // "Unknown" is a real answer and is reported as one.
     const l = pl.limitsFor({ provider: 'acme', connectionId: 'acme' }, {});
     assert.strictEqual(l.messages, 0);
-    assert.strictEqual(pl.check(wire(5000), l).ok, true, 'and nothing is refused on Noema\'s guess');
+    assert.strictEqual(pl.check(wire(5000), l).ok, true, 'and nothing is refused on LAIN\'s guess');
   });
 
   await test('LIMITS: config beats the default, and the connection id beats the provider', () => {

@@ -60,7 +60,7 @@ function fakeGoogle() {
   return new Promise((r) => server.listen(0, '127.0.0.1', () => r({ base: `http://127.0.0.1:${server.address().port}`, seen, state, close: () => new Promise((c) => { server.closeAllConnections(); server.close(c); }) })));
 }
 
-/** Play the browser: follow the auth URL's redirect_uri with a code (and the state Noema sent, unless told otherwise). */
+/** Play the browser: follow the auth URL's redirect_uri with a code (and the state LAIN sent, unless told otherwise). */
 async function browser(url, { code = 'good-code', state = null } = {}) {
   const u = new URL(url);
   const back = new URL(u.searchParams.get('redirect_uri'));
@@ -73,9 +73,9 @@ async function browser(url, { code = 'good-code', state = null } = {}) {
 module.exports = async function () {
   const creds = require('../../src/credentials');
   const api = require('../../src/drivers/antigravityapi');
-  const saved = { base: process.env.NOEMA_ANTIGRAVITY_BASE, cfg: process.env.LAIN_CONFIG_DIR };
+  const saved = { base: process.env.LAIN_ANTIGRAVITY_BASE, cfg: process.env.LAIN_CONFIG_DIR };
   const g = await fakeGoogle();
-  process.env.NOEMA_ANTIGRAVITY_BASE = g.base;
+  process.env.LAIN_ANTIGRAVITY_BASE = g.base;
   process.env.LAIN_CONFIG_DIR = tmpdir('agy-https-cfg-');
   creds.useBackend(creds.memoryBackend());
   try {
@@ -175,7 +175,7 @@ module.exports = async function () {
   } finally {
     creds.useBackend(null);
     await g.close();
-    if (saved.base === undefined) delete process.env.NOEMA_ANTIGRAVITY_BASE; else process.env.NOEMA_ANTIGRAVITY_BASE = saved.base;
+    if (saved.base === undefined) delete process.env.LAIN_ANTIGRAVITY_BASE; else process.env.LAIN_ANTIGRAVITY_BASE = saved.base;
     if (saved.cfg === undefined) delete process.env.LAIN_CONFIG_DIR; else process.env.LAIN_CONFIG_DIR = saved.cfg;
   }
 };

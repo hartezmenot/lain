@@ -65,7 +65,7 @@ module.exports = async function () {
     const root = project();
     const r = projectindex.refresh(root);
     assert.strictEqual(r.persisted, true, 'and it reaches disk');
-    assert.ok(fs.existsSync(path.join(root, '.noema', 'index.json')), '.noema/index.json exists');
+    assert.ok(fs.existsSync(path.join(root, '.lain', 'index.json')), '.lain/index.json exists');
 
     const files = r.index.files;
     const sources = Object.entries(files).filter(([, e]) => e.lang === 'js');
@@ -136,7 +136,7 @@ module.exports = async function () {
     // "We missed it" must never be spelled FRESH.
     const root = project();
     projectindex.refresh(root);
-    const file = path.join(root, '.noema', 'index.json');
+    const file = path.join(root, '.lain', 'index.json');
     const ix = JSON.parse(fs.readFileSync(file, 'utf8'));
     for (const k of Object.keys(ix.files)) { ix.files[k].symbols = []; ix.files[k].imports = []; }
 
@@ -228,7 +228,7 @@ module.exports = async function () {
   await test('INTEL: missing, empty, corrupt and stale state all rebuild rather than half-answer', () => {
     const root = project();
     projectindex.refresh(root);
-    const file = path.join(root, '.noema', 'index.json');
+    const file = path.join(root, '.lain', 'index.json');
     const good = fs.readFileSync(file, 'utf8');
 
     const damaged = {
@@ -263,7 +263,7 @@ module.exports = async function () {
   await test('INTEL: an interrupted write leaves no temporary file and no half-index', () => {
     const root = project();
     projectindex.refresh(root);
-    const dir = path.join(root, '.noema');
+    const dir = path.join(root, '.lain');
     fs.writeFileSync(path.join(dir, 'index.json.tmp'), '{"half":');   // a crash mid-write
     const r = projectindex.refresh(root);
     assert.strictEqual(r.persisted, true);

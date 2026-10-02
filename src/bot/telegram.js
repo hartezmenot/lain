@@ -8,7 +8,7 @@ class Telegram {
   }
   async call(op, args = {}) {
     const r = await this.rpc({ op: `remote_gateway_${op}`, owner: this.owner, ...args });
-    if (!r?.ok && /unknown op/i.test(String(r?.error))) throw new Error('Running supervisor predates Noema Bot; restart it after its existing work can stop');
+    if (!r?.ok && /unknown op/i.test(String(r?.error))) throw new Error('Running supervisor predates LAIN Bot; restart it after its existing work can stop');
     if (!r?.ok) throw new Error('Telegram gateway unavailable or lease lost');
     return r;
   }

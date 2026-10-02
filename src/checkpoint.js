@@ -228,7 +228,7 @@ class Checkpoints {
       return {
         ok: false,
         stale: true,
-        error: `${names.join(', ')} changed after Noema last wrote to it. `
+        error: `${names.join(', ')} changed after LAIN last wrote to it. `
           + 'Undoing would discard that change too, so nothing was touched.',
       };
     }

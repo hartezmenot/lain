@@ -77,7 +77,7 @@ function estimate(app, session) {
     return { known: true, low: r(lo), high: r(Math.max(hi, lo)), window: win.label, basis: `${withUsage.length} observed phase(s) × ${remaining} remaining, against ${win.label} (${Math.round(win.usedPercent)}% used)`,
       text: `Estimated additional usage: ~${r(lo)}–${r(Math.max(hi, lo))}% of the current ${win.label} window` };
   }
-  return { known: false, text: 'High usage expected.', basis: withUsage.length < 2 ? 'not enough phases observed yet to estimate' : 'the provider has not reported a usage window Noema can compare with' };
+  return { known: false, text: 'High usage expected.', basis: withUsage.length < 2 ? 'not enough phases observed yet to estimate' : 'the provider has not reported a usage window LAIN can compare with' };
 }
 
 /**
@@ -193,7 +193,7 @@ function nextPhasePrompt(session) {
   const w = wb.of(session);
   const last = w.phases[w.phases.length - 1];
   // ADVISORY, NOT CHOREOGRAPHY (2026-10-01): the plan is memory and orientation. The model owns tactics; evidence may
-  // reorder, merge, replace or drop steps (plan_write) — Noema owns continuity, truth and completion honesty.
+  // reorder, merge, replace or drop steps (plan_write) — LAIN owns continuity, truth and completion honesty.
   const bits = [`Continue the task. Next in your plan: phase ${next.n} — ${next.text} (orientation: change the plan if the evidence says so).`];
   if (last && last.landed && last.landed.length) bits.push(`Landed so far: ${last.landed.slice(0, 6).join('; ')}.`);
   const later = shape.remaining.slice(1, 4).map((s) => `${s.n}. ${s.text}`);

@@ -74,20 +74,20 @@ const PREFIX_FAMILY = Object.freeze({
 });
 /** How a person signs in again, where LAIN has its own supported sign-in for the family. */
 const REAUTH = Object.freeze({
-  codex: { supported: true, how: 'Connect account — Codex\'s own sign-in, in a Codex home Noema keeps for this account' },
+  codex: { supported: true, how: 'Connect account — Codex\'s own sign-in, in a Codex home LAIN keeps for this account' },
   claude: { supported: true, how: 'Connect account — Claude Code\'s own sign-in, in a new private profile (no account you have is changed)' },
   antigravity: { supported: true, how: 'Connect account — Google sign-in through Antigravity\'s own server, in a new private profile' },
-  opencode: { supported: true, how: 'Sign in inside OpenCode — Noema runs OpenCode\'s own runtime' },
+  opencode: { supported: true, how: 'Sign in inside OpenCode — LAIN runs OpenCode\'s own runtime' },
 });
 /** Families LAIN reaches only through an API (a LAIN product decision). */
-const API_ONLY = Object.freeze({ zai: 'Noema integrates Z.ai through its API — add your Z.ai API key under MODEL › API' });
+const API_ONLY = Object.freeze({ zai: 'LAIN integrates Z.ai through its API — add your Z.ai API key under MODEL › API' });
 /** Where each runtime keeps its sign-in in its own profile (existence is checked, never contents). */
 const SIGN_IN_FILE = Object.freeze({ codex: 'auth.json', claude: '.credentials.json' });
 const DRIVER = Object.freeze({ codex: 'codex', claude: 'claude-code' });
 
 function reauthOf(family) {
   if (API_ONLY[family]) return { supported: false, apiOnly: true, how: API_ONLY[family] };
-  return REAUTH[family] || { supported: false, how: 'Noema has no runtime for this provider yet — the account stays discovered, and nothing is borrowed from the source' };
+  return REAUTH[family] || { supported: false, how: 'LAIN has no runtime for this provider yet — the account stays discovered, and nothing is borrowed from the source' };
 }
 
 function root(app) { return (app && app._sibling) || app; }
@@ -162,7 +162,7 @@ function namedProfile(x) {
  */
 function classify(x, { native = [] } = {}) {
   if (x.kind === 'api') {
-    return x.transferable ? { authClass: CLASS.PORTABLE_AUTH, reason: 'an API key you own — it moves into Noema\'s secret store once the provider accepts it' }
+    return x.transferable ? { authClass: CLASS.PORTABLE_AUTH, reason: 'an API key you own — it moves into LAIN\'s secret store once the provider accepts it' }
       : { authClass: CLASS.REAUTH_REQUIRED, reason: 'the source lists this API without its key — add the key in MODEL › API' };
   }
   if (API_ONLY[x.family]) return { authClass: CLASS.UNSUPPORTED, reason: API_ONLY[x.family] };
@@ -171,14 +171,14 @@ function classify(x, { native = [] } = {}) {
   // A PORTABLE CREDENTIAL moves as it is (fabric/portable.js decides, per provider format).
   if (x.credential) {
     const a = portable.assess(x.family, x.credential);
-    if (a.portable) return { authClass: CLASS.PORTABLE_AUTH, reason: 'a complete sign-in in the provider\'s own format — it moves into a new Noema profile and is verified with the provider', portable: true };
+    if (a.portable) return { authClass: CLASS.PORTABLE_AUTH, reason: 'a complete sign-in in the provider\'s own format — it moves into a new LAIN profile and is verified with the provider', portable: true };
     // A NAMED OR DISCOVERED NATIVE PROFILE still beats re-authentication.
     const home = namedProfile(x) || native.find((d) => d.family === x.family);
-    if (home) return { authClass: CLASS.NATIVE_PROFILE_REFERENCE, reason: `the provider's own profile is on this PC (${home.where}) — Noema uses it where it is`, native: home };
+    if (home) return { authClass: CLASS.NATIVE_PROFILE_REFERENCE, reason: `the provider's own profile is on this PC (${home.where}) — LAIN uses it where it is`, native: home };
     return { authClass: CLASS.REAUTH_REQUIRED, reason: portable.reasonText(a) };
   }
   const home = namedProfile(x) || native.find((d) => d.family === x.family);
-  if (home) return { authClass: CLASS.NATIVE_PROFILE_REFERENCE, reason: `the provider's own profile is on this PC (${home.where}) — Noema uses it where it is`, native: home };
+  if (home) return { authClass: CLASS.NATIVE_PROFILE_REFERENCE, reason: `the provider's own profile is on this PC (${home.where}) — LAIN uses it where it is`, native: home };
   return { authClass: CLASS.REAUTH_REQUIRED, reason: portable.reasonText({ reason: 'metadata' }) };
 }
 

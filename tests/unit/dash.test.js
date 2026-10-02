@@ -180,7 +180,7 @@ module.exports = async function () {
     } finally { dash.stop(); }
   });
 
-  await test('DASH: the state says what Noema is doing, and carries no secrets', async () => {
+  await test('DASH: the state says what LAIN is doing, and carries no secrets', async () => {
     const app = fakeApp();
     app.cfg = { ...app.cfg, apiKey: 'sk-should-never-appear', connections: { x: { apiKey: 'sk-secret-value' } } };
     const r = await dash.start(app, { port: 0 });
@@ -192,7 +192,7 @@ module.exports = async function () {
       // WHO ANSWERS A CHAT TURN, and — stated rather than implied, because it is
       // the thing a reader of this payload is most likely to get wrong — who
       // owns coding whatever is selected.
-      assert.strictEqual(s.chatSource.coding, 'Noema');
+      assert.strictEqual(s.chatSource.coding, 'LAIN');
       assert.ok(!/sk-secret-value|sk-should-never-appear/.test(res.body), 'no credential may cross the wire');
       // Nor the conversation itself.
       assert.ok(!('messages' in s) || !Array.isArray(s.messages), 'message content is not the dashboard business');
@@ -253,7 +253,7 @@ module.exports = async function () {
       // No CDN, no font, no image, no external anything.
       assert.ok(!/https?:\/\/(?!127\.0\.0\.1)/.test(res.body.replace(/http:\/\/\$\{/g, '')),
         'the page must not reference any external origin');
-      assert.match(res.body, /Noema/);
+      assert.match(res.body, /LAIN/);
     } finally { dash.stop(); }
   });
 

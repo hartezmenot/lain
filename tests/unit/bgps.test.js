@@ -255,7 +255,7 @@ module.exports = async function () {
   await test('PS: nothing managed says nothing is running, and points at /bg', () => {
     const out = pscommand.render(psApp(), C, 100);
     const text = out.join('\n');
-    assert.match(text, /Nothing is running that Noema owns/);
+    assert.match(text, /Nothing is running that LAIN owns/);
     assert.match(text, /\/bg/, 'and names the door work comes in through');
   });
 
@@ -325,7 +325,7 @@ module.exports = async function () {
   await test('PS: ownership is stated, and the boundary of the list with it', () => {
     const text = pscommand.render(psApp({ procs: [proc()] }), C, 100).join('\n');
     assert.match(text, /Host processes are not listed/,
-      'somebody asking what Noema left running deserves the boundary of the answer');
+      'somebody asking what LAIN left running deserves the boundary of the answer');
   });
 
   // ====================================== NARROW AND WIDE TERMINALS ========

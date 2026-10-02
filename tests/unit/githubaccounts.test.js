@@ -27,7 +27,7 @@ module.exports = async function () {
   const creds = require('../../src/credentials');
   const mk = (cwd) => new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: cwd || tmpdir('gha-') });
   const call = (app, k, body) => ROUTES[`POST ${k}`](app, body || {});
-  Object.assign(process.env, { GIT_AUTHOR_NAME: 'Noema Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'Noema Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
+  Object.assign(process.env, { GIT_AUTHOR_NAME: 'LAIN Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'LAIN Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
   const { shim, FIX } = require('../fixtures/runtimes/shim');
 
   function world() {
@@ -52,11 +52,11 @@ module.exports = async function () {
   }
   const done = () => { for (const k of ['FAKE_GH_ACCOUNTS', 'FAKE_GH_REPOS', 'FAKE_GH_REPOS_DIR', 'FAKE_GH_REMOTES', 'FAKE_GH_LOG']) delete process.env[k]; gh.forgetGhMemo(); };
 
-  await test('GITHUB ACCOUNTS: both gh accounts listed; switching is Noema\'s own; the other account acts through its own token', async () => {
+  await test('GITHUB ACCOUNTS: both gh accounts listed; switching is LAIN\'s own; the other account acts through its own token', async () => {
     const { app, logged } = world();
     try {
       const a = (await call(app, '/api/github/accounts')).body;
-      assert.deepStrictEqual(a.accounts.map((x) => [x.id, x.via, x.active]), [['gh:octo', 'gh', true], ['gh:reader', 'gh', false]], 'gh\'s own active account is Noema\'s default');
+      assert.deepStrictEqual(a.accounts.map((x) => [x.id, x.via, x.active]), [['gh:octo', 'gh', true], ['gh:reader', 'gh', false]], 'gh\'s own active account is LAIN\'s default');
       const sw = await call(app, '/api/github/switch', { id: 'gh:reader' });
       assert.strictEqual(sw.code, 200);
       assert.strictEqual(sw.body.github.user, 'reader');
@@ -64,7 +64,7 @@ module.exports = async function () {
       assert.strictEqual(repos.account.id, 'gh:reader');
       assert.strictEqual(repos.repos[0].access, 'read', 'what GitHub said this account may do');
       const L = logged();
-      assert.ok(L.some((x) => x.kind === 'token' && x.user === 'reader'), 'Noema asked gh for THAT account\'s token');
+      assert.ok(L.some((x) => x.kind === 'token' && x.user === 'reader'), 'LAIN asked gh for THAT account\'s token');
       assert.ok(L.some((x) => x.kind === 'api' && x.route.startsWith('user/repos') && x.as === 'reader'), 'the listing ran as reader');
       assert.ok(!L.some((x) => /switch|logout/.test(x.kind)), 'gh\'s own active account and sign-in are never changed');
       const bad = await call(app, '/api/github/switch', { id: 'gh:nobody' });

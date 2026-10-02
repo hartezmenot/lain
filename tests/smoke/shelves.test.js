@@ -40,10 +40,10 @@ module.exports = async function () {
         { text: 'R_AFTER_SHELVES' },
       ],
       steps: [
-        { until: 'Ask Noema', timeout: 40000 },
+        { until: 'Ask LAIN', timeout: 40000 },
         // No goal: straight into the composer.
         { send: '/goal\r' }, { until: 'GOAL ›', timeout: 10000 }, { snap: 'goalEmpty', settle: 400 },
-        { send: 'Finish Noema Harness\r' }, { until: 'R_GOAL1', timeout: 30000 }, { wait: 900 },
+        { send: 'Finish LAIN Harness\r' }, { until: 'R_GOAL1', timeout: 30000 }, { wait: 900 },
         // A goal: the shelf is `/goal show` (bare /goal captures a NEW goal).
         { send: '/goal show\r' }, { until: 'Continue', timeout: 10000 }, { snap: 'goalShelf', settle: 400 },
         { key: 'right' }, { key: 'enter' }, { until: 'GOAL ›', timeout: 10000 }, { snap: 'goalEdit', settle: 400 },
@@ -76,19 +76,19 @@ module.exports = async function () {
     assert.ok(!/Continue/.test(text(s.goalEmpty)), 'no shelf when there is no goal');
 
     const shelf = text(s.goalShelf);
-    assert.match(shelf, /Finish Noema Harness/);
+    assert.match(shelf, /Finish LAIN Harness/);
     assert.match(shelf, /Continue\s+Edit\s+New\s+Delete/, 'the actions on one row');
     assert.ok(!/you can type \/goal/i.test(shelf), 'no narration');
 
-    assert.match(text(s.goalEdit), /GOAL ›\s*Finish Noema Harness/, 'Edit puts the goal back on the line');
+    assert.match(text(s.goalEdit), /GOAL ›\s*Finish LAIN Harness/, 'Edit puts the goal back on the line');
 
     const two = text(s.goalTwo);
     assert.match(two, /Fix the release blocker\s+· active/);
-    assert.match(two, /Finish Noema Harness and desktop control/, 'New kept the previous goal');
+    assert.match(two, /Finish LAIN Harness and desktop control/, 'New kept the previous goal');
 
     assert.match(text(s.goalConfirm), /Delete this goal\?/, 'Delete asks in place');
     const after = text(s.goalAfterDelete);
-    assert.ok(!/Finish Noema Harness/.test(after), 'the selected paused goal is gone');
+    assert.ok(!/Finish LAIN Harness/.test(after), 'the selected paused goal is gone');
     assert.match(after, /Fix the release blocker/, 'and the active one remains');
     assert.ok(!/Continue\s+Edit/.test(text(s.goalClosed)), 'Esc closes the shelf');
 
@@ -136,7 +136,7 @@ module.exports = async function () {
         { text: 'R_GOAL_CONTINUED' }, { text: 'R_PLAN_CONTINUED' },
       ],
       steps: [
-        { until: 'Ask Noema', timeout: 40000 },
+        { until: 'Ask LAIN', timeout: 40000 },
         { send: '/goal Finish fixture frontend\r' }, { until: 'R_GOAL_SET', timeout: 30000 }, { wait: 900 },
         { send: '/plan\r' }, { until: 'PLAN ›', timeout: 10000 },
         { send: 'change heading → verify mobile → capture evidence\r' }, { wait: 900 },

@@ -316,7 +316,7 @@ module.exports = async function () {
       assert.match(dl.describe(got[0]), /API added: DeepSeek API \(lain:deepseek\) · 3 models/);
     });
 
-    await test('ONE REGISTRY, TWO PROCESSES: an API added by another Noema (the Harness) is seen here without a restart — and its removal too', async () => {
+    await test('ONE REGISTRY, TWO PROCESSES: an API added by another LAIN (the Harness) is seen here without a restart — and its removal too', async () => {
       const app = new App({ out, interactive: false, cwd: tmpdir('p83x-') });
       const config = require('../../src/config');
       config.save(app.cfg);   // this process's own write — never mistaken for another's
@@ -327,7 +327,7 @@ module.exports = async function () {
       // THIS PROCESS SAVES ITS OWN CHANGE before it has looked: the other process's API is not erased.
       app.cfg.executionProfile = 'ECO';
       config.save(app.cfg);
-      assert.ok(JSON.parse(fs.readFileSync(config.configFile(), 'utf8')).connections['lain:elsewhere'], 'a save never erases another Noema\'s addition');
+      assert.ok(JSON.parse(fs.readFileSync(config.configFile(), 'utf8')).connections['lain:elsewhere'], 'a save never erases another LAIN\'s addition');
       assert.strictEqual(JSON.parse(fs.readFileSync(config.configFile(), 'utf8')).executionProfile, 'ECO', 'and this process\'s own change is written');
       require('../../src/fabric/sync').sync(app, { force: true });
       assert.ok(F.family(app, 'api:lain:elsewhere'), 'the other process\'s API is in this process\'s fabric');

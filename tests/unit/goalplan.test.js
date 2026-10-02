@@ -46,12 +46,12 @@ module.exports = async function () {
   await test('GOAL: it is set, read back, and is not the task objective', () => {
     const s = new Session({ cwd: tmpdir('goal-') });
     assert.strictEqual(goal.text(s), '');
-    goal.set(s, '  Stabilize Noema CLI and finish Harness  ');
-    assert.strictEqual(goal.text(s), 'Stabilize Noema CLI and finish Harness');
+    goal.set(s, '  Stabilize LAIN CLI and finish Harness  ');
+    assert.strictEqual(goal.text(s), 'Stabilize LAIN CLI and finish Harness');
     // A task objective is whatever started the current unit of work. Setting a
     // goal must not touch it, and vice versa.
     s.task = { objective: 'fix the checkout race' };
-    assert.strictEqual(goal.text(s), 'Stabilize Noema CLI and finish Harness');
+    assert.strictEqual(goal.text(s), 'Stabilize LAIN CLI and finish Harness');
     assert.strictEqual(s.task.objective, 'fix the checkout race');
   });
 
@@ -126,9 +126,9 @@ module.exports = async function () {
     // §15, and the whole reason the mode exists: a read-only panel would make
     // every revision a retype from memory.
     const app = realApp();
-    goal.set(app.session, 'Stabilize Noema CLI and finish Harness');
+    goal.set(app.session, 'Stabilize LAIN CLI and finish Harness');
     compose.open(app, compose.KIND.GOAL, { prefill: goal.text(app.session) });
-    assert.strictEqual(app.input.line, 'Stabilize Noema CLI and finish Harness');
+    assert.strictEqual(app.input.line, 'Stabilize LAIN CLI and finish Harness');
   });
 
   await test('GOAL COMPOSER: Enter commits the edited line', () => {

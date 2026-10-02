@@ -18,7 +18,7 @@ const path = require('path');
 const { test, tmpdir, runCli } = require('../helpers');
 
 module.exports = async function () {
-  await test('CACHE CLEAN (§109): `noema cache clear` removes temp and caches; session, task, checkpoint, OAuth, settings and project files stay; the usage index rebuilds', async () => {
+  await test('CACHE CLEAN (§109): `lain cache clear` removes temp and caches; session, task, checkpoint, OAuth, settings and project files stay; the usage index rebuilds', async () => {
     const cwd = tmpdir('cachereal-');
     const configDir = path.join(cwd, '.config');
     const sysTmp = path.join(cwd, 'system-temp');
@@ -49,7 +49,7 @@ module.exports = async function () {
       previewTemp: put(path.join(sysTmp, 'lain-preview-abc', 'frame.png'), 'x'.repeat(4096), aged),
       previewTempDir: path.join(sysTmp, 'lain-preview-abc'),
       freshTemp: put(path.join(sysTmp, 'lain-run-today', 'state.json'), '{}'),
-      notOurs: put(path.join(sysTmp, 'someone-else', 'keep.txt'), 'not Noema\'s', aged),
+      notOurs: put(path.join(sysTmp, 'someone-else', 'keep.txt'), 'not LAIN\'s', aged),
       previewCache: put(path.join(configDir, 'workshop', 'proj-1', 'Default', 'Cache', 'Cache_Data', 'data_0'), 'c'.repeat(8192)),
       previewCookies: put(path.join(configDir, 'workshop', 'proj-1', 'Default', 'Network', 'Cookies'), 'cookie-db'),
       windowCache: put(path.join(configDir, 'desktop', 'EBWebView', 'Default', 'Code Cache', 'js', 'index'), 'c'.repeat(2048)),

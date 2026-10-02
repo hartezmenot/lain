@@ -9,7 +9,7 @@
  *     find the tests → run them → see them fail → read the code
  *       → change it → run them again → see them pass → report
  *
- * WHAT IS REAL HERE. bin/noema.js is spawned as a process. The REPL, session,
+ * WHAT IS REAL HERE. bin/lain.js is spawned as a process. The REPL, session,
  * turn loop, tool dispatch, filesystem gate, edit tools, test discovery, the
  * shell that runs the fixture's suite, and the fixture's own tests are all the
  * real thing, and the file really changes on disk.
@@ -141,7 +141,7 @@ module.exports = async function () {
     // tree LAIN left behind actually passes, measured by something LAIN had no
     // part in.
     const verdict = runFixtureTests(dir);
-    assert.strictEqual(verdict.code, 0, `the tree Noema left behind is still red:\n${verdict.out}`);
+    assert.strictEqual(verdict.code, 0, `the tree LAIN left behind is still red:\n${verdict.out}`);
     assert.match(verdict.out, /2 passed, 0 failed/);
   });
 
@@ -178,7 +178,7 @@ module.exports = async function () {
     assert.match(r.out, /checked:/, 'an absence must be reported with the search that found it');
   });
 
-  await test('AGENT LOOP: Noema can find its OWN tests — the reported regression', async () => {
+  await test('AGENT LOOP: LAIN can find its OWN tests — the reported regression', async () => {
     // "There are no tests" said about this repository, which has 179 of them.
     const root = path.join(__dirname, '..', '..');
     // AN ISOLATED CONFIG HOME, because `cwd` here is the repository itself and

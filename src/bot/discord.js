@@ -136,7 +136,7 @@ class Discord {
     }
     const admitted = await this.receive(e);
     if (admitted?.busy) await this.http.request(`/channels/${message.channel_id}/messages`, { method: 'POST',
-      body: { content: 'Noema is at its queue limit. Please retry this message later.', allowed_mentions: { parse: [], replied_user: false },
+      body: { content: 'LAIN is at its queue limit. Please retry this message later.', allowed_mentions: { parse: [], replied_user: false },
         message_reference: { message_id: message.id, fail_if_not_exists: false } } });
   }
   async download(e, attachment, signal) {
@@ -172,7 +172,7 @@ class Discord {
   }
   async stop() {
     this.stopped = true; this.generation++; clearTimeout(this.reconnectTimer); clearTimeout(this.heartbeatTimer); clearTimeout(this.helloTimer);
-    const ws = this.ws; this.ws = null; ws?.close(1000, 'Noema stopped'); this.state = 'stopped';
+    const ws = this.ws; this.ws = null; ws?.close(1000, 'LAIN stopped'); this.state = 'stopped';
     await this.inboundWork?.catch(() => {});
     this.resetSession(); this.channels.clear(); this.attachments.clear(); this.callbackAcks.clear(); this.token = null;
   }

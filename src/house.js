@@ -172,7 +172,7 @@ const DOORS = [
 
   // THE TASK AND THE AGENT
   { id: 'task.status', kind: KIND.READ, what: 'the current task, what the Coding Agent carries, and the path the work took', run: (app) => taskStatus(app) },
-  { id: 'changes.who', kind: KIND.READ, what: 'who changed what in this project: the person (USER), Noema\'s Agent (AGENT), or outside Noema (args: optional path — who wrote which lines of that file)', run: (app, a) => whoChanged(app, a) },
+  { id: 'changes.who', kind: KIND.READ, what: 'who changed what in this project: the person (USER), LAIN\'s Agent (AGENT), or outside LAIN (args: optional path — who wrote which lines of that file)', run: (app, a) => whoChanged(app, a) },
 
   // /focus — the Focus capabilities (the palette's "LAIN:" commands, the BOT, the menus: one door each)
   {
@@ -183,7 +183,7 @@ const DOORS = [
       return pk ? { ok: true, text: pk.text, metrics: pk.metrics } : { ok: false, why: 'no focused context could be built' };
     },
   },
-  { id: 'focus.pick_element', kind: KIND.NAVIGATE, what: 'open the preview and start picking an element (the person clicks it; Noema opens the code that owns it)', run: (app) => go(app, 'focus.pick_element', 'ide') },
+  { id: 'focus.pick_element', kind: KIND.NAVIGATE, what: 'open the preview and start picking an element (the person clicks it; LAIN opens the code that owns it)', run: (app) => go(app, 'focus.pick_element', 'ide') },
   { id: 'focus.ask_bot', kind: KIND.NAVIGATE, what: 'ask the BOT about the current selection (opens the BOT pane with the selection attached)', run: (app) => go(app, 'focus.ask_bot', 'ide') },
   { id: 'focus.move_to_agent', kind: KIND.NAVIGATE, what: 'switch /focus to the Coding Agent pane (the same task and session)', run: (app) => go(app, 'focus.move_to_agent', 'ide') },
   {
@@ -310,7 +310,7 @@ function whoChanged(app, a = {}) {
     if (!f) return { ok: false, why: 'that file is not inside the project' };
     const r = require('./editledger').regions(root, f.rel);
     const rows = (r.regions || []).map((g) => `  lines ${g.startLine}-${g.endLine}: ${g.source}${g.approximate ? ' (approximate)' : ''}`);
-    return { ok: true, text: rows.length ? `${f.rel}:\n${rows.join('\n')}` : `${f.rel}: no change Noema has recorded`, regions: r.regions || [] };
+    return { ok: true, text: rows.length ? `${f.rel}:\n${rows.join('\n')}` : `${f.rel}: no change LAIN has recorded`, regions: r.regions || [] };
   }
   const who = str(a.source, 20).toUpperCase() || null;
   const r = require('./editledger').summary(root, { source: who, since: Number(a.since) || null, sessionId: a.session === 'this' ? app.session.id : null });

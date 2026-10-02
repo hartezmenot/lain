@@ -69,7 +69,7 @@ module.exports = async function () {
     });
     const n = requests(log);
     assert.strictEqual(n, 3,
-      `a 3-step cap made ${n} provider requests — anything above 3 is Noema deciding the model `
+      `a 3-step cap made ${n} provider requests — anything above 3 is LAIN deciding the model `
       + 'should keep going and paying for that decision');
     const out = plain(r.out);
     assert.ok(!/CONTINUING/i.test(out), 'and it does not announce carrying on');

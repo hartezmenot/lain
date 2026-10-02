@@ -74,7 +74,7 @@ async function status(app, id) {
       const j = r.ok ? await r.json().catch(() => null) : null;
       const reported = j && String(j.state || '').toUpperCase();
       if (j && STATES.includes(reported)) st = { state: reported, task: j.task ? String(j.task).slice(0, 200) : null, since: j.since || null, basis: 'reported by the bot', migratable: Boolean(j.lainMigration), at: Date.now() };
-      else st = { state: 'UNKNOWN', basis: r.ok ? 'the bot answered without a state Noema understands' : `the status address answered ${r.status}`, at: Date.now() };
+      else st = { state: 'UNKNOWN', basis: r.ok ? 'the bot answered without a state LAIN understands' : `the status address answered ${r.status}`, at: Date.now() };
     } catch (e) { st = { state: 'OFFLINE', basis: `the status address did not answer (${e.name === 'AbortError' ? 'timeout' : e.message})`, at: Date.now() }; } finally { clearTimeout(t); }
   } else if (b.pid) {
     st = alive(b.pid) ? { state: 'RUNNING', basis: 'its process is alive — whether it is working is not reported', at: Date.now() } : { state: 'OFFLINE', basis: 'its process has exited', at: Date.now() };
@@ -91,7 +91,7 @@ async function migrate(app, id) {
   let j = null;
   try { const r = await fetch(b.statusUrl, { headers: { accept: 'application/json' } }); j = r.ok ? await r.json() : null; } catch { j = null; }
   const m = j && j.lainMigration;
-  if (!m || typeof m !== 'object') return { ok: false, unsupported: true, why: 'this bot does not declare a migration to Noema — keep it connected instead' };
+  if (!m || typeof m !== 'object') return { ok: false, unsupported: true, why: 'this bot does not declare a migration to LAIN — keep it connected instead' };
   const profile = {
     name: String(m.name || b.name).slice(0, 60),
     instructions: String(m.instructions || '').slice(0, 8000),
@@ -103,7 +103,7 @@ async function migrate(app, id) {
   c.bots.profiles[slug(profile.name)] = profile;
   b.mode = 'migrated'; b.migratedAt = profile.from.at;
   save(app);
-  return { ok: true, profile, note: 'Imported into a Noema bot profile. The external bot was not changed or stopped; schedules are suggestions until you enable them.' };
+  return { ok: true, profile, note: 'Imported into a LAIN bot profile. The external bot was not changed or stopped; schedules are suggestions until you enable them.' };
 }
 
 function setPermissions(app, id, perms = {}) {
@@ -122,7 +122,7 @@ function remove(app, id) {
   if (!s[id]) return { ok: false, why: 'no such bot' };
   delete s[id];
   save(app);
-  return { ok: true, note: 'Disconnected from Noema. The bot itself keeps running wherever it runs.' };
+  return { ok: true, note: 'Disconnected from LAIN. The bot itself keeps running wherever it runs.' };
 }
 
 module.exports = { connect, list, describe, status, migrate, setPermissions, may, remove, PERMS, STATES };

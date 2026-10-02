@@ -105,7 +105,7 @@ async function report(app, id, { refresh = false } = {}) {
   const exec = a.execution(app, tele);
   return {
     id: a.id, label: a.label, provider: a.provider, kind: a.kind, icon: a.icon, source: a.source, authentication: a.authentication, install: a.install,
-    state: disconnected(app, a.id) ? 'Disconnected from Noema' : stateOf(a, disc, tele, exec),
+    state: disconnected(app, a.id) ? 'Disconnected from LAIN' : stateOf(a, disc, tele, exec),
     disconnected: disconnected(app, a.id),
     discovery: { ok: Boolean(disc && disc.installed), ...disc },
     telemetry: tele ? { ok: Boolean(tele.ok), at: tele.at || null, why: tele.why || null } : { ok: false, why: 'not read yet' },

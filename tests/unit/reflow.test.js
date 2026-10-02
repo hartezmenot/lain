@@ -6,7 +6,7 @@
  * ------------------------------------------------------------------------
  * WHY THIS IS ASSERTED ON THE REAL `Screen` AND NOT THROUGH THE BINARY.
  *
- * The smoke tier drives bin/noema.js over a PIPE, and a pipe has no dimensions —
+ * The smoke tier drives bin/lain.js over a PIPE, and a pipe has no dimensions —
  * `LAIN_FORCE_TUI` makes the real draw path run there, but `out.columns` is
  * undefined and the size comes from the COLUMNS environment variable, which is
  * fixed for the life of the child. So a child process cannot be resized, and a
@@ -55,7 +55,7 @@ function fakeTerminal(cols, rows) {
   return out;
 }
 
-const LONG_RUN = 'node bin/noema.js (start a Probe with /mcp probe, then run the task)';
+const LONG_RUN = 'node bin/lain.js (start a Probe with /mcp probe, then run the task)';
 
 /** A screen showing one turn whose summary carries a long command. */
 function screenWith(out) {
@@ -92,7 +92,7 @@ module.exports = async function () {
     out.resizeTo(140, 30);
 
     assert.ok(out.writes.length > mark, 'a resize wrote nothing — the screen is not live');
-    assert.ok(strip(out.since(mark)).includes('bin/noema.js'),
+    assert.ok(strip(out.since(mark)).includes('bin/lain.js'),
       'the redraw did not carry the content');
     s.leave();
   });
@@ -111,7 +111,7 @@ module.exports = async function () {
     const afterResize = strip(out.since(mark));
 
     // The same content, drawn differently — which is what reflow means.
-    assert.ok(afterResize.includes('bin/noema.js'), 'the command is still there');
+    assert.ok(afterResize.includes('bin/lain.js'), 'the command is still there');
     assert.notStrictEqual(afterResize.length, atNarrow.length,
       'the frame after the resize is byte-identical to the narrow one');
     // AND THE COMMAND IS WHOLE. This is the property the defect broke: at the
@@ -139,7 +139,7 @@ module.exports = async function () {
     // identical repaint, so the raw bytes legitimately differ in the cursor
     // parking, and asserting on those would pin an optimisation instead of a
     // property.
-    for (const needle of ['bin/noema.js', 'then run the task']) {
+    for (const needle of ['bin/lain.js', 'then run the task']) {
       assert.ok(back.includes(needle) || back.replace(/\s+/g, ' ').includes(needle),
         `coming back to 60 columns lost ${JSON.stringify(needle)}`);
       assert.ok(first.replace(/\s+/g, ' ').includes(needle), 'sanity: it was there at first');

@@ -71,7 +71,7 @@ function describe(pkg) {
     snippets,
     code,
     uses: snippets.length ? [`snippets for ${[...new Set(snippets.map((s) => s.language))].join(', ')}`] : [],
-    notUsed: [...(code ? ['its code (Noema does not run the VS Code extension host)'] : []), ...other.slice(0, 8).map((k) => `contributes.${k}`)],
+    notUsed: [...(code ? ['its code (LAIN does not run the VS Code extension host)'] : []), ...other.slice(0, 8).map((k) => `contributes.${k}`)],
   };
 }
 
@@ -262,7 +262,7 @@ function registerPackage({ packageDir, packageRef, origin, configDir = null } = 
   if (!ID_RE.test(id)) return bad(`"${id}" is not a valid extension id (publisher.name)`);
   const reg = readRegistry(root);
   const prev = reg.installed.find((x) => x.id.toLowerCase() === id.toLowerCase());
-  if (prev && !prev.packageRef) return bad(`${id} is already installed in Noema from ${(prev.source && prev.source.kind) || 'elsewhere'}; uninstall it first to reuse the editor's copy`);
+  if (prev && !prev.packageRef) return bad(`${id} is already installed in LAIN from ${(prev.source && prev.source.kind) || 'elsewhere'}; uninstall it first to reuse the editor's copy`);
   const d = describe(pkg);
   const entry = {
     id, version: String(pkg.version || '0.0.0').slice(0, 40), dir: path.relative(root, packageDir), packageRef,

@@ -379,7 +379,7 @@ module.exports = async function () {
     assert.match(text, /build output directory/, 'and dist/ is named as generated');
   });
 
-  await test('GIT: files Noema did not write are separated from files it did', async () => {
+  await test('GIT: files LAIN did not write are separated from files it did', async () => {
     const dir = tmpdir('lain-git2-');
     const run = (args) => execute('git', args, { cwd: dir, timeoutMs: 20_000 });
     if (!(await run(['init', '-q'])).ok) return;
@@ -397,7 +397,7 @@ module.exports = async function () {
     assert.match(text, /NOT CHANGED BY THIS SESSION/);
     assert.match(text, /theirs\.js/);
     assert.doesNotMatch(text.split('WORTH A SECOND LOOK')[1] || '', /mine\.js/,
-      'the file Noema did write is not a surprise');
+      'the file LAIN did write is not a surprise');
   });
 
   await test('GIT: a session inside a SUBDIRECTORY sees its own frame, not the repo root\'s', async () => {
@@ -435,12 +435,12 @@ module.exports = async function () {
     // root-relative name is converted into the session's cwd frame.
     const mine = r.files.find((f) => f.file === 'mine.js');
     assert.ok(mine, 'the file is named in the session\'s own frame, not the repo root\'s');
-    assert.ok(!mine.unexpected, 'a file Noema wrote is not a surprise — the frames join');
+    assert.ok(!mine.unexpected, 'a file LAIN wrote is not a surprise — the frames join');
     assert.strictEqual(mine.added, 1, 'and the numstat half of the join lands on it');
     assert.strictEqual(mine.removed, 1);
     assert.strictEqual(mine.lines, 3, 'countLines reads the file where it actually is');
     const theirs = r.files.find((f) => f.file === 'theirs.js');
-    assert.ok(theirs && theirs.unexpected, 'a file Noema did not write still is a surprise');
+    assert.ok(theirs && theirs.unexpected, 'a file LAIN did not write still is a surprise');
     assert.deepStrictEqual(r.missing, [], 'and what was written is not reported missing');
   });
 

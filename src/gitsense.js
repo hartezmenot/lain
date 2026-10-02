@@ -273,14 +273,14 @@ function describe(r) {
     const surprise = r.files.filter((f) => f.unexpected);
     if (surprise.length) {
       notes.push(`NOT CHANGED BY THIS SESSION: ${surprise.map((f) => f.file).join(', ')} — these differ from the `
-        + 'last commit but are not files Noema wrote. They may have been dirty before this session started.');
+        + 'last commit but are not files LAIN wrote. They may have been dirty before this session started.');
     }
     if (r.missing.length) {
       // "No change" is two observations, not one: the write matched the
       // committed bytes, or git never looks at the path at all (ignored, or
       // outside the reviewed subtree). Only the first was being stated — a
       // false inference whenever the second was the case.
-      notes.push(`WRITTEN BUT NOT DIFFERENT: ${r.missing.join(', ')} — Noema wrote these and git reports no change `
+      notes.push(`WRITTEN BUT NOT DIFFERENT: ${r.missing.join(', ')} — LAIN wrote these and git reports no change `
         + 'for them: either the write produced the same bytes that were already there, or the path is not one '
         + 'git tracks (ignored, or outside this directory).');
     }

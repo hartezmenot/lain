@@ -39,7 +39,7 @@ function status(app) { return wb.of(app.session).quota || { state: 'RUNNING' }; 
 /** Refresh what LAIN can read about the route's account, without a model call. */
 async function recheck(app, q) {
   const notes = [];
-  try { if (q.connectionId) { app.availability.retry(q.connectionId); notes.push(`cleared Noema's hold on ${q.connectionId}`); } } catch { /* no availability */ }
+  try { if (q.connectionId) { app.availability.retry(q.connectionId); notes.push(`cleared LAIN's hold on ${q.connectionId}`); } } catch { /* no availability */ }
   const model = String(q.model || '');
   try {
     if (/^claude-code\//.test(model)) { await require('./runtimeadapters').report(app, 'claude-code', { refresh: true }); notes.push('refreshed Claude Code'); }

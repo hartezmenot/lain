@@ -7,7 +7,7 @@
  *   `initialize` (identity + the live model catalog) and `get_usage` (the plan's 5-hour / 7-day windows).
  *
  *   - two isolated accounts read INDEPENDENT windows; no prompt ran (runs.jsonl stays empty; controls.jsonl shows
- *     only control requests); Noema never opened a `.credentials.json`
+ *     only control requests); LAIN never opened a `.credentials.json`
  *   - the person's OWN profile works the same way — Claude Code reads its own sign-in
  *   - a reading younger than the TTL is served from the cache with no process; Refresh (force) asks again
  *   - a refresh while the account runs a long request leaves that run alone
@@ -57,7 +57,7 @@ module.exports = async function () {
   const A = await account('personal@example.com', { limits: { fiveHour: 0.26, sevenDay: 0.48 }, models: [{ value: 'opus', displayName: 'Opus 9', supportedEffortLevels: ['low', 'high', 'max'] }, { value: 'claude-new-1', displayName: 'New One', supportedEffortLevels: ['low'] }] });
   const B = await account('work@example.com', { limits: { fiveHour: 0.09, sevenDay: 0.33 } });
 
-  await test('CLAUDE QUOTA: two isolated accounts read INDEPENDENT 5-hour and 7-day windows — no prompt ran, no token read by Noema', async () => {
+  await test('CLAUDE QUOTA: two isolated accounts read INDEPENDENT 5-hour and 7-day windows — no prompt ran, no token read by LAIN', async () => {
     const { value: [qa, qb], seen } = await readsDuring(async () => [await ai.refreshQuota(app, A, { force: true }), await ai.refreshQuota(app, B, { force: true })]);
     assert.strictEqual(qa.live, true);
     assert.deepStrictEqual(pick(qa), { five_hour: 26, seven_day: 48 });
@@ -65,7 +65,7 @@ module.exports = async function () {
     for (const q of [qa, qb]) for (const w of q.limits.windows) assert.ok(w.resetsAt > Date.now() && w.expired === false, 'each window carries its reset');
     assert.deepStrictEqual([lines(A, 'runs.jsonl').length, lines(B, 'runs.jsonl').length], [0, 0], 'no generation: no prompt ever ran');
     assert.ok(lines(A, 'controls.jsonl').every((c) => c.subtypes.every((s) => ['initialize', 'get_usage'].includes(s))), 'only control requests');
-    assert.ok(!seen.some((p) => /\.credentials\.json$/i.test(p)), 'Noema never opened a sign-in file');
+    assert.ok(!seen.some((p) => /\.credentials\.json$/i.test(p)), 'LAIN never opened a sign-in file');
     // THE ONE STORE: the fabric shows what remains, per account.
     require('../../src/appcatalog').invalidate(); app._acctMemo = null; app._catMemo = null; app._fabricMemo = null;
     const claude = require('../../src/fabric/index').family(app, 'claude');
@@ -117,7 +117,7 @@ module.exports = async function () {
     assert.ok(r.ok, r.why);
     const { value: q, seen } = await readsDuring(() => ai.refreshQuota(app, r.instance.id, { force: true }));
     assert.deepStrictEqual(pick(q), { five_hour: 10, seven_day: 20 });
-    assert.ok(!seen.some((p) => /\.credentials\.json$/i.test(p)), 'its sign-in file was never opened by Noema');
+    assert.ok(!seen.some((p) => /\.credentials\.json$/i.test(p)), 'its sign-in file was never opened by LAIN');
   });
 
   await test('CLAUDE QUOTA: a profile with no sign-in says why — never an empty bar', async () => {

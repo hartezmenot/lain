@@ -451,7 +451,7 @@ function render(survey, delta = null, factDelta = null) {
   const candidates = rootcause.candidates(findings);
   const facts = factDelta ? factDelta.facts : (survey.facts || []);
   const parts = [
-    'NOEMA ENGINEERING BRIEFING',
+    'LAIN ENGINEERING BRIEFING',
     `Generated ${new Date().toISOString().replace('T', ' ').slice(0, 19)} for ${path.basename(survey.root)}`,
     'This is a snapshot. It is stale as soon as any file changes.',
     projectSection(survey),

@@ -186,7 +186,7 @@ module.exports = async function () {
   });
 
   // ---- §2 + §12: a NEW Node process finds the job, and Rust is authority ---
-  await test('EXECUTION: a restarted Noema finds the job it never started', async () => {
+  await test('EXECUTION: a restarted LAIN finds the job it never started', async () => {
     const home = isolate('restart');
     const script = `
       process.env.LAIN_HOME = ${JSON.stringify(home)};
@@ -207,7 +207,7 @@ module.exports = async function () {
       // THIS process never started it and has no in-process record of it.
       const app = fakeApp('sess-restart', home);
       const seen = await jobTools.job_status.run({ id }, { app });
-      assert.ok(!seen.isError, `a restarted Noema must find it: ${seen.output}`);
+      assert.ok(!seen.isError, `a restarted LAIN must find it: ${seen.output}`);
       assert.strictEqual(seen.meta.supervised, true, 'and the supervisor is the authority for it');
 
       const done = await until(async () => {

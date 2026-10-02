@@ -64,13 +64,13 @@ module.exports = async function () {
     // `click`, not `mouse.click`. The foreign spelling exists in exactly
     // one table and nothing above it ever sees one.
     for (const name of computer.NAMES) {
-      assert.ok(!name.includes('.'), `${name} is a foreign operation name leaking into Noema's vocabulary`);
+      assert.ok(!name.includes('.'), `${name} is a foreign operation name leaking into LAIN's vocabulary`);
     }
     assert.deepStrictEqual(computer.NAMES,
       ['windows', 'focus', 'screenshot', 'ocr', 'move', 'click', 'type', 'key', 'hold']);
   });
 
-  await test('OWNERSHIP: Noema translates to the dialect the transport speaks', async () => {
+  await test('OWNERSHIP: LAIN translates to the dialect the transport speaks', async () => {
     const b = fakeBridge();
     const shot = await computer.perform(b.app, 'screenshot', {});
     assert.strictEqual(shot.stage, cap.STAGE.SUCCEEDED);
@@ -175,14 +175,14 @@ module.exports = async function () {
 
   // -------------------------------------------------------- THE BOUNDARY --
 
-  await test('BOUNDARY: Noema performs no syscall of its own', () => {
+  await test('BOUNDARY: LAIN performs no syscall of its own', () => {
     const fs = require('fs');
     const src = fs.readFileSync(require.resolve('../../src/computer.js'), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/.*$/gm, '$1');
     for (const forbidden of ['SendInput', 'user32', 'child_process', 'spawn', 'ffi']) {
       assert.ok(!src.includes(forbidden),
-        `the syscall belongs to the bridge — Noema owns the operation (${forbidden})`);
+        `the syscall belongs to the bridge — LAIN owns the operation (${forbidden})`);
     }
   });
 

@@ -172,7 +172,7 @@ module.exports = async function () {
 
   // ---------------------------------------------------------------- images --
 
-  await test('IMAGE: Noema never fabricates an ASCII stand-in for a picture', () => {
+  await test('IMAGE: LAIN never fabricates an ASCII stand-in for a picture', () => {
     // The audit found the image was OMITTED, not ASCII-ed — ui/images.js
     // deliberately refuses to approximate. That refusal must stay: an ASCII
     // rendering must never become what a vision model is given.

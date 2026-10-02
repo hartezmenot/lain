@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * WHO MAY WRITE A SESSION — one lease per session, shared by every Noema process on this home (2026-10-02).
+ * WHO MAY WRITE A SESSION — one lease per session, shared by every LAIN process on this home (2026-10-02).
  *
  *   <sessions>/.lease/<id>.json  { v, owner:{pid,nonce,surface,host}|null, epoch, since, beat,
  *                                  pausedBy, at, from, handoff, reservedFor, request }

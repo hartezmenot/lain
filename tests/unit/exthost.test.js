@@ -34,7 +34,7 @@ module.exports = async function () {
   const app = { session };
   const status = () => mgr.status(app).find((x) => x.id === 'lain-test.lain-sample');
 
-  await test('EXTENSION HOST · SURFACE: every API Noema claims to provide exists in the host', () => {
+  await test('EXTENSION HOST · SURFACE: every API LAIN claims to provide exists in the host', () => {
     const { SURFACE } = require('../../src/exthost/surface');
     const host = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'exthost', 'host.js'), 'utf8');
     const absent = [];
@@ -77,9 +77,9 @@ module.exports = async function () {
       const reg = require('../../src/runtimeregistry').list().find((x) => x.pid === st.pid);
       assert.ok(reg && reg.purpose === 'extension-host', 'recorded as an owned extension host');
       assert.ok(await until(() => status().commands.includes('sample.hello')), 'the command registered on activation');
-      const hello = await mgr.executeCommand(app, 'sample.hello', ['Noema']);
+      const hello = await mgr.executeCommand(app, 'sample.hello', ['LAIN']);
       assert.ok(hello.ok && hello.result === 'hello', JSON.stringify(hello));
-      assert.ok(status().messages.some((m) => /Hello from the sample extension, Noema/.test(m.text)));
+      assert.ok(status().messages.some((m) => /Hello from the sample extension, LAIN/.test(m.text)));
       await mgr.document(app, { event: 'open', path: path.join(root, 'a.js'), text: fs.readFileSync(path.join(root, 'a.js'), 'utf8'), languageId: 'javascript', version: 1 });
       const d = await until(() => mgr.diagnostics().find((x) => /TODO left/.test(x.message)));
       assert.ok(d && d.line === 0 && d.severity === 1, JSON.stringify(d));
@@ -124,7 +124,7 @@ module.exports = async function () {
       assert.ok(!r.ok && /BOT does not edit/.test(r.why), JSON.stringify(r));
     });
 
-    await test('EXTENSION HOST: a crash is contained and restarted; Noema keeps running', async () => {
+    await test('EXTENSION HOST: a crash is contained and restarted; LAIN keeps running', async () => {
       const before = status().pid || (await mgr.executeCommand(app, 'sample.hello'), status().pid);
       await mgr.executeCommand(app, 'sample.crash');
       assert.ok(await until(() => status().state === 'CRASHED' || (status().state === 'RUNNING' && status().pid !== before)), 'the crash was noticed');

@@ -93,9 +93,11 @@ function lockFile() { return path.join(config.configDir(), 'core.json'); }
  * account) are genuinely separate instances rather than fighting over one name.
  */
 function controlPipe({ legacy = false } = {}) {
-  const key = require('crypto').createHash('sha256')
-    .update(path.resolve(config.configDir()).toLowerCase()).digest('hex').slice(0, 16);
-  return `\\\\.\\pipe\\${legacy ? 'lain' : 'noema'}-core-${key}`;
+  let dir = path.resolve(config.configDir());
+  // THE NOEMA ERA (2026-09-29 … 10-02) listened as noema-core-<hash of ~/.noema>: the default home before it moved.
+  if (legacy) { const h = require('./home'); if (dir.toLowerCase() === path.resolve(h.canonical()).toLowerCase()) dir = path.resolve(h.legacyHomes()[0]); }
+  const key = require('crypto').createHash('sha256').update(dir.toLowerCase()).digest('hex').slice(0, 16);
+  return `\\\\.\\pipe\\${legacy ? 'noema' : 'lain'}-core-${key}`;
 }
 
 /** Is this process id one we could plausibly still be? Cheap, and advisory. */
@@ -132,8 +134,8 @@ function read() {
  * @returns {Promise<object|null>}
  */
 async function ask(verb, opts = {}) {
-  // A LAIN STILL RUNNING ON THIS HOME (from before the rename) listens under its old name: asked second, only when
-  // no Noema answers the door at all — so a new Noema never starts a second Core beside it.
+  // A NOEMA-ERA CORE STILL RUNNING ON THIS HOME listens under its old name: asked second, only when no LAIN answers
+  // the door at all — so a new LAIN never starts a second Core beside it.
   const r = await askOn(controlPipe(), verb, opts);
   return r.connected ? r.reply : (await askOn(controlPipe({ legacy: true }), verb, opts)).reply;
 }
@@ -245,7 +247,7 @@ async function handle(app, verb, { surface, path: target = null }) {
   if (verb === 'status') {
     let desktop = false;
     try { desktop = require('./desktopwindow').alive(); } catch { desktop = false; }
-    // WHICH NOEMA answers: a launch of another version is told when it and this Core differ (update/compat.js).
+    // WHICH LAIN answers: a launch of another version is told when it and this Core differ (update/compat.js).
     let build = null;
     try { const b = require('./update/updater').build(); build = { version: b.version, protocol: b.protocol }; } catch { build = null; }
     return { ok: true, pid: process.pid, since: announced ? announced.since : 0, surface, desktop, ...(build || {}) };
@@ -273,10 +275,10 @@ async function handle(app, verb, { surface, path: target = null }) {
       return { ok: Boolean(r.ok || r.already), why: r.why || '' };
     } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
   }
-  // THE PREVIEW, asked for by `noema preview` while this Noema runs: the Harness shows its Preview (the IDE's).
+  // THE PREVIEW, asked for by `lain preview` while this LAIN runs: the Harness shows its Preview (the IDE's).
   if (verb === 'preview') {
     try {
-      app._previewWanted = { at: Date.now(), reason: 'noema preview' };
+      app._previewWanted = { at: Date.now(), reason: 'lain preview' };
       const ipc = require('./harnessapp/ipc');
       if (ipc.status().clients > 0) { ipc.navigate({ tab: 'ide', preview: true }); ipc.toHost('show'); return { ok: true, navigated: true }; }
       ipc.queueNavigation({ tab: 'ide', preview: true });
@@ -291,7 +293,7 @@ async function handle(app, verb, { surface, path: target = null }) {
     // sequence exists to prevent.
     app.wantExit = true;
     setTimeout(async () => {
-      try { await require('./teardown').shutdown(app, { why: 'you quit Noema' }); } catch { /* going anyway */ }
+      try { await require('./teardown').shutdown(app, { why: 'you quit LAIN' }); } catch { /* going anyway */ }
       process.exit(0);
     }, 10);
     return { ok: true, quitting: true };

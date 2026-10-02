@@ -244,7 +244,7 @@ function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 40
   const files = changedFiles({ checkpoints, cwd });
   if (!files.length) {
     return [P.head('DIFF'), '', '  Nothing has changed yet.', '',
-      P.meta('  Everything Noema writes is captured here first,'),
+      P.meta('  Everything LAIN writes is captured here first,'),
       P.meta('  so /undo can always put it back.')];
   }
 

@@ -3,7 +3,7 @@
 /**
  * THE NEW SURFACES, THROUGH THE REAL BINARY.
  *
- * Everything here spawns bin/noema.js and asserts on what a person would have
+ * Everything here spawns bin/lain.js and asserts on what a person would have
  * read. A unit test proves a function returns the right lines; only this proves
  * the lines reach a screen — which is exactly the class of defect that let
  * `turn.js` compute a liveness phase for the whole life of the project with
@@ -42,7 +42,7 @@ function probot() {
 module.exports = async function () {
   // ------------------------------------------------- project vs LAIN health --
 
-  await test('PUSH: /health reports THE PROJECT, not Noema runtime state', async () => {
+  await test('PUSH: /health reports THE PROJECT, not LAIN runtime state', async () => {
     const r = await runCli([], { cwd: probot(), stdin: '/health\n/exit\n', script: [] });
     const out = plain(r.out);
     assertIncludes(out, 'PROJECT HEALTH —', 'the report must name the project it read');
@@ -52,10 +52,10 @@ module.exports = async function () {
     assertIncludes(out, 'NEXT ACTION');
     // The thing that made the old /health wrong for this question.
     assert.ok(!/Context window|Isolation \(V2/.test(out),
-      "Noema's own runtime state must not be the answer to 'is my project healthy'");
+      "LAIN's own runtime state must not be the answer to 'is my project healthy'");
   });
 
-  await test('PUSH: /ready reports Noema readiness, and never claims what is missing', async () => {
+  await test('PUSH: /ready reports LAIN readiness, and never claims what is missing', async () => {
     // WAS `/rc` ONCE, before that name meant remote control and the remote-
     // control command itself was removed in 2026-09. The readiness report is the
     // same engine under the name it has now — see reportcommands.js.
@@ -202,7 +202,7 @@ module.exports = async function () {
     // input's placeholder are the landmarks now, and they are the two rows
     // that are always drawn.
     const statusAt = busy.search(/RUNNING\s+sleep 2/i);
-    const inputAt = busy.indexOf('Ask Noema');
+    const inputAt = busy.indexOf('Ask LAIN');
     const headAt = busy.indexOf(headerMark());
     assert.ok(headAt >= 0 && statusAt >= 0 && inputAt >= 0, 'all three regions must be on screen');
     assert.ok(statusAt > headAt, 'the live row is below the header and the conversation');
@@ -367,7 +367,7 @@ module.exports = async function () {
         ],
         timeoutMs: 45000,
       });
-      assert.strictEqual(r.code, 0, `${cols}x${rows}: Noema must survive with colour on`);
+      assert.strictEqual(r.code, 0, `${cols}x${rows}: LAIN must survive with colour on`);
       // `\x1b[K` (erase-to-end-of-line) ends every drawn row now — see ui/
       // layout.js's `L` helper — and carries zero visible width, same as the
       // OSC title sequence already stripped here; T.width does not know it
@@ -395,7 +395,7 @@ module.exports = async function () {
         cwd: probot(), env: tui(cols, rows),
         stdin: 'audit it\n', script: [{ text: 'ok' }], timeoutMs: 30000,
       });
-      assert.strictEqual(r.code, 0, `${cols}x${rows}: Noema must survive`);
+      assert.strictEqual(r.code, 0, `${cols}x${rows}: LAIN must survive`);
       const last = frames(r.out).map(plain).filter(Boolean).pop() || '';
       // The screen is written as absolute cursor moves, so a row wider than the
       // terminal shows up as a drawn line longer than `cols`.
@@ -403,7 +403,7 @@ module.exports = async function () {
       for (const line of last.split(/\x1b\[\d+;\d+H/).slice(1)) {
         assert.ok(line.length <= cols, `${cols}x${rows}: a row was ${line.length} wide — ${JSON.stringify(line.slice(0, 120))}`);
       }
-      assertIncludes(plain(r.out), 'Ask Noema', `${cols}x${rows}: the input must always be identifiable`);
+      assertIncludes(plain(r.out), 'Ask LAIN', `${cols}x${rows}: the input must always be identifiable`);
     }
   });
 };

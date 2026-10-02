@@ -139,7 +139,7 @@ function headline(e) {
     case 'TURN_INTERRUPTED':
       return `a turn did not finish${e.reason ? ` — ${e.reason}` : ''}`;
     case 'INPUT_HELD':
-      return `Noema is holding what you typed${e.reason ? ` — ${e.reason}` : ''}`;
+      return `LAIN is holding what you typed${e.reason ? ` — ${e.reason}` : ''}`;
     case 'HANDOVER_CREATED':
       return `a handover is needed${e.reason ? ` — ${e.reason}` : ''}`;
     case 'MODEL_SWITCHED':
@@ -167,7 +167,7 @@ function headline(e) {
  */
 async function since(seq = 0, { limit = MAX_EVENTS } = {}) {
   const cursor = normalise(seq);
-  // THE JOBS STREAM is the supervisor's (durable jobs outlive Noema); per-session activity lives in each session's
+  // THE JOBS STREAM is the supervisor's (durable jobs outlive LAIN); per-session activity lives in each session's
   // journal (sessionjournal.js) and is read there. No supervisor running ⇒ no durable jobs to report.
   let running = false;
   try { running = Boolean(supervisor.probe().running); } catch { running = false; }

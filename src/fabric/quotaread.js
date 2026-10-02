@@ -3,7 +3,7 @@
 /**
  * PROVIDER QUOTA, READ — never inferred, never paid for (2026-09-29).
  *
- *   Claude   asked of Claude Code itself (drivers/claudecontrol.js, `get_usage`) — Noema reads no Claude token
+ *   Claude   asked of Claude Code itself (drivers/claudecontrol.js, `get_usage`) — LAIN reads no Claude token
  *   Z.ai     GET <origin>/api/monitor/usage/quota/limit
  *            the API key LAIN holds for the Z.ai API source
  *   Codex    `account/rateLimits/read` through the account's own app-server —

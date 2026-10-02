@@ -147,15 +147,15 @@ function pidAlive(pid) {
 
 /** The one sentence a lost call's result says, by inspecting reality. */
 function classify(session, t) {
-  if (!t) return { state: 'NOT_STARTED', text: 'Noema was closed before this call started. It did not run.' };
+  if (!t) return { state: 'NOT_STARTED', text: 'LAIN was closed before this call started. It did not run.' };
   if (t.kind === 'FILE' && t.pre) {
     const changed = Object.entries(t.pre).filter(([abs, h]) => hashOf(abs) !== h).map(([abs]) => path.relative(session.cwd || '', abs) || abs);
-    if (changed.length) return { state: 'COMPLETED', text: `Noema was force-closed while this call ran. Inspected after restart: ${changed.join(', ')} CHANGED — the write landed. Re-read the file before editing it again.` };
-    return { state: 'NOT_APPLIED', text: 'Noema was force-closed while this call ran. Inspected after restart: the target is UNCHANGED — the write did not land. Safe to redo it.' };
+    if (changed.length) return { state: 'COMPLETED', text: `LAIN was force-closed while this call ran. Inspected after restart: ${changed.join(', ')} CHANGED — the write landed. Re-read the file before editing it again.` };
+    return { state: 'NOT_APPLIED', text: 'LAIN was force-closed while this call ran. Inspected after restart: the target is UNCHANGED — the write did not land. Safe to redo it.' };
   }
-  if (t.kind === 'COMMAND') return { state: 'UNKNOWN', text: 'Noema was force-closed while this command ran. It may have run partly or fully; its output was lost. It was NOT re-run — check its effect before running it again.' };
-  if (t.kind === 'CHECK') return { state: 'UNKNOWN', text: 'Noema was force-closed while this check ran; no result was recorded. Re-run it if the result is still needed.' };
-  return { state: 'NOT_COMPLETED', text: 'Noema was force-closed before this read returned. Nothing changed; repeat it if still needed.' };
+  if (t.kind === 'COMMAND') return { state: 'UNKNOWN', text: 'LAIN was force-closed while this command ran. It may have run partly or fully; its output was lost. It was NOT re-run — check its effect before running it again.' };
+  if (t.kind === 'CHECK') return { state: 'UNKNOWN', text: 'LAIN was force-closed while this check ran; no result was recorded. Re-run it if the result is still needed.' };
+  return { state: 'NOT_COMPLETED', text: 'LAIN was force-closed before this read returned. Nothing changed; repeat it if still needed.' };
 }
 
 /**
@@ -265,8 +265,8 @@ function recoverJobs(session) {
 function jobRows(session) {
   const list = session && Array.isArray(session.bgJobs) ? session.bgJobs : [];
   return list.filter((j) => j.state === 'ORPHANED' || j.state === 'LOST').map((j) => (j.state === 'ORPHANED'
-    ? `- ${j.command} — STILL RUNNING as pid ${j.pid} from the closed Noema (not adopted; output not captured). Do not start it again; stop it or reuse what it serves.`
-    : `- ${j.command} — ended while Noema was closed; its result was not captured. Re-run it only if the result is needed.`));
+    ? `- ${j.command} — STILL RUNNING as pid ${j.pid} from the closed LAIN (not adopted; output not captured). Do not start it again; stop it or reuse what it serves.`
+    : `- ${j.command} — ended while LAIN was closed; its result was not captured. Re-run it only if the result is needed.`));
 }
 
 module.exports = {

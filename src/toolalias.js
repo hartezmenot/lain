@@ -64,7 +64,7 @@ function resolve(name, input, has) {
   if (!alias) return null;
   const t = alias(input || {});
   if (!has(t.name)) return null;
-  return { name: t.name, input: t.input, from: raw, note: `NOTE: "${raw}" is not a Noema tool — ran ${t.what} instead. Call ${t.name} directly.` };
+  return { name: t.name, input: t.input, from: raw, note: `NOTE: "${raw}" is not a LAIN tool — ran ${t.what} instead. Call ${t.name} directly.` };
 }
 
 module.exports = { resolve, NAMESPACE, ALIASES };

@@ -76,7 +76,7 @@ function register({ define, C }) {
     surface: true,
     flashMs: 0,
     args: '[yes | read-only | no | list | ask | auto | deny]',
-    desc: 'What Noema may read, write and run in this directory',
+    desc: 'What LAIN may read, write and run in this directory',
     async run(app, { args }) {
       const w = (s) => app.render.write(s);
       const dir = app.session.cwd;
@@ -85,7 +85,7 @@ function register({ define, C }) {
       if (sub === 'yes' || sub === 'trust') {
         app.cfg.trustedPaths = trust.remember(app.cfg, dir, trust.LEVEL.TRUSTED);
         config.save(app.cfg);
-        w('  ' + C.green('✓ trusted') + C.dim(` — Noema may read, write and run in ${path.basename(dir)}\n`));
+        w('  ' + C.green('✓ trusted') + C.dim(` — LAIN may read, write and run in ${path.basename(dir)}\n`));
         return;
       }
       if (sub === 'read-only' || sub === 'readonly' || sub === 'ro') {
@@ -140,7 +140,7 @@ function register({ define, C }) {
     surface: true,
     flashMs: 0,
     args: '[mode ask|auto|deny | allow <n> | clear]',
-    desc: 'How Noema asks before touching things, and what it was refused',
+    desc: 'How LAIN asks before touching things, and what it was refused',
     async run(app, { args }) {
       const w = (s) => app.render.write(s);
       const list = rejected.all(app);

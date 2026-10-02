@@ -84,7 +84,7 @@ function openServer(app, { cwd = process.cwd(), signal = null, spawnFn } = {}) {
       const line = buf.slice(0, k).trim(); buf = buf.slice(k + 1);
       if (!line) continue;
       let j; try { j = JSON.parse(line); } catch { continue; }
-      if (j.id != null && j.method) { child.stdin.write(`${JSON.stringify({ id: j.id, error: { code: -32601, message: 'not supported by Noema' } })}\n`); continue; }
+      if (j.id != null && j.method) { child.stdin.write(`${JSON.stringify({ id: j.id, error: { code: -32601, message: 'not supported by LAIN' } })}\n`); continue; }
       if (j.id != null && pending.has(j.id)) { const p = pending.get(j.id); pending.delete(j.id); if (j.error) { const e = new Error(j.error.message || 'ZCode error'); e.code = j.error.code; p.reject(e); } else p.resolve(j.result); continue; }
       if (j.method) for (const l of listeners) l(j);
     }
@@ -199,14 +199,14 @@ async function telemetry(app, { prev = null, cwd = null } = {}) {
   } finally { srv.close(); }
 }
 
-const START_PLAN_WHY = 'ZCode serves Start Plan models only inside the ZCode app — its desktop host supplies the sign-in for each request. Noema does not take that role (it would need ZCode\'s OAuth tokens).';
+const START_PLAN_WHY = 'ZCode serves Start Plan models only inside the ZCode app — its desktop host supplies the sign-in for each request. LAIN does not take that role (it would need ZCode\'s OAuth tokens).';
 function execution(app, tele) {
   if (!install(app)) return { chat: { ok: false, why: 'not installed' }, agent: { ok: false, why: 'not installed' }, startPlan: { ok: false, why: 'not installed' } };
   const listed = tele && Array.isArray(tele.models) ? tele.models.length : 0;
   const plan = { ok: false, why: START_PLAN_WHY };
   return {
     chat: listed ? { ok: true, how: 'workspace/generateText through the ZCode runtime' } : { ok: false, why: 'the ZCode runtime lists no model it can serve by itself' },
-    agent: { ok: false, why: 'Agent work through ZCode is not wired in Noema yet (its session/send protocol is available; not verified)' },
+    agent: { ok: false, why: 'Agent work through ZCode is not wired in LAIN yet (its session/send protocol is available; not verified)' },
     startPlan: plan,
   };
 }

@@ -48,7 +48,7 @@ module.exports = async function () {
       { text: 'Done.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: '/goal\r' }, { snap: 'capture', settle: 700 },
       { send: `${E}[200~${PASTE}${E}[201~` }, { wait: 400 },
       { send: '\r' },
@@ -78,7 +78,7 @@ module.exports = async function () {
   const g2 = await tty.runTty({
     cols: 110, rows: 32, args: ['--resume', sid], configDir: g1.configDir, cwd: g1.cwd,
     steps: [
-      { until: 'Ask Noema', timeout: 30000 }, { snap: 'resumed', settle: 1200 },
+      { until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 1200 },
       { send: '/goal show\r' }, { snap: 'goal', settle: 1200 },
     ],
   });
@@ -92,10 +92,10 @@ module.exports = async function () {
     assert.strictEqual(s.inflight, null, 'repaired and saved');
     const lost = s.messages.find((m) => m.role === 'tool' && /\[RECOVERED · UNKNOWN\]/.test(String(m.content)));
     assert.ok(lost, 'the killed command is answered UNKNOWN');
-    // The recovered turn is the CRASHED one; a fresh crash may be followed by Noema's own auto-resume turn.
+    // The recovered turn is the CRASHED one; a fresh crash may be followed by LAIN's own auto-resume turn.
     const last = s.turns.filter((t) => t.stopReason === 'crashed').pop();
     assert.ok(last, 'the cut-off turn is kept as crashed');
-    assert.ok(s.turns.slice(s.turns.indexOf(last) + 1).every((t) => t.from === 'auto-resume'), 'anything after it is Noema\'s own resume, never a replay the person typed');
+    assert.ok(s.turns.slice(s.turns.indexOf(last) + 1).every((t) => t.from === 'auto-resume'), 'anything after it is LAIN\'s own resume, never a replay the person typed');
     assert.ok(last.actions.some((a) => a.name === 'write_file' && a.ok), 'the completed write is part of the recovered turn');
   });
 
@@ -109,7 +109,7 @@ module.exports = async function () {
       { text: 'Wrote the table.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: 'generate the table\r' },
       { until: 'Writing', timeout: 20000 }, { snap: 'streaming', settle: 600 },
       { until: 'Preparing tool', timeout: 30000 }, { snap: 'preparing', settle: 1500 },
@@ -157,7 +157,7 @@ module.exports = async function () {
         { text: `Done ${tag}.` },
       ],
       steps: [
-        { until: 'Ask Noema', timeout: 30000 }, { snap: 'idle', settle: 500 },
+        { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
         { send: 'change v5\r' },
         { until: 'Writing', timeout: 20000 }, { snap: 'stream', settle: 300 },
         { until: `Done ${tag}`, timeout: 30000 }, { snap: 'done', settle: 2000 },
@@ -178,7 +178,7 @@ module.exports = async function () {
   });
   await test('CLI U2: the palette — blue composer edge, violet model activity, teal added row; heads not the old cyan', () => {
     const idle = wide.byName.idle;
-    const y = idle.text.findIndex((t) => /▌\s*Ask (?:LAIN|Noema)/.test(t));
+    const y = idle.text.findIndex((t) => /▌\s*Ask (?:LAIN|LAIN)/.test(t));
     assert.ok(y >= 0, `the composer carries its edge:\n${vis(idle)}`);
     assert.ok(hexOf(idle, y, /4da3ff/i), `blue edge: ${JSON.stringify(idle.fg[y])}`);
     const st = wide.byName.stream;
@@ -200,7 +200,7 @@ module.exports = async function () {
       { text: 'Done footer.', delayMs: 2000 },   // the shell now returns in ~20 ms: keep the turn running long enough to see its footer
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 }, { snap: 'idle', settle: 500 },
+      { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
       { send: 'list them\r' },
       { until: 'Writing', timeout: 20000 }, { snap: 'busy', settle: 300 },
       { until: 'Done footer', timeout: 30000 }, { snap: 'done', settle: 1500 },
@@ -220,7 +220,7 @@ module.exports = async function () {
   // ---- P — profile toggles ------------------------------------------------------
   const seq = ['/fast', '/fast', '/eco', '/eco', '/fast', '/eco', '/normal'];
   const want = ['FAST', null, 'ECO', null, 'FAST', 'ECO', null];
-  const steps = [{ until: 'Ask Noema', timeout: 30000 }];
+  const steps = [{ until: 'Ask LAIN', timeout: 30000 }];
   // Each command's receipt names the profile it set; wait for it before the snap
   // (a fixed settle raced the first repaint under a loaded full tier).
   const receipt = ['FAST', 'NORMAL', 'ECO', 'NORMAL', 'FAST', 'ECO', 'NORMAL'];

@@ -44,7 +44,7 @@ module.exports = async function () {
       assert.strictEqual(reg.list({ owner: 'harness-test:unit-owner-A' }).length, 0);
     });
 
-    await test('RUNTIME: a reused pid is not the process Noema started — never stopped', async () => {
+    await test('RUNTIME: a reused pid is not the process LAIN started — never stopped', async () => {
       const other = extra[0];
       // A record naming a LIVE unrelated pid with a different start identity:
       // exactly what pid reuse looks like.
@@ -93,7 +93,7 @@ module.exports = async function () {
     });
 
     await test('RUNTIME: tests never use the real registry', () => {
-      const real = process.platform === 'win32' ? path.join(process.env.LOCALAPPDATA || '', 'Noema', 'runtime') : null;
+      const real = process.platform === 'win32' ? path.join(process.env.LOCALAPPDATA || '', 'LAIN', 'runtime') : null;
       assert.notStrictEqual(path.resolve(saved.dir || ''), path.resolve(real || '/nonexistent'), 'the runner set a test registry');
       assert.ok(saved.owner && saved.owner.startsWith('harness-test:'), `the run has a test owner: ${saved.owner}`);
     });

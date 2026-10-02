@@ -1,24 +1,32 @@
-// NOEMA SETUP — the installer, the maintenance program (modify / repair) and the uninstaller, as one program.
+// LAIN SETUP — the installer, the maintenance program (modify / repair) and the uninstaller, as one program.
 // ---------------------------------------------------------------------------
-// WHY C# COMPILED BY csc.exe. Noema builds with `node` and the csc.exe that is part of Windows: no installer
+// WHY C# COMPILED BY csc.exe. LAIN builds with `node` and the csc.exe that is part of Windows: no installer
 // framework is a prerequisite of the product. The payload rides inside this file as an embedded resource.
 // ---------------------------------------------------------------------------
 // WHAT GOES WHERE (per user, no administrator):
-//   %LOCALAPPDATA%\Programs\Noema\                     the PROGRAM
-//       noema.exe                console launcher (CLI) — distribution/launcher.cs
-//       noemaw.exe               the same launcher without a console (Model Dashboard, Preview, Open With)
-//       Noema Harness.exe        the Harness launcher            [Noema Harness component]
-//       Uninstall Noema.exe      this program, for maintenance
-//       lain.cmd                 the deprecated `lain` command: a shim onto noema.exe (no LAIN executable ships)
+//   %LOCALAPPDATA%\Programs\LAIN\                     the PROGRAM
+//       lain.exe                console launcher (CLI) — distribution/launcher.cs
+//       lainw.exe               the same launcher without a console (Model Dashboard, Preview, Open With)
+//       LAIN Harness.exe        the Harness launcher            [LAIN Harness component]
+//       Uninstall LAIN.exe      this program, for maintenance
+//       noema.cmd               the compatibility `noema` command: a shim onto lain.exe (LAIN_VIA=noema)
 //       versions\<v>\runtime\    Node.js (official build, SHA-256 verified at release build) + its licence
-//       versions\<v>\app\        Noema
+//       versions\<v>\app\        LAIN
 //       current / previous       which version runs / the last known-good one (updates switch these)
 //       components.json          what is installed
-//   %USERPROFILE%\.noema\                               the person's DATA (never touched by uninstall unless asked)
+//   %USERPROFILE%\.lain\                               the person's DATA (never touched by uninstall unless asked)
 //   Windows DPAPI                                       credentials (referenced from the data directory)
 // ---------------------------------------------------------------------------
-// COMPONENTS: Noema CLI (Core, CLI, Model Dashboard, Preview window) is the base and always installed.
-// Noema Harness is optional and can be added later (--add-harness / Modify) without touching Core state.
+// COMPONENTS: LAIN CLI (Core, CLI, Model Dashboard, Preview window) is the base and always installed.
+// LAIN Harness is optional and can be added later (--add-harness / Modify) without touching Core state.
+// ---------------------------------------------------------------------------
+// THE RENAME BACK TO LAIN (2026-10-02). Two older things share names with this one and are told apart by LAYOUT:
+//   * the OBSOLETE pre-cleanup LAIN (LAIN.exe without versions\ or components.json, C:\Program Files\LAIN, the
+//     Installed-apps key "LAIN", Start Menu\LAIN.lnk) — its executables are replaced, never kept or restored; its
+//     entries are retired by `lain legacy cleanup` (src/legacycleanup.js). This install's key is "LAIN.Install".
+//   * a NOEMA-ERA install (%LOCALAPPDATA%\Programs\Noema, key "Noema") — upgraded: its choices carry over, then its
+//     program folder, Start Menu folder, PATH entry and key are retired (Retire.Noema). Data is never touched here;
+//     the first `lain` run moves ~/.noema to ~/.lain and leaves a junction (src/home.js).
 
 using System;
 using System.Collections.Generic;
@@ -31,9 +39,11 @@ using System.Windows.Forms;
 using Microsoft.Win32;
 
 static class Setup {
-  public const string PRODUCT = "Noema";
-  public const string PUBLISHER = "Noema";
-  public const string REG_KEY = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Noema";
+  public const string PRODUCT = "LAIN";
+  public const string PUBLISHER = "LAIN";
+  // NOT "…\Uninstall\LAIN": that key is the obsolete pre-cleanup LAIN's, and legacy cleanup removes it.
+  public const string REG_KEY = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LAIN.Install";
+  public const string NOEMA_KEY = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Noema";
 
   public class Options {
     public string Dir; public bool Silent; public bool Harness; public bool Path = true; public bool OpenWith = true; public bool Folder = true;
@@ -61,7 +71,7 @@ static class Setup {
       else if (a == "--repair") o.Repair = true;
       else if (a == "--add-harness") o.AddHarness = true;
       else if (a == "--remove-harness") o.RemoveHarness = true;
-      else if (a == "--version") { Console.WriteLine("Noema Setup " + PayloadInfo.Version()); return 0; }
+      else if (a == "--version") { Console.WriteLine("LAIN Setup " + PayloadInfo.Version()); return 0; }
     }
     Application.EnableVisualStyles();
     string installed = InstalledAt();
@@ -71,8 +81,10 @@ static class Setup {
     if (o.AddHarness || o.RemoveHarness) return Installer.SetHarness(o, o.AddHarness, console);
     if (o.Silent) {
       // A REINSTALL, REPAIR OR UPGRADE OF THIS FOLDER keeps what was chosen before unless told otherwise.
-      if (File.Exists(Path.Combine(o.Dir, "components.json"))) {
-        var prior = Components.Read(o.Dir);
+      // …and an UPGRADE FROM NOEMA keeps what was chosen for the Noema install.
+      string from = File.Exists(Path.Combine(o.Dir, "components.json")) ? o.Dir : (installed == null ? Setup.NoemaAt() : null);
+      if (from != null) {
+        var prior = Components.Read(from);
         if (o.HarnessExplicit == null) o.Harness = prior.Harness;
         if (!o.IntegrationExplicit) { o.Path = prior.Path; o.OpenWith = prior.OpenWith; o.Folder = prior.Folder; o.StartMenu = prior.StartMenu; }
         if (!prior.Registered) o.NoRegister = true;
@@ -90,15 +102,32 @@ static class Setup {
   public static string InstalledAt() {
     try {
       using (RegistryKey k = Registry.CurrentUser.OpenSubKey(REG_KEY)) {
-        if (k != null) { string p = k.GetValue("InstallLocation") as string; if (!string.IsNullOrEmpty(p) && File.Exists(Path.Combine(p, "noema.exe"))) return p; }
+        if (k != null) { string p = k.GetValue("InstallLocation") as string; if (!string.IsNullOrEmpty(p) && File.Exists(Path.Combine(p, "lain.exe"))) return p; }
       }
     } catch { }
     return null;
   }
 
+  /// A Noema-era install of this user (its program folder), or null.
+  public static string NoemaAt() {
+    try {
+      using (RegistryKey k = Registry.CurrentUser.OpenSubKey(NOEMA_KEY)) {
+        if (k != null) { string p = k.GetValue("InstallLocation") as string; if (!string.IsNullOrEmpty(p) && File.Exists(Path.Combine(p, "noema.exe"))) return p; }
+      }
+    } catch { }
+    string d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Noema");
+    return File.Exists(Path.Combine(d, "noema.exe")) && File.Exists(Path.Combine(d, "components.json")) ? d : null;
+  }
+
+  /// The data directory: an override, else ~/.lain — or, before the first `lain` run has moved it, ~/.noema.
   public static string DataDir() {
-    string o = Environment.GetEnvironmentVariable("NOEMA_CONFIG_DIR") ?? Environment.GetEnvironmentVariable("NOEMA_HOME");
-    return string.IsNullOrEmpty(o) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema") : o;
+    string o = Environment.GetEnvironmentVariable("LAIN_CONFIG_DIR") ?? Environment.GetEnvironmentVariable("LAIN_HOME")
+      ?? Environment.GetEnvironmentVariable("NOEMA_CONFIG_DIR") ?? Environment.GetEnvironmentVariable("NOEMA_HOME");
+    if (!string.IsNullOrEmpty(o)) return o;
+    string up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    string lain = Path.Combine(up, ".lain"), noema = Path.Combine(up, ".noema");
+    if (!Directory.Exists(lain) && Directory.Exists(noema) && (new DirectoryInfo(noema).Attributes & FileAttributes.ReparsePoint) == 0) return noema;
+    return lain;
   }
 }
 
@@ -147,13 +176,18 @@ static class Installer {
     log = log ?? (s => { });
     string dir = o.Dir;
     string version = PayloadInfo.Version();
-    log("Noema " + version + " (" + PayloadInfo.Channel() + ") → " + dir);
+    log("LAIN " + version + " (" + PayloadInfo.Channel() + ") → " + dir);
 
     // 1. WEBVIEW2 — the Model Dashboard, the Preview window and the Harness draw with it. Part of Windows 11.
     if (!Prereq.WebView2(log)) return 2;
 
-    // 2. A RUNNING NOEMA (or LAIN) GOES DOWN ITS OWN WAY before any file it uses could change.
+    // 2. A RUNNING LAIN (or a Noema-era one being upgraded) GOES DOWN ITS OWN WAY before any file it uses could change.
     Live.ShutDown(dir, log);
+    string noema = Setup.NoemaAt();
+    if (noema != null && !SameDir(noema, dir)) Live.ShutDown(noema, log);
+    // THE OBSOLETE PRE-CLEANUP LAIN in this folder (its LAIN.exe, no versions\ / components.json) is replaced, not kept.
+    bool obsolete = File.Exists(Path.Combine(dir, "lain.exe")) && !File.Exists(Path.Combine(dir, "components.json")) && !Directory.Exists(Path.Combine(dir, "versions"));
+    if (obsolete) log("  replacing the obsolete pre-cleanup LAIN executables in " + dir);
 
     // 3. THE VERSION, SIDE BY SIDE. An upgrade adds a directory; the running files of the old one are never touched.
     string vdir = Path.Combine(dir, "versions", version);
@@ -161,16 +195,16 @@ static class Installer {
     try {
       Directory.CreateDirectory(dir);
       if (Directory.Exists(vdir) && (o.Repair || previous != version)) { try { Directory.Delete(vdir, true); } catch (Exception e) { log("  (could not clear " + vdir + ": " + e.Message + ")"); } }
-      if (!File.Exists(Path.Combine(vdir, "app", "bin", "noema.js"))) {
+      if (!File.Exists(Path.Combine(vdir, "app", "bin", "lain.js"))) {
         using (Stream z = Assembly.GetExecutingAssembly().GetManifestResourceStream("payload.zip")) {
           if (z == null) { log("This installer has no payload."); return 4; }
-          string tmp = Path.Combine(Path.GetTempPath(), "noema-payload-" + Guid.NewGuid().ToString("N") + ".zip");
+          string tmp = Path.Combine(Path.GetTempPath(), "lain-payload-" + Guid.NewGuid().ToString("N") + ".zip");
           using (FileStream f = File.Create(tmp)) z.CopyTo(f);
           try { Zip.Extract(tmp, dir); } finally { try { File.Delete(tmp); } catch { } }
         }
       }
     } catch (Exception e) { log("Could not install the files: " + e.Message); return 5; }
-    if (!File.Exists(Path.Combine(vdir, "runtime", "node.exe")) || !File.Exists(Path.Combine(vdir, "app", "bin", "noema.js"))) { log("The payload is incomplete (" + vdir + ")."); return 5; }
+    if (!File.Exists(Path.Combine(vdir, "runtime", "node.exe")) || !File.Exists(Path.Combine(vdir, "app", "bin", "lain.js"))) { log("The payload is incomplete (" + vdir + ")."); return 5; }
 
     // 4. THE POINTERS: previous keeps the last known-good version for rollback.
     if (previous != null && previous != version && Directory.Exists(Path.Combine(dir, "versions", previous))) Pointer.Write(dir, "previous", previous);
@@ -178,15 +212,17 @@ static class Installer {
     try { File.Delete(Path.Combine(dir, "pending")); } catch { }
 
     // 5. LAUNCHERS (shipped in the payload root) and the uninstaller.
-    if (!o.Harness) { try { File.Delete(Path.Combine(dir, "Noema Harness.exe")); } catch { } }
-    // LAIN'S EXECUTABLES NEVER SHIP, and an upgrade over a folder that still has one takes it away. `lain` stays a
-    // COMMAND for one transition period: a shim onto the same noema.exe — same Core, same home, same pipe.
-    foreach (string old in new[] { "lain.exe", "lainw.exe", "lain-supervisor.exe" }) {
+    if (!o.Harness) { try { File.Delete(Path.Combine(dir, "LAIN Harness.exe")); } catch { } }
+    // lain.exe / lainw.exe came from THIS payload (Zip.Extract overwrote any obsolete ones). What no current build
+    // ships goes: the obsolete supervisor beside the launchers, and — over a folder that held Noema — its launchers
+    // and its `lain.cmd` shim (which pointed at noema.exe). `noema` stays a COMMAND: a shim onto the same lain.exe —
+    // same Core, same home, same pipe.
+    foreach (string old in new[] { "lain-supervisor.exe", "noema.exe", "noemaw.exe", "Noema Harness.exe", "Uninstall Noema.exe", "lain.cmd" }) {
       string p = Path.Combine(dir, old);
-      if (File.Exists(p)) { try { File.Delete(p); log("  removed the obsolete " + old); } catch (Exception e) { log("  (could not remove " + old + ": " + e.Message + ")"); } }
+      if (File.Exists(p)) { try { File.Delete(p); log("  removed the obsolete " + old); } catch (Exception e) { try { File.Move(p, p + ".delete-me"); } catch { log("  (could not remove " + old + ": " + e.Message + ")"); } } }
     }
-    try { File.WriteAllText(Path.Combine(dir, "lain.cmd"), LainShim); } catch (Exception e) { log("  (the lain command was not written: " + e.Message + ")"); }
-    try { File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(dir, "Uninstall Noema.exe"), true); } catch (Exception e) { log("  (no maintenance program was written: " + e.Message + ")"); }
+    try { File.WriteAllText(Path.Combine(dir, "noema.cmd"), NoemaShim); } catch (Exception e) { log("  (the noema command was not written: " + e.Message + ")"); }
+    try { File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(dir, "Uninstall LAIN.exe"), true); } catch (Exception e) { log("  (no maintenance program was written: " + e.Message + ")"); }
     var prior = Components.Read(dir);
     var c = new Components { Harness = o.Harness, Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Registered = !o.NoRegister || prior.Registered };
     c.Write(dir);
@@ -198,62 +234,67 @@ static class Installer {
     if (c.Registered) Register(dir, version, c, log);
 
     // 8. VERIFIED, NOT ASSUMED: the installed CLI must answer.
-    string said = Run(Path.Combine(dir, "noema.exe"), "--version", dir);
-    bool ok = said != null && said.Contains("Noema") && said.Contains(version);
+    string said = Run(Path.Combine(dir, "lain.exe"), "--version", dir);
+    bool ok = said != null && said.Contains("LAIN") && said.Contains(version);
     log(ok ? "Verified: " + said.Trim() : "The installed CLI did not answer as expected: " + (said ?? "no output"));
     if (!ok) return 6;
+    // 9. A NOEMA-ERA INSTALL IS RETIRED only now, with LAIN verified in its place.
+    if (noema != null && !SameDir(noema, dir) && c.Registered) Retire.Noema(noema, log);
     log("");
-    log("Noema " + version + " is installed" + (o.Harness ? " with Noema Harness" : " (CLI — Noema Harness can be added later)") + ".");
-    log("  noema                       the CLI" + (o.Path ? " (open a NEW terminal)" : " — " + Path.Combine(dir, "noema.exe")));
-    if (o.Harness) log("  Start > Noema Harness       the desktop environment");
+    log("LAIN " + version + " is installed" + (o.Harness ? " with LAIN Harness" : " (CLI — LAIN Harness can be added later)") + ".");
+    log("  lain                       the CLI" + (o.Path ? " (open a NEW terminal)" : " — " + Path.Combine(dir, "lain.exe")));
+    if (o.Harness) log("  Start > LAIN Harness       the desktop environment");
     return 0;
   }
 
-  /// THE `lain` SHIM. setlocal keeps the mark out of the calling console; boot.js prints the rename notice once.
-  const string LainShim = "@echo off\r\nsetlocal\r\nset \"NOEMA_VIA=lain\"\r\n\"%~dp0noema.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n";
+  /// THE `noema` SHIM. setlocal keeps the mark out of the calling console; boot.js prints the rename notice once.
+  const string NoemaShim = "@echo off\r\nsetlocal\r\nset \"LAIN_VIA=noema\"\r\n\"%~dp0lain.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n";
+
+  public static bool SameDir(string a, string b) { try { return string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase); } catch { return false; } }
 
   /// ADD OR REMOVE THE HARNESS without reinstalling Core or touching the person's data.
   public static int SetHarness(Setup.Options o, bool on, Action<string> log) {
     string dir = o.Dir;
-    if (!File.Exists(Path.Combine(dir, "noema.exe"))) { log("Noema is not installed at " + dir); return 3; }
+    if (!File.Exists(Path.Combine(dir, "lain.exe"))) { log("LAIN is not installed at " + dir); return 3; }
     var c = Components.Read(dir);
     var prior = Components.Read(dir);
     c.Harness = on;
-    string src = Path.Combine(dir, "versions", Pointer.Read(dir, "current") ?? "", "app", "distribution", "Noema Harness.exe");
+    string src = Path.Combine(dir, "versions", Pointer.Read(dir, "current") ?? "", "app", "distribution", "LAIN Harness.exe");
     if (on) {
-      try { File.Copy(src, Path.Combine(dir, "Noema Harness.exe"), true); } catch (Exception e) { log("Could not add Noema Harness: " + e.Message); return 5; }
+      try { File.Copy(src, Path.Combine(dir, "LAIN Harness.exe"), true); } catch (Exception e) { log("Could not add LAIN Harness: " + e.Message); return 5; }
     } else {
       Live.ShutDown(dir, log);
-      try { File.Delete(Path.Combine(dir, "Noema Harness.exe")); } catch { }
+      try { File.Delete(Path.Combine(dir, "LAIN Harness.exe")); } catch { }
     }
     c.Write(dir);
     Integrate(dir, c, prior, log);
     if (c.Registered) Register(dir, Pointer.Read(dir, "current"), c, log);
-    log(on ? "Noema Harness added. Your sessions, accounts and settings are the same ones the CLI uses." : "Noema Harness removed. The CLI and your data are unchanged.");
+    log(on ? "LAIN Harness added. Your sessions, accounts and settings are the same ones the CLI uses." : "LAIN Harness removed. The CLI and your data are unchanged.");
     return 0;
   }
 
   /// `prior` is what the last install of THIS folder added: only that is taken back before `c` is applied, so an
-  /// install without Open With / Start Menu never touches another program's (or LAIN's) entries.
+  /// install without Open With / Start Menu never touches another program's (or an older LAIN's) entries.
   public static void Integrate(string dir, Components c, Components prior, Action<string> log) {
-    string cli = Path.Combine(dir, "noema.exe"), gui = Path.Combine(dir, "noemaw.exe"), harness = Path.Combine(dir, "Noema Harness.exe");
-    // Open With / Open folder: the Harness when installed; otherwise a Noema CLI in that folder.
+    string cli = Path.Combine(dir, "lain.exe"), gui = Path.Combine(dir, "lainw.exe"), harness = Path.Combine(dir, "LAIN Harness.exe");
+    // Open With / Open folder: the Harness when installed; otherwise a LAIN CLI in that folder.
     string opener = c.Harness && File.Exists(harness) ? harness : gui;
     if ((prior.OpenWith || prior.Folder) && !(c.OpenWith || c.Folder)) Assoc.Remove(dir, s => { });
-    // Registering REPLACES the previous registration (winassoc.js removes Noema's and LAIN's old entries first).
+    // Registering REPLACES the previous registration (winassoc.js removes the obsolete LAIN's and Noema's entries first).
     if (c.OpenWith || c.Folder) Assoc.Add(dir, opener, c.OpenWith, c.Folder, log);
     if (c.Path) PathEntry.Add(dir, log); else PathEntry.Remove(dir, s => { });
     if (prior.StartMenu || c.StartMenu) Shortcuts.RemoveAll(s => { });
     if (c.StartMenu) {
-      Shortcuts.Write("Noema CLI", cli, "", "The Noema command line", log);
-      Shortcuts.Write("Noema Model Dashboard", gui, "dashboard", "Accounts, models, API keys and local models", log);
-      if (c.Harness && File.Exists(harness)) Shortcuts.Write("Noema Harness", harness, "", "The Noema desktop environment", log);
-      Shortcuts.Write("Uninstall Noema", Path.Combine(dir, "Uninstall Noema.exe"), "--uninstall", "Remove Noema (your data is kept unless you choose otherwise)", log);
+      Shortcuts.Write("LAIN CLI", cli, "", "The LAIN command line", log);
+      Shortcuts.Write("LAIN Model Dashboard", gui, "dashboard", "Accounts, models, API keys and local models", log);
+      if (c.Harness && File.Exists(harness)) Shortcuts.Write("LAIN Harness", harness, "", "The LAIN desktop environment", log);
+      Shortcuts.Write("Uninstall LAIN", Path.Combine(dir, "Uninstall LAIN.exe"), "--uninstall", "Remove LAIN (your data is kept unless you choose otherwise)", log);
     }
     // START AT SIGN-IN made to match the person's setting — added with the Harness, gone without it, never opted in.
     // `--owned`: setup only ever takes away an entry that points into THIS folder.
     Assoc.Node(dir, "settings startup sync --owned" + (c.Registered ? "" : " --no-legacy"), log);
-    // LAIN'S LEFTOVERS (its Startup choice carried over, old LAIN.exe builds, Start Menu, entry) are the machine's, so
+    // THE OBSOLETE LAIN'S LEFTOVERS (its Startup choice carried over, old LAIN.exe builds, Start Menu\\LAIN.lnk, the
+    // "LAIN" key) are the machine's, so
     // only the registered install takes them over — an unregistered one is portable or a test.
     if (c.Registered) Assoc.Node(dir, "legacy cleanup --exe \"" + opener + "\"" + (c.OpenWith || c.Folder ? "" : " --no-open-with"), log);
   }
@@ -261,18 +302,19 @@ static class Installer {
   static void Register(string dir, string version, Components c, Action<string> log) {
     try {
       using (RegistryKey k = Registry.CurrentUser.CreateSubKey(Setup.REG_KEY)) {
-        string maint = Path.Combine(dir, "Uninstall Noema.exe");
-        k.SetValue("DisplayName", c.Harness ? "Noema (CLI + Harness)" : "Noema (CLI)");
+        string maint = Path.Combine(dir, "Uninstall LAIN.exe");
+        k.SetValue("DisplayName", c.Harness ? "LAIN (CLI + Harness)" : "LAIN (CLI)");
         k.SetValue("DisplayVersion", version ?? "0");
         k.SetValue("Publisher", Setup.PUBLISHER);
         k.SetValue("InstallLocation", dir);
-        k.SetValue("DisplayIcon", Path.Combine(dir, "noema.exe") + ",0");
+        k.SetValue("DisplayIcon", Path.Combine(dir, "lain.exe") + ",0");
         k.SetValue("UninstallString", "\"" + maint + "\" --uninstall");
         k.SetValue("QuietUninstallString", "\"" + maint + "\" --uninstall --silent");
         k.SetValue("ModifyPath", "\"" + maint + "\"");
         k.SetValue("NoRepair", 0, RegistryValueKind.DWord);
         k.SetValue("EstimatedSize", (int)(DirSize(dir) / 1024), RegistryValueKind.DWord);
-        k.SetValue("NoemaComponents", c.Harness ? "cli,harness" : "cli");
+        k.SetValue("LainComponents", c.Harness ? "cli,harness" : "cli");
+        k.SetValue("LainLayout", "versions");   // the current layout — what tells this install from the obsolete LAIN
       }
     } catch (Exception e) { log("  (not registered in Installed apps: " + e.Message + ")"); }
   }
@@ -304,7 +346,7 @@ static class Zip {
         Directory.CreateDirectory(Path.GetDirectoryName(dest));
         try { entry.ExtractToFile(dest, true); }
         catch (IOException) {
-          // A LAUNCHER IN USE (someone's `noema` is open): a running image can be renamed, not overwritten.
+          // A LAUNCHER IN USE (someone's `lain` is open): a running image can be renamed, not overwritten.
           if (!dest.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) throw;
           string old = dest.Substring(0, dest.Length - 4) + "." + Guid.NewGuid().ToString("N").Substring(0, 6) + ".old.exe";
           File.Move(dest, old);

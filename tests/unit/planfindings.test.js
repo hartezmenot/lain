@@ -114,7 +114,7 @@ module.exports = async function () {
     assert.ok(String(schema.description || '').length >= 20, 'the schema says what it is for');
   });
 
-  await test('DERIVED: Noema knows what landed even if the model never said so', () => {
+  await test('DERIVED: LAIN knows what landed even if the model never said so', () => {
     // ---- THE LIMITATION THIS CLOSES -------------------------------------
     //
     // `plan_findings` is written by the MODEL, and a model that forgets to call

@@ -183,7 +183,7 @@ module.exports = async function () {
     const short = ib.shownRows(s);
     assert.ok(short < tall, `the region must shrink (${tall} -> ${short})`);
     const drawn = composerRows(s).join('');
-    assert.match(drawn, /Ask Noema/, 'the empty composer shows its placeholder again');
+    assert.match(drawn, /Ask LAIN/, 'the empty composer shows its placeholder again');
   });
 
   await test('COMPOSER: after the region shrinks, the rows it gave up are repainted by the rows that now own them', () => {

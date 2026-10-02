@@ -175,14 +175,14 @@ function gitEnvFor(app, a) {
 /** LAIN's active account — LAIN's choice only; gh's own active account and the other accounts are untouched. */
 function switchAccount(app, id) {
   const a = find(app, String(id || ''));
-  if (!a) return { ok: false, why: 'no such GitHub account in Noema' };
+  if (!a) return { ok: false, why: 'no such GitHub account in LAIN' };
   gcfg(app).active = a.id;
   saveCfg(app);
   return { ok: true, status: status(app) };
 }
 function rename(app, id, name) {
   const a = find(app, String(id || ''));
-  if (!a) return { ok: false, why: 'no such GitHub account in Noema' };
+  if (!a) return { ok: false, why: 'no such GitHub account in LAIN' };
   const g = gcfg(app);
   g.names = { ...(g.names || {}) };
   const n = String(name || '').trim().slice(0, 60);
@@ -242,7 +242,7 @@ async function api(app, route, { method = 'GET', body = null, account = null } =
   const t = tokenOf(app, a);
   if (!t) throw new Error(`the sign-in for @${a.login} is gone — connect it again`);
   const res = await fetch(`https://api.github.com/${String(route).replace(/^\//, '')}`, {
-    method, headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json', 'user-agent': 'Noema', ...(body ? { 'content-type': 'application/json' } : {}) },
+    method, headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json', 'user-agent': 'LAIN', ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30000),
   });
   const txt = await res.text();
@@ -268,9 +268,9 @@ async function keep(app, t, via, me, scopes) {
 async function connectToken(app, tok) {
   const t = String(tok || '').trim();
   if (!/^(github_pat_|ghp_|gho_)[A-Za-z0-9_]{20,}$/.test(t)) return { ok: false, why: 'that does not look like a GitHub token' };
-  if (/^ghp_/.test(t)) return { ok: false, why: 'Noema does not take classic personal tokens (they reach every repository) — create a fine-grained token scoped to the repositories you choose' };
+  if (/^ghp_/.test(t)) return { ok: false, why: 'LAIN does not take classic personal tokens (they reach every repository) — create a fine-grained token scoped to the repositories you choose' };
   require('./redact').register(t);
-  const res = await fetch('https://api.github.com/user', { headers: { authorization: `Bearer ${t}`, 'user-agent': 'Noema' }, signal: AbortSignal.timeout(20000) }).catch((e) => ({ ok: false, status: 0, text: async () => e.message }));
+  const res = await fetch('https://api.github.com/user', { headers: { authorization: `Bearer ${t}`, 'user-agent': 'LAIN' }, signal: AbortSignal.timeout(20000) }).catch((e) => ({ ok: false, status: 0, text: async () => e.message }));
   if (!res.ok) return { ok: false, why: `GitHub refused the token (${res.status})` };
   return keep(app, t, 'pat', await res.json(), null);
 }
@@ -286,9 +286,9 @@ const DEVICE_SCOPES = Object.freeze({ read: 'read:user', public: 'read:user publ
 const devices = new Map();   // handle -> { deviceCode, clientId, interval, expires }
 async function deviceStart(app, { access = 'read' } = {}) {
   const clientId = cfgOf(app).clientId;
-  if (!clientId) return { ok: false, why: 'Signing in with GitHub needs the client id of an OAuth App you registered for Noema (Settings › GitHub) — Noema never borrows another application\'s' };
+  if (!clientId) return { ok: false, why: 'Signing in with GitHub needs the client id of an OAuth App you registered for LAIN (Settings › GitHub) — LAIN never borrows another application\'s' };
   const scope = DEVICE_SCOPES[access] || DEVICE_SCOPES.read;
-  const res = await fetch('https://github.com/login/device/code', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': 'Noema' }, body: JSON.stringify({ client_id: clientId, scope }), signal: AbortSignal.timeout(20000) })
+  const res = await fetch('https://github.com/login/device/code', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': 'LAIN' }, body: JSON.stringify({ client_id: clientId, scope }), signal: AbortSignal.timeout(20000) })
     .catch((e) => ({ ok: false, status: 0, json: async () => ({ error_description: e.message }) }));
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.device_code) return { ok: false, why: `GitHub did not start the sign-in (${j.error_description || j.error || res.status})` };
@@ -300,7 +300,7 @@ async function devicePoll(app, handle) {
   const d = devices.get(String(handle || ''));
   if (!d) return { ok: false, why: 'that sign-in is no longer waiting' };
   if (Date.now() > d.expires) { devices.delete(handle); return { ok: false, why: 'the code expired — start again' }; }
-  const res = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': 'Noema' },
+  const res = await fetch('https://github.com/login/oauth/access_token', { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': 'LAIN' },
     body: JSON.stringify({ client_id: d.clientId, device_code: d.deviceCode, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }), signal: AbortSignal.timeout(20000) }).catch(() => null);
   const j = res ? await res.json().catch(() => ({})) : {};
   if (j.error === 'authorization_pending') return { ok: true, pending: true, interval: d.interval };
@@ -309,7 +309,7 @@ async function devicePoll(app, handle) {
   devices.delete(handle);
   const t = String(j.access_token);
   require('./redact').register(t);
-  const me = await fetch('https://api.github.com/user', { headers: { authorization: `Bearer ${t}`, 'user-agent': 'Noema' }, signal: AbortSignal.timeout(20000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const me = await fetch('https://api.github.com/user', { headers: { authorization: `Bearer ${t}`, 'user-agent': 'LAIN' }, signal: AbortSignal.timeout(20000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   return keep(app, t, 'oauth', me, String(j.scope || d.scope).split(/[\s,]+/).filter(Boolean));
 }
 
@@ -319,7 +319,7 @@ async function devicePoll(app, handle) {
  */
 function disconnect(app, id = null) {
   const a = id ? find(app, String(id)) : activeAccount(app);
-  if (!a) return { ok: false, why: 'no such GitHub account in Noema', status: status(app) };
+  if (!a) return { ok: false, why: 'no such GitHub account in LAIN', status: status(app) };
   const g = gcfg(app);
   let note = null;
   if (a.via === 'gh') {
@@ -426,7 +426,7 @@ function projectStatus(dir) {
   const b = git(['rev-parse', '--abbrev-ref', 'HEAD'], dir, { timeout: 8000 });
   if (b.code !== 0) return { label: 'Not a git working tree', ok: false };
   const branch = b.stdout.trim();
-  // NOEMA'S OWN STATE (.noema/, or LAIN's .lain/) is not the person's change.
+  // LAIN'S OWN STATE (.lain/, or a Noema-era .noema/) is not the person's change.
   const s = git(['status', '--porcelain', '--', '.', ':(exclude).noema', ':(exclude).lain'], dir, { timeout: 15000 });
   const modified = s.stdout.split(/\r?\n/).filter(Boolean).length;
   const ahead = git(['rev-list', '--count', '@{u}..HEAD'], dir, { timeout: 8000 });
@@ -444,7 +444,10 @@ function projectStatus(dir) {
 }
 
 function defaultCloneDir(app, fullName) {
-  const base = cfgOf(app).cloneRoot || path.join(require('os').homedir(), 'Noema Projects');
+  // A Noema-era `~/Noema Projects` keeps receiving clones until there is a `~/LAIN Projects` (nothing is moved).
+  const home = require('os').homedir();
+  const legacy = path.join(home, 'Noema Projects');
+  const base = cfgOf(app).cloneRoot || (require('fs').existsSync(legacy) && !require('fs').existsSync(path.join(home, 'LAIN Projects')) ? legacy : path.join(home, 'LAIN Projects'));
   return path.join(base, fullName.split('/')[1]);
 }
 
@@ -499,7 +502,7 @@ async function action(app, dir, kind, args = {}, { confirm = false } = {}) {
   // AS THE REPOSITORY'S OWN ACCOUNT — and only what GitHub said that account may do there. Never retried as another.
   const who = full ? accountFor(app, full) : { account: activeAccount(app), bound: null };
   if (who.bound && !who.account && ['push', 'pr-create', 'issue-create'].includes(kind)) {
-    return { ok: false, kind, needsAccount: true, why: `${full} was opened with @${who.bound.replace(/^\w+:/, '')}, which is no longer connected to Noema — choose the account for this repository first` };
+    return { ok: false, kind, needsAccount: true, why: `${full} was opened with @${who.bound.replace(/^\w+:/, '')}, which is no longer connected to LAIN — choose the account for this repository first` };
   }
   const p = who.account && full ? permOf(who.account.id, full) : null;
   if (p && !p.push && (kind === 'push' || kind === 'pr-create')) return { ok: false, kind, readOnly: true, why: `@${who.account.login} can read ${full} but cannot write to it — use an account with write access` };

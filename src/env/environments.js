@@ -96,7 +96,7 @@ function isVm(spec) { const p = parse(spec); return p.ok && p.kind === 'vm'; }
  */
 /** Where a person actually writes an environment entry. Named, never guessed. */
 function configPath() {
-  try { return require('../config').configFile(); } catch { return 'your Noema config.json'; }
+  try { return require('../config').configFile(); } catch { return 'your LAIN config.json'; }
 }
 
 function registry() {
@@ -132,7 +132,7 @@ function describe(spec) {
       ...failures.fail(
         CODE.VM_UNAVAILABLE,
         `no environment named "${p.id}" is registered`,
-        'Noema only controls VMs a person has registered — it never enumerates the hypervisor and adopts what it finds.',
+        'LAIN only controls VMs a person has registered — it never enumerates the hypervisor and adopts what it finds.',
         // THE REAL MECHANISM, not an invented one. This said
         // `/env vm add <id> --vmx <path>`, which does not exist — a remedy the
         // product cannot keep is worse than none, because a person types it and

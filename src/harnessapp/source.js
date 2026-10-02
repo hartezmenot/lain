@@ -375,7 +375,7 @@ function open(app, rel) {
   // BINARY IS DECIDED FROM THE BYTES, whatever the extension said. Rendering it
   // into an editor produces garbage the person may then save back.
   const c = classify(buf);
-  if (c.binary) return { ok: false, kind: 'binary', why: `${at.rel} is a binary file — Noema does not edit binary files`, size: st.size };
+  if (c.binary) return { ok: false, kind: 'binary', why: `${at.rel} is a binary file — LAIN does not edit binary files`, size: st.size };
   const body = c.text;
 
   return {
@@ -551,7 +551,7 @@ function raw(app, rel) {
   const at = locate(app, rel);
   if (!at.ok) return at;
   const mime = IMAGE_MIME[path.extname(at.rel).toLowerCase()];
-  if (!mime) return { ok: false, why: `${at.rel} is not an image Noema previews` };
+  if (!mime) return { ok: false, why: `${at.rel} is not an image LAIN previews` };
   let st;
   try { st = fs.statSync(at.abs); } catch (e) { return { ok: false, why: `cannot open ${at.rel}: ${(e && e.message) || e}` }; }
   if (st.size > MAX_IMAGE_BYTES) return { ok: false, why: `${at.rel} is too large to preview` };

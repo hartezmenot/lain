@@ -58,7 +58,7 @@ module.exports = async function () {
     assert.strictEqual(byModel['chatgpt-web'].reported.tokens, 0);
   });
 
-  await test('USAGE: runtime-reported usage is its own rows — imported twice, counted once, never merged into Noema\'s', () => {
+  await test('USAGE: runtime-reported usage is its own rows — imported twice, counted once, never merged into LAIN\'s', () => {
     const a = usage.importRuntime('runtime:codex', [{ id: 'thr1:turn1', account: 'codex-aaa', model: 'gpt-5-codex', input: 1000, output: 100 }]);
     const b = usage.importRuntime('runtime:codex', [{ id: 'thr1:turn1', account: 'codex-aaa', model: 'gpt-5-codex', input: 1000, output: 100 }]);
     assert.deepStrictEqual([a.added, b.added], [1, 0]);
@@ -79,7 +79,7 @@ module.exports = async function () {
     assert.strictEqual(priced.cost.label, 'Estimated from configured prices');
   });
 
-  await test('CONTEXT EFFICIENCY: provider cache (per protocol) and Noema\'s own prefix, apart', () => {
+  await test('CONTEXT EFFICIENCY: provider cache (per protocol) and LAIN\'s own prefix, apart', () => {
     const e = usage.efficiency(usage.read({}));
     assert.strictEqual(e.provider.reportedRows, 2, 'anthropic rows reported cache; the openai row did not');
     assert.strictEqual(e.provider.cachedTokens, 1850);

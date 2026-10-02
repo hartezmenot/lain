@@ -14,17 +14,17 @@ provider, self-skipping) → LIVE PROVIDER VERIFIED.
 
 ## Simplification + performance pass (2026-10-01, latest)
 
-Details and numbers: `docs/PERFORMANCE.md`, `docs/SIMPLIFICATION.md`, `docs/TESTING-NOEMA.md` (proportional verification).
+Details and numbers: `docs/PERFORMANCE.md`, `docs/SIMPLIFICATION.md`, `docs/TESTING-LAIN.md` (proportional verification).
 
 | Claim | Verification |
 |---|---|
-| Noema-added latency per turn: "reply OK" 82 → 37 ms (sandbox), 173 → 55 ms (real home); shell step 343 → ~23 ms + deferred cleanup | MEASURED (`bench/latency`, fake model, real binary/supervisor) |
+| LAIN-added latency per turn: "reply OK" 82 → 37 ms (sandbox), 173 → 55 ms (real home); shell step 343 → ~23 ms + deferred cleanup | MEASURED (`bench/latency`, fake model, real binary/supervisor) |
 | Supervisor off the request path: 175 → 16 connections per 10 turns, no awaited admission | MEASURED + INTEGRATION-VERIFIED (`guardian`, `supervisor` 23/0) |
 | One CLI activity line; no duplicate Waiting/Thinking; no `job_wait` on screen; `· 1 shell · 1 monitor`; reasoning as tokens | REAL TTY observed (`bench/cliux`, ConPTY + pyte) + UNIT (`activityline`) |
 | Goal loop: a turn whose closing words name unfinished work continues by itself, from the continuity digest; plans advisory | INTEGRATION-VERIFIED (`autocontinue` 4/0) |
 | FAST/ECO request 77.6 KB → 39.1 / 29.7 KB; NORMAL 68.0 KB | MEASURED (fake model) · LIVE PROVIDER (Z.ai, n=2: −44 % / −56 % input tokens) |
 | Antigravity: OAuth/identity/project/models/quota/execution over HTTPS, no runtime download | INTEGRATION-VERIFIED against a fake Google — **real sign-in NOT VERIFIED** (needs the person's browser) |
-| Reset boundary rolls Noema's observed bucket; API (Z.ai) windows kept with id/length | UNIT (`resetroll`) · Z.ai windows read live (5-hour, weekly) |
+| Reset boundary rolls LAIN's observed bucket; API (Z.ai) windows kept with id/length | UNIT (`resetroll`) · Z.ai windows read live (5-hour, weekly) |
 | `/api/state` 50–100 → 22–27 ms; wakes coalesced; one state read in flight | MEASURED (real config) · REAL WINDOW (`perf83-real`) |
 | Harness window startup 0.82 s (8.3) vs 1.8 s now | MEASURED — **open, not improved** |
 

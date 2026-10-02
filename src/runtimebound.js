@@ -56,7 +56,7 @@ function check({ conn = {}, connectionId = '', model = '', upstreamId = '' } = {
   const short = String(model || name).split('/').pop();
   return {
     kind: 'runtime-bound', runtime: 'opencode', model: short, connection: connectionId || conn.id || '',
-    why: `${short} is runtime-bound: OpenCode serves it only inside OpenCode, so Noema will not call it over HTTP (${connectionId || conn.id || 'this route'}). Choose "${short} · OpenCode" (OpenCode Runtime) instead.`,
+    why: `${short} is runtime-bound: OpenCode serves it only inside OpenCode, so LAIN will not call it over HTTP (${connectionId || conn.id || 'this route'}). Choose "${short} · OpenCode" (OpenCode Runtime) instead.`,
   };
 }
 

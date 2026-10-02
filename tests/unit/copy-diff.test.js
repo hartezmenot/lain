@@ -67,7 +67,7 @@ module.exports = async function () {
     const ctx = await copy.collect(app, 'context');
     assert.match(ctx.text, /^USER$/m, 'it starts from what the person actually asked');
     assert.match(ctx.text, /fix the logger/);
-    assert.match(ctx.text, /^Noema$/m, 'and carries what Noema said in public');
+    assert.match(ctx.text, /^LAIN$/m, 'and carries what LAIN said in public');
     assert.match(ctx.text, /retention window to 7 days/);
     assert.match(ctx.text, /TOOL/, 'and what the tools actually did');
     assert.match(ctx.text, /USER \(mid-turn\)/, 'and corrections made while it ran');

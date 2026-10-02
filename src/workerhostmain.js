@@ -521,7 +521,7 @@ function tick() {
     if (freeMB < MIN_FREE_MB) { unload(w.id, `memory pressure: ${freeMB} MB free < ${MIN_FREE_MB} MB`); continue; }
     if (w.idleUnloadMs && now - (w.lastUsedAt || w.hotSince) > w.idleUnloadMs) unload(w.id, `idle ${Math.round((now - w.lastUsedAt) / 1000)} s`);
   }
-  if (noClientsSince && now - noClientsSince > graceMs()) shutdown(`no Noema client for ${Math.round((now - noClientsSince) / 1000)} s (grace ${Math.round(graceMs() / 1000)} s)`);
+  if (noClientsSince && now - noClientsSince > graceMs()) shutdown(`no LAIN client for ${Math.round((now - noClientsSince) / 1000)} s (grace ${Math.round(graceMs() / 1000)} s)`);
 }
 
 let closing = false;

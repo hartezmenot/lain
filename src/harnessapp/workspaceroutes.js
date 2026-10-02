@@ -89,7 +89,7 @@ function mcpServers(app) {
     transport: 'stdio',
     enabled: process.platform === 'win32',
     state: st ? (st.connected ? 'CONNECTED' : 'DISCONNECTED') : 'NOT_STARTED',
-    why: st ? st.why : (process.platform === 'win32' ? 'starts when Noema is asked to use the computer' : 'Windows only'),
+    why: st ? st.why : (process.platform === 'win32' ? 'starts when LAIN is asked to use the computer' : 'Windows only'),
     authorized: st ? Boolean(st.authorized) : false,
     tools: st ? (st.capabilities || []) : [],
     // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's
@@ -109,7 +109,7 @@ function mcpServers(app) {
       // THE PROGRAM, NOT ITS ARGUMENTS OR ENVIRONMENT — either can carry a token.
       command: path.basename(String(s.command[0] || '')),
       state: !s.enabled ? 'DISABLED' : (live && live.id === s.id ? 'ACTIVE_BRIDGE' : 'CONFIGURED'),
-      why: !s.enabled ? 'switched off in config' : (live && live.id === s.id ? 'the desktop bridge Noema talks to' : 'configured; one bridge is connected at a time'),
+      why: !s.enabled ? 'switched off in config' : (live && live.id === s.id ? 'the desktop bridge LAIN talks to' : 'configured; one bridge is connected at a time'),
       tools: [],
       usedBy: live && live.id === s.id ? ['BOT', 'Coding Agent'] : [],
     });

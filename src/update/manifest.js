@@ -1,23 +1,23 @@
 'use strict';
 
 /**
- * THE UPDATE MANIFEST — what a release says about itself, and how Noema decides to believe it.
+ * THE UPDATE MANIFEST — what a release says about itself, and how LAIN decides to believe it.
  *
  *   manifest-<channel>.json        the release, as bytes
  *   manifest-<channel>.json.sig    an Ed25519 signature over exactly those bytes (base64)
  *
- * The manifest is believed only when the signature verifies against a key Noema was BUILT with (trust.js); every
+ * The manifest is believed only when the signature verifies against a key LAIN was BUILT with (trust.js); every
  * asset it names is then believed only when its SHA-256 matches. HTTPS, a mirror or a filesystem path is transport,
  * never trust. A manifest carries no secret and names no local path.
  *
  * {
- *   "schema": 1, "product": "noema", "channel": "stable",
+ *   "schema": 1, "product": "lain", "channel": "stable",          (the Noema-era "noema" is accepted too)
  *   "version": "0.2.0", "released": "2026-10-01T00:00:00Z",
  *   "minimumCompatible": "0.1.0",               // the oldest installed version that may update to this directly
  *   "protocol": 1, "minimumCli": "0.1.0", "minimumHarness": "0.1.0",
  *   "mandatory": false, "security": false,
  *   "notes": "https://…/releases/tag/v0.2.0", "summary": ["…"],
- *   "assets": [{ "arch": "x64", "kind": "app", "name": "noema-0.2.0-win-x64.zip", "url": "…", "size": 123, "sha256": "…" }]
+ *   "assets": [{ "arch": "x64", "kind": "app", "name": "lain-0.2.0-win-x64.zip", "url": "…", "size": 123, "sha256": "…" }]
  * }
  */
 
@@ -57,14 +57,14 @@ function verifySignature(bytes, signatureB64, publicKeys) {
   for (const pem of publicKeys) {
     try { if (crypto.verify(null, bytes, crypto.createPublicKey(pem), sig)) return { ok: true }; } catch { /* next key */ }
   }
-  return { ok: false, why: 'the release signature does not verify against Noema\'s release key' };
+  return { ok: false, why: 'the release signature does not verify against LAIN\'s release key' };
 }
 
 /** Parse and validate; returns { ok, manifest } or { ok: false, why }. Nothing here trusts the content yet. */
 function parse(bytes) {
   let m;
   try { m = JSON.parse(Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes)); } catch { return { ok: false, why: 'the release manifest is not JSON' }; }
-  if (!m || m.schema !== 1 || m.product !== 'noema') return { ok: false, why: 'not a Noema release manifest (schema 1)' };
+  if (!m || m.schema !== 1 || !['lain', 'noema'].includes(m.product)) return { ok: false, why: 'not a LAIN release manifest (schema 1)' };
   if (!CHANNELS.includes(m.channel)) return { ok: false, why: `unknown channel "${m.channel}"` };
   if (!parseVersion(m.version)) return { ok: false, why: `"${m.version}" is not a version` };
   if (m.minimumCompatible && !parseVersion(m.minimumCompatible)) return { ok: false, why: 'minimumCompatible is not a version' };

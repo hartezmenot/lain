@@ -73,7 +73,7 @@ class CodexRpc extends EventEmitter {
       } else if (m.method && m.id !== undefined) {
         // A server REQUEST (approval, user input). This client answers none of
         // them yet; refusing is honest and keeps the server from waiting.
-        this.write({ id: m.id, error: { code: -32601, message: 'not handled by Noema account client' } });
+        this.write({ id: m.id, error: { code: -32601, message: 'not handled by LAIN account client' } });
       } else if (m.method) {
         this.emit('notification', m.method, m.params || {});
         this.emit(m.method, m.params || {});

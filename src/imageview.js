@@ -82,7 +82,7 @@ async function open(app, file, { launch = null } = {}) {
     return { ok: false, how: null, file: target, why: 'there is no file at that path' };
   }
   if (!images.isImage(target)) {
-    return { ok: false, how: null, file: target, why: 'that is not an image Noema can measure' };
+    return { ok: false, how: null, file: target, why: 'that is not an image LAIN can measure' };
   }
   const facts = images.describe(target);
   if (facts.ok) facts.kind = format(target);

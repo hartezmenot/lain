@@ -99,7 +99,7 @@ const driver = Object.freeze({
     // AN HTTPS ACCOUNT (antigravityapi.js) is a token under its own credential reference — no directory at all.
     if (config.auth === 'https') return require('../credentials').isRef(config.credentialRef) ? null : 'an Antigravity account needs its own credential reference';
     if (!config.home || typeof config.home !== 'string') return 'an Antigravity account needs its own profile directory';
-    if (!inside(config.home, accountsRoot()) || norm(config.home) === norm(accountsRoot())) return 'an Antigravity account lives in its own directory under Noema\'s accounts folder';
+    if (!inside(config.home, accountsRoot()) || norm(config.home) === norm(accountsRoot())) return 'an Antigravity account lives in its own directory under LAIN\'s accounts folder';
     if (inside(config.home, path.join(os.homedir(), '.gemini'))) return 'a new account is never signed in inside ~/.gemini — that is another program\'s shared credential';
     return null;
   },
@@ -151,7 +151,7 @@ const driver = Object.freeze({
       // SIGN OUT: remove THIS profile's own sign-in files, nothing else and nowhere else.
       async logout() { for (const f of ['oauth_creds.json', 'google_accounts.json']) { try { fs.unlinkSync(path.join(home, f)); } catch { /* not there */ } } },
       removeOwned() {
-        if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of Noema\'s account directories' };
+        if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of LAIN\'s account directories' };
         try { fs.rmSync(home, { recursive: true, force: true }); return { removed: true }; } catch (e) { return { removed: false, why: e.message }; }
       },
     };
@@ -248,7 +248,7 @@ function installedCli() {
   const p = path.join(process.env.LOCALAPPDATA || '', 'agy', 'bin', 'agy.exe');
   return process.platform === 'win32' && fs.existsSync(p) ? { path: p, perAccountProfiles: false } : null;
 }
-const NEED_WHY = 'Noema keeps each Antigravity account in its own private profile, and only Google\'s Antigravity ACP server can run an account that way.';
+const NEED_WHY = 'LAIN keeps each Antigravity account in its own private profile, and only Google\'s Antigravity ACP server can run an account that way.';
 
 function installStatus(app) {
   const r = (app && app._sibling) || app;
@@ -392,7 +392,7 @@ function httpsHandle(instance) {
     async logout() {
       let rec = null;
       try { await cred().ensure(ref); rec = JSON.parse(cred().resolve(ref) || 'null'); } catch { rec = null; }
-      if (rec && rec.refresh_token && !process.env.NOEMA_ANTIGRAVITY_BASE) { try { await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(rec.refresh_token)}`, { method: 'POST', signal: AbortSignal.timeout(8000) }); } catch { /* the local copy goes regardless */ } }
+      if (rec && rec.refresh_token && !process.env.LAIN_ANTIGRAVITY_BASE) { try { await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(rec.refresh_token)}`, { method: 'POST', signal: AbortSignal.timeout(8000) }); } catch { /* the local copy goes regardless */ } }
       cred().remove(ref);
     },
     removeOwned() { cred().remove(ref); return { removed: true }; },

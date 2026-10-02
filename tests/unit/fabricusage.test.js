@@ -79,7 +79,7 @@ module.exports = async function () {
     assert.deepStrictEqual(facets.role.map((f) => f.key).sort(), ['agent', 'bot']);
   });
 
-  await test('CONTEXT: Noema’s own reuse from its FocusPacket records — apart from provider cache; what is not recorded says so', () => {
+  await test('CONTEXT: LAIN’s own reuse from its FocusPacket records — apart from provider cache; what is not recorded says so', () => {
     const cm = require('../../src/contextmetrics');
     fs.mkdirSync(path.dirname(cm.file()), { recursive: true });
     const now = Date.now();

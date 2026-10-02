@@ -76,7 +76,7 @@ module.exports = async function () {
       const turns = app.session.turns || [];
       const typed = turns.filter((t) => !t.from);
       assert.strictEqual(typed.length, 1, 'the person spoke once');
-      assert.ok(turns.filter((t) => t.from === 'phase-continue').length >= 3, `the model boundaries were crossed by Noema: ${turns.map((t) => t.from).join(',')}`);
+      assert.ok(turns.filter((t) => t.from === 'phase-continue').length >= 3, `the model boundaries were crossed by LAIN: ${turns.map((t) => t.from).join(',')}`);
       const w = require('../../src/workbench').of(app.session);
       const reviews = w.offers.filter((o) => o.kind === 'PHASE_REVIEW' && o.state === 'OPEN');
       assert.ok(reviews.every((o) => /plan is complete/.test(o.text)), `no pause asked for continue: ${reviews.map((o) => o.text).join(' | ')}`);
@@ -139,7 +139,7 @@ module.exports = async function () {
       const finished = await until(() => second.session.plan && second.session.plan.steps.every((x) => x.status === 'done') && !second.abort, 30000);
       assert.ok(finished, `the task resumed and finished by itself — plan: ${second.session.plan.steps.map((x) => x.status).join(',')}`);
       const turns = second.session.turns || [];
-      assert.ok(turns.some((t) => t.from === 'auto-resume'), `the resumption was Noema's own: ${turns.map((t) => `${t.from}:${t.stopReason}`).join(' ')}`);
+      assert.ok(turns.some((t) => t.from === 'auto-resume'), `the resumption was LAIN's own: ${turns.map((t) => `${t.from}:${t.stopReason}`).join(' ')}`);
       assert.ok(!turns.some((t) => t.from == null && t.turnId !== 'dead-turn' && /continue/i.test(String(t.userInput || ''))), 'nobody typed continue');
       assert.ok(fs.existsSync(path.join(cwd, 'inspector.txt')) && fs.existsSync(path.join(cwd, 'timeline.txt')));
       const resumed = turns.find((t) => t.from === 'auto-resume');

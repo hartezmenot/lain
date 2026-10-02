@@ -193,7 +193,7 @@ const ROUTES = {
     require('../plan').seedFromCore(s, { objective: acc.plan.title || 'Approved plan', remaining: acc.plan.steps || [] });
     wb.of(s).strategy.pausedForReview = null;
     const prompt = (acc.handoff && acc.handoff.prompt) || acc.plan.text;
-    // THE SEEDED PLAN IS THE TASK: asserted by Noema's own control, so classification never discards it as "new".
+    // THE SEEDED PLAN IS THE TASK: asserted by LAIN's own control, so classification never discards it as "new".
     const started = startCoding(app, prompt, null, { sameTask: true });
     save(app);
     return { code: started.code, body: { ...(started.body || {}), plan: acc.plan, workbench: sup.state(app) } };

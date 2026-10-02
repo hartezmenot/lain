@@ -3,7 +3,7 @@
 /**
  * INPUT UX THROUGH THE REAL BINARY — history, the `/` palette, `@` completion.
  *
- * Every case here spawns bin/noema.js and sends the exact bytes a terminal sends:
+ * Every case here spawns bin/lain.js and sends the exact bytes a terminal sends:
  * `\t` for Tab, `\x1b[A` for Up, `\x1b` for Esc. Nothing is required in-process,
  * so a green case means the production key path ran, not that a helper works.
  *
@@ -82,7 +82,7 @@ function typed(out) {
     // reads CONTENT.
     const t = inputRow(f).trim();
     // The placeholder is DRAWN, not typed: an empty line must read as empty.
-    if (t === 'Ask Noema…' || t.startsWith('ANSWER — ')) continue;
+    if (t === 'Ask LAIN…' || t.startsWith('ANSWER — ')) continue;
     if (seen[seen.length - 1] !== t) seen.push(t);
   }
   return seen.filter(Boolean);
@@ -133,7 +133,7 @@ function panelTrail(out) {
   for (const f of frames(out)) {
     // THE TITLE ROW, not the word anywhere in the frame — see `hasPanel`.
     const found = ['Commands', 'Files', 'Config', 'Models', 'Effort', 'Providers',
-      'Noema needs your input'].find((n) => hasPanel(f, n));
+      'LAIN needs your input'].find((n) => hasPanel(f, n));
     const v = found ? found.toUpperCase() : '-';
     if (seen[seen.length - 1] !== v) seen.push(v);
   }
@@ -490,7 +490,7 @@ module.exports = async function () {
     // `context` used to be asserted here as proof the TAB STRIP survived. There
     // is no strip; the header and the input are what "the surface survived"
     // means now, and after a turn the conversation is what fills the middle.
-    assertIncludes(f, 'Noema', 'the header is still there');
+    assertIncludes(f, 'LAIN', 'the header is still there');
     assertIncludes(f, 'mock-model', 'with the model on it');
     assert.ok(hasPanel(f, 'Commands'), 'and the palette below, not over the screen');
     // AND THE CARET IS STILL ON THE LINE YOU ARE FILTERING WITH. That is the

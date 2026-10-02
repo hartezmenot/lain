@@ -276,7 +276,7 @@ function build(app, L, cat) {
       name: reg.aliases[a.id] || (a.kind === 'oauth' ? `Imported ${FAMILY_LABEL[fid] || fid} accounts` : friendly(a.name, fid)),
       identityHint: who, instanceId: a.instanceId || null, ownership: a.ownership || null,
       state: lc === LIFECYCLE.IMPORTED_PENDING_AUTH ? 'REAUTH_REQUIRED' : String(a.state || lc),
-      note: lc === LIFECYCLE.IMPORTED_PENDING_AUTH ? 'Imported account metadata — sign in with Noema to finish. Not used until then.'
+      note: lc === LIFECYCLE.IMPORTED_PENDING_AUTH ? 'Imported account metadata — sign in with LAIN to finish. Not used until then.'
         : lc === LIFECYCLE.DISCONNECTED ? 'Signed out — sign in again to use it.' : (a.why || 'Its runtime is not reachable.'),
     });
   }

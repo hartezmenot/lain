@@ -55,7 +55,7 @@ function contentHash(dir) {
     const rel = path.relative(dir, f).split(path.sep).join('/');
     const buf = fs.readFileSync(f);
     bytes += buf.length;
-    if (bytes > MAX_PACKAGE_BYTES) throw new Error('the package is larger than Noema will copy');
+    if (bytes > MAX_PACKAGE_BYTES) throw new Error('the package is larger than LAIN will copy');
     h.update(rel); h.update('\0'); h.update(String(buf.length)); h.update('\0'); h.update(buf);
   }
   return { sha256: h.digest('hex'), bytes };
@@ -102,7 +102,7 @@ function discover({ env = process.env, configDir = null } = {}) {
 function reuse({ product, id, configDir = null, env = process.env } = {}) {
   const row = discover({ env, configDir }).find((x) => x.product === product && x.id === String(id || '').toLowerCase());
   if (!row) return { ok: false, why: 'that extension was not found in that editor' };
-  if (row.compatibility.level === 'UNSUPPORTED') return { ok: false, why: 'nothing in this extension is something Noema can use yet', compatibility: row.compatibility };
+  if (row.compatibility.level === 'UNSUPPORTED') return { ok: false, why: 'nothing in this extension is something LAIN can use yet', compatibility: row.compatibility };
   const before = contentHash(row.location);
   const target = path.join(configDir ? path.join(configDir, 'packages') : storeDir(), before.sha256);
   let copied = false;

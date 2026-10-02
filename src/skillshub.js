@@ -397,7 +397,7 @@ function update(app, id, { action = 'check' } = {}) {
   const e = integ.store(app).skills[id];
   if (!e) return { ok: false, why: 'no such skill' };
   const man = manifestOf(e.path);
-  if (!man) return { ok: false, why: 'this skill was not installed from a source Noema tracks' };
+  if (!man) return { ok: false, why: 'this skill was not installed from a source LAIN tracks' };
   const s = readIndex().skills.find((x) => x.key === man.key);
   if (!s || !s.dir) return { ok: false, why: 'its source is not in the index — refresh the source' };
   const inc = describeFolder(s.dir);

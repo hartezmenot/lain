@@ -544,7 +544,7 @@ class App {
       // NOT AWAITED, deliberately: `submit` mints `this.abort` before its first
       // await, so by the time this returns the ordinary "a turn is running"
       // signal is true and the counter below can safely go back down.
-      return this.submit(s, { isPaste, from, forceMode, sameTask });   // sameTask: asserted by Noema's own controls only
+      return this.submit(s, { isPaste, from, forceMode, sameTask });   // sameTask: asserted by LAIN's own controls only
     } finally {
       this.dispatching -= 1;
     }
@@ -689,7 +689,7 @@ class App {
     try { this.session.save(); } catch { /* best effort */ }
     // /resume is the ONLY way state crosses a session boundary, so a one-shot
     // run that never names its own session leaves no way back to it.
-    this.render.write(C.dim(`  session ${this.session.id}  ·  resume with: noema --resume ${Session.shortId(this.session.id)}`) + '\n');
+    this.render.write(C.dim(`  session ${this.session.id}  ·  resume with: lain --resume ${Session.shortId(this.session.id)}`) + '\n');
     return this.exitCode;
   }
 }

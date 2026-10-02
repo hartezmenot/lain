@@ -182,14 +182,14 @@ module.exports = async function () {
     // Structural, not textual: rows of words on the final screen that are not
     // tool rows and not chrome. What it SAYS is the model's business.
     const rows = lastFrameRows(r.out);
-    const chrome = /^[│└┌├]|^\s*(ACTIONS|USER|NOTE|OUTPUT|Noema|EXTERNAL|MCP)\s*$|^\s*TASK\s|^\s*[✓✗·◐◓◑◒]/;
+    const chrome = /^[│└┌├]|^\s*(ACTIONS|USER|NOTE|OUTPUT|LAIN|EXTERNAL|MCP)\s*$|^\s*TASK\s|^\s*[✓✗·◐◓◑◒]/;
     const prose = rows.filter((l) => l.trim().length > 12 && !chrome.test(l) && !/^\s*\[/.test(l));
     assert.ok(prose.length > 0,
       `the model's own words are nowhere on the final screen:\n${frame}`);
     assert.ok(/\bLAIN\b/.test(everything), 'and it was labelled as the speaker at some point');
 
     // ---- AND THE CALLS HAVE NOT CROWDED IT OUT ---------------------------
-    const callRows = rows.filter((l) => /[✓✗]/.test(l) && !/TOOL |Noema /.test(l));
+    const callRows = rows.filter((l) => /[✓✗]/.test(l) && !/TOOL |LAIN /.test(l));
     assert.ok(callRows.length <= 8,
       `${callRows.length} call rows on one screen — this is the reported failure:\n${frame}`);
 

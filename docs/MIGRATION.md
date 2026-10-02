@@ -1,69 +1,80 @@
-# LAIN → Noema migration (internal)
+# Noema → LAIN migration (internal)
 
-The product is **Noema**; the command is `noema`. `lain` keeps working as a shim to the same program, the same home
-and the same Core, and says once per home:
+The product is **LAIN** again (2026-10-02); the command is `lain`. `noema` keeps working as an alias for the same
+program, home and Core. It says this once per home:
 
 ```text
-LAIN has been renamed to Noema.
-The `lain` command is deprecated; use `noema`.
+Noema has been renamed back to LAIN.
+Use `lain` for future commands (`noema` keeps working for now).
 ```
+
+Two older things share names with the current LAIN. They are told apart by **name or layout**, never by guesswork:
+
+| | Obsolete pre-cleanup LAIN | Noema era (2026-09-29 … 10-02) | Current LAIN |
+|---|---|---|---|
+| Home | `~/.lain-v2` (later junction) / historical `~/.lain` | `~/.noema` | `~/.lain` |
+| Executables | `LAIN.exe`, `lain-desktop-*.exe` | `noema.exe`, `noemaw.exe`, `Noema Harness.exe` | `lain.exe`, `lainw.exe`, `LAIN Harness.exe` |
+| Install folder | `C:\Program Files\LAIN` (machine-wide) | `%LOCALAPPDATA%\Programs\Noema` | `%LOCALAPPDATA%\Programs\LAIN` (with `versions\`, `components.json`) |
+| Installed-apps key | `…\Uninstall\LAIN` | `…\Uninstall\Noema` | `…\Uninstall\LAIN.Install` |
+| Open With | `LAIN.File` / `LAIN.Open` | `Noema.File` / `Noema.Open` | `LAIN.Harness.File` / `LAIN.Harness.Open` |
+| Start Menu | file `Programs\LAIN.lnk` | folder `Programs\Noema` | folder `Programs\LAIN` |
+| Startup | `Startup\LAIN.lnk` | `Startup\Noema Harness.lnk` | `Startup\LAIN Harness.lnk` |
+| Core pipe | — | `noema-core-<hash of ~/.noema>` | `lain-core-<hash of ~/.lain>` |
+| Supervisor | — | `noema-supervisor.exe` | `lain-supervisor.exe` |
+
+Nothing of the obsolete LAIN is restored: its executables are replaced or removed, and its entries are retired by
+`lain legacy cleanup` (`src/legacycleanup.js`).
 
 ## The home (`src/home.js`, run first by `src/boot.js`)
 
-| Before | After |
-|---|---|
-| `%USERPROFILE%\.lain-v2` | `%USERPROFILE%\.noema` |
+- `~/.noema` → `~/.lain` by **one rename, never a copy**. Junctions are left at `~/.noema` and `~/.lain-v2`, so a
+  Noema-era build, a script or a shortcut still finds the data.
+- A record is written to `~/.lain/migrations/home-from-noema.json` (from, to, when, which version, junction).
+- **In use → deferred.** If any process holds a file in the old home (a running Core or its supervisor), the rename
+  fails and nothing moves. LAIN keeps using `~/.noema` and tries again on the next start.
+- **A historical `~/.lain`** is a real folder with no migration record, sitting beside a real Noema home that has
+  data. It is the obsolete LAIN's, so it is **set aside** to `~/.lain-archived-<time>` (renamed, never deleted, never
+  adopted), and the Noema home moves in.
+- Overrides: `LAIN_CONFIG_DIR` > `LAIN_HOME` > `NOEMA_CONFIG_DIR` > `NOEMA_HOME`. With any override set, nothing is
+  migrated.
+- Environment: `LAIN_*` is canonical. Every `NOEMA_X` is mirrored to `LAIN_X` when `LAIN_X` is unset.
+- Credentials stay in DPAPI / Windows Credential Manager and are not touched by the move.
 
-- **One rename, never a copy** — a multi-GB home moves in milliseconds and nothing is duplicated.
-- A **junction** is left at `.lain-v2` → `.noema`, so an older LAIN, a script or a shortcut still finds the data.
-- A record is written to `.noema\migrations\home-from-lain.json` (from, to, when, by which version, junction).
-- **In use → deferred.** If any process holds a file in the old home (a running LAIN or its supervisor), the rename
-  fails and nothing moves: Noema keeps using `.lain-v2` as its home and tries again on the next start.
-- Overrides: `NOEMA_CONFIG_DIR` > `NOEMA_HOME` > `LAIN_CONFIG_DIR`. With any override set, nothing is migrated.
-- Environment: every `NOEMA_X` is mirrored to `LAIN_X` for modules that still read the old name (an explicit
-  `LAIN_X` is never overwritten).
+## A running Noema
 
-The old home's pieces keep their layout inside the new home (sessions, accounts, workspaces, usage receipts,
-settings, extensions, skills, supervisor state); credentials stay in DPAPI / Windows Credential Manager and are
-not touched by the move.
-
-## A running LAIN
-
-A new Noema looks for a running Core under `noema-core-<key>` and then under LAIN's `lain-core-<key>` (the key is
-the home path), so it never starts a second Core beside a LAIN that is still running on the same home
-(`src/corelock.js`). The setup program asks a Noema in its own install folder to shut down through its own
-sequence; it never stops a LAIN or Noema that runs from anywhere else.
+A new LAIN asks `lain-core-<key>` first and then the Noema-era `noema-core-<hash of ~/.noema>`, so it never starts
+a second Core beside a Noema that is still running on the same home (`src/corelock.js`).
 
 ## Projects (`src/projectmeta.js`)
 
-- A project Noema opens for the first time gets **`.noema/`** (with a `.gitignore` of `*`, so it stays out of the
-  person's commits).
-- A project that already has **`.lain/`** keeps using it, as it is — one authority per project, never both written.
-- `noema project migrate` moves `.lain/` → `.noema/` (one rename), writes `migrated-from-lain.json`, and adds
-  `.noema/` to a project `.gitignore` that ignored `.lain/`. Deliberate, because a project may track `.lain/` in its
-  own history. If both folders exist it reports that and merges nothing.
-- `.lain/preview.json`, `.lain/AGENTS.md`, `.lain/extensions`, `.lain/project.json` are read from whichever folder
-  is the project's authority. Global instructions: `~/.noema/AGENTS.md`, or LAIN's `~/.lain/AGENTS.md` when only that
-  one exists.
+- A project LAIN opens for the first time gets **`.lain/`**, with a `.gitignore` of `*`.
+- A project that already has **`.noema/`** keeps using it as it is: one authority per project, never both written.
+- `lain project migrate` moves `.noema/` → `.lain/` with one rename, renames `NOEMA.md` → `LAIN.md`, and adds `.lain/`
+  to a project `.gitignore` that ignored `.noema/`. If both folders exist it reports that and merges nothing.
+- Constitution: `.lain/LAIN.md` is canonical. A Noema-era `NOEMA.md` (or an older `AGENTS.md`) is read only while no
+  `LAIN.md` exists.
 
-## Windows integration
+## Installer and updater
 
-- "Open with": `Noema.File` / `Noema.Open` / `Applications\<launcher>`; LAIN's `LAIN.File`, `LAIN.Open` and
-  `Applications\LAIN.exe` are removed when Noema registers or unregisters, so Explorer never shows two entries.
-- Start Menu: a "Noema" folder; LAIN's old single `LAIN.lnk` is removed by an install that adds Start Menu entries.
-- Start at sign-in: LAIN's `Startup\LAIN.lnk` (→ LAIN.exe) is carried over ONCE to Noema's `startup.harness` setting
-  and replaced by `Startup\Noema Harness.lnk` (`src/startup.js`); an explicit "off" is never overridden.
-- Executables: no `LAIN.exe` is built or shipped. The development launcher is `<home>\desktop\Noema Harness.exe`;
-  `noema legacy cleanup` (`src/legacycleanup.js`, also run by a registered install) removes LAIN's old `LAIN.exe`
-  and `lain-desktop-*.exe`, and setup removes a `lain.exe` from its own folder on upgrade.
-- The `lain` command: `bin/lain.js` (npm) and `lain.cmd` (installed) are shims onto the same Noema — same home,
-  same Core, same pipe namespace, no shadow config — and print the rename notice once per home.
-- Process and pipe names: `noema-harness-*.exe` (window host), `noema-pty-*.exe`, `noema-core-*`/`noema-harness-*`
-  pipes, `noema-supervisor.exe` (the Rust crate's directory keeps its internal name `rust/lain-supervisor`; the
-  binary it builds is `noema-supervisor`). The cache cleaner still recognises LAIN's old build names.
+- **Fresh install:** `%LOCALAPPDATA%\Programs\LAIN`, with `lain.exe`, `lainw.exe`, `LAIN Harness.exe`,
+  `Uninstall LAIN.exe` and `noema.cmd`. The `noema.cmd` shim sets `LAIN_VIA=noema` and runs `lain.exe`.
+- **Upgrade from Noema:** the choices recorded for the Noema install are carried over. Once LAIN is installed and its
+  CLI has answered with the expected version, the Noema install is retired: its program folder, `Start Menu > Noema`,
+  its PATH entry and its Installed-apps key (`Retire.Noema` in `distribution/setupsystem.cs`). Open With and Startup
+  were already replaced by LAIN's own registration. Data is never touched by setup.
+- **Over an obsolete LAIN folder** (`lain.exe` without `versions\` or `components.json`): its executables are
+  overwritten by the payload, and its supervisor is removed.
+- **In-place update of a Noema-era install** (through the Noema-era updater): every package still carries
+  `app/bin/noema.js`, so the Noema launcher starts it. The updater accepts manifests for product `lain` or `noema`.
+  The install keeps its Noema folder and launchers until the LAIN setup is run.
+- The launcher runs `bin/lain.js`, or `bin/noema.js` for a Noema-era version kept for rollback.
+- Release key: read from `~/.lain-release` or, where it was made, `~/.noema-release`. The key file, its DPAPI entropy
+  and the key label are unchanged.
 
-## What intentionally still says LAIN
+## What intentionally still says Noema
 
-The deprecation notice; `window.LAIN` (the page's internal namespace); `lain.app` (the page's internal virtual
-origin, never shown and never on the network); `LAIN_*` environment variables (mirrored from `NOEMA_*`);
-comments and history in the source.
+- The `noema` alias and its notice.
+- Compatibility reads of `~/.noema`, `.noema/`, `NOEMA.md`, `NOEMA_*` and `noema-core-*`.
+- The legacy registry, link and executable names that cleanup removes.
+- The release key's sealed identifiers.
+- History in comments.

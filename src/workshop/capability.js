@@ -34,7 +34,7 @@ async function wake(root, rule, { processes = null, taskId = null, timeoutMs = W
   if (!processes) return { ok: false, why: 'no process manager, so a capability backend cannot be owned or stopped' };
   const port = rule.port || await devserver.pickPort();
   if (!port) return { ok: false, why: 'no free loopback port for the capability backend' };
-  if (await devserver.listening(port)) return { ok: false, why: `:${port} is already served by another process — Noema starts a capability backend only on a port it can prove is its own` };
+  if (await devserver.listening(port)) return { ok: false, why: `:${port} is already served by another process — LAIN starts a capability backend only on a port it can prove is its own` };
   const proc = processes.start({ taskId, name: `cap:${rule.name}`, command: rule.command, cwd: root, env: { PORT: String(port), HOST: '127.0.0.1' }, port });
   const stop = async () => { try { if (proc.alive) await processes.stop(proc.processId); } catch { /* the manager reports its own failures */ } };
   const tail = () => (typeof proc.tail === 'function' ? proc.tail(40) : '');

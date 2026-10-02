@@ -152,7 +152,7 @@ module.exports = async function () {
     assert.strictEqual(mutation.reverseHunk('X', 'Y', 'Y and Y'), null, 'two candidate places is no place');
   });
 
-  await test('TX: the first Noema write to a project measures a fingerprint baseline first', async () => {
+  await test('TX: the first LAIN write to a project measures a fingerprint baseline first', async () => {
     const root = tree({ 'a.js': SRC, 'b.py': 'print(1)\n' });
     const ctx = ctxFor(root);
     await tools.execute('write_file', { path: 'new.js', content: 'module.exports = 3;\n' }, ctx);

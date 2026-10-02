@@ -100,7 +100,7 @@ function roles(app) {
   let bot = null;
   try { const r = require('../sessionintel').resolve(app, app.session); bot = { source: 'lain', modelId: r.bot.model, scope: r.bot.scope }; } catch { bot = { source: 'lain', modelId: cfg.model || null, scope: 'default' }; }
   return {
-    chat: { ...chat, label: 'CHAT', purpose: 'the CHAT view conversation', chatOnly: require('../modelroles').isWebSource(chat.source), sourceLabel: require('../modelroles').labelFor(chat.source, chat.source === 'lain' ? 'Noema' : chat.source) },
+    chat: { ...chat, label: 'CHAT', purpose: 'the CHAT view conversation', chatOnly: require('../modelroles').isWebSource(chat.source), sourceLabel: require('../modelroles').labelFor(chat.source, chat.source === 'lain' ? 'LAIN' : chat.source) },
     bot: { ...bot, label: 'BOT', purpose: 'conversation, questions, planning, deciding what to do' },
     coding: { ...coding, source: 'lain', label: 'Coding Agent', purpose: 'implementation, refactoring, debugging, tests' },
     defaults: {

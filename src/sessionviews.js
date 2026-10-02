@@ -211,7 +211,7 @@ function turnCfg(app, session) {
 /**
  * DIRECTORIES THAT ARE LAIN, NOT A PROJECT.
  *
- * A session inheriting one of these as its cwd — because Noema Harness.exe was started
+ * A session inheriting one of these as its cwd — because LAIN Harness.exe was started
  * from its install folder — is a session with NO project, and Project Files
  * must say so rather than offering LAIN's own tree as "the source".
  */
@@ -262,7 +262,7 @@ function checkRoot(dir) {
   try { st = fs.statSync(want); } catch { return { ok: false, why: `no folder at ${want}` }; }
   if (!st.isDirectory()) return { ok: false, why: `${want} is a file, not a folder` };
   const abs = path.resolve(want);
-  if (lainOwnDirs().includes(abs.toLowerCase())) return { ok: false, why: `${abs} is Noema's own folder, not a project` };
+  if (lainOwnDirs().includes(abs.toLowerCase())) return { ok: false, why: `${abs} is LAIN's own folder, not a project` };
   if (path.parse(abs).root.toLowerCase() === abs.toLowerCase()) return { ok: false, why: 'a drive root is not a project' };
   return { ok: true, root: abs };
 }

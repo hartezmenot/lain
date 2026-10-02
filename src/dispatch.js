@@ -335,7 +335,7 @@ function route(app, text, { surface = 'ide', pane = null, preferred = null, expl
   const v = require('./mode').classify(text, { taskKind: taskV.kind, activeMode: session && session.mode, projectEmpty, joinsActiveTask: Boolean(taskV.sameTask) });
   if (session) session._routedVerdict = { text: String(text || ''), verdict: v, at: Date.now() };
   const i = v.intent || {};
-  if (i.navigate || i.setting) return done('conversation', 'Noema navigation or a setting', v);
+  if (i.navigate || i.setting) return done('conversation', 'LAIN navigation or a setting', v);
   if (i.plan) return done('conversation', 'planning or investigation — answered, not implemented', v);
   if (i.question) return done('conversation', 'a question', v);
   if (v.readOnly) return done('conversation', `read-only (${String(v.mode).toLowerCase()})`, v);

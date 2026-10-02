@@ -42,7 +42,7 @@ const { spawn } = require('child_process');
 const { test, tmpdir } = require('../helpers');
 
 const ROOT = path.join(__dirname, '..', '..');
-const BIN = path.join(ROOT, 'bin', 'noema.js');
+const BIN = path.join(ROOT, 'bin', 'lain.js');
 const CR = '\r';
 const NL = String.fromCharCode(10);
 const ESC = String.fromCharCode(27);

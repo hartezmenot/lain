@@ -48,7 +48,7 @@ module.exports = async function () {
       const h = ai.handle(app, adopted);
       assert.strictEqual(h.layout.mode, 'direct');
       assert.strictEqual(path.resolve(h.layout.home), path.resolve(home));
-      assert.strictEqual(h.layout.lainOwned, false, 'a home Noema did not create is never deleted by Noema');
+      assert.strictEqual(h.layout.lainOwned, false, 'a home LAIN did not create is never deleted by LAIN');
       assert.ok((await ai.refresh(app, adopted)).ok);
       assert.strictEqual(ai.get(app, adopted).identity.email, 'found@example.com', 'the runtime, in that home, says who it is');
       assert.strictEqual(fs.readFileSync(path.join(home, 'auth.json'), 'utf8'), AUTH);

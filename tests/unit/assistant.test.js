@@ -136,7 +136,7 @@ module.exports = async function () {
     assert.ok(store.get(b.id).nextRun > NOW + 3 * 3600e3);
   });
 
-  await test('ONE SCHEDULER per Noema home: a live lease holder keeps the clock; a dead one is taken over', () => {
+  await test('ONE SCHEDULER per LAIN home: a live lease holder keeps the clock; a dead one is taken over', () => {
     fs.writeFileSync(path.join(store.dir(), 'scheduler.lease'), JSON.stringify({ pid: process.ppid || 1, start: null }));
     const reg = require('../../src/runtimeregistry');
     const sameWas = reg.same;
@@ -170,7 +170,7 @@ module.exports = async function () {
 
   await test('DEFAULT DELIVERY and NAMED PROJECTS: "Desktop + Telegram" applies to desktop sentences; an unknown project is said, never guessed', async () => {
     app.cfg.assistant = { defaultTargets: ['desktop', 'telegram'] };
-    const r = await intent.interpret(app, 'Remind me at 7 pm to continue Noema', { now: NOW });
+    const r = await intent.interpret(app, 'Remind me at 7 pm to continue LAIN', { now: NOW });
     assert.deepStrictEqual(r.task.delivery.targets.sort(), ['desktop', 'telegram']);
     app.cfg.assistant = {};
     const r2 = await intent.interpret(app, 'Remind me at 7 pm to call home', { now: NOW });

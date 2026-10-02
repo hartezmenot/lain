@@ -128,7 +128,7 @@ function viewRuntime(app, rec) {
     config_home: snap ? (snap.layout.shared || snap.layout.home) : null,
     shadow_home: snap && snap.layout.mode === 'overlay' ? snap.layout.home : null,
     credential_ref: null,
-    credential: { held_by: 'runtime', note: 'the runtime keeps its own sign-in in this account\'s home; Noema holds no secret for it' },
+    credential: { held_by: 'runtime', note: 'the runtime keeps its own sign-in in this account\'s home; LAIN holds no secret for it' },
     authentication_state: snap ? snap.authentication_state : 'UNKNOWN',
     runtime_state: snap ? snap.runtime_state : 'NOT_INSTALLED',
     login: snap ? snap.login : null,

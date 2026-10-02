@@ -48,7 +48,7 @@ const TURN_LIMIT = 200;
 /** How much of one message body travels. The app renders prose, not a log. */
 const MESSAGE_CHARS = 20_000;
 /** The product line the window draws beside its name. Read once; it cannot change while Core runs. */
-const PRODUCT = Object.freeze({ name: 'Noema', version: (() => { try { return String(require('../../package.json').version); } catch { return ''; } })() });
+const PRODUCT = Object.freeze({ name: 'LAIN', version: (() => { try { return String(require('../../package.json').version); } catch { return ''; } })() });
 
 /**
  * WHICH LANE A SESSION BELONGS TO.
@@ -474,7 +474,7 @@ async function read(app) {
     update: (() => { try { return require('./updateroutes').view((app && app._sibling) || app); } catch { return null; } })(),
     surface: {
       mode: ((app && app._sibling) || app)._surfaceMode || 'harness',
-      // `noema preview` while this Noema runs (corelock.js): when it was asked, so the window opens the Preview once.
+      // `lain preview` while this LAIN runs (corelock.js): when it was asked, so the window opens the Preview once.
       previewWanted: (((app && app._sibling) || app)._previewWanted || {}).at || null,
       components: (() => { try { return require('../components').read(); } catch { return null; } })(),
     },

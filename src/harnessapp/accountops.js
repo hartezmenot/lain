@@ -124,7 +124,7 @@ function remove(app, { id, token = null } = {}) {
   const cid = String(id || '');
   const cfg = r.cfg || {};
   const entry = cfg.connections && cfg.connections[cid];
-  if (!entry) return bad('that connection is not one Noema stores (an environment key is removed where it was set)');
+  if (!entry) return bad('that connection is not one LAIN stores (an environment key is removed where it was set)');
   if (entry.via === 'bridge') return bad('a bridge holds its own sign-in; remove it in the bridge');
   const now = Date.now();
   for (const [t, v] of intents) if (now - v.at > INTENT_MS) intents.delete(t);

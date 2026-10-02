@@ -183,7 +183,7 @@ function match(app, text, { from = null, now = Date.now() } = {}) {
     }
     if (/telegram.*(stops?|isn'?t|not|down|fails?)/.test(c)) return () => Promise.resolve(create({ type: 'watch', title: 'Telegram stops being operational', watch: { kind: 'channel_state', platform: 'telegram', when: 'down' }, schedule: { poll: 60 }, delivery: { targets: targets.filter((x) => x !== 'telegram').length ? targets.filter((x) => x !== 'telegram') : ['desktop'] } }));
     // Z.AI IS API-ONLY IN LAIN (2026-09-29): no Start Plan watch — the honest answer instead.
-    if (/zcode|start plan/.test(c)) return done({ handled: true, text: "Noema integrates Z.ai through its API and does not use ZCode's Start Plan — ZCode does not report its plan to Noema, so there is nothing to watch. Z.ai API quota is under MODEL › API." });
+    if (/zcode|start plan/.test(c)) return done({ handled: true, text: "LAIN integrates Z.ai through its API and does not use ZCode's Start Plan — ZCode does not report its plan to LAIN, so there is nothing to watch. Z.ai API quota is under MODEL › API." });
     const rt = /(claude code|opencode|zcode|llama\.?cpp|ollama) (?:is|becomes) (operational|running|ready)/.exec(c);
     if (rt) { const id = { 'claude code': 'claude-code', opencode: 'opencode', zcode: 'zcode', 'llama.cpp': 'llamacpp', llamacpp: 'llamacpp', ollama: 'ollama' }[rt[1]]; return () => Promise.resolve(create({ type: 'watch', title: `${rt[1]} ${rt[2]}`, watch: { kind: 'runtime_state', runtime: id, state: rt[2] === 'operational' ? 'Operational' : rt[2] === 'running' ? 'Running' : 'Ready' }, schedule: { poll: 120 }, delivery: { targets } })); }
     return null;
@@ -218,7 +218,7 @@ function match(app, text, { from = null, now = Date.now() } = {}) {
     if (!at) return null;
     // THE PROJECT NAMED, or the one open. A name LAIN has no project for is said, never guessed.
     const named = namedProject(run[1], session && session.cwd);
-    if (named === false) return done({ handled: true, text: `I don't know a project called "${run[1]}" — open it in Noema once, then ask again.` });
+    if (named === false) return done({ handled: true, text: `I don't know a project called "${run[1]}" — open it in LAIN once, then ask again.` });
     const projectRoot = named || (session && session.cwd ? session.cwd : null);
     if (!projectRoot) return done({ handled: true, text: 'Open the project first — I run its tests in its own folder.' });
     return () => Promise.resolve(create({ type: 'scheduled', title: `Run tests · ${require('path').basename(projectRoot)}`, instruction: raw, action: { kind: 'run_tests' }, schedule: { at }, projectRoot, projectId: require('../journey').projectId(projectRoot), delivery: { targets: targetsFor(raw, from, app) } }));
@@ -230,7 +230,7 @@ function match(app, text, { from = null, now = Date.now() } = {}) {
     const full = require('./actions').limitsText(app);
     if (/claude/.test(t)) {
       const ls = full.split('\n').filter((l) => /claude/i.test(l));
-      return done({ handled: true, text: ls.length ? `Claude quota (as Claude Code reported it)\n${ls.join('\n')}` : 'Claude Code has not reported its usage windows to Noema yet — they arrive with its first run through Noema.' });
+      return done({ handled: true, text: ls.length ? `Claude quota (as Claude Code reported it)\n${ls.join('\n')}` : 'Claude Code has not reported its usage windows to LAIN yet — they arrive with its first run through LAIN.' });
     }
     return done({ handled: true, text: full });
   }
@@ -247,7 +247,7 @@ function match(app, text, { from = null, now = Date.now() } = {}) {
     return done({ handled: true, text: s.length ? s.map((x) => `${x.model} — llama.cpp, pid ${x.pid}, port ${x.port}, context ${x.ctx}`).join('\n') : 'No local model is loaded right now.' });
   }
   if (/\bwhen does (the )?zcode start plan expire\b|\bstart plan (expiry|balance)\b/.test(t)) {
-    return done({ handled: true, text: "Noema integrates Z.ai through its API and does not use ZCode's Start Plan — ZCode does not report its plan to Noema, so there is nothing to watch. Z.ai API quota is under MODEL › API." });
+    return done({ handled: true, text: "LAIN integrates Z.ai through its API and does not use ZCode's Start Plan — ZCode does not report its plan to LAIN, so there is nothing to watch. Z.ai API quota is under MODEL › API." });
   }
   if (/\bis telegram (operational|working|up|connected)\b/.test(t)) {
     return async () => {
@@ -262,7 +262,7 @@ function match(app, text, { from = null, now = Date.now() } = {}) {
     const from0 = used[2] === 'today' ? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); })() : now - 7 * 864e5;
     const rows = u.read({ from: from0 }).filter((x) => { const p = projectName(app, x.project); return p.toLowerCase() === used[1] || String(x.project || '').toLowerCase() === used[1]; });
     const s = u.sum(rows, {});
-    return done({ handled: true, text: `${used[1]} ${used[2]}: ${s.requests} request(s) · input ${s.input.toLocaleString()} · output ${s.output.toLocaleString()} tokens (as reported)${s.estimated.rows ? ` · ${(s.estimated.input + s.estimated.output).toLocaleString()} estimated by Noema` : ''}.` });
+    return done({ handled: true, text: `${used[1]} ${used[2]}: ${s.requests} request(s) · input ${s.input.toLocaleString()} · output ${s.output.toLocaleString()} tokens (as reported)${s.estimated.rows ? ` · ${(s.estimated.input + s.estimated.output).toLocaleString()} estimated by LAIN` : ''}.` });
   }
   return null;
 }

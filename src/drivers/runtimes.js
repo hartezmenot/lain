@@ -98,7 +98,7 @@ function runtimeDriver(spec) {
       return {
         driver: spec.id, layout: { mode: 'direct', home: cfgHome, lainOwned: false }, storeKey: `${spec.id}:home:${String(cfgHome || '').toLowerCase()}`,
         env: () => env, refresh, current, stop: async () => {}, logout: async () => { throw new Error(`sign out inside ${spec.displayName}`); },
-        removeOwned: () => ({ removed: false, why: 'Noema did not create this home' }),
+        removeOwned: () => ({ removed: false, why: 'LAIN did not create this home' }),
       };
     },
   });

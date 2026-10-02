@@ -97,7 +97,7 @@ async function handle(app, req, res, st) {
     st.nonces.delete(door[1]);
     if (!at || Date.now() - at > NONCE_MS || String(req.headers.host || '') !== `127.0.0.1:${st.port}`) {
       headers(res, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.writeHead(410); res.end('This link was already used or has expired. Run the command in Noema again.');
+      res.writeHead(410); res.end('This link was already used or has expired. Run the command in LAIN again.');
       return;
     }
     headers(res, { Location: `/#k=${st.key}&s=${encodeURIComponent(st.section || 'accts')}` });
@@ -206,7 +206,7 @@ function client() {
   var choices = [];
   function load() {
     return api('/api/intel/families').then(function (r) {
-      if (!r || !r.ok) { say((r && r.why) || 'Noema did not answer — run the command again.', true); return; }
+      if (!r || !r.ok) { say((r && r.why) || 'LAIN did not answer — run the command again.', true); return; }
       fams = r.families || []; draw();
     });
   }
@@ -223,7 +223,7 @@ function client() {
         var q = (a.quota || []).filter(function (w) { return w.remainingPercent != null; }).map(function (w) { return w.label + ' ' + Math.round(w.remainingPercent) + '% left'; }).join(' · ');
         row.appendChild(el('span', 'muted', q || a.quotaNote || ''));
         var rn = el('button', 'ghost', 'Rename'); rn.onclick = function () { var n = prompt('Name for this account', a.alias || a.name); if (n == null) return; api('/api/intel/alias', { id: a.id, name: n }).then(load); }; row.appendChild(rn);
-        var dt = el('button', 'ghost danger', 'Detach'); dt.onclick = function () { if (!confirm('Detach ' + a.name + ' from Noema? Nothing is signed out, and no other account changes.')) return; api('/api/intel/detach', { id: a.id, mode: 'detach' }).then(function (r) { say(r && r.ok ? 'Detached.' : (r && r.why) || 'not detached', !(r && r.ok)); load(); }); }; row.appendChild(dt);
+        var dt = el('button', 'ghost danger', 'Detach'); dt.onclick = function () { if (!confirm('Detach ' + a.name + ' from LAIN? Nothing is signed out, and no other account changes.')) return; api('/api/intel/detach', { id: a.id, mode: 'detach' }).then(function (r) { say(r && r.ok ? 'Detached.' : (r && r.why) || 'not detached', !(r && r.ok)); load(); }); }; row.appendChild(dt);
         card.appendChild(row);
       });
       acc.appendChild(card);
@@ -279,16 +279,16 @@ function client() {
     };
   }
   document.addEventListener('DOMContentLoaded', function () {
-    if (!KEY) { say('Open this page from Noema (/account add, /api add or /model manage).', true); return; }
+    if (!KEY) { say('Open this page from LAIN (/account add, /api add or /model manage).', true); return; }
     [['codex', 'Codex'], ['claude', 'Claude'], ['antigravity', 'Antigravity']].forEach(function (x) { var b = el('button', '', 'Add ' + x[1] + ' account'); b.onclick = function () { signIn(x[0], x[1]); }; $('adders').appendChild(b); });
-    $('done').onclick = function () { api('/api/_close').then(function () { document.body.textContent = ''; document.body.appendChild(el('p', 'bye', 'Done — you can close this tab. Noema has closed this page.')); }); };
+    $('done').onclick = function () { api('/api/_close').then(function () { document.body.textContent = ''; document.body.appendChild(el('p', 'bye', 'Done — you can close this tab. LAIN has closed this page.')); }); };
     api('/api/accounts/choices').then(function (r) { choices = (r && r.providers) || []; keyForm(); });
     load().then(function () { var t = $(SECTION === 'api' ? 'apiSec' : 'acctSec'); if (t) t.scrollIntoView(); });
   });
 }
 
 function page(nonce) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Noema accounts</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>LAIN accounts</title>
 <style nonce="${nonce}">
 :root{color-scheme:light dark;--bg:#0E131A;--card:#141B24;--line:#243040;--text:#E6EAF0;--muted:#8A96A8;--acc:#9B8AFB;--bad:#F87171}
 @media (prefers-color-scheme: light){:root{--bg:#EEF1F5;--card:#FFFFFF;--line:#D6DCE4;--text:#1A2230;--muted:#5B6678;--acc:#6D5AE6;--bad:#C0392B}}
@@ -302,7 +302,7 @@ label{display:block;margin:0 0 10px}label span{display:block;font-size:12.5px;co
 .note{min-height:22px;margin:12px 0;color:var(--muted)}.note.bad{color:var(--bad)}.code{font:600 26px/1.3 Consolas,monospace;letter-spacing:.15em;margin:8px 0}
 #auth{margin:12px 0}header{display:flex;align-items:flex-start;gap:12px}header div{flex:1}.bye{padding:40px;text-align:center}
 </style></head><body><main>
-<header><div><h1>Noema — accounts and API keys</h1><p class="muted">Served by Noema on this computer only (127.0.0.1). Keys go straight to the Windows secret store and are never shown again. The full dashboard is in the Noema Harness.</p></div><button id="done">Done</button></header>
+<header><div><h1>LAIN — accounts and API keys</h1><p class="muted">Served by LAIN on this computer only (127.0.0.1). Keys go straight to the Windows secret store and are never shown again. The full dashboard is in the LAIN Harness.</p></div><button id="done">Done</button></header>
 <div id="note" class="note"></div>
 <section id="acctSec"><h2>Accounts</h2><div id="adders"></div><div id="auth" class="card" hidden></div><div id="accts"><p class="muted">Reading…</p></div></section>
 <section id="apiSec"><h2>API keys</h2><div class="card"><label><span>Provider</span><select id="prov"></select></label><label id="baseRow" hidden><span>Endpoint (base URL)</span><input id="base" autocomplete="off" spellcheck="false" placeholder="https://…/v1"></label><label><span>API key</span><input id="key" type="password" autocomplete="off" spellcheck="false"></label><button id="addKey">Add key</button></div><div id="apis"></div></section>

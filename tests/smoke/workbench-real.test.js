@@ -100,7 +100,7 @@ module.exports = async function () {
       await d.js("LAIN.nav.go('ide')");
       assert.strictEqual(await railW(), 0, 'the IDE: no app panel beside its activity bar');
       assert.ok(await menusShown(), 'the IDE has its menubar');
-      assert.ok(await d.js("document.getElementById('surfBtn').offsetParent !== null"), 'the IDE: the small Noema mark leads out');
+      assert.ok(await d.js("document.getElementById('surfBtn').offsetParent !== null"), 'the IDE: the small LAIN mark leads out');
       await d.js("LAIN.appearance.set({ nav: 'expanded' })");
       await d.until("document.documentElement.dataset.nav === 'expanded'", 5000);
       await d.js("LAIN.nav.go('chat')"); assert.ok((await railW()) >= 150, 'Expanded: names beside the icons on Chat');

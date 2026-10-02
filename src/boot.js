@@ -1,13 +1,14 @@
 'use strict';
 
 /**
- * BEFORE ANYTHING ELSE RUNS — shared by `noema` (bin/noema.js) and the deprecated `lain` (bin/lain.js).
+ * BEFORE ANYTHING ELSE RUNS — shared by `lain` (bin/lain.js) and the compatibility `noema` (bin/noema.js).
  *
- *   NOEMA_* → LAIN_*   the canonical environment names are NOEMA_*; the code still reads its historical LAIN_*
- *                      names, so each NOEMA_X is mirrored to LAIN_X (an explicit LAIN_X is left as it is).
- *   THE HOME           LAIN's ~/.lain-v2 moves to ~/.noema once, before any module reads it (home.js).
- *   `lain`             still works — the SAME program, the same home and the same Core — and says once per home
- *                      that it has been renamed.
+ *   LAIN_*             the canonical environment names. A Noema-era NOEMA_X is mirrored to LAIN_X for the transition
+ *                      (an explicit LAIN_X always wins), so old scripts keep working and no code reads NOEMA_*.
+ *   THE HOME           the Noema-era ~/.noema (or an unmoved ~/.lain-v2) moves to ~/.lain once, before any module
+ *                      reads it (home.js) — one rename, a junction at the old path, never a second home.
+ *   `noema`            still works for a transition period — the SAME program, the same home, the same sessions and
+ *                      the same Core — and says once per home that the product is called LAIN again.
  */
 
 const fs = require('fs');
@@ -16,28 +17,28 @@ const path = require('path');
 function aliasEnv(env = process.env) {
   for (const k of Object.keys(env)) {
     if (!k.startsWith('NOEMA_')) continue;
-    const legacy = `LAIN_${k.slice(6)}`;
-    if (env[legacy] === undefined) env[legacy] = env[k];
+    const canon = `LAIN_${k.slice(6)}`;
+    if (env[canon] === undefined) env[canon] = env[k];
   }
-  // THE HOME has three spellings; the most specific wins (home.js reads them in the same order).
-  if (!env.LAIN_CONFIG_DIR && (env.NOEMA_CONFIG_DIR || env.NOEMA_HOME)) env.LAIN_CONFIG_DIR = env.NOEMA_CONFIG_DIR || env.NOEMA_HOME;
+  // THE HOME has several spellings; the most specific wins (home.js reads them in the same order).
+  if (!env.LAIN_CONFIG_DIR && (env.LAIN_HOME || env.NOEMA_CONFIG_DIR || env.NOEMA_HOME)) env.LAIN_CONFIG_DIR = env.LAIN_HOME || env.NOEMA_CONFIG_DIR || env.NOEMA_HOME;
 }
 
-function start({ via = 'noema', argv = process.argv.slice(2) } = {}) {
+function start({ via = 'lain', argv = process.argv.slice(2) } = {}) {
   aliasEnv();
-  // THE INSTALLED `lain` IS A ONE-LINE SHIM (`lain.cmd` → noema.exe, distribution/setup.cs) that marks where it came
-  // from; it is the same Noema, and the mark is not inherited by anything Noema starts.
-  if (process.env.NOEMA_VIA === 'lain') via = 'lain';
-  delete process.env.NOEMA_VIA;
+  // THE INSTALLED `noema` IS A ONE-LINE SHIM (`noema.cmd` → lain.exe, distribution/setup.cs) that marks where it came
+  // from; it is the same LAIN, and the mark is not inherited by anything LAIN starts.
+  if (process.env.LAIN_VIA === 'noema' || process.env.NOEMA_VIA === 'noema') via = 'noema';
+  delete process.env.LAIN_VIA; delete process.env.NOEMA_VIA;
   const home = require('./home');
   const pkg = require('../package.json');
   const moved = home.migrate({ version: pkg.version });
-  if (moved.state === 'moved') process.stderr.write(`Noema moved your LAIN data to ${moved.to} (the old folder now points there).\n`);
+  if (moved.state === 'moved') process.stderr.write(`LAIN moved your data to ${moved.to} (the old folder now points there).\n`);
   else if (moved.state === 'deferred' && !argv.includes('--version') && !argv.includes('-v')) process.stderr.write(`note: ${moved.why}\n`);
-  if (via === 'lain') {
-    const flag = path.join(home.resolve(), 'migrations', 'lain-command-notice');
+  if (via === 'noema') {
+    const flag = path.join(home.resolve(), 'migrations', 'noema-command-notice');
     if (!fs.existsSync(flag)) {
-      process.stderr.write('LAIN has been renamed to Noema.\nThe `lain` command is deprecated; use `noema`.\n');
+      process.stderr.write('Noema has been renamed back to LAIN.\nUse `lain` for future commands (`noema` keeps working for now).\n');
       try { fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, new Date().toISOString()); } catch { /* said again next time */ }
     }
   }
@@ -47,9 +48,9 @@ function start({ via = 'noema', argv = process.argv.slice(2) } = {}) {
     const t = setTimeout(() => process.exit(process.exitCode), FORCE_EXIT_GRACE_MS);
     if (typeof t.unref === 'function') t.unref();
   };
-  // EXIT HYGIENE: see bin/noema.js — process.exit right after a real fetch trips a libuv assertion on Node 24.
+  // EXIT HYGIENE: see bin/lain.js — process.exit right after a real fetch trips a libuv assertion on Node 24.
   return require('./cli').main(argv).then((code) => finish(code), (err) => {
-    process.stderr.write(`noema: fatal: ${err && err.stack ? err.stack : err}\n`);
+    process.stderr.write(`lain: fatal: ${err && err.stack ? err.stack : err}\n`);
     finish(1);
   });
 }

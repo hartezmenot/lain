@@ -13,7 +13,7 @@
  * `screen.view` and the content never changed, which reads as a pane you cannot
  * leave; it advertised "[R] resume" and did nothing with R.
  *
- * Everything here drives bin/noema.js and asserts on frames it actually drew.
+ * Everything here drives bin/lain.js and asserts on frames it actually drew.
  * LIMITATION: LAIN_FORCE_TUI is the real draw path over a PIPE, not an attached
  * terminal.
  */
@@ -149,7 +149,7 @@ module.exports = async function () {
         `${JSON.stringify(key)} did not leave the overlay:\n${after.slice(0, 400)}`);
       // AND THE SURFACE IS UNDERNEATH IT, unchanged — there is no pane to have
       // been left on, so what must be there is the one there always is.
-      assertIncludes(after, 'Ask Noema', 'the surface is back, with its input');
+      assertIncludes(after, 'Ask LAIN', 'the surface is back, with its input');
       assert.strictEqual(r.code, 0);
     }
   });

@@ -157,9 +157,9 @@ async function telegram(app, { check = false } = {}) {
   const leased = Boolean(tg && tg.attached);
   const authFailed = Boolean(configured && check && tg.authFailed);
   let status = STATUS.DISCONNECTED;
-  let summary = s.disconnectedAt ? 'Disconnected. Noema no longer holds a Telegram credential.' : 'No Telegram bot is connected.';
+  let summary = s.disconnectedAt ? 'Disconnected. LAIN no longer holds a Telegram credential.' : 'No Telegram bot is connected.';
   if (connecting) { status = STATUS.CONNECTING; summary = 'Checking the token with Telegram…'; }
-  else if (!supervisorOk) { status = STATUS.ERROR; summary = `Noema's runtime did not answer: ${(tg && tg.error) || 'no supervisor'}`; }
+  else if (!supervisorOk) { status = STATUS.ERROR; summary = `LAIN's runtime did not answer: ${(tg && tg.error) || 'no supervisor'}`; }
   else if (authFailed) { status = STATUS.ERROR; summary = 'Telegram rejected the stored token — reconnect with a new one.'; }
   else if (configured && row && row.state === 'unavailable') { status = STATUS.ERROR; summary = row.reason || 'the Telegram adapter could not start'; }
   else if (configured && row && row.state === 'degraded') { status = STATUS.DEGRADED; summary = (trace.lastAdapter && trace.lastAdapter.why) || 'the last poll failed; retrying'; }
@@ -171,7 +171,7 @@ async function telegram(app, { check = false } = {}) {
     else { status = STATUS.LISTENING; summary = 'Listening. No message has made a full round trip since it started — send the bot a message.'; }
   }
   else if (configured && row && row.state === 'listening') { status = STATUS.DEGRADED; summary = 'The adapter thinks it is listening, but the runtime says no one holds its mailbox.'; }
-  else if (configured && !s.enabled) { status = STATUS.CONFIGURED; summary = 'A bot is set up but not enabled in Noema\'s messaging settings — nothing is reading its messages.'; }
+  else if (configured && !s.enabled) { status = STATUS.CONFIGURED; summary = 'A bot is set up but not enabled in LAIN\'s messaging settings — nothing is reading its messages.'; }
   else if (configured && !svc.running) { status = STATUS.CONFIGURED; summary = 'A bot is set up, but messaging is not running — messages wait at Telegram. Start messaging.'; }
   else if (configured) { status = STATUS.CONNECTING; summary = 'Messaging is starting.'; }
   const state = legacyState(status, authFailed);
@@ -184,7 +184,7 @@ async function telegram(app, { check = false } = {}) {
     summary,
     diagnostics: {
       identity: configured ? { username: remote.bot_username || null, name: remote.bot_name || null, botId: tg.botId || null } : null,
-      transport: 'Telegram long polling, by Noema\'s runtime (supervisor) into a leased mailbox the gateway drains',
+      transport: 'Telegram long polling, by LAIN\'s runtime (supervisor) into a leased mailbox the gateway drains',
       runtime: supervisorOk ? { link: tg.link || null, leased, mailboxDepth: Number(tg.mailboxDepth) || 0, lastOkAt: tg.lastOkAt || null } : null,
       gateway: { running: svc.running, owner: svc.owner, adapter: row ? row.state : null },
       resume: root(app)._botResume || null,
@@ -280,7 +280,7 @@ async function stopService(app) {
     return { ok: true };
   }
   const svc = await service(app);
-  if (svc.owner === 'external') return { ok: false, why: 'messaging is running in another Noema process (noema --bot); stop it there' };
+  if (svc.owner === 'external') return { ok: false, why: 'messaging is running in another LAIN process (lain --bot); stop it there' };
   return { ok: true, already: true };
 }
 
@@ -298,7 +298,7 @@ async function resume(app) {
   let why = '';
   if (enabled.includes('telegram')) {
     const tg = await rpcFn({ op: 'remote_gateway_status' }, { start: true, timeoutMs: 8000 });
-    if (!tg || !tg.ok) why = `Noema's runtime did not answer: ${(tg && tg.error) || 'no supervisor'}`;
+    if (!tg || !tg.ok) why = `LAIN's runtime did not answer: ${(tg && tg.error) || 'no supervisor'}`;
     else if (!tg.configured && enabled.length === 1) why = 'Telegram is enabled but the runtime holds no bot credential — reconnect it';
   }
   if (why) { r._botResume = { at: Date.now(), started: false, why }; return r._botResume; }
@@ -321,7 +321,7 @@ async function sendTest(app, { to } = {}) {
   const own = root(app)._botService;
   if (!own || own.stopped) {
     const svc = await service(app);
-    return { ok: false, why: svc.owner === 'external' ? 'messaging is running in another Noema process (noema --bot); send the test from there' : 'messaging is not running — start it first' };
+    return { ok: false, why: svc.owner === 'external' ? 'messaging is running in another LAIN process (lain --bot); send the test from there' : 'messaging is not running — start it first' };
   }
   const gw = own.gateway;
   const accountId = s.accountId || 'default';
@@ -329,7 +329,7 @@ async function sendTest(app, { to } = {}) {
   const e = { platform: 'telegram', accountId, chatId: target, senderId: target, kind: 'dm', threadId: '', replyTo: '', timestamp: Date.now() };
   gw.trace.note('dispatch', { id, platform: 'telegram', accountId, test: true });
   let rows;
-  try { rows = await gw.delivery.sendMessage(e, 'Noema test message — the channel can reach you. (No reply needed.)', { id: `test:${id}`, kind: 'notice' }); }
+  try { rows = await gw.delivery.sendMessage(e, 'LAIN test message — the channel can reach you. (No reply needed.)', { id: `test:${id}`, kind: 'notice' }); }
   catch (err) { gw.trace.note('outbound', { id, platform: 'telegram', accountId, ok: false, why: String((err && err.message) || err), test: true }); return { ok: false, why: `not sent: ${(err && err.message) || err}`, receipt: id }; }
   const bad = (rows || []).find((x) => x.state !== 'delivered');
   gw.trace.note('outbound', bad ? { id, platform: 'telegram', accountId, ok: false, why: `test ${bad.state}`, test: true } : { id, platform: 'telegram', accountId, test: true });
@@ -344,7 +344,7 @@ async function connectTelegram(app, token) {
   require('./redact').register(t);
   const before = await rpcFn({ op: 'remote_gateway_status' }, { start: true, timeoutMs: 8000 });
   if (!before || !before.ok) {
-    return { ok: false, why: /unknown op/i.test(String(before && before.error)) ? 'Noema\'s runtime is older than messaging support — restart it when its work can stop' : `Noema's runtime did not answer: ${(before && before.error) || 'no supervisor'}` };
+    return { ok: false, why: /unknown op/i.test(String(before && before.error)) ? 'LAIN\'s runtime is older than messaging support — restart it when its work can stop' : `LAIN's runtime did not answer: ${(before && before.error) || 'no supervisor'}` };
   }
   if (before.configured) return { ok: false, why: 'a Telegram bot is already connected — disconnect it first to use a different one' };
   if (r._botConnecting) return { ok: false, why: 'a connection is already being checked' };
@@ -362,7 +362,7 @@ async function connectTelegram(app, token) {
     delete s.disconnectedAt;
     s.accountId = s.accountId || 'default';
     if (!Array.isArray(s.allowUsers)) s.allowUsers = [];
-    if (!saveConfig(app)) return { ok: false, why: 'the bot was verified, but Noema could not save its messaging settings' };
+    if (!saveConfig(app)) return { ok: false, why: 'the bot was verified, but LAIN could not save its messaging settings' };
     const running = await service(app);
     let started = { ok: true, owner: running.owner };
     if (running.owner === 'core') {
@@ -381,13 +381,13 @@ function approveTelegram(app, senderId) {
   const id = String(senderId || '').trim();
   if (!/^\d{1,20}$/.test(id)) return { ok: false, why: 'a Telegram user ID is a number' };
   if (!candidates(app, 'telegram').some((c) => c.senderId === id)) {
-    return { ok: false, why: 'approve an ID that messaged the bot — that is how Noema knows the account is real' };
+    return { ok: false, why: 'approve an ID that messaged the bot — that is how LAIN knows the account is real' };
   }
   const s = ensureSettings(app, 'telegram');
   // IN PLACE: the running gateway holds this very object as its adapter settings.
   if (!Array.isArray(s.allowUsers)) s.allowUsers = [];
   if (!s.allowUsers.map(String).includes(id)) s.allowUsers.push(id);
-  if (!saveConfig(app)) return { ok: false, why: 'Noema could not save the approval' };
+  if (!saveConfig(app)) return { ok: false, why: 'LAIN could not save the approval' };
   const own = root(app)._botService;
   try { if (own && own.gateway) own.gateway.store.dropCandidate('telegram', s.accountId || 'default', id); } catch { /* the filter hides it anyway */ }
   return { ok: true, allowedUsers: s.allowUsers.map(String) };
@@ -398,7 +398,7 @@ function revokeTelegram(app, senderId) {
   const s = settings(app, 'telegram');
   if (!s || !Array.isArray(s.allowUsers)) return { ok: true, allowedUsers: [] };
   for (let i = s.allowUsers.length - 1; i >= 0; i--) if (String(s.allowUsers[i]) === id) s.allowUsers.splice(i, 1);
-  if (!saveConfig(app)) return { ok: false, why: 'Noema could not save the change' };
+  if (!saveConfig(app)) return { ok: false, why: 'LAIN could not save the change' };
   return { ok: true, allowedUsers: s.allowUsers.map(String) };
 }
 
@@ -417,7 +417,7 @@ function revokeTelegram(app, senderId) {
  */
 async function disconnectTelegram(app) {
   const svc = await service(app);
-  if (svc.owner === 'external') return { ok: false, why: 'messaging is running in another Noema process (noema --bot); stop it there first' };
+  if (svc.owner === 'external') return { ok: false, why: 'messaging is running in another LAIN process (lain --bot); stop it there first' };
   if (svc.owner === 'core') await stopService(app);
   const r = await rpcFn({ op: 'remote_disconnect' }, { start: true });
   if (!r || !r.ok) return { ok: false, why: `the runtime did not remove the credential: ${(r && r.error) || 'no answer'}` };

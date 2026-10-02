@@ -193,7 +193,7 @@ module.exports = async function () {
     assert.deepStrictEqual([user.startLine, user.endLine], [6, 8], 'the person\'s lines moved down by the two the Agent added above');
     assert.deepStrictEqual([agent.startLine, agent.endLine], [1, 2]);
     assert.ok(/USER/.test(ledger.summary(root, { source: 'USER' }).text));
-    assert.ok(/AGENT/.test(ledger.summary(root, { source: 'Noema' }).text));
+    assert.ok(/AGENT/.test(ledger.summary(root, { source: 'LAIN' }).text));
     assert.ok(!/AGENT/.test(ledger.summary(root, { source: 'USER' }).text), '"what did I change" is only mine');
     const recent = ledger.recentUserEdits(root, [rel]);
     assert.strictEqual(recent.length, 1);
@@ -220,7 +220,7 @@ module.exports = async function () {
     assert.ok(s.journey.path.some((e) => e.kind === 'user.edit' && e.file === 'src/unrelated.js'), 'one journey note, from the transaction');
   });
 
-  await test('PROVENANCE: a kept Noema write through the mutation transaction is recorded as AGENT with its task', async () => {
+  await test('PROVENANCE: a kept LAIN write through the mutation transaction is recorded as AGENT with its task', async () => {
     ledger.reset();
     const s = sessionFor(root);
     s.task = new T.Task('touch a file');

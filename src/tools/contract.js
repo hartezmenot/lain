@@ -5,8 +5,8 @@
  *
  *   task_contract       record or revise the requested outcome, the explicit asks, acceptance criteria (with the
  *                       evidence that meets them), facts, hypotheses, open questions, blockers and scaffolding; and
- *                       DISCLOSE test changes Noema flagged. Noema stores it; the model proposes and revises.
- *   request_completion  ask Noema to finish the task, with typed claims (CHANGED / VERIFIED(check) / INFERRED /
+ *                       DISCLOSE test changes LAIN flagged. LAIN stores it; the model proposes and revises.
+ *   request_completion  ask LAIN to finish the task, with typed claims (CHANGED / VERIFIED(check) / INFERRED /
  *                       NOT_CHECKED). The completion arbiter decides — the model cannot certify its own work.
  *
  * Neither changes the project, so both stay available in every mode.
@@ -54,7 +54,7 @@ const tools = {
       for (const k of input.criteria || []) {
         const r = c.criterion(k.id, { text: k.text, askIds: k.asks || k.askIds, status: k.status ? String(k.status).toUpperCase() : undefined, evidence: k.evidence && k.evidence.check ? { check: String(k.evidence.check), expect: k.evidence.expect || null } : null });
         if (!r) notes.push(`criterion ${k.id || '?'} needs text`);
-        else if (k.evidence && k.evidence.check && !d.checks.get(k.evidence.check)) notes.push(`${k.evidence.check} is not a check or observation Noema recorded`);
+        else if (k.evidence && k.evidence.check && !d.checks.get(k.evidence.check)) notes.push(`${k.evidence.check} is not a check or observation LAIN recorded`);
       }
       for (const f of input.facts || []) c.fact(f.text || f, { kind: f.kind, owner: f.owner, provenance: f.provenance || 'model', gen: life.mutationSeq || 0 });
       for (const h of input.hypotheses || []) c.note('hypotheses', h);
@@ -63,7 +63,7 @@ const tools = {
       for (const s of input.scaffold || []) c.scaffold(s.path, String(s.status || 'ACTIVE').toUpperCase());
       for (const k of input.checks || []) {
         if (!k.note && String(k.relevance || '').toUpperCase() === 'UNRELATED') { notes.push(`${k.id}: say why it is unrelated (note)`); continue; }
-        if (!d.checks.judge(k.id, { relevance: k.relevance, note: k.note })) notes.push(`${k.id} is not a check Noema recorded`);
+        if (!d.checks.judge(k.id, { relevance: k.relevance, note: k.note })) notes.push(`${k.id} is not a check LAIN recorded`);
       }
       if (input.disclose) { const done = d.disclose(input.disclose.ids || ['all'], input.disclose.note || ''); notes.push(`disclosed ${done.map((f) => f.id).join(', ') || 'nothing'}`); }
       const satisfied = require('../discipline/arbiter').outcomeSatisfied(life);
@@ -76,7 +76,7 @@ const tools = {
     mutates: false,
     schema: {
       name: 'request_completion',
-      description: 'Ask Noema to finish this task. Give typed `claims` ([{type: CHANGED|VERIFIED|INFERRED|NOT_CHECKED, text, check?: id}]) and mark `asks` ({A1: "ADDRESSED"|"DEFERRED"}). Use state "BLOCKED" (with layer and reason) or "NEEDS_DECISION" (with question) instead when that is the truth. Noema decides: DONE, DONE_UNVERIFIED, PARTIAL, BLOCKED or NEEDS_DECISION. Set accept_unverified / accept_partial to finish honestly without the missing evidence or asks.',
+      description: 'Ask LAIN to finish this task. Give typed `claims` ([{type: CHANGED|VERIFIED|INFERRED|NOT_CHECKED, text, check?: id}]) and mark `asks` ({A1: "ADDRESSED"|"DEFERRED"}). Use state "BLOCKED" (with layer and reason) or "NEEDS_DECISION" (with question) instead when that is the truth. LAIN decides: DONE, DONE_UNVERIFIED, PARTIAL, BLOCKED or NEEDS_DECISION. Set accept_unverified / accept_partial to finish honestly without the missing evidence or asks.',
       parameters: {
         type: 'object',
         properties: {
@@ -116,7 +116,7 @@ const tools = {
       else if (v.state === 'PARTIAL' && input.accept_partial) { settle('PARTIAL', v.why); head = `PARTIAL — ${v.why}. Report what remains.`; }
       else head = `NOT COMPLETE (${v.state}) — ${v.why}. ${v.state === 'PARTIAL' ? 'Address or defer the remaining asks, or call again with accept_partial.' : 'Resolve this before requesting completion again.'}`;
       const output = [head, ...(claimLines.length ? ['claims:', ...claimLines] : [])].join('\n');
-      // A SETTLED TASK ENDS THE TURN (turn.js): the verdict is Noema's, so there is nothing left to re-verify — a model
+      // A SETTLED TASK ENDS THE TURN (turn.js): the verdict is LAIN's, so there is nothing left to re-verify — a model
       // that kept going re-checked a finished task four times in a real GLM run (2026-10-01).
       if (life.state !== 'ACTIVE' || v.state === 'NEEDS_DECISION') life._closed = { state: v.state, text: output };
       return { output, meta: { verdict: v.state } };

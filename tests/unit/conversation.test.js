@@ -461,7 +461,7 @@ module.exports = async function () {
     assert.strictEqual(sc.viewportState(8), 'NEW_ACTIVITY_PENDING', 'scrolled up while something was said');
   });
 
-  await test('VIEWPORT: reading history while Noema answers shows how much was missed', () => {
+  await test('VIEWPORT: reading history while LAIN answers shows how much was missed', () => {
     const sc = new Screen({ out: { write() {}, columns: 80, rows: 24 } });
     sc.stickToBottom = false;
     sc._anchorSpoken = 2;

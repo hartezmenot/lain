@@ -7,7 +7,7 @@
  * not require() a single application module.
  *
  * NOTE ON THE ENTRY POINT: the audit brief names `bin/dotcli.js`. That is V1's
- * binary. V2's entry point is `bin/noema.js` (declared in package.json `bin`), and
+ * binary. V2's entry point is `bin/lain.js` (declared in package.json `bin`), and
  * that is what `runCli` spawns. The intent — drive the REAL binary, never a
  * module — is honoured exactly.
  *
@@ -64,7 +64,7 @@ module.exports = async function () {
       ],
     });
     assert.strictEqual(r.code, 0, 'process exited cleanly');
-    assertIncludes(r.stdout, 'Noema', 'banner/prompt appeared');
+    assertIncludes(r.stdout, 'LAIN', 'banner/prompt appeared');
     assertIncludes(r.stdout, 'read_file', 'tool call surfaced');
     assertIncludes(r.stdout, 'SEED_CONTENT', 'tool RESULT returned');
     assertIncludes(r.stdout, 'It says SEED.', 'turn completed');
@@ -420,7 +420,7 @@ module.exports = async function () {
     // That is a strictly stronger guarantee: it protects a concurrent change by
     // ANY writer — another session, an editor, a git checkout — instead of only
     // the case where the history happened to be empty.
-    assertIncludes(b.out, 'changed after Noema last wrote to it');
+    assertIncludes(b.out, 'changed after LAIN last wrote to it');
     const after = fs.readFileSync(path.join(cwd, 'shared.txt'), 'utf8');
     assert.strictEqual(after, 'FROM_B\n', 'undo after /resume must not revert another session\'s work');
   });
@@ -523,7 +523,7 @@ module.exports = async function () {
     const session = JSON.parse(fs.readFileSync(path.join(sessDir, file), 'utf8'));
     const said = session.messages.filter((m) => m.role === 'user').map((m) => String(m.content));
     assert.deepStrictEqual(said, ['investigate'],
-      `Noema put words in the user's mouth: ${JSON.stringify(said)}`);
+      `LAIN put words in the user's mouth: ${JSON.stringify(said)}`);
   });
 
   await test('ADV: liveness never blocks a tool the model chooses next', async () => {

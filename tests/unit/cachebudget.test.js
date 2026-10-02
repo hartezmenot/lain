@@ -23,7 +23,7 @@ const tb = require('../../src/toolbudget');
 
 const PC = { model: 'm', connectionId: 'c', protocol: 'responses' };
 const TOOLS = [{ name: 'read_file', description: 'read a file', parameters: { type: 'object' } }, { name: 'grep', description: 'search', parameters: { type: 'object' } }];
-const SYS = `You are Noema.\n\n# This project\n${'stable project knowledge. '.repeat(800)}`;
+const SYS = `You are LAIN.\n\n# This project\n${'stable project knowledge. '.repeat(800)}`;
 const live = (extra = '') => ({ role: 'user', content: `<lain-context>\n# This request\nguidance\n\n# Grounding\nexisting project${extra}\n</lain-context>`, _live: true });
 function wire(msgs, tail = '') { return [{ role: 'system', content: SYS }, ...msgs, live(tail)]; }
 
@@ -139,12 +139,12 @@ module.exports = async function run() {
     const big = Array.from({ length: 3000 }, (_, i) => `line ${i} ${'x'.repeat(20)}`).join('\n');
     const out = tb.bound('read_file', { path: 'big.js' }, { output: big });
     assert.ok(out.length < 26000, `${out.length}`);
-    assert.match(out, /Noema context budget: \d+ of \d+ chars shown · read_file with offset:\d+ and limit for the next part · full output kept as tr_[0-9a-f]{10}/);
+    assert.match(out, /LAIN context budget: \d+ of \d+ chars shown · read_file with offset:\d+ and limit for the next part · full output kept as tr_[0-9a-f]{10}/);
     const id = /tr_[0-9a-f]{10}/.exec(out)[0];
     assert.strictEqual(fs.readFileSync(require('path').join(tb.dir(), `${id}.txt`), 'utf8'), big, 'the raw evidence is recoverable byte for byte');
     const range = big.slice(0, 60000);
     assert.strictEqual(tb.bound('read_file', { path: 'big.js', offset: 1, limit: 2100 }, { output: range }), range, 'an explicit range is what the model asked for (under the hard cap)');
-    assert.match(tb.bound('read_file', { path: 'big.js', offset: 1, limit: 3000 }, { output: big }), /Noema context budget/, 'above the hard cap even a range is bounded');
+    assert.match(tb.bound('read_file', { path: 'big.js', offset: 1, limit: 3000 }, { output: big }), /LAIN context budget/, 'above the hard cap even a range is bounded');
     assert.strictEqual(tb.bound('run_tests', {}, { output: big, isError: true }), big, 'a failure is never cut');
     const shell = tb.bound('run_bash', {}, { output: `${big}\nFINAL SUMMARY: 3 failed` });
     assert.match(shell, /FINAL SUMMARY: 3 failed/, 'the tail (where summaries live) is kept');

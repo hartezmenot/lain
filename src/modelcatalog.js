@@ -202,7 +202,7 @@ function observeApi(app, { only = null } = {}) {
 
 /**
  * REFRESH MODELS — the one Core act behind MODEL › Refresh models, a provider's own Refresh models, `/model refresh`
- * and `noema model refresh`. Scoped: `family` ('codex' | 'claude' | 'antigravity' | 'api' | 'api:<id>') or all.
+ * and `lain model refresh`. Scoped: `family` ('codex' | 'claude' | 'antigravity' | 'api' | 'api:<id>') or all.
  * Disabled accounts are not asked (their last listing still counts). Returns the generation diffs.
  */
 async function refresh(app, { family = null } = {}) {
@@ -258,7 +258,7 @@ function summarize(d) {
  */
 let scheduled = false;
 function scheduleBackground(app, { delayMs = BACKGROUND_DELAY_MS } = {}) {
-  if (scheduled || process.env.LAIN_ISOLATED === '1' && !process.env.NOEMA_MODEL_REFRESH_IN_TESTS) return false;
+  if (scheduled || process.env.LAIN_ISOLATED === '1' && !process.env.LAIN_MODEL_REFRESH_IN_TESTS) return false;
   scheduled = true;
   const t = setTimeout(async () => {
     for (const fam of ['codex', 'claude', 'antigravity']) {

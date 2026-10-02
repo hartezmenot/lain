@@ -83,7 +83,7 @@ const WHY = {
   provider: 'the provider stopped answering',
   'max-steps': 'it reached the step budget',
   'no-credential': 'there was no usable credential',
-  crashed: 'Noema itself was closed mid-turn (recovered from its in-flight record; lost calls are answered with what was inspected after restart)',
+  crashed: 'LAIN itself was closed mid-turn (recovered from its in-flight record; lost calls are answered with what was inspected after restart)',
 };
 
 /**
@@ -96,9 +96,9 @@ const WHY = {
  * to what actually happened is the process that was watching from outside.
  */
 const RUNTIME_WHY = {
-  RATE_LIMITED: 'the route Noema was using is rate limited, so your message was not sent to it',
+  RATE_LIMITED: 'the route LAIN was using is rate limited, so your message was not sent to it',
   PROVIDER_FAILED: 'the previous turn did not finish — the provider stopped answering',
-  TURN_LOST: 'the Noema process running the previous turn no longer exists; it was killed or it crashed '
+  TURN_LOST: 'the LAIN process running the previous turn no longer exists; it was killed or it crashed '
     + 'mid-turn, so nothing recorded how far it got',
   HANDOVER_PENDING: 'the model changed part-way through this task',
 };
@@ -272,7 +272,7 @@ function build(session, opts = {}) {
     const why = RUNTIME_WHY[rt.kind] || 'the previous turn did not complete';
     const st = rt.state || {};
     const prev = st.previous_model && st.previous_model !== toModel ? st.previous_model : '';
-    opening.push(`Noema's runtime stopped this message reaching the model directly: ${why}.`
+    opening.push(`LAIN's runtime stopped this message reaching the model directly: ${why}.`
       + (prev ? ` The work up to this point was done by ${prev}.` : ''));
   }
   if (from && toModel && from !== toModel) {
@@ -322,7 +322,7 @@ function build(session, opts = {}) {
       + '. Nothing after that point happened.');
   }
   // A background process the closed LAIN left running is reason enough to brief.
-  if (!opening.length && require('./inflight').jobRows(session).length) opening.push('Noema was closed while background work was running; its processes are listed below.');
+  if (!opening.length && require('./inflight').jobRows(session).length) opening.push('LAIN was closed while background work was running; its processes are listed below.');
   if (!opening.length) return '';
   parts.push(opening.join(' '));
 
@@ -503,7 +503,7 @@ function build(session, opts = {}) {
 
   // ---- JOBS A FORCE-CLOSED LAIN LEFT BEHIND (inflight.js) ---------------------
   const orphaned = require('./inflight').jobRows(session);
-  if (orphaned.length) parts.push(`Background processes from a Noema that was closed mid-work:\n${orphaned.join('\n')}`);
+  if (orphaned.length) parts.push(`Background processes from a LAIN that was closed mid-work:\n${orphaned.join('\n')}`);
 
   // ---- WHICH ROUTES ARE SHUT, AND UNTIL WHEN -------------------------------
   //
@@ -531,7 +531,7 @@ function build(session, opts = {}) {
         : `clears in ${require('./ratelimit').human(r.resets_in_ms)}`;
       return `- ${who}: rate limited, ${left}`;
     });
-    parts.push('Routes that are closed right now — Noema observed these, they are not the previous '
+    parts.push('Routes that are closed right now — LAIN observed these, they are not the previous '
       + `model's report:\n${rows.join('\n')}\n`
       + 'Do not plan around a route in this list, and do not spend a turn rediscovering that it is shut.');
   }

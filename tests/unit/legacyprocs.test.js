@@ -44,7 +44,7 @@ module.exports = async function () {
     assert.ok(r.candidates.every((c) => c.id === `${c.pid}@${c.start}`));
   });
 
-  await test("LEGACY: this Noema's own home is referenced state, even when it looks temporary", () => {
+  await test("LEGACY: this LAIN's own home is referenced state, even when it looks temporary", () => {
     const home = path.join(tmp, 'lain-run-mine', 'home');
     const r = lp.scan({ ...facts, rows: [{ pid: 707, ppid: 1, start: 'x', cmd: bin + home }], ownHome: home });
     assert.strictEqual(r.candidates[0].class, lp.CLASS.POSSIBLY_ACTIVE);

@@ -73,7 +73,7 @@ ${last.slice(-400)}`);
       `the provider's refusal is wearing the tool's failure mark: ${region}`);
   });
 
-  await test('REFUSAL: it is named in Noema\'s words, with the fix, not as raw JSON', async () => {
+  await test('REFUSAL: it is named in LAIN\'s words, with the fix, not as raw JSON', async () => {
     const r = await refusedAfterTool();
     const out = plain(r.out);
     assertIncludes(out, 'TOO MANY MESSAGES', 'the classification, not the status code alone');

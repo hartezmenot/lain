@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * THE NOEMA UPDATER (packaging pass §H–I, §X) — against a real signed feed on disk and a real install layout.
+ * THE LAIN UPDATER (packaging pass §H–I, §X) — against a real signed feed on disk and a real install layout.
  *
  *   - a manifest is trusted only when its Ed25519 signature verifies against a release key; a tampered manifest, or
  *     one signed by any other key, is refused — and the test key is honoured only in an isolated run
  *   - a downloaded package whose SHA-256 differs from the signed manifest is REJECTED and deleted; the installed
- *     version is untouched; so is a package that is not a Noema build
+ *     version is untouched; so is a package that is not a LAIN build
  *   - a verified package is unpacked beside the running version (versions/<v>), never over it
  *   - apply: previous ← current, current ← staged, pending ← staged, restart.json for the launcher; after the new
  *     version reports healthy, "Updated from X" still knows X
@@ -33,21 +33,21 @@ function withEnv(vars, fn) {
 }
 
 /** A feed directory with a package and a manifest signed by `key`. */
-function feed({ key, version = '0.1.1', tamperHash = false, notNoema = false, channel = 'stable' }) {
-  const dir = tmpdir('noema-feed-');
-  const pkg = tmpdir('noema-pkg-');
+function feed({ key, version = '0.1.1', tamperHash = false, notLAIN = false, channel = 'stable' }) {
+  const dir = tmpdir('lain-feed-');
+  const pkg = tmpdir('lain-pkg-');
   fs.mkdirSync(path.join(pkg, 'runtime'), { recursive: true });
   fs.writeFileSync(path.join(pkg, 'runtime', 'node.exe'), 'not really node');
-  if (!notNoema) {
+  if (!notLAIN) {
     fs.mkdirSync(path.join(pkg, 'app', 'bin'), { recursive: true });
-    fs.writeFileSync(path.join(pkg, 'app', 'bin', 'noema.js'), '// the new version\n');
+    fs.writeFileSync(path.join(pkg, 'app', 'bin', 'lain.js'), '// the new version\n');
   } else fs.writeFileSync(path.join(pkg, 'readme.txt'), 'something else');
-  const name = `noema-${version}-win-x64.zip`;
+  const name = `lain-${version}-win-x64.zip`;
   execFileSync(TAR, ['-a', '-cf', path.join(dir, name), '-C', pkg, ...fs.readdirSync(pkg)], { stdio: 'ignore', windowsHide: true });
   let sha = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex');
   if (tamperHash) sha = sha.replace(/^./, (c) => (c === '0' ? '1' : '0'));
   const release = {
-    schema: 1, product: 'noema', channel, version, released: new Date().toISOString(), minimumCompatible: '0.1.0', protocol: 1,
+    schema: 1, product: 'lain', channel, version, released: new Date().toISOString(), minimumCompatible: '0.1.0', protocol: 1,
     notes: 'https://example.invalid/notes', summary: ['A test release'],
     assets: [{ arch: 'x64', kind: 'app', name, url: name, size: fs.statSync(path.join(dir, name)).size, sha256: sha }],
   };
@@ -57,11 +57,11 @@ function feed({ key, version = '0.1.1', tamperHash = false, notNoema = false, ch
   return { dir, release, bytes };
 }
 
-/** An installed Noema's layout: current → 0.1.0. */
+/** An installed LAIN's layout: current → 0.1.0. */
 function install() {
-  const root = tmpdir('noema-install-');
+  const root = tmpdir('lain-install-');
   fs.mkdirSync(path.join(root, 'versions', '0.1.0', 'app', 'bin'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'noema.js'), '// the running version\n');
+  fs.writeFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'lain.js'), '// the running version\n');
   fs.writeFileSync(path.join(root, 'current'), '0.1.0');
   return root;
 }
@@ -89,30 +89,30 @@ module.exports = async function () {
     assert.ok(!M.verifySignature(tampered, sig, [PUB]).ok, 'one changed byte is refused');
     assert.ok(!M.verifySignature(f.bytes, crypto.sign(null, f.bytes, other.privateKey).toString('base64'), [PUB]).ok, 'another key is refused');
     assert.ok(!M.verifySignature(f.bytes, '', [PUB]).ok, 'no signature is refused');
-    assert.ok(!M.parse(Buffer.from('{"schema":1,"product":"other"}')).ok, 'not a Noema manifest');
+    assert.ok(!M.parse(Buffer.from('{"schema":1,"product":"other"}')).ok, 'not a LAIN manifest');
   });
 
   await test('UPDATE: the test key is honoured only in an isolated run — a release build trusts its release keys alone', () => {
-    withEnv({ NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: null, LAIN_ISOLATED: null }, () => {
+    withEnv({ LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: null, LAIN_ISOLATED: null }, () => {
       assert.strictEqual(trust.publicKeys().length, trust.RELEASE_KEYS.length);
     });
-    withEnv({ NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: '1' }, () => {
+    withEnv({ LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, () => {
       assert.ok(trust.publicKeys().includes(PUB));
     });
   });
 
   await test('UPDATE: check → stage → apply against a signed feed; the running version is never touched', async () => {
-    const home = tmpdir('noema-uphome-');
+    const home = tmpdir('lain-uphome-');
     const root = install();
     const f = feed({ key: privateKey });
-    await withEnv({ LAIN_CONFIG_DIR: home, NOEMA_CONFIG_DIR: home, NOEMA_INSTALL_ROOT: root, NOEMA_UPDATE_FEED: f.dir, NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: '1' }, async () => {
+    await withEnv({ LAIN_CONFIG_DIR: home, LAIN_CONFIG_DIR: home, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
       const c = await U.check({ force: true });
       assert.strictEqual(c.state, 'available', JSON.stringify(c));
       assert.strictEqual(c.available.version, '0.1.1');
       const s = await U.stage({});
       assert.ok(s.ok, s.why);
-      assert.ok(fs.existsSync(path.join(root, 'versions', '0.1.1', 'app', 'bin', 'noema.js')), 'unpacked beside the running version');
-      assert.strictEqual(fs.readFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'noema.js'), 'utf8'), '// the running version\n');
+      assert.ok(fs.existsSync(path.join(root, 'versions', '0.1.1', 'app', 'bin', 'lain.js')), 'unpacked beside the running version');
+      assert.strictEqual(fs.readFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'lain.js'), 'utf8'), '// the running version\n');
       assert.strictEqual(U.status().state, 'staged');
       const a = U.apply({ args: ['--resume', 's1'], cwd: root });
       assert.ok(a.ok, a.why);
@@ -127,10 +127,10 @@ module.exports = async function () {
   });
 
   await test('UPDATE: a package whose SHA-256 differs from the signed manifest is rejected and deleted', async () => {
-    const home = tmpdir('noema-uphome-');
+    const home = tmpdir('lain-uphome-');
     const root = install();
     const f = feed({ key: privateKey, tamperHash: true });
-    await withEnv({ LAIN_CONFIG_DIR: home, NOEMA_CONFIG_DIR: home, NOEMA_INSTALL_ROOT: root, NOEMA_UPDATE_FEED: f.dir, NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: '1' }, async () => {
+    await withEnv({ LAIN_CONFIG_DIR: home, LAIN_CONFIG_DIR: home, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
       assert.strictEqual((await U.check({ force: true })).state, 'available');
       const s = await U.stage({});
       assert.ok(!s.ok);
@@ -142,20 +142,20 @@ module.exports = async function () {
     });
   });
 
-  await test('UPDATE: a package that is not a Noema build is rejected; a foreign-signed feed never stages', async () => {
-    const home = tmpdir('noema-uphome-');
+  await test('UPDATE: a package that is not a LAIN build is rejected; a foreign-signed feed never stages', async () => {
+    const home = tmpdir('lain-uphome-');
     const root = install();
-    const f = feed({ key: privateKey, notNoema: true });
-    await withEnv({ LAIN_CONFIG_DIR: home, NOEMA_CONFIG_DIR: home, NOEMA_INSTALL_ROOT: root, NOEMA_UPDATE_FEED: f.dir, NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: '1' }, async () => {
+    const f = feed({ key: privateKey, notLAIN: true });
+    await withEnv({ LAIN_CONFIG_DIR: home, LAIN_CONFIG_DIR: home, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
       await U.check({ force: true });
       const s = await U.stage({});
       assert.ok(!s.ok);
-      assert.match(s.why, /not a Noema build/);
+      assert.match(s.why, /not a LAIN build/);
       assert.ok(!fs.existsSync(path.join(root, 'versions', '0.1.1')));
     });
-    const home2 = tmpdir('noema-uphome-');
+    const home2 = tmpdir('lain-uphome-');
     const g = feed({ key: other.privateKey });
-    await withEnv({ LAIN_CONFIG_DIR: home2, NOEMA_CONFIG_DIR: home2, NOEMA_INSTALL_ROOT: root, NOEMA_UPDATE_FEED: g.dir, NOEMA_UPDATE_TEST_KEY: PUB, NOEMA_ISOLATED: '1' }, async () => {
+    await withEnv({ LAIN_CONFIG_DIR: home2, LAIN_CONFIG_DIR: home2, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: g.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
       const c = await U.check({ force: true });
       assert.strictEqual(c.state, 'error');
       assert.match(c.why, /signature/);
@@ -164,9 +164,9 @@ module.exports = async function () {
   });
 
   await test('UPDATE: the new version reports healthy — staged clears, "updated from" is kept; a checkout has nothing to apply', () => {
-    const home = tmpdir('noema-uphome-');
-    const health = path.join(tmpdir('noema-health-'), 'health-0.1.0');
-    withEnv({ LAIN_CONFIG_DIR: home, NOEMA_CONFIG_DIR: home, NOEMA_HEALTH_FILE: health, NOEMA_INSTALL_ROOT: null }, () => {
+    const home = tmpdir('lain-uphome-');
+    const health = path.join(tmpdir('lain-health-'), 'health-0.1.0');
+    withEnv({ LAIN_CONFIG_DIR: home, LAIN_CONFIG_DIR: home, LAIN_HEALTH_FILE: health, LAIN_INSTALL_ROOT: null }, () => {
       U.writeState({ staged: { version: '0.0.9' }, available: null, applied: { version: '0.0.9', from: '0.0.8' } });
       assert.ok(U.markHealthy());
       assert.ok(fs.existsSync(health), 'the launcher sees the health mark');

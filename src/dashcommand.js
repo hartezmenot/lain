@@ -104,7 +104,7 @@ function register({ define, C }) {
         app.cfg.dashAutostart = word === 'on';
         config.save(app.cfg);
         w(word === 'on'
-          ? '  ' + C.green('✓ the dashboard will start with Noema') + C.dim(' — set a password with /dash password so it is the same one every session.\n')
+          ? '  ' + C.green('✓ the dashboard will start with LAIN') + C.dim(' — set a password with /dash password so it is the same one every session.\n')
           : '  ' + C.green('✓ autostart off') + C.dim(' — /dash starts it when you want it.\n'));
         // TURNING IT ON MEANS NOW, TOO. Being told "it will start with LAIN" and
         // then finding nothing running until the next session is a promise the
@@ -167,7 +167,7 @@ function register({ define, C }) {
         const r2 = await dash.start(app, { port: n });
         if (!r2.ok) { app.render.notice('error', `could not start the dashboard: ${r2.error}`); return; }
         w(C.dim('  a fixed port can be shadowed by another program on Windows — if the page looks\n'));
-        w(C.dim('  wrong, it is not Noema. /dash on takes a free port instead.\n'));
+        w(C.dim('  wrong, it is not LAIN. /dash on takes a free port instead.\n'));
         report();
         return;
       }

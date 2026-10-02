@@ -19,13 +19,13 @@ const WIN = process.platform === 'win32';
 
 /** A temp APPDATA, a temp install root holding a launcher, a temp config home — restored afterwards. */
 async function sandbox(fn, { launcher = true } = {}) {
-  const saved = { APPDATA: process.env.APPDATA, NOEMA_INSTALL_ROOT: process.env.NOEMA_INSTALL_ROOT, NOEMA_CONFIG_DIR: process.env.NOEMA_CONFIG_DIR };
+  const saved = { APPDATA: process.env.APPDATA, LAIN_INSTALL_ROOT: process.env.LAIN_INSTALL_ROOT, LAIN_CONFIG_DIR: process.env.LAIN_CONFIG_DIR };
   const appdata = tmpdir('startup-appdata-');
   const root = tmpdir('startup-install-');
   const home = tmpdir('startup-home-');
-  if (launcher) fs.writeFileSync(path.join(root, 'Noema Harness.exe'), 'MZ');
-  Object.assign(process.env, { APPDATA: appdata, NOEMA_INSTALL_ROOT: root, NOEMA_CONFIG_DIR: home });
-  try { return await fn({ appdata, root, home, exe: path.join(root, 'Noema Harness.exe') }); } finally {
+  if (launcher) fs.writeFileSync(path.join(root, 'LAIN Harness.exe'), 'MZ');
+  Object.assign(process.env, { APPDATA: appdata, LAIN_INSTALL_ROOT: root, LAIN_CONFIG_DIR: home });
+  try { return await fn({ appdata, root, home, exe: path.join(root, 'LAIN Harness.exe') }); } finally {
     for (const [k, v] of Object.entries(saved)) { if (v == null) delete process.env[k]; else process.env[k] = v; }
   }
 }
@@ -83,10 +83,10 @@ module.exports = async function () {
     const cfg = {};
     const r = startup.sync(cfg, { save: () => { saved++; } });
     assert.strictEqual(r.migrated, true);
-    assert.strictEqual(cfg.startup.harness, true, 'they chose to start LAIN at sign-in; Noema Harness inherits it');
+    assert.strictEqual(cfg.startup.harness, true, 'they chose to start LAIN at sign-in; LAIN Harness inherits it');
     assert.strictEqual(saved, 1, 'and it is saved');
     assert.ok(!fs.existsSync(startup.legacyLinkPath()), 'LAIN.lnk is gone');
-    assert.ok(fs.existsSync(startup.linkPath()), 'Noema Harness.lnk replaces it');
+    assert.ok(fs.existsSync(startup.linkPath()), 'LAIN Harness.lnk replaces it');
 
     fs.writeFileSync(startup.legacyLinkPath(), 'old');
     const off = { startup: { harness: false } };
@@ -96,14 +96,14 @@ module.exports = async function () {
     assert.ok(!fs.existsSync(startup.linkPath()));
   }));
 
-  await test('STARTUP: Settings and `noema settings startup` write the same canonical setting', async () => sandbox(async ({ home }) => {
+  await test('STARTUP: Settings and `lain settings startup` write the same canonical setting', async () => sandbox(async ({ home }) => {
     if (!WIN) return;
     const lines = [];
     const out = { write: (s) => lines.push(s) };
     assert.strictEqual(startup.cli(['harness', 'on'], { out }), 0, lines.join(''));
     assert.strictEqual(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).startup.harness, true);
     assert.ok(fs.existsSync(startup.linkPath()));
-    assert.match(lines.join(''), /Start Noema Harness with Windows: ON[\s\S]*registered →/);
+    assert.match(lines.join(''), /Start LAIN Harness with Windows: ON[\s\S]*registered →/);
     assert.strictEqual(startup.cli(['minimized', 'maybe'], { out }), 2, 'on|off only');
 
     const { App } = require('../../src/app');
@@ -117,10 +117,10 @@ module.exports = async function () {
     assert.strictEqual((await settings.update(app, 'general.startup.minimized', 'yes')).ok, false, 'a boolean');
   }));
 
-  await test('LEGACY: old LAIN launchers and builds in the home are removed once a Noema launcher exists; Noema state is kept', () => sandbox(({ home, exe, appdata }) => {
+  await test('LEGACY: old LAIN launchers and builds in the home are removed once a LAIN launcher exists; LAIN state is kept', () => sandbox(({ home, exe, appdata }) => {
     const desk = path.join(home, 'desktop');
     fs.mkdirSync(desk, { recursive: true });
-    for (const f of ['LAIN.exe', 'lain-desktop-0123abcd.exe', 'Noema Harness.exe', 'keep.txt']) fs.writeFileSync(path.join(desk, f), 'x');
+    for (const f of ['LAIN.exe', 'lain-desktop-0123abcd.exe', 'LAIN Harness.exe', 'keep.txt']) fs.writeFileSync(path.join(desk, f), 'x');
     const menu = path.join(appdata, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
     fs.mkdirSync(menu, { recursive: true });
     fs.writeFileSync(path.join(menu, 'LAIN.lnk'), 'x');
@@ -130,19 +130,20 @@ module.exports = async function () {
     assert.strictEqual(p.openWith, false, 'the registry is not read in this test');
     const r = legacy.cleanup({ launcherExe: exe, cfg: {}, save: () => {}, registry: false });
     assert.ok(!fs.existsSync(path.join(desk, 'LAIN.exe')) && !fs.existsSync(path.join(desk, 'lain-desktop-0123abcd.exe')), r.kept.join('; '));
-    assert.ok(fs.existsSync(path.join(desk, 'Noema Harness.exe')) && fs.existsSync(path.join(desk, 'keep.txt')), 'Noema\'s own files stay');
+    assert.ok(fs.existsSync(path.join(desk, 'LAIN Harness.exe')) && fs.existsSync(path.join(desk, 'keep.txt')), 'LAIN\'s own files stay');
     assert.ok(!fs.existsSync(path.join(menu, 'LAIN.lnk')));
     assert.ok(r.done.some((l) => /removed LAIN\.exe/.test(l)));
     const again = legacy.plan({ registry: false });
     assert.strictEqual(again.executables.length + (again.startMenuLink ? 1 : 0), 0, 'nothing left to do');
   }));
 
-  await test('LEGACY: the `lain` command is a shim onto Noema — no LAIN executable, no second home or pipe', () => {
-    const shim = fs.readFileSync(path.join(__dirname, '..', '..', 'bin', 'lain.js'), 'utf8');
-    assert.match(shim, /noema/i);
-    assert.ok(!/\.lain-v2|LAIN\.exe|lain-supervisor/i.test(shim.replace(/^\s*(\/\/|\*).*$/gm, '')), 'it names no LAIN home, binary or supervisor');
+  await test('COMPAT: the `noema` command is a shim onto the same LAIN — no Noema executable, no second home or pipe', () => {
+    const code = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'bin', f), 'utf8').replace(/^\s*(\/\/|\*|\/\*\*).*$/gm, '');
+    const lines = code('noema.js').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    assert.deepStrictEqual(lines, ['#!/usr/bin/env node', "'use strict';", "require('../src/boot').start({ via: 'noema' });"], 'one line: the same boot, marked as the old name');
+    assert.ok(!/\.noema|noema\.exe|noema-supervisor|noema-core/i.test(code('noema.js') + code('lain.js')), 'neither names a Noema home, binary, supervisor or pipe');
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
-    assert.ok(pkg.bin && pkg.bin.noema, 'noema is the command');
-    assert.ok(!fs.existsSync(path.join(__dirname, '..', '..', 'rust', 'lain-supervisor', 'target', 'release', 'lain-supervisor.exe')), 'no LAIN supervisor binary is built');
+    assert.strictEqual(pkg.name, 'lain');
+    assert.deepStrictEqual(pkg.bin, { lain: 'bin/lain.js', noema: 'bin/noema.js' }, 'lain is the command; noema the alias');
   });
 };

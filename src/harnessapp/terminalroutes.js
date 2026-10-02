@@ -192,7 +192,7 @@ const ROUTES = {
     const id = String(body.id || '');
     const jobs = app._jobs;
     const j = jobs && jobs.get ? jobs.get(id) : null;
-    if (!j) return bad('that process is not one Noema is holding', 404);
+    if (!j) return bad('that process is not one LAIN is holding', 404);
     j.cancel('you stopped it from the Harness');
     return ok({ stopped: id });
   },

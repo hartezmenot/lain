@@ -116,7 +116,7 @@ async function hostBlock(app, w, C) {
   try { s = await rt.hostView(app); } catch { s = null; }
   if (!s) return;
   const mb = (v) => (v == null ? '?' : `${v} MB`);
-  w('\n' + C.bold('Worker host') + C.dim(`  pid ${s.pid} · up ${Math.round(s.uptimeMs / 1000)} s · ${s.leases.length} Noema client(s) · grace ${Math.round(s.graceMs / 1000)} s after the last\n`));
+  w('\n' + C.bold('Worker host') + C.dim(`  pid ${s.pid} · up ${Math.round(s.uptimeMs / 1000)} s · ${s.leases.length} LAIN client(s) · grace ${Math.round(s.graceMs / 1000)} s after the last\n`));
   for (const v of Object.values(s.workers)) {
     w(`  ${v.id.padEnd(9)} ${v.state.padEnd(12)} load ${v.loadMs == null ? (v.loadingForMs != null ? `${Math.round(v.loadingForMs / 1000)} s so far` : '—') : `${(v.loadMs / 1000).toFixed(1)} s`}`
       + ` · resident ${mb(v.residentMB)} · ${v.inferences} inference(s) · reloads ${v.reloads}${v.idleMs != null ? ` · idle ${Math.round(v.idleMs / 1000)} s` : ''}`

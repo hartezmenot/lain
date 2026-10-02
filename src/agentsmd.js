@@ -30,24 +30,24 @@ const path = require('path');
 const MAX_BYTES = 16_000;
 
 /**
- * NOEMA.md IS THE CANONICAL CONSTITUTION (discipline/constitution.js) — Noema's, not any one provider's. An existing
- * AGENTS.md (Noema's earlier name for it, or LAIN's) is read only while no NOEMA.md exists, so nothing a person wrote
- * is lost; every write goes to NOEMA.md. Provider-native files (CLAUDE.md, a runtime's AGENTS.md) are RENDERED from
- * it and never read back as a second authority.
+ * LAIN.md IS THE CANONICAL CONSTITUTION (discipline/constitution.js) — LAIN's, not any one provider's. A Noema-era
+ * LAIN.md, or an older AGENTS.md, is read only while no LAIN.md exists, so nothing a person wrote is lost; every
+ * write goes to LAIN.md. Provider-native files (CLAUDE.md, a runtime's AGENTS.md) are RENDERED from it and never read
+ * back as a second authority.
  */
 function firstExisting(list) { for (const f of list) if (fs.existsSync(f)) return f; return list[0]; }
 
-/** `~/.noema/NOEMA.md` — or an existing `~/.noema/AGENTS.md` / LAIN's `~/.lain/AGENTS.md` while none exists. */
+/** `~/.lain/LAIN.md` — or a Noema-era NOEMA.md / an older AGENTS.md while none exists (the home moved to ~/.lain). */
 function homeFile() {
   const base = process.env.LAIN_AGENTS_HOME || os.homedir();
-  return firstExisting([path.join(base, '.noema', 'NOEMA.md'), path.join(base, '.noema', 'AGENTS.md'), path.join(base, '.lain', 'AGENTS.md')]);
+  return firstExisting([path.join(base, '.lain', 'LAIN.md'), path.join(base, '.lain', 'NOEMA.md'), path.join(base, '.lain', 'AGENTS.md'), path.join(base, '.noema', 'NOEMA.md'), path.join(base, '.noema', 'AGENTS.md')]);
 }
 
-/** `<project>/.noema/NOEMA.md` — or an existing `AGENTS.md` in the project's folder while none exists. */
+/** `<project>/.lain/LAIN.md` — or an existing LAIN.md / AGENTS.md in the project's folder while none exists. */
 function projectFile(root) {
   const meta = require('./projectmeta');
   const r = String(root || process.cwd());
-  return firstExisting([meta.file(r, 'NOEMA.md'), meta.file(r, 'AGENTS.md')]);
+  return firstExisting([meta.file(r, 'LAIN.md'), meta.file(r, 'NOEMA.md'), meta.file(r, 'AGENTS.md')]);
 }
 
 function readCapped(file) {
@@ -74,9 +74,9 @@ function forPrompt(root) {
   if (global && global.text) parts.push(`## Global (~/${where(global)})\n${global.text}${global.truncated ? '\n[truncated]' : ''}`);
   if (project && project.text) parts.push(`## This project (${where(project)})\n${project.text}${project.truncated ? '\n[truncated]' : ''}`);
   if (!parts.length) return '';
-  return '# Project constitution (NOEMA.md)\n'
+  return '# Project constitution (LAIN.md)\n'
     + 'Follow these as working policy. They are instructions, not permissions: write scope, staleness and '
-    + 'verification are enforced by Noema at runtime whatever this text says.\n\n'
+    + 'verification are enforced by LAIN at runtime whatever this text says.\n\n'
     + parts.join('\n\n');
 }
 
@@ -111,11 +111,11 @@ function read(scope, root) {
 }
 
 function write(scope, root, text) {
-  // EVERY WRITE GOES TO NOEMA.md — a legacy AGENTS.md is read until then, never written again.
-  const file = SCOPES.includes(scope) && (scope === 'global' || root) ? (scope === 'global' ? path.join(process.env.LAIN_AGENTS_HOME || os.homedir(), '.noema', 'NOEMA.md') : require('./projectmeta').file(String(root), 'NOEMA.md')) : null;
+  // EVERY WRITE GOES TO LAIN.md — a LAIN.md or AGENTS.md is read until then, never written again.
+  const file = SCOPES.includes(scope) && (scope === 'global' || root) ? (scope === 'global' ? path.join(process.env.LAIN_AGENTS_HOME || os.homedir(), '.lain', 'LAIN.md') : require('./projectmeta').file(String(root), 'LAIN.md')) : null;
   if (!file) return { ok: false, why: scope === 'project' ? 'no project is attached' : 'scope is global or project' };
   const t = String(text == null ? '' : text).replace(/\r\n/g, '\n');
-  if (Buffer.byteLength(t) > MAX_BYTES) return { ok: false, why: `NOEMA.md is at most ${MAX_BYTES} bytes (Noema reads no more than that)` };
+  if (Buffer.byteLength(t) > MAX_BYTES) return { ok: false, why: `LAIN.md is at most ${MAX_BYTES} bytes (LAIN reads no more than that)` };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, t);
   return { ok: true, ...read(scope, root) };
@@ -149,7 +149,7 @@ function resetPreview(scope, root) {
 function reset(scope, root, { confirm = false } = {}) {
   const cur = read(scope, root);
   if (!cur.ok) return cur;
-  if (cur.modified && !confirm) return { ok: false, needsConfirm: true, why: 'this AGENTS.md was edited — confirm to replace it with Noema’s default (a backup is kept)' };
+  if (cur.modified && !confirm) return { ok: false, needsConfirm: true, why: 'this AGENTS.md was edited — confirm to replace it with LAIN’s default (a backup is kept)' };
   let backup = null;
   if (cur.exists && cur.modified) {
     backup = `${cur.file}.bak-${new Date().toISOString().replace(/[:.]/g, '-')}`;

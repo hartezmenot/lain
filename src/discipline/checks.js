@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * CHECK STATE — what Noema has actually observed, as named, comparable checks (Execution Discipline §22–§25).
+ * CHECK STATE — what LAIN has actually observed, as named, comparable checks (Execution Discipline §22–§25).
  *
  * Completion used to read one field: `lastCommand.ok`. That is a measurement of whatever ran last, not of the
  * requested outcome — an unrelated suite passing last made a broken change look finished, and an expected failure

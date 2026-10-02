@@ -135,7 +135,7 @@ class WebModelBrowser {
 
     const tab = await cdp.newTab(started.base, 'about:blank');
     if (!tab.ok || !tab.target || !tab.target.webSocketDebuggerUrl) {
-      const why = 'the browser opened but would not give Noema a page to drive';
+      const why = 'the browser opened but would not give LAIN a page to drive';
       this.lastWhy = why;
       await this.close(sourceId);
       return { ok: false, why };

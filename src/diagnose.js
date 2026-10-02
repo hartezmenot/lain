@@ -196,7 +196,7 @@ function appRow(dim) {
   try {
     const win = require('./desktopwindow').status();
     const chan = require('./harnessapp/ipc').status();
-    if (win.open) return `Noema Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
+    if (win.open) return `LAIN Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
     // AND WHETHER THIS PROCESS IS THE ONE A LAUNCH WOULD FIND. The window is
     // opened by launching LAIN, not by a command here, so the useful fact is
     // whether a launch would reach THIS session or start its own. The browser
@@ -204,8 +204,8 @@ function appRow(dim) {
     // (2026-09-15). See src/corelock.js.
     const lock = require('./corelock').status();
     return dim(lock.holding
-      ? 'closed — launching Noema Desktop opens this session'
-      : 'closed — another Noema would answer a Desktop launch');
+      ? 'closed — launching LAIN Desktop opens this session'
+      : 'closed — another LAIN would answer a Desktop launch');
   } catch (e) {
     return dim(`unavailable (${(e && e.message) || e})`);
   }

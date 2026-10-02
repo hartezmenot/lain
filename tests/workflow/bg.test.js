@@ -41,7 +41,7 @@ module.exports = async function () {
       { text: 'Background result seen: 3/3.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: 'run the broad smoke suite\r' },
       { wait: 2000 },
       { send: '/bg\r' },

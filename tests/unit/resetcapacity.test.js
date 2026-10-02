@@ -45,7 +45,7 @@ module.exports = async function () {
     assert.strictEqual(c.tokens, 3000000);
   });
 
-  await test('CAPACITY: use outside Noema is excluded and lowers the confidence', () => {
+  await test('CAPACITY: use outside LAIN is excluded and lowers the confidence', () => {
     const pts = [[0, 0]];
     for (let i = 1; i <= 8; i++) pts.push([i * 4, i * 80000]);
     pts.push([40, 640000]);                                          // the % moved, LAIN saw nothing
@@ -53,7 +53,7 @@ module.exports = async function () {
     assert.strictEqual(c.outside, 1);
     assert.strictEqual(c.tokens, 2000000, 'the outside step does not skew the estimate');
     assert.notStrictEqual(c.confidence, 'High');
-    assert.match(c.basis, /moved with no Noema use/);
+    assert.match(c.basis, /moved with no LAIN use/);
   });
 
   await test('CAPACITY: only the most recent window instances count (a plan change ages out)', () => {

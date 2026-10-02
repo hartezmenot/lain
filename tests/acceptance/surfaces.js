@@ -1,15 +1,15 @@
 // THE CLI'S WINDOWS AND THE HARNESS CHROME, for real (WebView2 host built from native/host.cs), isolated home.
-//   dashboard mode (`noema model`)  ·  preview mode (`noema preview`) + a model action end to end  ·  Harness: the
-//   Update button (a release is "available"), its dropdown, and Exit Noema's confirmation. Screenshots in <out>.
+//   dashboard mode (`lain model`)  ·  preview mode (`lain preview`) + a model action end to end  ·  Harness: the
+//   Update button (a release is "available"), its dropdown, and Exit LAIN's confirmation. Screenshots in <out>.
 const ROOT = require('path').join(__dirname, '..', '..');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const out = process.argv[2];
 fs.mkdirSync(out, { recursive: true });
-const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'noema-surfaces-'));
-process.env.LAIN_CONFIG_DIR = HOME; process.env.NOEMA_CONFIG_DIR = HOME; process.env.LAIN_HOME = path.join(HOME, 'supervisor-home');
-process.env.LAIN_ISOLATED = '1'; process.env.NOEMA_NO_UPDATE_CHECK = '1'; process.env.LAIN_PROVIDER = 'mock';
+const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-surfaces-'));
+process.env.LAIN_CONFIG_DIR = HOME; process.env.LAIN_CONFIG_DIR = HOME; process.env.LAIN_HOME = path.join(HOME, 'supervisor-home');
+process.env.LAIN_ISOLATED = '1'; process.env.LAIN_NO_UPDATE_CHECK = '1'; process.env.LAIN_PROVIDER = 'mock';
 process.chdir(ROOT);
 const cdp = require(ROOT + '/src/harness/cdp');
 const results = [];
@@ -32,9 +32,9 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
 (async () => {
   const { App } = require(ROOT + '/src/app');
   const win = require(ROOT + '/src/desktopwindow');
-  const proj = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'noema-surf-proj-')));
+  const proj = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'lain-surf-proj-')));
   fs.writeFileSync(path.join(proj, 'index.html'), '<!doctype html><title>Counter</title><h1>Counter</h1><p id="count">Count: 0</p><button onclick="var p=document.getElementById(\'count\');p.textContent=\'Count: \'+(+p.textContent.split(\': \')[1]+1)">Add one</button>');
-  fs.mkdirSync(path.join(proj, '.noema')); fs.writeFileSync(path.join(proj, '.noema', 'preview.json'), JSON.stringify({ static: '.' }));
+  fs.mkdirSync(path.join(proj, '.lain')); fs.writeFileSync(path.join(proj, '.lain', 'preview.json'), JSON.stringify({ static: '.' }));
   const cfgFile = path.join(HOME, 'config.json');
   fs.writeFileSync(cfgFile, JSON.stringify({ trustedPaths: [{ path: proj, level: 'TRUSTED', at: new Date().toISOString() }], dashAutostart: false }, null, 2));
   const app = new App({ cwd: proj, interactive: false });
@@ -54,7 +54,7 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
     const tabs = await ev(c, `Array.from(document.querySelectorAll('#vModel [role=tab]')).map(function(t){return t.textContent.trim()})`);
     check('dashboard: tabs Accounts, Models, API, Local, Defaults — opened on the asked section (Models)', ['Accounts', 'Models', 'API', 'Local', 'Defaults'].every((t) => (tabs || []).some((x) => x.startsWith(t))), JSON.stringify(tabs));
     const active = await ev(c, "(document.querySelector('#vModel [role=tab][aria-selected=true]') || {}).textContent");
-    check('dashboard: `noema model` opens on Models', /Models/.test(active || ''), active);
+    check('dashboard: `lain model` opens on Models', /Models/.test(active || ''), active);
     await shot(c, 'dashboard-models.png');
     c.close();
   } else check('dashboard: attach to the renderer', false, 'no debug port');
@@ -83,7 +83,7 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
   await win.close ? win.close(app) : null;
   await wait(2500);
 
-  // ---- 3. THE HARNESS: Update button (a release is available), dropdown, Exit Noema ---------------------------------
+  // ---- 3. THE HARNESS: Update button (a release is available), dropdown, Exit LAIN ---------------------------------
   fs.mkdirSync(path.join(HOME, 'update'), { recursive: true });
   fs.writeFileSync(path.join(HOME, 'update', 'state.json'), JSON.stringify({ channel: 'stable', checkedAt: Date.now(), available: { version: '0.2.0', summary: ['Model Dashboard in the CLI', 'Preview input for models'], notes: null, reachable: true, asset: { name: 'x.zip', url: 'x.zip', sha256: '0'.repeat(64) } } }));
   port = 9600 + Math.floor(Math.random() * 300);
@@ -94,17 +94,17 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
     await wait(4500);
     const st = await ev(c, `({ upd: !document.getElementById('updateBtn').hidden, updText: document.getElementById('updateBtn').innerText.trim(), exit: !!document.getElementById('railExit'), exitTip: document.getElementById('railExit').getAttribute('data-tip'), brand: document.querySelector('.rail-brand').innerText.trim(), mark: !!document.querySelector('.rail-brand .rb-mark svg') })`);
     check('Harness: the Update button appears beside Usage only when a release is available', st && st.upd && /Update/.test(st.updText), JSON.stringify(st));
-    check('Harness: Exit Noema (power icon, tooltip "Exit Noema") and the Noema mark + wordmark', st && st.exit && st.exitTip === 'Exit Noema' && st.mark && /Noema/.test(st.brand), JSON.stringify(st));
+    check('Harness: Exit LAIN (power icon, tooltip "Exit LAIN") and the LAIN mark + wordmark', st && st.exit && st.exitTip === 'Exit LAIN' && st.mark && /LAIN/.test(st.brand), JSON.stringify(st));
     await shot(c, 'harness-update-button.png');
     await ev(c, `document.getElementById('updateBtn').click()`);
     await wait(700);
     const pop = await ev(c, `(function(){ var p=document.querySelector('.updpop'); return p ? { text: p.innerText, buttons: Array.from(p.querySelectorAll('button')).map(function(b){return b.textContent}) } : null })()`);
-    check('Harness: the dropdown says what is new; a checkout offers Later and says Download is for installed builds — never a silent restart', pop && /Noema 0\.2\.0/i.test(pop.text) && /What/.test(pop.text) && pop.buttons.includes('Later') && /install the update with the Noema installer/.test(pop.text), JSON.stringify(pop).slice(0, 300));
+    check('Harness: the dropdown says what is new; a checkout offers Later and says Download is for installed builds — never a silent restart', pop && /LAIN 0\.2\.0/i.test(pop.text) && /What/.test(pop.text) && pop.buttons.includes('Later') && /install the update with the LAIN installer/.test(pop.text), JSON.stringify(pop).slice(0, 300));
     await shot(c, 'harness-update-dropdown.png');
     await ev(c, `document.body.click(); document.getElementById('railExit').click()`);
     await wait(700);
     const dlg = await ev(c, `(function(){ var d=document.querySelector('.dlg'); return d ? d.innerText : null })()`);
-    check('Harness: Exit Noema asks first when idle (Close window keeps Noema running)', dlg && /Exit Noema\?/.test(dlg) && /Closing the window instead keeps Noema running/.test(dlg), dlg);
+    check('Harness: Exit LAIN asks first when idle (Close window keeps LAIN running)', dlg && /Exit LAIN\?/.test(dlg) && /Closing the window instead keeps LAIN running/.test(dlg), dlg);
     await shot(c, 'harness-exit-confirm.png');
     await ev(c, `(function(){ var b=Array.from(document.querySelectorAll('.dlg button')).find(function(x){return /Cancel/.test(x.textContent)}); if (b) b.click(); })()`);
     c.close();

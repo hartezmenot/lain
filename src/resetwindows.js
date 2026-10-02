@@ -80,7 +80,7 @@ function capacity(instances) {
   const span = Math.round(steps.reduce((a, s) => a + s.du, 0) * 10) / 10;
   const base = { label: 'Estimated effective capacity', unit: 'equivalent tokens', readings: steps.length, span, outside };
   if (steps.length < 2 || span < 3) {
-    return { ...base, tokens: null, confidence: 'Insufficient data', basis: steps.length ? `${steps.length} paired reading${steps.length === 1 ? '' : 's'} over ${span} points of the provider's % — not enough to estimate` : 'no paired readings yet — the provider\'s % has to move while Noema is working' };
+    return { ...base, tokens: null, confidence: 'Insufficient data', basis: steps.length ? `${steps.length} paired reading${steps.length === 1 ? '' : 's'} over ${span} points of the provider's % — not enough to estimate` : 'no paired readings yet — the provider\'s % has to move while LAIN is working' };
   }
   const tokens = Math.round((steps.reduce((a, s) => a + s.dt, 0) / span) * 100);
   const ratios = steps.map((s) => s.dt / s.du);
@@ -92,7 +92,7 @@ function capacity(instances) {
     : steps.length >= 4 && span >= 10 && cv <= 0.5 && outsideShare <= 0.2 ? 'Medium' : 'Low';
   return {
     ...base, tokens, confidence, spread: Math.round(cv * 100) / 100,
-    basis: `${steps.length} paired readings over ${span} points of the provider's %, from the input + output tokens Noema observed; assumes the account was not used outside Noema meanwhile${outside ? ` (${outside} reading${outside === 1 ? '' : 's'} moved with no Noema use — excluded)` : ''}`,
+    basis: `${steps.length} paired readings over ${span} points of the provider's %, from the input + output tokens LAIN observed; assumes the account was not used outside LAIN meanwhile${outside ? ` (${outside} reading${outside === 1 ? '' : 's'} moved with no LAIN use — excluded)` : ''}`,
   };
 }
 
@@ -176,10 +176,10 @@ function windowsUncached(app, { now = Date.now(), by = null } = {}) {
     const mine = all.filter(s.match);
     for (const w of s.windows) {
       const key = `${s.id}|${w.id}|${w.resetsAt || 0}`;
-      // THE RESET BOUNDARY ROLLS NOEMA'S OWN BUCKET (2026-10-01). Past the provider's reset, and with the window's length
+      // THE RESET BOUNDARY ROLLS LAIN'S OWN BUCKET (2026-10-01). Past the provider's reset, and with the window's length
       // known, the window in force is the next one: its end is PROJECTED from the reported reset plus whole windows, its
       // observed usage starts again, the one that just closed becomes "previous" (with the % last seen before it reset),
-      // and the provider's percentage is "not reported since the reset" until it is read again. Noema never resets a
+      // and the provider's percentage is "not reported since the reset" until it is read again. LAIN never resets a
       // provider's quota; it only stops attributing new use to a window that is over.
       let reset = w.resetsAt || null; let rolled = false;
       if (w.mins && reset && now >= reset) { const len = w.mins * MIN; reset += (Math.floor((now - reset) / len) + 1) * len; rolled = true; }
@@ -199,11 +199,11 @@ function windowsUncached(app, { now = Date.now(), by = null } = {}) {
         const prevSnap = Object.values(snaps).filter((x) => x.source === s.id && x.window === w.id && x.resetsAt && x.resetsAt <= start + MIN && x.resetsAt > pStart).sort((a, b) => b.at - a.at)[0];
         row.start = start; row.end = end;
         row.observed = sum(cur);
-        row.previous = { start: pStart, end: start, observed: sum(prev), usedPercent: prevSnap ? prevSnap.usedPercent : null, usedPercentBasis: prevSnap ? `last seen ${new Date(prevSnap.at).toLocaleString()}` : 'not recorded by Noema' };
+        row.previous = { start: pStart, end: start, observed: sum(prev), usedPercent: prevSnap ? prevSnap.usedPercent : null, usedPercentBasis: prevSnap ? `last seen ${new Date(prevSnap.at).toLocaleString()}` : 'not recorded by LAIN' };
         if (by) { row.breakdown = group(cur, by, app); row.previous.breakdown = group(prev, by, app); }
       } else {
         row.observed = null;
-        row.why = w.mins ? 'the provider did not report when this window resets' : 'the provider did not say how long this window is, so Noema cannot bound it';
+        row.why = w.mins ? 'the provider did not report when this window resets' : 'the provider did not say how long this window is, so LAIN cannot bound it';
       }
       // THE SNAPSHOT — and, for a bounded window, the paired reading the capacity estimate is made from.
       if (!rolled && w.usedPercent != null && w.resetsAt && (!snaps[key] || snaps[key].usedPercent !== w.usedPercent)) {

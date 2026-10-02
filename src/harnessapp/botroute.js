@@ -198,7 +198,7 @@ function answer(app, { id, accept } = {}) {
   const running = Boolean(app.abort && !app.abort.signal.aborted);
   const waiting = journey.proposal(app);
   if (!waiting || waiting.id !== String(id || '')) return { code: 409, body: { ok: false, why: 'that proposal is no longer waiting — ask again' } };
-  if (running) return { code: 409, body: { ok: false, why: 'Noema is still working — wait for it or stop it first', busy: true } };
+  if (running) return { code: 409, body: { ok: false, why: 'LAIN is still working — wait for it or stop it first', busy: true } };
   const p = journey.takeProposal(app, id, Boolean(accept));
   if (accept) {
     journey.note(s, journey.EVENT.MOVED, { origin: p.origin });

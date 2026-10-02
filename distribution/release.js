@@ -1,21 +1,22 @@
 'use strict';
 
 /**
- * BUILD A NOEMA RELEASE — the installer, the update package and the signed update feed.
+ * BUILD A LAIN RELEASE — the installer, the update package and the signed update feed.
  *
  *   node distribution/release.js [--version 0.1.1] [--channel stable|preview] [--out dist] [--feed <url>]
  *                                [--harness-dir ../lain-harness] [--unsigned]
  *
  * Produces in <out>/:
- *   Noema-Setup-<v>.exe            one file: the setup program with the payload inside (per-user, no admin)
- *   noema-<v>-win-x64.zip          the update package (runtime/ + app/), what the updater downloads
+ *   LAIN-Setup-<v>.exe            one file: the setup program with the payload inside (per-user, no admin)
+ *   lain-<v>-win-x64.zip          the update package (runtime/ + app/), what the updater downloads
  *   manifest-<channel>.json(.sig)  the update feed entry, Ed25519-signed with the release key
  *
  * THE RUNTIME is the official Node.js Windows build, downloaded from nodejs.org and checked against nodejs.org's own
- * SHASUMS256.txt before it is used; its LICENSE ships beside it. Cached under %LOCALAPPDATA%\Noema\build-cache.
+ * SHASUMS256.txt before it is used; its LICENSE ships beside it. Cached under %LOCALAPPDATA%\LAIN\build-cache.
  * THE WINDOW HOST and the pseudoconsole are compiled here (csc.exe, part of Windows) and shipped prebuilt, so an
- * installed Noema never needs a compiler.
- * THE RELEASE KEY is read from %USERPROFILE%\.noema-release\release-signing.key.dpapi (DPAPI, CurrentUser) and never
+ * installed LAIN never needs a compiler.
+ * THE RELEASE KEY is read from %USERPROFILE%\.lain-release\ — or, where it was made, %USERPROFILE%\.noema-release\ —
+ * release-signing.key.dpapi (DPAPI, CurrentUser; its entropy keeps the name it was sealed with) and never
  * written anywhere else. Without it (--unsigned) the feed is not produced — an unsigned manifest is never shipped.
  */
 
@@ -55,7 +56,7 @@ function zip(dir, file) {
 function csc(args) { execFileSync(CSC, ['-nologo', '-optimize+', ...args], { stdio: 'pipe' }); }
 
 async function runtime() {
-  const cache = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'Noema', 'build-cache', `node-v${NODE_VERSION}`);
+  const cache = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'LAIN', 'build-cache', `node-v${NODE_VERSION}`);
   const zipName = `node-v${NODE_VERSION}-win-x64.zip`;
   const zipFile = path.join(cache, zipName);
   fs.mkdirSync(cache, { recursive: true });
@@ -81,7 +82,7 @@ async function runtime() {
 function revision() { try { return execFileSync('git', ['-C', ROOT, 'rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim(); } catch { return null; } }
 
 function releaseKey() {
-  const f = path.join(os.homedir(), '.noema-release', 'release-signing.key.dpapi');
+  const f = ['.lain-release', '.noema-release'].map((d) => path.join(os.homedir(), d, 'release-signing.key.dpapi')).find((p) => fs.existsSync(p)) || path.join(os.homedir(), '.lain-release', 'release-signing.key.dpapi');
   if (!fs.existsSync(f)) return null;
   const ps = `Add-Type -AssemblyName System.Security; $b = [IO.File]::ReadAllBytes('${f.replace(/'/g, "''")}'); [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect($b, [Text.Encoding]::UTF8.GetBytes('noema-release-signing'), 'CurrentUser'))`;
   const der = Buffer.from(execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8' }).trim(), 'base64');
@@ -89,12 +90,12 @@ function releaseKey() {
 }
 
 (async () => {
-  if (process.platform !== 'win32') throw new Error('Noema releases are built on Windows');
+  if (process.platform !== 'win32') throw new Error('LAIN releases are built on Windows');
   if (!fs.existsSync(path.join(harnessDir, 'index.js'))) throw new Error(`no Harness package at ${harnessDir}`);
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'noema-release-'));
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-release-'));
   const vdir = path.join(work, 'payload', 'versions', version);
   const app = path.join(vdir, 'app');
-  say(`Noema ${version} (${channel}) → ${out}`);
+  say(`LAIN ${version} (${channel}) → ${out}`);
 
   // 1. THE APP: what package.json ships, the Harness package (the UI runtime), and build-info.json.
   const pkg = require(path.join(ROOT, 'package.json'));
@@ -102,16 +103,16 @@ function releaseKey() {
   copyTree(path.join(ROOT, 'package.json'), path.join(app, 'package.json'));
   for (const extra of ['native/vendor']) { const s = path.join(ROOT, extra); if (fs.existsSync(s)) copyTree(s, path.join(app, extra)); }
   copyTree(harnessDir, path.join(app, 'harness'), (p) => !/[\\/](\.git|node_modules|tests?|docs)$/.test(p));
-  fs.writeFileSync(path.join(app, 'build-info.json'), JSON.stringify({ product: 'Noema', version, channel, revision: revision(), built: new Date().toISOString(), feed }, null, 2));
+  fs.writeFileSync(path.join(app, 'build-info.json'), JSON.stringify({ product: 'LAIN', version, channel, revision: revision(), built: new Date().toISOString(), feed }, null, 2));
 
   // 2. PREBUILT NATIVE PIECES (no compiler on the person's machine).
-  process.env.NOEMA_HARNESS_DIR = process.env.LAIN_HARNESS_DIR = path.join(app, 'harness');
+  process.env.LAIN_HARNESS_DIR = path.join(app, 'harness');
   const prebuilt = require(path.join(ROOT, 'src', 'desktop')).prebuild(path.join(app, 'native', 'prebuilt'));
   if (!prebuilt.ok) throw new Error(`the window host did not build: ${prebuilt.why}`);
   say(`  window host ${path.basename(prebuilt.exe)}`);
   // The job supervisor (Rust, statically linked CRT) — built beforehand with `cargo build --release` in rust/lain-supervisor.
-  const sup = path.join(ROOT, 'rust', 'lain-supervisor', 'target', 'release', 'noema-supervisor.exe');
-  if (fs.existsSync(sup)) { fs.copyFileSync(sup, path.join(app, 'native', 'prebuilt', 'noema-supervisor.exe')); say('  job supervisor noema-supervisor.exe'); }
+  const sup = path.join(ROOT, 'rust', 'lain-supervisor', 'target', 'release', 'lain-supervisor.exe');
+  if (fs.existsSync(sup)) { fs.copyFileSync(sup, path.join(app, 'native', 'prebuilt', 'lain-supervisor.exe')); say('  job supervisor lain-supervisor.exe'); }
   else say('  job supervisor NOT included (rust/lain-supervisor not built) — survive_restart jobs are unavailable in this build');
 
   // 3. THE RUNTIME (official, verified).
@@ -121,25 +122,25 @@ function releaseKey() {
   fs.copyFileSync(path.join(rt.dir, 'LICENSE'), path.join(vdir, 'runtime', 'LICENSE-node.txt'));
   say(`  Node.js ${NODE_VERSION} (sha256 ${rt.sha256.slice(0, 16)}…, verified against nodejs.org)`);
 
-  // 4. LAUNCHERS, with version resources and the Noema icon.
-  const ico = path.join(ROOT, 'distribution', 'brand', 'noema.ico');
+  // 4. LAUNCHERS, with version resources and the LAIN icon.
+  const ico = path.join(ROOT, 'distribution', 'brand', 'lain.ico');
   const ver = version.replace(/-.*$/, '');
-  const info = (title) => { const f = path.join(work, `ver-${title.replace(/\W/g, '')}.cs`); fs.writeFileSync(f, `using System.Reflection;\n[assembly: AssemblyTitle("${title}")]\n[assembly: AssemblyProduct("Noema")]\n[assembly: AssemblyCompany("Noema")]\n[assembly: AssemblyCopyright("Noema")]\n[assembly: AssemblyVersion("${ver}.0")]\n[assembly: AssemblyFileVersion("${ver}.0")]\n[assembly: AssemblyInformationalVersion("${version} (${channel})")]\n`); return f; };
+  const info = (title) => { const f = path.join(work, `ver-${title.replace(/\W/g, '')}.cs`); fs.writeFileSync(f, `using System.Reflection;\n[assembly: AssemblyTitle("${title}")]\n[assembly: AssemblyProduct("LAIN")]\n[assembly: AssemblyCompany("LAIN")]\n[assembly: AssemblyCopyright("LAIN")]\n[assembly: AssemblyVersion("${ver}.0")]\n[assembly: AssemblyFileVersion("${ver}.0")]\n[assembly: AssemblyInformationalVersion("${version} (${channel})")]\n`); return f; };
   const launcher = path.join(ROOT, 'distribution', 'launcher.cs');
   const root = path.join(work, 'payload');
-  csc(['-target:exe', `-win32icon:${ico}`, `-out:${path.join(root, 'noema.exe')}`, launcher, info('Noema CLI')]);
-  csc(['-target:winexe', '-define:GUI', '-r:System.Windows.Forms.dll', `-win32icon:${ico}`, `-out:${path.join(root, 'noemaw.exe')}`, launcher, info('Noema')]);
-  csc(['-target:winexe', '-define:GUI', '-define:HARNESS', '-r:System.Windows.Forms.dll', `-win32icon:${ico}`, `-out:${path.join(root, 'Noema Harness.exe')}`, launcher, info('Noema Harness')]);
-  fs.copyFileSync(path.join(root, 'Noema Harness.exe'), path.join(app, 'distribution', 'Noema Harness.exe'));
-  fs.copyFileSync(ico, path.join(root, 'noema.ico'));
+  csc(['-target:exe', `-win32icon:${ico}`, `-out:${path.join(root, 'lain.exe')}`, launcher, info('LAIN CLI')]);
+  csc(['-target:winexe', '-define:GUI', '-r:System.Windows.Forms.dll', `-win32icon:${ico}`, `-out:${path.join(root, 'lainw.exe')}`, launcher, info('LAIN')]);
+  csc(['-target:winexe', '-define:GUI', '-define:HARNESS', '-r:System.Windows.Forms.dll', `-win32icon:${ico}`, `-out:${path.join(root, 'LAIN Harness.exe')}`, launcher, info('LAIN Harness')]);
+  fs.copyFileSync(path.join(root, 'LAIN Harness.exe'), path.join(app, 'distribution', 'LAIN Harness.exe'));
+  fs.copyFileSync(ico, path.join(root, 'lain.ico'));
 
   // 5. THE UPDATE PACKAGE (runtime/ + app/) and its signed feed entry.
   fs.mkdirSync(out, { recursive: true });
-  const assetName = `noema-${version}-win-x64.zip`;
+  const assetName = `lain-${version}-win-x64.zip`;
   const asset = path.join(out, assetName);
   zip(vdir, asset);
   const manifest = {
-    schema: 1, product: 'noema', channel, version, released: new Date().toISOString(),
+    schema: 1, product: 'lain', channel, version, released: new Date().toISOString(),
     minimumCompatible: arg('--minimum-compatible', '0.1.0'), protocol: require(path.join(ROOT, 'src', 'update', 'compat')).PROTOCOL,
     minimumCli: arg('--minimum-cli', '0.1.0'), minimumHarness: arg('--minimum-harness', '0.1.0'),
     mandatory: argv.includes('--mandatory'), security: argv.includes('--security'),
@@ -160,10 +161,10 @@ function releaseKey() {
   zip(root, payloadZip);
   const payloadJson = path.join(work, 'payload.json');
   fs.writeFileSync(payloadJson, JSON.stringify({ version, channel, node: NODE_VERSION }));
-  const setup = path.join(out, `Noema-Setup-${version}.exe`);
+  const setup = path.join(out, `LAIN-Setup-${version}.exe`);
   csc(['-target:winexe', `-win32icon:${ico}`, `-out:${setup}`, '-r:System.dll', '-r:System.Drawing.dll', '-r:System.Windows.Forms.dll', '-r:System.IO.Compression.dll', '-r:System.IO.Compression.FileSystem.dll',
     `-resource:${payloadZip},payload.zip`, `-resource:${payloadJson},payload.json`,
-    ...['setup.cs', 'setupsystem.cs', 'setupui.cs'].map((f) => path.join(ROOT, 'distribution', f)), info('Noema Setup')]);
+    ...['setup.cs', 'setupsystem.cs', 'setupui.cs'].map((f) => path.join(ROOT, 'distribution', f)), info('LAIN Setup')]);
   say(`  ${path.basename(setup)} (${Math.round(fs.statSync(setup).size / 1048576)} MB)`);
   fs.rmSync(work, { recursive: true, force: true });
   say('done — UNSIGNED BINARIES: no code-signing certificate is configured (the update feed itself is Ed25519-signed).');

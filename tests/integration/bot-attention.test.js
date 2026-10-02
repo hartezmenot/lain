@@ -34,7 +34,7 @@ module.exports = async () => {
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://fixture'); const method = url.pathname.split('/').at(-1);
       if (!url.pathname.startsWith('/bot' + token + '/')) { res.writeHead(404); res.end(); return; }
-      if (method === 'getMe') return respond(res, { ok: true, result: { id: 77, username: 'lain_fixture', first_name: 'Noema' } });
+      if (method === 'getMe') return respond(res, { ok: true, result: { id: 77, username: 'lain_fixture', first_name: 'LAIN' } });
       if (method === 'getUpdates') {
         const flush = () => { const i = pending.indexOf(flush); if (i >= 0) pending.splice(i, 1); respond(res, { ok: true, result: updates.splice(0) }); };
         if (updates.length) return flush(); pending.push(flush); setTimeout(flush, 300); return;

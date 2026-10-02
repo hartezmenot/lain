@@ -303,7 +303,7 @@ async function runCommand(app, { rest }, { C } = {}) {
     app.render.write('\n' + col.bold('Troubleshoot what?') + '\n');
     app.render.write(col.dim('  Describe the problem in your own words, e.g.\n'));
     app.render.write(col.dim("    /troubleshoot the Telegram signal button won't switch from OFF to ON\n"));
-    app.render.write(col.dim('  Noema scans for evidence first, then traces the path — trigger → handler →\n'));
+    app.render.write(col.dim('  LAIN scans for evidence first, then traces the path — trigger → handler →\n'));
     app.render.write(col.dim('  request → state → service — and reports what it ruled out.\n'));
     return;
   }

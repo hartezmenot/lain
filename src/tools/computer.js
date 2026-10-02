@@ -49,7 +49,7 @@ const schema = {
     // "what does the game show" was answered with a picture of the whole
     // desktop, LAIN's own panels included, and the text of every window at once.
     + 'AIM screenshot AND ocr with `window` (or an explicit `region`) whenever you want ONE '
-    + 'window: unaimed, they capture the entire desktop including Noema\'s own panels, and the '
+    + 'window: unaimed, they capture the entire desktop including LAIN\'s own panels, and the '
     + 'text you get back will be a mixture of everything on screen. `windows` lists what is open.',
   parameters: {
     type: 'object',

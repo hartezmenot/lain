@@ -66,7 +66,7 @@ module.exports = async function () {
     assert.strictEqual(lane.display.text, 'Select model', `shown as: ${JSON.stringify(lane.display)}`);
   });
 
-  await test('Z.AI API QUOTA: read from Z.ai\'s monitor with the key Noema holds — no model call — and stated as what remains', async () => {
+  await test('Z.AI API QUOTA: read from Z.ai\'s monitor with the key LAIN holds — no model call — and stated as what remains', async () => {
     const http = require('http');
     const seen = [];
     const server = http.createServer((req, res) => {

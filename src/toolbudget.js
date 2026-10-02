@@ -85,7 +85,7 @@ function bound(name, input, result, { cfg = {}, session = null } = {}) {
     kept = `${text.slice(0, head)}\n[… middle ${text.length - head - tail} chars held back …]\n${text.slice(-tail)}`;
     how = 'the head and the tail are shown';
   }
-  const note = `\n[Noema context budget: ${kept.length} of ${text.length} chars shown · ${how} · ${ref}]`;
+  const note = `\n[LAIN context budget: ${kept.length} of ${text.length} chars shown · ${how} · ${ref}]`;
   if (session) {
     const l = session._toolBudget = session._toolBudget || [];
     l.push({ at: Date.now(), tool: name, chars: text.length, kept: kept.length, receipt: raw && raw.id });

@@ -20,7 +20,7 @@ module.exports = async function () {
   const { ROUTES } = require('../../src/harnessapp/routes');
   const mk = (cwd) => new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: cwd || tmpdir('p8-') });
   const call = (app, k, body) => ROUTES[`POST ${k}`](app, body || {});
-  Object.assign(process.env, { GIT_AUTHOR_NAME: 'Noema Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'Noema Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
+  Object.assign(process.env, { GIT_AUTHOR_NAME: 'LAIN Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'LAIN Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
 
   await test('AGENTS.md: global and project scopes; save; effective inheritance; reset shows a diff, needs confirmation, keeps a backup', async () => {
     process.env.LAIN_AGENTS_HOME = tmpdir('agents-home-');
@@ -28,7 +28,7 @@ module.exports = async function () {
     const md = require('../../src/agentsmd');
     let r = await call(app, '/api/agents/read', { scope: 'global' });
     assert.strictEqual(r.body.file.exists, false);
-    assert.match(r.body.default.text, /Noema default AGENTS.md/);
+    assert.match(r.body.default.text, /LAIN default AGENTS.md/);
     r = await call(app, '/api/agents/save', { scope: 'global', text: '# Mine\n- keep diffs small\n' });
     assert.strictEqual(r.body.file.modified, true);
     await call(app, '/api/agents/save', { scope: 'project', text: '# Project\n- use tabs\n' });
@@ -127,7 +127,7 @@ module.exports = async function () {
     harness.session.save();
     const h = await call(harness, '/api/surface/handoff', { to: 'cli' });
     assert.strictEqual(h.code, 200, h.body.why);
-    assert.match(h.body.command, /^noema --resume /);
+    assert.match(h.body.command, /^lain --resume /);
     const gate = require('../../src/inputgate');
     const held = await gate.admit(harness, 'more work');
     assert.strictEqual(held.held, true);

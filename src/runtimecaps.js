@@ -28,9 +28,9 @@ const KEYS = Object.freeze(['discovery', 'telemetry', 'execution', 'sessions', '
 const SUPPORT = Object.freeze({
   'claude-code': { sessions: true, usage: true, limits: true, streaming: true, cancel: true, bot: true, chat: true, agent: true },
   opencode: { sessions: true, usage: true, limits: 'OpenCode does not report limits for its models', streaming: true, cancel: true, bot: true, chat: true, agent: true },
-  zcode: { sessions: 'ZCode does not expose its sessions to another program', usage: 'ZCode does not report usage to Noema', limits: 'Balance not reported by ZCode', streaming: true, cancel: true, bot: true, chat: true, agent: 'ZCode Agent mode is not wired through Noema' },
-  ollama: { sessions: 'Noema keeps the conversation (a local model has none of its own)', usage: true, limits: 'a local model has no provider quota', streaming: true, cancel: true, bot: true, chat: true, agent: true },
-  llamacpp: { sessions: 'Noema keeps the conversation (a local model has none of its own)', usage: true, limits: 'a local model has no provider quota', streaming: true, cancel: true, bot: true, chat: true, agent: true },
+  zcode: { sessions: 'ZCode does not expose its sessions to another program', usage: 'ZCode does not report usage to LAIN', limits: 'Balance not reported by ZCode', streaming: true, cancel: true, bot: true, chat: true, agent: 'ZCode Agent mode is not wired through LAIN' },
+  ollama: { sessions: 'LAIN keeps the conversation (a local model has none of its own)', usage: true, limits: 'a local model has no provider quota', streaming: true, cancel: true, bot: true, chat: true, agent: true },
+  llamacpp: { sessions: 'LAIN keeps the conversation (a local model has none of its own)', usage: true, limits: 'a local model has no provider quota', streaming: true, cancel: true, bot: true, chat: true, agent: true },
 });
 
 function cell(level, why) { return { level, why: why || null }; }
@@ -61,7 +61,7 @@ function matrix(a, disc, tele, exec) {
   const anyVerified = (f) => verified.some((v) => v && v[f] === true);
   out.chat = staticOr('chat', canChat ? cell(proven || anyVerified('chat') ? L.OPERATIONAL : L.AVAILABLE, null) : run(false));
   out.bot = staticOr('bot', canChat ? cell(proven || anyVerified('chat') ? L.OPERATIONAL : L.AVAILABLE, null) : run(false));
-  out.agent = staticOr('agent', canAgent ? cell(anyVerified('agent') || (proven && a.id !== 'opencode') ? L.OPERATIONAL : L.AVAILABLE, a.id === 'opencode' ? 'per model, after Noema verified it did real work' : null) : run(false));
+  out.agent = staticOr('agent', canAgent ? cell(anyVerified('agent') || (proven && a.id !== 'opencode') ? L.OPERATIONAL : L.AVAILABLE, a.id === 'opencode' ? 'per model, after LAIN verified it did real work' : null) : run(false));
   return out;
 }
 

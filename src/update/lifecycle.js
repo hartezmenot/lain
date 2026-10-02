@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * RESTART FOR AN UPDATE, AND EXIT — the one safe way Noema stops while work may be in hand (packaging pass §I3, §K).
+ * RESTART FOR AN UPDATE, AND EXIT — the one safe way LAIN stops while work may be in hand (packaging pass §I3, §K).
  *
  *   when: 'now'         at once (offered only when idle, or when the person chose "stop")
  *         'checkpoint'  at the next COMMITTED checkpoint (taskcheckpoint.js commit) — never mid-step
@@ -46,7 +46,7 @@ async function perform(app, kind, { stopTurn = false } = {}) {
     const args = [...(surface === 'cli' ? [] : ['--desktop']), ...(s && s.id ? ['--resume', s.id] : []), '--after-update'];
     const r = U.apply({ args, cwd: (s && s.cwd) || process.cwd() });
     if (!r.ok) return r;
-    try { app.render.notice('info', `Restarting into Noema ${r.version} — this ${surface === 'cli' ? 'terminal' : 'window'} continues ${cp && cp.stepIndex ? `at step ${cp.stepIndex} of ${cp.stepTotal}` : 'where it was'}.`); } catch { /* no renderer */ }
+    try { app.render.notice('info', `Restarting into LAIN ${r.version} — this ${surface === 'cli' ? 'terminal' : 'window'} continues ${cp && cp.stepIndex ? `at step ${cp.stepIndex} of ${cp.stepTotal}` : 'where it was'}.`); } catch { /* no renderer */ }
     process.exitCode = r.restartCode;
     setTimeout(() => process.exit(r.restartCode), 300).unref();
     try { await require('../teardown').shutdown(app, { why: 'restarting for an update' }); } catch { /* exiting anyway */ }
@@ -54,7 +54,7 @@ async function perform(app, kind, { stopTurn = false } = {}) {
   }
   process.exitCode = 0;
   setTimeout(() => process.exit(0), 3000).unref();
-  try { await require('../teardown').shutdown(app, { why: 'Exit Noema' }); } catch { /* exiting anyway */ }
+  try { await require('../teardown').shutdown(app, { why: 'Exit LAIN' }); } catch { /* exiting anyway */ }
   return { ok: true, exiting: true, checkpoint: cp };
 }
 

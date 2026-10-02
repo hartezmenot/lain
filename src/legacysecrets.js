@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * SENSITIVE LEGACY FILES — plaintext credentials left behind by an older Noema/LAIN (2026-10-02).
+ * SENSITIVE LEGACY FILES — plaintext credentials left behind by an older LAIN or Noema build (2026-10-02).
  *
  * Before credentials moved into the Windows secret store (credentials.js), API keys lived inside config.json.
  * Backups taken around that time (`config.json.pre-move-*`, `config.json.bak-*`, …) can still hold them in

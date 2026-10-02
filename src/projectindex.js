@@ -58,7 +58,7 @@ const path = require('path');
 const search = require('./tools/search');
 const codemodel = require('./codemodel');
 
-/** The directory, inside the project being worked on: `.noema/`, or an existing `.lain/` (projectmeta.js). */
+/** The directory, inside the project being worked on: `.lain/`, or an existing Noema-era `.noema/` (projectmeta.js). */
 const meta = require('./projectmeta');
 const DIR = meta.CANON;
 const INDEX = 'index.json';
@@ -73,7 +73,7 @@ const MAX_FILE_BYTES = 2_000_000;
 const BUDGET_MS = 4000;
 
 function dirFor(root) { return meta.dir(root); }
-/** Noema's own folder (either name) — never indexed. */
+/** LAIN's own folder (either name) — never indexed. */
 function ownRel(rel) { return meta.isMetaName(String(rel).split('/')[0]); }
 function fileFor(root) { return path.join(dirFor(root), INDEX); }
 

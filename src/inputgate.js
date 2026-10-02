@@ -152,7 +152,7 @@ async function recover(app, verdict) {
   //
   // Bounded inside runtimefacts.refresh, because a wedged supervisor must cost a
   // recovery some latency and never the recovery itself.
-  op.say(app, 'Restoring what Noema observed');
+  op.say(app, 'Restoring what LAIN observed');
   await require('./runtimefacts').refresh(app);
 
   // ---- 3. TAKE -----------------------------------------------------------

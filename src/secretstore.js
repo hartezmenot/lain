@@ -36,7 +36,7 @@ function fileOf(name) {
 }
 
 function available() {
-  return process.platform === 'win32' ? { ok: true, kind: 'dpapi' } : { ok: false, why: 'no OS secret store is wired on this platform; Noema will not keep this credential in plaintext' };
+  return process.platform === 'win32' ? { ok: true, kind: 'dpapi' } : { ok: false, why: 'no OS secret store is wired on this platform; LAIN will not keep this credential in plaintext' };
 }
 
 function ps(script, input) {

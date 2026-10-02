@@ -33,7 +33,7 @@ module.exports = async function () {
     }
   });
 
-  await test('PANE: health reads the PROJECT, not Noema — and grades its confidence', async () => {
+  await test('PANE: health reads the PROJECT, not LAIN — and grades its confidence', async () => {
     const ph = require('../../src/projecthealth');
     const a = await ph.assess(process.cwd(), null);
     const text = T.strip(projectHealthLines(a, 100).join('\n'));
@@ -47,7 +47,7 @@ module.exports = async function () {
     assert.ok(/CONFIRMED|LIKELY|NEEDS REVIEW/.test(text), 'findings must carry a confidence');
     // And it must NOT be LAIN's own readiness wearing the project's name.
     assert.ok(!/Context window|Connections|Isolation \(V2/.test(text),
-      'Noema own runtime state belongs to /ready, not to the project health view');
+      'LAIN own runtime state belongs to /ready, not to the project health view');
   });
 
   await test('PANE: audit lays the project reading out in a frame, with sections', async () => {

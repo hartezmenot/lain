@@ -99,7 +99,7 @@ async function collect(pc, messages, opts) {
  */
 async function run(app, modelId, { signal = null, cwd = process.cwd() } = {}) {
   const key = keyFor(app, modelId);
-  if (!key) return { ok: false, why: 'Noema does not know this local model' };
+  if (!key) return { ok: false, why: 'LAIN does not know this local model' };
   const cfg = { ...((app && app.cfg) || {}), connections: (app && app.cfg && app.cfg.connections) || {}, model: modelId, connection: null };
   const pc = require('./provider').resolve(cfg);
   if (!pc.protocol || pc.protocol !== 'runtime') return { ok: false, why: `${modelId} does not resolve to a local route` };

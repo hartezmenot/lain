@@ -75,7 +75,7 @@ module.exports = async function () {
       assert.ok(e && e.source === 'USER' && e.tool === 'lsp.rename', JSON.stringify(e));
     });
 
-    await test('LSP: a crashed server is restarted; Noema keeps answering', async () => {
+    await test('LSP: a crashed server is restarted; LAIN keeps answering', async () => {
       const pid = lsp.status(app).find((x) => x.id === 'fake').pid;
       process.kill(pid);
       assert.ok(await until(() => { const s = lsp.status(app).find((x) => x.id === 'fake'); return s.state === 'READY' && s.pid && s.pid !== pid; }, 15000), 'restarted');

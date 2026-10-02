@@ -13,8 +13,8 @@
  */
 
 /**
- * THE STANDING POLICY — Noema's constitution (discipline/constitution.js), about 500 tokens. It teaches judgment;
- * everything Noema enforces mechanically (stale edits, permissions, blind retries, claim provenance, test integrity,
+ * THE STANDING POLICY — LAIN's constitution (discipline/constitution.js), about 500 tokens. It teaches judgment;
+ * everything LAIN enforces mechanically (stale edits, permissions, blind retries, claim provenance, test integrity,
  * continuation, scope) lives in Core and reaches the model as a contextual message when it applies. The 3,500-token
  * wall of historical prohibitions it replaces was read on every request and enforced nothing.
  */

@@ -51,7 +51,7 @@ function register({ define, C }) {
     // MACHINERY: about LAIN, not about the work. Goes to the command surface.
     surface: true,
     args: '[ lain | models [refresh] | use <model> ]',
-    desc: 'Which model answers a chat turn — Noema, ChatGPT.com or Gemini.google.com',
+    desc: 'Which model answers a chat turn — LAIN, ChatGPT.com or Gemini.google.com',
     async run(app, { args = [], rest = '' } = {}) {
       const w = (x) => app.render.write(x);
       const sub = String(args[0] || '').toLowerCase();
@@ -59,7 +59,7 @@ function register({ define, C }) {
       // ---- WHAT IS SELECTED, AND WHAT EACH SOURCE WOULD COST ------------
       if (!sub || sub === 'status') {
         const view = await registry.overview(app);
-        w('\n' + C.bold('Chat source') + C.dim('  — who answers a chat turn; coding is always Noema\n\n'));
+        w('\n' + C.bold('Chat source') + C.dim('  — who answers a chat turn; coding is always LAIN\n\n'));
         for (const s of view.sources) {
           const mark = s.chosen ? C.green('●') : C.dim('○');
           const model = s.selected ? C.bold(s.selected) : C.dim('no model chosen');
@@ -71,7 +71,7 @@ function register({ define, C }) {
         // WHERE THE NEXT TURN WOULD GO, said plainly. It is the one thing a
         // person actually wants to know and the one thing that is not obvious
         // from the list — a coding sentence goes to LAIN whatever is selected.
-        w(C.dim('  A coding request always runs on Noema\'s runtime, whatever is selected here.\n'));
+        w(C.dim('  A coding request always runs on LAIN\'s runtime, whatever is selected here.\n'));
         return;
       }
 
@@ -97,7 +97,7 @@ function register({ define, C }) {
           // AUTHENTICATION IS THE PERSON'S. LAIN opened the window; it does not
           // type a password, answer an MFA prompt or solve a CAPTCHA, and it
           // never will. See webmodel.js.
-          w(C.dim('    Log in in the browser window Noema opened, then /source models.\n'));
+          w(C.dim('    Log in in the browser window LAIN opened, then /source models.\n'));
         }
         return;
       }

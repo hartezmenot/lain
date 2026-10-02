@@ -158,11 +158,11 @@ module.exports = async function () {
 
   // ------------------------------------------------------- BOT about LAIN --
 
-  await test('SELF: the BOT describes Noema from the same projection, and never invents usage', async () => {
+  await test('SELF: the BOT describes LAIN from the same projection, and never invents usage', async () => {
     uw._reset();
     const app = appAt(tmpdir());
     const tool = require('../../src/tools/lainself').tools.lain_workspace;
-    assert.strictEqual(tool.mutates, false, 'reading Noema changes nothing');
+    assert.strictEqual(tool.mutates, false, 'reading LAIN changes nothing');
     const out = (await tool.run({ action: 'describe', topic: 'all' }, { app })).output;
     assert.match(out, /MODEL ROLES/);
     assert.match(out, /Settings › mcp|Settings › MCP/i);

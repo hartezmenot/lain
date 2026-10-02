@@ -128,8 +128,8 @@ module.exports = async function () {
       for (let i = 1; i <= 6; i++) await d.page.conn.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: tp.x + (para.x - tp.x) * i / 6, y: tp.y + (para.y - tp.y) * i / 6, button: 'left', buttons: 1 });
       await d.page.conn.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: para.x, y: para.y, button: 'left', clickCount: 1 });
       await R.pause(600);
-      assert.strictEqual(await d.js('String(window.getSelection())'), '', 'nothing selected in Noema');
-      assert.strictEqual(await d.js('window.__hacc.drag'), 0, 'no drag started in Noema');
+      assert.strictEqual(await d.js('String(window.getSelection())'), '', 'nothing selected in LAIN');
+      assert.strictEqual(await d.js('window.__hacc.drag'), 0, 'no drag started in LAIN');
       assert.deepStrictEqual(await pf.eval('window.__acc'), { down: 0, drag: 0 }, 'Pick is read-only: the page got no mouse button and no drag');
       assert.strictEqual(await pf.eval('String(window.getSelection())'), '', 'nothing selected in the page');
 

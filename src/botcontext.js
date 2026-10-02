@@ -57,7 +57,7 @@ function classify(session, text, cfg = {}) {
 /** The BOT_SIMPLE system prompt: identity, style, the person's BOT profile. Stable, so it caches. */
 function simplePrompt(cfg = {}) {
   const lines = [
-    'You are Noema, the person’s assistant, answering in a chat.',
+    'You are LAIN, the person’s assistant, answering in a chat.',
     'Answer directly and concisely. Plain text; short lists or a small code block only when they help.',
     'In this reply you have no tools and no view of the person’s files or projects. If the question turns out to need them, say so in one sentence; the next message will have them.',
   ];

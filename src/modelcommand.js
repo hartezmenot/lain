@@ -47,7 +47,7 @@ async function refreshModels(app, { family = null, C = null, write = null } = {}
   return r;
 }
 
-/** `noema model refresh` — no session, no window: the Core refresh, printed, and the exit code. */
+/** `lain model refresh` — no session, no window: the Core refresh, printed, and the exit code. */
 async function refreshCli({ cwd = process.cwd() } = {}) {
   const { App } = require('./app');
   const app = new App({ cwd, interactive: false });

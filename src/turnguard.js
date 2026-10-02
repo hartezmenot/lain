@@ -16,7 +16,7 @@
  *                         turn runs here     (inflight.js) and the next sentence carries that
  *
  * "Briefing" is handover.js's packet (app._handover → systemPrompt): the person's words go to the model unchanged;
- * what Noema observed rides in the system prompt.
+ * what LAIN observed rides in the system prompt.
  */
 
 const wb = require('./workbench');

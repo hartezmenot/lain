@@ -45,7 +45,7 @@ module.exports = async function () {
     assert.strictEqual(r.telemetry.ok, true);
     assert.strictEqual(r.detail.identity.signedIn, true); assert.strictEqual(r.detail.identity.plan, 'pro');
     assert.ok(!JSON.stringify(r).includes('person@example.com'), 'the email is masked');
-    assert.strictEqual(r.state, 'Ready', 'Ready — not Operational until a run through Noema succeeds');
+    assert.strictEqual(r.state, 'Ready', 'Ready — not Operational until a run through LAIN succeeds');
     assert.ok(r.execution.chat.ok && r.execution.agent.ok);
     assert.deepStrictEqual(r.detail.models.map((m) => m.alias), ['opus', 'sonnet', 'haiku', 'fable']);
   });
@@ -73,7 +73,7 @@ module.exports = async function () {
     const t = ra.cachedTelemetry('claude-code');
     assert.deepStrictEqual(t.limits.windows.map((w) => [w.label, w.usedPercent]), [['5-hour', 25], ['7-day', 60]]);
     assert.strictEqual(t.resolved.haiku, 'claude-haiku-fake-1');
-    assert.strictEqual((await ra.report(app, 'claude-code')).state, 'Operational', 'after a successful run through Noema');
+    assert.strictEqual((await ra.report(app, 'claude-code')).state, 'Operational', 'after a successful run through LAIN');
   });
 
   await test('CLAUDE CODE: the Coding Agent delegates the turn — the runtime works with its own tools in the project', async () => {
@@ -121,7 +121,7 @@ module.exports = async function () {
     require('../../src/drivers/opencodeserver').stop();
   });
 
-  await test('OPENCODE: a runtime-bound model runs INSIDE OpenCode — a real session on Noema’s own opencode serve; usage from the session', async () => {
+  await test('OPENCODE: a runtime-bound model runs INSIDE OpenCode — a real session on LAIN’s own opencode serve; usage from the session', async () => {
     const provider = require('../../src/provider');
     const pc = provider.resolve({ connections: {}, model: 'opencode/opencode/big-pickle', runtimes: app.cfg.runtimes });
     assert.strictEqual(pc.runtime, 'opencode');
@@ -134,7 +134,7 @@ module.exports = async function () {
     require('../../src/drivers/opencodeserver').stop();
   });
 
-  await test('ZCODE: the runtime stays DETECTABLE (protocol, usage, models, plan status) — but Noema shows no Start Plan: Z.ai is API-only (2026-09-29)', async () => {
+  await test('ZCODE: the runtime stays DETECTABLE (protocol, usage, models, plan status) — but LAIN shows no Start Plan: Z.ai is API-only (2026-09-29)', async () => {
     const zhome = tmpdir('zhome-');
     fs.mkdirSync(path.join(zhome, '.zcode', 'v2'), { recursive: true });
     fs.writeFileSync(path.join(zhome, '.zcode', 'v2', 'coding-plan-cache.json'), JSON.stringify({ version: 1, entryStatus: { updatedAt: 1789478471833, items: { 'builtin:zai-start-plan': { status: 'unavailable', reason: 'coding_plan_not_entitled' }, 'builtin:zai-coding-plan': { status: 'available' } } } }));
@@ -151,11 +151,11 @@ module.exports = async function () {
       assert.strictEqual(r.execution.startPlan.ok, false); assert.match(r.execution.startPlan.why, /inside the ZCode app/);
       assert.strictEqual(r.execution.agent.ok, false);
       const g = require('../harness/../../src/harnessapp/usageroutes').grouped(app);
-      assert.strictEqual(g.plans.find((p) => p.id === 'zcode:start-plan'), undefined, 'Noema does not present the ZCode Start Plan');
+      assert.strictEqual(g.plans.find((p) => p.id === 'zcode:start-plan'), undefined, 'LAIN does not present the ZCode Start Plan');
     } finally { if (prev === undefined) delete process.env.ZCODE_DATA_BASE_DIR; else process.env.ZCODE_DATA_BASE_DIR = prev; }
   });
 
-  await test('ZCODE: its models are NOT a Noema route any more (Z.ai is API-only); the driver still refuses the Start Plan before ZCode starts', async () => {
+  await test('ZCODE: its models are NOT a LAIN route any more (Z.ai is API-only); the driver still refuses the Start Plan before ZCode starts', async () => {
     const provider = require('../../src/provider');
     const pc = provider.resolve({ connections: {}, model: 'zcode/p-omni/glm-free', runtimes: app.cfg.runtimes });
     assert.notStrictEqual(pc.runtime, 'zcode', 'no ZCode runtime route');
@@ -230,15 +230,15 @@ module.exports = async function () {
     assert.strictEqual(ra.stateOf(a, { installed: true }, { ok: true, lastRun: { ok: false } }, yes), 'Degraded');
   });
 
-  await test('DISCONNECT FROM Noema: its models stop being offered; the runtime itself is untouched; reconnect restores them', async () => {
+  await test('DISCONNECT FROM LAIN: its models stop being offered; the runtime itself is untouched; reconnect restores them', async () => {
     const R = require('../../src/harnessapp/fabricroutes').ROUTES;
     const off = await R['POST /api/runtimes/disconnect'](app, { id: 'claude-code' });
     assert.ok(off.body.ok); assert.match(off.body.note, /still signed in/);
     assert.deepStrictEqual(ra.servableModels(app, 'claude-code'), []);
     assert.ok(!require('../../src/runtimeconnections').connections(app).some((c) => c.id === 'runtime:claude-code'));
-    assert.strictEqual((await ra.report(app, 'claude-code')).state, 'Disconnected from Noema');
+    assert.strictEqual((await ra.report(app, 'claude-code')).state, 'Disconnected from LAIN');
     const argsBefore = fs.readFileSync(claudeArgs, 'utf8');
-    assert.ok(!/logout/.test(argsBefore), 'Noema never ran a sign-out');
+    assert.ok(!/logout/.test(argsBefore), 'LAIN never ran a sign-out');
     await R['POST /api/runtimes/disconnect'](app, { id: 'claude-code', reconnect: true });
     assert.ok(ra.servableModels(app, 'claude-code').length > 0);
   });

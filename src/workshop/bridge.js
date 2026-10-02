@@ -245,7 +245,7 @@ function client() {
   window.addEventListener('error', function (e) { post('error', { message: String(e.message || 'error').slice(0, 300), source: String(e.filename || '').slice(0, 200), line: e.lineno || null }); });
   window.addEventListener('unhandledrejection', function (e) { post('error', { message: 'unhandled rejection: ' + String((e.reason && e.reason.message) || e.reason || '').slice(0, 280) }); });
 
-  // ---- MODEL-OWNED INPUT (Noema packaging pass, §L) — inside THIS page only -----------------------------------------
+  // ---- MODEL-OWNED INPUT (LAIN packaging pass, §L) — inside THIS page only -----------------------------------------
   // The model's pointer and keyboard act here, on the preview's own document: no OS input, no other window, no
   // browser. Every action is a real DOM event sequence on a resolved target; what would leave the Preview (a system
   // file picker, a download, a link to another site or a new window, a credential field) is REFUSED and reported so

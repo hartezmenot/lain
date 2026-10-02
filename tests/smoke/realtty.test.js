@@ -49,7 +49,7 @@ module.exports = async function () {
       { text: 'SECOND-TURN-MARKER', delayMs: 3000, outputTokens: 999600 },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: 'print the long report\r' },
       { until: 'END-OF-REPORT-ONE', timeout: 30000 },
       { snap: 'afterReport', settle: 600 },
@@ -77,7 +77,7 @@ module.exports = async function () {
     assert.match(tty.visible(scrolled), /report line \d+/);
     assert.match(tty.visible(jumped), /END-OF-REPORT-ONE/, 'one key back to the newest row');
     assert.ok(!/\[6;5~|6;5~/.test(tty.visible(jumped)), 'nothing leaked into the composer');
-    assert.match(tty.visible(jumped), /Ask Noema/, 'the composer is intact and empty');
+    assert.match(tty.visible(jumped), /Ask LAIN/, 'the composer is intact and empty');
   });
 
   await test('REAL TTY B: after the jump, a turn that streams keeps the view attached to the bottom', () => {
@@ -118,7 +118,7 @@ module.exports = async function () {
       { text: 'FINAL-STREAM-MARKER' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: `${CJK} please explain\r` },
       { until: 'UNIQUE-DONE-ONE', timeout: 30000 },
       { snap: 'w160', settle: 500 },
@@ -162,7 +162,7 @@ module.exports = async function () {
     for (const s of resize.snaps) {
       assert.ok(count(s, /UNIQUE-ANSWER-ONE/g) <= 1, `${s.name} shows the answer twice`);
       assert.ok(count(s, /UNIQUE-DONE-ONE/g) <= 1, `${s.name} shows the reply twice`);
-      assert.ok(count(s, /Ask (?:LAIN|Noema)/g) === 1, `${s.name} has ${count(s, /Ask (?:LAIN|Noema)/g)} composers`);
+      assert.ok(count(s, /Ask (?:LAIN|LAIN)/g) === 1, `${s.name} has ${count(s, /Ask (?:LAIN|LAIN)/g)} composers`);
     }
   });
 
@@ -215,7 +215,7 @@ module.exports = async function () {
   const C = await tty.runTty({
     cols: 120, rows: 30,
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: `\x1b[200~${lines}\x1b[201~` }, { wait: 500 }, { snap: 'pasted' },
       { send: '\b' }, { wait: 800 }, { snap: 'ctrlBackspace' },
       { send: `\x1b[200~${cjk}\x1b[201~` }, { wait: 500 },
@@ -227,7 +227,7 @@ module.exports = async function () {
     const lo = require('../../src/ui/frame').contentBounds(s.cols).left;
     s.grounds.forEach((g, y) => assert.ok(!g || g[0] >= lo, `row ${y} has ground in the gutter (${g})`));
     assert.deepStrictEqual(tty.escapes(s), [], 'nothing painted outside the frame');
-    assert.match(tty.visible(s), /Ask Noema/, 'the placeholder is back');
+    assert.match(tty.visible(s), /Ask LAIN/, 'the placeholder is back');
     assert.ok(!/Final acceptance|混合/.test(tty.visible(s)), 'no pasted text remains anywhere on screen');
   };
 

@@ -116,7 +116,7 @@ function describeSupervised(j) {
       + (elapsed !== null ? ` after ${elapsed}s` : '');
   const rows = [
     head,
-    `${via(KIND.JOB)} supervised — this job outlives Noema`,
+    `${via(KIND.JOB)} supervised — this job outlives LAIN`,
     `command: ${j.command}`,
   ];
   if (j.deadline_at) {
@@ -189,9 +189,9 @@ tools.run_background = {
         timeout_ms: { type: 'number', description: 'give up after this long. Default 30 minutes.' },
         survive_restart: {
           type: 'boolean',
-          description: 'keep this job running even if Noema exits, crashes, or its model is changed. '
+          description: 'keep this job running even if LAIN exits, crashes, or its model is changed. '
             + 'Use for work measured in many minutes or hours — a training run, an overnight benchmark, '
-            + 'a long watch. The job is handed to a supervisor process that outlives Noema, and its result '
+            + 'a long watch. The job is handed to a supervisor process that outlives LAIN, and its result '
             + 'is still there when you come back.',
         },
         for_seconds: {
@@ -224,7 +224,7 @@ tools.run_background = {
         return {
           output: `this job asked to survive a restart, and the supervisor is not available — ${ready.why}.`
             + ' Build it with `cargo build --release` in rust/lain-supervisor, or drop survive_restart'
-            + ' to run it in-process (it will then end when Noema does).',
+            + ' to run it in-process (it will then end when LAIN does).',
           isError: true,
         };
       }
@@ -244,7 +244,7 @@ tools.run_background = {
       const window = forSeconds ? ` The execution window is ${forSeconds}s; when it ends you will be told, and nothing will be assumed about whether it worked.` : '';
       return {
         output: `${via(KIND.JOB)} supervised job ${r.job.id} started: ${command}`
-          + `${String.fromCharCode(10)}It runs in a process that outlives Noema — closing, crashing or switching model will not stop it.`
+          + `${String.fromCharCode(10)}It runs in a process that outlives LAIN — closing, crashing or switching model will not stop it.`
           + ` Collect it with job_wait id "${r.job.id}".${window}`,
         meta: { job: r.job.id, state: r.job.state, supervised: true },
       };

@@ -171,7 +171,7 @@ class Gateway {
     } catch (err) {
       this.trace.note(STAGE.MODEL, { ...r, ok: false, why: `turn failed: ${String(err?.message || err).slice(0, 160)}` });
       this.store.settle(id, 'interrupted');
-      if (!this.stopping) await notify('Noema could not complete this turn. Check the local bot status before retrying.', `error:${id}`).catch(() => {});
+      if (!this.stopping) await notify('LAIN could not complete this turn. Check the local bot status before retrying.', `error:${id}`).catch(() => {});
     } finally {
       clearInterval(timer);
       if (adapter.caps.typing) await adapter.action({ type: 'typingStop', target: e }).catch(() => {});

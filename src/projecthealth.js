@@ -246,7 +246,7 @@ async function runCommand(app, ctx = {}, { C } = {}) {
   catch (e) { app.render.notice('error', `Could not read this project: ${e.message}`); return; }
   app.render.write('\n');
   for (const l of projectHealthLines(a, app.render.width)) app.render.write(l + '\n');
-  app.render.write(col.dim('\n  /ready is the other health view — Noema own readiness, not this project.\n'));
+  app.render.write(col.dim('\n  /ready is the other health view — LAIN own readiness, not this project.\n'));
   return a;
 }
 

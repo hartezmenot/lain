@@ -3,7 +3,7 @@
 /**
  * THE BRIEFING, THROUGH THE REAL BINARY.
  *
- * Everything here spawns `bin/noema.js` as a child process. Nothing require()s
+ * Everything here spawns `bin/lain.js` as a child process. Nothing require()s
  * an application module, because the point is to check the LLM-FACING and
  * USER-FACING paths rather than the functions behind them — a briefing that is
  * perfect in a unit test and arrives truncated, uncoloured-but-unreadable, or

@@ -1,8 +1,8 @@
-// NOEMA LAUNCHER — noema.exe (console) and "Noema Harness.exe" (GUI, compiled with /define:GUI).
+// LAIN LAUNCHER — lain.exe (console) and "LAIN Harness.exe" (GUI, compiled with /define:GUI).
 // ---------------------------------------------------------------------------
-// WHY A LAUNCHER. Noema is installed side by side:
+// WHY A LAUNCHER. LAIN is installed side by side:
 //     <root>\versions\<version>\runtime\node.exe
-//     <root>\versions\<version>\app\bin\noema.js
+//     <root>\versions\<version>\app\bin\lain.js
 //     <root>\current      the version that runs      (one line)
 //     <root>\previous     the last known-good version (one line)
 // An update is a NEW directory plus a one-line pointer change — nothing that is running is ever overwritten, so
@@ -39,13 +39,18 @@ static class Launcher {
   static bool Usable(string v) {
     return !string.IsNullOrEmpty(v) && v.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
       && File.Exists(Path.Combine(Root, "versions", v, "runtime", "node.exe"))
-      && File.Exists(Path.Combine(Root, "versions", v, "app", "bin", "noema.js"));
+      && Entry(Path.Combine(Root, "versions", v)) != null;
+  }
+  /// The version's entry point: bin/lain.js, or bin/noema.js for a Noema-era version kept for rollback.
+  static string Entry(string vdir) {
+    foreach (string n in new[] { "lain.js", "noema.js" }) { string p = Path.Combine(vdir, "app", "bin", n); if (File.Exists(p)) return p; }
+    return null;
   }
   static void Say(string s) {
 #if GUI
-    MessageBox.Show(s, "Noema", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    MessageBox.Show(s, "LAIN", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 #else
-    Console.Error.WriteLine("noema: " + s);
+    Console.Error.WriteLine("lain: " + s);
 #endif
   }
   static string Quote(string a) {
@@ -64,20 +69,21 @@ static class Launcher {
   static int Run(string version, IList<string> args, string cwd) {
     string vdir = Path.Combine(Root, "versions", version);
     var psi = new ProcessStartInfo(Path.Combine(vdir, "runtime", "node.exe")) { UseShellExecute = false, WorkingDirectory = cwd };
-    var all = new List<string> { Path.Combine(vdir, "app", "bin", "noema.js") };
+    var all = new List<string> { Entry(vdir) };
 #if HARNESS
     all.Add("--desktop");
 #endif
 #if GUI
     psi.CreateNoWindow = true;
-    psi.EnvironmentVariables["NOEMA_NO_CONSOLE"] = "1";
+    psi.EnvironmentVariables["LAIN_NO_CONSOLE"] = "1";
 #endif
     all.AddRange(args);
     psi.Arguments = string.Join(" ", all.Select(Quote));
-    psi.EnvironmentVariables["NOEMA_INSTALL_ROOT"] = Root;
-    psi.EnvironmentVariables["NOEMA_VERSION_DIR"] = vdir;
-    psi.EnvironmentVariables["NOEMA_LAUNCHER"] = Process.GetCurrentProcess().MainModule.FileName;
-    psi.EnvironmentVariables["NOEMA_HEALTH_FILE"] = Path.Combine(Root, "health-" + version);
+    psi.EnvironmentVariables["LAIN_INSTALL_ROOT"] = Root;
+    psi.EnvironmentVariables["NOEMA_INSTALL_ROOT"] = Root;   // a Noema-era version (rollback) reads only this name
+    psi.EnvironmentVariables["LAIN_VERSION_DIR"] = vdir;
+    psi.EnvironmentVariables["LAIN_LAUNCHER"] = Process.GetCurrentProcess().MainModule.FileName;
+    psi.EnvironmentVariables["LAIN_HEALTH_FILE"] = Path.Combine(Root, "health-" + version);
     using (var p = Process.Start(psi)) { p.WaitForExit(); return p.ExitCode; }
   }
 
@@ -90,11 +96,11 @@ static class Launcher {
     // A PREVIOUS SELF-UPDATE left the old launcher behind (a running image can be renamed, not deleted).
     try { foreach (var old in Directory.GetFiles(Root, "*.old.exe")) File.Delete(old); } catch { }
     var args = new List<string>(argv);
-    // THE FOLDER NOEMA WAS STARTED IN. .NET Framework refuses some legal Windows forms (a \\?\ path); then the
+    // THE FOLDER LAIN WAS STARTED IN. .NET Framework refuses some legal Windows forms (a \\?\ path); then the
     // person's profile folder is used rather than failing to start at all.
     string cwd;
     try { cwd = Environment.CurrentDirectory; } catch { cwd = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile); }
-    // AT WINDOWS SIGN-IN (`--startup`, src/startup.js) nothing of Noema is running yet: a verified update the
+    // AT WINDOWS SIGN-IN (`--startup`, src/startup.js) nothing of LAIN is running yet: a verified update the
     // updater STAGED (src/update/updater.js) becomes current HERE, before anything starts — one launch of the new
     // version, never "start the old one, then replace it, then restart". It is still `pending`, so a version that
     // fails before reporting healthy rolls back to `previous` exactly as after any other update.
@@ -111,7 +117,7 @@ static class Launcher {
       string current = Read("current"), previous = Read("previous"), pending = Read("pending");
       if (!Usable(current)) {
         if (Usable(previous)) { Say("the current version is missing; starting " + previous); Write("current", previous); current = previous; }
-        else { Say("no usable Noema version is installed under " + Root + ". Reinstall Noema."); return 1; }
+        else { Say("no usable LAIN version is installed under " + Root + ". Reinstall LAIN."); return 1; }
       }
       string health = Path.Combine(Root, "health-" + current);
       bool isPending = pending == current;
@@ -133,7 +139,7 @@ static class Launcher {
           Write("current", previous);
           try { File.Delete(Path.Combine(Root, "pending")); } catch { }
           try { File.WriteAllText(Path.Combine(Root, "rolled-back"), current + " -> " + previous + " at " + DateTime.UtcNow.ToString("o")); } catch { }
-          Say("Noema " + current + " did not start; rolled back to " + previous + ".");
+          Say("LAIN " + current + " did not start; rolled back to " + previous + ".");
           continue;
         }
       }

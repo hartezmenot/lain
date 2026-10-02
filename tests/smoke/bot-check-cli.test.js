@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { test } = require('../helpers');
-const cli = path.resolve(__dirname, '../../bin/noema.js');
+const cli = path.resolve(__dirname, '../../bin/lain.js');
 module.exports = async () => {
   await test('BOT CHECK CLI: diagnostic flags and slash doctor create no session or supervisor state', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-bot-check-cli-'));

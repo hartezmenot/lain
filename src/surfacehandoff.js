@@ -6,7 +6,7 @@
  * The lease itself is sessionlease.js (one file per session, compare-and-swap, heartbeat). This file is the SURFACE
  * vocabulary on top of it, unchanged for its callers:
  *
- *   Harness ──Continue in CLI──► the session is reserved for the CLI → `noema --resume <id>`
+ *   Harness ──Continue in CLI──► the session is reserved for the CLI → `lain --resume <id>`
  *   CLI     ──/handback─────────► reserved for the Harness → the Harness reloads it from disk and carries on
  *   claim(app)    every executing surface takes the lease before a turn (App.submit / inputgate); a session another
  *                 process wrote meanwhile is reloaded from disk first — never a stale in-memory copy written over it
@@ -50,7 +50,7 @@ function check(app) {
 
 function command(s) {
   const short = require('./session').Session.shortId ? require('./session').Session.shortId(s.id) : s.id;
-  return `noema --resume ${short}`;
+  return `lain --resume ${short}`;
 }
 
 /** Load the session another process (or surface) left on disk into this App — the same session, never a replay. */
@@ -78,7 +78,7 @@ function claim(app) {
 }
 
 /**
- * CLAIM, WAITING A MOMENT FOR A HAND-OVER THIS SURFACE ASKED FOR (`noema --resume`, /takeover): an idle owner lets go
+ * CLAIM, WAITING A MOMENT FOR A HAND-OVER THIS SURFACE ASKED FOR (`lain --resume`, /takeover): an idle owner lets go
  * at its next beat (≤ 2 s). A busy owner is never displaced — after the wait the claim is refused as usual.
  */
 async function claimWaiting(app, { waitMs = 4000 } = {}) {
@@ -95,7 +95,7 @@ async function claimWaiting(app, { waitMs = 4000 } = {}) {
   return null;
 }
 
-/** RESUMED IN THIS SURFACE ON PURPOSE (`noema --resume <id>`): ask whoever holds it to hand it over when idle. */
+/** RESUMED IN THIS SURFACE ON PURPOSE (`lain --resume <id>`): ask whoever holds it to hand it over when idle. */
 function askOnResume(app) {
   const s = app && app.session;
   if (!s || !s.id) return null;

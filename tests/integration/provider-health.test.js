@@ -3,7 +3,7 @@
 /**
  * A RATE LIMIT OUTLIVES THE PROCESS THAT LEARNED IT (routehealth.js, 2026-10-02 — Node's own file, no supervisor).
  *
- * Measured live against a real router: `retry in 4 hours`. Restart Noema five minutes later and, without a durable
+ * Measured live against a real router: `retry in 4 hours`. Restart LAIN five minutes later and, without a durable
  * copy, that number is gone: the next turn calls the closed route and is refused, the picker shows the shut door as
  * untried, and nothing in the handover can tell a replacement model which road not to take.
  *
@@ -21,7 +21,7 @@ const { Availability } = require('../../src/availability');
 const HOUR = 3600_000;
 const SRC = path.join(__dirname, '..', '..', 'src');
 
-/** Another Noema process records something, then exits. */
+/** Another LAIN process records something, then exits. */
 function inAnotherProcess(code) {
   const r = spawnSync(process.execPath, ['-e', `const h = require(${JSON.stringify(path.join(SRC, 'routehealth'))}); ${code}`], { env: process.env, encoding: 'utf8' });
   assert.strictEqual(r.status, 0, r.stderr);
@@ -99,7 +99,7 @@ module.exports = async function () {
     assert.ok(/Routes that are closed right now/.test(packet), 'the section is present');
     assert.ok(/omniroute-main/.test(packet), 'and names the route');
     assert.ok(/clears in (2h|3h)/.test(packet), `with a real clock: ${packet}`);
-    assert.ok(/Noema observed these/.test(packet));
+    assert.ok(/LAIN observed these/.test(packet));
     health.clear(id);
   });
 };

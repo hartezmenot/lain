@@ -114,7 +114,7 @@ function resolveAlias(app, name, { effort = null } = {}) {
     let acct = null;
     if (pin) {
       // AN EXPLICIT BACKING ACCOUNT — only when configured, and only by the alias the person gave it.
-      if (settings(app).pinnable !== true) return { refused: 'this Noema does not expose account pinning (server.pinnable)' };
+      if (settings(app).pinnable !== true) return { refused: 'this LAIN does not expose account pinning (server.pinnable)' };
       acct = f.accounts.find((a) => a.alias && a.alias.toLowerCase() === pin.toLowerCase()) || null;
       if (!acct) return { refused: `no account alias "${pin}" on ${f.label}` };
     } else {
@@ -187,7 +187,7 @@ function readBody(req) {
 
 async function chatCompletions(app, req, res, body) {
   const pc = resolveAlias(app, body.model, { effort: body.reasoning_effort || null });
-  if (!pc) return error(res, 404, `model "${body.model}" is not exposed by Noema — GET /v1/models lists the aliases`, 'model_not_found');
+  if (!pc) return error(res, 404, `model "${body.model}" is not exposed by LAIN — GET /v1/models lists the aliases`, 'model_not_found');
   if (pc.refused) return error(res, 400, pc.refused);
   const { messages, tools } = fromOpenAI(body);
   const ctl = new AbortController(); res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
@@ -226,9 +226,9 @@ async function chatCompletions(app, req, res, body) {
 
 async function messagesApi(app, req, res, body) {
   const pc = resolveAlias(app, body.model);
-  if (!pc) return send(res, 404, { type: 'error', error: { type: 'not_found_error', message: `model "${body.model}" is not exposed by Noema` } });
+  if (!pc) return send(res, 404, { type: 'error', error: { type: 'not_found_error', message: `model "${body.model}" is not exposed by LAIN` } });
   if (pc.refused) return send(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: pc.refused } });
-  if (body.stream) return send(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'Noema serves /v1/messages without streaming; use stream: false or the OpenAI-compatible endpoint for streaming' } });
+  if (body.stream) return send(res, 400, { type: 'error', error: { type: 'invalid_request_error', message: 'LAIN serves /v1/messages without streaming; use stream: false or the OpenAI-compatible endpoint for streaming' } });
   const { messages, tools } = fromAnthropic(body);
   const ctl = new AbortController(); res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
   let text = ''; let calls = []; let usage = null;
@@ -251,13 +251,13 @@ function handler(app) {
   return async (req, res) => {
     running.requests += 1;
     const url = String(req.url || '').split('?')[0].replace(/^\/api\/v1\//, '/v1/');
-    if (url === '/health') return send(res, 200, { ok: true, name: 'Noema' });
-    if (!authorized(req)) return error(res, 401, 'a Noema access token is required (Authorization: Bearer lain_…) — Settings › Router Server shows it', 'authentication_error');
+    if (url === '/health') return send(res, 200, { ok: true, name: 'LAIN' });
+    if (!authorized(req)) return error(res, 401, 'a LAIN access token is required (Authorization: Bearer lain_…) — Settings › Router Server shows it', 'authentication_error');
     try {
       if (req.method === 'GET' && url === '/v1/models') return send(res, 200, { object: 'list', data: aliases(app).map((a) => ({ id: a.alias, object: 'model', owned_by: 'lain', ...(a.context ? { context_length: a.context } : {}) })) });
       if (req.method === 'POST' && url === '/v1/chat/completions') return await chatCompletions(app, req, res, await readBody(req));
       if (req.method === 'POST' && url === '/v1/messages') return await messagesApi(app, req, res, await readBody(req));
-      return error(res, 404, `Noema does not serve ${req.method} ${url}`, 'not_found');
+      return error(res, 404, `LAIN does not serve ${req.method} ${url}`, 'not_found');
     } catch (e) { if (!res.headersSent) error(res, 400, e.message); }
   };
 }
@@ -267,7 +267,7 @@ function start(app, over = {}) {
   if (running) return Promise.resolve({ ok: true, already: true, ...status(app) });
   const s = { ...settings(app), ...over };
   const host = String(s.host || DEFAULTS.host);
-  if (!LOOPBACK.test(host) && s.allowRemote !== true) return Promise.resolve({ ok: false, why: `listening on ${host} exposes Noema beyond this machine — set Router Server › allow remote access first` });
+  if (!LOOPBACK.test(host) && s.allowRemote !== true) return Promise.resolve({ ok: false, why: `listening on ${host} exposes LAIN beyond this machine — set Router Server › allow remote access first` });
   try { token({ create: true }); } catch (e) { return Promise.resolve({ ok: false, why: e.message }); }
   return new Promise((resolve) => {
     const server = http.createServer();
@@ -317,11 +317,11 @@ async function cli(argv = []) {
   const i = argv.indexOf('--port'); if (i >= 0) over.port = Number(argv[i + 1]);
   const h = argv.indexOf('--host'); if (h >= 0) over.host = argv[h + 1];
   const r = await start(app, over);
-  if (!r.ok) { process.stderr.write(`noema --serve: ${r.why}\n`); return 1; }
-  process.stdout.write(`Noema is serving on ${r.url}\n  models: GET ${r.url}/models (${aliases(app).length} aliases)\n  auth:   Authorization: Bearer <your Noema access token> (Settings › Router Server)\n  Ctrl+C stops it.\n`);
+  if (!r.ok) { process.stderr.write(`lain --serve: ${r.why}\n`); return 1; }
+  process.stdout.write(`LAIN is serving on ${r.url}\n  models: GET ${r.url}/models (${aliases(app).length} aliases)\n  auth:   Authorization: Bearer <your LAIN access token> (Settings › Router Server)\n  Ctrl+C stops it.\n`);
   await new Promise((resolve) => { const done = () => resolve(); process.once('SIGINT', done); process.once('SIGTERM', done); });
   await stop();
-  process.stdout.write('Noema server stopped.\n');
+  process.stdout.write('LAIN server stopped.\n');
   return 0;
 }
 

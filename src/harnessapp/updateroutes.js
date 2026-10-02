@@ -24,16 +24,16 @@ function view(app) {
 
 const ROUTES = {
   'POST /api/update/download': async (app) => {
-    if (!U().installRoot()) return bad('updates apply to an installed Noema — this is a development checkout', 409);
+    if (!U().installRoot()) return bad('updates apply to an installed LAIN — this is a development checkout', 409);
     const r = await U().stage({ cfg: app.cfg }).catch((e) => ({ ok: false, why: e.message }));
-    return r.ok ? ok({ update: view(app), said: `Noema ${r.staged.version} is downloaded — restart when you are ready` }) : bad(r.why, 409);
+    return r.ok ? ok({ update: view(app), said: `LAIN ${r.staged.version} is downloaded — restart when you are ready` }) : bad(r.why, 409);
   },
   'POST /api/update/restart': async (app, body = {}) => {
     const when = ['now', 'checkpoint', 'task'].includes(body.when) ? body.when : 'task';
     if (U().status().state !== 'staged') return bad('no update is downloaded yet', 409);
     if (when === 'now' && LC().busy(app)) return bad('the Coding Agent is working — restart after the current checkpoint or after the task', 409);
     const r = LC().arm(app, 'update', when);
-    return r.ok ? ok({ update: view(app), said: when === 'now' || r.when === 'now' ? 'Restarting Noema…' : when === 'checkpoint' ? 'Noema restarts at the next committed checkpoint' : 'Noema restarts when the task is done' }) : bad(r.why);
+    return r.ok ? ok({ update: view(app), said: when === 'now' || r.when === 'now' ? 'Restarting LAIN…' : when === 'checkpoint' ? 'LAIN restarts at the next committed checkpoint' : 'LAIN restarts when the task is done' }) : bad(r.why);
   },
   'POST /api/update/later': async (app) => { LC().cancel(app, 'update'); return ok({ update: view(app), said: 'Later — the update stays downloaded' }); },
   'POST /api/app/exit': async (app, body = {}) => {
@@ -41,7 +41,7 @@ const ROUTES = {
     if (mode === 'now' && LC().busy(app)) return bad('the Coding Agent is working — choose how to exit', 409, { busy: true });
     if (mode === 'stop') { setImmediate(() => LC().perform(app, 'exit', { stopTurn: true }).catch(() => null)); return ok({ said: 'Stopping the task and exiting…' }); }
     const r = LC().arm(app, 'exit', mode);
-    return r.ok ? ok({ said: r.when === 'now' ? 'Exiting Noema…' : 'Noema exits at the next committed checkpoint' }) : bad(r.why);
+    return r.ok ? ok({ said: r.when === 'now' ? 'Exiting LAIN…' : 'LAIN exits at the next committed checkpoint' }) : bad(r.why);
   },
 };
 

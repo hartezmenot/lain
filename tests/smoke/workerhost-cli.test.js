@@ -73,7 +73,7 @@ module.exports = async function run() {
       assert.ok(['LOADING', 'UNLOADED', 'UNAVAILABLE'].includes(row1.layaBypass), `bypass recorded: ${row1.layaBypass}`);
       assert.strictEqual(row1.warmWaitMs, 0);
       const s = await host.status();
-      assert.ok(s.ok && s.workers.laya && s.workers.laya.state === 'LOADING', 'the load carries on after Noema exited');
+      assert.ok(s.ok && s.workers.laya && s.workers.laya.state === 'LOADING', 'the load carries on after LAIN exited');
       const until = Date.now() + LOAD_MS + 15000;
       while (Date.now() < until && (await host.status()).workers.laya.state !== 'HOT_IDLE') await sleep(250);
       assert.strictEqual((await host.status()).workers.laya.state, 'HOT_IDLE');
@@ -82,7 +82,7 @@ module.exports = async function run() {
       assert.strictEqual(r2.code, 0, r2.stderr);
       const row2 = sessionOf(c2).workerLedger.find((x) => x.contract === 'evidence_narrower');
       assert.strictEqual(row2.tier, 'laya', 'the next process is served by the hot worker');
-      assert.strictEqual((await host.status()).workers.laya.loads, 1, 'no reload across Noema processes');
+      assert.strictEqual((await host.status()).workers.laya.loads, 1, 'no reload across LAIN processes');
     } finally {
       await host.pending();
       await host.shutdown('test over');

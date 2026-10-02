@@ -193,7 +193,7 @@ class Workshop {
     const tab = await cdp.newTab(launched.base, 'about:blank');
     if (!tab.ok || !tab.target || !tab.target.webSocketDebuggerUrl) {
       await this.close(key);
-      return { ok: false, why: 'the preview browser would not give Noema a page to drive' };
+      return { ok: false, why: 'the preview browser would not give LAIN a page to drive' };
     }
     const conn = new cdp.Connection(tab.target.webSocketDebuggerUrl);
     const opened = await conn.connect();

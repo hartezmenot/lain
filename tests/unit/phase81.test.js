@@ -39,13 +39,13 @@ module.exports = async function () {
     r.on('error', reject); if (data) r.write(data); r.end();
   });
 
-  await test('Noema SERVER: loopback, token required, lain/ aliases, one request through the canonical path, no upstream key, clean stop', async () => {
+  await test('LAIN SERVER: loopback, token required, lain/ aliases, one request through the canonical path, no upstream key, clean stop', async () => {
     const serve = require('../../src/serve');
     const app = mk();
     const UPSTREAM = 'sk-upstream-NEVER-LEAVES-9f8e7d6c5b4a';
     app.cfg.connections = { 'lain:fixture': { baseUrl: 'https://fixture.invalid/v1', auth: 'api_key', apiKey: UPSTREAM, models: ['fixture-model'] } };
     process.env.LAIN_PROVIDER = 'mock';
-    process.env.LAIN_MOCK_SCRIPT = writeScript(tmpdir('p81-mock-'), [{ text: 'Hello from Noema.' }]);
+    process.env.LAIN_MOCK_SCRIPT = writeScript(tmpdir('p81-mock-'), [{ text: 'Hello from LAIN.' }]);
     try {
       const remote = await serve.start(app, { host: '0.0.0.0', port: 0 });
       assert.strictEqual(remote.ok, false, 'a non-loopback bind needs allowRemote');
@@ -63,11 +63,11 @@ module.exports = async function () {
       const before = require('../../src/usage').read({}).length;
       const c = await req(port, 'POST', '/v1/chat/completions', { model: 'lain/fixture-model', messages: [{ role: 'user', content: 'hi' }] }, auth);
       assert.strictEqual(c.status, 200, c.text);
-      assert.strictEqual(c.json.choices[0].message.content, 'Hello from Noema.');
+      assert.strictEqual(c.json.choices[0].message.content, 'Hello from LAIN.');
       const rows = require('../../src/usage').read({});
       assert.strictEqual(rows.length, before + 1, 'one model request, recorded by the one envelope');
-      assert.match(rows[rows.length - 1].origin, /Noema Server/, 'the receipt says it came from the Noema server');
-      assert.ok(!c.text.includes(UPSTREAM) && !models.text.includes(UPSTREAM), 'the upstream key never leaves Noema');
+      assert.match(rows[rows.length - 1].origin, /LAIN Server/, 'the receipt says it came from the LAIN server');
+      assert.ok(!c.text.includes(UPSTREAM) && !models.text.includes(UPSTREAM), 'the upstream key never leaves LAIN');
       const unknown = await req(port, 'POST', '/v1/chat/completions', { model: 'lain/nope', messages: [] }, auth);
       assert.strictEqual(unknown.status, 404);
       const st = (await call(app, '/api/server/status')).body.server;
@@ -203,7 +203,7 @@ module.exports = async function () {
   await test('GITHUB SYNC: fast-forwards a clean clone; never overwrites local changes; leaves a conflict for the person (Abort restores); never resets', async () => {
     const { spawnSync } = require('child_process');
     const sh = (cwd, ...a) => { const r = spawnSync('git', a, { cwd, encoding: 'utf8' }); if (r.status !== 0) throw new Error(`git ${a.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
-    Object.assign(process.env, { GIT_AUTHOR_NAME: 'Noema Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'Noema Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
+    Object.assign(process.env, { GIT_AUTHOR_NAME: 'LAIN Test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'LAIN Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
     const gh = require('../../src/github');
     const base = tmpdir('sync-');
     const bare = path.join(base, 'remote.git');

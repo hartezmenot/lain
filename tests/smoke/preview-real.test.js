@@ -130,7 +130,7 @@ module.exports = async function () {
       for (let i = 0; i < 100 && !shown; i++) { shown = await ev("document.body.classList.contains('detached-preview') && !!window.LAIN && !!LAIN.state() && LAIN.workshop.isOpen() && document.getElementById('wsWait').hidden"); if (!shown) await new Promise((x) => setTimeout(x, 300)); }
       assert.ok(shown, 'the detached window shows only the preview, drawn');
       assert.strictEqual(await ev("LAIN.state().current.id"), sessionId, 'the same session');
-      assert.strictEqual(await ev("getComputedStyle(document.getElementById('app')).display"), 'none', 'none of the rest of Noema');
+      assert.strictEqual(await ev("getComputedStyle(document.getElementById('app')).display"), 'none', 'none of the rest of LAIN');
       await ev("(() => { const i = document.getElementById('wsSayIn'); i.value = 'note: keep the heading bold'; document.getElementById('wsSayGo').click(); return true; })()");
       assert.ok(await answerAsks("LAIN.state().conversation.filter((m) => m.role === 'user').some((m) => /keep the heading bold/.test(m.text))", 60000), 'a change from the detached window reached the same session');
       await ev("LAIN.hostCall('close', {})").catch(() => null);

@@ -153,7 +153,7 @@ function runtimeRows(app, cur, reports) {
       const ws = (v.limits && v.limits.windows) || [];
       rows.push({ key: `codex:${v.id}`, kind: 'plan', label: v.display_name, provider: 'openai', icon: 'openai', via: 'Codex Runtime', account: v.identity && v.identity.email ? v.identity.email : 'not signed in', roles: [],
         usage: ws.length ? { kind: 'windows', windows: ws.map((w) => ({ label: w.label, usedPercent: w.usedPercent, resetsAt: w.resetsAt })), text: ws.map(pctWord).filter(Boolean).join(' · ') } : { kind: 'text', text: v.limits_error || 'not reported yet' },
-        status: { word: v.runtime ? String(v.runtime.runtime_state || '').toLowerCase().replace(/_/g, ' ') : 'registered', cls: '' }, detail: { instance: v.id, execution: 'Codex subscriptions run inside Codex; Noema reads their windows and sessions — execution through Noema is not implemented' } });
+        status: { word: v.runtime ? String(v.runtime.runtime_state || '').toLowerCase().replace(/_/g, ' ') : 'registered', cls: '' }, detail: { instance: v.id, execution: 'Codex subscriptions run inside Codex; LAIN reads their windows and sessions — execution through LAIN is not implemented' } });
     }
   } catch { /* no registry */ }
   return rows;
@@ -170,8 +170,8 @@ async function chatRows(app, cur) {
     out.push({
       key: `chat:${s.id}`, kind: 'chat', source: s.id, modelId: isGpt ? roles.CHATGPT_CHAT.alias : null,
       label: isGpt ? roles.CHATGPT_CHAT.label : s.label, provider: isGpt ? 'openai' : 'google', icon: isGpt ? 'openai' : 'google',
-      via: isGpt ? roles.CHATGPT_CHAT.origin : 'gemini.google.com', account: isGpt ? `Noema alias: ${roles.CHATGPT_CHAT.alias}` : 'website session',
-      roles: ['CHAT'], capabilityLabel: 'CHAT ONLY', usage: { kind: 'text', text: 'observed by Noema · no billed figures' },
+      via: isGpt ? roles.CHATGPT_CHAT.origin : 'gemini.google.com', account: isGpt ? `LAIN alias: ${roles.CHATGPT_CHAT.alias}` : 'website session',
+      roles: ['CHAT'], capabilityLabel: 'CHAT ONLY', usage: { kind: 'text', text: 'observed by LAIN · no billed figures' },
       status: { word: /^(CONNECTED|READY|SIGNED_IN|AVAILABLE)$/i.test(String(s.state || '')) ? 'Connected' : 'Disconnected', cls: /^(CONNECTED|READY|SIGNED_IN|AVAILABLE)$/i.test(String(s.state || '')) ? 'ok' : '' },
       current: { chat: cur.chat.source === s.id }, detail: { state: s.state, why: s.why, siteModel: s.model || null },
     });
@@ -252,7 +252,7 @@ const ROUTES = {
     if (!require('../runtimeadapters').get(id)) return bad('unknown runtime');
     r.cfg.runtimes = { ...(r.cfg.runtimes || {}), [id]: { ...((r.cfg.runtimes || {})[id] || {}), disconnected: body.reconnect ? undefined : true } };
     try { require('../config').save(r.cfg); } catch { /* applies in memory */ }
-    return ok({ id, disconnected: !body.reconnect, note: 'Noema no longer offers its models. You are still signed in to the runtime itself.' });
+    return ok({ id, disconnected: !body.reconnect, note: 'LAIN no longer offers its models. You are still signed in to the runtime itself.' });
   },
   /** VERIFY a runtime model (chat + agent probes through the real runtime) — a deliberate click; it uses a little of that runtime's allowance. */
   'POST /api/runtimes/verify': async (app, body = {}) => {
@@ -271,7 +271,7 @@ const ROUTES = {
   'POST /api/local/llama/stop': async (app, body = {}) => {
     const llama = require('../local/llamacpp');
     const s = llama.status().find((x) => x.model === body.model || x.key === body.key);
-    if (!s) return bad('that model is not running under Noema');
+    if (!s) return bad('that model is not running under LAIN');
     const r = llama.stop(s.key, { force: Boolean(body.force) });
     return r.ok ? ok(r) : bad(r.why, 409);
   },

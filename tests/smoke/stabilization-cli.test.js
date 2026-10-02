@@ -55,7 +55,7 @@ module.exports = async function () {
       { text: 'Executed the accepted plan.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { snap: 'auto', settle: 300 },
       { key: 'shift-tab' }, { snap: 'manual', settle: 400 },
       { key: 'shift-tab' }, { snap: 'plan', settle: 400 },
@@ -102,7 +102,7 @@ module.exports = async function () {
       { text: 'Retry delay now doubles. check.js passes.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: 'fix the retry delay\r' },
       // The activity state, as the one compact line a running tool gets.
       { until: '(?:Running|Reading|Testing|Writing|Verifying|Working) · ', timeout: 20000 },
@@ -128,7 +128,7 @@ module.exports = async function () {
   const diffCol = (b.byName.done.text[diffRow - 1] || '').search(/\[(?:× )?Diff\]/) + 2;
   const b2 = await tty.runTty({
     cols: 110, rows: 34, args: ['--resume', lastSession(b.configDir).id], configDir: b.configDir, cwd: cwdB,
-    steps: [{ until: 'Ask Noema', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'closed', diffCol), ...click(diffRow, 'reopen', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
+    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'closed', diffCol), ...click(diffRow, 'reopen', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
   });
   await test('CLI B: a resumed turn still shows its diff; the control collapses and reopens it; Esc does not remove transcript', () => {
     assert.match(vis(b2.byName.resumed), /\[× Diff\][\s\S]*- .*n \* 100[\s\S]*\+ .*100 \* 2 \*\* n/);
@@ -149,12 +149,12 @@ module.exports = async function () {
       { text: 'Continuing with what the browser request returned.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: '/browser\r' }, { snap: 'browser', settle: 800 }, { key: 'escape' },
       { send: '/chrome\r' }, { snap: 'chrome', settle: 800 }, { key: 'escape' },
       { send: '/focus\r' }, { wait: 500 }, { send: '/fast\r' }, { snap: 'prefs', settle: 800 },
       { send: 'check the page renders\r' },
-      // A LOCAL page in Noema's own ISOLATED browser is inspected directly (tools/capability.js internalRoute);
+      // A LOCAL page in LAIN's own ISOLATED browser is inspected directly (tools/capability.js internalRoute);
       // the person's Chrome and public sites are still asked.
       { until: 'Continuing with what the browser request returned', timeout: 90000 },
       { snap: 'continued', settle: 500 },
@@ -169,7 +169,7 @@ module.exports = async function () {
   });
   await test('CLI C: a model request for a LOCAL page EXECUTES in the isolated browser without a prompt — the turn continues from a real result', () => {
     assert.deepStrictEqual(c.timeouts, []);
-    assert.ok(!/Allow once/.test(vis(c.byName.continued)), 'no permission prompt for Noema\'s own isolated browser on a local page');
+    assert.ok(!/Allow once/.test(vis(c.byName.continued)), 'no permission prompt for LAIN\'s own isolated browser on a local page');
     const s = lastSession(c.configDir);
     const toolMsg = s.messages.find((m) => m.role === 'tool');
     assert.ok(toolMsg, 'a tool result exists');
@@ -206,7 +206,7 @@ module.exports = async function () {
   // ---- E — no resurrected rate-limit warning --------------------------------
   const e1 = await runCli(['-p', 'hello'], { timeoutMs: 60000, script: [{ error: { status: 429, message: 'rate limited', retryAfter: 3000 } }, { error: { status: 429, message: 'rate limited' } }] });
   const sid = lastSession(e1.configDir).id;
-  const e2 = await tty.runTty({ cols: 110, rows: 30, args: ['--resume', sid], configDir: e1.configDir, cwd: e1.cwd, steps: [{ until: 'Ask Noema', timeout: 30000 }, { snap: 'resumed', settle: 1200 }] });
+  const e2 = await tty.runTty({ cols: 110, rows: 30, args: ['--resume', sid], configDir: e1.configDir, cwd: e1.cwd, steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 1200 }] });
   await test('CLI E: resuming after a rate limit does not resurrect the red warning on the primary UI', () => {
     const live = e2.byName.resumed.text.slice(-6).join('\n');
     assert.ok(!/RATE LIMITED|FAILED/.test(live), live);
@@ -218,7 +218,7 @@ module.exports = async function () {
     connections: { local: { provider: 'local', via: 'bridge', baseUrl: 'http://127.0.0.1:9/v1', models: ['glm-5', 'qwen3', 'qwen3:free'] } },
   }));
   const f = await tty.runTty({ cols: 110, rows: 34, configDir: cfgF, env: { LAIN_PROVIDER: '' },
-    steps: [{ until: 'Ask Noema', timeout: 30000 }, { send: '/model\r' }, { until: '(?i)models', timeout: 20000 }, { snap: 'models', settle: 600 }, { send: 'external:' }, { snap: 'external', settle: 800 }, { key: 'escape' }, { send: '/exit\r' }, { wait: 1500 }] });
+    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { send: '/model\r' }, { until: '(?i)models', timeout: 20000 }, { snap: 'models', settle: 600 }, { send: 'external:' }, { snap: 'external', settle: 800 }, { key: 'escape' }, { send: '/exit\r' }, { wait: 1500 }] });
   await test('CLI F: /model opens "MODELS" directly — no source shelf; access variants are not separate rows', () => {
     const t = vis(f.byName.models);
     assert.ok(!/Model source/.test(t), t);
@@ -245,7 +245,7 @@ module.exports = async function () {
       { text: 'small.js now exports 2; the check passes.' },
     ],
     steps: [
-      { until: 'Ask Noema', timeout: 30000 },
+      { until: 'Ask LAIN', timeout: 30000 },
       { send: '/focus\r' }, { wait: 600 },
       { send: 'make small.js export 2\r' },
       { wait: 1200 },

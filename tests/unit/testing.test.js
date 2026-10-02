@@ -149,7 +149,7 @@ module.exports = async function () {
     // The regression itself: LAIN reporting that LAIN has no tests.
     const r = T.discover(path.join(__dirname, '..', '..'));
     assert.strictEqual(r.state, T.STATE.TESTS_FOUND_NOT_RUN);
-    assert.ok(r.files.count > 100, `only found ${r.files.count} test files in Noema's own tree`);
+    assert.ok(r.files.count > 100, `only found ${r.files.count} test files in LAIN's own tree`);
     assert.strictEqual(T.primary(r).command, 'npm test');
   });
 
@@ -259,7 +259,7 @@ module.exports = async function () {
     assert.ok(named.includes('run_tests'));
   });
 
-  await test('TOOL: discover_tests reports Noema\'s own suite through the registry', async () => {
+  await test('TOOL: discover_tests reports LAIN\'s own suite through the registry', async () => {
     const reg = require('../../src/tools');
     const r = await reg.execute('discover_tests', {}, { cwd: path.join(__dirname, '..', '..') });
     assert.ok(!r.isError, r.output);

@@ -105,7 +105,7 @@ module.exports = async function () {
     assert.ok(r.denied, r.output);
   });
 
-  await test('WO: expansion is requested by the worker and granted only by the user or Noema', () => {
+  await test('WO: expansion is requested by the worker and granted only by the user or LAIN', () => {
     const { session } = project();
     const order = authority.issue(session, { id: 'W57', writeScope: ['src/auth/session.js'], bounded: true });
     assert.throws(() => order.writeScope.push('src/settings.js'), 'the scope array is frozen');
@@ -135,7 +135,7 @@ module.exports = async function () {
     assert.ok(!r.isError, r.output);
   });
 
-  await test('PROPOSAL: a staged worker edit is committed by Noema, verified, and only then VERIFIED', async () => {
+  await test('PROPOSAL: a staged worker edit is committed by LAIN, verified, and only then VERIFIED', async () => {
     const { root, session } = project();
     const order = authority.issue(session, { id: 'W60', writeScope: ['src/auth/session.js::validateSession'], bounded: true });
     const staged = await proposal.stage(order, [{ name: 'replace_symbol', input: { path: 'src/auth/session.js', name: 'validateSession', replacement: 'function validateSession(token) {\n  return typeof token === "string" && token.length > 0;\n}' } }], { cwd: root });

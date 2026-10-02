@@ -26,9 +26,9 @@
  * drawn as `123…dsaw` rather than as itself.
  *
  * ------------------------------------------------------------------------
- * GATEWAY ONLY (2026-10-02). The supervisor keeps the Telegram poller and hands every message to Noema's own bot
+ * GATEWAY ONLY (2026-10-02). The supervisor keeps the Telegram poller and hands every message to LAIN's own bot
  * gateway (src/bot/). The legacy "remote brain" — a second model and a capability catalog inside the supervisor that
- * answered a phone with Noema closed — was removed with the Rust Guardian it read from.
+ * answered a phone with LAIN closed — was removed with the Rust Guardian it read from.
  */
 
 const supervisor = require('./supervisor');

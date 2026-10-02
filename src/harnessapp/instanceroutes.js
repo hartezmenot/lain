@@ -30,9 +30,9 @@ async function otherSources(app) {
       out.push({
         id: `website:${s.source}`, driver_id: `website:${s.source}`, display_name: `${s.label} (website)`, provider: s.source === 'chatgpt-web' ? 'openai' : s.source === 'gemini-web' ? 'google' : s.source,
         source_type: 'website', connection: `${s.label} website session — chat only; not a subscription route and not the API`,
-        identity: null, credential_ref: null, credential: { held_by: 'browser profile', note: 'the site keeps its own sign-in in Noema’s browser profile' },
+        identity: null, credential_ref: null, credential: { held_by: 'browser profile', note: 'the site keeps its own sign-in in LAIN’s browser profile' },
         authentication_state: s.state === 'READY' ? 'AUTHENTICATED' : s.state, runtime_state: null, models: s.selected ? [s.selected] : [],
-        capabilities: ['CHAT'], limits: null, limits_error: 'the website does not report limits to Noema', reset_windows: [], assigned_roles: [],
+        capabilities: ['CHAT'], limits: null, limits_error: 'the website does not report limits to LAIN', reset_windows: [], assigned_roles: [],
       });
     }
   } catch { /* no website sources in this build */ }

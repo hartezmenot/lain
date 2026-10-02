@@ -17,11 +17,11 @@
  */
 
 function register({ define, C }) {
-  // `/noema`, and `/lain` — the name it had before the rename — as the same command.
+  // `/lain`, and `/noema` — its name in the Noema era — as the same command.
   const spec = {
     surface: true,
     args: '',
-    desc: 'What .noema remembers: architecture, wiring, vocabulary, facts, unfinished turns',
+    desc: 'What .lain remembers: architecture, wiring, vocabulary, facts, unfinished turns',
     run(app) {
       const root = app.session ? app.session.cwd : process.cwd();
       const folder = `${require('./projectmeta').name(root)}/`;
@@ -80,8 +80,8 @@ function register({ define, C }) {
       }
     },
   };
-  define('/noema', spec);
-  define('/lain', { ...spec, desc: 'Same as /noema (its name before the rename)' });
+  define('/lain', spec);
+  define('/noema', { ...spec, desc: 'Same as /lain (its Noema-era name)' });
 }
 
 function indent(text, pad) {

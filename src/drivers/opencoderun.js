@@ -119,7 +119,7 @@ async function* runStream(app, { prompt, model, mode = 'chat', cwd = null, signa
   const s = await srv().ensure(bin);
   let ok = false;
   try {
-    for await (const ev of srv().prompt(s, { text: prompt, model: upstream, mode, cwd: cwd || srv().scratchDir(), signal, title: mode === 'chat' ? 'Noema · BOT' : 'Noema · Agent', agentShell: Boolean(settings(app).agentShell) })) {
+    for await (const ev of srv().prompt(s, { text: prompt, model: upstream, mode, cwd: cwd || srv().scratchDir(), signal, title: mode === 'chat' ? 'LAIN · BOT' : 'LAIN · Agent', agentShell: Boolean(settings(app).agentShell) })) {
       if (ev.type === 'usage') ok = true;
       yield ev;
     }

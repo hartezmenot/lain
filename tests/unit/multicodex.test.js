@@ -70,7 +70,7 @@ module.exports = async function () {
       assert.strictEqual(new Set(ids).size, 8);
       const rows = ai.list(app);
       assert.strictEqual(rows.filter((r) => r.driver_id === 'codex').length, 8);
-      assert.ok(rows.every((r) => r.credential_ref === null && r.credential.held_by === 'runtime'), 'Noema holds no secret for a runtime account');
+      assert.ok(rows.every((r) => r.credential_ref === null && r.credential.held_by === 'runtime'), 'LAIN holds no secret for a runtime account');
     });
 
     await test('EIGHT CODEX: each signs in through the runtime\'s own login, concurrently, as itself', async () => {
@@ -81,7 +81,7 @@ module.exports = async function () {
         if (i === 2) fs.writeFileSync(path.join(h.layout.home, 'fake-limits.json'), JSON.stringify({ primary: { usedPercent: 87, windowDurationMins: 300, resetsAt: Math.floor(Date.now() / 1000) + 600 } }));
         const r = await ai.login(app, id, { device: i === 7 });
         assert.ok(r.ok, r.why);
-        assert.ok(/^https:\/\/auth\.openai\.com\//.test(r.login.url), 'a URL for the person\'s browser — no password passes through Noema');
+        assert.ok(/^https:\/\/auth\.openai\.com\//.test(r.login.url), 'a URL for the person\'s browser — no password passes through LAIN');
         if (i === 7) assert.strictEqual(r.login.userCode, 'ABCD-1234');
       }));
       assert.ok(await waitFor(() => ai.list(app).filter((r) => r.driver_id === 'codex' && r.authentication_state === 'AUTHENTICATED').length === 8), JSON.stringify(ai.list(app).map((r) => [r.id, r.authentication_state])));

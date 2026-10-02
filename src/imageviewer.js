@@ -104,7 +104,7 @@ function adopt(app, file, { note = '' } = {}) {
 function offer(app, file, { note = '', provenance = '' } = {}) {
   const target = path.resolve(String(file || ''));
   if (!fs.existsSync(target)) return { ok: false, why: 'there is no file at that path' };
-  if (!images.isImage(target)) return { ok: false, why: 'that is not an image Noema can measure' };
+  if (!images.isImage(target)) return { ok: false, why: 'that is not an image LAIN can measure' };
 
   // THE SAME PICTURE TWICE IS ONE PICTURE. A screenshot the tool just offered
   // and then `/image` on the same path must not adopt a second copy into the

@@ -56,7 +56,7 @@ function summary(app) {
     const rows = f.accounts.map((a) => ({ id: a.id, name: a.name, text: accountText(a), limited: Boolean(a.limited), max: Math.max(-1, ...a.quota.map((w) => (w.usedPercent == null ? -1 : w.usedPercent))) }));
     return { id: f.id, label: f.label, single: rows.length === 1, rows };
   });
-  const lines = ['Noema'];
+  const lines = ['LAIN'];
   for (const g of groups) {
     if (g.single) lines.push(`${g.label}  ${g.rows[0].text}`);
     else { lines.push(g.label); for (const r of g.rows) lines.push(`  ${r.name}  ${r.text}`); }
@@ -82,7 +82,7 @@ function summary(app) {
   const tip = [];
   let n = 0;
   for (const l of lines) { const t = l.trim(); if (n + t.length + 1 > 127) break; tip.push(t); n += t.length + 1; }
-  return { title: 'Noema', groups, lines, active, note, task, tooltip: tip.join('\n') };
+  return { title: 'LAIN', groups, lines, active, note, task, tooltip: tip.join('\n') };
 }
 
 // ---------------------------------------------------------------- pushing --

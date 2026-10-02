@@ -143,9 +143,9 @@ function detect(cwd) {
     const mount = {};
     const given = conf.mount && typeof conf.mount === 'object' ? Object.entries(conf.mount).slice(0, 40) : [];
     for (const [u, rel] of given) { const full = /^\/[^?#\s]*$/.test(u) && typeof rel === 'string' ? within(rel) : null; if (full) mount[u] = full; }
-    return { ok: true, root, script: 'static', scriptLine: 'Noema static server', packageManager: null, static: true, configured: true,
+    return { ok: true, root, script: 'static', scriptLine: 'LAIN static server', packageManager: null, static: true, configured: true,
       command: `"${process.execPath}" "${require.resolve('./staticserve')}" "${serveRoot}"`, env: Object.keys(mount).length ? { LAIN_STATIC_MOUNT: JSON.stringify(mount) } : null,
-      why: `the frontend in ${path.relative(root, serveRoot) || '.'}, served by Noema — the project's server stays dormant`, declaredPort: null, declaredBy: null };
+      why: `the frontend in ${path.relative(root, serveRoot) || '.'}, served by LAIN — the project's server stays dormant`, declaredPort: null, declaredBy: null };
   }
   const pkg = readJson(path.join(root, 'package.json'));
   if (!pkg) {
@@ -153,8 +153,8 @@ function detect(cwd) {
     const index = ['index.html', 'public/index.html'].find((f) => fs.existsSync(path.join(root, f)));
     if (index) {
       const serveRoot = path.dirname(path.join(root, index));
-      return { ok: true, root, script: 'static', scriptLine: 'Noema static server', packageManager: null, static: true,
-        command: `"${process.execPath}" "${require.resolve('./staticserve')}" "${serveRoot}"`, why: `a static site (${index}), served by Noema`, declaredPort: null, declaredBy: null };
+      return { ok: true, root, script: 'static', scriptLine: 'LAIN static server', packageManager: null, static: true,
+        command: `"${process.execPath}" "${require.resolve('./staticserve')}" "${serveRoot}"`, why: `a static site (${index}), served by LAIN`, declaredPort: null, declaredBy: null };
     }
     return { ok: false, root, why: 'no preview target detected — no package.json dev script and no index.html. Configure Preview… to name a command.', declaredPort: null };
   }
@@ -252,7 +252,7 @@ async function adoptable(cwd, declaredPort, { processes = null } = {}) {
           // eslint-disable-next-line no-await-in-loop -- at most a handful
           const host = await listening(p.port);
           if (host) {
-            return { ok: true, port: p.port, url: `http://${host}:${p.port}/`, why: 'the dev server Noema started for this project is still up', processId: p.processId || null };
+            return { ok: true, port: p.port, url: `http://${host}:${p.port}/`, why: 'the dev server LAIN started for this project is still up', processId: p.processId || null };
           }
         }
       }

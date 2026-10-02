@@ -52,7 +52,7 @@ module.exports = async function () {
   });
 
   // ---- header -------------------------------------------------------------
-  await test('UI: the header is Noema, the project, the model and the live output count', () => {
+  await test('UI: the header is LAIN, the project, the model and the live output count', () => {
     // ------------------------------------------------------------------
     // FOUR FIELDS, AND THIS TEST USED TO ASSERT SEVEN.
     //
@@ -75,7 +75,7 @@ module.exports = async function () {
       cwd: 'C:\\Projects\\TradingBot', model: 'Claude Opus 5', connection: 'OmniRoute',
       output: { tokens: 624, measured: false }, width: 80,
     }).join('\n');
-    assert.ok(h.includes('Noema'));
+    assert.ok(h.includes('LAIN'));
     assert.ok(h.includes('TradingBot'), 'project folder');
     assert.ok(h.includes('Claude Opus 5'), 'the model a person checks before sending anything');
     assert.ok(h.includes('~624'), 'the live output count, marked as the estimate it is');
@@ -266,7 +266,7 @@ module.exports = async function () {
     // the panel lost its frame, its rules and its shouting header (ui/panel.js
     // `render`). Matched case-insensitively, because what this test is about is
     // that the question identifies itself, not how loudly.
-    assert.match(body, /Noema needs your input/i, body);
+    assert.match(body, /LAIN needs your input/i, body);
     assert.ok(body.includes('Which frontend?'));
     assert.ok(body.includes('A.  React + Vite'), body);
     assert.ok(body.includes('C.  Svelte'), body);

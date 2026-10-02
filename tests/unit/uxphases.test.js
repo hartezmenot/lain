@@ -214,7 +214,7 @@ module.exports = async function () {
         usage: { inputTokens: 42118, outputTokens: 1234, cacheReadTokens: 31400 },
         recent: [],
       }, w, 1)[0]);
-      assert.match(line, /Running/, `the live row proves Noema is alive at ${w}`);
+      assert.match(line, /Running/, `the live row proves LAIN is alive at ${w}`);
       assert.ok(T.width(line) <= w, `the strip overflowed at ${w}: ${T.width(line)}`);
       // (An `accounting is shed at narrow widths` assertion stood here. There
       // is no accounting on this row at any width now — see the test above.)
@@ -336,7 +336,7 @@ module.exports = async function () {
       options: ['Minimal — only the essential controls', 'Chat-style — reads like a conversation'],
     }));
     const body = strip(p.render(64, 12));
-    assert.match(body, /Noema needs your input/i);
+    assert.match(body, /LAIN needs your input/i);
     // WAS `[A] Minimal`. The label is now `A.  Minimal` — see ui/answer.js: it
     // is a thing you can TYPE, so it has to read the same for a letter and for
     // a number, and the brackets were noise around it.
@@ -399,7 +399,7 @@ module.exports = async function () {
       actors: [{ kind: 'external', text: 'FACT: status.json is stale.', afterTurns: 1 }],
     };
     const who = conversation(session, {}).map((m) => m.who);
-    assert.deepStrictEqual(who, ['USER', 'Noema', 'ACTION', 'EXTERNAL', 'USER', 'Noema'],
+    assert.deepStrictEqual(who, ['USER', 'LAIN', 'ACTION', 'EXTERNAL', 'USER', 'LAIN'],
       'the review sits between the turn that produced it and the turn that followed');
   });
 

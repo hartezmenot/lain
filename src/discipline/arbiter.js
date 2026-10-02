@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE COMPLETION ARBITER (Execution Discipline §26–§27). Completion is decided by Noema; a model may REQUEST it and
+ * THE COMPLETION ARBITER (Execution Discipline §26–§27). Completion is decided by LAIN; a model may REQUEST it and
  * never certify it.
  *
  *   DONE                    an answer (nothing changed), or a change whose required proof is on record · every
@@ -102,7 +102,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     // nothing observed at all — no change, no command, no observation — is not an answer either.
     const observedAny = e.commandsRun > 0 || e.verifiedChecks > 0 || (d && d.checks.all().some((c) => c.latest));
     if (!requested && !observedAny) return out(STATE.ACTIVE, 'no completion evidence: nothing changed, no command ran, nothing verified', { level: req.level, claims: cl });
-    // …and Noema does not PASSIVELY call a plan finished over a red check (this costs no model turn — the task simply
+    // …and LAIN does not PASSIVELY call a plan finished over a red check (this costs no model turn — the task simply
     // stays open). When the model ASKS, the failure is reported instead (below).
     if (!requested && failing.length) return out(STATE.ACTIVE, unrelatedNote(failing[failing.length - 1]), { failedCheck: failing[failing.length - 1], level: req.level, claims: cl });
     for (const c of failing) disclose.push(unrelatedNote(c));
@@ -172,7 +172,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     if (!packaged) disclose.push('the task is about a release/package and no packaging run is on record for the current state');
   }
 
-  // ---- 6. TEST INTEGRITY — Noema discloses it; the outcome cannot be plain DONE while it stands ---------------
+  // ---- 6. TEST INTEGRITY — LAIN discloses it; the outcome cannot be plain DONE while it stands ---------------
   const flags = d ? d.integrity.filter((f) => f.status === 'UNDISCLOSED') : [];
   for (const f of flags) disclose.push(`test change affects verification: ${f.id} ${f.kind} in ${f.file} (${f.detail})`);
 

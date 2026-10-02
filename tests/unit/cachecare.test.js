@@ -114,7 +114,7 @@ module.exports = async function () {
     assert.ok(fs.existsSync(H('usage/receipts-2026-09.jsonl')), 'usage history only when named');
   }));
 
-  await test('CACHE: the guards refuse the Noema home, its durable parts, the user\'s home and the temp root itself', () => sandbox(async ({ home, tmp, H }) => {
+  await test('CACHE: the guards refuse the LAIN home, its durable parts, the user\'s home and the temp root itself', () => sandbox(async ({ home, tmp, H }) => {
     const roots = [home, tmp];
     for (const p of [home, H('sessions'), H('sessions/s1.json'), H('accounts/codex-1'), H('secrets'), tmp, path.join(tmp, 'lain-workspaces'), require('os').homedir()]) {
       assert.strictEqual(care.safeTarget(p, roots), false, `${p} is never a target`);

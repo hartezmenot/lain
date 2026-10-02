@@ -148,7 +148,7 @@ module.exports = async function () {
     const inv = require('../../src/modelinventory');
     const app = appAt(tmpdir('inv2-'));
     const chat = await inv.search(app, { lane: 'chat', query: '' });
-    assert.ok(chat.rows.every((x) => x.source === 'lain'), 'every chat row is a Noema route');
+    assert.ok(chat.rows.every((x) => x.source === 'lain'), 'every chat row is a LAIN route');
     const coding = await inv.search(app, { lane: 'coding', query: '' });
     assert.ok(coding.rows.every((x) => x.source === 'lain'), 'Coding offers runtime models only');
     assert.strictEqual(require('../../src/modelsource/registry').get(app, 'chatgpt-web'), null, 'no website source is constructed');
@@ -170,7 +170,7 @@ module.exports = async function () {
     assert.strictEqual((await settings.update(app, 'general.maxSteps', -3)).ok, false);
     assert.strictEqual((await settings.update(app, 'general.maxSteps', 40)).ok, true);
     assert.strictEqual(app.cfg.maxSteps, 40);
-    assert.strictEqual((await settings.update(app, 'paths.defaultProjectRoot', path.join(__dirname, '..', '..'))).ok, false, 'Noema\'s folder is not a project root');
+    assert.strictEqual((await settings.update(app, 'paths.defaultProjectRoot', path.join(__dirname, '..', '..'))).ok, false, 'LAIN\'s folder is not a project root');
     const dir = tmpdir('projroot-');
     assert.strictEqual((await settings.update(app, 'paths.defaultProjectRoot', dir)).ok, true);
     assert.strictEqual((await settings.update(app, 'paths.nodePath', 'C:/definitely/not/node.exe')).ok, false);

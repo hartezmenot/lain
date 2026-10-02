@@ -52,7 +52,7 @@ async function browser(app, args, { C }) {
     const v = await route.inspect(app, { target: s.current.url || 'current', scope: 'page' });
     for (const line of require('./ui/browserview').lines(v, 96)) w(`  ${line}\n`);
   }
-  if (!s.chrome.connected) w(C.dim('\n  /browser connect starts the bridge for the Noema for Chrome extension.\n'));
+  if (!s.chrome.connected) w(C.dim('\n  /browser connect starts the bridge for the LAIN for Chrome extension.\n'));
   w(C.dim('\n  [Current] /browser current   [Tabs] /browser tabs   [Disconnect] /browser disconnect\n'));
   return null;
 }
@@ -103,7 +103,7 @@ function register({ define, C }) {
   // HAND THE SESSION BACK TO THE HARNESS (surfacehandoff.js): same task, no transcript replay.
   define('/handback', {
     surface: true, args: '',
-    desc: 'Hand this session back to the Noema Harness (it continues the same task there)',
+    desc: 'Hand this session back to the LAIN Harness (it continues the same task there)',
     run(app) {
       const r = require('./surfacehandoff').handoff(app, 'harness');
       app.render.write(r.ok ? '  Handed to the Harness — it picks this session up. This terminal stops writing to it.\n' : `  ${r.why}\n`);
@@ -169,7 +169,7 @@ function register({ define, C }) {
   });
   define('/browser', {
     surface: true, args: '[current|tabs|connect|disconnect]',
-    desc: 'The browser Noema can see: your Chrome, the frontend dev server, or an isolated one',
+    desc: 'The browser LAIN can see: your Chrome, the frontend dev server, or an isolated one',
     run(app, { args }) { return browser(app, args, { C }); },
   });
   define('/chrome', {

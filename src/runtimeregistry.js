@@ -53,7 +53,7 @@ const DEFAULT_POLICY = Object.freeze({ onOwnerExit: 'stop', onProjectClose: fals
 
 function dir() {
   if (process.env.LAIN_RUNTIME_DIR) return process.env.LAIN_RUNTIME_DIR;
-  if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Noema', 'runtime');
+  if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'LAIN', 'runtime');
   return path.join(os.homedir(), '.cache', 'lain', 'runtime');
 }
 
@@ -285,7 +285,7 @@ function stop(id, { by = defaultOwner(), explicit = false } = {}) {
   if (rec.alive !== true && child && child.exitCode === null && child.signalCode === null && rec.owner === by) {
     killTree(child.pid); live.delete(id); forget(id, rec.owner); return { ok: true, pid: child.pid, via: 'handle' };
   }
-  if (rec.alive !== true) return { ok: false, why: 'cannot verify that this pid is still the process Noema started — not stopping it' };
+  if (rec.alive !== true) return { ok: false, why: 'cannot verify that this pid is still the process LAIN started — not stopping it' };
   killTree(rec.pid);
   if (child) live.delete(id);
   forget(id, rec.owner);

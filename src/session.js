@@ -642,7 +642,7 @@ class Session {
       const inf = require('./inflight');
       const r = s.inflight ? inf.recover(s) : null;
       const jobs = inf.recoverJobs(s);
-      if (jobs.length && s.recovered) s.recovered.line += ` · ${jobs.length} background job(s) left by the closed Noema`;
+      if (jobs.length && s.recovered) s.recovered.line += ` · ${jobs.length} background job(s) left by the closed LAIN`;
       if ((r && !r.live) || jobs.length) s.save();
     } catch { /* the session still loads */ }
     return s;

@@ -83,7 +83,7 @@ module.exports = async function () {
     assert.strictEqual(m('explain why the parser crashes on empty input'), K.BUGFIX);
   });
 
-  await test('MODE: pleasantries do not send Noema into the repository', () => {
+  await test('MODE: pleasantries do not send LAIN into the repository', () => {
     for (const t of ['hi', 'thanks', 'ok', 'nice, thank you']) {
       assert.strictEqual(m(t), K.CHAT, t);
     }

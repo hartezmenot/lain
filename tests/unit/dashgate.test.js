@@ -241,7 +241,7 @@ module.exports = async function () {
     const g = await mount({ password: false });
     await settle();
     assert.strictEqual(g.el('pw').placeholder, 'password',
-      'the field must never be labelled with a word nothing else in Noema uses');
+      'the field must never be labelled with a word nothing else in LAIN uses');
     assert.match(g.el('gatehint').textContent, /startup password/i,
       'and it must say which password it wants');
     assert.match(g.el('gatehint').textContent, /\/dash password/,

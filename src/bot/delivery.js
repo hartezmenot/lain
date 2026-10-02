@@ -53,7 +53,7 @@ class Delivery {
     const adapter = this.getAdapter(target.platform, target.accountId);
     if (!adapter) throw new Error('messaging adapter unavailable');
     const clean = redact.text(String(text));
-    const bounded = clean.length > 128000 ? clean.slice(0, 128000) + '\n[Response shortened; full response is saved in the Noema session.]' : clean;
+    const bounded = clean.length > 128000 ? clean.slice(0, 128000) + '\n[Response shortened; full response is saved in the LAIN session.]' : clean;
     const parts = split(bounded, adapter.caps.maxLength, adapter.caps.format === 'markdown');
     const rows = []; let previous = '';
     // Persist every fragment before sending; recovery requires a known ACK for

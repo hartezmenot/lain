@@ -41,7 +41,7 @@ function DOORS(KIND, go) {
         if (from === 'messaging' && !sc.reminders) return { ok: false, why: 'not allowed from Telegram for this account (permission "reminders" is off)' };
         if (a.text) {
           const r = await intent().interpret(app, String(a.text).slice(0, 400), { from });
-          return r ? { ok: true, text: r.text } : { ok: false, why: 'that sentence is not one Noema schedules without a model; pass structured arguments' };
+          return r ? { ok: true, text: r.text } : { ok: false, why: 'that sentence is not one LAIN schedules without a model; pass structured arguments' };
         }
         const kind = String(a.action || 'notify');
         if (kind === 'run_tests' && from === 'messaging' && !sc.runTests) return { ok: false, why: 'not allowed from Telegram for this account (permission "runTests" is off)' };

@@ -112,7 +112,7 @@ function scan(facts = {}) {
     const parentAlive = p.ppid ? alive(p.ppid, live) : false;
     const refs = [];
     if (regPids.has(p.pid)) refs.push('runtime registry');
-    if (ownHome && h && h === ownHome) refs.push("this Noema's own supervisor home");
+    if (ownHome && h && h === ownHome) refs.push("this LAIN's own supervisor home");
     const tempHome = Boolean(h && tmps.some((t) => inside(h, t) || inside(hRaw, t)));
     let cls;
     const why = [];

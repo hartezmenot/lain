@@ -137,7 +137,7 @@ module.exports = async function run() {
     // (the walk itself already skips `dist/`; the lockfile and the minified bundle are this filter's)
     assert.ok(b.excluded.generated >= 2, JSON.stringify(b.excluded));
     assert.strictEqual(treeHash(root), before, 'building items wrote nothing into the project (no .lain/)');
-    assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.noema'))), false);
+    assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.lain'))), false);
   });
 
   await test('LAYA INDEX: keyed by CONTENT — an edit, even behind an unchanged mtime, changes the key; a rename is a re-embed', () => {
@@ -217,7 +217,7 @@ module.exports = async function run() {
       assert.strictEqual(first.restored, false);
       assert.ok(first.embedded >= 14, JSON.stringify(first));
       const cache = layaindex.cacheRoot(d);
-      assert.ok(fs.existsSync(path.join(cache, layaindex.projectKey(root), 'vectors.f32')), 'persisted in Noema\'s cache');
+      assert.ok(fs.existsSync(path.join(cache, layaindex.projectKey(root), 'vectors.f32')), 'persisted in LAIN\'s cache');
       assert.ok(!path.resolve(cache).toLowerCase().startsWith(path.resolve(root).toLowerCase()), 'never inside the project');
       await kill();
       // REOPEN: a brand-new host, the same unchanged project.
@@ -288,7 +288,7 @@ module.exports = async function run() {
       assert.ok(row.slice.slice(0, 3).some((id) => /src\/(api|search)\.js/.test(id)), JSON.stringify(row.slice));
       assert.ok(!row.slice.slice(0, 2).includes('tests/search.test.js'), 'the test file is not the lead for a behaviour trace');
       assert.strictEqual(treeHash(root), before, 'project byte-identical');
-      assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.noema'))), false);
+      assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.lain'))), false);
     } finally { await kill(); restore(); }
   });
 

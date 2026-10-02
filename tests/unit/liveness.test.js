@@ -83,7 +83,7 @@ module.exports = async function () {
 
   await test('LIVE: waiting on the model says so, in words', () => {
     const line = at({ phase: PHASE.WAITING_MODEL }, 0, 1000);
-    // ONE ACTIVITY LINE (2026-10-01): `Working · waiting for model` — the work is Noema's, the wait is the model's.
+    // ONE ACTIVITY LINE (2026-10-01): `Working · waiting for model` — the work is LAIN's, the wait is the model's.
     assert.match(line, /Working/);
     assert.match(line, /waiting for model/, 'the state word alone is jargon; say what it means');
   });

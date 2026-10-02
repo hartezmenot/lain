@@ -1,5 +1,5 @@
 'use strict';
-// Render the Noema mark to PNGs (transparent) with headless Edge, then pack noema.ico (PNG-compressed entries).
+// Render the LAIN mark to PNGs (transparent) with headless Edge, then pack lain.ico (PNG-compressed entries).
 // node render.js <brandDir>
 const fs = require('fs');
 const os = require('os');
@@ -35,7 +35,7 @@ function ico(pngs) {
     await c.send('Emulation.setDefaultBackgroundColorOverride', { color: { r: 0, g: 0, b: 0, a: 0 } });
     fs.mkdirSync(path.join(dir, 'png'), { recursive: true });
     for (const s of SIZES) {
-      const svg = fs.readFileSync(path.join(dir, s <= 24 ? 'noema-small.svg' : 'noema.svg'), 'utf8').replace(/width="\d+" height="\d+"/, `width="${s}" height="${s}"`);
+      const svg = fs.readFileSync(path.join(dir, s <= 24 ? 'lain-small.svg' : 'lain.svg'), 'utf8').replace(/width="\d+" height="\d+"/, `width="${s}" height="${s}"`);
       await c.send('Emulation.setDeviceMetricsOverride', { width: s, height: s, deviceScaleFactor: 1, mobile: false });
       const html = `<!doctype html><html><body style="margin:0;background:transparent">${svg}</body></html>`;
       await c.send('Page.navigate', { url: `data:text/html;base64,${Buffer.from(html).toString('base64')}` });
@@ -57,6 +57,6 @@ function ico(pngs) {
     c.close();
   } finally { try { execFileSync('taskkill', ['/PID', String(br.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* gone */ } await wait(500); try { fs.rmSync(prof, { recursive: true, force: true }); } catch { /* held */ } }
   const icoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
-  fs.writeFileSync(path.join(dir, 'noema.ico'), ico(out.filter((o) => icoSizes.includes(o.size))));
-  console.log('rendered', out.map((o) => `${o.size}:${o.buf.length}B`).join(' '), '| ico', fs.statSync(path.join(dir, 'noema.ico')).size, 'bytes');
+  fs.writeFileSync(path.join(dir, 'lain.ico'), ico(out.filter((o) => icoSizes.includes(o.size))));
+  console.log('rendered', out.map((o) => `${o.size}:${o.buf.length}B`).join(' '), '| ico', fs.statSync(path.join(dir, 'lain.ico')).size, 'bytes');
 })();

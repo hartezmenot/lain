@@ -44,11 +44,7 @@ function platform() {
  * and an installer that ignored it would put the launcher somewhere the runtime
  * does not consider its own.
  */
-function home() {
-  if (process.env.LAIN_HOME) return process.env.LAIN_HOME;
-  const base = process.env.USERPROFILE || process.env.HOME || os.homedir() || '.';
-  return path.join(base, '.lain-v2');
-}
+function home() { return require('../src/home').resolve(); }
 
 /** Where launchers go. The BIN directory, never a repository root. */
 function binDir() { return platform().defaultBin(home()); }
@@ -57,7 +53,7 @@ function binDir() { return platform().defaultBin(home()); }
 function runtimeRoot() { return path.resolve(__dirname, '..'); }
 
 /** The entrypoint a launcher must call. One canonical entry, per §16. */
-function entrypoint() { return path.join(runtimeRoot(), 'bin', 'noema.js'); }
+function entrypoint() { return path.join(runtimeRoot(), 'bin', 'lain.js'); }
 
 /**
  * EVERY `lain` A SHELL CAN SEE, in PATH order.
@@ -67,7 +63,7 @@ function entrypoint() { return path.join(runtimeRoot(), 'bin', 'noema.js'); }
  * question only the shell can answer correctly — extensions, PATHEXT, aliases
  * and all.
  */
-function resolutions(name = 'noema') {
+function resolutions(name = 'lain') {
   const [cmd, args] = platform().whichCommand(name);
   let r;
   try { r = spawnSync(cmd, args, { encoding: 'utf8', windowsHide: true, timeout: 10000 }); } catch { return []; }
@@ -86,7 +82,7 @@ function resolutions(name = 'noema') {
  * package loaded, and `src/cli.js` executed. It touches no config, contacts no
  * provider and creates no session.
  */
-function runVersion(exe = 'noema') {
+function runVersion(exe = 'lain') {
   let r;
   try {
     // ---- WHY A COMMAND STRING AND NOT AN ARGUMENT ARRAY -------------------
@@ -107,7 +103,7 @@ function runVersion(exe = 'noema') {
   if (!r || r.error) return { ok: false, why: String((r && r.error && r.error.message) || 'it did not start') };
   if (r.status !== 0) return { ok: false, why: `it exited ${r.status}: ${String(r.stderr || '').trim().slice(0, 200)}` };
   const out = String(r.stdout || '').trim();
-  return { ok: /^Noema CLI\s+\S/.test(out), version: out, why: out || 'it printed nothing' };
+  return { ok: /^LAIN CLI\s+\S/.test(out), version: out, why: out || 'it printed nothing' };
 }
 
 /** Which launcher files exist in a bin directory right now. */
@@ -125,7 +121,7 @@ function installedFiles(dir = binDir()) {
  * THE WHOLE PICTURE, in one call. `install.js` verifies against this and
  * `/harness doctor` could read the same shape.
  */
-function probe({ name = 'noema', dir = binDir() } = {}) {
+function probe({ name = 'lain', dir = binDir() } = {}) {
   const files = installedFiles(dir);
   const found = resolutions(name);
   const winner = found[0] || null;

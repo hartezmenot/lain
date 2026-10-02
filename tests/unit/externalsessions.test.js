@@ -48,7 +48,7 @@ module.exports = async function () {
       assert.strictEqual(r.adapters['claude-code'].level, 'OPTIONAL');
     });
 
-    await test('CONTINUE IN Noema: a new session from a read-only import — the original is not touched', async () => {
+    await test('CONTINUE IN LAIN: a new session from a read-only import — the original is not touched', async () => {
       const r = await ext.continueInLain(app, { origin: 'external:codex:thr-1', account: ids[1] });
       assert.ok(r.ok, r.why);
       const { Session } = require('../../src/session');

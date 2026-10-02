@@ -70,10 +70,10 @@ module.exports = async function () {
     assert.strictEqual(e.packageRef, ref);
     assert.strictEqual(e.source.kind, 'reused');
     assert.strictEqual(snapshotTree(home), before, 'reusing wrote nothing in the editors');
-    assert.ok(ext.snippets({}).javascript || Object.keys(ext.snippets({})).length, 'Noema uses the snippets from its own copy');
+    assert.ok(ext.snippets({}).javascript || Object.keys(ext.snippets({})).length, 'LAIN uses the snippets from its own copy');
   });
 
-  await test('REUSE: the editor changing its copy later does not change Noema’s; unsupported is not reused', () => {
+  await test('REUSE: the editor changing its copy later does not change LAIN’s; unsupported is not reused', () => {
     fs.writeFileSync(path.join(vsc, 's.json'), '{"changed":true}');
     assert.strictEqual(ep.contentHash(path.join(ep.storeDir(), ref)).sha256, ref);
     const t = ep.reuse({ product: 'vscode', id: 'acme.views', env });

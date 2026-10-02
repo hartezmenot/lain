@@ -102,7 +102,7 @@ const tools = {
           objective: {
             type: 'string',
             description: 'optional short LABEL for this plan, for display. It is not the goal and not '
-              + 'the task: Noema owns those, and a label that contradicts them is ignored.',
+              + 'the task: LAIN owns those, and a label that contradicts them is ignored.',
           },
         },
         required: ['steps'],
@@ -140,7 +140,7 @@ const tools = {
       // so the next call does not repeat it.
       const note = clash.length
         ? ` — the objective you gave ("${clash[0].stated}") was not kept: it contradicts the `
-          + `${clash[0].contradicts} ("${clash[0].authority}"), which Noema owns. The plan is filed `
+          + `${clash[0].contradicts} ("${clash[0].authority}"), which LAIN owns. The plan is filed `
           + 'under that instead. Use plan steps to say HOW; the goal and the task belong to the user.'
         : '';
 

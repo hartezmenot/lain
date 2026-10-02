@@ -4,7 +4,7 @@
  * OPEN A FILE OR A FOLDER IN LAIN — what Windows' "Open with LAIN" and
  * "Open folder in LAIN" do (2026-09-29).
  *
- *   Noema Harness.exe "D:\cheate\crates\inspect\src\main.rs"
+ *   LAIN Harness.exe "D:\cheate\crates\inspect\src\main.rs"
  *     → the running LAIN (or a new one) opens the PROJECT that file belongs to
  *       — the nearest folder with .git, .lain, package.json, Cargo.toml,
  *       pyproject.toml, go.mod, a solution … else the file's own folder —
@@ -12,7 +12,7 @@
  *       project is reused, an untouched session takes it, anything else gets a
  *       NEW session — never two projects in one conversation), then the IDE
  *       comes forward with that file open and focused.
- *   Noema Harness.exe "D:\cheate"
+ *   LAIN Harness.exe "D:\cheate"
  *     → the folder is opened as the project.
  *
  * NOTHING RUNS. Opening is navigation: no turn starts, no command is executed,
@@ -73,7 +73,7 @@ async function open(app, target) {
   if (!t.ok) return t;
   const r = await require('./harnessapp/workspaceroutes').openProject(app, t.root);
   const b = (r && r.body) || {};
-  if (!b.ok) return { ok: false, why: b.why || `Noema could not open ${t.root} as a project` };
+  if (!b.ok) return { ok: false, why: b.why || `LAIN could not open ${t.root} as a project` };
   const root = (app && app._sibling) || app;
   const prev = root._uiNavigate;
   root._uiNavigate = { seq: (prev && prev.seq ? prev.seq : 0) + 1, surface: 'ide', section: null, args: { openFile: t.rel, project: t.root, focus: 'editor' }, at: Date.now() };

@@ -46,7 +46,7 @@ module.exports = async function () {
     assert.deepStrictEqual(
       s.sources.sources.map((x) => x.id).sort(),
       ['lain'],
-      'Noema is the chat source (the website sources were retired in Phase 8.1)',
+      'LAIN is the chat source (the website sources were retired in Phase 8.1)',
     );
   });
 

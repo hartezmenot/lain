@@ -125,7 +125,7 @@ async function providers(app, connId = null) {
   if (!rows) {
     if (!st.running) return { ok: false, status: st, providers: [], why: st.why };
     const r = await get(`${st.url}/models`, 8000);
-    if (!r.ok || !r.json || !Array.isArray(r.json.data)) return { ok: false, status: st, providers: [], why: `9Router's model list did not answer (${r.status || r.why}) — connect Noema to 9Router with its access key first` };
+    if (!r.ok || !r.json || !Array.isArray(r.json.data)) return { ok: false, status: st, providers: [], why: `9Router's model list did not answer (${r.status || r.why}) — connect LAIN to 9Router with its access key first` };
     rows = r.json.data;
   }
   const groups = new Map();
@@ -197,7 +197,7 @@ function detach(app, prefix) {
   for (const k of family) delete a[k];
   save(app);
   try { const r = root(app); if (r) r._acctMemo = null; } catch { /* next read rebuilds */ }
-  return { ok: true, detached: prefix, note: 'Removed from Noema only — the account stays connected in 9Router.' };
+  return { ok: true, detached: prefix, note: 'Removed from LAIN only — the account stays connected in 9Router.' };
 }
 
 /** Adopted providers, for the MODEL view's Sources (no network). */

@@ -1,11 +1,11 @@
 'use strict';
 
 /**
- * RESTART AND EXIT WHILE WORK IS IN HAND (packaging pass §I3, §K) — Noema never stops mid-step on its own.
+ * RESTART AND EXIT WHILE WORK IS IN HAND (packaging pass §I3, §K) — LAIN never stops mid-step on its own.
  *
  *   - "after the current checkpoint" waits for the next COMMITTED checkpoint, then stops the turn and saves
  *   - "after the task" waits for the Agent to stop working; "Later" cancels either
- *   - the CLI checks for updates on an unref'd timer — it never keeps Noema alive, and never runs in a checkout
+ *   - the CLI checks for updates on an unref'd timer — it never keeps LAIN alive, and never runs in a checkout
  *   - the Harness routes refuse "restart now" / "exit now" while the Agent works, and say why
  */
 
@@ -26,7 +26,7 @@ module.exports = async function () {
   const cp = require('../../src/taskcheckpoint');
 
   await test('LIFECYCLE: "restart after the current checkpoint" waits for the commit, then stops the turn and saves', async () => {
-    const saved = process.env.NOEMA_INSTALL_ROOT; delete process.env.NOEMA_INSTALL_ROOT;
+    const saved = process.env.LAIN_INSTALL_ROOT; delete process.env.LAIN_INSTALL_ROOT;
     try {
       const app = fakeApp();
       assert.ok(LC.busy(app), 'a running turn is busy');
@@ -43,7 +43,7 @@ module.exports = async function () {
       assert.strictEqual(app.aborted, true, 'the turn is stopped at the checkpoint, before the next step');
       assert.ok(app.saves >= 1, 'and the session is saved');
       assert.strictEqual(LC.pending(app, 'update'), null);
-    } finally { if (saved) process.env.NOEMA_INSTALL_ROOT = saved; }
+    } finally { if (saved) process.env.LAIN_INSTALL_ROOT = saved; }
   });
 
   await test('LIFECYCLE: "after the task" is pending while the Agent works; Later cancels; a newer choice replaces an older one', () => {
@@ -61,8 +61,8 @@ module.exports = async function () {
 
   await test('LIFECYCLE: the CLI\'s update timer never runs in a checkout and never keeps the process alive', () => {
     const cli = require('../../src/update/cli');
-    const saved = process.env.NOEMA_INSTALL_ROOT; delete process.env.NOEMA_INSTALL_ROOT;
-    try { assert.strictEqual(cli.start({}), null, 'a development checkout starts no timer'); } finally { if (saved) process.env.NOEMA_INSTALL_ROOT = saved; }
+    const saved = process.env.LAIN_INSTALL_ROOT; delete process.env.LAIN_INSTALL_ROOT;
+    try { assert.strictEqual(cli.start({}), null, 'a development checkout starts no timer'); } finally { if (saved) process.env.LAIN_INSTALL_ROOT = saved; }
     const src = require('fs').readFileSync(require.resolve('../../src/update/cli'), 'utf8');
     assert.match(src, /for \(const t of \[first, every\]\) if \(typeof t\.unref === 'function'\) t\.unref\(\);/);
   });

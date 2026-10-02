@@ -1,44 +1,50 @@
 'use strict';
 
 /**
- * NOEMA IN WINDOWS' "OPEN WITH" — an available handler, never a stolen default (2026-09-29; renamed from LAIN).
+ * LAIN IN WINDOWS' "OPEN WITH" — an available handler, never a stolen default (2026-09-29; Noema-era names until 2026-10-02).
  *
  * ------------------------------------------------------------------------
  * WHAT IS WRITTEN, all per-user (HKCU\Software\Classes — no administrator, no
  * other account touched):
  *
- *   Noema.File                        a ProgID: name, icon, `"<launcher>" "%1"`
- *   Applications\<launcher>.exe       the application: FriendlyAppName "Noema",
+ *   LAIN.Harness.File                 a ProgID: name, icon, `"<launcher>" "%1"`
+ *   Applications\<launcher>.exe       the application: FriendlyAppName "LAIN",
  *                                     its open command, SupportedTypes (one
  *                                     value per development extension)
- *   .<ext>\OpenWithProgids            value `Noema.File` — this is what puts Noema
+ *   .<ext>\OpenWithProgids            value `LAIN.Harness.File` — this is what puts LAIN
  *                                     in "Open with" for that type
- *   SystemFileAssociations\.<ext>\shell\Noema.Open
- *                                     "Open with Noema" on the right-click menu
- *   Directory\shell\Noema.Open        "Open folder in Noema" on a folder
- *   Directory\Background\shell\Noema.Open  … and inside an open folder
+ *   SystemFileAssociations\.<ext>\shell\LAIN.Harness.Open
+ *                                     "Open with LAIN" on the right-click menu
+ *   Directory\shell\LAIN.Harness.Open "Open folder in LAIN" on a folder
+ *   Directory\Background\shell\LAIN.Harness.Open  … and inside an open folder
  *
  * WHAT IS NEVER WRITTEN: the `(Default)` of any `.<ext>` key and anything under
  * UserChoice — those decide which program OPENS a file on a double-click, and
  * that stays the person's choice ("Always" in the Open-with dialog). Removing
- * Noema deletes exactly the keys and values above and nothing else.
+ * LAIN deletes exactly the keys and values above and nothing else.
  *
- * LAIN'S OLD ENTRIES (LAIN.File, LAIN.Open, Applications\LAIN.exe) are removed whenever Noema registers or
+ * OLDER ENTRIES — the obsolete pre-cleanup LAIN's (LAIN.File, LAIN.Open, Applications\LAIN.exe) and the Noema era's
+ * (Noema.File, Noema.Open, Applications\noemaw.exe / Noema Harness.exe) — are removed whenever LAIN registers or
  * unregisters, so Explorer never offers two entries for one program.
  *
- * The launcher it points at is `noemaw.exe` (CLI-only installs: a Noema CLI in that folder) or `Noema Harness.exe`
+ * The launcher it points at is `lainw.exe` (CLI-only installs: a LAIN CLI in that folder) or `LAIN Harness.exe`
  * (the Harness opens the project and the file) — see distribution/setup.cs and src/openpath.js.
  */
 
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const PROGID = 'Noema.File';
-const VERB = 'Noema.Open';
-const LEGACY = Object.freeze({ PROGID: 'LAIN.File', VERB: 'LAIN.Open', APP: 'LAIN.exe' });
-/** Every launcher name Noema has registered as an application (removed on unregister). */
-const APPS = Object.freeze(['noemaw.exe', 'Noema Harness.exe', 'Noema.exe']);
-/** The development and text formats Noema offers to open (§12). */
+// A NEW PROGID, not the obsolete LAIN.File: cleaning up the pre-cleanup LAIN must never remove the current entries.
+const PROGID = 'LAIN.Harness.File';
+const VERB = 'LAIN.Harness.Open';
+/** Older registrations, removed whenever LAIN registers or unregisters. */
+const LEGACY = Object.freeze([
+  Object.freeze({ PROGID: 'LAIN.File', VERB: 'LAIN.Open', APPS: ['LAIN.exe'] }),                                    // obsolete pre-cleanup LAIN
+  Object.freeze({ PROGID: 'Noema.File', VERB: 'Noema.Open', APPS: ['noemaw.exe', 'Noema Harness.exe', 'Noema.exe'] }), // the Noema era
+]);
+/** Every launcher name LAIN registers as an application (removed on unregister). */
+const APPS = Object.freeze(['lainw.exe', 'LAIN Harness.exe']);
+/** The development and text formats LAIN offers to open (§12). */
 const EXTENSIONS = Object.freeze([
   'py', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'json', 'jsonc', 'md', 'txt', 'rs', 'go', 'c', 'h', 'cpp', 'hpp', 'cs', 'java', 'kt', 'kts',
   'html', 'htm', 'css', 'scss', 'less', 'vue', 'svelte', 'xml', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'ps1', 'bat', 'cmd', 'sh', 'sql',
@@ -59,21 +65,21 @@ function plan(exe, { hive = HIVE, extensions = EXTENSIONS, files = true, folders
   const icon = `"${exe}",0`;
   const APP = path.basename(String(exe));
   const out = [
-    add(PROGID, null, 'Noema file'),
-    add(PROGID, 'FriendlyTypeName', 'Noema file'),
+    add(PROGID, null, 'LAIN file'),
+    add(PROGID, 'FriendlyTypeName', 'LAIN file'),
     add(`${PROGID}\\DefaultIcon`, null, icon),
-    add(`${PROGID}\\shell\\open`, null, 'Open with Noema'),
+    add(`${PROGID}\\shell\\open`, null, 'Open with LAIN'),
     add(`${PROGID}\\shell\\open\\command`, null, commandFor(exe)),
-    add(`Applications\\${APP}`, 'FriendlyAppName', 'Noema'),
+    add(`Applications\\${APP}`, 'FriendlyAppName', 'LAIN'),
     add(`Applications\\${APP}\\DefaultIcon`, null, icon),
     add(`Applications\\${APP}\\shell\\open\\command`, null, commandFor(exe)),
   ];
   if (folders) {
     out.push(
-      add(`Directory\\shell\\${VERB}`, null, 'Open folder in Noema'),
+      add(`Directory\\shell\\${VERB}`, null, 'Open folder in LAIN'),
       add(`Directory\\shell\\${VERB}`, 'Icon', icon),
       add(`Directory\\shell\\${VERB}\\command`, null, commandFor(exe)),
-      add(`Directory\\Background\\shell\\${VERB}`, null, 'Open folder in Noema'),
+      add(`Directory\\Background\\shell\\${VERB}`, null, 'Open folder in LAIN'),
       add(`Directory\\Background\\shell\\${VERB}`, 'Icon', icon),
       add(`Directory\\Background\\shell\\${VERB}\\command`, null, commandFor(exe, '%V')),
     );
@@ -81,7 +87,7 @@ function plan(exe, { hive = HIVE, extensions = EXTENSIONS, files = true, folders
   for (const e of files ? extensions : []) {
     out.push(add(`Applications\\${APP}\\SupportedTypes`, `.${e}`, ''));
     out.push(add(`.${e}\\OpenWithProgids`, PROGID, ''));
-    out.push(add(`SystemFileAssociations\\.${e}\\shell\\${VERB}`, null, 'Open with Noema'));
+    out.push(add(`SystemFileAssociations\\.${e}\\shell\\${VERB}`, null, 'Open with LAIN'));
     out.push(add(`SystemFileAssociations\\.${e}\\shell\\${VERB}`, 'Icon', icon));
     out.push(add(`SystemFileAssociations\\.${e}\\shell\\${VERB}\\command`, null, commandFor(exe)));
   }
@@ -95,8 +101,8 @@ function unplan({ hive = HIVE, extensions = EXTENSIONS, names = { PROGID, VERB }
   for (const e of extensions) { out.push(del(`.${e}\\OpenWithProgids`, names.PROGID)); out.push(del(`SystemFileAssociations\\.${e}\\shell\\${names.VERB}`)); }
   return out;
 }
-/** LAIN's old registration — the same removal, under LAIN's names. */
-function unplanLegacy(o = {}) { return unplan({ ...o, names: LEGACY, apps: [LEGACY.APP] }); }
+/** The older registrations — the same removal, under each older set of names. */
+function unplanLegacy(o = {}) { return LEGACY.flatMap((l) => unplan({ ...o, names: l, apps: l.APPS })); }
 
 /** Tell Explorer the associations changed (SHChangeNotify, through the window host — Node cannot call it). */
 function notifyShell(exe) {
@@ -109,8 +115,8 @@ function notifyShell(exe) {
  */
 function register({ exe, exec = defaultExec, hive = HIVE, extensions = EXTENSIONS, notify = true, files = true, folders = true } = {}) {
   if (process.platform !== 'win32' && exec === defaultExec) return { ok: false, why: 'Windows only' };
-  if (!exe) return { ok: false, why: 'no launcher to register — run noema --desktop once' };
-  for (const args of unplanLegacy({ hive, extensions })) exec(args);   // LAIN's entries first: one "Open with" entry
+  if (!exe) return { ok: false, why: 'no launcher to register — run lain --desktop once' };
+  for (const args of unplanLegacy({ hive, extensions })) exec(args);   // older entries first: one "Open with" entry
   const failed = [];
   let written = 0;
   for (const args of plan(exe, { hive, extensions, files, folders })) { const r = exec(args); if (r.ok) written += 1; else failed.push({ args, err: (r.err || '').trim().slice(0, 200) }); }
@@ -126,7 +132,7 @@ function unregister({ exec = defaultExec, hive = HIVE, extensions = EXTENSIONS, 
   return { ok: true, removed };
 }
 
-/** Is Noema offered in "Open with"? — the ProgID's command, read back. */
+/** Is LAIN offered in "Open with"? — the ProgID's command, read back. */
 function status({ exec = defaultExec, hive = HIVE } = {}) {
   if (process.platform !== 'win32' && exec === defaultExec) return { registered: false, why: 'Windows only' };
   const r = exec(['query', `${hive}\\${PROGID}\\shell\\open\\command`, '/ve']);
@@ -134,7 +140,7 @@ function status({ exec = defaultExec, hive = HIVE } = {}) {
   return { registered: Boolean(r.ok && m), exe: m ? m[1] : null, extensions: EXTENSIONS.length };
 }
 
-/** `noema assoc register --exe <launcher> [--no-files] [--no-folders]` · `noema assoc remove` — what the installer runs. */
+/** `lain assoc register --exe <launcher> [--no-files] [--no-folders]` · `lain assoc remove` — what the installer runs. */
 function cli(args = [], { out = process.stdout } = {}) {
   const verb = args[0];
   const at = args.indexOf('--exe');
@@ -142,7 +148,7 @@ function cli(args = [], { out = process.stdout } = {}) {
   const host = () => { try { const d = require('./desktop'); return typeof d.hostExe === 'function' ? d.hostExe() : null; } catch { return null; } };
   if (verb === 'remove' || verb === 'unregister') {
     const r = unregister({ exe: host() });
-    out.write(`Removed Noema (and LAIN's old entries) from "Open with" (${r.removed || 0} entries).\n`);
+    out.write(`Removed LAIN (and older LAIN/Noema entries) from "Open with" (${r.removed || 0} entries).\n`);
     return 0;
   }
   if (verb === 'register' && exe) {
@@ -150,10 +156,10 @@ function cli(args = [], { out = process.stdout } = {}) {
     const r = register({ exe, files, folders, notify: false });
     const h = host(); if (h) notifyShell(h);
     if (!r.ok) { out.write(`Open with: ${r.why || `${r.failed.length} registry write(s) failed`}\n`); return 1; }
-    out.write(`Noema is offered in "Open with"${files ? ` for ${EXTENSIONS.length} file types` : ''}${folders ? `${files ? ', and' : ''} "Open folder in Noema" on folders` : ''}. No default program was changed.\n`);
+    out.write(`LAIN is offered in "Open with"${files ? ` for ${EXTENSIONS.length} file types` : ''}${folders ? `${files ? ', and' : ''} "Open folder in LAIN" on folders` : ''}. No default program was changed.\n`);
     return 0;
   }
-  out.write('usage: noema assoc register --exe <launcher> [--no-files] [--no-folders] | noema assoc remove\n');
+  out.write('usage: lain assoc register --exe <launcher> [--no-files] [--no-folders] | lain assoc remove\n');
   return 2;
 }
 

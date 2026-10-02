@@ -35,7 +35,7 @@ module.exports = async function () {
     assert.strictEqual(simple.tools, false);
     assert.strictEqual(simple.live, '');
     assert.ok(simple.systemPrompt.length < 1200, `short prompt (${simple.systemPrompt.length})`);
-    assert.match(simple.systemPrompt, /Noema/);
+    assert.match(simple.systemPrompt, /LAIN/);
     assert.strictEqual(app.session.contextProfile.profile, 'BOT_SIMPLE');
     const full = jr.turnOptions(app, { session: app.session, signal: null, text: 'fix the failing test in this project' });
     assert.notStrictEqual(full.tools, false);

@@ -86,7 +86,7 @@ module.exports = async function () {
     assert.strictEqual(m.get('Source').state.word, 'IMPLEMENTED');
     assert.match(m.get('Source').note, /own runtime/);
     assert.strictEqual(m.get('Coding authority').state.word, 'IMPLEMENTED');
-    assert.match(m.get('Coding authority').note, /always Noema/);
+    assert.match(m.get('Coding authority').note, /always LAIN/);
   });
 
   await test('HEALTH: nothing is granted until someone says yes', async () => {

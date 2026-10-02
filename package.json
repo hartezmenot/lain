@@ -1,11 +1,11 @@
 {
-  "name": "noema",
+  "name": "lain",
   "version": "0.1.0",
-  "description": "Noema — an evidence-driven coding agent for the terminal and the desktop. The model decides; Noema executes, observes, verifies and keeps the receipts.",
+  "description": "LAIN — an evidence-driven coding agent for the terminal and the desktop. The model decides; LAIN executes, observes, verifies and keeps the receipts.",
   "license": "MIT",
   "bin": {
-    "noema": "bin/noema.js",
-    "lain": "bin/lain.js"
+    "lain": "bin/lain.js",
+    "noema": "bin/noema.js"
   },
   "main": "src/cli.js",
   "engines": {

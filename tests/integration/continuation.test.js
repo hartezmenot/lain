@@ -324,7 +324,7 @@ module.exports = async function () {
       assert.strictEqual(app.session.plan.isFinished, true, 'every step really is ticked');
       assert.notStrictEqual(app.session.lifecycle.state, 'DONE',
         'a ticked checklist over an unverified change is not a finished task');
-      assert.ok(app.pendingCompletion, 'and Noema says why rather than going quiet');
+      assert.ok(app.pendingCompletion, 'and LAIN says why rather than going quiet');
       assert.ok(/nothing has been run to check/.test(app.pendingCompletion), app.pendingCompletion);
       assert.strictEqual(app.session.plan.isLive, true, 'the plan is not retired on a refusal');
     } finally {

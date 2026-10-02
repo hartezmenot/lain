@@ -1,9 +1,9 @@
-<!-- Noema default AGENTS.md · version 1 · restore with Settings › Agent Instructions › Reset to default -->
-# Working policy for Noema's agents
+<!-- LAIN default AGENTS.md · version 1 · restore with Settings › Agent Instructions › Reset to default -->
+# Working policy for LAIN's agents
 
-These are behavioural instructions for the Coding Agent and Noema's workers.
+These are behavioural instructions for the Coding Agent and LAIN's workers.
 They are instructions, not permissions: write scope, staleness and verification
-are enforced by Noema at runtime whatever this text says.
+are enforced by LAIN at runtime whatever this text says.
 
 ## Scope
 - Change what the task asks for. No unrelated refactors, renames or reformatting.

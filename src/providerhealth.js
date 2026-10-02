@@ -5,7 +5,7 @@
  *
  *   availability.js   what is true about a route, answered SYNCHRONOUSLY just before a socket opens; it also owns the
  *                     rules for which durable facts are still true after a restart (hydrate)
- *   routehealth.js    the durable copy, a small file every Noema process on this home reads (2026-10-02 — it used to
+ *   routehealth.js    the durable copy, a small file every LAIN process on this home reads (2026-10-02 — it used to
  *                     live in the Rust supervisor, which had to be running, or started, to keep a rate limit)
  *   THIS FILE         the wiring between the two
  *
@@ -17,7 +17,7 @@ const health = require('./routehealth');
 
 /**
  * WHAT WE LEARN ABOUT A ROUTE, KEPT FOR THE NEXT PROCESS. availability.js learns provider health from requests that
- * were happening anyway; this records it so the next Noema does not have to buy the same fact again. A person's
+ * were happening anyway; this records it so the next LAIN does not have to buy the same fact again. A person's
  * decision (`/provider disable|maintenance`) is a SET, a `/provider retry` a CLEAR. Never throws (Availability._push
  * swallows whatever a sink does wrong).
  */

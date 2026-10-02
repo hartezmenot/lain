@@ -90,7 +90,7 @@ module.exports = async function () {
     const load0 = hl.load;
     const read0 = cl.read;
     const nd = process.env.LAIN_NO_DESKTOP;
-    hl.load = () => ({ ok: false, why: 'Noema Harness is not installed' });
+    hl.load = () => ({ ok: false, why: 'LAIN Harness is not installed' });
     cl.read = () => null;
     delete process.env.LAIN_NO_DESKTOP;
     try {
@@ -98,10 +98,10 @@ module.exports = async function () {
       assert.strictEqual(r.ok, true, r.why);
       assert.strictEqual(r.how, 'standalone');
       const line = dl.said(r, 'API');
-      assert.match(line, /Noema Harness is not installed — no browser could be opened for Noema's account page/);
+      assert.match(line, /LAIN Harness is not installed — no browser could be opened for LAIN's account page/);
       // NOTHING TO COPY (§11): neither the page key nor the one-time launch nonce reaches terminal output.
       assert.ok(!/#k=|\/open\/|[a-f0-9]{32}|127\.0\.0\.1/.test(line), line);
-      assert.match(dl.said({ ok: true, how: 'standalone', opened: true }, 'API'), /opened Noema's account page in your browser\. It is served on this computer only/);
+      assert.match(dl.said({ ok: true, how: 'standalone', opened: true }, 'API'), /opened LAIN's account page in your browser\. It is served on this computer only/);
       assert.match(dl.said({ ok: true, how: 'navigated' }, 'API'), /Opened the Model Dashboard at API/);
     } finally { hl.load = load0; cl.read = read0; if (nd != null) process.env.LAIN_NO_DESKTOP = nd; sa.stop(); }
   });

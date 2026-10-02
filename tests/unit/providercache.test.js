@@ -78,7 +78,7 @@ async function drain(gen) { const out = []; for await (const ev of gen) out.push
 
 /** One user message plus `n` tool-call/tool-result step pairs — the shape turn.js accumulates. */
 function messagesForSteps(n) {
-  const msgs = [{ role: 'system', content: 'You are Noema.' }, { role: 'user', content: 'do the thing' }];
+  const msgs = [{ role: 'system', content: 'You are LAIN.' }, { role: 'user', content: 'do the thing' }];
   for (let i = 0; i < n; i++) {
     msgs.push({ role: 'assistant', content: '', tool_calls: [{ id: `c${i}`, name: 'read_file', arguments: { path: `f${i}.txt` } }] });
     msgs.push({ role: 'tool', tool_call_id: `c${i}`, content: `contents of f${i}` });

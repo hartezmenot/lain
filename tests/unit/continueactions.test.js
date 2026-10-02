@@ -43,7 +43,7 @@ function appWith(session, { running = false } = {}) {
   };
 }
 
-function sessionWithGoal(text = 'Finish native Noema Harness') {
+function sessionWithGoal(text = 'Finish native LAIN Harness') {
   const s = new Session({ cwd: tmpdir('cont-') });
   goal.create(s, text);
   return s;
@@ -80,7 +80,7 @@ module.exports = async function () {
     const text = app.submitted[0].text;
 
     assert.notStrictEqual(text.trim().toLowerCase(), 'continue');
-    assert.match(text, /Finish native Noema Harness/, 'the goal is named');
+    assert.match(text, /Finish native LAIN Harness/, 'the goal is named');
     assert.match(text, /step 1 of 3/, 'and the position in the plan');
     assert.match(text, /Do not re-read files/, 'and it says not to rediscover what is recorded');
   });
@@ -188,7 +188,7 @@ module.exports = async function () {
 
     await close.after(app, { text: 'the turn before it finished', stopReason: 'end' }, 'x');
     assert.strictEqual(app.submitted.length, 1, 'the queued continuation ran');
-    assert.match(app.submitted[0].text, /Finish native Noema Harness/);
+    assert.match(app.submitted[0].text, /Finish native LAIN Harness/);
     assert.strictEqual(app._queuedContinue, null, 'and it is not run twice');
   });
 

@@ -90,7 +90,7 @@ function shapeOf(cred) {
 function validBaseUrl(url) {
   const s = String(url || '').trim();
   if (!/^https?:\/\//i.test(s)) return 'a base URL must start with http:// or https://';
-  try { new URL(s); } catch { return 'that is not a URL Noema can parse'; }
+  try { new URL(s); } catch { return 'that is not a URL LAIN can parse'; }
   return null;
 }
 

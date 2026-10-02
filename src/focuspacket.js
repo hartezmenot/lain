@@ -289,14 +289,14 @@ function renderNeighbourhood(r, root) {
   if (r.diagnostics.length) out.push(`DIAGNOSTICS in these files\n${r.diagnostics.slice(0, 10).map((d) => `  ${String(d.severity).toUpperCase()} ${d.path}:${d.line}:${d.col} ${d.message}${d.source ? ` [${d.source}]` : ''}`).join('\n')}`);
   if (r.git.length) out.push(`UNCOMMITTED CHANGES in these files (git)${r.evidence['git.diff'] ? ` — evidence:${r.evidence['git.diff']}` : ''}\n${r.git.map((g) => `  ${g.file} +${g.added} −${g.removed}`).join('\n')}`);
   if (r.edits.length) {
-    out.push(`PROVENANCE (who wrote these lines)\n${r.edits.slice(0, 12).map((e) => `  the person edited ${e.path} lines ${e.startLine}-${e.endLine} by hand ${Math.max(1, Math.round((Date.now() - e.at) / 60000))} min ago${e.approximate ? ' (line numbers approximate: the file changed outside Noema since)' : ''}`).join('\n')}`);
+    out.push(`PROVENANCE (who wrote these lines)\n${r.edits.slice(0, 12).map((e) => `  the person edited ${e.path} lines ${e.startLine}-${e.endLine} by hand ${Math.max(1, Math.round((Date.now() - e.at) / 60000))} min ago${e.approximate ? ' (line numbers approximate: the file changed outside LAIN since)' : ''}`).join('\n')}`);
     constraints.push('preserve the person\'s recent manual edits listed under PROVENANCE unless the task requires changing those lines — and say so if it does');
   }
   if (constraints.length) out.push(`CONSTRAINTS\n${constraints.map((c) => `  - ${c}`).join('\n')}`);
   return out.join('\n\n');
 }
 
-function header() { return '# Focused context (assembled by Noema from the language server, the UI graph, the project index and the provenance ledger — not the person\'s words)'; }
+function header() { return '# Focused context (assembled by LAIN from the language server, the UI graph, the project index and the provenance ledger — not the person\'s words)'; }
 function footer() { return 'This is a starting map, not a limit: read what you need (ranged reads, the evidence ids above via recall_evidence), but do not re-survey the whole project.'; }
 
 /**

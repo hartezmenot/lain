@@ -112,7 +112,7 @@ function sessionDetailsAdapter({ session: s }) {
       row('last activity', s.when.text),
       row('status', s.state || 'no lifecycle recorded'),
       ...para('ORIGINAL TASK', s.objective),
-      ...para('LAST Noema MESSAGE', s.lastLain),
+      ...para('LAST LAIN MESSAGE', s.lastLain),
       ...para('LAST EXTERNAL REVIEW', s.lastExternal),
       { label: '', selectable: false },
       row('turns', s.turns),

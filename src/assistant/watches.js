@@ -17,9 +17,9 @@
 const KINDS = Object.freeze(['window_reset', 'channel_state', 'runtime_state', 'plan_expiry']);
 
 function validate(w) {
-  if (w.kind === 'plan_expiry') return { ok: false, why: 'ZCode does not report the Start Plan’s expiry or balance to Noema, so there is nothing Noema could watch. Open ZCode to see it.' };
+  if (w.kind === 'plan_expiry') return { ok: false, why: 'ZCode does not report the Start Plan’s expiry or balance to LAIN, so there is nothing LAIN could watch. Open ZCode to see it.' };
   if (w.kind === 'window_reset' && !w.source) return { ok: false, why: 'which account? (claude-code, or a Codex account id)' };
-  if (w.kind === 'channel_state' && w.platform !== 'telegram') return { ok: false, why: 'Telegram is the channel Noema can watch today' };
+  if (w.kind === 'channel_state' && w.platform !== 'telegram') return { ok: false, why: 'Telegram is the channel LAIN can watch today' };
   if (w.kind === 'runtime_state' && !w.runtime) return { ok: false, why: 'which runtime?' };
   return { ok: true };
 }

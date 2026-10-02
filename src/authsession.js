@@ -267,7 +267,7 @@ async function startAntigravity(app, s, opts = {}) {
 // ---- Z.AI IS API-ONLY IN LAIN (2026-09-29) -----------------------------------------------------------------------------
 // LAIN integrates Z.ai through its API (MODEL › API › Z.ai API). It does not launch ZCode to sign in, does not act as
 // ZCode's desktop host, and creates no Z.ai account instance. (ZCode itself may offer account-based plans; LAIN does not use them.)
-const API_ONLY = Object.freeze({ zai: 'Noema integrates Z.ai through its API. Add your Z.ai API key under MODEL › API (Z.ai API), or run /api add zai.' });
+const API_ONLY = Object.freeze({ zai: 'LAIN integrates Z.ai through its API. Add your Z.ai API key under MODEL › API (Z.ai API), or run /api add zai.' });
 
 const STRATEGIES = { claude: startClaude, codex: startCodex, antigravity: startAntigravity };
 /** Register a provider's login (claude, codex, antigravity …). `start(app, session)` sets s.target/s.profile and drives the state. */
@@ -276,7 +276,7 @@ function register(family, start) { STRATEGIES[family] = start; }
 async function start(app, family, { name = '', device = false, reuse = null } = {}) {
   if (API_ONLY[String(family || '')]) return { ok: false, apiOnly: true, why: API_ONLY[String(family || '')] };
   const strategy = STRATEGIES[String(family || '')];
-  if (!strategy) return { ok: false, why: 'Noema cannot start a sign-in for that provider yet.' };
+  if (!strategy) return { ok: false, why: 'LAIN cannot start a sign-in for that provider yet.' };
   // ONE AT A TIME PER PROVIDER: a second click returns the sign-in already open, never a second login.
   const open = activeFor(family);
   if (open) return { ok: true, session: view(open), resumed: true };

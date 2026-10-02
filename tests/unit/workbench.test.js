@@ -91,7 +91,7 @@ module.exports = async function () {
     app.abort = null;
   });
 
-  await test('CHECKPOINT (Phased): a phase summary lands with landed / remaining; pending steers are put to the person; Noema waits', async () => {
+  await test('CHECKPOINT (Phased): a phase summary lands with landed / remaining; pending steers are put to the person; LAIN waits', async () => {
     const app = mk();
     seedPlan(app, ['scaffold CLI', 'test discovery', 'summary output']);
     rs.set(app.session, 'PHASED');
@@ -104,7 +104,7 @@ module.exports = async function () {
     const kinds = wb.openOffers(app.session).map((o) => o.kind);
     assert.ok(kinds.includes('PENDING_STEERS'));
     assert.ok(kinds.includes('PHASE_REVIEW'));
-    assert.ok(kinds.includes('FAST_OFFER'), 'Noema offers Fast at a safe checkpoint (not the model)');
+    assert.ok(kinds.includes('FAST_OFFER'), 'LAIN offers Fast at a safe checkpoint (not the model)');
   });
 
   await test('LONG CONTEXT PHASING: warned first (honest estimate); then continues phase after phase; a blocking finding or proposed delta stops it', async () => {

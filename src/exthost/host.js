@@ -52,7 +52,7 @@ function request(method, params) {
 function log(level, text) { send({ type: 'log', level, text: String(text).slice(0, 4000) }); }
 function unsupported(name) {
   send({ type: 'unsupported', api: name });
-  const e = new Error(`LAIN_UNSUPPORTED vscode.${name} is not available in Noema (extension API ${API_VERSION})`);
+  const e = new Error(`LAIN_UNSUPPORTED vscode.${name} is not available in LAIN (extension API ${API_VERSION})`);
   e.code = 'LAIN_UNSUPPORTED';
   return e;
 }
@@ -262,7 +262,7 @@ const vscode = {
     registerDocumentFormattingEditProvider(sel, provider) { send({ type: 'provider', kind: 'formatting', selector: sel }); return reg(handlers.formatting, sel, provider); },
     getLanguages() { return Promise.resolve([...new Set([...documents.values()].map((d) => d.languageId))]); },
   },
-  env: { appName: 'Noema', appRoot: '', language: 'en', machineId: 'lain', uriScheme: 'lain', sessionId: String(process.pid) },
+  env: { appName: 'LAIN', appRoot: '', language: 'en', machineId: 'lain', uriScheme: 'lain', sessionId: String(process.pid) },
   extensions: { getExtension(id) { return id === ext.id ? { id, extensionPath: ext.dir, packageJSON: ext.pkg, isActive: activated } : undefined; }, get all() { return [vscode.extensions.getExtension(ext.id)]; } },
 };
 

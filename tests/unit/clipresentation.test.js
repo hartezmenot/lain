@@ -136,7 +136,7 @@ module.exports = async function () {
     session.execMode = 'MANUAL'; ui.busy = false; ui.phase = null;
     assert.strictEqual(hs.run(ui).parts[0], 'MANUAL');
     const h = strip(views.header({ cwd: '/x/toradb', model: 'glm-5', width: 110, run: { parts: ['RUNNING', '04:18', '3/7'], tone: 'info' }, output: { tokens: 12400, measured: true } })[0]);
-    assert.match(h, /^Noema · toradb · /);
+    assert.match(h, /^LAIN · toradb · /);
     assert.match(h, /RUNNING · 04:18 · 3\/7\s+12\.4K$/);
   });
 };

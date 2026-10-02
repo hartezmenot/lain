@@ -105,7 +105,7 @@ module.exports = async function () {
     } finally { child.kill(); }
   });
 
-  await test('INFLIGHT JOBS: a background job the dead Noema left is ORPHANED (pid alive) or LOST, and the handover says not to start it twice', () => {
+  await test('INFLIGHT JOBS: a background job the dead LAIN left is ORPHANED (pid alive) or LOST, and the handover says not to start it twice', () => {
     const { spawn } = require('child_process');
     const cwd = tmpdir('inflight-j-');
     const child = spawn(process.execPath, ['-e', 'setTimeout(()=>{},8000)']);
@@ -119,7 +119,7 @@ module.exports = async function () {
       assert.deepStrictEqual(changed.map((j) => [j.id, j.state]), [['j1', 'ORPHANED'], ['j2', 'LOST']]);
       const rows = inflight.jobRows(s).join('\n');
       assert.match(rows, /npm run dev — STILL RUNNING as pid \d+.*Do not start it again/);
-      assert.match(rows, /npm run smoke — ended while Noema was closed/);
+      assert.match(rows, /npm run smoke — ended while LAIN was closed/);
       const packet = require('../../src/handover').build(s, { cwd });
       assert.match(JSON.stringify(packet), /closed mid-work/, 'the replacement model is told');
       // A job this process started and finished is settled, not recovered.

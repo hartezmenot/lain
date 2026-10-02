@@ -45,12 +45,12 @@ module.exports = async function () {
     const app = appWith();
     assert.strictEqual(registry.get(app, SOURCE.CHATGPT_WEB), null, 'nothing can construct one');
     assert.strictEqual(registry.get(app, SOURCE.GEMINI_WEB), null);
-    assert.ok(registry.get(app, SOURCE.LAIN), 'Noema is the one chat source');
+    assert.ok(registry.get(app, SOURCE.LAIN), 'LAIN is the one chat source');
   });
 
   // ---------------------------------------------------------------- lanes --
 
-  await test('RETIRED: the ChatGPT and Gemini website sources cannot be selected; Noema is the only chat source', () => {
+  await test('RETIRED: the ChatGPT and Gemini website sources cannot be selected; LAIN is the only chat source', () => {
     const app = appWith({ source: SOURCE.LAIN });
     for (const id of [SOURCE.CHATGPT_WEB, SOURCE.GEMINI_WEB]) {
       const r = registry.selectSource(app, id);
@@ -62,13 +62,13 @@ module.exports = async function () {
     assert.strictEqual(registry.selectSource(app, 'claude-web').ok, false, 'an unknown source is refused, not guessed at');
   });
 
-  await test('RETIRED: a session saved on a website source resumes on Noema, its conversation untouched', () => {
+  await test('RETIRED: a session saved on a website source resumes on LAIN, its conversation untouched', () => {
     const s = new Session({ cwd: tmpdir('engsess-') });
     s.chatSource = SOURCE.CHATGPT_WEB;
     s.messages.push({ role: 'user', content: 'explain the router' }, { role: 'assistant', content: 'it dispatches by prefix', provenance: { sourceId: SOURCE.CHATGPT_WEB } });
     s.save();
     const back = Session.resume(s.id);
-    assert.strictEqual(back.chatSource, null, 'answers from Noema again');
+    assert.strictEqual(back.chatSource, null, 'answers from LAIN again');
     assert.strictEqual(back.messages.length, 2, 'the old conversation is kept');
     assert.strictEqual(back.messages[1].provenance.sourceId, SOURCE.CHATGPT_WEB, 'and still says where it came from');
   });
@@ -79,7 +79,7 @@ module.exports = async function () {
 
   // --------------------------------------------------------- persistence ---
 
-  await test('RESUME: a session written before web sources existed reads as Noema', () => {
+  await test('RESUME: a session written before web sources existed reads as LAIN', () => {
     const s = new Session({ cwd: tmpdir('old-') });
     s.save();
     const raw = require('fs').readFileSync(s.file(), 'utf8');

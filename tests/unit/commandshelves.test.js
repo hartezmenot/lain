@@ -64,7 +64,7 @@ module.exports = async function () {
     }
   });
 
-  await test('MODEL SHELF: bare /model asks for the source first, Noema continues to the catalog', async () => {
+  await test('MODEL SHELF: bare /model asks for the source first, LAIN continues to the catalog', async () => {
     const { pickSource } = require('../../src/modelcommand');
     const app = appWith([{ action: 'choose', choice: 'lain' }]);
     app.cfg = {};

@@ -133,12 +133,12 @@ module.exports = async function () {
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const menu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => b.textContent.trim())");
       // 2026-10-02: the order the person asked for — Details · Rename · Refresh quota · Use only · Disable · Move… · Detach · Sign out.
-      assert.deepStrictEqual(menu.map((t) => t.split('kept, never')[0].trim()), ['Details', 'Rename…', 'Refresh quota', 'Use only this account', 'Disable account', 'Move up', 'Move down', 'Move to top', 'Move to bottom', 'Detach from Noema', 'Sign out'], 'every applicable act, on every account');
+      assert.deepStrictEqual(menu.map((t) => t.split('kept, never')[0].trim()), ['Details', 'Rename…', 'Refresh quota', 'Use only this account', 'Disable account', 'Move up', 'Move down', 'Move to top', 'Move to bottom', 'Detach from LAIN', 'Sign out'], 'every applicable act, on every account');
       await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
       await R.click("document.querySelector('[data-family=codex] .u-sech-a .u-ib:last-child')");
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const pmenu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => b.textContent.trim())");
-      assert.deepStrictEqual(pmenu.map((t) => t.replace('identity, health and quota', '')), ['Manage accounts', 'Refresh accounts', 'Change account policy', 'Detach all from Noema', 'Sign out all LAIN-owned accounts']);
+      assert.deepStrictEqual(pmenu.map((t) => t.replace('identity, health and quota', '')), ['Manage accounts', 'Refresh accounts', 'Change account policy', 'Detach all from LAIN', 'Sign out all LAIN-owned accounts']);
       await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
 
       // ---- §22: THE HOTFIX SCENARIO ----------------------------------------------------------------------------------------------
@@ -161,7 +161,7 @@ module.exports = async function () {
       await d.until("!!document.querySelector('.u-menu')", 5000);
       const busyMenu = await d.js("Array.from(document.querySelectorAll('.u-menu .opt')).map((b) => [b.textContent.trim(), b.disabled])");
       assert.deepStrictEqual(busyMenu.slice(0, 2), [['View task', false], ['Stop task…', false]]);
-      assert.deepStrictEqual(busyMenu.filter((m) => /^(Detach from Noema|Sign out)$/.test(m[0])), [['Detach from Noema', true], ['Sign out', true]], 'destructive acts are disabled while it works');
+      assert.deepStrictEqual(busyMenu.filter((m) => /^(Detach from LAIN|Sign out)$/.test(m[0])), [['Detach from LAIN', true], ['Sign out', true]], 'destructive acts are disabled while it works');
       await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
       await d.js("(window.LAIN.openExternal = function () { window.__opened = (window.__opened || []).concat([String(arguments[0])]); }, true)");
 
@@ -202,7 +202,7 @@ module.exports = async function () {
       // ONE VERB (spec §58: "+ Add account"); how it connects is inside the flow, per provider.
       assert.deepStrictEqual(rows.map((r) => r[1]), ['Add account', 'Add account', 'Add account', 'Add account', 'Add account'], 'one verb for every provider');
       // WHAT EACH OFFERS (spec §58–§63): subscription or API key; Antigravity is Google's coding account; Z.ai is an API in LAIN.
-      assert.deepStrictEqual(rows.filter((r) => r[0] !== 'opencode').map((r) => r[2]), ['ChatGPT subscription or an OpenAI API key', 'Claude subscription or an Anthropic API key', 'Google sign-in through Antigravity', 'Noema integrates Z.ai through its API']);
+      assert.deepStrictEqual(rows.filter((r) => r[0] !== 'opencode').map((r) => r[2]), ['ChatGPT subscription or an OpenAI API key', 'Claude subscription or an Anthropic API key', 'Google sign-in through Antigravity', 'LAIN integrates Z.ai through its API']);
       assert.ok(!(await d.js("/Open ZCode|Not available yet|Sign in with ChatGPT|Connect with Claude/.test(document.getElementById('vModel').innerText)")), 'no per-provider verbs');
       await d.shot(path.join(process.env.LAIN_SHOTS_DIR || dir, 'connect.png'));
 
@@ -212,7 +212,7 @@ module.exports = async function () {
       await R.click(`document.querySelector('[data-account="${sB.target}"]')`);
       await d.until("!!document.querySelector('[data-sheet]')", 10000);
       const acts = await d.js("Array.from(document.querySelectorAll('[data-sheet] .u-acts-col button')).map((b) => b.textContent.trim())");
-      for (const want of ['Detach from Noema', 'Sign out', 'Remove LAIN-owned profile']) assert.ok(acts.includes(want), `${want} is offered for a LAIN-owned account: ${acts.join(' | ')}`);
+      for (const want of ['Detach from LAIN', 'Sign out', 'Remove LAIN-owned profile']) assert.ok(acts.includes(want), `${want} is offered for a LAIN-owned account: ${acts.join(' | ')}`);
       await d.shot(path.join(process.env.LAIN_SHOTS_DIR || dir, 'account-sheet.png'));
       await R.click("document.querySelector('[data-sheet] [data-close]')");
       assert.ok(fs.existsSync(path.join(aDir, '.credentials.json')) && ai.records().some((r) => r.id === aId), 'A is still connected');
@@ -222,9 +222,9 @@ module.exports = async function () {
       const bravoAuth = fs.readFileSync(path.join(bravoHome, 'auth.json'));
       await R.click("document.querySelector('[data-family=codex] [data-account]:nth-child(2) .u-ib')");
       await d.until("!!document.querySelector('.u-menu')", 5000);
-      await R.click(R.byText('.u-menu .opt', 'Detach from Noema'));
+      await R.click(R.byText('.u-menu .opt', 'Detach from LAIN'));
       await d.until("!!document.querySelector('.dlg')", 5000);
-      assert.match(await text('.dlg'), /Detach Bravo from Noema\? Noema forgets it — nothing is signed out/);
+      assert.match(await text('.dlg'), /Detach Bravo from LAIN\? LAIN forgets it — nothing is signed out/);
       await R.click(R.byText('.dlg-actions button', 'Detach'));
       await d.until("document.querySelectorAll('[data-family=codex] [data-account]').length === 2", 10000);
       assert.deepStrictEqual(await d.js("Array.from(document.querySelectorAll('[data-family=codex] > .u-rows > [data-account]')).map((r) => r.querySelector('.u-nm span').textContent)"), ['Alpha', 'Charlie']);

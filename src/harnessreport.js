@@ -49,7 +49,7 @@ function markFor(row) {
  * @returns {string} the whole report, ending in a newline
  */
 function render(rows, summary) {
-  const lines = ['', 'Noema Harness', ''];
+  const lines = ['', 'LAIN Harness', ''];
   let group = null;
   for (const r of rows) {
     if (r.group !== group) {

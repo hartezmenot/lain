@@ -104,7 +104,7 @@ class DapClient {
 
   async initialize() {
     this.capabilities = await this.request('initialize', {
-      clientID: 'lain', clientName: 'Noema', adapterID: this.id, locale: 'en',
+      clientID: 'lain', clientName: 'LAIN', adapterID: this.id, locale: 'en',
       linesStartAt1: true, columnsStartAt1: true, pathFormat: 'path',
       supportsVariableType: true, supportsVariablePaging: false, supportsRunInTerminalRequest: false,
       supportsProgressReporting: false, supportsInvalidatedEvent: false, supportsMemoryReferences: false,

@@ -110,7 +110,7 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
     const args = [...prefix, command];
     // END OF OUTPUT, IN-BAND (processworker.js): each stream ends with this marker once the command closed it.
     const nonce = require('crypto').randomBytes(8).toString('hex');
-    const MARK = `\0NOEMA-EOF:${nonce}\0`;
+    const MARK = `\0LAIN-EOF:${nonce}\0`;
     const ended = { out: false, err: false };
 
     let child;

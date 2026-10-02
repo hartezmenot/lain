@@ -65,7 +65,7 @@ const ROUTES = {
   'POST /api/controls/list': async () => ok({ controls: require('../remotecontrols').LIST.map(([name, desc]) => ({ name, desc })) }),
   'POST /api/controls/run': async (app, body = {}) => {
     const rc = require('../remotecontrols');
-    if (!rc.known(body.text)) return bad('not a Noema control — /help lists them', 404);
+    if (!rc.known(body.text)) return bad('not a LAIN control — /help lists them', 404);
     const r = await rc.run(app, body.text, { surface: 'harness' });
     return ok({ result: r, workbench: require('../supervision').state(app) });
   },

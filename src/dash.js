@@ -147,7 +147,7 @@ function dashState(app) {
   // CHEAP BY CONSTRUCTION: `selectedId` and `usingWeb` read session fields and
   // launch nothing. A dashboard poll that opened a browser to draw a row would
   // be a status view with a side effect.
-  let chat = { source: 'lain', label: 'Noema', model: null, web: false };
+  let chat = { source: 'lain', label: 'LAIN', model: null, web: false };
   try {
     const reg = require('./modelsource/registry');
     const src = reg.selectedId(app);
@@ -182,8 +182,8 @@ function dashState(app) {
     // it is the question a reader of this payload is most likely to get wrong:
     // selecting a website source changes who answers a QUESTION and never who
     // writes a file. See src/modelsource/lane.js.
-    chatSource: { ...chat, coding: 'Noema' },
-    phase: phase ? { phase: phase.phase, actor: phase.actor || 'Noema', tool: phase.tool || null, target: phase.target || null } : null,
+    chatSource: { ...chat, coding: 'LAIN' },
+    phase: phase ? { phase: phase.phase, actor: phase.actor || 'LAIN', tool: phase.tool || null, target: phase.target || null } : null,
     busy: Boolean(ui.busy || phase),
     interrupted: Boolean(ui.interrupted),
     retryCancelled: Boolean(ui.retryCancelled),
@@ -356,7 +356,7 @@ function handle(app, req, res) {
     req.on('data', (d) => { body += d; if (body.length > 4000) req.destroy(); });
     req.on('end', () => {
       if (state.sessions.lockedOut) {
-        send(res, 429, { error: 'too many failed attempts — restart Noema to try again' });
+        send(res, 429, { error: 'too many failed attempts — restart LAIN to try again' });
         return;
       }
       let j = {};

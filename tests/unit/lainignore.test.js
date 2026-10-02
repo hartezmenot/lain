@@ -32,25 +32,25 @@ module.exports = async function () {
   let hasGit = true;
   try { execFileSync('git', ['--version'], { stdio: 'ignore' }); } catch { hasGit = false; }
 
-  await test('Noema IGNORE: the .noema/ Noema creates keeps itself out of git status — index, fingerprints, scratch alike', () => {
+  await test('LAIN IGNORE: the .lain/ LAIN creates keeps itself out of git status — index, fingerprints, scratch alike', () => {
     if (!hasGit) { process.stdout.write('    (skipped: no git)\n'); return; }
     const { dir, git } = gitRepo('lainignore-');
     const pi = require('../../src/projectindex');
     pi.save(dir, { version: 1, files: {} });
     require('../../src/lainstore').write(dir, 'baseline', { files: {} });
     require('../../src/scratch').file(dir, 'S1', 'note.txt');
-    assert.ok(fs.existsSync(path.join(dir, '.noema', 'index.json')), 'the index was written');
-    assert.strictEqual(fs.readFileSync(path.join(dir, '.noema', '.gitignore'), 'utf8').trim().split('\n').pop(), '*');
-    assert.strictEqual(git('status', '--porcelain').trim(), '', 'Source Control shows nothing Noema wrote');
+    assert.ok(fs.existsSync(path.join(dir, '.lain', 'index.json')), 'the index was written');
+    assert.strictEqual(fs.readFileSync(path.join(dir, '.lain', '.gitignore'), 'utf8').trim().split('\n').pop(), '*');
+    assert.strictEqual(git('status', '--porcelain').trim(), '', 'Source Control shows nothing LAIN wrote');
   });
 
-  await test('Noema IGNORE: a .lain/ that already exists is left as it is — no ignore file is added to it', () => {
+  await test('LAIN IGNORE: a .lain/ that already exists is left as it is — no ignore file is added to it', () => {
     if (!hasGit) { process.stdout.write('    (skipped: no git)\n'); return; }
     const { dir, git } = gitRepo('lainkeep-');
     fs.mkdirSync(path.join(dir, '.lain', 'architecture'), { recursive: true });
     fs.writeFileSync(path.join(dir, '.lain', 'architecture', 'skeleton.json'), '{}\n');
     git('add', '-A'); git('commit', '-q', '-m', 'the team commits its architecture');
     require('../../src/projectindex').save(dir, { version: 1, files: {} });
-    assert.ok(!fs.existsSync(path.join(dir, '.lain', '.gitignore')), 'the person chose to commit .lain/; Noema does not overrule that');
+    assert.ok(!fs.existsSync(path.join(dir, '.lain', '.gitignore')), 'the person chose to commit .lain/; LAIN does not overrule that');
   });
 };

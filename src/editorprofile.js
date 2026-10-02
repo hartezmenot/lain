@@ -89,9 +89,9 @@ function keybinding(kb) {
   // VS Code has nothing longer, and a longer one is refused rather than cut.
   const parts = key.split(' ');
   if (parts.length > 2) return { ok: false, why: 'a chord of more than two keys (not supported)' };
-  for (const k of parts) if (!KEY_RE.test(k)) return { ok: false, why: `key "${k}" is not one Noema can bind` };
+  for (const k of parts) if (!KEY_RE.test(k)) return { ok: false, why: `key "${k}" is not one LAIN can bind` };
   const target = commandFor(command);
-  if (!target) return { ok: false, why: `${command} is not an editor command in Noema` };
+  if (!target) return { ok: false, why: `${command} is not an editor command in LAIN` };
   return { ok: true, value: { key, command: target, from: command } };
 }
 

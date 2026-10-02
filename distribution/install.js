@@ -77,7 +77,7 @@ function step(out, ok, text) { out.steps.push({ ok, text }); return out; }
  *   skipPath  write launchers, leave PATH alone (CI, or a caller managing PATH)
  *   verify    run `lain --version` afterwards. Default true; only a test that
  *             installed into a directory it never put on PATH turns it off.
- *   desktop   build Noema Harness.exe and put Noema in the Start Menu. Default true on
+ *   desktop   build LAIN Harness.exe and put LAIN in the Start Menu. Default true on
  *             Windows; a test that does not want to touch the real Start Menu
  *             passes false.
  */
@@ -104,7 +104,7 @@ function install(opts = {}) {
   // dependencies, so there is no install step that can fail here, no
   // node_modules to go stale and nothing to audit. An installer that stayed
   // silent about this would leave people wondering what it skipped.
-  step(out, true, 'dependencies: none — Noema has no runtime dependencies');
+  step(out, true, 'dependencies: none — LAIN has no runtime dependencies');
 
   // ---- 3. THE LAUNCHERS --------------------------------------------------
   try {
@@ -170,19 +170,19 @@ function install(opts = {}) {
   // and the second is the stronger proof, because it is the thing a person
   // will actually type.
   if (opts.verify !== false) {
-    const byName = out.onPath ? detect.runVersion('noema') : { ok: false, why: 'not yet on this shell PATH' };
+    const byName = out.onPath ? detect.runVersion('lain') : { ok: false, why: 'not yet on this shell PATH' };
     const direct = detect.runVersion(process.platform === 'win32'
-      ? path.join(dir, 'noema.cmd')
-      : path.join(dir, 'noema'));
+      ? path.join(dir, 'lain.cmd')
+      : path.join(dir, 'lain'));
     const proof = byName.ok ? byName : direct;
     out.verified = Boolean(proof.ok);
     out.version = proof.version || null;
     step(out, out.verified, out.verified
-      ? `verified: ${proof.version} (${byName.ok ? 'found on PATH as `noema`' : 'ran from its full path'})`
+      ? `verified: ${proof.version} (${byName.ok ? 'found on PATH as `lain`' : 'ran from its full path'})`
       : `the launcher did not run: ${proof.why}`);
     if (!byName.ok && direct.ok) {
       out.needsNewShell = true;
-      out.warnings.push('`noema` is not resolvable in THIS shell yet — open a new terminal.');
+      out.warnings.push('`lain` is not resolvable in THIS shell yet — open a new terminal.');
     }
   }
 
@@ -202,34 +202,34 @@ function install(opts = {}) {
     const shortcut = require('./shortcut');
     const built = desk.build();
     if (!built.ok) {
-      out.warnings.push(`Noema Desktop was not installed: ${built.why}`);
+      out.warnings.push(`LAIN Desktop was not installed: ${built.why}`);
       step(out, true, `desktop: not built — ${built.why} (the CLI is unaffected)`);
     } else {
       const launcher = desk.installLauncher(built);
       if (!launcher.ok) {
-        out.warnings.push(`Noema Desktop was not installed: ${launcher.why}`);
+        out.warnings.push(`LAIN Desktop was not installed: ${launcher.why}`);
         step(out, true, `desktop: ${launcher.why} (the CLI is unaffected)`);
       } else {
         out.desktop = launcher.launcher;
         const link = shortcut.install({ target: launcher.launcher });
         if (link.ok) {
           out.shortcut = link.link;
-          step(out, true, 'desktop: Noema Harness.exe installed, and Noema is in the Start Menu');
+          step(out, true, 'desktop: LAIN Harness.exe installed, and LAIN is in the Start Menu');
         } else {
           out.warnings.push(`no Start Menu entry: ${link.why}`);
-          step(out, true, `desktop: Noema Harness.exe installed at ${launcher.launcher} — no Start Menu entry (${link.why})`);
+          step(out, true, `desktop: LAIN Harness.exe installed at ${launcher.launcher} — no Start Menu entry (${link.why})`);
         }
         // "OPEN WITH LAIN" (src/winassoc.js): offered for development file types and folders — per-user, and never
         // the default program for anything. Never under a test run: an isolated install touches no registry.
         if (opts.openWith !== false && process.env.LAIN_ISOLATED !== '1') {
           const reg = require('../src/winassoc').register({ exe: launcher.launcher });
           out.openWith = Boolean(reg.ok);
-          step(out, true, reg.ok ? 'desktop: Noema is offered in "Open with" and on folders — no default program changed'
-            : `desktop: "Open with" was not registered (${reg.why || `${(reg.failed || []).length} write(s) failed`}); noema --register-open-with retries it`);
+          step(out, true, reg.ok ? 'desktop: LAIN is offered in "Open with" and on folders — no default program changed'
+            : `desktop: "Open with" was not registered (${reg.why || `${(reg.failed || []).length} write(s) failed`}); lain --register-open-with retries it`);
         }
         // A LAUNCHER THAT CANNOT FIND NODE IS WORTH SAYING OUT LOUD, because it
         // will fail at the moment somebody double-clicks it rather than now.
-        if (!launcher.node) out.warnings.push(`Noema Desktop could not record a Node to run: ${launcher.why}`);
+        if (!launcher.node) out.warnings.push(`LAIN Desktop could not record a Node to run: ${launcher.why}`);
       }
     }
   }
@@ -238,7 +238,7 @@ function install(opts = {}) {
   const probe = detect.probe({ dir });
   if (probe.shadowed) {
     out.warnings.push(
-      `another noema is earlier on PATH and will win: ${probe.resolvesTo}. `
+      `another lain is earlier on PATH and will win: ${probe.resolvesTo}. `
       + `Remove it, or put ${dir} ahead of it.`,
     );
     step(out, false, `shadowed by ${probe.resolvesTo}`);
@@ -255,7 +255,7 @@ function install(opts = {}) {
 /** The human-readable receipt. Same facts, arranged for a person. */
 function render(result) {
   const lines = [];
-  lines.push('Noema Harness — install');
+  lines.push('LAIN Harness — install');
   lines.push('');
   for (const s of result.steps) lines.push(`  ${s.ok ? '✓' : '✗'} ${s.text}`);
   if (result.warnings.length) {
@@ -264,20 +264,20 @@ function render(result) {
   }
   lines.push('');
   if (result.ok && result.onPath && !result.needsNewShell) {
-    lines.push('  Ready. Type:  noema');
+    lines.push('  Ready. Type:  lain');
   } else if (result.ok && result.needsNewShell) {
-    lines.push('  Installed. Open a NEW terminal, then type:  noema');
-    lines.push(`  (in this one: ${path.join(result.binDir || '', process.platform === 'win32' ? 'noema.cmd' : 'noema')})`);
+    lines.push('  Installed. Open a NEW terminal, then type:  lain');
+    lines.push(`  (in this one: ${path.join(result.binDir || '', process.platform === 'win32' ? 'lain.cmd' : 'lain')})`);
   } else if (result.ok) {
-    lines.push(`  Installed, but not on PATH. Run it directly:  ${path.join(result.binDir || '', process.platform === 'win32' ? 'noema.cmd' : 'noema')}`);
+    lines.push(`  Installed, but not on PATH. Run it directly:  ${path.join(result.binDir || '', process.platform === 'win32' ? 'lain.cmd' : 'lain')}`);
   } else {
     lines.push('  NOT installed. Nothing above was claimed that was not measured.');
   }
   // THE OTHER WAY IN, said plainly. Somebody who installed LAIN to use the
   // application should not have to find out from a source file that there is
   // one in their Start Menu.
-  if (result.shortcut) lines.push('  Or open Noema from the Start Menu — the window, without a terminal.');
-  else if (result.desktop) lines.push(`  Noema Desktop: ${result.desktop}`);
+  if (result.shortcut) lines.push('  Or open LAIN from the Start Menu — the window, without a terminal.');
+  else if (result.desktop) lines.push(`  LAIN Desktop: ${result.desktop}`);
   if (result.manual) {
     lines.push('');
     lines.push('  To put it on PATH yourself:');

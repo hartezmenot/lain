@@ -122,7 +122,7 @@ function project(app, S) {
     composer: {
       chat: { placeholder: 'Ask, discuss or plan…', canSend: true },
       coding: {
-        placeholder: sv.project(s).attached ? 'Tell Noema what to implement…' : 'Attach a project to start coding',
+        placeholder: sv.project(s).attached ? 'Tell LAIN what to implement…' : 'Attach a project to start coding',
         canSend: sv.project(s).attached,
         // THE HANDOFF PREFILL — shown in the Coding composer, editable, sent
         // only when the person presses Enter.

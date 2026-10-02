@@ -1,4 +1,4 @@
-// THE PARTS OF SETUP THAT TOUCH THE SYSTEM — a running Noema, Open With, shortcuts, PATH, uninstall.
+// THE PARTS OF SETUP THAT TOUCH THE SYSTEM — a running LAIN, Open With, shortcuts, PATH, uninstall.
 // Each is undone by uninstall, none is duplicated by a second install, and none changes a default application.
 
 using System;
@@ -9,7 +9,7 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-/// A RUNNING NOEMA goes down through its OWN shutdown sequence (distribution/shutdown.js — the same one the tray's
+/// A RUNNING LAIN goes down through its OWN shutdown sequence (distribution/shutdown.js — the same one the tray's
 /// Quit uses), which saves sessions and commits task checkpoints before anything stops. Killing a window host is the
 /// last resort, and hosts own no state (Core does).
 static class Live {
@@ -24,13 +24,13 @@ static class Live {
           if (!p.WaitForExit(40000)) { log("  (the shutdown request did not return; ending it)"); try { p.Kill(); } catch { } }
           else if (p.ExitCode == 0) stopped++;
         }
-      } catch (Exception e) { log("  (could not ask Noema to stop: " + e.Message + ")"); }
+      } catch (Exception e) { log("  (could not ask LAIN to stop: " + e.Message + ")"); }
     }
-    // THE LAST RESORT, AND ONLY THIS INSTALL'S: a window host still running FROM THIS FOLDER. A Noema or LAIN
+    // THE LAST RESORT, AND ONLY THIS INSTALL'S: a window host still running FROM THIS FOLDER. Another LAIN
     // somewhere else on the machine (a development checkout, another install) is never touched.
     string root = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
     foreach (Process p in Process.GetProcesses()) {
-      if (!p.ProcessName.StartsWith("noema-harness-", StringComparison.OrdinalIgnoreCase)) continue;
+      if (!p.ProcessName.StartsWith("lain-harness-", StringComparison.OrdinalIgnoreCase) && !p.ProcessName.StartsWith("noema-harness-", StringComparison.OrdinalIgnoreCase)) continue;
       string exe = null;
       try { exe = p.MainModule.FileName; } catch { continue; }
       if (exe == null || !Path.GetFullPath(exe).StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
@@ -42,19 +42,19 @@ static class Live {
 
 /// OPEN WITH / OPEN FOLDER — ONE implementation, the app's (src/winassoc.js), run by the installed runtime: it writes
 /// OpenWithProgids, the folder verbs and the app entry, never a file type's default and never UserChoice, and it
-/// removes LAIN's old registration in the same step.
+/// removes the obsolete LAIN's and the Noema era's registrations in the same step.
 static class Assoc {
-  /// Run the installed app's own CLI (`noema <args>`) — Open With, the Startup entry and LAIN's leftovers each have
+  /// Run the installed app's own CLI (`lain <args>`) — Open With, the Startup entry and the obsolete LAIN's leftovers each have
   /// ONE implementation, in the app; setup only asks it.
   public static int Node(string dir, string args, Action<string> log) {
     string v = Pointer.Read(dir, "current");
     if (v == null) return 1;
     string node = Path.Combine(dir, "versions", v, "runtime", "node.exe");
-    string entry = Path.Combine(dir, "versions", v, "app", "bin", "noema.js");
+    string entry = Path.Combine(dir, "versions", v, "app", "bin", "lain.js");
     try {
       var psi = new ProcessStartInfo(node, "\"" + entry + "\" " + args) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-      // WHICH INSTALL IS ASKING (startup.js finds `Noema Harness.exe` here, never a version folder).
-      psi.EnvironmentVariables["NOEMA_INSTALL_ROOT"] = dir;
+      // WHICH INSTALL IS ASKING (startup.js finds `LAIN Harness.exe` here, never a version folder).
+      psi.EnvironmentVariables["LAIN_INSTALL_ROOT"] = dir;
       using (var p = Process.Start(psi)) {
         string o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd(); p.WaitForExit(60000);
         foreach (var line in o.Split('\n')) if (line.Trim().Length > 0) log("  " + line.Trim());
@@ -68,30 +68,30 @@ static class Assoc {
   public static void Remove(string dir, Action<string> log) { Node(dir, "assoc remove", log); }
 }
 
-/// Start Menu entries under "Noema", written through WScript.Shell (what Windows already has).
+/// Start Menu entries under "LAIN", written through WScript.Shell (what Windows already has).
 static class Shortcuts {
-  public static string MenuDir() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "Noema"); }
+  public static string MenuDir() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN"); }
   public static bool Write(string name, string target, string args, string description, Action<string> log) {
     string link = Path.Combine(MenuDir(), name + ".lnk");
     string ps = "param([string]$Link,[string]$Target,[string]$Arguments,[string]$Desc)\r\n"
       + "$s = New-Object -ComObject WScript.Shell\r\n$sc = $s.CreateShortcut($Link)\r\n$sc.TargetPath = $Target\r\n"
       + "if ($Arguments) { $sc.Arguments = $Arguments }\r\n$sc.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')\r\n"
       + "$sc.Description = $Desc\r\n$sc.IconLocation = $Target + ',0'\r\n$sc.Save()\r\n";
-    string file = Path.Combine(Path.GetTempPath(), "noema-lnk-" + Guid.NewGuid().ToString("N") + ".ps1");
+    string file = Path.Combine(Path.GetTempPath(), "lain-lnk-" + Guid.NewGuid().ToString("N") + ".ps1");
     try {
       Directory.CreateDirectory(MenuDir());
       File.WriteAllText(file, ps, new UTF8Encoding(false));
       var psi = new ProcessStartInfo("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + file + "\" -Link \"" + link + "\" -Target \"" + target + "\" -Arguments \"" + args + "\" -Desc \"" + description + "\"") { UseShellExecute = false, CreateNoWindow = true };
       using (Process p = Process.Start(psi)) p.WaitForExit(30000);
       bool ok = File.Exists(link);
-      log(ok ? "Start Menu: Noema > " + name : "Start Menu: could not create " + name);
+      log(ok ? "Start Menu: LAIN > " + name : "Start Menu: could not create " + name);
       return ok;
     } catch { return false; }
     finally { try { File.Delete(file); } catch { } }
   }
   public static void RemoveAll(Action<string> log) {
     try { if (Directory.Exists(MenuDir())) { Directory.Delete(MenuDir(), true); log("Removed the Start Menu entries"); } } catch (Exception e) { log("Could not remove the Start Menu entries: " + e.Message); }
-    // LAIN's old single entry.
+    // The obsolete pre-cleanup LAIN's single entry (a FILE named LAIN.lnk — not this folder).
     try { string old = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN.lnk"); if (File.Exists(old)) File.Delete(old); } catch { }
   }
 }
@@ -104,9 +104,9 @@ static class PathEntry {
       string cur = Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.User) ?? "";
       foreach (string part in cur.Split(';')) if (Same(part, dir)) { log("PATH: " + dir + " was already there"); return true; }
       Environment.SetEnvironmentVariable(VAR, cur.Length == 0 ? dir : (cur.TrimEnd(';') + ";" + dir), EnvironmentVariableTarget.User);
-      log("PATH: added " + dir + " (open a NEW terminal for `noema`)");
+      log("PATH: added " + dir + " (open a NEW terminal for `lain`)");
       string shadow = Shadowing(dir);
-      if (shadow != null) log("NOTE: `noema` resolves to " + shadow + " first — it is earlier on PATH.");
+      if (shadow != null) log("NOTE: `lain` resolves to " + shadow + " first — it is earlier on PATH.");
       return true;
     } catch (Exception e) { log("PATH: not changed — " + e.Message); return false; }
   }
@@ -129,11 +129,26 @@ static class PathEntry {
     foreach (string part in all.Split(';')) {
       string d = part.Trim().Trim('"'); if (d.Length == 0) continue;
       foreach (string ext in new[] { ".exe", ".cmd", ".bat" }) {
-        string c; try { c = Path.Combine(d, "noema" + ext); if (!File.Exists(c)) continue; } catch { continue; }
+        string c; try { c = Path.Combine(d, "lain" + ext); if (!File.Exists(c)) continue; } catch { continue; }
         return Same(d, dir) ? null : c;
       }
     }
     return null;
+  }
+}
+
+/// A NOEMA-ERA INSTALL, RETIRED after LAIN is installed and verified in its place: its program folder, its Start Menu
+/// folder, its PATH entry and its Installed-apps key. Its Open With entries and Startup shortcut were already replaced
+/// by LAIN's own registration (winassoc.js, startup.js). The person's data is not touched here — home.js moves it.
+static class Retire {
+  public static void Noema(string dir, Action<string> log) {
+    log("Retiring the Noema install at " + dir);
+    try { string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "Noema"); if (Directory.Exists(menu)) { Directory.Delete(menu, true); log("  removed Start Menu > Noema"); } } catch (Exception e) { log("  (Start Menu > Noema: " + e.Message + ")"); }
+    PathEntry.Remove(dir, log);
+    try { Registry.CurrentUser.DeleteSubKeyTree(Setup.NOEMA_KEY, false); log("  removed Noema from Installed apps"); } catch (Exception e) { log("  (Installed apps: " + e.Message + ")"); }
+    foreach (string d in new[] { "versions", "staging" }) { try { string p = Path.Combine(dir, d); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("  (could not remove " + d + ": " + e.Message + ")"); } }
+    foreach (string f in Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]) { try { File.Delete(f); } catch { try { File.Move(f, f + ".delete-me"); } catch { } } }
+    try { Directory.Delete(dir, true); log("  removed " + dir); } catch { log("  " + dir + " is still in use — what is left goes when nothing holds it"); }
   }
 }
 
@@ -169,16 +184,19 @@ static class Uninstaller {
     string data = Setup.DataDir();
     if (o.RemoveData) {
       try {
-        // LAIN'S COMPATIBILITY LINK (~/.lain-v2 → ~/.noema) goes with the default data folder — only a link, never a
-        // real folder, and only when the data removed is the default one it points to.
-        string lainJunction = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain-v2");
-        bool isDefault = string.Equals(Path.GetFullPath(data).TrimEnd('\\'), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".noema"), StringComparison.OrdinalIgnoreCase);
-        if (Directory.Exists(data)) { Directory.Delete(data, true); log("Removed your Noema data at " + data); }
-        var info = new DirectoryInfo(lainJunction);
-        if (isDefault && info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0) { info.Delete(); log("Removed the LAIN compatibility link " + lainJunction); }
+        // THE COMPATIBILITY LINKS (~/.noema, ~/.lain-v2 → the data folder) go with the default data folder — only
+        // links, never a real folder, and only when the data removed is the default one they point to.
+        string up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string full = Path.GetFullPath(data).TrimEnd('\\');
+        bool isDefault = string.Equals(full, Path.Combine(up, ".lain"), StringComparison.OrdinalIgnoreCase) || string.Equals(full, Path.Combine(up, ".noema"), StringComparison.OrdinalIgnoreCase);
+        if (Directory.Exists(data)) { Directory.Delete(data, true); log("Removed your LAIN data at " + data); }
+        foreach (string name in new[] { ".noema", ".lain-v2" }) {
+          var info = new DirectoryInfo(Path.Combine(up, name));
+          if (isDefault && info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0) { info.Delete(); log("Removed the compatibility link " + info.FullName); }
+        }
       } catch (Exception e) { log("Could not remove " + data + ": " + e.Message); }
     } else log("Kept your sessions, accounts, settings and usage history at " + data);
-    if (console == null) MessageBox.Show(string.Join(Environment.NewLine, lines.ToArray()), "Noema — uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    if (console == null) MessageBox.Show(string.Join(Environment.NewLine, lines.ToArray()), "LAIN — uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
     DeleteAfterExit(me, dir);
     return 0;
   }
@@ -187,7 +205,7 @@ static class Uninstaller {
     try {
       string root = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
       if (!Path.GetFullPath(me).StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;   // a downloaded setup is never deleted
-      string bat = Path.Combine(Path.GetTempPath(), "noema-cleanup-" + Guid.NewGuid().ToString("N") + ".bat");
+      string bat = Path.Combine(Path.GetTempPath(), "lain-cleanup-" + Guid.NewGuid().ToString("N") + ".bat");
       File.WriteAllText(bat, "@echo off\r\nping -n 3 127.0.0.1 >nul\r\ndel /q \"" + me + "\" >nul 2>&1\r\ndel /q \"" + dir + "\\*.delete-me\" >nul 2>&1\r\nrmdir \"" + dir + "\" >nul 2>&1\r\ndel \"%~f0\" >nul 2>&1\r\n", new UTF8Encoding(false));
       Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + bat + "\"") { UseShellExecute = false, CreateNoWindow = true });
     } catch { }

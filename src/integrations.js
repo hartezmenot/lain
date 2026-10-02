@@ -226,7 +226,7 @@ function validateSkill(dir) {
   const walk = (d, depth) => { if (depth > 3 || files.length > 200) return; for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name === '.git' || e.name === 'node_modules') continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, depth + 1); else files.push(path.relative(dir, p)); } };
   walk(dir, 0);
   const scripts = files.filter((f) => /\.(js|mjs|cjs|py|ps1|sh|bat|cmd|exe)$/i.test(f));
-  if (scripts.length) warnings.push(`contains ${scripts.length} script(s) — Noema never runs them on its own; the Agent may, with your permission`);
+  if (scripts.length) warnings.push(`contains ${scripts.length} script(s) — LAIN never runs them on its own; the Agent may, with your permission`);
   return { ok: !problems.length, problems, warnings, skill, files: files.slice(0, 50), scripts };
 }
 

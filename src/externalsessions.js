@@ -102,7 +102,7 @@ function resumeOriginal(app, { origin, account, cwd = null } = {}) {
   const oc = /^external:opencode:(.+)$/.exec(String(origin || ''));
   if (oc) return { ok: true, runtime: 'opencode', command: `opencode --session ${oc[1]}`, cwd: cwd || (app.session && app.session.cwd) || null, env: {}, note: 'runs in OpenCode itself, in that project folder; the session stays OpenCode’s' };
   const m = /^external:(codex|claude-code):(.+)$/.exec(String(origin || ''));
-  if (!m) return { ok: false, why: 'not an external session Noema can name' };
+  if (!m) return { ok: false, why: 'not an external session LAIN can name' };
   const h = require('./accountinstances').handle(app, String(account || ''));
   if (!h || h.driver !== m[1]) return { ok: false, why: 'choose an account of that runtime' };
   if (m[1] === 'codex') return { ok: true, runtime: 'codex', command: `codex resume ${m[2]}`, env: { CODEX_HOME: h.layout.home }, note: 'runs in the runtime itself; the session stays Codex’s' };
@@ -125,7 +125,7 @@ async function continueInLain(app, { origin, account, cwd = null, maxChars = 240
   const oc = /^external:opencode:(.+)$/.exec(String(origin || ''));
   if (oc) return continueOpenCode(app, oc[1], cwd || (app.session && app.session.cwd) || null, maxChars);
   const m = /^external:codex:(.+)$/.exec(String(origin || ''));
-  if (!m) return { ok: false, why: 'only Codex threads can be continued in Noema (the others have no documented way to read them)' };
+  if (!m) return { ok: false, why: 'only Codex threads can be continued in LAIN (the others have no documented way to read them)' };
   const h = require('./accountinstances').handle(app, String(account || ''));
   if (!h || h.driver !== 'codex') return { ok: false, why: 'choose a Codex account that can see this thread' };
   let r;

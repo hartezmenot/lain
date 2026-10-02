@@ -144,7 +144,7 @@ module.exports = async function () {
     for (const f of r.launchers) assert.ok(fs.existsSync(f), `${f} is missing`);
     // THE CONTRACT: not "files copied" but "it ran".
     assert.strictEqual(r.verified, true, `the launcher did not run: ${JSON.stringify(r.steps)}`);
-    assert.match(String(r.version), /^Noema CLI\s/);
+    assert.match(String(r.version), /^LAIN CLI\s/);
     assert.strictEqual(r.ok, true);
   });
 
@@ -171,7 +171,7 @@ module.exports = async function () {
     const dir = path.join(base, 'my bin');
     const r = install.install({ dir, env: fakeEnv(), desktop: false });
     assert.strictEqual(r.verified, true, `a launcher in "${dir}" did not run: ${JSON.stringify(r.steps)}`);
-    assert.match(String(r.version), /^Noema CLI\s/);
+    assert.match(String(r.version), /^LAIN CLI\s/);
   });
 
   await test('INSTALL: it is idempotent — twice is the same as once', () => {
@@ -382,9 +382,9 @@ module.exports = async function () {
     pathenv.ensure(env, '/home/me/.lain-v2/bin');
     const after = fs.readFileSync(rc, 'utf8');
     assert.ok(after.startsWith(original), 'a profile is a file people have spent years on');
-    assert.ok(after.includes('# >>> Noema Harness >>>'));
+    assert.ok(after.includes('# >>> LAIN Harness >>>'));
     assert.ok(after.includes('export PATH="/home/me/.lain-v2/bin:$PATH"'), after);
-    assert.ok(after.includes('# <<< Noema Harness <<<'));
+    assert.ok(after.includes('# <<< LAIN Harness <<<'));
   });
 
   await test('UNIX: running it twice leaves ONE block, not two', () => {
@@ -395,7 +395,7 @@ module.exports = async function () {
     const r = pathenv.ensure(env, '/home/me/.lain-v2/bin');
     assert.strictEqual(r.changed, false, 'the second run must recognise its own block');
     const text = fs.readFileSync(path.join(home, '.zshrc'), 'utf8');
-    assert.strictEqual(text.split('>>> Noema Harness >>>').length - 1, 1);
+    assert.strictEqual(text.split('>>> LAIN Harness >>>').length - 1, 1);
   });
 
   await test('UNIX: removal takes the block out and restores the file', () => {
@@ -407,7 +407,7 @@ module.exports = async function () {
     pathenv.ensure(env, '/home/me/.lain-v2/bin');
     pathenv.remove(env, '/home/me/.lain-v2/bin');
     const after = fs.readFileSync(rc, 'utf8');
-    assert.ok(!after.includes('Noema Harness'), 'the block survived: ' + after);
+    assert.ok(!after.includes('LAIN Harness'), 'the block survived: ' + after);
     assert.ok(after.includes('alias g=git'), 'and the person own lines must survive too');
   });
 
@@ -423,7 +423,7 @@ module.exports = async function () {
 
   await test('UNIX: the launcher execs, so signals and exit codes are node own', () => {
     const unix = require('../../distribution/platform/unix');
-    const body = unix.shims('/opt/noema/bin/noema.js').noema;
+    const body = unix.shims('/opt/lain/bin/lain.js').lain;
     assert.ok(body.startsWith('#!/bin/sh'), body);
     assert.ok(body.includes(NL + 'exec '), 'a wrapper that forks swallows Ctrl+C');
     assert.ok(body.includes('"$@"'), 'arguments must be passed through quoted');
@@ -440,8 +440,8 @@ module.exports = async function () {
     }
   });
 
-  await test('DETECT: the entrypoint is the ONE canonical bin/noema.js', () => {
-    assert.strictEqual(path.basename(detect.entrypoint()), 'noema.js');
+  await test('DETECT: the entrypoint is the ONE canonical bin/lain.js', () => {
+    assert.strictEqual(path.basename(detect.entrypoint()), 'lain.js');
     assert.strictEqual(path.basename(path.dirname(detect.entrypoint())), 'bin');
     assert.ok(fs.existsSync(detect.entrypoint()));
   });
@@ -502,12 +502,12 @@ module.exports = async function () {
     // to run LAIN or its tests.
     const { spawnSync } = require('child_process');
     const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-dev-'));
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'noema.js'), '--version'], {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'lain.js'), '--version'], {
       encoding: 'utf8', windowsHide: true, timeout: 60000,
       env: { ...process.env, LAIN_CONFIG_DIR: cfg, LAIN_HOME: path.join(cfg, 'sup') },
     });
     assert.strictEqual(r.status, 0, r.stderr);
-    assert.match(String(r.stdout), /^Noema CLI\s/);
+    assert.match(String(r.stdout), /^LAIN CLI\s/);
   });
 
   await test('DEV: --doctor runs with no provider, no session and no install', () => {
@@ -517,12 +517,12 @@ module.exports = async function () {
     const { spawnSync } = require('child_process');
     const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-doc-'));
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-docp-'));
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'noema.js'), '--doctor'], {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'lain.js'), '--doctor'], {
       encoding: 'utf8', windowsHide: true, timeout: 120000, cwd,
       env: { ...process.env, LAIN_CONFIG_DIR: cfg, LAIN_HOME: path.join(cfg, 'sup') },
     });
     const out = `${r.stdout}${r.stderr}`;
-    assert.match(out, /Noema Harness/);
+    assert.match(out, /LAIN Harness/);
     assert.match(out, /Core/);
     assert.match(out, /Verification/);
     assert.ok(!/no saved sessions|session \d/.test(out), 'it must not create a session');
@@ -537,7 +537,7 @@ module.exports = async function () {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-clean-'));
     const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-cleancfg-'));
     const before = fs.readdirSync(cwd);
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'noema.js'), '--doctor'], {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'lain.js'), '--doctor'], {
       encoding: 'utf8', windowsHide: true, timeout: 120000, cwd,
       env: { ...process.env, LAIN_CONFIG_DIR: cfg, LAIN_HOME: path.join(cfg, 'sup') },
     });
@@ -572,11 +572,11 @@ module.exports = async function () {
   // ------------------------------------------------------------ packaging --
 
   await test('PACKAGE: one executable, one entrypoint, no second CLI', () => {
-    // ONE PROGRAM: `noema`, and `lain` — its name before the rename — as a shim to the same Core and home (bin/lain.js
-    // prints the deprecation once and runs the same boot). No `noema-cli`, `noema-harness` or `noema-runtime`.
+    // ONE PROGRAM: `lain`, and `lain` — its name before the rename — as a shim to the same Core and home (bin/lain.js
+    // prints the deprecation once and runs the same boot). No `lain-cli`, `lain-harness` or `lain-runtime`.
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['lain', 'noema'], 'the command and its deprecated alias');
-    assert.strictEqual(pkg.bin.noema, 'bin/noema.js');
+    assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['lain', 'lain'], 'the command and its deprecated alias');
+    assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
     assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
     assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'lain.js'), 'utf8'), /require\('\.\.\/src\/boot'\)\.start\(\{ via: 'lain' \}\)/, 'the alias is the same program');
   });
@@ -602,7 +602,7 @@ module.exports = async function () {
     // SINCE 2026-09-23 the host source lives in the lain-harness package and
     // travels as `harness/` — whose OWN allowlist carries native/host.cs and
     // native/vendor.js and never native/vendor/.
-    assert.ok(pkg.files.includes('harness/'), 'the package must ship the Harness — Noema Desktop is built from it');
+    assert.ok(pkg.files.includes('harness/'), 'the package must ship the Harness — LAIN Desktop is built from it');
     const hpkg = JSON.parse(fs.readFileSync(require('../helpers').harnessPath('package.json'), 'utf8'));
     for (const needed of ['native/host.cs', 'native/vendor.js', 'page/']) {
       assert.ok(hpkg.files.includes(needed), `the Harness package must ship ${needed}`);
@@ -622,7 +622,7 @@ module.exports = async function () {
     assert.strictEqual(pkg.scripts.setup, 'node distribution/install.js');
   });
 
-  await test('PACKAGE: Noema still has no runtime dependencies', () => {
+  await test('PACKAGE: LAIN still has no runtime dependencies', () => {
     // The whole install story rests on this: nothing to resolve, nothing to
     // audit, and `npm i -g` cannot fail on a transitive package.
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));

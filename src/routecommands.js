@@ -187,7 +187,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         redact.register(String(first).trim());
         redact.scrubHistory(app.input);
         // WHERE KEYS GO comes first: a narrow command surface shows the first row or two.
-        app.render.write(C.yellow('  Noema never takes a key in the terminal.') + ' /api add opens the Model Dashboard, where keys go.\n');
+        app.render.write(C.yellow('  LAIN never takes a key in the terminal.') + ' /api add opens the Model Dashboard, where keys go.\n');
         app.render.write(C.dim('  It was not stored, and it is gone from the input history. The dashboard keeps keys in the Windows secret store.\n'));
         return;
       }

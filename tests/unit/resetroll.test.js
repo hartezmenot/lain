@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * THE RESET BOUNDARY ROLLS NOEMA'S OWN BUCKET (2026-10-01).
+ * THE RESET BOUNDARY ROLLS LAIN'S OWN BUCKET (2026-10-01).
  *
- * A provider window whose reset has passed, with no new reading yet: Noema's observed bucket starts again in the
+ * A provider window whose reset has passed, with no new reading yet: LAIN's observed bucket starts again in the
  * next window (end projected from the reported reset + the window length), the window that closed becomes
  * "previous" with the % last seen before the reset, and the provider's current % is "not reported" — never the stale
- * figure, and never a claim that Noema reset anything upstream. API connections (Z.ai's monitor) take part too.
+ * figure, and never a claim that LAIN reset anything upstream. API connections (Z.ai's monitor) take part too.
  */
 
 const assert = require('assert');

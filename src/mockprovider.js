@@ -51,7 +51,7 @@ function loadScript() {
     const data = JSON.parse(fs.readFileSync(p, 'utf8'));
     script = Array.isArray(data) ? data : [];
   } catch (e) {
-    process.stderr.write(`noema: mock script unreadable (${p}): ${e.message}\n`);
+    process.stderr.write(`lain: mock script unreadable (${p}): ${e.message}\n`);
     script = [];
   }
   return script;

@@ -100,9 +100,9 @@ function progressView({ now = Date.now(), jobs = null } = {}) {
   };
 }
 
-const PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Noema progress</title>
+const PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LAIN progress</title>
 <style>body{font:15px system-ui,sans-serif;margin:16px;background:#0e0f12;color:#e8e8ea}h1{font-size:16px}.m{color:#8a8f98}.row{padding:8px 0;border-bottom:1px solid #22252b}</style>
-<h1>Noema <span class=m id=route>connecting…</span></h1><div id=out class=m>…</div>
+<h1>LAIN <span class=m id=route>connecting…</span></h1><div id=out class=m>…</div>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 const eps=JSON.parse(atob(new URLSearchParams(location.search).get('e')||'W10='));

@@ -52,11 +52,11 @@ function touch(abs, body) {
 }
 
 module.exports = async function () {
-  await test('INDEX: a first pass builds .noema and records what the project declares', () => {
+  await test('INDEX: a first pass builds .lain and records what the project declares', () => {
     const { root } = project();
     const r = pi.refresh(root);
-    assert.ok(r.persisted, '.noema must be written');
-    assert.ok(fs.existsSync(path.join(root, '.noema', 'index.json')));
+    assert.ok(r.persisted, '.lain must be written');
+    assert.ok(fs.existsSync(path.join(root, '.lain', 'index.json')));
     assert.ok(r.added >= 3, 'every file is indexed on the first pass');
     assert.strictEqual(r.reused, 0);
 
@@ -117,7 +117,7 @@ module.exports = async function () {
   await test('INDEX: a corrupt index is rebuilt, never half-trusted', () => {
     const { root } = project();
     pi.refresh(root);
-    fs.writeFileSync(path.join(root, '.noema', 'index.json'), '{ this is not json');
+    fs.writeFileSync(path.join(root, '.lain', 'index.json'), '{ this is not json');
     const r = pi.refresh(root);
     assert.ok(r.added >= 3, 'a file it cannot parse is treated as no index at all');
     assert.strictEqual(pi.definitionsOf(r.index, 'saveSettings').length, 1, 'and the answers come back');
@@ -126,7 +126,7 @@ module.exports = async function () {
   await test('INDEX: an index from an older version is rebuilt rather than misread', () => {
     const { root } = project();
     pi.refresh(root);
-    const file = path.join(root, '.noema', 'index.json');
+    const file = path.join(root, '.lain', 'index.json');
     const j = JSON.parse(fs.readFileSync(file, 'utf8'));
     j.version = pi.VERSION - 1;
     // A plausible-looking entry from a shape that no longer means what it says.
@@ -137,7 +137,7 @@ module.exports = async function () {
     assert.strictEqual(pi.definitionsOf(r.index, 'saveSettings').length, 1);
   });
 
-  await test('INDEX: an edit made behind Noema\'s back is still seen — this is the V1 failure', () => {
+  await test('INDEX: an edit made behind LAIN\'s back is still seen — this is the V1 failure', () => {
     // ---- THE ONE THAT MATTERS -------------------------------------------
     //
     // V1 built an index at startup and aged it. Here the file is changed by

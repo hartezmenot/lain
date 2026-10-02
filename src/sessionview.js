@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * `/session` — every Noema session on this machine that has been run, and what it is doing (2026-10-02).
+ * `/session` — every LAIN session on this machine that has been run, and what it is doing (2026-10-02).
  *
  * Read from the stores that own it: the session lease (sessionlease.js — who runs it, alive or not) and the session
  * journal (sessionjournal.js — its last turn). Sessions in OTHER terminals and in the Harness are listed too, because
@@ -33,7 +33,7 @@ function register({ define, C }) {
     surface: true,
     flashMs: 0,
     args: '[n|id]',
-    desc: 'Every Noema session that has run here — running, finished, interrupted — in any terminal or the Harness',
+    desc: 'Every LAIN session that has run here — running, finished, interrupted — in any terminal or the Harness',
     async run(app, ctx) {
       const w = (line) => app.render.write(`${line}\n`);
       const want = String((ctx.rest || '').trim());

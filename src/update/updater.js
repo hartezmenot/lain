@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * THE NOEMA UPDATER — one implementation, used by the CLI, the Harness and `noema update`.
+ * THE LAIN UPDATER — one implementation, used by the CLI, the Harness and `lain update`.
  *
  *   check     the channel's signed manifest, at most every CHECK_MS unless asked (cached in <home>/update/state.json)
  *   download  the asset for this machine → <install>/staging → SHA-256 checked against the SIGNED manifest
@@ -10,8 +10,10 @@
  *             (distribution/launcher.cs) starts the new version with the session to resume. A pending version that
  *             never reports healthy is rolled back by the launcher to the previous one.
  *
- * WHERE IT APPLIES. Only to an INSTALLED Noema (the launcher sets NOEMA_INSTALL_ROOT). A development checkout
- * (`node bin/noema.js`) has nothing to switch and says so. No timer runs unless the CLI or Harness started one, and
+ * WHERE IT APPLIES. Only to an INSTALLED LAIN (the launcher sets LAIN_INSTALL_ROOT; a Noema-era launcher's
+ * NOEMA_INSTALL_ROOT is mirrored by boot.js). A development checkout (`node bin/lain.js`) has nothing to switch and says so.
+ * THE RENAME (2026-10-02): a package carries BOTH app/bin/lain.js and the compatibility app/bin/noema.js, so a
+ * Noema-era build can stage and start it; this updater accepts manifests for product `lain` or the Noema-era `noema`. No timer runs unless the CLI or Harness started one, and
  * that one checks at most every six hours — never a poll loop.
  */
 
@@ -22,6 +24,9 @@ const M = require('./manifest');
 
 const CHECK_MS = 6 * 3600 * 1000;
 const RESTART_CODE = 75;
+
+/** A staged/installed version folder holds a LAIN entry point (or the Noema-era one). */
+function entryIn(dir) { return fs.existsSync(path.join(dir, 'app', 'bin', 'lain.js')) || fs.existsSync(path.join(dir, 'app', 'bin', 'noema.js')); }
 
 function home() { return require('../config').configDir(); }
 function stateFile() { return path.join(home(), 'update', 'state.json'); }
@@ -39,13 +44,13 @@ function build() {
   try { info = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'build-info.json'), 'utf8')) || {}; } catch { info = {}; }
   const pkg = require('../../package.json');
   return {
-    product: 'Noema', version: info.version || pkg.version, channel: info.channel || 'development',
+    product: 'LAIN', version: info.version || pkg.version, channel: info.channel || 'development',
     revision: info.revision || null, built: info.built || null, feed: info.feed || null, protocol: require('./compat').PROTOCOL,
   };
 }
 
 function installRoot() {
-  const r = process.env.NOEMA_INSTALL_ROOT;
+  const r = process.env.LAIN_INSTALL_ROOT || process.env.NOEMA_INSTALL_ROOT;
   return r && fs.existsSync(path.join(r, 'current')) ? r : null;
 }
 function pointer(name) { try { return fs.readFileSync(path.join(installRoot(), name), 'utf8').trim(); } catch { return null; } }
@@ -59,7 +64,7 @@ function settings(cfg = {}) {
   const u = (cfg && cfg.update) || {};
   return {
     channel: M.CHANNELS.includes(u.channel) ? u.channel : 'stable',
-    feed: process.env.NOEMA_UPDATE_FEED || u.feed || build().feed || null,
+    feed: process.env.LAIN_UPDATE_FEED || process.env.NOEMA_UPDATE_FEED || u.feed || build().feed || null,
     auto: u.auto !== false,
   };
 }
@@ -131,14 +136,14 @@ function status() { return summarize(readState()); }
  */
 async function stage({ cfg = {} } = {}) {
   const root = installRoot();
-  if (!root) return { ok: false, why: 'updates apply to an installed Noema — this is a development checkout' };
+  if (!root) return { ok: false, why: 'updates apply to an installed LAIN — this is a development checkout' };
   const st = readState();
   const a = st.available;
   if (!a) return { ok: false, why: 'no update is available — check first' };
-  if (!a.reachable) return { ok: false, why: `Noema ${a.version} needs ${a.minimumCompatible} or newer installed first` };
+  if (!a.reachable) return { ok: false, why: `LAIN ${a.version} needs ${a.minimumCompatible} or newer installed first` };
   if (!/^[\w.+-]+$/.test(a.version)) return { ok: false, why: 'the release version is not a safe directory name' };
   const target = path.join(root, 'versions', a.version);
-  if (fs.existsSync(path.join(target, 'app', 'bin', 'noema.js'))) {
+  if (entryIn(target)) {
     writeState({ ...st, staged: { version: a.version, at: Date.now(), dir: target } });
     setPointer('staged', a.version);
     return { ok: true, staged: { version: a.version, dir: target }, already: true };
@@ -165,8 +170,8 @@ async function stage({ cfg = {} } = {}) {
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ }
     return { ok: false, why: `the package could not be unpacked: ${e.message}` };
   }
-  const ok = fs.existsSync(path.join(tmp, 'runtime', 'node.exe')) && fs.existsSync(path.join(tmp, 'app', 'bin', 'noema.js'));
-  if (!ok) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ } return { ok: false, why: 'the package is not a Noema build (runtime/node.exe and app/bin/noema.js missing) — rejected' }; }
+  const ok = fs.existsSync(path.join(tmp, 'runtime', 'node.exe')) && entryIn(tmp);
+  if (!ok) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ } return { ok: false, why: 'the package is not a LAIN build (runtime/node.exe and app/bin/lain.js missing) — rejected' }; }
   fs.renameSync(tmp, target);
   try { fs.unlinkSync(file); } catch { /* kept */ }
   writeState({ ...readState(), staged: { version: a.version, at: Date.now(), dir: target }, lastError: null });
@@ -183,10 +188,10 @@ async function stage({ cfg = {} } = {}) {
  */
 function apply({ args = [], cwd = process.cwd() } = {}) {
   const root = installRoot();
-  if (!root) return { ok: false, why: 'updates apply to an installed Noema' };
+  if (!root) return { ok: false, why: 'updates apply to an installed LAIN' };
   const st = readState();
   const v = st.staged && st.staged.version;
-  if (!v || !fs.existsSync(path.join(root, 'versions', v, 'app', 'bin', 'noema.js'))) return { ok: false, why: 'no staged update to apply' };
+  if (!v || !entryIn(path.join(root, 'versions', v))) return { ok: false, why: 'no staged update to apply' };
   const cur = pointer('current');
   if (cur && cur !== v) setPointer('previous', cur);
   setPointer('pending', v);
@@ -200,14 +205,14 @@ function apply({ args = [], cwd = process.cwd() } = {}) {
 /** A restart WITHOUT a version change (the same launcher protocol). */
 function requestRestart({ args = [], cwd = process.cwd() } = {}) {
   const root = installRoot();
-  if (!root) return { ok: false, why: 'not started by the Noema launcher' };
+  if (!root) return { ok: false, why: 'not started by the LAIN launcher' };
   fs.writeFileSync(path.join(root, 'restart.json'), JSON.stringify({ args: args.map(String), cwd }));
   return { ok: true, restartCode: RESTART_CODE };
 }
 
 /** STARTED WELL: tell the launcher this version is healthy (it clears `pending`, so no rollback). */
 function markHealthy() {
-  const f = process.env.NOEMA_HEALTH_FILE;
+  const f = process.env.LAIN_HEALTH_FILE || process.env.NOEMA_HEALTH_FILE;
   if (!f) return false;
   try { fs.writeFileSync(f, new Date().toISOString()); } catch { return false; }
   try {

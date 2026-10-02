@@ -81,7 +81,7 @@ async function* chat(pc, messages, opts = {}) {
   const bin = (h.binary && h.binary()) || require('../providerdrivers').get('codex').binary((root && root.cfg) || {});
   if (!bin) { const e = new Error('Codex is not installed (no codex on PATH)'); e.status = 503; throw e; }
   const { system, prompt } = require('./runtimechat').flatten(messages);
-  // NOEMA'S POLICY in Codex's own frame (discipline/constitution.js) — rendered from Noema, not a second authority.
+  // LAIN'S POLICY in Codex's own frame (discipline/constitution.js) — rendered from LAIN, not a second authority.
   const text = system ? `${require('../discipline/constitution').wrap('codex', system)}\n\n${prompt}` : prompt;
   const args = [...(bin.args || []), ...argsFor(pc.model, pc.reasoningEffort || null)];
   const child = spawn(bin.command, args, { env: { ...process.env, CODEX_HOME: h.layout.home }, cwd: workDir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });

@@ -1,19 +1,19 @@
 'use strict';
 
 /**
- * A PROJECT'S NOEMA FOLDER — `.noema/`, and LAIN's `.lain/` for projects LAIN already opened.
+ * A PROJECT'S LAIN FOLDER — `.lain/`, and the Noema-era `.noema/` for projects Noema already opened.
  *
- * ONE AUTHORITY PER PROJECT: `.noema/` when it exists; otherwise an existing `.lain/` (used as it is); otherwise a
- * new project gets `.noema/`. The two are never both written. Moving `.lain/` → `.noema/` is DELIBERATE
- * (`noema project migrate`), because a project may track `.lain/` in its own git history and a silent rename would
- * be a change in the person's repository they did not make.
+ * ONE AUTHORITY PER PROJECT: `.lain/` when it exists; otherwise an existing `.noema/` (used as it is, read AND written,
+ * until it is migrated); otherwise a new project gets `.lain/`. The two are never both written. Moving `.noema/` →
+ * `.lain/` is DELIBERATE (`lain project migrate`), because a project may track its folder in its own git history and a
+ * silent rename would be a change in the person's repository they did not make.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const CANON = '.noema';
-const LEGACY = '.lain';
+const CANON = '.lain';
+const LEGACY = '.noema';
 const NAMES = Object.freeze([CANON, LEGACY]);
 
 function isDir(p) { try { return fs.statSync(p).isDirectory(); } catch { return false; } }
@@ -30,19 +30,21 @@ function file(root, ...rel) { return path.join(dir(root), ...rel); }
 function isMetaName(n) { return NAMES.includes(String(n).toLowerCase()); }
 function legacyOnly(root) { const r = String(root || process.cwd()); return !isDir(path.join(r, CANON)) && isDir(path.join(r, LEGACY)); }
 
-/** `noema project migrate`: .lain/ → .noema/ (one rename), with a note of where it came from. */
+/** `lain project migrate`: .noema/ → .lain/ (one rename), with a note of where it came from. */
 function migrate(root) {
   const r = path.resolve(String(root || process.cwd()));
   const from = path.join(r, LEGACY); const to = path.join(r, CANON);
-  if (isDir(to)) return { ok: true, state: isDir(from) ? 'both' : 'done', why: isDir(from) ? `.noema/ is already this project's folder; .lain/ is no longer read (remove it when you are ready)` : 'already migrated' };
-  if (!isDir(from)) return { ok: true, state: 'none', why: 'this project has no .lain/ folder' };
-  try { fs.renameSync(from, to); } catch (e) { return { ok: false, why: `could not rename .lain/ to .noema/ (${e.code || e.message}) — is Noema or LAIN still using this project?` }; }
-  try { fs.writeFileSync(path.join(to, 'migrated-from-lain.json'), JSON.stringify({ from: LEGACY, at: new Date().toISOString() }, null, 2)); } catch { /* the rename is the fact */ }
-  // THE SELF-IGNORE FOLLOWS: a project-level .gitignore that ignored .lain/ now also ignores .noema/.
+  if (isDir(to)) return { ok: true, state: isDir(from) ? 'both' : 'done', why: isDir(from) ? `.lain/ is already this project's folder; .noema/ is no longer read (remove it when you are ready)` : 'already migrated' };
+  if (!isDir(from)) return { ok: true, state: 'none', why: 'this project has no .noema/ folder' };
+  try { fs.renameSync(from, to); } catch (e) { return { ok: false, why: `could not rename .noema/ to .lain/ (${e.code || e.message}) — is LAIN still using this project?` }; }
+  try { fs.writeFileSync(path.join(to, 'migrated-from-noema.json'), JSON.stringify({ from: LEGACY, at: new Date().toISOString() }, null, 2)); } catch { /* the rename is the fact */ }
+  // THE CONSTITUTION FOLLOWS: NOEMA.md becomes LAIN.md (one rename; an existing LAIN.md is never overwritten).
+  try { const a = path.join(to, 'NOEMA.md'); const b = path.join(to, 'LAIN.md'); if (fs.existsSync(a) && !fs.existsSync(b)) fs.renameSync(a, b); } catch { /* read under either name */ }
+  // THE SELF-IGNORE FOLLOWS: a project-level .gitignore that ignored .noema/ now also ignores .lain/.
   try {
     const gi = path.join(r, '.gitignore');
     const text = fs.readFileSync(gi, 'utf8');
-    if (/^\/?\.lain\/?\s*$/m.test(text) && !/^\/?\.noema\/?\s*$/m.test(text)) fs.appendFileSync(gi, `${text.endsWith('\n') ? '' : '\n'}.noema/\n`);
+    if (/^\/?\.noema\/?\s*$/m.test(text) && !/^\/?\.lain\/?\s*$/m.test(text)) fs.appendFileSync(gi, `${text.endsWith('\n') ? '' : '\n'}.lain/\n`);
   } catch { /* no .gitignore */ }
   return { ok: true, state: 'moved', from, to };
 }

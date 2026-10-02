@@ -129,7 +129,7 @@ module.exports = async function () {
           await new Promise((r) => setTimeout(r, 400));
         } else await new Promise((r) => setTimeout(r, 200));
       }
-      assert.match(fs.readFileSync(path.join(dir, 'checkout.css'), 'utf8'), /margin-top:20px/, 'Noema really patched the source');
+      assert.match(fs.readFileSync(path.join(dir, 'checkout.css'), 'utf8'), /margin-top:20px/, 'LAIN really patched the source');
       const sent = await d.js("LAIN.state().conversation.filter((m) => m.role === 'user').pop().text");
       assert.match(sent, /this button is too low/);
       assert.match(sent, /the element I selected in the preview/i, 'the selection travelled with the request');

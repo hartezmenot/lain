@@ -1,5 +1,5 @@
 // REAL MODEL: GLM-5.3-Flash via the person's own configured Z.ai connection (lain:zai, key by DPAPI reference).
-// Noema's own one-shot path (App.once). The model/connection choice is IN MEMORY ONLY — config.save is disabled,
+// LAIN's own one-shot path (App.once). The model/connection choice is IN MEMORY ONLY — config.save is disabled,
 // so the person's default model is untouched. Prints no secret; reports the usage receipts this run wrote.
 const ROOT = require('path').join(__dirname, '..', '..');
 const fs = require('fs');
@@ -9,13 +9,13 @@ process.chdir(ROOT);
 const config = require(ROOT + '/src/config');
 const which = process.argv[2] || 'text';
 
-const proj = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'noema-real-')));
+const proj = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'lain-real-')));
 const ORIGINAL = `<!doctype html><html><head><meta charset="utf-8"><title>Counter</title></head><body>
 <h1>Counter</h1><p id="count">Count: 0</p><button id="add" onclick="var n=+document.getElementById('count').textContent.split(': ')[1]+1;document.getElementById('count').textContent='Count: '+n">Add one</button>
 </body></html>\n`;
 fs.writeFileSync(path.join(proj, 'index.html'), ORIGINAL);
-fs.mkdirSync(path.join(proj, '.noema'));
-fs.writeFileSync(path.join(proj, '.noema', 'preview.json'), JSON.stringify({ static: '.' }));
+fs.mkdirSync(path.join(proj, '.lain'));
+fs.writeFileSync(path.join(proj, '.lain', 'preview.json'), JSON.stringify({ static: '.' }));
 
 const realLoad = config.load;
 config.save = () => {};                                   // nothing this run chooses is persisted
@@ -33,11 +33,11 @@ const count = (f) => { try { return fs.readFileSync(f, 'utf8').trim().split('\n'
 const before = { oct: count(receipts), sep: count(receiptsSep) };
 
 const PROMPTS = {
-  text: 'Reply with exactly these two words and nothing else: NOEMA OK',
+  text: 'Reply with exactly these two words and nothing else: LAIN OK',
   // THE EXECUTION-DISCIPLINE SCENARIOS (consolidation §59–§62): the spec's own words, no coaching on how.
   count: 'Open Preview. Click Add one twice. Verify Count becomes 2. Stop.',
   nudge: 'Move the Add one button down by 6px. Verify it in the Preview.',
-  preview: 'This folder is a small web page. Test it in the Noema Preview using the preview tools only: first preview_read the page, then preview_click the "Add one" button twice, then preview_read again. Reply with only the number shown after "Count:".',
+  preview: 'This folder is a small web page. Test it in the LAIN Preview using the preview tools only: first preview_read the page, then preview_click the "Add one" button twice, then preview_read again. Reply with only the number shown after "Count:".',
 };
 
 (async () => {
@@ -55,7 +55,7 @@ const PROMPTS = {
   process.stdout.write(`\n=== ${which}: exit ${code} in ${ms} ms · ${mine.length} request(s)\n`);
   for (const r of mine) process.stdout.write(`  ${r.provider} · account ${r.account || '-'} · route ${r.route} · model ${r.model} · effort ${r.effort || 'auto'} · ok ${r.ok} · in ${r.input} out ${r.output} reasoning ${r.reasoning || 0} cacheRead ${r.cacheRead || 0} · tools ${r.toolCalls || 0} · ${r.ms} ms\n`);
   process.stdout.write(`  total: input ${sum('input')} · output ${sum('output')} · reasoning ${sum('reasoning')} · tool calls ${sum('toolCalls')}\n`);
-  // WHAT NOEMA DID WITH IT — the model's calls in order, what changed on disk, and the arbiter's decision.
+  // WHAT LAIN DID WITH IT — the model's calls in order, what changed on disk, and the arbiter's decision.
   const s = app.session;
   const say = (line) => process.stdout.write(`${line}\n`);
   const calls = (s.messages || []).flatMap((m) => (m && m.tool_calls) || []).map((c) => c.name);

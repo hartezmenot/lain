@@ -94,7 +94,7 @@ function adapters(app, { wait = true } = {}) {
     out.push({ id: 'python', name: 'Python (debugpy)', command: python, args: ['-m', 'debugpy.adapter'], types: ['python'], extensions: ['.py'], launch: { type: 'python', console: 'internalConsole', justMyCode: true }, configured: false, available: d.ok, why: d.ok ? d.why : d.why });
   }
   if (!out.some((a) => a.extensions.includes('.js'))) {
-    out.push({ id: 'node', name: 'Node (js-debug)', command: null, args: [], types: ['node'], extensions: ['.js', '.mjs', '.cjs', '.ts'], launch: {}, configured: false, available: false, why: 'js-debug speaks DAP over a TCP port; Noema attaches stdio adapters only — configure one in dap.adapters' });
+    out.push({ id: 'node', name: 'Node (js-debug)', command: null, args: [], types: ['node'], extensions: ['.js', '.mjs', '.cjs', '.ts'], launch: {}, configured: false, available: false, why: 'js-debug speaks DAP over a TCP port; LAIN attaches stdio adapters only — configure one in dap.adapters' });
   }
   return out;
 }
@@ -218,7 +218,7 @@ async function start(app, { program, adapter = null, args = [], cwd = null, stop
   try {
     await client.initialize();
     const initialized = new Promise((res) => { if (rec.initializedSeen) res(); else rec.onInitialized = res; });
-    const launch = client.request('launch', { ...a.launch, request: 'launch', program: abs, args: (args || []).map(String), cwd: cwd ? path.resolve(root, cwd) : root, stopOnEntry: Boolean(stopOnEntry), name: `Noema: ${rec.program}` }, 60_000);
+    const launch = client.request('launch', { ...a.launch, request: 'launch', program: abs, args: (args || []).map(String), cwd: cwd ? path.resolve(root, cwd) : root, stopOnEntry: Boolean(stopOnEntry), name: `LAIN: ${rec.program}` }, 60_000);
     launch.catch(() => {});
     await require('../deadline').race(Promise.race([initialized, launch.then(() => initialized)]), 30_000, () => { throw new Error('the adapter never became ready'); });
     for (const file of bpsOf(root).keys()) await sendBreakpoints(rec, file);

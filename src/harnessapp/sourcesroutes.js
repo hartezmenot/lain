@@ -24,11 +24,11 @@ const bad = (why, code = 400, extra = {}) => ({ code, body: { ok: false, why: St
 function root(app) { return (app && app._sibling) || app; }
 
 const ACT = {
-  removeCredential: { kind: 'remove-credential', label: 'Remove API credential', explains: 'Deletes the key Noema keeps for this route. The route stays, waiting for a new key. Your provider account is not touched.' },
-  removeSource: { kind: 'remove-source', label: 'Remove source', explains: 'Removes this route and its key from Noema. Your provider account is not touched.', danger: true },
-  detachRuntime: { kind: 'detach', label: 'Detach from Noema', explains: 'Noema stops using this account. The runtime keeps its own sign-in and sessions.' },
+  removeCredential: { kind: 'remove-credential', label: 'Remove API credential', explains: 'Deletes the key LAIN keeps for this route. The route stays, waiting for a new key. Your provider account is not touched.' },
+  removeSource: { kind: 'remove-source', label: 'Remove source', explains: 'Removes this route and its key from LAIN. Your provider account is not touched.', danger: true },
+  detachRuntime: { kind: 'detach', label: 'Detach from LAIN', explains: 'LAIN stops using this account. The runtime keeps its own sign-in and sessions.' },
   signOut: { kind: 'sign-out', label: 'Sign out', explains: 'Signs the runtime out through its own sign-out, then detaches it. Only when you choose it.', danger: true },
-  detachRef: { kind: 'detach-9router', label: 'Detach reference', explains: 'Noema forgets this provider. It stays connected in 9Router.' },
+  detachRef: { kind: 'detach-9router', label: 'Detach reference', explains: 'LAIN forgets this provider. It stays connected in 9Router.' },
   adopt: { kind: 'adopt-9router', label: 'Adopt from 9Router', explains: 'Use the account 9Router already holds — no second sign-in. 9Router keeps the authentication.' },
 };
 
@@ -74,7 +74,7 @@ async function list(app) {
   // its tokens or cookies — it says where the account can be connected.
   const ag = antigravityApp();
   const viaNine = available.some((x) => x.id === '9router:ag') || connected.some((x) => x.id === '9router:ag');
-  if (ag && !viaNine) available.push({ id: 'antigravity-app', kind: 'runtime-detected', label: 'Antigravity', source: `Antigravity app · ${ag}`, note: 'Connect your Antigravity account in 9Router (then adopt it here), or sign in inside the Antigravity app. Noema does not take its sign-in.', actions: [] });
+  if (ag && !viaNine) available.push({ id: 'antigravity-app', kind: 'runtime-detected', label: 'Antigravity', source: `Antigravity app · ${ag}`, note: 'Connect your Antigravity account in 9Router (then adopt it here), or sign in inside the Antigravity app. LAIN does not take its sign-in.', actions: [] });
   return { connected, available, ninerouter };
 }
 
@@ -113,7 +113,7 @@ async function action(app, body = {}) {
     for (const a of require('../ninerouter').adopted(app)) if (a.connection === id) require('../ninerouter').detach(app, a.prefix);
     try { require('../appcatalog').invalidate(); } catch { /* not loaded */ }
     try { require('../fabric/store').event('source-removed', { kind: 'api', id }); require('../fabric/tray').changed(app); } catch { /* the registry reports on the next read */ }
-    return ok({ done: 'source removed', note: 'Removed from Noema. The provider account itself is not revoked.' });
+    return ok({ done: 'source removed', note: 'Removed from LAIN. The provider account itself is not revoked.' });
   }
   // THREE DIFFERENT THINGS, never one button:
   //   detach          LAIN forgets the account. Nothing is signed out and nothing is deleted.

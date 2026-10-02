@@ -227,8 +227,8 @@ async function select(app, { lane, source = 'lain', modelId, connectionId = null
   // CHAT ONLY (modelroles.js): the website session and its alias never code.
   if (which === 'coding') { const gate = roles.check({ source, modelId: want }, roles.ROLE.AGENT); if (!gate.ok) return { ok: false, why: gate.why, code: gate.code }; }
   // THE WEBSITE SOURCES ARE RETIRED (Phase 8.1) — the alias included.
-  if (roles.isChatAlias(want)) return { ok: false, code: 'retired', why: `${want} was ChatGPT Chat, a website source; the website sources are retired — choose an account and a model Noema runs` };
-  if (source && source !== 'lain') return { ok: false, code: 'retired', why: 'the website sources are retired — choose an account and a model Noema runs' };
+  if (roles.isChatAlias(want)) return { ok: false, code: 'retired', why: `${want} was ChatGPT Chat, a website source; the website sources are retired — choose an account and a model LAIN runs` };
+  if (source && source !== 'lain') return { ok: false, code: 'retired', why: 'the website sources are retired — choose an account and a model LAIN runs' };
   const acct = account !== undefined ? (account || null) : (connectionId || undefined);
   const req = { lane: which };
   if (acct !== undefined) req.account = acct;
@@ -245,7 +245,7 @@ function selections(app) {
   const coding = codingSelection(app);
   return {
     chat: { ...chat, label: (registry.LABEL && registry.LABEL[chat.source]) || chat.source },
-    coding: { ...coding, source: 'lain', label: 'Noema' },
+    coding: { ...coding, source: 'lain', label: 'LAIN' },
   };
 }
 

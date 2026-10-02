@@ -143,7 +143,7 @@ function adapter({ provider, resumeAt, model, alternative = null, exhausted = fa
       value: CHOICE.FAILOVER,
     });
   }
-  items.push({ label: `Wait for the reset — Noema carries on by itself in ${human(left)}`, value: CHOICE.WAIT });
+  items.push({ label: `Wait for the reset — LAIN carries on by itself in ${human(left)}`, value: CHOICE.WAIT });
   items.push({ label: 'Change model — pick another model and retry now', value: CHOICE.CHANGE });
   return {
     title: windowWord(left),

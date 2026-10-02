@@ -92,7 +92,7 @@ module.exports = async function () {
       assert.strictEqual(dap.context(app).paused, false);
     });
 
-    await test('DAP: a crashing adapter ends its session and Noema carries on', async () => {
+    await test('DAP: a crashing adapter ends its session and LAIN carries on', async () => {
       await dap.setBreakpoints(app, 'prog.toy', []);
       const r = await dap.start(app, { program: 'boom.toy' });
       assert.ok(r.ok, r.why);

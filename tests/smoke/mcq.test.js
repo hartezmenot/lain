@@ -8,7 +8,7 @@
  * options 1-4, the user typed `2`, pressed Enter — and the session recorded
  * "The user chose: 1".
  *
- * Everything below drives `bin/noema.js` as a child process with
+ * Everything below drives `bin/lain.js` as a child process with
  * `LAIN_FORCE_TUI=1`, so the production draw path, the real input reader, the
  * real panel and the real turn loop are all in play. The keys are the byte
  * sequences a terminal actually sends. Only the network is a double.
@@ -119,8 +119,8 @@ module.exports = async function () {
     const r = await askRun({
       question: 'level (please type a number)', options: ['1', '2'], keys: [ESC, ENTER],
     });
-    const rows = rowsOf(frames(r.out).find((f) => /noema\s+needs\s+your\s+input/i.test(f)) || '');
-    const inPanel = rows.slice(rows.findIndex((l) => /noema\s+needs\s+your\s+input/i.test(l)));
+    const rows = rowsOf(frames(r.out).find((f) => /lain\s+needs\s+your\s+input/i.test(f)) || '');
+    const inPanel = rows.slice(rows.findIndex((l) => /lain\s+needs\s+your\s+input/i.test(l)));
     const question = inPanel.find((l) => /level/.test(l));
     assert.ok(question, `the question must be drawn:\n${inPanel.join('\n')}`);
     assert.ok(!/please type a number/.test(question),

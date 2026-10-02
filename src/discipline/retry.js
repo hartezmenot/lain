@@ -2,7 +2,7 @@
 
 /**
  * NO BLIND RETRIES (Execution Discipline §46). The same command, failing, with nothing changed since, is the same
- * observation again — it costs a run and teaches nothing. Before it runs a second time Noema returns the evidence it
+ * observation again — it costs a run and teaches nothing. Before it runs a second time LAIN returns the evidence it
  * already has, and names the ways forward: change an input, observe something different, or — for a failure
  * classified TRANSIENT — retry, which is allowed a bounded number of times.
  *

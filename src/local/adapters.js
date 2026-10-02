@@ -50,7 +50,7 @@ const llama = {
   },
   execution(app) {
     if (!llamacpp.binary(app)) return { chat: { ok: false, why: 'llama-server is not installed' }, agent: { ok: false, why: 'llama-server is not installed' } };
-    return { chat: { ok: true, how: 'Noema starts an owned llama-server for the chosen model' }, agent: { ok: true, how: 'per model, after its Agent compatibility test passes' } };
+    return { chat: { ok: true, how: 'LAIN starts an owned llama-server for the chosen model' }, agent: { ok: true, how: 'per model, after its Agent compatibility test passes' } };
   },
 };
 

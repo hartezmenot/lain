@@ -90,10 +90,10 @@ const ownedChildren = new Set();
 /**
  * ONE PRE-WARMED GUARDIAN (2026-10-01). A command's containment is two Node processes (guardian + worker) before
  * the shell even starts — ~105 ms of boot on every shell tool call (bench/latency). After the first owned spawn of
- * a run, the next guardian is started in the background, idle and unref'd (it never keeps Noema alive), its worker
+ * a run, the next guardian is started in the background, idle and unref'd (it never keeps LAIN alive), its worker
  * already booted; the next command takes it and pays an IPC message. It is NOT a pool: one slot, refilled after
- * use, expired after WARM_IDLE_MS idle, and it dies with Noema (the guardian stops on IPC disconnect).
- * NOEMA_NO_PREWARM=1 turns it off.
+ * use, expired after WARM_IDLE_MS idle, and it dies with LAIN (the guardian stops on IPC disconnect).
+ * LAIN_NO_PREWARM=1 turns it off.
  */
 const WARM_IDLE_MS = 120_000;
 let warm = null;
@@ -128,7 +128,7 @@ function dropWarm() {
 }
 
 function refillWarm() {
-  if (warm || process.env.NOEMA_NO_PREWARM === '1' || process.env.LAIN_NO_PREWARM === '1') return;
+  if (warm || process.env.LAIN_NO_PREWARM === '1' || process.env.LAIN_NO_PREWARM === '1') return;
   try {
     warm = startGuardian(require('os').tmpdir(), process.env);
     setRef(warm, false);

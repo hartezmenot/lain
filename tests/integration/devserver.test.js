@@ -57,7 +57,7 @@ async function withServers(fn) {
 }
 
 module.exports = async function () {
-  await test('DEVSERVER: it runs in the PROJECT ROOT — not Core\'s cwd, not Noema\'s folder', async () => {
+  await test('DEVSERVER: it runs in the PROJECT ROOT — not Core\'s cwd, not LAIN\'s folder', async () => {
     const dir = project({ 'package.json': pkg(), 'server.js': SERVER('port') });
     assert.notStrictEqual(path.resolve(process.cwd()).toLowerCase(), path.resolve(dir).toLowerCase(), 'the test itself runs elsewhere');
     await withServers(async (ds, pm) => {
@@ -68,7 +68,7 @@ module.exports = async function () {
       assert.strictEqual(rec.cwd.toLowerCase(), fs.realpathSync.native(dir).toLowerCase());
       const reported = fs.readFileSync(path.join(dir, 'cwd.txt'), 'utf8');
       assert.strictEqual(fs.realpathSync.native(reported).toLowerCase(), fs.realpathSync.native(dir).toLowerCase(), `the process saw its cwd as ${reported}`);
-      assert.ok(!reported.toLowerCase().startsWith(path.join(__dirname, '..', '..').toLowerCase()), 'never Noema\'s own folder');
+      assert.ok(!reported.toLowerCase().startsWith(path.join(__dirname, '..', '..').toLowerCase()), 'never LAIN\'s own folder');
       assert.strictEqual(pm.list()[0].cwd.toLowerCase(), fs.realpathSync.native(dir).toLowerCase(), 'the ProcessManager was given the root');
       assert.ok(rec.pid, 'a PID is recorded');
       assert.strictEqual(rec.command, 'npm run dev');
@@ -197,7 +197,7 @@ module.exports = async function () {
       const st = await routes.dispatch(app, 'POST', '/api/preview/start', {});
       assert.strictEqual(st.body.ok, true, st.body.why);
       const port = st.body.preview.port;
-      assert.match((await get(port, '/')).body, /<h1>Library/, 'the frontend is served by Noema; the backend never started');
+      assert.match((await get(port, '/')).body, /<h1>Library/, 'the frontend is served by LAIN; the backend never started');
       assert.strictEqual(JSON.parse((await get(port, '/api/library')).body).items[0].id, 'ep1', 'preview data answers the library');
       assert.strictEqual((await get(port, '/api/scan/all')).status, 503, 'the scanner stays dormant');
       assert.strictEqual(caps().length, 0, 'nothing woke to draw the page');

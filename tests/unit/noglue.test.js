@@ -102,7 +102,7 @@ module.exports = async function () {
 
   // ------------------------------------------- internal control stays hidden --
 
-  await test('GLUE: a continuation Noema sends itself is NEVER a user message', () => {
+  await test('GLUE: a continuation LAIN sends itself is NEVER a user message', () => {
     // THE INVARIANT: runtime control reaches the model, not the transcript. `from`
     // is what enforces it — a submission with one is drawn as a caption, never as
     // a user block.

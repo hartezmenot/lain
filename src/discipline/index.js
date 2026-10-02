@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * EXECUTION DISCIPLINE — Noema owns it; the model owns judgment (packaging-pass consolidation, §1).
+ * EXECUTION DISCIPLINE — LAIN owns it; the model owns judgment (packaging-pass consolidation, §1).
  *
  *     REQUEST → requested observable outcome → BELIEF / EVIDENCE STATE (facts, provenance, freshness, unknowns,
  *     hypotheses, explicit asks, acceptance criteria, check states) → choose a useful observation or action →
@@ -12,7 +12,7 @@
  * Its parts:  contract.js (outcome, asks, criteria, facts) · checks.js (CheckState) · integrity.js (test edits) ·
  * claims.js (typed claims) · arbiter.js (completion) · retry.js (no blind retries) · profile.js (capability →
  * discretion) · dialect.js (tool vocabulary per model family) · constitution.js (the short standing policy and
- * .noema/NOEMA.md) · digest.js (what survives compaction and handover).
+ * .lain/LAIN.md) · digest.js (what survives compaction and handover).
  */
 
 const { Contract } = require('./contract');
