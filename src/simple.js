@@ -30,10 +30,11 @@ function identify(app, text) {
   return { kind: first ? 'new' : 'continue', sameTask: !first, mode: null, modeReason: '', reason: 'simple', taskClass: null, aside: false };
 }
 
-/** The turn is over: the lifecycle only describes it. */
-function settle(app) {
+/** The turn is over: the lifecycle only describes it, and the fact footer goes on the turn. */
+function settle(app, record = null) {
   const life = app.session && app.session.lifecycle;
   if (life) { life.state = 'IDLE'; life.reason = ''; }
+  if (record) { try { require('./factfooter').attach(app, record); } catch { /* the footer is only shown */ } }
 }
 
 /**

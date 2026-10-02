@@ -482,6 +482,7 @@ class Renderer {
     if (receipt) bits.push(receipt);
     if (record.stopReason && record.stopReason !== 'end') bits.push(`stopped: ${record.stopReason}`);
     if (bits.length) this.write(C.dim(`  ${bits.join(' · ')}`) + '\n');
+    for (const l of require('./factfooter').lines(record.facts)) this.write(C.dim(`  ${l}`) + '\n');   // the fact footer (S4)
   }
 }
 

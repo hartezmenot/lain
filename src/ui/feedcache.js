@@ -85,6 +85,7 @@ function key(o) {
       (t.errors || []).length,
       // Set just AFTER the turn is recorded (app.js), so it must move the key.
       (t.contradiction || '').length,
+      t.facts ? 1 : 0,   // the fact footer is set just after the turn is recorded, too
     );
   }
   const extras = o.extras || [];

@@ -35,6 +35,7 @@ function describeTarget(name, input) {
   // from each other. (This line once missed the consolidation that replaced
   // `desktop` with `computer`; the removed Probe tool's `op`-shaped calls were
   // fixed out of the same bare-name problem.)
+  if (name === 'Agent') return `${i.type || 'general'} · ${String(i.description || i.prompt || '').replace(/\s+/g, ' ').slice(0, 50)}`;
   if (i.op && name === 'computer') {
     const op = String(i.op).slice(0, 40);
     return i.target ? `${op} → ${String(i.target).slice(0, 30)}` : op;
@@ -273,6 +274,7 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
     // not open anything. The path is already in hand here; carrying it is
     // what makes the row navigable. See ui/feed.js `fileAt`.
     path: (call.input && call.input.path) || null,
+    ...(result && result.meta && result.meta.job ? { job: String(result.meta.job) } : {}),   // started a background job
     // HOW BIG THE CHANGE WAS — see `editSize`. Zero for everything that did not
     // change a file, which is what the drawing already treats as absent.
     added: Number(added) || 0,

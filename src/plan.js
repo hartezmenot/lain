@@ -521,7 +521,7 @@ async function runCommand(app, { args = [], rest = '' } = {}, { C } = {}) {
       // Finishing the last step is the moment completion becomes possible. The
       // evidence safeguard inside maybeComplete() still decides whether it IS
       // complete — a finished checklist with nothing done is not completion.
-      app.maybeComplete();
+      if (!require('./simple').on(app)) app.maybeComplete();
       return;
     }
     if (sub === 'drop') {

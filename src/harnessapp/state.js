@@ -199,6 +199,8 @@ function conversation(session) {
       // WHICH SUB-TAB (BOT | AGENT) a person's message went to, and from which
       // surface — Chat's agentic coding is shown in Chat and in the AGENT tab.
       to: m.to === 'agent' || m.to === 'bot' ? m.to : null,
+      // THE FACT FOOTER (factfooter.js): what LAIN recorded during the turn, under its report.
+      facts: m.role === 'assistant' && m.facts ? require('../factfooter').lines(m.facts) : null,
       via: m.via === 'chat' || m.via === 'ide' ? m.via
         : (role && m.role === 'assistant' && i >= roleFrom && (session._roleVia === 'chat' || session._roleVia === 'ide') ? session._roleVia : null),
     });

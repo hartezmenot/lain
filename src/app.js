@@ -346,7 +346,7 @@ class App {
     }
     this.render.nl();
     // SIMPLE: the lifecycle only describes the turn (IDLE now). LEGACY: the completion policy decides, before the redraw.
-    if (simple) require('./simple').settle(this); else this.maybeComplete(record);
+    if (simple) require('./simple').settle(this, record); else this.maybeComplete(record);
     if (this.ui.enabled) this.ui.setBusy(false);
     if (record) {
       this.render.turnSummary(record);
@@ -419,7 +419,7 @@ class App {
    * work the user can see happening.
    */
   notePhase(p) {
-    if (this.ui.enabled && p && p.phase === 'ENDED') require('./completion').preview(this, (this.session.turns || []).slice(-1)[0]);   // before the settle frame
+    if (this.ui.enabled && p && p.phase === 'ENDED' && !require('./simple').on(this)) require('./completion').preview(this, (this.session.turns || []).slice(-1)[0]);   // before the settle frame
     if (this.ui.enabled) this.ui.setPhase(p);
     // AND THE WINDOW LOOKS AGAIN, NOW. This is called before every provider
     // request and every tool, which is exactly when what a person is watching

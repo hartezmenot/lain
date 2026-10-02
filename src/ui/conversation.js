@@ -474,6 +474,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // stores it on the record). As a floating notice it sat under the NEXT
     // turn's ✓ DONE and read as a verdict on that one (live, 2026-09-18).
     if (t.contradiction) pushNote(said, t.contradiction, 'warn');
+    for (const l of require('../factfooter').lines(t.facts)) pushNote(said, l, 'info');   // the fact footer (S4)
   }
 
   // Everything said after the last recorded turn — including a review that has
