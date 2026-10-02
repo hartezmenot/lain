@@ -127,17 +127,30 @@ module.exports = async function () {
   await test('JOB: OUTPUT is fed as the bytes arrive, not once at the end', async () => {
     const { app, outputs } = fakeApp();
     const r = await jobTools.run_background.run({ command: 'echo hello', shell: SHELL }, { app, cwd: process.cwd() });
-    await jobTools.job_wait.run({ id: r.meta.job }, { app });
+    await require('../../src/tools/jobs').collect.run({ id: r.meta.job }, { app });
     assert.ok(outputs.length > 0, 'the OUTPUT pane saw the job');
     assert.match(outputs.map((o) => o.o).join(''), /hello/);
   });
 
-  await test('JOB: the tools point the model at job_wait and AWAY from polling', () => {
-    // A cheaper path a model cannot find is not a cheaper path.
-    assert.match(jobTools.run_background.schema.description, /job_wait/);
-    assert.match(jobTools.run_background.schema.description, /do NOT call job_status in a loop/i);
-    assert.match(jobTools.job_status.schema.description, /use job_wait instead/i);
-    assert.match(jobTools.job_wait.schema.description, /ONE call/);
+  await test('JOB (Phase 5): no model-turn wait — one job, one status, one result that rejoins by itself', async () => {
+    assert.ok(!('job_wait' in jobTools), 'job_wait is not a model tool');
+    assert.match(jobTools.run_background.schema.description, /rejoins this session by itself/i);
+    assert.match(jobTools.run_background.schema.description, /never wait for it or poll it/i);
+    assert.match(jobTools.job_status.schema.description, /ONE read/);
+    assert.match(jobTools.job_status.schema.description, /Never ask repeatedly/);
+    const { app } = fakeApp();
+    app.session = { id: 's1' };
+    app.render = { notice() {} };
+    const r = await jobTools.run_background.run({ command: 'echo one-result', shell: SHELL }, { app, cwd: process.cwd() });
+    const job = app._jobs.get(r.meta.job);
+    await job.wait();
+    await new Promise((res) => setTimeout(res, 20));
+    const ctx = require('../../src/bgdetach').takeContext(app.session);
+    assert.match(ctx, /# Background results \(rejoined\)/);
+    assert.match(ctx, /echo one-result · OK/);
+    assert.strictEqual(require('../../src/bgdetach').takeContext(app.session), '', 'delivered once');
+    const unknown = await require('../../src/tools').execute('job_wait', { id: r.meta.job }, { app, cwd: process.cwd() });
+    assert.ok(unknown.isError && /rejoins this session by itself/.test(unknown.output), unknown.output);
   });
 
   await test('JOB: collecting a job returns its TAIL, not the whole stream', async () => {
@@ -153,7 +166,7 @@ module.exports = async function () {
 
   await test('JOB: an unknown id is a plain refusal, not a crash', async () => {
     const { app } = fakeApp();
-    const r = await jobTools.job_wait.run({ id: 'nope' }, { app });
+    const r = await require('../../src/tools/jobs').collect.run({ id: 'nope' }, { app });
     assert.strictEqual(r.isError, true);
     assert.match(r.output, /no job/);
   });

@@ -168,8 +168,8 @@ module.exports = async function () {
     });
   });
 
-  // ---- §2: job_wait works against the authority ---------------------------
-  await test('EXECUTION: job_wait collects a supervised job in ONE call', async () => {
+  // ---- §2: a supervised job is collected from the authority (collect — LAIN's, not a model tool) ---
+  await test('EXECUTION: a supervised job is collected from the authority in ONE call', async () => {
     const home = isolate('wait');
     await inHome(home, async () => {
       await supervisor.ensure();
@@ -178,7 +178,7 @@ module.exports = async function () {
         { command: runsFor(2, 0), shell: SHELL, survive_restart: true },
         { app, cwd: home },
       );
-      const waited = await jobTools.job_wait.run({ id: started.meta.job }, { app });
+      const waited = await require('../../src/tools/jobs').collect.run({ id: started.meta.job }, { app });
       assert.strictEqual(waited.meta.state, 'completed', waited.output);
       assert.ok(/supervised/.test(waited.output), 'and it says where the job lived');
       await supervisor.shutdown();

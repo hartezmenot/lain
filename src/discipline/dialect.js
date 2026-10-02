@@ -21,7 +21,7 @@ const OPS = Object.freeze({
   'modify-resource': ['write_file', 'edit_file', 'apply_patch', 'append_file', 'insert_at', 'delete_range', 'move_file', 'delete_file', 'replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol'],
   'execute-command': ['run_bash', 'run_powershell', 'run_cmd', 'run_tests', 'run_background', 'python_run', 'process_run'],
   'inspect-history': ['review_changes', 'recall_evidence'],
-  'inspect-runtime': ['job_status', 'job_wait', 'observe', 'service_check', 'observe_start', 'observe_stop'],
+  'inspect-runtime': ['job_status', 'observe', 'service_check', 'observe_start', 'observe_stop'],
   'inspect-preview': ['preview_read', 'preview_pointer_move', 'preview_click', 'preview_double_click', 'preview_pointer_down', 'preview_pointer_up', 'preview_drag', 'preview_scroll', 'preview_key', 'preview_key_chord', 'preview_type_text'],
 });
 

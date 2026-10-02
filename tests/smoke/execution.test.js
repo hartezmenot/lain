@@ -140,7 +140,8 @@ module.exports = async function () {
         // The model does something else while it runs — the behaviour the tool
         // exists to make possible.
         { text: 'While that runs, let me note the plan.', tool_calls: [{ name: 'list_dir', input: { path: '.' } }] },
-        { text: 'Now collecting it.', tool_calls: [{ name: 'job_wait', input: { id: 'j1' } }] },
+        { text: 'A foreground check meanwhile.', tool_calls: [{ name: 'process_run', input: { program: process.execPath, args: ['-e', 'setTimeout(()=>{},2500)'] } }] },
+        { text: 'One look at it.', tool_calls: [{ name: 'job_status', input: { id: 'j1' } }] },
         { text: 'The job finished.' },
       ],
       timeoutMs: 90000,
@@ -151,7 +152,7 @@ module.exports = async function () {
     // reason the tool exists.
     assert.ok(out.indexOf('list_dir') > out.indexOf('job j1 started'),
       'other work happened while the job ran');
-    assert.match(out, /job_wait/, 'and it collected with ONE wait rather than polling');
+    assert.ok(!/job_wait/.test(out), 'no model-turn wait (Phase 5): one status read, the result rejoins by itself');
     assertIncludes(out, 'JOB DONE', 'the job output was collected');
     assert.strictEqual(r.code, 0);
   });
@@ -176,7 +177,8 @@ module.exports = async function () {
           text: 'Starting.',
           tool_calls: [{ name: 'run_background', input: { command: 'echo IT BROKE && exit 5', shell: 'cmd' } }],
         },
-        { text: 'Collecting.', tool_calls: [{ name: 'job_wait', input: { id: 'j1' } }] },
+        { text: 'A foreground check meanwhile.', tool_calls: [{ name: 'process_run', input: { program: process.execPath, args: ['-e', 'setTimeout(()=>{},2500)'] } }] },
+        { text: 'One look.', tool_calls: [{ name: 'job_status', input: { id: 'j1' } }] },
         { text: 'It failed.' },
       ],
       timeoutMs: 90000,

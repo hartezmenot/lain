@@ -35,7 +35,7 @@ const crypto = require('crypto');
 const DEFAULT_CHARS = 24000;
 const HARD_CAP = 80000;
 const LISTING = /^(?:grep|glob|search|list_dir|find_residue|symbols|dependents|discover_tests)$/;
-const SHELL = /^(?:run_bash|run_cmd|run_powershell|run_tests|process_run|python_run|job_wait|run_background)$/;
+const SHELL = /^(?:run_bash|run_cmd|run_powershell|run_tests|process_run|python_run|run_background)$/;
 
 function dir() { return path.join(require('./config').configDir(), 'evidence', 'toolresults'); }
 

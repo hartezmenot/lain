@@ -8,20 +8,22 @@
  * cannot tell a running suite from a hung one.
  *
  * ------------------------------------------------------------------------
- * THE TRAP, AND WHY `job_wait` EXISTS.
+ * THE TRAP, AND HOW IT IS CLOSED (Phase 5, 2026-10-02).
  *
  * Give a model a job handle and the obvious thing it does is
  *
  *     start → job_status → job_status → job_status → …
  *
- * which is the same block paid one model turn at a time — strictly worse than
- * having waited. So `job_wait` BLOCKS ON THE CHILD'S OWN EXIT EVENT: one call,
- * one wake-up, no interval anywhere. The descriptions say plainly which tool to
- * reach for, because "there is a cheaper way" that a model cannot find is not a
- * cheaper way.
+ * which is the same block paid one model turn at a time. `job_wait` once answered that with "one call that sleeps"
+ * — and a turn that sleeps on a job is still a model turn held open doing nothing. Now there is NO model-turn wait:
  *
- *     job_wait     you have nothing else to do → ONE call, sleeps until it ends
- *     job_status   you have something else to do → ask once, later
+ *     ONE JOB      run_background starts it and returns at once
+ *     ONE STATUS   job_status — a single read, when you have been doing something else
+ *     ONE RESULT   when it ends, its result REJOINS the session by itself (bgdetach.rejoin): one "Background results"
+ *                  section on the next request, delivered once. Nothing to poll, nothing to wait on.
+ *
+ * A command whose result is needed before anything else can happen belongs in the foreground (run_bash / run_tests):
+ * that is one call too, and it is honest about the wait.
  */
 
 const jobsMod = require('../jobs');
@@ -155,6 +157,29 @@ function detachedJob(app, id) {
   return j && (j.kind === 'process' || j.kind === 'subagent') ? j : null;
 }
 
+/** THE ONE RESULT: a finished job rejoins the session it came from (bgdetach.js) — delivered once, on the next request. */
+function rejoinResult(app, session, { id, command, exitCode, state, output, supervised = false }) {
+  if (!app || !session) return;
+  try {
+    const bg = require('../bgdetach');
+    const ok = exitCode === 0 && !/fail|cancel|timeout/i.test(String(state || ''));
+    const s = bg.summarize(command, exitCode, output, /timeout/i.test(String(state || '')));
+    bg.rejoin(app, session, { jobId: id, kind: 'process', label: `${supervised ? 'supervised ' : ''}${String(command).slice(0, 80)}`, ok, summary: s.text, counts: s.counts, tail: String(output || '').slice(-2000), at: Date.now() });
+  } catch { /* job_status still has it */ }
+}
+
+/** A supervised job lives in another process: LAIN (not the model) checks on it, and rejoins its result once. */
+function watchSupervised(app, session, id, command) {
+  let tries = 0;
+  const tick = async () => {
+    tries += 1;
+    const j = await supervisedJob(id).catch(() => null);
+    if (j && !['running', 'queued'].includes(j.state)) { rejoinResult(app, session, { id, command, exitCode: j.exit_code == null ? null : j.exit_code, state: j.state, output: j.tail || j.output || '', supervised: true }); return; }
+    if (tries < 17280) { const t = setTimeout(tick, tries < 12 ? 5000 : 30000); if (t.unref) t.unref(); }   // up to a day
+  };
+  const t = setTimeout(tick, 5000); if (t.unref) t.unref();
+}
+
 function describeDetached(j) {
   const s = j.summary();
   const head = `job #${s.id} · ${s.state} · ${String(s.request || '').slice(0, 80)} · ${Math.round((s.elapsedMs || 0) / 1000)}s`
@@ -175,11 +200,10 @@ tools.run_background = {
   schema: {
     name: 'run_background',
     description:
-      'Start a long command and KEEP WORKING while it runs — a test suite, a dev server, a build, '
-      + 'a watcher. Returns a job id immediately; the command keeps going. '
-      + 'Use this instead of run_bash whenever something takes more than a few seconds, so you can '
-      + 'say what you are doing and answer the user while it runs. '
-      + 'Then call job_wait (ONE call, sleeps until it finishes) — do NOT call job_status in a loop.',
+      'Start a long command and KEEP WORKING while it runs — a dev server, a long build, a watcher, a long suite while '
+      + 'you do other work. Returns a job id immediately. When it ends, its result REJOINS this session by itself (one '
+      + '"Background results" section on a later request) — never wait for it or poll it. '
+      + 'If you need the result before you can do anything else, run it in the foreground instead (run_bash / run_tests).',
     parameters: {
       type: 'object',
       properties: {
@@ -241,11 +265,12 @@ tools.run_background = {
       if (!r || !r.ok) return { output: `the supervisor refused the job: ${(r && r.error) || 'unknown reason'}`, isError: true };
       busOf(app).emit(EVENT.JOB_STARTED, { id: r.job.id, command, shell: r.job.shell });
       if (typeof app.refreshSupervisedJobs === 'function') app.refreshSupervisedJobs();
+      watchSupervised(app, (ctx && ctx.session) || app.session, r.job.id, command);
       const window = forSeconds ? ` The execution window is ${forSeconds}s; when it ends you will be told, and nothing will be assumed about whether it worked.` : '';
       return {
         output: `${via(KIND.JOB)} supervised job ${r.job.id} started: ${command}`
           + `${String.fromCharCode(10)}It runs in a process that outlives LAIN — closing, crashing or switching model will not stop it.`
-          + ` Collect it with job_wait id "${r.job.id}".${window}`,
+          + ` Its result rejoins this session by itself when it ends.${window}`,
         meta: { job: r.job.id, state: r.job.state, supervised: true },
       };
     }
@@ -265,54 +290,41 @@ tools.run_background = {
     require('../inflight').noteJob(ctx && ctx.session, job, command);
     // ON ITS EXIT EVENT, not by polling — the job resolves its own waiters and
     // this rides the same promise. See jobs.js: there is no interval anywhere.
+    const session = (ctx && ctx.session) || app.session;
     Promise.resolve(job.wait()).then((s) => {
       require('../inflight').jobEnded(ctx && ctx.session, job, s);
       busOf(app).emit(EVENT.JOB_COMPLETED, {
         id: job.id, state: s.state, exitCode: s.exitCode, command,
       });
+      // ONE RESULT, delivered by LAIN — unless something already collected it (collect(), the person's /jobs wait).
+      if (!job._collected) rejoinResult(app, session, { id: job.id, command, exitCode: s.exitCode, state: s.state, output: job.tail(60) });
     }).catch(() => {});
     return {
       output: `${via(KIND.JOB)} job ${job.id} started: ${command}\n`
-        + 'It is running now — say what you are doing and carry on. '
-        + `When you need the result, call job_wait with id "${job.id}" ONCE. `
-        + 'Do not poll job_status repeatedly; job_wait sleeps until it finishes and costs one call.',
+        + 'It is running now — say what you are doing and carry on with other work. '
+        + 'Its result rejoins this session by itself when it ends; do not wait for it or poll it.',
       meta: { job: job.id, state: job.state },
     };
   },
 };
 
-tools.job_wait = {
-  mutates: false,
-  schema: {
-    name: 'job_wait',
-    description:
-      'Wait for a background job to finish and return its result. ONE call — it sleeps until the '
-      + 'job actually ends, so it costs nothing while it waits. This is the right way to collect a '
-      + 'job; polling job_status in a loop is not.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'the job id from run_background' },
-        limit_ms: { type: 'number', description: 'stop waiting after this long and report it as still running' },
-      },
-      required: ['id'],
-    },
-  },
+/**
+ * COLLECT A JOB — NOT A MODEL TOOL (Phase 5). The person's `/jobs wait`, tests and LAIN's own code use it; a model's
+ * result arrives by rejoin instead. A collected job does not rejoin a second time: one job, one result.
+ */
+const collect = {
   async run(input, ctx) {
     const app = ctx && ctx.app;
     const job = app && app._jobs && app._jobs.get(input.id);
     if (job) {
+      job._collected = true;
       const s = await job.wait(Number(input.limit_ms) || null);
       return { output: describe(job, s), meta: { job: job.id, state: s.state } };
     }
     const det = detachedJob(app, input.id);
     if (det) return waitDetached(det, input.limit_ms);
     // ---- A SUPERVISED JOB IS WAITED ON WHERE IT ACTUALLY LIVES ---------
-    //
     // There is no in-process child to resolve on, so this asks the authority.
-    // It is still ONE model call however long it takes: the polling happens
-    // inside this function, and the description's promise — one call, not a
-    // loop of turns — is what actually matters to the caller.
     const svc = sup();
     if (svc) {
       const limit = Number(input.limit_ms) || 0;
@@ -336,9 +348,8 @@ tools.job_status = {
   schema: {
     name: 'job_status',
     description:
-      'What a background job is doing right now, with its recent output. Ask ONCE, when you have '
-      + 'been doing something else and want to check. If you are only waiting for it, use job_wait '
-      + 'instead — asking this repeatedly is a loop that costs a model turn each time. '
+      'What a background job is doing right now, with its recent output — ONE read, when you have been doing something '
+      + 'else and want to check. Never ask repeatedly: its result rejoins this session by itself when it ends. '
       + 'With no id, lists every job of this session.',
     parameters: {
       type: 'object',
@@ -449,4 +460,4 @@ function describe(job, s) {
   ].filter(Boolean).join('\n');
 }
 
-module.exports = { tools, jobsOf, startFor, describe };
+module.exports = { tools, jobsOf, startFor, describe, collect, rejoinResult };

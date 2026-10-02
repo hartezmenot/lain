@@ -196,6 +196,7 @@ function without(all, names) {
 function notOffered(name) {
   if (MIGRATION_TOOLS.includes(name)) return 'it is offered only when Core identifies a real migration (a current representation, a target one and the boundary between them) or one is in flight. Plan this work with the ordinary tools.';
   if (BOT_TOOLS.includes(name)) return 'it exists only on the IDE BOT turn.';
+  if (name === 'job_wait') return 'there is no waiting on a job inside a turn: a background job\'s result rejoins this session by itself when it ends (job_status reads it once). If you need the result now, run the command in the foreground (run_bash / run_tests).';
   if (/^preview_/.test(name)) return 'no LAIN Preview is attached to this session — open the project in the Preview (`lain preview`) first.';
   return '';
 }
@@ -217,7 +218,7 @@ function schemas(app, { turn = false, session: turnSession = null } = {}) {
   // every SCOUT was described all 63 tools. A child session with a role gets that role's pack instead.
   const sess = turnSession || (app && app.session) || null;
   if (turn && sess && sess._agentRole && sess !== (app && app.session)) {
-    require('../toolfunnel').openForRole(sess, sess._agentRole);
+    require('../toolfunnel').openForRole(sess, sess._agentRole, { only: sess._agentTools || null });
   } else if (turn && app && app.session) {
     const s = app.session;
     const cc = s._changeClass || null;

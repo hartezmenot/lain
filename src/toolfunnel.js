@@ -49,7 +49,7 @@ const FAMILIES = Object.freeze({
   // CAPABILITY PACKS — loaded when the task needs them, never on every request.
   intel: ['file_info', 'symbols', 'locate', 'understand', 'dependents', 'read_symbol', 'check_symbols', 'recall_evidence'],
   semantic: ['rename_symbol', 'replace_symbol', 'insert_near_symbol', 'remove_symbol', 'find_residue', 'review_changes'],
-  jobs: ['python_run', 'process_run', 'run_background', 'job_wait', 'job_status', 'job_stop'],
+  jobs: ['python_run', 'process_run', 'run_background', 'job_status', 'job_stop'],
   plan: ['plan_write', 'plan_findings', 'plan_step_done', 'verify_task', 'task_contract', 'report_finding', 'discover_tests'],
   knowledge: ['concept', 'architecture', 'wiring', 'scratch', 'engineering_brief'],
   services: ['service_start', 'service_check', 'observe', 'observe_start', 'observe_stop'],
@@ -86,7 +86,7 @@ const SIGNALS = [
   [/\bhttps?:\/\/|\b(docs?|documentation|changelog|release notes|latest version|on the web|search (?:the )?(?:web|online|internet)|look (?:it )?up online|npm page|github issue)\b/i, ['web']],
   [/\b(release|publish|package|installer|ship it|distribut\w+|version bump)\b/i, ['jobs', 'plan', 'web']],
   [/\b(dev server|start (?:the )?server|run (?:the )?app|localhost|port \d{2,5}|service)\b/i, ['services', 'jobs']],
-  [/\b(in parallel|subagents?|delegate|agents?\b|scouts?|several (?:independent )?(?:questions|investigations))\b/i, ['delegation']],
+  [/\b(in parallel|subagents?|delegate|agents?\b|scouts?|several (?:independent )?(?:questions|investigations))\b/i, ['delegation', 'intel']],
   [/\b(architecture|wiring|how (?:does|do) .{1,40} (?:fit|connect|work) together|concept|module map)\b/i, ['knowledge', 'intel']],
   [/\b(rename .{1,40} (?:everywhere|across|in all)|references?|callers?|who uses|dependents?|symbol)\b/i, ['intel', 'semantic']],
   [/\b(background|long[- ]running|takes? (?:a )?(?:long|while|minutes)|watch (?:the )?(?:build|tests))\b/i, ['jobs']],
@@ -134,11 +134,13 @@ const ROLE_PACKS = Object.freeze({
   FOUNDATION: [...CORE, 'intel', 'semantic', 'fileops'],
   IMPLEMENTER: [...CORE, 'intel', 'semantic', 'fileops'],
 });
-function openForRole(session, role) {
+function openForRole(session, role, { only = null } = {}) {
   if (!session) return null;
-  const fams = ROLE_PACKS[String(role || '').toUpperCase()];
-  if (!fams) return null;
-  const shape = `role-${role}`;
+  const pack = ROLE_PACKS[String(role || '').toUpperCase()];
+  if (!pack) return null;
+  // A CONTRACT'S `tools` NARROW the role's pack (subagents.js) — never widen it: a SCOUT asked for "edit" stays a SCOUT.
+  const fams = Array.isArray(only) && only.length ? pack.filter((f) => only.includes(f)) : pack;
+  const shape = `role-${role}${Array.isArray(only) && only.length ? `:${fams.join('+')}` : ''}`;
   if (session._toolFunnel && session._toolFunnel.shape === shape) return session._toolFunnel;
   session._funnelSticky = null;
   return openFamilies(session, shape, fams, { why: `${role} subagent — role tools only` });
