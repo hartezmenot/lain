@@ -158,7 +158,7 @@ async function* runTurn(session, userInput, opts = {}) {
 
   // The vocabulary follows the App (`computer` appears only while a transport is connected), in THE MODEL'S OWN
   // TOOL DIALECT (discipline/dialect.js): same operations, the vocabulary its family speaks.
-  const full = require('./discipline/dialect').forTurn(session, opts.tools === false ? [] : toolRegistry.schemas(opts.app, { turn: true }), pc.model, cfg);
+  const full = require('./discipline/dialect').forTurn(session, opts.tools === false ? [] : toolRegistry.schemas(opts.app, { turn: true, session }), pc.model, cfg);
   const schemas = require('./profile').of(session, cfg) === 'ECO' ? require('./schemacompact').compact(full) : full;   // ECO: same tools, fewer words
   // `ask` lets ask_user reach the interaction panel. Absent on non-interactive
   // runs, where the tool says so rather than hanging.

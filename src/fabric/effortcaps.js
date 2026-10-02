@@ -94,6 +94,21 @@ function forRequest({ levels = [], defaultEffort = null, wire = null, requested 
 }
 
 /**
+ * THE PLAN FOR ONE REQUEST (provider.resolve, 2026-10-02). A FUSED variant route (gpt-5.5-high) already chose its
+ * upstream id from the effort (catalog.resolve), and OpenAI's Responses API has its own native effort field — both keep
+ * their paths (null). Otherwise a DECLARED transport (GLM on Z.ai, the Claude API, Claude Code) gets its native level
+ * (explicit choice, else the execution profile's default), and a route with NO native effort gets LAIN execution
+ * effort, with nothing on the wire. A runtime with no declaration keeps its own reported levels (null).
+ */
+function planFor({ conn, route: r, cfg = {}, chat = 'chat' } = {}) {
+  const fused = Boolean(r.effort) || (Array.isArray(r.efforts) && r.efforts.length > 1) || conn.protocol === 'responses';
+  if (fused) return null;
+  const dec = declared({ runtime: conn.runtime || null, protocol: conn.protocol || chat, upstreamId: r.upstreamId || r.model, provider: conn.provider, baseUrl: conn.baseUrl });
+  if (dec) return forRequest({ levels: dec.levels, defaultEffort: dec.default || null, wire: dec.wire, requested: cfg.effort, profile: cfg.executionProfile });
+  return conn.runtime ? null : forRequest({ levels: [], requested: cfg.effort, profile: cfg.executionProfile });
+}
+
+/**
  * THE LEVELS ONE ROUTE OFFERS for one model.
  * `row` is a runtime/local row (runtimeconnections) or null; `route` the catalog route.
  */
@@ -124,4 +139,4 @@ function runtimeArgs(runtime, effort) {
   return [];
 }
 
-module.exports = { LEVELS, LABEL, LAIN_LEVELS, norm, order, label, declared, forRoute, forRequest, allowed, runtimeArgs };
+module.exports = { LEVELS, LABEL, LAIN_LEVELS, norm, order, label, declared, forRoute, forRequest, planFor, allowed, runtimeArgs };

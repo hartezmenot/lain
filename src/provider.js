@@ -57,18 +57,7 @@ function resolve(cfg = {}) {
       const conn = connections.find((c) => c.id === (r.connection.baseConnectionId || r.connection.connectionId));
       if (conn) {
         const bound = require('./runtimebound').check({ conn, connectionId: r.connection.connectionId, model: r.model, upstreamId: r.upstreamId }); if (bound) return { protocol: null, provider: conn.provider, connectionId: conn.id, model: r.model, apiKey: '', unavailable: bound };
-        // ---- THE EFFORT THIS REQUEST CARRIES (2026-10-02) -------------------------------------------------------
-        // A fused variant route (gpt-5.5-high) already chose its upstream id from the effort (catalog.resolve).
-        // Otherwise: a DECLARED transport (GLM on Z.ai, the Claude API, Claude Code) gets the route's native level —
-        // the person's explicit choice, or the execution profile's default (FAST/ECO → low, NORMAL → the model's
-        // default); a route with NO native effort gets LAIN execution effort, and nothing on the wire.
-        const ec = require('./fabric/effortcaps');
-        // FUSED: the catalog itself picked a variant id from the effort (gpt-5.5-high). RESPONSES: OpenAI's Responses API
-        // has its own native effort field (responsesapi.js) — the configured level goes there as before.
-        const fused = Boolean(r.effort) || (Array.isArray(r.efforts) && r.efforts.length > 1) || conn.protocol === 'responses';
-        const dec = fused ? null : ec.declared({ runtime: conn.runtime || null, protocol: conn.protocol || PROTOCOL.CHAT, upstreamId: r.upstreamId || r.model, provider: conn.provider, baseUrl: conn.baseUrl });
-        const plan = fused ? null : dec ? ec.forRequest({ levels: dec.levels, defaultEffort: dec.default || null, wire: dec.wire, requested: cfg.effort, profile: cfg.executionProfile })
-          : conn.runtime ? null : ec.forRequest({ levels: [], requested: cfg.effort, profile: cfg.executionProfile });
+        const plan = require('./fabric/effortcaps').planFor({ conn, route: r, cfg, chat: PROTOCOL.CHAT });   // native level, profile default, or LAIN effort (no wire)
         return {
           protocol: conn.protocol || PROTOCOL.CHAT,
           provider: conn.provider,
@@ -77,11 +66,7 @@ function resolve(cfg = {}) {
           routeId: r.connection.connectionId, accountId: require('./accountcatalog').accountIdForRoute(r.connection.connectionId, conn), requestedAccount: cfg.account || null, family: cfg.family || null,
           model: r.upstreamId,
           canonicalModel: r.model,
-          effort: plan ? plan.effort : r.effort,
-          effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null),   // provider | lain
-          effortWire: plan ? plan.wire : null,          // reasoning_effort | output_config | runtime | null
-          lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null,   // LAIN execution depth (no native effort)
-          reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
+          effort: plan ? plan.effort : r.effort, effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null), effortWire: plan ? plan.wire : null, lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null, reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
           baseUrl: conn.baseUrl, credentialRef: conn.credentialRef || null,   // the key is read just before the request (chat → credentials.ensure), never to list
           get apiKey() { return conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''); }, set apiKey(v) { Object.defineProperty(this, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },   // read when a request is sent — never to draw a header (connections.js)
           ctx: ((conn.models || []).find((x) => x && x.id === r.model) || {}).ctx || conn.ctx || 128000,   // a local model's real window
@@ -537,7 +522,6 @@ async function* anthropicChat(pc, messages, opts) {
 }
 
 // ---------------------------------------------------------------- chat ------
-
 async function* openaiChat(pc, messages, opts) {
   const wire = messages.map((m) => {
     if (m.role === 'tool') return { role: 'tool', tool_call_id: m.tool_call_id, content: String(m.content || '') };
@@ -566,8 +550,7 @@ async function* openaiChat(pc, messages, opts) {
   const cacheable = promptcache.needsExplicitCache(pc, (opts && opts.cfg) || {});
   const body = cacheable ? promptcache.applyToChat(wire) : wire;
   const payload = { model: pc.model, messages: body, stream: true, stream_options: { include_usage: true } };
-  // NATIVE EFFORT (2026-10-02): Z.ai's documented field for GLM-5.3 — only when the route declares it (effortcaps).
-  if (pc.effortWire === 'reasoning_effort' && pc.effort) payload.reasoning_effort = String(pc.effort);
+  if (pc.effortWire === 'reasoning_effort' && pc.effort) payload.reasoning_effort = String(pc.effort);   // native effort (GLM-5.3 on Z.ai), only as declared
   if (opts.tools && opts.tools.length) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   }

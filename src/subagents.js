@@ -156,6 +156,8 @@ async function runOne(app, c, { stage = 0, of = 1, inputs = [], runner = null, s
   order.leaseHolder = holder;
   order.allowCommands = ROLES[c.role].commands;
   session.workOrder = order;
+  // ROLE TOOLS (toolfunnel.ROLE_PACKS): a SCOUT is described read + code intelligence, not the parent's registry.
+  session._agentRole = c.role;
   const job = app.jobs.create({ request: `${c.role} · ${c.objective}`, primary: false, session, kind: 'subagent' });
   job.parentSessionId = app.session.id;
   job.scope = c.writeScope.slice();

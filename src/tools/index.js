@@ -205,30 +205,30 @@ function notOffered(name) {
  * working for. A reader with none (a unit test, a cold start) gets the
  * connection-only vocabulary, which is the same answer it always gave.
  */
-function schemas(app, { turn = false } = {}) {
+function schemas(app, { turn = false, session: turnSession = null } = {}) {
   const all = active(() => app);
-  // A TURN WITH NO FOCUSED SHAPE is sent the whole registry — and so is every
-  // later turn of this session (toolfunnel.js: the list never narrows again).
-  // FAST / ECO SHOW THE CORE SET (profile.js, 2026-10-01). Decided when the profile CHANGES, not per turn, so the
-  // tool list — part of the cached prefix — moves once per switch and then stays put.
-  if (turn && app && app.session) {
+  // EVERY PROFILE GETS CORE + THE PACKS ITS TASK NEEDS (2026-10-02, toolfunnel.packsFor). Opened ONCE per classified
+  // request (keyed by the change class's mark), so the list — part of the cached prefix — never moves between two
+  // steps of one turn, and only grows across a session. A focus packet's own shape (explain / rename / geometry) wins.
+  // THE TURN'S OWN SESSION: a subagent's turn runs on its parent's App and used to inherit the PARENT'S funnel —
+  // every SCOUT was described all 63 tools. A child session with a role gets that role's pack instead.
+  const sess = turnSession || (app && app.session) || null;
+  if (turn && sess && sess._agentRole && sess !== (app && app.session)) {
+    require('../toolfunnel').openForRole(sess, sess._agentRole);
+  } else if (turn && app && app.session) {
     const s = app.session;
-    const prof = require('../profile').of(s, app.cfg);
-    const lean = prof === 'FAST' || prof === 'ECO';
-    if (s._funnelProfile !== prof) {
-      s._funnelProfile = prof;
-      s._funnelSticky = lean ? null : 'all';
-      s._toolFunnel = null;
-      if (lean) require('../toolfunnel').open(s, 'core', { why: `${prof} profile — core tools` });
-    } else if (lean && !s._toolFunnel) require('../toolfunnel').reopen(s);
+    const cc = s._changeClass || null;
+    const thread = s.thread === 'chat' ? 'chat' : null;
+    const key = cc ? `cls:${cc.at}` : `turn:${thread || 'coding'}:${(s.turns || []).length}`;
+    const focus = s._toolFunnel && /^(explain|rename|geometry|symbol-edit)$/.test(String(s._toolFunnel.shape || ''));
+    if (!focus) require('../toolfunnel').openForTurn(s, { cls: cc ? cc.class : null, thread, text: cc ? cc.text : '', key });
   }
-  if (turn && app && app.session && !app.session._toolFunnel) app.session._funnelSticky = 'all';
   // A DECLARED READ-ONLY task is not offered the file writers at all (readonly.js):
   // a tool the model never sees is a write it can never attempt.
-  const offered = require('../readonly').offered(Object.keys(all), app && app.session);
+  const offered = require('../readonly').offered(Object.keys(all), sess);
   // THE TURN'S FUNNEL (toolfunnel.js): what this task is SHOWN. Exposure only —
   // `execute` below still reads the whole active set.
-  return require('../toolfunnel').filter(app && app.session, offered).map((n) => all[n].schema);
+  return require('../toolfunnel').filter(sess, offered).map((n) => all[n].schema);
 }
 
 function has(name, app) { return Object.prototype.hasOwnProperty.call(active(() => app), name); }
