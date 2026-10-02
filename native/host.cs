@@ -480,6 +480,11 @@ class Shell : Form {
   }
 
   async Task Boot() {
+    // CORE FIRST (Phase P, 2026-10-02): the pipe handshake runs WHILE the renderer starts (~0.5 s), so the page's first
+    // /api/state finds the channel open. Messages that arrive before the page is ready are dropped (ToRenderer) — the
+    // page reads the whole state on boot anyway.
+    core.Start();
+
     // A PROFILE OF OUR OWN, under LAIN's own directory. It is the renderer's
     // scratch space — not a browser profile a person manages, and never the
     // profile any Browser Harness role uses.
@@ -605,8 +610,6 @@ class Shell : Form {
       e.Cancel = true;
       OpenExternally(uri);
     };
-
-    core.Start();
 
     // A MODE WINDOW loads the same page in that mode: the Model Dashboard (`#dashboard=<section>`) or the Preview
     // alone (`#detached-preview`, the same surface the Harness detaches). `lain.app` is the page's internal virtual

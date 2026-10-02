@@ -699,7 +699,9 @@ function client() {
 
   // ONE READ IN FLIGHT (2026-10-01): a burst of wakes (a streaming turn) used to start a full /api/state per wake, all
   // overlapping on Core's event loop. Now a poll asked for while one is running becomes ONE trailing read.
-  var polling = null; var pollAgain = false;
+  var polling = null; var pollAgain = false; var firstState = false;
+  // STARTUP MARKS (perf83 reads them): boot → shown → first-state, on the page's own clock.
+  function mark(n) { try { performance.mark(n); } catch (e) { /* no timeline */ } }
   async function poll() {
     if (polling) { pollAgain = true; return polling; }
     polling = (async function () {
@@ -707,7 +709,7 @@ function client() {
         pollAgain = false;
         try {
           var r = await api('/api/state');
-          if (r && r.ok) { S = r.state; render(); }
+          if (r && r.ok) { S = r.state; render(); if (!firstState) { firstState = true; mark('noema:first-state'); } }
         } catch (e) { /* Core restarting; the next poll is the reconnect */ }
       } while (pollAgain);
     })();
@@ -723,6 +725,7 @@ function client() {
   }
 
   function boot() {
+    mark('noema:boot');
     // THE BOX GROWS WITH WHAT IS TYPED, then scrolls: ~200 px in Chat, ~120 px in the IDE sidecar.
     $('ask').addEventListener('input', function () {
       this.style.height = 'auto';
@@ -742,6 +745,7 @@ function client() {
     var deps = { api: api, notice: notice, poll: poll, render: render, ui: ui };
     L.boots.forEach(function (b) { try { b(deps); } catch (e) { if (window.console) console.error('boot', e); } });
     $('app').hidden = false;
+    mark('noema:shown');
     poll();
     // IDLE COST (Gate 3 §93): the snapshot is read every 1.5 s while the window is seen, every 15 s while it is
     // hidden (the tray, minimised) — Core notifies natively meanwhile — and at once when it comes back.
