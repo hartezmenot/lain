@@ -105,10 +105,10 @@ module.exports = async function () {
     assert.ok(app.jobs.all().every((j) => j.kind === 'subagent' && j.state === 'SUCCEEDED'));
   });
 
-  await test('SUBAGENT: a subagent cannot delegate further', async () => {
+  await test('SUBAGENT: a subagent cannot delegate further', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const r = await require('../../src/tools').execute('delegate', { agents: [good()] }, { cwd: '.', workOrder: { bounded: true }, app: {} });
     assert.ok(r.denied);
-  });
+  }));
 
   const hasGit = spawnSync('git', ['--version']).status === 0;
   await test('A/B: isolated worktrees, one verification contract, the passing candidate wins, integrated, verified, cleaned up', async () => {

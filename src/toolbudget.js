@@ -35,7 +35,7 @@ const crypto = require('crypto');
 const DEFAULT_CHARS = 24000;
 const HARD_CAP = 80000;
 const LISTING = /^(?:grep|glob|search|list_dir|find_residue|symbols|dependents|discover_tests)$/;
-const SHELL = /^(?:run_bash|run_cmd|run_powershell|run_tests|process_run|python_run|run_background)$/;
+const SHELL = /^(?:shell|bash|Bash|run_bash|run_cmd|run_powershell|run_tests|process_run|python_run|run_background)$/;
 
 function dir() { return path.join(require('./config').configDir(), 'evidence', 'toolresults'); }
 
@@ -66,7 +66,7 @@ function bound(name, input, result, { cfg = {}, session = null } = {}) {
   const explicitRange = name === 'read_file' && input && (input.limit != null || input.offset != null);
   if (explicitRange && text.length <= HARD_CAP) return text;
   const raw = keepRaw(text);
-  const ref = raw ? `full output kept as ${raw.id} (${raw.path})` : 'full output could not be kept';
+  const ref = raw ? `output saved at ${raw.path}` : 'the full output could not be saved';
   let kept;
   let how;
   if (name === 'read_file') {
@@ -82,10 +82,11 @@ function bound(name, input, result, { cfg = {}, session = null } = {}) {
   } else {
     const head = Math.floor(limit * (SHELL.test(name) ? 0.3 : 0.5));
     const tail = limit - head;
-    kept = `${text.slice(0, head)}\n[… middle ${text.length - head - tail} chars held back …]\n${text.slice(-tail)}`;
-    how = 'the head and the tail are shown';
+    const omitted = text.slice(head, text.length - tail).split('\n').length;
+    kept = `${text.slice(0, head)}\n[… ${omitted} lines omitted …]\n${text.slice(-tail)}`;
+    how = `${omitted} lines omitted`;
   }
-  const note = `\n[LAIN context budget: ${kept.length} of ${text.length} chars shown · ${how} · ${ref}]`;
+  const note = `\n[${how} · ${ref}]`;
   if (session) {
     const l = session._toolBudget = session._toolBudget || [];
     l.push({ at: Date.now(), tool: name, chars: text.length, kept: kept.length, receipt: raw && raw.id });

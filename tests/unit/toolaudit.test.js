@@ -30,7 +30,7 @@ const { test } = require('../helpers');
 
 const reg = require('../../src/tools');
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('TOOLS: what is advertised is EXACTLY what is dispatchable', () => {
     const advertised = reg.schemas().map((s) => s.name).sort();
     const dispatchable = reg.names().slice().sort();
@@ -168,4 +168,4 @@ module.exports = async function () {
       assert.ok(text.length < 3000, `${kind} guidance is ${text.length} characters — it is sent on every step`);
     }
   });
-};
+});

@@ -169,7 +169,7 @@ module.exports = async function () {
     assert.ok(!/\d+% of the/.test(out), 'no percentage without a provider reading');
   });
 
-  await test('SELF: "open the MCP settings" is navigation the window applies once', async () => {
+  await test('SELF: "open the MCP settings" is navigation the window applies once', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const app = appAt(tmpdir());
     const tool = require('../../src/tools/lainself').tools.lain_workspace;
     await tool.run({ action: 'open', surface: 'settings', section: 'mcp' }, { app });
@@ -178,5 +178,5 @@ module.exports = async function () {
     const bad = await tool.run({ action: 'open', surface: 'nowhere' }, { app });
     assert.ok(bad.isError);
     assert.ok(require('../../src/tools').has('lain_workspace', app), 'the tool is in the one vocabulary');
-  });
+  }));
 };

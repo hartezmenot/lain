@@ -49,7 +49,7 @@ async function turn(profile) {
   }
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('FAST AUTO-BG: a full suite still running after the threshold is detached — the turn goes on, the result rejoins', async () => {
     const { a, ms, result } = await turn('FAST');
     assert.match(result, /DETACHED by FAST \(auto-background: (full suite|final smoke|long build\/suite) still running/);
@@ -78,4 +78,4 @@ module.exports = async function () {
     assert.strictEqual(e('node tests/unit/retry.test.js'), null, 'one file');
     assert.strictEqual(e('ls -la'), null);
   });
-};
+});

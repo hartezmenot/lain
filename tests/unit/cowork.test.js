@@ -25,7 +25,7 @@ function start(app, source = 'harness', identity = null) {
   return task;
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('COWORK: source identity is stable and another source cannot take over', () => {
     const app = appAt(tmpdir('cowork-'));
     const marker = binding.bind(app.session, 'harness', binding.sourceBinding('harness', 'owner'));
@@ -232,4 +232,4 @@ module.exports = async function () {
         `cowork/artifacts.js must not consult \`${word}\` — ownership is session + workspace`);
     }
   });
-};
+});

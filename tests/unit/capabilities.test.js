@@ -25,7 +25,7 @@ function writeSkill(root, name, { description = `Does ${name} things`, extra = '
   return dir;
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   const { App } = require('../../src/app');
   const skills = require('../../src/skills');
   const mcpreg = require('../../src/mcpreg');
@@ -99,7 +99,8 @@ module.exports = async function () {
       mcpreg.remember(id, Array.from({ length: toolsEach }, (_, j) => ({ name: `tool_${j}`, description: `Does thing ${j} on server ${i} with a long explanation ${'.'.repeat(120)}`, inputSchema: { type: 'object', properties: { a: { type: 'string', description: 'x'.repeat(200) }, b: { type: 'number' } } }, annotations: { readOnlyHint: j % 2 === 0 } })));
     }
   }
-  function clearServers(app) { for (const id of Object.keys(app.cfg.integrations.mcp)) mcpreg.forget(id); app.cfg.integrations.mcp = {}; mcpreg.clearMemo(); }
+  // THE STORE THE CODE WROTE TO (integrations.store follows app._sibling), not only this App's cfg.
+  function clearServers(app) { const st = require('../../src/integrations').store(app); for (const id of Object.keys(st.mcp)) { mcpreg.forget(id); delete st.mcp[id]; } app.cfg.integrations.mcp = {}; require('../../src/integrations').save(app); mcpreg.clearMemo(); }   // a route may have saved them to disk
 
   await test('MCP: twenty servers are found by search and called by mcp_call — none is described on the request; health says IDLE', async () => {
     const app = mk();
@@ -269,4 +270,4 @@ module.exports = async function () {
     assert.deepStrictEqual([zero.promptBytes, zero.capTools], [0, 0], 'nothing installed costs nothing');
     process.stdout.write(`      ${rows.map((r) => `${r.nSkills}sk/${r.nServers}srv: prompt ${r.promptBytes}B · tools ${r.capTools} (${r.capBytes}B) · catalog ${r.catalogBytes}B kept off the request · index ${r.indexMs}ms (cached ${r.cachedMs}ms)`).join('\n      ')}\n`);
   });
-};
+});

@@ -187,7 +187,7 @@ module.exports = async function () {
    *
    * Exit 2 and above stay errors: for these tools that really is a fault.
    */
-  await test('SHELL: grep exit 1 is NO MATCH, not an error — and exit 2 still is', async () => {
+  await test('SHELL: grep exit 1 is NO MATCH, not an error — and exit 2 still is', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const shell = require('../../src/tools/shell');
     const dir = tmpdir('lain-nomatch-');
     fs.writeFileSync(path.join(dir, 'a.txt'), 'hello world\n');
@@ -232,5 +232,5 @@ module.exports = async function () {
     assert.doesNotMatch(viaTool.output, /APPLICATION_ERROR/, viaTool.output);
     const realFail = await tools.execute('run_bash', { command: 'false' }, ctx);
     assert.match(realFail.output, /CLASSIFICATION:/, 'a real failure still carries its classification');
-  });
+  }));
 };

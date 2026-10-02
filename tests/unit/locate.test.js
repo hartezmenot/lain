@@ -158,7 +158,7 @@ module.exports = async function () {
     assert.match(r.text, /more lines — read_symbol huge for the whole definition/);
   });
 
-  await test('LOCATE: the tool is registered and reachable from the live tool list', () => {
+  await test('LOCATE: the tool is registered and reachable from the live tool list', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     // §31: a capability that is not advertised is not implemented. This is the
     // assertion that would fail if the composition existed only as a module.
     const tools = require('../../src/tools');
@@ -170,5 +170,5 @@ module.exports = async function () {
     assert.match(schema.description, /START HERE/, 'and it must say when to reach for it');
     assert.match(schema.description, /LEXICAL/, 'and be honest about what it is not');
     assert.strictEqual(require('../../src/tools/intel').tools.locate.mutates, false);
-  });
+  }));
 };

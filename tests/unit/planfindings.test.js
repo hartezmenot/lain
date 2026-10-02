@@ -101,7 +101,7 @@ module.exports = async function () {
     assert.ok(!/already established/.test(p.digest(900)));
   });
 
-  await test('FINDINGS: the model has a bounded way to write one', () => {
+  await test('FINDINGS: the model has a bounded way to write one', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const tools = require('../../src/tools');
     assert.ok(tools.names().includes('plan_findings'), 'the tool is registered');
     const schema = tools.schemas().find((t) => (t.name || (t.function && t.function.name)) === 'plan_findings');
@@ -112,7 +112,7 @@ module.exports = async function () {
     // THE TOOL DESCRIBES ITSELF. The standing policy no longer introduces tools by name (it teaches judgment; the
     // schemas carry the mechanics), so what the model reads about plan_findings is its own description.
     assert.ok(String(schema.description || '').length >= 20, 'the schema says what it is for');
-  });
+  }));
 
   await test('DERIVED: LAIN knows what landed even if the model never said so', () => {
     // ---- THE LIMITATION THIS CLOSES -------------------------------------

@@ -180,6 +180,7 @@ function index({ cfg = null, projectRoot = null, configDir = null, now = Date.no
     ...scanRoot(uRoot, 'user', { disabled: reg.disabled }),
     ...reg.extra.map((f) => entry(f, 'user')).filter(Boolean),
     ...pluginSkills(configDir),
+    ...(require('./simple').on(cfg) ? scanRoot(path.join(__dirname, '..', 'skills'), 'builtin') : []),   // shipped with LAIN (migrate); simple mode only, lowest precedence
   ];
   const byName = new Map();
   const shadowed = [];

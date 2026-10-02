@@ -32,7 +32,7 @@ const saved = {};
 function env(k, v) { if (!(k in saved)) saved[k] = process.env[k]; if (v == null) delete process.env[k]; else process.env[k] = v; }
 function restore() { for (const [k, v] of Object.entries(saved)) { if (v == null) delete process.env[k]; else process.env[k] = v; delete saved[k]; } }
 
-module.exports = async function run() {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   // ---------------------------------------------------------------- migration --
 
   await test('MIGRATION IS A STATE TRANSITION: the steer\'s valid triggers are eligible, and name both sides', () => {
@@ -256,4 +256,4 @@ module.exports = async function run() {
     assert.strictEqual(d.migration.offered, false);
     assert.strictEqual(await require('../../src/layaevidence').take(app, app.session, 0), '', 'no receipt, SHADOW: nothing attached');
   });
-};
+});

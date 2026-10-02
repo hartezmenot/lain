@@ -496,7 +496,7 @@ async function* anthropicChat(pc, messages, opts) {
       usage.inputTokens = u.input_tokens || 0;
       usage.cacheReadTokens = u.cache_read_input_tokens || 0;
       usage.cacheCreationTokens = u.cache_creation_input_tokens || 0;
-      usage.cacheReported = u.cache_read_input_tokens != null || u.cache_creation_input_tokens != null;
+      usage.cacheReported = u.cache_read_input_tokens != null || u.cache_creation_input_tokens != null; usage.promptTokens = usage.inputTokens + usage.cacheReadTokens + usage.cacheCreationTokens;   // Anthropic's input excludes the cache
       // ---- THE ONLY GENUINELY LIVE NUMBER IN A REQUEST --------------------
       //
       // The input side is complete HERE, at the first frame, before a single
@@ -574,7 +574,7 @@ async function* openaiChat(pc, messages, opts) {
       const c = promptcache.usageFrom(j.usage);
       usage.cacheReadTokens = c.cacheReadTokens || usage.cacheReadTokens || 0;
       usage.cacheCreationTokens = c.cacheCreationTokens || usage.cacheCreationTokens || 0;
-      usage.cacheReported = usage.cacheReported || c.reported; if (c.reasoningTokens != null) usage.reasoningTokens = c.reasoningTokens;
+      usage.cacheReported = usage.cacheReported || c.reported; if (c.reasoningTokens != null) usage.reasoningTokens = c.reasoningTokens; usage.promptTokens = usage.inputTokens;   // prompt_tokens includes the cache
       // ---- LIVE ONLY IF IT GENUINELY ARRIVED EARLY ------------------------
       //
       // This shape has no `message_start`, so there is no guaranteed moment at

@@ -155,7 +155,7 @@ module.exports = async function () {
     assert.strictEqual(session.contextChars(), chars, 'a compacted compact is a no-op');
   });
 
-  await test('LAIN: the four doors are advertised and dispatchable', async () => {
+  await test('LAIN: the four doors are advertised and dispatchable', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const cwd = root();
     try {
       for (const name of ['concept', 'architecture', 'wiring', 'scratch']) {
@@ -169,7 +169,7 @@ module.exports = async function () {
     } finally {
       fs.rmSync(cwd, { recursive: true, force: true });
     }
-  });
+  }));
 
   await test('LAIN: seeding records observations, never guessed intent', async () => {
     const cwd = root();

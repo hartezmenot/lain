@@ -115,8 +115,10 @@ function render(schemas, family) {
   if (!d) return schemas;
   if (family === 'local') return schemas.map((s) => ({ ...s, parameters: { ...(s.parameters || {}), additionalProperties: false } }));
   const present = new Set(schemas.map((s) => s.name));
-  const aliases = Object.entries(d).filter(([, x]) => present.has(x.canonical));
-  const replaced = new Set(aliases.map(([, x]) => x.canonical));
+  // THE ONE `shell` TOOL (simple mode) stands in for run_bash: a family's shell alias replaces it.
+  const canon = (c) => (c === 'run_bash' && !present.has(c) && present.has('shell') ? 'shell' : c);
+  const aliases = Object.entries(d).filter(([, x]) => present.has(canon(x.canonical)));
+  const replaced = new Set(aliases.map(([, x]) => canon(x.canonical)));
   const added = aliases.map(([alias, x]) => ({ name: alias, description: `${x.description} [${opOf(x.canonical) || 'tool'}]`, parameters: x.schema }));
   return [...schemas.filter((s) => !replaced.has(s.name)), ...added];
 }

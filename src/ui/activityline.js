@@ -70,8 +70,15 @@ function receipt(u) {
   if (Number(u.inputTokens) > 0) parts.push(`in ${tok(u.inputTokens)}`);
   if (Number(u.reasoningTokens) > 0) parts.push(`reasoning ${tok(u.reasoningTokens)}`);
   if (Number(u.outputTokens) > 0) parts.push(`out ${tok(u.outputTokens)}`);
-  if (u.cacheReadTokens != null && Number(u.cacheReadTokens) > 0) parts.push(`cache ${tok(u.cacheReadTokens)}`);
+  if (u.cacheReadTokens != null && Number(u.cacheReadTokens) > 0) parts.push(`cache ${tok(u.cacheReadTokens)}${cachePct(u) != null ? ` (${cachePct(u)}%)` : ''}`);
   return parts.join(' · ');
 }
 
-module.exports = { tok, estTokens, backgroundOf, backgroundLabel, receipt, KINDS };
+/** The share of the prompt served from the provider's cache, or null when the provider stated no prompt size. */
+function cachePct(u) {
+  const prompt = Number(u && u.promptTokens) || 0;
+  const read = Number(u && u.cacheReadTokens) || 0;
+  return prompt > 0 ? Math.min(100, Math.round((100 * read) / prompt)) : null;
+}
+
+module.exports = { tok, estTokens, backgroundOf, backgroundLabel, receipt, cachePct, KINDS };

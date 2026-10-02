@@ -125,7 +125,7 @@ module.exports = async function () {
     assert.ok(cands.check(contract, [{ status: 'D', path: 'src/old.js' }]).ok, 'a deletion named in ownedFiles is the contract');
   });
 
-  await test('CANDIDATE: integration is the main agent\'s — through the normal write door; a canonical change since the base is a CONFLICT', async () => {
+  await test('CANDIDATE: integration is the main agent\'s — through the normal write door; a canonical change since the base is a CONFLICT', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     if (!hasGit) return;
     leases._reset();
     const { root } = repo();
@@ -154,7 +154,7 @@ module.exports = async function () {
     assert.strictEqual(fs.readFileSync(path.join(root, 'backend', 'api.js'), 'utf8'), 'module.exports = 10;\n');
     assert.strictEqual(fs.readFileSync(path.join(root, 'frontend', 'ui.js'), 'utf8'), 'module.exports = 99;\n', 'the main agent\'s own work was not overwritten');
     assert.ok(r.mutated.length >= 2, 'recorded as ordinary mutations');
-  });
+  }));
 
   await test('CANDIDATE: parallel children get separate workspaces from the SAME base; neither sees the other', async () => {
     if (!hasGit) return;

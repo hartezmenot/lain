@@ -175,10 +175,10 @@ module.exports = async function () {
     assert.ok(plugins.uninstall('acme.review', { configDir: cfg }).ok);
   });
 
-  await test('PLUGINS: the real tool gate refuses a tool outside the grant', async () => {
+  await test('PLUGINS: the real tool gate refuses a tool outside the grant', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const tools = require('../../src/tools');
     const app = { session: { _pluginGrant: { plugin: 'x', name: 'X', permissions: ['read'] }, messages: [], cwd: cfg } };
     const r = await tools.execute('run_bash', { command: 'echo nope' }, { app });
     assert.ok(r.denied && /PLUGIN_PERMISSION/.test(r.output), JSON.stringify(r).slice(0, 200));
-  });
+  }));
 };

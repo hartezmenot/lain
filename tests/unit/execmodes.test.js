@@ -31,7 +31,7 @@ module.exports = async function () {
     assert.strictEqual(execmode.cycle(back), 'AUTO');
   });
 
-  await test('MODE: PLAN refuses a write and a command at the tool door, and changes nothing', async () => {
+  await test('MODE: PLAN refuses a write and a command at the tool door, and changes nothing', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const root = tmpdir('plan-');
     const s = new Session({ cwd: root });
     execmode.set(s, 'PLAN');
@@ -45,7 +45,7 @@ module.exports = async function () {
     fs.writeFileSync(path.join(root, 'b.txt'), 'read me');
     const read = await tools.execute('read_file', { path: 'b.txt' }, ctx);
     assert.match(read.output, /read me/, 'reading is always allowed in PLAN');
-  });
+  }));
 
   await test('MODE: a check refused by PLAN is not a failed check — no NOT VERIFIED, not under VERIFY', async () => {
     // Live, 2026-09-18: PLAN refused run_tests; the turn closed "NOT VERIFIED ·

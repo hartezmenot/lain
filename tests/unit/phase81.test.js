@@ -135,7 +135,7 @@ module.exports = async function () {
     assert.ok(!app.cfg.connections['lain:env']);
   });
 
-  await test('MCP: a fixture server connects, lists capabilities, its tools reach the model (read-only vs asking), disable / enable / remove; a secret env value is kept out of the config', async () => {
+  await test('MCP: a fixture server connects, lists capabilities, its tools reach the model (read-only vs asking), disable / enable / remove; a secret env value is kept out of the config', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const app = mk();
     const connsBefore = JSON.stringify(app.cfg.connections || {});
     const log = path.join(tmpdir('mcp-log-'), 'log.txt');
@@ -170,7 +170,7 @@ module.exports = async function () {
     assert.ok(!tools.names(app).some((n) => n.startsWith('mcp__')));
     assert.ok(fs.readFileSync(log, 'utf8').includes('tools/list'));
     assert.strictEqual(JSON.stringify(app.cfg.connections || {}), connsBefore, 'no model/provider state was touched');
-  });
+  }));
 
   await test('SKILLS: validated before use, added disabled, enabled explicitly, announced to the model by name and path, removed', async () => {
     const app = mk();
@@ -184,18 +184,18 @@ module.exports = async function () {
     assert.strictEqual(a.code, 200, JSON.stringify(a.body));
     assert.strictEqual(a.body.skill.enabled, false, 'added disabled');
     assert.ok(a.body.validation.warnings.some((w) => /never runs them on its own/.test(w)), 'scripts are named, not run');
-    assert.strictEqual(require('../../src/integrations').skillsPrompt(app), '', 'a disabled skill is not announced');
+    assert.ok(!/godot-scenes/.test(require('../../src/integrations').skillsPrompt(app)), 'a disabled skill is not announced');
     // PHASE 8.3: a skill carrying a script is enabled only with a confirm, after its files were shown.
     const unconfirmed = await call(app, '/api/integrations/skill/enable', { id: a.body.id, enabled: true });
     assert.strictEqual(unconfirmed.code, 409); assert.strictEqual(unconfirmed.body.needsConfirm, true);
     assert.deepStrictEqual(unconfirmed.body.scripts, ['helper.py'], 'the script is named before it is enabled');
-    assert.strictEqual(require('../../src/integrations').skillsPrompt(app), '', 'still not announced');
+    assert.ok(!/godot-scenes/.test(require('../../src/integrations').skillsPrompt(app)), 'still not announced');
     await call(app, '/api/integrations/skill/enable', { id: a.body.id, enabled: true, confirm: true });
     const p = require('../../src/integrations').skillsPrompt(app);
     assert.match(p, /godot-scenes: How to build Godot scenes/);
     // PHASE CAP (2026-10-02): the prompt names the skill; its body is read on demand (use_skill), so no path is sent.
     assert.match(p, /use_skill\(name\)/);
-    assert.ok(require('../../src/tools').names(app).includes('use_skill'), 'use_skill exists once a skill is enabled');
+    assert.ok(['use_skill', 'Skill'].some((n) => require('../../src/tools').names(app).includes(n)), 'the skill tool exists once a skill is enabled');
     assert.match(require('../../src/promptparts').durable(app, app.session).agents, /# Skills/);
     await call(app, '/api/integrations/skill/remove', { id: a.body.id });
     assert.deepStrictEqual((await call(app, '/api/skills')).body.skills, []);

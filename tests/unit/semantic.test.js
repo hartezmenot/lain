@@ -542,13 +542,13 @@ module.exports = async function () {
     assert.ok(!/list_symbols/.test(require('../../src/prompt').BASE), 'the system prompt names no tool mechanics');
   });
 
-  await test('TOOLS: every semantic tool is advertised AND dispatchable', () => {
+  await test('TOOLS: every semantic tool is advertised AND dispatchable', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const registry = require('../../src/tools');
     for (const name of Object.keys(semantic.tools)) {
       assert.ok(registry.has(name), `${name} is not dispatchable`);
       assert.ok(registry.schemas().some((s) => s.name === name), `${name} has no schema`);
     }
-  });
+  }));
 
   await test('TOOLS: the ones that write are declared mutating, so /undo can capture them', () => {
     for (const name of ['replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol']) {

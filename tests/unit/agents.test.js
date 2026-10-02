@@ -105,10 +105,10 @@ module.exports = async function () {
     assert.strictEqual(require('../../src/bgdetach').takeContext(app.session), '', 'delivered once');
   });
 
-  await test('NO TEAMS: a subagent cannot delegate, and agents only ever report to the main agent', async () => {
+  await test('NO TEAMS: a subagent cannot delegate, and agents only ever report to the main agent', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const r = await require('../../src/tools').execute('delegate', { agents: [scout('x')] }, { app: fakeApp(tmpdir('ag-team-')), workOrder: { bounded: true } });
     assert.ok(r.denied && /a subagent cannot use delegate/.test(r.output));
     assert.ok(!require('../../src/toolfunnel').ROLE_PACKS.SCOUT.includes('delegation'));
     for (const role of Object.keys(require('../../src/toolfunnel').ROLE_PACKS)) assert.ok(!require('../../src/toolfunnel').ROLE_PACKS[role].includes('delegation'), `${role} has no delegation tools`);
-  });
+  }));
 };

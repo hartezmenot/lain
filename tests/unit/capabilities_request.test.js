@@ -26,7 +26,7 @@ function appWith(answers, extra = {}) {
   };
 }
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   await test('REQUEST_BROWSER: admission → permission → a REAL inspection → evidence, and a session grant is not asked again', async () => {
     const calls = [];
     const { app, asked } = appWith(['Allow session']);
@@ -188,4 +188,4 @@ module.exports = async function () {
       assert.deepStrictEqual(bare, { lain: true }, 'no nonce, no proof — and the key itself is never served');
     } finally { await srv.close(); impostor.close(); }
   });
-};
+});

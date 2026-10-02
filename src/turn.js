@@ -160,6 +160,7 @@ async function* runTurn(session, userInput, opts = {}) {
   // TOOL DIALECT (discipline/dialect.js): same operations, the vocabulary its family speaks.
   const full = require('./discipline/dialect').forTurn(session, opts.tools === false ? [] : toolRegistry.schemas(opts.app, { turn: true, session }), pc.model, cfg);
   const schemas = require('./profile').of(session, cfg) === 'ECO' ? require('./schemacompact').compact(full) : full;   // ECO: same tools, fewer words
+  { const grew = opts.simple ? require('./simple').toolSetNote(session, schemas) : null; if (grew) yield { type: 'notice', level: 'info', transient: true, message: grew }; }
   // `ask` lets ask_user reach the interaction panel. Absent on non-interactive
   // runs, where the tool says so rather than hanging.
   // `app` is here for ONE tool: `computer`, which must reach the permission gate
@@ -530,7 +531,7 @@ async function* runTurn(session, userInput, opts = {}) {
 
     wakeNote = '';
     if (usage) {
-      for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens']) record.usage[k] += usage[k] || 0; if (Number.isFinite(usage.reasoningTokens)) record.usage.reasoningTokens = (record.usage.reasoningTokens || 0) + usage.reasoningTokens;   // reasoning only when STATED
+      for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens', 'promptTokens']) record.usage[k] = (record.usage[k] || 0) + (usage[k] || 0); if (Number.isFinite(usage.reasoningTokens)) record.usage.reasoningTokens = (record.usage.reasoningTokens || 0) + usage.reasoningTokens;   // reasoning only when STATED
     } require('./cacheledger').settle(session, fitted.cache, usage, pc);   // expected (cachebudget) vs billed, per request
     const repeatsFinal = !opts.simple && require('./finish').repeatsFinal(session.messages, text, calls);   // legacy: one completion per turn (finish.js)
     if (repeatsFinal) record.repeatedFinal = (record.repeatedFinal || 0) + 1;

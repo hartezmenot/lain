@@ -121,7 +121,23 @@ const TOOLS = {
  * below reads THIS, so schemas and dispatch cannot drift apart — the property
  * the architecture guard checks.
  */
+/** THE TOOLS A SESSION HAS: the fixed set in simple mode (tools/core.js), the legacy registry otherwise. */
 function active(ctxApp) {
+  const app = typeof ctxApp === 'function' ? ctxApp() : ctxApp;
+  return require('../simple').on(app) ? simpleActive(app) : legacyActive(app);
+}
+
+/** SIMPLE (S2): the core set, plus Computer Control and the Preview when the person enabled them. */
+function simpleActive(app) {
+  const core = require('./core');
+  const full = legacyActive(app);
+  const out = {};
+  for (const n of core.CORE) out[n] = core.tools[n] || full[n];
+  for (const [n, t] of Object.entries(full)) if (n === 'computer' || /^computer_|^preview_/.test(n)) out[n] = t;
+  return out;
+}
+
+function legacyActive(ctxApp) {
   const app = typeof ctxApp === 'function' ? ctxApp() : ctxApp;
   let mcpConfigured = false;
   try { mcpConfigured = require('../mcp').configured(require('../config').load()); } catch { mcpConfigured = false; }
@@ -183,13 +199,10 @@ function active(ctxApp) {
   if (!app || (session && session._previewTools) || process.env.LAIN_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
   if (!require('../dispatch').offersMigration(session)) out = without(out, MIGRATION_TOOLS);
   if (!(session && session._botTurn)) out = without(out, BOT_TOOLS);
-  if (require('../simple').on(app)) out = without(out, [...SIMPLE_OFF]);   // offered and dispatchable are one list
   return out;
 }
 
 const MIGRATION_TOOLS = ['migration_plan', 'migration_verify', 'migration_activate'];
-/** Off in simple mode (S1): the model reports its own result; nothing certifies it. */
-const SIMPLE_OFF = new Set(['request_completion', 'task_contract']);
 const BOT_TOOLS = ['hand_to_coding_agent'];
 function without(all, names) {
   if (!names.some((n) => Object.prototype.hasOwnProperty.call(all, n))) return all;
@@ -217,8 +230,13 @@ function notOffered(name) {
  */
 function schemas(app, { turn = false, session: turnSession = null } = {}) {
   const all = active(() => app);
-  // SIMPLE (simple.js): no task-shaped packs and no completion ceremony — the registry as it stands.
-  if (require('../simple').on(app)) return Object.keys(all).map((n) => all[n].schema);
+  // SIMPLE: the fixed set; an agent never gets Agent, and an explore agent only reads.
+  if (require('../simple').on(app)) {
+    const sess = turnSession || (app && app.session) || null;
+    let list = Object.keys(all);
+    if (sess && sess._agentType) list = list.filter((n) => n !== 'Agent' && (sess._agentType !== 'explore' || require('./core').READ_ONLY.has(n)));
+    return list.map((n) => all[n].schema);
+  }
   // EVERY PROFILE GETS CORE + THE PACKS ITS TASK NEEDS (2026-10-02, toolfunnel.packsFor). Opened ONCE per classified
   // request (keyed by the change class's mark), so the list — part of the cached prefix — never moves between two
   // steps of one turn, and only grows across a session. A focus packet's own shape (explain / rename / geometry) wins.
@@ -252,7 +270,7 @@ function names(app) { return Object.keys(active(() => app)); }
  * Execute one call. An unknown name is a normal, recoverable result — the model
  * gets told what does exist and picks again.
  */
-async function execute(name, input, ctx, { canonical = false } = {}) {
+async function execute(name, input, ctx, { canonical = false, deferred = false } = {}) {
   const app = (ctx && ctx.app) || null;
   // ---- A MODEL'S OWN TOOL DIALECT (discipline/dialect.js) ------------------------------------------------------
   // Claude's Read/Edit/Grep, Codex's shell/apply_patch, GLM's bash/str_replace: translated here and run as the
@@ -266,7 +284,8 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
       const outs = []; const mutated = []; let last = null;
       for (const c of dl.calls) {
         // eslint-disable-next-line no-await-in-loop -- one patch's file operations apply in order.
-        last = await execute(c.name, c.input, ctx, { canonical: true });
+        const reg = active(() => app);
+        last = await execute(c.name === 'run_bash' && !reg.run_bash && reg.shell ? 'shell' : c.name, c.input, ctx, { canonical: true });
         outs.push(dl.calls.length > 1 ? `${c.name} ${(c.input && c.input.path) || ''}: ${last.output}` : last.output);
         for (const m of last.mutated || []) mutated.push(m);
         if (last.isError) break;
@@ -274,7 +293,10 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
       return { ...last, output: outs.join('\n'), mutated, dialect: dl.from };
     }
   }
-  const tool = active(() => app)[name];
+  // A DEFERRED TOOL (simple mode) runs by its own name too, once tool_search has shown it — same door, same gates;
+  // the described list stays fixed. Retired names (ceremony, judges) never run.
+  const simpleMode = require('../simple').on(app);
+  const tool = (deferred ? legacyActive(app) : active(() => app))[name] || (simpleMode && !deferred ? require('./core').deferred(app)[name] : undefined);
   if (!tool) {
     // A NAME THAT IS NOT OURS BUT WHOSE MEANING IS — a foreign namespace
     // ("functions/grep") or a known foreign tool ("print_tree"). Recovered
@@ -304,6 +326,8 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
   try { require('../toolfunnel').miss((ctx && ctx.session) || (app && app.session), name); } catch { /* metrics only */ }
   // THE DESKTOP IS THE PRIMARY AGENT'S (Phase CU): a subagent never drives it unless the person set cfg.computer.agents —
   // a permission, not exposure, so it holds even for a tool the funnel did not show.
+  // AN AGENT'S TOOLS ARE ITS TYPE'S (agentrun.js): no agents from agents; an explore agent never writes or runs.
+  { const s = (ctx && ctx.session) || null; if (s && s._agentType && (name === 'Agent' || (s._agentType === 'explore' && tool.mutates && name !== 'call_tool'))) return { output: `DENIED: ${name === 'Agent' ? 'an agent cannot start agents' : `an explore agent only reads — ${name} changes things`}.`, isError: true, denied: true }; }
   { const s = (ctx && ctx.session) || null; if (s && s._agentRole && require('../toolfunnel').familyOf(name) === 'computer' && !(app && app.cfg && app.cfg.computer && app.cfg.computer.agents)) return { output: `DENIED: ${name} drives the person's desktop, and subagents never do (only the primary agent).`, isError: true, denied: true }; }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
@@ -488,4 +512,4 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
   return post(r);
 }
 
-module.exports = { TOOLS, active, schemas, execute, has, isMutating, effect, names };
+module.exports = { TOOLS, active, legacyActive, schemas, execute, has, isMutating, effect, names };

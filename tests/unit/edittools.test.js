@@ -37,7 +37,7 @@ function project(files) {
 const run = (name, input, cwd) => tools.execute(name, input, { cwd });
 const read = (dir, rel) => fs.readFileSync(path.join(dir, rel), 'utf8');
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   // ------------------------------------------------------------ apply_patch --
 
   await test('PATCH: it replaces exactly the lines it said it would', async () => {
@@ -264,4 +264,4 @@ module.exports = async function () {
     const mixed = await run('apply_patch', { path: 'store.js', expect: '    1\t// Workspace settings, kept fresh.' + NL + 'nope', replace: 'x' }, dir);
     assert.ok(mixed.isError);
   });
-};
+});

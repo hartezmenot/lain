@@ -213,7 +213,7 @@ module.exports = async function () {
     } finally { delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT; }
   });
 
-  await test('FINDINGS: report_finding is structured Core state; Discuss switches to Chat with it; Use this fix steers the Agent', async () => {
+  await test('FINDINGS: report_finding is structured Core state; Discuss switches to Chat with it; Use this fix steers the Agent', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const app = mk();
     const tools = require('../../src/tools');
     const out = await tools.execute('report_finding', { severity: 'major', summary: 'Two owners write the model selection', evidence: ['src/cli.js:120'], affected: ['phase 3'], possible_fix: 'keep the project value only as a default', blocking: true }, { session: app.session, cwd: app.session.cwd });
@@ -230,7 +230,7 @@ module.exports = async function () {
     assert.strictEqual(use.code, 200);
     assert.match(steered, /keep the project value only as a default/);
     app.abort = null;
-  });
+  }));
 
   await test('PERSISTENCE: strategy, steers, findings and phases survive save and resume', async () => {
     const app = mk();

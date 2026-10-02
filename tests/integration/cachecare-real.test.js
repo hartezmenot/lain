@@ -30,8 +30,8 @@ module.exports = async function () {
       cwd, configDir, env,
       stdin: 'add a greeting module in two steps\n/exit\n',
       script: [
-        { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { steps: ['write greet.js', 'write its test'] } }] },
-        { text: 'greet.js.', tool_calls: [{ name: 'write_file', input: { path: 'src/greet.js', content: 'module.exports = (n) => `hi ${n}`;\n' } }, { name: 'plan_step_done', input: { note: 'greet.js written' } }] },
+        { text: 'Planning.', tool_calls: [{ name: 'todo_write', input: { todos: [{ content: 'write greet.js', status: 'in_progress' }, { content: 'write its test', status: 'pending' }] } }] },
+        { text: 'greet.js.', tool_calls: [{ name: 'write_file', input: { path: 'src/greet.js', content: 'module.exports = (n) => `hi ${n}`;\n' } }, { name: 'todo_write', input: { todos: [{ content: 'write greet.js', status: 'completed' }, { content: 'write its test', status: 'pending' }] } }] },
         { text: 'The test is next.' },
       ],
       timeoutMs: 40000,
@@ -40,7 +40,7 @@ module.exports = async function () {
     const sessions = path.join(configDir, 'sessions');
     const sessionFile = path.join(sessions, fs.readdirSync(sessions).find((f) => /^\d{8}-\d{6}-[a-z0-9]{4}\.json$/.test(f)));
     const before = JSON.parse(fs.readFileSync(sessionFile, 'utf8'));
-    assert.ok(before.task && before.plan && before.checkpoint && before.checkpoint.done === 1, 'a task, a plan and a committed checkpoint');
+    assert.ok(before.task && before.plan && before.plan.steps.filter((x) => x.status === 'done').length === 1, 'a task and a plan with one step done');
 
     // 2) EVERYTHING ELSE THE SPEC NAMES, beside it.
     const aged = Date.now() - 3 * 86400000;

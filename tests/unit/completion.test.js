@@ -30,7 +30,7 @@ const ran = (life, command, exitCode) => life.observeTool({
   name: 'run_bash', input: { command }, output: 'out', isError: exitCode !== 0, exitCode,
 });
 
-module.exports = async function () {
+module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
   // ---------------------------------------------------------- reachability ---
 
   await test('COMPLETION: the model can create a plan at all', async () => {
@@ -177,4 +177,4 @@ module.exports = async function () {
     ran(life, 'npm test', 0);
     assert.strictEqual(life.evidence.verifiedChecks, 1);
   });
-};
+});

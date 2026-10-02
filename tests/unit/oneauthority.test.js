@@ -187,12 +187,12 @@ module.exports = async function () {
     assert.ok(!/sitesIn\(|readdirSync/.test(code('focuspacket.js')), 'the focus packet keeps no scanner of its own');
   });
 
-  await test('ONE AUTHORITY · TOOLS: the funnel narrows what a turn is SHOWN; execution reads the whole active set', () => {
+  await test('ONE AUTHORITY · TOOLS: the funnel narrows what a turn is SHOWN; execution reads the whole active set', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
     const idx = code('tools/index.js');
     assert.ok(/toolfunnel'\)\.filter\(/.test(idx.split('function schemas(')[1].split('function has(')[0]), 'schemas() applies the funnel');
     const exec = idx.split('async function execute(')[1];
-    assert.ok(/const tool = active\(\(\) => app\)\[name\]/.test(exec) && !/toolfunnel'\)\.(filter|shows)\(/.test(exec.split('toolfunnel\')')[0]), 'execute() is not narrowed by the funnel');
-  });
+    assert.ok(/const tool = \(deferred \? legacyActive\(app\) : active\(\(\) => app\)\)\[name\]/.test(exec) && !/toolfunnel'\)\.(filter|shows)\(/.test(exec.split('toolfunnel\')')[0]), 'execute() is not narrowed by the funnel');
+  }));
 
   await test('ONE AUTHORITY · DEBUG: paused state is asked for, never injected into a turn', () => {
     assert.ok(/pausedAt\(app\)/.test(code('harnesscontext.js')) && !/dap\/manager'\)\.context\(/.test(code('harnesscontext.js')), 'the packet says WHERE, not the variables');

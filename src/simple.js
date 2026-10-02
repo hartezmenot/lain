@@ -36,4 +36,22 @@ function settle(app) {
   if (life) { life.state = 'IDLE'; life.reason = ''; }
 }
 
-module.exports = { on, identify, settle };
+/**
+ * THE TOOL SET IS FIXED FOR A SESSION; enabling Computer Control or the Preview mid-session grows it once, at a turn
+ * boundary. Returns the log line for that (the cached prefix restarts once), or null when nothing changed.
+ */
+function toolSetNote(session, schemas) {
+  if (!session) return null;
+  const names = schemas.map((s) => s.name);
+  const prev = session._toolNames;
+  session._toolNames = names;
+  if (!prev) return null;
+  const added = names.filter((n) => !prev.includes(n));
+  const gone = prev.filter((n) => !names.includes(n));
+  if (!added.length && !gone.length) return null;
+  const line = `tools changed for this session: ${[...added.map((n) => `+${n}`), ...gone.map((n) => `-${n}`)].slice(0, 8).join(' ')} — the cached prefix restarts once`;
+  (session.toolSetLog = session.toolSetLog || []).push({ at: Date.now(), added, gone });
+  return line;
+}
+
+module.exports = { on, identify, settle, toolSetNote };
