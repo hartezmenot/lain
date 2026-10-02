@@ -126,15 +126,15 @@ module.exports = async function () {
     const ui = { app: { session }, busy: true, phase: { phase: 'RUNNING_TOOL' }, clock: { state: 'RUNNING', startedAt: Date.now() - 258000, accumulated: 0 } };
     const run = hs.run(ui);
     // NOT `RUNNING · 04:18` (2026-10-01): the activity line below owns what is happening and for how long.
-    assert.strictEqual(run.parts[0], 'AUTO');
+    assert.strictEqual(run.parts[0], 'Auto');
     assert.ok(!run.parts.includes('RUNNING') && !run.parts.some((p) => /^\d+:\d\d/.test(p)), run.parts.join(' · '));
     assert.ok(run.parts.includes('3/7'), run.parts.join(' · '));
     session.execMode = 'PLAN';
-    assert.deepStrictEqual(hs.run(ui).parts.slice(0, 2), ['PLAN', 'discussing']);
+    assert.deepStrictEqual(hs.run(ui).parts.slice(0, 2), ['Plan', 'read-only']);
     assert.ok(!hs.run(ui).parts.some((p) => /\d+\/\d+/.test(p)), 'no 3/7 while discussing');
     assert.strictEqual(require('../../src/ui/progress').livePlan(session), null, 'and no surface shows plan progress in PLAN');
     session.execMode = 'MANUAL'; ui.busy = false; ui.phase = null;
-    assert.strictEqual(hs.run(ui).parts[0], 'MANUAL');
+    assert.strictEqual(hs.run(ui).parts[0], 'Ask', 'the old MANUAL is Ask');
     const h = strip(views.header({ cwd: '/x/toradb', model: 'glm-5', width: 110, run: { parts: ['RUNNING', '04:18', '3/7'], tone: 'info' }, output: { tokens: 12400, measured: true } })[0]);
     assert.match(h, /^LAIN · toradb · /);
     assert.match(h, /RUNNING · 04:18 · 3\/7\s+12\.4K$/);

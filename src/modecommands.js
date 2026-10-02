@@ -63,6 +63,28 @@ function register({ define, C }) {
     desc: 'Focus: stricter quiet — reuse fresh project state, show only changes, blockers, verification',
     run(app, { args }) { const on = toggle(app, 'focus', args[0]); app.render.write(C.dim(`  FOCUS ${on ? 'on' : 'off'} · ${execmode.label(app.session)}\n`)); },
   });
+  // THE PERMISSION MODE (execmode.js): Ask · Accept edits · Plan · Auto — Shift+Tab cycles it too.
+  define('/mode', {
+    surface: true, args: '[ask|accept-edits|plan|auto]',
+    desc: 'Permission mode: Ask, Accept edits, Plan (read-only) or Auto; shows the allow/deny rules in force',
+    run(app, { args }) {
+      const w = (s) => app.render.write(s);
+      if (args[0]) {
+        const want = require('./permrules').modeName(args[0]);
+        if (!want) { w(C.dim('  /mode ask | accept-edits | plan | auto\n')); return; }
+        execmode.set(app.session, want);
+        try { app.session.save(); } catch { /* still applies in memory */ }
+        if (app.ui && app.ui.enabled) app.ui.refresh();
+      }
+      const mode = execmode.of(app.session);
+      const eff = execmode.effective(app);
+      w(`  ${C.bold(execmode.WORD[mode])}${eff !== mode ? C.dim(` — ${execmode.WORD[eff]} applies until this folder is trusted (/trust)`) : ''}\n`);
+      const r = require('./permrules').of(app.cfg, app.session.cwd);
+      if (r.allow.length) w(C.dim(`  allow: ${r.allow.join(', ')}\n`));
+      if (r.deny.length) w(C.dim(`  deny:  ${r.deny.join(', ')}\n`));
+      if (r.ignored.length) w(C.dim(`  ignored (a project file cannot widen): ${r.ignored.join(', ')}\n`));
+    },
+  });
   // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js). Strategy and
   // spend, never the correctness bar; orthogonal to AUTO/MANUAL/PLAN and FOCUS.
   // `/fast` and `/eco` TOGGLE their profile (profile.toggle); `/normal` resets.

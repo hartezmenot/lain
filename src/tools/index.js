@@ -134,6 +134,13 @@ function simpleActive(app) {
   const out = {};
   for (const n of core.CORE) out[n] = core.tools[n] || full[n];
   for (const [n, t] of Object.entries(full)) if (n === 'computer' || /^computer_|^preview_/.test(n)) out[n] = t;
+  // AUTO, CHOSEN, BRINGS COMPUTER (S5): present from the session's start, kept once present; the first call turns
+  // Computer Control on at the person's tier (execmode.autoComputer) — the desktop's own authorization still asks.
+  const s = app && app.session;
+  if (!out.computer && s && (s._computerTools || require('../execmode').autoChosen(app, s))) {
+    s._computerTools = true;
+    Object.assign(out, require('./computermcp').tools, require('./computerinput').tools);
+  }
   return out;
 }
 
@@ -234,7 +241,7 @@ function schemas(app, { turn = false, session: turnSession = null } = {}) {
   if (require('../simple').on(app)) {
     const sess = turnSession || (app && app.session) || null;
     let list = Object.keys(all);
-    if (sess && sess._agentType) list = list.filter((n) => n !== 'Agent' && (sess._agentType !== 'explore' || require('./core').READ_ONLY.has(n)));
+    if (sess && sess._agentType) list = list.filter((n) => n !== 'Agent' && n !== 'computer' && !/^computer_/.test(n) && (sess._agentType !== 'explore' || require('./core').READ_ONLY.has(n)));   // agents get no computer
     return list.map((n) => all[n].schema);
   }
   // EVERY PROFILE GETS CORE + THE PACKS ITS TASK NEEDS (2026-10-02, toolfunnel.packsFor). Opened ONCE per classified
@@ -328,7 +335,7 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   // a permission, not exposure, so it holds even for a tool the funnel did not show.
   // AN AGENT'S TOOLS ARE ITS TYPE'S (agentrun.js): no agents from agents; an explore agent never writes or runs.
   { const s = (ctx && ctx.session) || null; if (s && s._agentType && (name === 'Agent' || (s._agentType === 'explore' && tool.mutates && name !== 'call_tool'))) return { output: `DENIED: ${name === 'Agent' ? 'an agent cannot start agents' : `an explore agent only reads — ${name} changes things`}.`, isError: true, denied: true }; }
-  { const s = (ctx && ctx.session) || null; if (s && s._agentRole && require('../toolfunnel').familyOf(name) === 'computer' && !(app && app.cfg && app.cfg.computer && app.cfg.computer.agents)) return { output: `DENIED: ${name} drives the person's desktop, and subagents never do (only the primary agent).`, isError: true, denied: true }; }
+  { const s = (ctx && ctx.session) || null; if (s && (s._agentRole || s._agentType) && (require('../toolfunnel').familyOf(name) === 'computer' || name === 'computer' || /^computer_/.test(name)) && !(app && app.cfg && app.cfg.computer && app.cfg.computer.agents)) return { output: `DENIED: ${name} drives the person's desktop, and subagents never do (only the primary agent).`, isError: true, denied: true }; }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
   // ONE GATE, HERE, because this is the one door every tool call goes through.

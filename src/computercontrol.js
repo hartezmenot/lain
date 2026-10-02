@@ -263,4 +263,4 @@ function register({ define, C }) {
   });
 }
 
-module.exports = { TIERS, enabled, tier, enable, disable, stop, setTarget, admit, noteResult, guardValue, label, view, sensitive, register, rank };
+module.exports = { TIERS, READ_OPS, enabled, tier, enable, disable, stop, setTarget, admit, noteResult, guardValue, label, view, sensitive, register, rank };

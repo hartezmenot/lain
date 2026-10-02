@@ -23,6 +23,7 @@ async function run(input = {}, ctx = {}) {
   const { Session } = require('./session');
   const child = new Session({ cwd: parent.cwd });
   child._agentType = type;
+  child.execMode = require('./execmode').of(parent);   // the parent's permission mode
   child._agentParent = parent.id;
   const job = app.jobs && typeof app.jobs.create === 'function' ? app.jobs.create({ request: `${type} · ${String(input.description || prompt).slice(0, 80)}`, primary: false, session: child, kind: 'subagent' }) : null;
   if (job) { job.parentSessionId = parent.id; job.state = 'RUNNING'; job.startedAt = Date.now(); app.jobs.changed(); }

@@ -165,7 +165,7 @@ module.exports = async function () {
       r = (await call(app, '/api/controls/run', { text: '/effort xhigh' })).body.result;
       assert.strictEqual(r.ok, true, r.text);
       r = (await call(app, '/api/controls/run', { text: '/mode plan' })).body.result;
-      assert.match(r.text, /PLAN/);
+      assert.match(r.text, /Mode: Plan/);
       r = (await call(app, '/api/controls/run', { text: '/strategy phased' })).body.result;
       assert.match(r.text, /Phased/);
       r = (await call(app, '/api/controls/run', { text: '/status' })).body.result;

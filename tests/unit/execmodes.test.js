@@ -17,17 +17,19 @@ function appFor(session, { answer = null } = {}) {
 }
 
 module.exports = async function () {
-  await test('MODE: Shift+Tab cycles AUTO → MANUAL → PLAN → AUTO and the mode survives save/resume', () => {
+  await test('MODE: Shift+Tab cycles Ask → Accept edits → Plan → Auto and the mode survives save/resume', () => {
     const s = new Session({ cwd: tmpdir('mode-') });
-    assert.strictEqual(execmode.of(s), 'AUTO');
-    assert.strictEqual(execmode.cycle(s), 'MANUAL');
+    assert.strictEqual(execmode.of(s), 'AUTO', 'Auto unless the settings say otherwise');
+    assert.strictEqual(execmode.cycle(s), 'ASK');
+    assert.strictEqual(execmode.cycle(s), 'ACCEPT_EDITS');
     assert.strictEqual(execmode.cycle(s), 'PLAN');
+    assert.strictEqual(execmode.set(new Session({ cwd: tmpdir('mode-m-') }), 'MANUAL'), 'ASK', 'the old word still means Ask');
     s.focus = true;
     s.save();
     const back = Session.resume(s.id);
     assert.strictEqual(execmode.of(back), 'PLAN');
     assert.strictEqual(back.focus, true);
-    assert.strictEqual(execmode.label(back), 'PLAN · FOCUS');
+    assert.strictEqual(execmode.label(back), 'Plan · FOCUS');
     assert.strictEqual(execmode.cycle(back), 'AUTO');
   });
 
@@ -73,7 +75,7 @@ module.exports = async function () {
     execmode.set(s, 'MANUAL');
     const tools = require('../../src/tools');
     const denied = await tools.execute('write_file', { path: 'm.txt', content: 'x' }, { cwd: root, session: s, app: appFor(s, { answer: 'Deny' }) });
-    assert.ok(denied.denied && /MANUAL_MODE/.test(denied.output));
+    assert.ok(denied.denied && /did not allow write_file/.test(denied.output), denied.output);
     assert.ok(!fs.existsSync(path.join(root, 'm.txt')));
     const ok = await tools.execute('write_file', { path: 'm.txt', content: 'x' }, { cwd: root, session: s, app: appFor(s, { answer: 'Allow once' }) });
     assert.ok(!ok.isError, ok.output);

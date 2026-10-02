@@ -15,6 +15,7 @@
  *                                    LONG_CONTEXT_WARNING continue | eco | cancel
  *   /api/workbench/finding         discuss | use-fix | dismiss | resolve
  *   /api/workbench/strategy        Normal | Phased | Long Context Phasing (+ review policy)
+ *   /api/workbench/mode            Ask | Accept edits | Plan | Auto (permission mode)
  *   /api/workbench/profile         Normal | Fast | Eco — queued to the next checkpoint while the Agent works
  *   /api/workbench/quota/continue  ▶ Continue: re-check now and resume
  *   /api/plan/send                 accept a plan and start it in the SAME session's Coding Agent lane
@@ -116,6 +117,15 @@ const ROUTES = {
     if (!r.ok) return bad(r.why);
     save(app);
     return ok({ ...r, workbench: sup.state(app) });
+  },
+
+  /** THE PERMISSION MODE — Ask · Accept edits · Plan · Auto (execmode.js), the Harness's twin of Shift+Tab. */
+  'POST /api/workbench/mode': async (app, body = {}) => {
+    const want = require('../permrules').modeName(body.mode);
+    if (!want) return bad('mode is one of ask, accept-edits, plan, auto');
+    require('../execmode').set(app.session, want);
+    save(app);
+    return ok({ mode: want, workbench: sup.state(app) });
   },
 
   'POST /api/workbench/profile': async (app, body = {}) => {

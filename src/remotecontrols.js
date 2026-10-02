@@ -9,7 +9,7 @@
  *   /account [auto|ask|pin <n>]   the provider's account policy and backing accounts (fabric)
  *   /effort [level]    one of the levels the lane's model declares (fabric/effortcaps.js)
  *   /fast /eco         execution profile, toggles (the active one again → Normal); /normal resets (queued while the Agent works)
- *   /mode [m]          AUTO · MANUAL · PLAN (execmode)
+ *   /mode [m]          Ask · Accept edits · Plan · Auto (execmode)
  *   /strategy [s]      Normal · Phased · Long Context Phasing (the warning is answered separately)
  *   /status            the session: project, lane, phase, model, profile, strategy
  *   /usage             provider windows and LAIN-observed usage in them
@@ -99,9 +99,10 @@ async function run(app, text, { surface = 'harness' } = {}) {
     }
     case '/mode': {
       const em = require('./execmode');
-      if (!p.arg) return { ok: true, text: `Mode: ${em.of(s)} (auto, manual, plan)` };
+      if (!p.arg) return { ok: true, text: `Mode: ${em.WORD[em.of(s)]} (ask, accept-edits, plan, auto)` };
+      const want = require('./permrules').modeName(p.arg);
       const m = em.set(s, p.arg);
-      save(); return { ok: m === p.arg.toUpperCase(), text: `Mode: ${m}` };
+      save(); return { ok: Boolean(want) && m === want, text: `Mode: ${em.WORD[m]}` };
     }
     case '/strategy': {
       if (!p.arg) return { ok: true, text: `Strategy: ${rs.LABEL[rs.get(s).kind]}` };

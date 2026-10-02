@@ -66,7 +66,7 @@ module.exports = async function () {
     for (const [cmd, want] of seq) {
       await commands.run(a, cmd);
       assert.strictEqual(profile.of(a.session), want, `${cmd} → ${want}`);
-      assert.strictEqual(execmode.of(a.session), 'MANUAL', 'the authority mode never moves');
+      assert.strictEqual(execmode.of(a.session), 'ASK', 'the authority mode never moves');
       assert.strictEqual(a.session.focus, true, 'FOCUS never moves');
     }
   });
@@ -85,13 +85,13 @@ module.exports = async function () {
     const root = tmpdir('prof-p-');
     const s = new Session({ cwd: root });
     execmode.set(s, 'PLAN'); profile.set(s, 'FAST'); s.focus = true;
-    assert.strictEqual(execmode.label(s), 'PLAN · FOCUS · FAST');
+    assert.strictEqual(execmode.label(s), 'Plan · FOCUS · FAST');
     const r = await require('../../src/tools').execute('write_file', { path: 'x.txt', content: 'x' }, { cwd: root, session: s, app: { session: s } });
-    assert.ok(r.denied && /PLAN_MODE/.test(r.output), 'FAST never widens authority');
+    assert.ok(r.denied && /Plan mode: read-only/.test(r.output), 'FAST never widens authority');
     execmode.set(s, 'AUTO'); profile.set(s, 'ECO'); s.focus = false;
-    assert.strictEqual(execmode.label(s), 'AUTO · ECO');
+    assert.strictEqual(execmode.label(s), 'Auto · ECO');
     profile.set(s, 'NORMAL');
-    assert.strictEqual(execmode.label(s), 'AUTO', 'the default says nothing');
+    assert.strictEqual(execmode.label(s), 'Auto', 'the default says nothing');
   });
 
   await test('PROFILE: the context budget — FAST never larger (speed is doing less, not carrying more), ECO smaller, same ceiling', () => {

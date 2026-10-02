@@ -282,7 +282,7 @@ function ROUTE(key) {
     case 'shift-tab': {
       const m = require('../execmode').cycle(this.app.session);
       try { this.app.session.save(); } catch { /* the mode still applies in memory */ }
-      require('./operation').say(this.app, `${m} mode`, 'info');
+      require('./operation').say(this.app, `${require('../execmode').WORD[m]} mode`, 'info');
       this.refresh();
       return true;
     }

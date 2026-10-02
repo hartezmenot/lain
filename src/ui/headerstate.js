@@ -18,6 +18,9 @@ function run(ui) {
   const session = app.session;
   const execmode = require('../execmode');
   const mode = execmode.of(session);
+  // THE PERMISSION MODE, in words; Auto in an untrusted project says what applies instead.
+  const eff = execmode.effective(app, session);
+  const modeText = eff === mode ? execmode.WORD[mode] : `${execmode.WORD[mode]} → ${execmode.WORD[eff]} until trusted`;
   const prefs = execmode.prefs(session);
   const busy = Boolean(ui.busy || ui.phase);
   const clock = require('./workclock').reading(ui.clock);
@@ -31,7 +34,7 @@ function run(ui) {
   if (cu) tags.unshift(cu);
   // AN UPDATE, in the words every surface uses (update/ux.js) — cached state, never the network.
   try { const up = require('../update/ux').view(app); if (up.label) tags.push(up.label); } catch { /* no updater state */ }
-  if (mode === 'PLAN') return { parts: ['PLAN', 'discussing', ...tags], tone: 'warn' };
+  if (mode === 'PLAN') return { parts: ['Plan', 'read-only', ...tags], tone: 'warn' };
   let step = null;
   const plan = require('./progress').livePlan(session);
   if (plan) {
@@ -44,9 +47,9 @@ function run(ui) {
     // third copy of one state is what made the CLI read as stuttering (2026-10-01). The header keeps the plan step
     // and the mode tags, which nothing else shows.
     void clockText;
-    return { parts: [mode, step, ...tags].filter(Boolean), tone: cu ? 'warn' : 'info', busy: true };
+    return { parts: [modeText, step, ...tags].filter(Boolean), tone: cu ? 'warn' : 'info', busy: true };
   }
-  const idle = [mode, ...tags, step ? `step ${step}` : ''].filter(Boolean);
+  const idle = [modeText, ...tags, step ? `step ${step}` : ''].filter(Boolean);
   return { parts: idle, tone: cu ? 'warn' : 'meta' };
 }
 

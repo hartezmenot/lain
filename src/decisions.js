@@ -212,7 +212,7 @@ async function ask(app, q = {}, signal = null, localAsk = null) {
   if (!hasLocal && !remoteListening) { cancel(d.id, 'no surface'); off(); return null; }
   let panelRef = null;
   const local = localAsk ? localAsk()
-    : hasLocal ? interaction.ask(app, { title: q.title, question: q.question, options: q.options || [] }, signal)
+    : hasLocal ? interaction.ask(app, { title: q.title, question: q.question, options: q.options || [], plan: q.plan || null }, signal)
       : new Promise(() => {});
   if (app && app.ui && app.ui.enabled && app.ui.panel && app.ui.panel.stack) panelRef = app.ui.panel.stack[0] || null;
   const onAbort = () => cancel(d.id, 'aborted');

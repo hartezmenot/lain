@@ -52,7 +52,7 @@ function portFor(app) {
       return new Promise((resolve) => {
         const q = question || {};
         const options = (q.options || []).map((o) => (typeof o === 'string' ? o : (o && (o.label || o.value)) || String(o)));
-        const open = { id: `q${++seq}`, title: String(q.title || 'LAIN asks'), question: String(q.question || q.text || ''), options, at: Date.now(), resolve };
+        const open = { id: `q${++seq}`, title: String(q.title || 'LAIN asks'), question: String(q.question || q.text || ''), options, plan: q.plan && q.plan.file ? { file: q.plan.file, text: String(q.plan.text || '') } : null, at: Date.now(), resolve };
         app._harnessAsk = open;
         // A QUESTION IS A STATUS CHANGE: the rail says NEEDS_INPUT now.
         require('../sessionstatus').touch(app);
@@ -81,7 +81,7 @@ function withPort(app, fn) {
 /** What the window shows of an open question — no resolver, no internals. */
 function pendingAsk(app) {
   const q = app && app._harnessAsk;
-  return q ? { id: q.id, title: q.title, question: q.question, options: q.options } : null;
+  return q ? { id: q.id, title: q.title, question: q.question, options: q.options, plan: q.plan ? { text: q.plan.text } : null } : null;
 }
 
 /**
@@ -225,6 +225,8 @@ const ROUTES = {
     if (!q || q.id !== String(body.id || '')) return bad('that question is no longer open', 409);
     const answer = body.answer == null ? null : String(body.answer);
     if (answer !== null && q.options.length && !q.options.includes(answer)) return bad('not one of the offered answers');
+    // A PLAN BUILT FROM THE HARNESS: the edited document is written back before the plan is approved (planmode.js reads it).
+    if (q.plan && answer === 'Approve' && typeof body.text === 'string') require('fs').writeFileSync(q.plan.file, `${body.text.trim()}\n`);
     q.resolve(answer);
     return ok({ answered: true });
   },

@@ -19,7 +19,7 @@
 const path = require('path');
 
 const FILE_TOOLS = ['read_file', 'grep', 'glob', 'list_dir', 'edit_file', 'write_file', 'apply_patch'];
-const CORE = [...FILE_TOOLS, 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'Agent', 'Skill', 'tool_search', 'call_tool'];
+const CORE = [...FILE_TOOLS, 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'exit_plan', 'Agent', 'Skill', 'tool_search', 'call_tool'];
 /** Never reachable in simple mode, not even through call_tool: ceremony, judges, and what Agent replaces. */
 const RETIRED = new Set(['request_completion', 'task_contract', 'verify_task', 'plan_write', 'plan_findings', 'plan_step_done', 'report_finding',
   'delegate', 'integrate_candidate', 'ab_compare', 'request_computer', 'request_browser', 'migration_plan', 'migration_verify', 'migration_activate',
@@ -85,6 +85,16 @@ const tools = {
       const done = todos.filter((t) => t.status === 'completed').length;
       return { output: `${todos.length} item(s), ${done} completed`, meta: { todos: todos.length, completed: done } };
     },
+  },
+
+  exit_plan: {
+    mutates: false,
+    schema: {
+      name: 'exit_plan',
+      description: 'In Plan mode: present your plan (markdown, with a checklist of steps) for the person to approve, edit or send back. On approval the mode changes and your todo list is seeded from the checklist. Outside Plan mode it does nothing.',
+      parameters: { type: 'object', properties: { plan: { type: 'string', description: 'the plan, in markdown' } }, required: ['plan'] },
+    },
+    run(input = {}, ctx) { return require('../planmode').exitPlan(input, ctx); },
   },
 
   Skill: {

@@ -322,6 +322,7 @@ function state(app) {
     status: statusLine(app), running: agentRunning(app), phase: phaseInfo(s),
     strategy: { ...w.strategy, label: require('./runstrategy').LABEL[w.strategy.kind] },
     profile: prof.of(s, app.cfg), pendingProfile: w.pendingProfile,
+    mode: require('./execmode').of(s), modeApplies: require('./execmode').effective(app, s),   // permission mode (S5)
     steers: w.steers.slice(-20), findings: w.findings.slice(-20), phases: w.phases.slice(-10), deltas: w.deltas.slice(-20),
     offers: wb.openOffers(s), quota: w.quota, discussing: w.discussing || null, surface: surfaceOf(app), notes: (w.notes || []).slice(-20),
     // THE LAST AUTOMATIC CONTINUATION (and a restart being waited out), with its cause — autocontinue.js.
