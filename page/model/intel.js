@@ -239,7 +239,10 @@ function client() {
     var levels = s.efforts || [];
     var labels = s.effortLabels || [];
     L.popover(anchor, function (p) {
-      p.appendChild(el('h4', '', 'Effort · ' + modelText(s)));
+      // ONE CONTROL, TWO HONEST MEANINGS (2026-10-02): native levels go to the provider; a model without them gets
+      // LAIN's execution depth, which is never presented as hidden reasoning.
+      var lainEffort = s.effortSource === 'lain';
+      p.appendChild(el('h4', '', (lainEffort ? 'LAIN effort · ' : 'Effort · ') + modelText(s)));
       if (!levels.length) p.appendChild(el('div', 'empty', modelText(s) + ' has no configurable effort.'));
       levels.forEach(function (e, i) {
         var b = el('button', 'mrowx');
@@ -255,7 +258,9 @@ function client() {
         };
         p.appendChild(b);
       });
-      p.appendChild(el('div', 'anote', 'How much the model reasons. Separate from execution (Normal · Fast · Eco), which is how Noema runs the task.'));
+      p.appendChild(el('div', 'anote', lainEffort
+        ? 'This model has no native effort. LAIN uses this to set how much context, exploration and delegation it spends. Separate from execution (Normal · Fast · Eco).'
+        : 'How much the model reasons — sent to the provider as it declares it. Default follows execution: Fast and Eco use the lowest level, Normal the model\'s default.'));
     }, { cls: 'apop', prefer: o.prefer || 'above', alignRight: o.alignRight });
   }
 
