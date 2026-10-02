@@ -34,7 +34,8 @@ function client() {
   /* eslint-disable no-var, prefer-arrow-callback, func-names, prefer-template */
   var L = window.LAIN; var S = null;
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  function agentBusy() { var w = S && S.workbench; return Boolean(w && (w.running || (w.autoRun && w.autoRun.waiting))); }
+  // CORE'S WORD FOR IT (update/ux.js busy): a turn, the Agent's run, a background job or agent — never stopped for an update.
+  function agentBusy() { var u = S && S.update; var w = S && S.workbench; return Boolean((u && u.busy) || (w && (w.running || (w.autoRun && w.autoRun.waiting)))); }
 
   /** A choice in LAIN's own dialog: resolves with the chosen value, or null for Cancel / Escape. */
   function choose(title, text, options) {
@@ -68,8 +69,9 @@ function client() {
     if (!st) return;
     b.setAttribute('data-state', st);
     var v = st === 'staged' ? u.staged.version : u.available.version;
-    b.querySelector('.ud-t').textContent = st === 'staged' ? 'Update ready' : 'Update';
-    var tip = st === 'staged' ? 'LAIN ' + v + ' is downloaded — restart to use it' : 'LAIN ' + v + ' is available';
+    // THE SAME WORDS AS THE CLI (update/ux.js): the button says "Update ready ●"; the tip says what it is.
+    b.querySelector('.ud-t').textContent = u.button || 'Update ready ●';
+    var tip = u.label || ('LAIN ' + v);
     b.setAttribute('aria-label', tip); b.setAttribute('data-tip', tip);
   }
 
@@ -85,7 +87,7 @@ function client() {
     var staged = u.state === 'staged';
     var info = staged ? (u.staged || {}) : (u.available || {});
     p.appendChild(el('h4', '', 'LAIN ' + (info.version || '')));
-    p.appendChild(el('div', 'up-sub', staged ? 'Downloaded and verified · ready to restart' : 'Available · you have LAIN ' + (u.current || '')));
+    p.appendChild(el('div', 'up-sub', (u.label || '') + (staged ? '' : ' · you have LAIN ' + (u.current || ''))));
     var notes = info.summary || (u.available && u.available.summary) || [];
     if (notes.length) { p.appendChild(el('div', 'up-sub', 'What’s new')); var ul = el('ul'); notes.slice(0, 6).forEach(function (n) { ul.appendChild(el('li', '', n)); }); p.appendChild(ul); }
     var link = info.notes || (u.available && u.available.notes);
