@@ -394,6 +394,7 @@ class ContextAuthority {
       beforeMessages: (result && result.beforeMessages) || 0,
       afterMessages: (result && result.afterMessages) || 0,
     });
+    try { require('./capgate').compacted(this.session, { reason, before, after }); } catch { /* the Compact hook is optional */ }
     // ---- STILL OVER, ACROSS EPOCHS -----------------------------------------
     // A compaction that ends over budget means the NEXT step compacts again
     // and stubs whatever was just read — the reread loop, which the per-epoch

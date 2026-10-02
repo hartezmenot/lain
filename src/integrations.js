@@ -138,6 +138,8 @@ async function connect(app, id) {
   live.set(id, c);
   ensureExitHook();
   const r = await c.connect();
+  // THE CATALOG (mcpreg.js): what it offers is remembered, so search_capabilities never has to start it again.
+  if (r.ok) { try { require('./mcpreg').remember(id, c.tools); } catch { /* search falls back to live */ } }
   return r.ok ? { ok: true, server: describeMcp(app, id) } : { ok: false, why: r.why, server: describeMcp(app, id) };
 }
 
@@ -164,38 +166,18 @@ function removeMcp(app, id) {
   // Its secrets go with it — LAIN kept them only for this server.
   for (const v of [...Object.values(e.env || {}), ...Object.values(e.headers || {})]) if (v && typeof v === 'object' && v.ref) { try { require('./credentials').remove(v.ref); } catch { /* gone */ } }
   delete s.mcp[id];
+  try { require('./mcpreg').forget(id); } catch { /* nothing cached */ }
   save(app);
   return { ok: true };
 }
 
 function listMcp(app) { return Object.keys(store(app).mcp).map((id) => describeMcp(app, id)); }
 
-/** Connected servers' tools, as LAIN tools (tools/index.js). */
-function toolDefs(app) {
-  const out = {};
-  const s = store(app).mcp;
-  for (const [id, c] of live) {
-    if (c.state !== 'CONNECTED' || !s[id] || s[id].enabled === false) continue;
-    for (const t of c.tools) {
-      const name = `mcp__${id.replace(/[^a-z0-9_]/gi, '_')}__${String(t.name).replace(/[^a-z0-9_]/gi, '_')}`.slice(0, 64);
-      const readOnly = Boolean(t.annotations && t.annotations.readOnlyHint);
-      out[name] = {
-        mutates: false,
-        effect: readOnly ? null : 'EXTERNAL',
-        approval: readOnly ? null : (input) => `MCP ${s[id].name} › ${t.name}\n${JSON.stringify(input || {}).slice(0, 400)}`,
-        schema: { name, description: `[MCP ${s[id].name}] ${String(t.description || t.name).slice(0, 900)}`, parameters: t.inputSchema && typeof t.inputSchema === 'object' ? t.inputSchema : { type: 'object', properties: {} } },
-        async run(input) {
-          try {
-            const r = await c.call(t.name, input);
-            const text = ((r && r.content) || []).map((p) => (p.type === 'text' ? p.text : p.type === 'image' ? '[image]' : p.type === 'resource' ? `[resource ${p.resource && p.resource.uri}]` : `[${p.type}]`)).join('\n');
-            return { output: require('./redact').text(text || JSON.stringify(r || {})).slice(0, 60000), isError: Boolean(r && r.isError) };
-          } catch (e) { return { output: `MCP ${s[id].name}: ${e.message}`, isError: true }; }
-        },
-      };
-    }
-  }
-  return out;
-}
+/**
+ * Connected servers' tools described NATIVELY this turn (tools/index.js) — a small set or pinned servers only; the
+ * rest are reached through search_capabilities + mcp_call. Trust, health and the lazy rule: mcpreg.js.
+ */
+function toolDefs(app) { return require('./mcpreg').toolDefs(app); }
 
 // ---- skills --------------------------------------------------------------------------
 function skillsDir() { return path.join(require('./config').configDir(), 'skills'); }
@@ -280,12 +262,8 @@ function removeSkill(app, id, { deleteFiles = false } = {}) {
   save(app);
   return { ok: true };
 }
-/** The skills section of the prompt: names, descriptions, where SKILL.md is. */
-function skillsPrompt(app) {
-  const on = listSkills(app).filter((k) => k.enabled);
-  if (!on.length) return '';
-  return `# Skills available\nRead a skill's SKILL.md (read_file) when the task calls for it; do not load them all.\n${on.map((k) => `- ${k.name}: ${k.description} (${path.join(k.path, 'SKILL.md')})`).join('\n')}`;
-}
+/** The skills section of the prompt — names and one line each over every scope, bounded (skills.js). */
+function skillsPrompt(app) { return require('./skills').prompt(app); }
 
 // ---- available, and what a project recommends ------------------------------------------
 // SUGGESTIONS, with the command shown — nothing here is installed by LAIN.

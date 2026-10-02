@@ -82,6 +82,9 @@ async function ensureTrusted(app) {
  * @returns {boolean} whether the operation may proceed
  */
 async function askOutside(app, { target, why, write = false } = {}) {
+  // A PermissionRequest HOOK MAY ONLY SAY NO to a path question (userhooks.js) — filesystem trust is never automated.
+  const hk = await require('./userhooks').fire(app, 'PermissionRequest', { kind: 'path', target: String(target), write: Boolean(write), why: why || '' }, { match: 'path' });
+  if (hk.decision === 'deny') return false;
   if (require('./interaction').port(app)) {
     const answer = await require('./interaction').ask(app, {
       title: write ? 'Allow this machine change?' : 'Allow access to this path?',

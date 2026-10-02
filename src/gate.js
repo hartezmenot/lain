@@ -49,6 +49,14 @@ async function externalApproval(name, input, ctx, approval) {
   const what = safe(String(preview.what || name).replace(/\s+/g, ' ').trim()).slice(0, 160);
   const reason = safe(String(preview.reason || 'This action will change a connected account.').replace(/\s+/g, ' ').trim()).slice(0, 240);
   const details = safe(String(preview.details || '').trim()).slice(0, 2000);
+  // THE PERSON'S PermissionRequest HOOK answers only the question LAIN was about to ask (userhooks.js): never one
+  // nobody could have answered (refused above), never a refusal (a gate refusal never reaches here).
+  const hk = await require('./userhooks').fire(app, 'PermissionRequest', { kind: 'external', tool: name, what, reason }, { match: name });
+  if (hk.decision === 'deny') return { ok: false, output: `PERMISSION_REQUIRED: your PermissionRequest hook denied it${hk.reason ? ` — ${safe(hk.reason).slice(0, 200)}` : ''}; nothing was sent or changed` };
+  if (hk.decision === 'allow') {
+    try { app.events?.emit?.(require('./events').EVENT.APPROVAL_RESOLVED, { what, granted: true, kind: 'external', by: 'hook' }); } catch { /* result still stands */ }
+    return { ok: true, sideEffect: registry.SIDE_EFFECT.EXTERNAL };
+  }
   try { app.events?.emit?.(require('./events').EVENT.APPROVAL_REQUIRED, { what, reason, kind: 'external' }); } catch { /* approval still stands */ }
   let answer = null;
   try {

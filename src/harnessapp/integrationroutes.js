@@ -48,6 +48,27 @@ const ROUTES = {
   'POST /api/skills/install': async (app, body = {}) => pass(require('../skillshub').install(app, String(body.key || ''), { enable: body.enable !== false })),
   'POST /api/skills/update': async (app, body = {}) => pass(require('../skillshub').update(app, String(body.id || ''), { action: String(body.action || 'check') })),
   'POST /api/integrations/skill/remove': async (app, body = {}) => pass(ig.removeSkill(app, String(body.id || ''), { deleteFiles: body.deleteFiles === true })),
+  // CAPABILITIES (Phase CAP): skills over every scope, MCP health + trust, hooks, plugins and extensions — each with what
+  // it costs a request. One read for the page; trust and consent are the person's writes.
+  'POST /api/capabilities/state': async (app) => {
+    let plugins = []; try { plugins = require('../plugins').list().map((p) => ({ id: p.id, name: p.name || p.id, enabled: Boolean(p.enabled), broken: p.broken || null, skills: (p.skills || []).length })); } catch { plugins = []; }
+    let extensions = []; try { extensions = (require('../extensions').list() || []).map((e) => ({ id: e.id, name: e.name || e.displayName || e.id, enabled: e.enabled !== false })); } catch { extensions = []; }
+    return ok({ skills: require('../skills').rows(app), mcp: require('../mcpreg').rows(app), mcpSchemas: ig.store(app).mcpSchemas || 'auto', hooks: require('../userhooks').rows(app), plugins, extensions });
+  },
+  'POST /api/capabilities/mcp/trust': async (app, body = {}) => pass(require('../mcpreg').setTrust(app, String(body.id || ''), String(body.trust || ''), { tools: body.tools || null })),
+  'POST /api/capabilities/mcp/pin': async (app, body = {}) => {
+    const e = ig.store(app).mcp[String(body.id || '')];
+    if (!e) return bad('no such MCP server', 404);
+    e.pinned = body.pinned === true; ig.save(app);
+    return ok({ id: body.id, pinned: e.pinned });
+  },
+  'POST /api/capabilities/mcp/schemas': async (app, body = {}) => {
+    const m = String(body.mode || '').toLowerCase();
+    if (!['auto', 'eager', 'lazy'].includes(m)) return bad('mode is auto, eager or lazy');
+    ig.store(app).mcpSchemas = m; ig.save(app);
+    return ok({ mode: m });
+  },
+  'POST /api/capabilities/hooks/consent': async (app, body = {}) => pass(require('../userhooks').consent(app, require('../userhooks').rows(app).project.root, { revoke: body.revoke === true })),
 };
 
 module.exports = { ROUTES };

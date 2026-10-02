@@ -284,7 +284,7 @@ module.exports = async function () {
 
       // THE WORKSPACE TABS ARE THERE, and LAIN opens on Home.
       const tabs = await js("Array.from(document.querySelectorAll('#tabs .gtab')).map(function(n){return n.textContent.trim();}).join('|')");
-      assert.strictEqual(String(tabs), 'Home|IDE|Chat|Model|Usage|MCP & Skills|Settings', `the primary tabs: ${tabs}`);
+      assert.strictEqual(String(tabs), 'Home|IDE|Chat|Model|Usage|Capabilities|Settings', `the primary tabs: ${tabs}`);
       assert.strictEqual(await js("LAIN.nav.tab()"), 'home', 'LAIN opens on Home');
 
       // A TURN, SENT FROM THE WINDOW — from Chat, one tab away.

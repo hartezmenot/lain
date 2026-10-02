@@ -193,8 +193,10 @@ module.exports = async function () {
     await call(app, '/api/integrations/skill/enable', { id: a.body.id, enabled: true, confirm: true });
     const p = require('../../src/integrations').skillsPrompt(app);
     assert.match(p, /godot-scenes: How to build Godot scenes/);
-    assert.ok(p.includes(path.join(dir, 'SKILL.md')));
-    assert.match(require('../../src/promptparts').durable(app, app.session).agents, /Skills available/);
+    // PHASE CAP (2026-10-02): the prompt names the skill; its body is read on demand (use_skill), so no path is sent.
+    assert.match(p, /use_skill\(name\)/);
+    assert.ok(require('../../src/tools').names(app).includes('use_skill'), 'use_skill exists once a skill is enabled');
+    assert.match(require('../../src/promptparts').durable(app, app.session).agents, /# Skills/);
     await call(app, '/api/integrations/skill/remove', { id: a.body.id });
     assert.deepStrictEqual((await call(app, '/api/skills')).body.skills, []);
     assert.ok(fs.existsSync(path.join(dir, 'SKILL.md')), 'a local folder is never deleted');

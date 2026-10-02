@@ -517,6 +517,7 @@ class App {
     if (!isPaste && !asText && s.trim() === '/') { this.ui.updateMenus('/'); return; }
     // A paste is content by construction and can never be a command.
     if (!isPaste && !asText && commands.looksLikeCommand(s)) return commands.run(this, s);
+    { const pre = await require('./capgate').prompt(this, s, { isPaste, asText }); if (pre.handled) return; s = pre.text; }   // `/<skill>`; SessionStart / UserPromptSubmit hooks (capgate.js)
     // ---- THE INPUT GATEWAY -----------------------------------------------
     //
     // AFTER the command check and BEFORE anything reaches a model — the only

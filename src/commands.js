@@ -252,7 +252,7 @@ define('/status', {
 define('/mcp', {
   // MACHINERY: about LAIN, not about the work. Goes to the command panel.
   surface: true,
-  args: '[status|computer|connect|revoke|disconnect]',
+  args: '[status|computer|connect|revoke|disconnect|servers|trust]',
   desc: 'Computer MCP and the desktop bridge — what they are, and what they may do',
   async run(app, { args }) {
     const mcpMod = require('./mcp');
@@ -262,7 +262,7 @@ define('/mcp', {
 
     // COMPUTER MCP is LAIN's own desktop capability — one question, once per
     // session. See src/computercommand.js and src/computermcp.js.
-    if (sub === 'computer') return require('./computercommand').run(app, args.slice(1), { C });
+    if (sub === 'computer') return require('./computercommand').run(app, args.slice(1), { C }); if (sub === 'servers' || sub === 'trust') return require('./capcommands').mcp(app, args, { C });   // MCP servers: health + the person's trust (mcpreg.js)
 
     if (sub === 'connect') {
       if (!mcpMod.configured(app.cfg)) {
@@ -647,7 +647,7 @@ require('./observecommand').register({ define, FLASH_MS, DURING_TURN, C });
 require('./compactcommand').register({ define, FLASH_MS, DURING_TURN, C });
 // `/lain` surveys what `.lain/` remembers — architecture, wiring, vocabulary,
 // facts and unfinished turns — in its own module for the same reason.
-require('./laincommand').register({ define, FLASH_MS, C });
+require('./laincommand').register({ define, FLASH_MS, C }); require('./capcommands').register({ define, C });   // /skill /hooks (Phase CAP)
 require('./provenancecommand').register({ define, C });
 require('./modecommands').register({ define, C });   // /focus /fast /browser (/chrome = hidden alias)
 // AND THE REPORT COMMANDS — /compare, /audit, /health, /ready, /doctor: read

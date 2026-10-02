@@ -57,10 +57,13 @@ const FAMILIES = Object.freeze({
   delegation: ['delegate', 'integrate_candidate', 'ab_compare'],
   web: ['web_fetch', 'download_file'],
   lain: ['lain_workspace'],
+  // MCP (2026-10-02): mcp_call and every natively described `mcp__<server>__<tool>` (familyOf). In CORE and Chat; a
+  // read-only role (SCOUT, RESEARCHER, VERIFIER) is never handed another program's tools.
+  mcp: ['mcp_call'],
 });
 
 /** Task shape → families. `null` = the whole registry. */
-const CORE = ['read', 'edit', 'shell', 'verify', 'ask', 'contract'];
+const CORE = ['read', 'edit', 'shell', 'verify', 'ask', 'contract', 'mcp'];
 const SHAPES = Object.freeze({
   explain: ['read', 'intel', 'ask', 'contract', 'knowledge', 'lain'],
   rename: [...CORE, 'intel', 'semantic', 'plan'],
@@ -73,7 +76,7 @@ const SHAPES = Object.freeze({
   narrow: [...CORE, 'intel', 'semantic', 'fileops'],
   agent: [...CORE, 'intel', 'plan', 'fileops'],
   // CHAT: conversation and research; it reads, it never edits (sessionviews / tools/index.js enforce that).
-  chat: ['read', 'ask', 'web', 'lain', 'contract'],
+  chat: ['read', 'ask', 'web', 'lain', 'contract', 'mcp'],
 });
 
 /**
@@ -151,6 +154,7 @@ function openFamilies(session, shape, fams, { why = '' } = {}) {
 }
 
 function familyOf(name) {
+  if (/^mcp__/.test(String(name))) return 'mcp';
   for (const [f, list] of Object.entries(FAMILIES)) if (list.includes(name)) return f;
   return null;
 }

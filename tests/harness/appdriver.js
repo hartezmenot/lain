@@ -139,7 +139,7 @@ async function open({ cwd = null, script = [], width = 1280, height = 820, resum
       })()`);
       if (how === 'switcher') {
         await d.until("!!document.querySelector('.surfpop')", 5000);
-        await d.js(`(() => { const want = { home: 'Home', ide: 'IDE', chat: 'Chat', model: 'Model', usage: 'Usage', mcp: 'MCP & Skills', settings: 'Settings' }['${tab}']; const b = Array.from(document.querySelectorAll('.surfpop button')).find((x) => x.textContent.startsWith(want)); b.click(); return true; })()`);
+        await d.js(`(() => { const want = { home: 'Home', ide: 'IDE', chat: 'Chat', model: 'Model', usage: 'Usage', mcp: 'Capabilities', settings: 'Settings' }['${tab}']; const b = Array.from(document.querySelectorAll('.surfpop button')).find((x) => x.textContent.startsWith(want)); b.click(); return true; })()`);
       } else if (how === 'none') throw new Error(`no visible navigation to ${tab}`);
       await d.until(`LAIN.nav.tab() === '${tab}'`, 5000);
       return how;

@@ -153,9 +153,12 @@ function active(ctxApp) {
   // (LAIN's browser ownership — the `browser` tool and the Chromium-driving
   // `web_search` — was removed in 2026-09; the plain fetch survives.)
   out = { ...out, ...require('./web').fetchTools };
-  // CONNECTED MCP SERVERS' TOOLS (integrations.js): only while connected and enabled;
-  // a tool its server does not mark read-only asks before it runs (EXTERNAL effect).
+  // CONNECTED MCP SERVERS' TOOLS described natively — a small set or pinned servers, under the person's trust
+  // (mcpreg.js); the rest are reached through search_capabilities + mcp_call.
   try { const mcpTools = require('../integrations').toolDefs(app); if (Object.keys(mcpTools).length) out = { ...out, ...mcpTools }; } catch { /* none */ }
+  // SKILLS AND LAZY MCP (tools/capreg.js): search_capabilities / use_skill / mcp_call exist only once something is
+  // installed — zero skills and zero MCP servers cost a request nothing.
+  if (app) { try { const cap = require('./capreg').active(app); if (Object.keys(cap).length) out = { ...out, ...cap }; } catch { /* none */ } }
   if (app?.session?.cowork) out = { ...out, ...require('./cowork').tools };
   // ---- SPECIALIST MACHINERY IS NOT FLAGSHIP VOCABULARY (dispatch.js) -------
   //
@@ -388,12 +391,22 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
       if (!l.ok) return { output: `DENIED LEASED: ${l.why}. Work on independent files, or wait for it (/jobs).`, isError: true, denied: true };
     }
   }
+  // ---- THE PERSON'S HOOKS (userhooks.js): PreToolUse may DENY or make this call ASK. "allow" is no exemption —
+  // every refusal above and the gate below still stand (a hook cannot disable a mandatory invariant).
+  const hooks = require('../userhooks');
+  const pre = app ? await hooks.fire(app, 'PreToolUse', { tool: name, input }, { match: name }) : { decision: null };
+  if (pre.decision === 'deny') return { output: `DENIED HOOK: ${pre.reason || 'a PreToolUse hook refused this call'}`, isError: true, denied: true };
+  if (pre.decision === 'ask') {
+    const v = await require('../gate').externalApproval(name, input, ctx, () => ({ what: name, reason: `your hook asks first: ${pre.reason || 'confirm this call'}`, details: JSON.stringify(input || {}).slice(0, 400) }));
+    if (!v.ok) return { output: v.output, isError: true, denied: true };
+  }
 
   const verdict = await require('../gate').check(name, input, ctx, {
     mutates: Boolean(tool.mutates), effect: tool.effect || null, approval: tool.approval || null,
   });
   if (!verdict.ok) return { output: verdict.output, isError: true };
   const args = input && typeof input === 'object' ? input : {};
+  const post = (res) => { if (app) hooks.fire(app, 'PostToolUse', { tool: name, input: args, isError: Boolean(res && res.isError) }, { match: name }).catch(() => {}); return res; };
   // ---- ONE LIFECYCLE FOR EVERY SOURCE WRITE ---------------------------------
   //
   // Authority, baseline, stale check, checkpoint, apply, structural verify,
@@ -401,7 +414,7 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
   // and lint rungs below itself, so a transacted write returns from here.
   const mutation = require('../mutation');
   if (mutation.isSourceMutation(name)) {
-    return mutation.transact({ name, input: args, ctx: ctx || {}, apply: () => tool.run(args, ctx) });
+    return post(await mutation.transact({ name, input: args, ctx: ctx || {}, apply: () => tool.run(args, ctx) }));
   }
   let r;
   try {
@@ -460,7 +473,7 @@ async function execute(name, input, ctx, { canonical = false } = {}) {
       if (lint) r = { ...r, output: String(r.output || '') + lint, diagnostics: true };
     } catch { /* same rule: a checker may never fail the edit it was checking */ }
   }
-  return r;
+  return post(r);
 }
 
 module.exports = { TOOLS, active, schemas, execute, has, isMutating, effect, names };
