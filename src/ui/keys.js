@@ -180,8 +180,10 @@ function ROUTE(key) {
       return true;
     }
     switch (key) {
-      case 'up': this.panel.move(-1, rows); this.refresh(); return true;
-      case 'down': this.panel.move(1, rows); this.refresh(); return true;
+      // A SELECTION MOVE IS RENDERER STATE (ui/selectframe.js): the row moves now, from the last projection — no Core
+      // re-projection between two arrow presses.
+      case 'up': this.panel.move(-1, rows); require('./selectframe').paintLocal(this); return true;
+      case 'down': this.panel.move(1, rows); require('./selectframe').paintLocal(this); return true;
       case 'pageup': this.panel.scrollBy(-rows, rows); this.refresh(); return true;
       case 'pagedown': this.panel.scrollBy(rows, rows); this.refresh(); return true;
       // ENTER PREFERS WHAT YOU TYPED.

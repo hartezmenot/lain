@@ -240,7 +240,9 @@ function handleMouse(ui, ev) {
     if (screen.textSelection && screen.textSelection.anchor !== null && ui._selectingFeed) {
       if (kind === 'drag') {
         screen.selectTo(x, y);
-        ui.refresh();
+        // PACED AND LOCAL (ui/selectframe.js): the first motion of a burst draws now, the rest fold into one frame per
+        // 16 ms — never a full Core projection per mouse sample.
+        if (ui.screen && typeof ui.screen.draw === 'function' && ui.enabled) require('./selectframe').requestLocalFrame(ui); else ui.refresh();
         return true;
       }
       // RELEASE COPIES. One gesture — highlight, let go, it is on the
