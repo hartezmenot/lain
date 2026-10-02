@@ -55,12 +55,11 @@ const { STATE } = require('./jobs');
  */
 /** SIMPLE (simple.js): the model runs the loop — no classification, no wake-up, no lifecycle gate, no context profile. */
 function simpleOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null }) {
-  const parts = require('./promptparts');
-  const p = parts.of(app, { session });
+  const p = require('./simpleprompt').of(app, { session });
   return {
     cfg: require('./sessionviews').turnCfg(app, session),
     cfgNow: () => require('./sessionviews').turnCfg(app, session),
-    systemPrompt: p.stable, live: p.live, liveContinuing: parts.of(app, { opened: true, session }).live,
+    systemPrompt: p.stable, live: p.live,
     from, typed, signal, evidence: session.evidence, lifecycle: null, availability: app.availability, checkpoints: app.checkpoints,
     app, ask, onStatus, steer,
     sideContext: async () => require('./bgdetach').takeContext(session),   // background results, delivered once

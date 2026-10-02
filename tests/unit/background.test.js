@@ -274,8 +274,10 @@ module.exports = async function () {
         // a throw while building a prompt must land on the JOB, not on the event
         // loop, where it would end the session under somebody who was typing.
         const parts = require('../../src/promptparts');
-        const real = parts.of;
+        const simple = require('../../src/simpleprompt');
+        const real = parts.of; const realSimple = simple.of;
         parts.of = () => { throw new Error('prompt could not be built'); };
+        simple.of = parts.of;   // whichever builder the execution path uses
         try {
           const job = a.startPrimary('anything');
           assert.ok(job, 'a job must still come back');
@@ -283,7 +285,7 @@ module.exports = async function () {
           assert.strictEqual(job.state, STATE.FAILED);
           assert.match(job.error, /prompt could not be built/);
         } finally {
-          parts.of = real;
+          parts.of = real; simple.of = realSimple;
         }
         // And the app is still usable afterwards.
         assert.ok(a.startPrimary('next'), 'the conversation must not be stuck');

@@ -194,7 +194,7 @@ module.exports = async function () {
     const p = require('../../src/integrations').skillsPrompt(app);
     assert.match(p, /godot-scenes: How to build Godot scenes/);
     // PHASE CAP (2026-10-02): the prompt names the skill; its body is read on demand (use_skill), so no path is sent.
-    assert.match(p, /use_skill\(name\)/);
+    assert.match(p, /use_skill\(name\)|the Skill tool/);
     assert.ok(['use_skill', 'Skill'].some((n) => require('../../src/tools').names(app).includes(n)), 'the skill tool exists once a skill is enabled');
     assert.match(require('../../src/promptparts').durable(app, app.session).agents, /# Skills/);
     await call(app, '/api/integrations/skill/remove', { id: a.body.id });

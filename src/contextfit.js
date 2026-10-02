@@ -47,7 +47,7 @@ const contextprovenance = require('./contextprovenance');
  * used to check was one message shorter than the one it sent. On the boundary
  * that difference is a refused request.
  */
-function buildWire(session, systemPrompt, live = '') {
+function buildWire(session, systemPrompt, live = '', simple = false) {
   const head = systemPrompt ? [{ role: 'system', content: systemPrompt }] : [];
   // ---- THE CHANGING HALF GOES LAST --------------------------------------
   //
@@ -85,7 +85,9 @@ function buildWire(session, systemPrompt, live = '') {
   // fold would rewrite cached history.
   // THE ANCHORED HARNESS CONTEXT (harnesscontext.spliceContext): append-only, before the request it was recorded for.
   const frozen = session._wireSent ? session._wireSent.set : null;
-  const history = require('./harnesscontext').spliceContext(session, require('./intent').foldRepeats(require('./sessionviews').wireMessages(session), { frozen }), contextprovenance.frame);
+  // SIMPLE: the thread's own messages, as they were — no spliced packets, no folding.
+  const history = simple ? require('./sessionviews').wireMessages(session)
+    : require('./harnesscontext').spliceContext(session, require('./intent').foldRepeats(require('./sessionviews').wireMessages(session), { frozen }), contextprovenance.frame);
   return [...head, ...history, ...tail];
 }
 
@@ -108,7 +110,7 @@ function noteSent(session, pc, wire, { reset = false } = {}) {
  *          `notices` are events for the caller to yield — this yields nothing
  *          itself, so the whole thing is testable without a turn.
  */
-function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'COMPACT', tools = [] } = {}) {
+function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'COMPACT', tools = [], simple = false } = {}) {
   require('./perfmark').mark('fit');
   const notices = [];
   let compactions = 0;
@@ -163,7 +165,7 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
 
   // ---- PASS TWO: measure what is ACTUALLY going out -----------------------
   noteSent(session, pc, null, { reset: true });   // a new model/route: nothing is frozen yet, so repeats may fold
-  let projection = authority.project(pc, () => buildWire(session, systemPrompt, live), {
+  let projection = authority.project(pc, () => buildWire(session, systemPrompt, live, simple), {
     stable: systemPrompt, live, tools: (tools || []).length,
   });
   // ---- WHAT WILL THIS COST IN UNCACHED INPUT? (cachebudget.js) ------------
@@ -180,7 +182,7 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
       const red = cb.reduceLive(live, cache, cfg);
       if (red.reductions.length) {
         const reduced = red.live;
-        projection = authority.project(pc, () => buildWire(session, systemPrompt, reduced), { stable: systemPrompt, live: reduced, tools: (tools || []).length });
+        projection = authority.project(pc, () => buildWire(session, systemPrompt, reduced, simple), { stable: systemPrompt, live: reduced, tools: (tools || []).length });
         const again = cb.plan(session, pc, projection.wire, tools, cfg);
         again.reductions = red.reductions;
         again.before = { ratio: cache.ratio, uncachedChars: cache.uncachedChars };

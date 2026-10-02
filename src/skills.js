@@ -213,7 +213,7 @@ function prompt(app, session = null) {
   const shown = list.slice(0, LISTED);
   const lines = shown.map((e) => `- ${e.name}: ${e.description.slice(0, DESC_CHARS)}${e.description.length > DESC_CHARS ? '…' : ''}${e.context === 'scout' ? ' [runs as a scout]' : ''}`);
   const more = list.length - shown.length;
-  return `# Skills\nLoad a skill with use_skill(name) when the task matches it — never all of them.${more > 0 ? ` ${more} more: search_capabilities finds them.` : ''}\n${lines.join('\n')}`;
+  return `# Skills\nLoad a skill with ${require('./simple').on(app) ? 'the Skill tool' : 'use_skill(name)'} when the task matches it — never all of them.${more > 0 ? ` ${more} more: ${require('./simple').on(app) ? 'tool_search' : 'search_capabilities'} finds them.` : ''}\n${lines.join('\n')}`;
 }
 
 /** THE BODY, read now: instructions (bounded) and the files beside them. */

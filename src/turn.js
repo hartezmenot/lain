@@ -253,7 +253,7 @@ async function* runTurn(session, userInput, opts = {}) {
       surface: COMPACT_SURFACE,
       // The schemas are part of the payload and a tenth of it; accounting that
       // left them out would understate every request by about 10,000 tokens.
-      tools: schemas,
+      tools: schemas, simple: Boolean(opts.simple),
     });
     const wire = fitted.wire;
     record.compactions += fitted.compactions;
