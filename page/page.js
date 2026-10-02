@@ -22,7 +22,7 @@
  *   model/      MODEL: Accounts, Setup, Models, API, Local, Defaults, and
  *               the route choosers every surface uses
  *   usage/      Usage
- *   mcp/        MCP & Skills
+ *   mcp/        Capabilities
  *   settings/   Settings
  *
  * Each module owns one surface and exports what it contributes: CSS (a

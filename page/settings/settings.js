@@ -22,7 +22,7 @@
  * Advanced pages are workbench/devsettings.js. Every group is a flat plane.
  *
  * `L.tools` is the one client copy of POST /api/mcp/servers and POST /api/skills
- * (Home's status and the search read it; the MCP & Skills room manages them).
+ * (Home's status and the search read it; the Capabilities room manages them).
  */
 
 const HTML = `
@@ -226,7 +226,7 @@ function client() {
     ['Workspace', [['appearance', 'Appearance', 'palette'], ['keymap', 'Keymap', 'keyboard'], ['general', 'General', 'settings'], ['notifications', 'Notifications', 'bell']]],
     ['Assistant', [['assistant', 'Assistant', 'bot', function () { L.nav.go('bot', { section: 'identity' }); }], ['bots', 'Bots & Channels', 'link']]],
     ['Agent', [['agents', 'Agent Instructions', 'book']]],
-    ['Tools', [['extensions', 'Extensions', 'grid'], ['mcpskills', 'MCP & Skills', 'mcp', function () { L.nav.go('mcp'); }], ['integrations', 'Integrations', 'link']]],
+    ['Tools', [['extensions', 'Extensions', 'grid'], ['mcpskills', 'Capabilities', 'mcp', function () { L.nav.go('mcp'); }], ['integrations', 'Integrations', 'link']]],
     ['Accounts', [['github', 'GitHub', 'github'], ['accounts', 'Models', 'layers', function () { L.nav.go('model', { section: 'accounts' }); }], ['router', 'Router Server', 'server']]],
     // THE PROFESSIONAL TOOLING (workbench/devsettings.js): its real state, from Core.
     ['Advanced', function () { return (window.LAIN && LAIN.devSettings) ? LAIN.devSettings.PAGES.filter(function (p) { return p[0] !== 'extensions'; }) : []; }],

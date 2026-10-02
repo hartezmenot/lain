@@ -1,9 +1,15 @@
 'use strict';
 
 /**
- * MCP & SKILLS (Phase 8.1) — how LAIN reaches other applications.
+ * CAPABILITIES (Phase 8.1; Phase CAP 2026-10-02) — Skills, MCP, Hooks and Extensions, kept apart, each row with what it
+ * costs a request ("context impact") and one search box over the tab you are on.
  *
- *   Installed     every MCP server and skill LAIN has, with its state
+ *   Skills        every skill over its scopes (project · user · plugin): per-request cost, on-use cost, manual-only,
+ *                 scout; the folders you registered, with enable / disable
+ *   MCP           health (ready · idle · unavailable), YOUR trust (disabled · read-only · ask · trusted), native or lazy
+ *                 schemas and their per-request cost; Auto / Eager / Lazy for the whole set
+ *   Hooks         what runs at which event, from where; consent for this project's hooks file
+ *   Extensions    LAIN plugins and VS Code-format extensions
  *   Discover      (Phase 8.3) the Skills Hub — compatible skills from the sources
  *                 you added (git, skills.sh-style repositories, Hermes / Agent
  *                 Skills folders, a catalog URL), searched in LAIN's index at
@@ -63,6 +69,10 @@ const CSS = `
 .ig-empty p{margin:0;color:var(--text-secondary);font-size:13px;line-height:1.55}
 .ig-list .ig-empty{padding:6px 0 12px;background:none}
 .ig-empty .ig-acts{padding-left:0}
+.ig-search{margin:10px 0 2px}
+.ig-search input{width:100%;max-width:420px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--surface-raised);box-shadow:inset 0 0 0 1px var(--separator);border:0;font-size:13px;color:var(--text-primary)}
+.ig-impact{color:var(--text-muted);font-size:12px;white-space:nowrap}
+.ig-acts select{padding:4px 8px;border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--text-primary);border:0;box-shadow:inset 0 0 0 1px var(--separator);font-size:12.5px}
 @media (max-width: 1000px){.ig-body{grid-template-columns:minmax(0,1fr)}}
 @media (max-width: 640px){.ig-body,.ig-acts,.ig-why{padding-left:0}}
 `;
@@ -71,14 +81,16 @@ const CSS = `
 function client() {
   var L = window.LAIN;
   var $ = L.$, el = L.el;
-  var tab = 'installed';
-  var data = null; var loading = false;
+  var tab = 'skills';
+  var data = null; var loading = false; var caps = null; var q = '';
   var hub = null; var hq = ''; var hseq = 0;
 
   async function load() {
     loading = true; draw();
     var r = await L.api('/api/integrations/state', {});
     var h = await L.api('/api/skills/hub', {});
+    var cs = await L.api('/api/capabilities/state', {});
+    caps = cs && cs.ok ? cs : null;
     loading = false;
     data = r && r.ok ? r : { mcp: [], skills: [], catalog: [], recommended: [], why: (r && r.why) || 'could not read' };
     hub = h && h.ok ? h : { sources: [], suggested: [], indexed: 0, installed: [] };
@@ -86,7 +98,7 @@ function client() {
   }
   function hubOf(id) { return ((hub && hub.installed) || []).filter(function (k) { return k.id === id; })[0] || null; }
   function tabsBar() {
-    var box = L.kit.tabs([['installed', 'Installed'], ['discover', 'Discover'], ['mcp', 'MCP'], ['skills', 'Skills'], ['custom', 'Custom']], tab, function (id) { tab = id; draw(); });
+    var box = L.kit.tabs([['skills', 'Skills'], ['mcp', 'MCP'], ['hooks', 'Hooks'], ['extensions', 'Extensions'], ['discover', 'Discover'], ['custom', 'Custom']], tab, function (id) { tab = id; draw(); });
     box.id = 'mcpTabs';
     Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) { b.setAttribute('data-mcptab', b.getAttribute('data-tab')); });
     return box;
@@ -326,6 +338,95 @@ function client() {
   }
 
   var redrawLater = null;
+  // ---- PHASE CAP: one search box, and four kinds kept apart ----------------------------------------------------------
+  function searchBox() {
+    var w = el('div', 'ig-search');
+    var i = document.createElement('input'); i.type = 'search'; i.placeholder = 'Search ' + tab; i.value = q; i.id = 'capSearch';
+    i.oninput = function () { q = i.value; clearTimeout(searchBox.t); searchBox.t = setTimeout(function () { draw(); var n = $('capSearch'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 80); };
+    w.appendChild(i);
+    return w;
+  }
+  function hit(text) { if (!q) return true; var t = String(text || '').toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every(function (w) { return t.indexOf(w) >= 0; }); }
+  function impact(perRequest, extra) { return el('span', 'ig-impact', (perRequest ? '~' + perRequest + ' tokens / request' : 'nothing per request') + (extra ? ' · ' + extra : '')); }
+  function row(icon, title, sub, right) {
+    var c = el('div', 'ig-card'); var top = el('div', 'ig-top');
+    var ic = el('span', 'ig-ic'); ic.appendChild(L.icon(icon, 22)); top.appendChild(ic);
+    var t = el('div', 'ig-t'); t.appendChild(el('b', '', title)); if (sub) t.appendChild(el('small', '', sub)); top.appendChild(t);
+    (right || []).forEach(function (r) { top.appendChild(r); });
+    c.appendChild(top); return c;
+  }
+  function skillsTab(list) {
+    var s = caps && caps.skills;
+    section(list, 'Skills', s ? s.skills.length + ' available · the list costs ~' + s.promptTokens + ' tokens per request; a skill\'s body loads only when it is used' : 'not read');
+    if (s && !s.skills.length) empty(list, 'No skills yet', 'A skill is a folder with SKILL.md — instructions the Agent loads when a task matches it. Put one in ' + s.roots.user + '\\<name>, or in <project>\\.lain\\skills\\<name>, or add a folder under Custom.', btn('Add a skill', 'primary', function () { tab = 'custom'; draw(); }));
+    ((s && s.skills) || []).filter(function (k) { return hit(k.name + ' ' + k.description + ' ' + k.scope); }).forEach(function (k) {
+      var flags = [k.scope + (k.plugin ? ' · ' + k.plugin : ''), k.manualOnly ? 'manual only (/skill ' + k.name + ')' : '', k.context === 'scout' ? 'runs as a scout' : ''].filter(Boolean).join(' · ');
+      var c = row('book', k.name, flags + ' · ' + k.path, [impact(k.impact.perRequestTokens, '~' + k.impact.onUseTokens + ' when used')]);
+      c.setAttribute('data-capskill', k.name);
+      c.appendChild(el('div', 'ig-why', k.description));
+      list.appendChild(c);
+    });
+    ((s && s.shadowed) || []).forEach(function (x) { list.appendChild(el('div', 'ig-why', x.name + ' (' + x.scope + ') is shadowed by the ' + x.by + ' skill of the same name — ' + x.path)); });
+    ((s && s.invalid) || []).forEach(function (x) { list.appendChild(el('div', 'ig-why', '! ' + x.path + ': ' + x.why)); });
+    var reg = (data.skills || []).filter(function (k) { return hit(k.name + ' ' + (k.description || '')); });
+    if (reg.length) { section(list, 'Registered skill folders', 'enable, disable, update or remove'); reg.forEach(function (k) { list.appendChild(skillCard(k)); }); }
+  }
+  function mcpTab(list) {
+    var rows = (caps && caps.mcp) || [];
+    var head = el('div', 'ig-acts'); head.style.paddingLeft = '0';
+    head.appendChild(el('span', 'ig-why', 'Schemas: '));
+    ['auto', 'eager', 'lazy'].forEach(function (m) { var b = btn(m === 'auto' ? 'Auto' : m === 'eager' ? 'Always describe' : 'Search only', (caps && caps.mcpSchemas) === m ? 'primary' : 'ghost', function () { act('/api/capabilities/mcp/schemas', { mode: m }, 'MCP schemas: ' + m); }); b.setAttribute('data-mcpschemas', m); head.appendChild(b); });
+    list.appendChild(head);
+    section(list, 'MCP servers', rows.length + ' configured · Auto describes a small connected set natively and leaves the rest to search_capabilities');
+    if (!data.mcp.length) empty(list, 'No MCP servers yet', 'An MCP server lets LAIN work inside another application — a Godot scene, a Blender file, a browser, a database. Find one in Discover, or describe your own under Custom.', btn('Discover', 'primary', function () { tab = 'discover'; draw(); }));
+    data.mcp.filter(function (s) { return hit(s.name + ' ' + s.id + ' ' + ((s.capabilities && s.capabilities.tools) || []).map(function (t) { return t.name; }).join(' ')); }).forEach(function (s) {
+      var r = rows.filter(function (x) { return x.id === s.id; })[0];
+      var c = mcpCard(s);
+      if (r) {
+        var meta = el('div', 'ig-acts');
+        var hs = r.health.state; meta.appendChild(el('span', 'tag ' + (hs === 'READY' ? 'ok' : hs === 'UNAVAILABLE' ? 'bad' : ''), hs === 'UNAVAILABLE' ? 'capability unavailable' : hs.toLowerCase()));
+        var sel = document.createElement('select'); sel.setAttribute('data-mcptrust', s.id); sel.title = 'Your trust in this server — the server cannot change it';
+        [['DISABLED', 'Disabled'], ['READ_ONLY', 'Read-only'], ['ASK', 'Ask before changes'], ['TRUSTED', 'Trusted']].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; if (r.trust === o[0]) op.selected = true; sel.appendChild(op); });
+        sel.onchange = function () { act('/api/capabilities/mcp/trust', { id: s.id, trust: sel.value }, s.name + ': ' + sel.options[sel.selectedIndex].textContent); };
+        meta.appendChild(sel);
+        meta.appendChild(btn(r.pinned ? 'Unpin' : 'Pin (always describe)', 'ghost', function () { act('/api/capabilities/mcp/pin', { id: s.id, pinned: !r.pinned }); }));
+        meta.appendChild(impact(r.impact.perRequestTokens, r.schemas === 'lazy' ? r.tools + ' tools found by search · ~' + r.impact.catalogTokens + ' if all were described' : r.tools + ' tools described'));
+        c.insertBefore(meta, c.querySelector('.ig-acts'));
+        if (r.health.why && hs !== 'READY') c.appendChild(el('div', 'ig-why', r.health.why));
+      }
+      list.appendChild(c);
+    });
+  }
+  function hooksTab(list) {
+    var h = caps && caps.hooks;
+    section(list, 'Hooks', h ? h.hooks.length + ' active · they run outside the model\'s context and can deny or ask — never allow past a LAIN refusal' : 'not read');
+    if (!h) return;
+    list.appendChild(el('div', 'ig-why', 'Yours: ' + h.user.file + ' (' + h.user.count + ')'));
+    if (h.project.present) {
+      var p = row('shield', 'This project\'s hooks', h.project.file + ' · ' + h.project.count + ' hook' + (h.project.count === 1 ? '' : 's'), [el('span', 'tag ' + (h.project.consented ? 'ok' : 'bad'), h.project.consented ? 'consented' : h.project.changed ? 'changed — not running' : 'not running')]);
+      var a = el('div', 'ig-acts');
+      a.appendChild(btn(h.project.consented ? 'Stop running them' : 'Run them', h.project.consented ? 'ghost' : 'primary', async function () {
+        if (!h.project.consented && !(await L.confirm('Run the commands in ' + h.project.file + ' at the events it names? Your consent is kept in your settings, not in the repository, and an edited file asks again.', { ok: 'Run them' }))) return;
+        act('/api/capabilities/hooks/consent', { revoke: h.project.consented }, h.project.consented ? 'Project hooks stopped' : 'Project hooks will run');
+      }));
+      p.appendChild(a); list.appendChild(p);
+    }
+    if (!h.hooks.length) empty(list, 'No hooks run', 'A hook is your own command at a fixed point — SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PermissionRequest, Checkpoint, Compact, Stop. Put them in ' + h.user.file + ' as { "hooks": [ { "event": "PreToolUse", "match": "run_bash", "command": "…" } ] }.');
+    h.hooks.filter(function (x) { return hit(x.event + ' ' + x.command + ' ' + x.match); }).forEach(function (x) {
+      list.appendChild(row('terminal', x.event + (x.match ? ' · ' + x.match : ''), x.command, [el('span', 'tag', x.source + ' · ' + x.timeout + 's')]));
+    });
+    (h.problems || []).forEach(function (m) { list.appendChild(el('div', 'ig-why', '! ' + m)); });
+  }
+  function extensionsTab(list) {
+    var ps = (caps && caps.plugins) || []; var xs = (caps && caps.extensions) || [];
+    section(list, 'LAIN plugins', ps.length + ' installed · commands and skills written for LAIN');
+    if (!ps.length) list.appendChild(el('div', 'ig-why', 'No plugins installed.'));
+    ps.filter(function (p) { return hit(p.name + ' ' + p.id); }).forEach(function (p) { list.appendChild(row('ext', p.name, p.id + (p.skills ? ' · ' + p.skills + ' skill' + (p.skills === 1 ? '' : 's') : '') + (p.broken ? ' · ' + p.broken : ''), [el('span', 'tag ' + (p.enabled ? 'ok' : ''), p.enabled ? 'enabled' : 'disabled')])); });
+    section(list, 'Extensions', xs.length + ' installed · VS Code-format packages; LAIN uses their declarative parts and never runs their code');
+    if (!xs.length) list.appendChild(el('div', 'ig-why', 'No extensions installed.'));
+    xs.filter(function (x) { return hit(x.name + ' ' + x.id); }).forEach(function (x) { list.appendChild(row('ext', x.name, x.id, [el('span', 'tag ' + (x.enabled ? 'ok' : ''), x.enabled ? 'enabled' : 'disabled')])); });
+  }
+
   function draw() {
     if (L.nav.tab() !== 'mcp') return;
     // A MENU IS OPEN: a redraw would remove the control it is anchored to and close it under the person's hand.
@@ -333,35 +434,31 @@ function client() {
     if (L.popDepth && L.popDepth() > 0) { clearTimeout(redrawLater); redrawLater = setTimeout(draw, 400); return; }
     var host = $('mcpPane'); var keep = host.scrollTop; host.textContent = '';
     var page = el('div', 'u-page wide');
-    page.appendChild(L.kit.head('MCP & Skills', 'Connect LAIN to the applications you work in, and teach it how your team works.'));
+    page.appendChild(L.kit.head('Capabilities', 'Skills, MCP servers, hooks and extensions — what each one costs a request, and what it may do.'));
     page.appendChild(tabsBar());
+    if (tab !== 'discover' && tab !== 'custom') page.appendChild(searchBox());
     var pane = el('div', 'mcpbody'); page.appendChild(pane); host.appendChild(page);
     if (!data) { pane.appendChild(el('div', 'u-empty', loading ? 'Reading…' : 'Not read yet.')); if (!loading) load(); return; }
     var list = el('div', 'ig-list'); pane.appendChild(list);
     var recs = (data.recommended || []).map(function (r) { var c = (data.catalog || []).filter(function (x) { return x.key === r.key; })[0]; return c ? { item: c, why: r.why } : null; }).filter(Boolean);
-    if (tab === 'installed') {
-      if (recs.length) { section(list, 'This project recommends'); recs.forEach(function (r) { list.appendChild(catalogCard(r.item, r.why)); }); }
-      section(list, 'MCP servers', data.mcp.length + ' configured');
-      if (!data.mcp.length) empty(list, 'No MCP servers yet', 'An MCP server lets LAIN work inside another application — a Godot scene, a Blender file, a browser, a database. Find one in Discover, or describe your own under Custom.', btn('Discover', 'primary', function () { tab = 'discover'; draw(); }));
-      data.mcp.forEach(function (s) { list.appendChild(mcpCard(s)); });
-      section(list, 'Skills', data.skills.length + ' added');
-      if (!data.skills.length) empty(list, 'No skills yet', 'A skill is a folder of instructions (SKILL.md) the Agent reads when a task needs it — how your team builds scenes, releases a build, writes a migration.', btn('Add a skill', 'primary', function () { tab = 'custom'; draw(); }));
-      data.skills.forEach(function (k) { list.appendChild(skillCard(k)); });
+    if (tab === 'skills') {
+      skillsTab(list);
     } else if (tab === 'discover') {
       discover(list);
     } else if (tab === 'mcp') {
-      if (!data.mcp.length) empty(list, 'No MCP servers yet', 'Add one from Available, or describe your own under Custom.', btn('Add a server', 'primary', function () { tab = 'custom'; draw(); }));
-      data.mcp.forEach(function (s) { list.appendChild(mcpCard(s)); });
-    } else if (tab === 'skills') {
-      if (!data.skills.length) empty(list, 'No skills yet', 'Add a skill folder or a Git repository under Custom.', btn('Add a skill', 'primary', function () { tab = 'custom'; draw(); }));
-      data.skills.forEach(function (k) { list.appendChild(skillCard(k)); });
+      if (recs.length) { section(list, 'This project recommends'); recs.forEach(function (r) { list.appendChild(catalogCard(r.item, r.why)); }); }
+      mcpTab(list);
+    } else if (tab === 'hooks') {
+      hooksTab(list);
+    } else if (tab === 'extensions') {
+      extensionsTab(list);
     } else customForms(list);
     host.scrollTop = keep;
   }
 
   L.mcpView = { load: load, show: function (t) { if (t) tab = t; L.nav.go('mcp'); } };
   L.onBoot(function () {
-    L.nav.onShow('mcp', function (o) { if (o && o.section && /^(installed|discover|available|mcp|skills|custom)$/.test(o.section)) tab = o.section === 'available' ? 'discover' : o.section; load(); });
+    L.nav.onShow('mcp', function (o) { if (o && o.section && /^(installed|discover|available|mcp|skills|hooks|extensions|custom)$/.test(o.section)) tab = o.section === 'available' ? 'discover' : o.section === 'installed' ? 'skills' : o.section; load(); });
   });
 }
 

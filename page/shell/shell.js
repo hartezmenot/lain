@@ -12,7 +12,7 @@
  *   │ ▢ Chat        ││                                                              │
  *   │ ≋ Model       ││                                                              │
  *   │ ▥ Usage       ││                                                              │
- *   │ ⧉ MCP & Skills││                                                              │
+ *   │ ⧉ Capabilities││                                                              │
  *   │ ⚙ Settings    ││                                                              │
  *   │ (the room's   ││                                                              │
  *   │  own list)    ││                                                              │
@@ -228,7 +228,7 @@ function client() {
   var L = window.LAIN;
   var $ = L.$, el = L.el;
   var TABS = ['home', 'ide', 'chat', 'model', 'usage', 'mcp', 'settings'];
-  var NAMES = { home: 'Home', ide: 'IDE', chat: 'Chat', model: 'Model', usage: 'Usage', mcp: 'MCP & Skills', settings: 'Settings', bot: 'Assistant', session: 'Sessions', ext: 'Extensions' };
+  var NAMES = { home: 'Home', ide: 'IDE', chat: 'Chat', model: 'Model', usage: 'Usage', mcp: 'Capabilities', settings: 'Settings', bot: 'Assistant', session: 'Sessions', ext: 'Extensions' };
   // SUB-SURFACES live under a room: the assistant under Settings, sessions under Chat. Extensions has no room of its own.
   var SUB = { bot: 'settings', session: 'chat', ext: '' };
   var ALL = TABS.concat(Object.keys(SUB));

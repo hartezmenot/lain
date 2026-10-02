@@ -345,7 +345,7 @@ function client() {
     else if (X.tab === 'recommended') recCards(grid);
     else if (X.tab === 'plugins') pluginCards(grid);
     else discoverCards(grid);
-    page.appendChild(el('div', 'ex-note', 'Extensions are VS Code packages. LAIN uses what its API supports — each one says Compatible, Needs adapter or Unsupported, and why — and runs extension code only in its own host, with the permissions you allow. LAIN plugins are LAIN’s own: their commands run as Coding Agent turns. MCP servers live in MCP & Skills.'));
+    page.appendChild(el('div', 'ex-note', 'Extensions are VS Code packages. LAIN uses what its API supports — each one says Compatible, Needs adapter or Unsupported, and why — and runs extension code only in its own host, with the permissions you allow. LAIN plugins are LAIN’s own: their commands run as Coding Agent turns. MCP servers live in Capabilities.'));
     host.appendChild(page);
     host.scrollTop = keep;
   }

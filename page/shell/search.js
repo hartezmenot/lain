@@ -74,7 +74,7 @@ function client() {
   var ROOMS = [
     ['home', 'Home', 'launcher search start'], ['ide', 'IDE', 'editor code project explorer files terminal'],
     ['chat', 'Chat', 'conversation research plan discuss coding agent'], ['model', 'Model', 'providers accounts oauth api quota models defaults local'],
-    ['usage', 'Usage', 'tokens cost limits quota cache consumption'], ['mcp', 'MCP & Skills', 'servers tools skills integrations'],
+    ['usage', 'Usage', 'tokens cost limits quota cache consumption'], ['mcp', 'Capabilities', 'servers tools skills hooks extensions integrations capabilities'],
     ['settings', 'Settings', 'preferences appearance editor notifications privacy'],
     ['bot', 'Assistant', 'channels telegram discord whatsapp permissions reminders schedules'], ['session', 'Sessions', 'history previous work restore'],
   ];
@@ -131,7 +131,7 @@ function client() {
       { title: 'Coding Agent: Open Full Coding Chat', sub: 'Chat', icon: 'spark', kw: 'agent conversation wide full', run: function () { if (L.chat && L.chat.openCoding) L.chat.openCoding(); else L.nav.go('chat'); } },
       { title: 'Route: Choose Provider…', sub: 'Model', icon: 'user', kw: 'account oauth subscription codex claude antigravity switch provider', run: function () { if (L.intel) L.intel.pickProvider(routeAnchor(), L.intel.laneNow(), { prefer: 'below', alignRight: true }); } },
       { title: 'Route: Choose Model…', sub: 'Model', icon: 'spark', kw: 'model switch', run: function () { if (L.intel) L.intel.pickModel(routeAnchor(), L.intel.laneNow(), { prefer: 'below', alignRight: true }); } },
-      { title: 'MCP & Skills: Open', sub: 'MCP & Skills', icon: 'mcp', kw: 'servers tools skills integrations', run: function () { L.nav.go('mcp'); } },
+      { title: 'Capabilities: Open', sub: 'Capabilities', icon: 'mcp', kw: 'servers tools skills hooks extensions integrations capabilities', run: function () { L.nav.go('mcp'); } },
     ];
   }
   /** The route chip on screen: the IDE's, else the rail's. */
@@ -238,11 +238,11 @@ function client() {
     });
     var tools = L.tools ? L.tools.get() : null;
     ((tools && tools.servers) || []).forEach(function (m) {
-      out.push({ group: 'MCP', title: m.name + ' MCP server', sub: 'MCP & Skills · ' + m.state.toLowerCase().replace(/_/g, ' '), icon: 'plug', kw: 'mcp server tools ' + m.id + ' ' + (m.tools || []).join(' '),
+      out.push({ group: 'MCP', title: m.name + ' MCP server', sub: 'Capabilities · ' + m.state.toLowerCase().replace(/_/g, ' '), icon: 'plug', kw: 'mcp server tools ' + m.id + ' ' + (m.tools || []).join(' '),
         run: function () { L.nav.go('mcp', { section: 'mcp', item: m.id }); } });
       (m.tools || []).slice(0, 40).forEach(function (t) { out.push({ group: 'MCP', title: t, sub: m.name + ' tool', icon: 'plug', kw: 'tool mcp', run: function () { L.nav.go('mcp', { section: 'mcp', item: m.id }); } }); });
     });
-    out.push({ group: 'MCP', title: 'Skills', sub: 'MCP & Skills', icon: 'spark', kw: 'skill packages', run: function () { L.nav.go('mcp', { section: 'skills' }); } });
+    out.push({ group: 'MCP', title: 'Skills', sub: 'Capabilities', icon: 'spark', kw: 'skill packages', run: function () { L.nav.go('mcp', { section: 'skills' }); } });
     fabricEntries(out);
     var bd = L.bot && L.bot.get ? L.bot.get() : null;
     ['Telegram', 'Discord', 'WhatsApp'].forEach(function (p) {

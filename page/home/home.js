@@ -379,7 +379,7 @@ function client() {
     ['Type <b>/</b> in any composer to list LAIN’s controls — they change LAIN itself and never reach a model.'],
     ['<span class="kbd">Ctrl K</span> searches projects, files, commands, models and accounts from anywhere.'],
     ['<b>Chat</b> plans; the <b>Coding Agent</b> implements — the same session, one plan, one project.'],
-    ['<span class="kbd">Alt 1</span>…<span class="kbd">Alt 7</span> switch between Home, IDE, Chat, Model, Usage, MCP & Skills and Settings.'],
+    ['<span class="kbd">Alt 1</span>…<span class="kbd">Alt 7</span> switch between Home, IDE, Chat, Model, Usage, Capabilities and Settings.'],
     ['The ring at the top right is what remains of the active route’s quota. Click it for LAIN’s own usage and every reported window.'],
     ['Closing the window keeps LAIN in the tray: bots and running work carry on. Quit from the tray menu ends them.'],
   ];
