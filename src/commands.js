@@ -615,7 +615,6 @@ require('./workcommands').register({ define, FLASH_MS, DURING_TURN, C });
 // runs a SERVER, and the decisions that come with that — bind the network or
 // not, allow actions or not, come up by itself or not — are its subject and
 // nobody else's. See dashcommand.js.
-require('./dashcommand').register({ define, FLASH_MS, C });
 // AND /trust + /permissions, which are one subject — what this session may
 // touch, and what it was stopped from touching. See trustcommand.js.
 require('./trustcommand').register({ define, FLASH_MS, C });

@@ -188,7 +188,6 @@ module.exports = async function () {
     // `/dash` prints an address and a credential somebody may be copying to a
     // phone; `/status` is a dozen facts to look through. Those wait for Esc.
     const cmds = require('../../src/commands');
-    assert.strictEqual(cmds.REGISTRY.get('/dash').flashMs, 0, '/dash must wait to be dismissed');
     assert.strictEqual(cmds.REGISTRY.get('/status').flashMs, 0, '/status must wait to be dismissed');
     // And the default is to clear, so a new machinery command inherits the
     // right behaviour without anyone remembering to ask for it.

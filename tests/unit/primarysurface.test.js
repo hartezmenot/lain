@@ -183,16 +183,6 @@ module.exports = async function () {
     const out = draw();
     assert.ok(!/Task ID|task_[0-9a-f]{6}|events\.jsonl|verification contract/i.test(out), out.slice(0, 400));
   });
-
-  await test('BOUNDARY: there is ONE projection of harness state, and the surfaces share it', () => {
-    // A second reader assembling its own notion of “is it done” is the failure
-    // harnesssurface.js exists to prevent — see its header. The dashboard is
-    // the existing consumer; this pins that it consumes rather than derives.
-    const dash = fsx.readFileSync(path.join(__dirname, '..', '..', 'src', 'dash.js'), 'utf8');
-    assert.match(dash, /harnesssurface/, 'the dashboard must read the shared projection');
-    assert.ok(!/runtime\.snapshot\(\)/.test(dash), 'and must not reach past it into the runtime');
-  });
-
   await test('BOUNDARY: a missing harness degrades to absent, never to a false empty task', () => {
     // `null` means “no task has been opened”. An object of zeroes would render
     // as a task that exists and has proved nothing, which is a different and

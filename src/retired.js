@@ -69,6 +69,8 @@ function prune(cfg) {
     }
     if (removed.length) cfg = { ...cfg, connections: kept };
   }
+  // THE OLD BROWSER DASHBOARD (deleted in S9): its keys leave the config on load.
+  if (['dashAutostart', 'dashPassword', 'dashLan', 'dashPort'].some((k) => k in cfg)) { cfg = { ...cfg }; for (const k of ['dashAutostart', 'dashPassword', 'dashLan', 'dashPort']) delete cfg[k]; }
   Object.defineProperty(cfg, '_retired', { value: removed, enumerable: false, configurable: true, writable: true });
   return cfg;
 }

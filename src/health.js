@@ -30,7 +30,7 @@ const path = require('path');
 
 const diagnose = require('./diagnose');
 const commands = require('./commands');
-const { detect } = require('./compare');
+const { detect } = require('./projecttree');
 const { CAPABILITIES } = require('./capabilities');
 
 /** state → { symbol, colour, ready } — ready feeds the RC summary tally. */

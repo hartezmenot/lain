@@ -25,9 +25,9 @@ const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
 const F = require('../../src/facts');
-const contracts = require('../../src/contracts');
-const clifacts = require('../../src/clifacts');
-const datafacts = require('../../src/datafacts');
+const contracts = require('../../tools/dev/contracts');
+const clifacts = require('../../tools/dev/clifacts');
+const datafacts = require('../../tools/dev/datafacts');
 const F2 = require('../../src/findings');
 
 const ROOT = path.join(__dirname, '..', '..');

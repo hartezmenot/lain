@@ -135,9 +135,9 @@ module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGAC
   await test('VERIFYCONTRACT IS THE AUTHORITY: a UI nudge is proved by Preview geometry — no final smoke; a release task needs packaging', () => {
     const root = project();
     const ui = new Lifecycle('Move the Preview button down by 6px');
-    preview(ui, 'preview_read', { target: { selector: '#play' } }, 'button "Play" #play rect y=120');
+    preview(ui, 'preview', { action: 'read', target: { selector: '#play' } }, 'button "Play" #play rect y=120');
     write(ui, path.join(root, 'src', 'player.css'));
-    preview(ui, 'preview_read', { target: { selector: '#play' } }, 'button "Play" #play rect y=126');
+    preview(ui, 'preview', { action: 'read', target: { selector: '#play' } }, 'button "Play" #play rect y=126');
     const v = arbiter.evaluate(ui, { cwd: root });
     assert.strictEqual(v.state, 'DONE', v.why);
     assert.strictEqual(require('../../src/finalsmoke').state(ui, root), 'NOT_REQUIRED', 'no universal final smoke');
@@ -162,10 +162,10 @@ module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGAC
     fs.writeFileSync(path.join(cwd, 'index.html'), '<p>Count: 0</p>');
     const life = new Lifecycle('Open Preview, click Add one twice, verify Count becomes 2, stop.');
     const session = { cwd, lifecycle: life, messages: [] };
-    preview(life, 'preview_read', {}, 'Count: 0');
-    preview(life, 'preview_click', { target: { text: 'Add one' } }, 'done on button "Add one"');
-    preview(life, 'preview_click', { target: { text: 'Add one' } }, 'done on button "Add one"');
-    preview(life, 'preview_read', {}, 'visible text: Count: 2');
+    preview(life, 'preview', { action: 'read' }, 'Count: 0');
+    preview(life, 'preview', { action: 'click', target: { text: 'Add one' } }, 'done on button "Add one"');
+    preview(life, 'preview', { action: 'click', target: { text: 'Add one' } }, 'done on button "Add one"');
+    preview(life, 'preview', { action: 'read' }, 'visible text: Count: 2');
     const obs = life.discipline.checks.all().pop();
     life.discipline.contract.criterion(null, { text: 'Count becomes 2', status: 'MET', evidence: { check: obs.id, expect: 'Count: 2' } });
     assert.ok(arbiter.outcomeSatisfied(life));

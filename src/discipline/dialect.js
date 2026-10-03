@@ -22,7 +22,7 @@ const OPS = Object.freeze({
   'execute-command': ['run_bash', 'run_powershell', 'run_cmd', 'run_tests', 'run_background', 'python_run', 'process_run'],
   'inspect-history': ['review_changes', 'recall_evidence'],
   'inspect-runtime': ['job_status', 'observe', 'service_check', 'observe_start', 'observe_stop'],
-  'inspect-preview': ['preview_read', 'preview_pointer_move', 'preview_click', 'preview_double_click', 'preview_pointer_down', 'preview_pointer_up', 'preview_drag', 'preview_scroll', 'preview_key', 'preview_key_chord', 'preview_type_text'],
+  'inspect-preview': ['preview', 'preview_read', 'preview_pointer_move', 'preview_click', 'preview_double_click', 'preview_pointer_down', 'preview_pointer_up', 'preview_drag', 'preview_scroll', 'preview_key', 'preview_key_chord', 'preview_type_text'],
 });
 
 function opOf(name) { for (const [op, list] of Object.entries(OPS)) if (list.includes(name)) return op; return null; }

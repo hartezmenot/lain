@@ -42,6 +42,8 @@
  * contract has run — which is a fact that was previously nowhere.
  */
 
+/** Was this module ever loaded? Frozen surfaces are cleaned up only if they ran (S9). */
+const loaded = (m) => { try { return Boolean(require.cache[require.resolve(m)]); } catch { return false; } };
 const { STATE } = require('./harness/state');
 // The mode verdict is consumed, never re-derived — see beginTurn.
 const modeId = require('./mode');
@@ -197,7 +199,7 @@ async function shutdown(app) {
   // it at the end, and this is the one place every exit path already passes
   // through. The dev server it may have started IS managed, and goes down with
   // the harness below. See src/workshop/index.js.
-  try { await require('./workshop').forApp(app).closeAll(); } catch { /* the way out is never blocked by cleanup */ }
+  try { if (loaded('./workshop')) await require('./workshop').forApp(app).closeAll(); } catch { /* the way out is never blocked by cleanup */ }   // frozen surfaces: only if they ever loaded
   // ---- AND ANY BROWSER THE RUNTIME OWNS THAT NOBODY ELSE CLAIMED --------
   //
   // The two above close the browsers their own modules hold. This is the
@@ -211,7 +213,7 @@ async function shutdown(app) {
   // LANGUAGE SERVERS AND DEBUG ADAPTERS this process started are stopped with
   // it (the runtime registry's stop-on-owner-exit is the backstop, not the plan).
   try { await require('./lsp/manager').stopAll(); } catch { /* the way out is never blocked by cleanup */ }
-  try { await require('./dap/manager').stopAll(); } catch { /* the way out is never blocked by cleanup */ }
+  try { if (loaded('./dap/manager')) await require('./dap/manager').stopAll(); } catch { /* the way out is never blocked by cleanup */ }
   const h = existing(app);
   if (!h) return;
   try { await h.shutdown(); } catch { /* the way out is never blocked by cleanup */ }

@@ -16,7 +16,7 @@
  *      truth beats no truth, and the fallback path is a code path like any
  *      other: untested means broken.
  *
- * The full 8-task suite is not run here — `node bench/run.js` is the
+ * The full 8-task suite is not run here — `node tools/dev/bench/run.js` is the
  * benchmark's own entry point, and the smoke tier would double its cost on
  * every suite pass. What runs is the smallest set that proves the machinery
  * reproduces.
@@ -26,8 +26,8 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { test } = require('../helpers');
-const { collect, loadSession, callsOf } = require('../../bench/metrics');
-const { traceFromSession, duplicateCalls } = require('../../bench/evidence');
+const { collect, loadSession, callsOf } = require('../../tools/dev/bench/metrics');
+const { traceFromSession, duplicateCalls } = require('../../tools/dev/bench/evidence');
 
 const ROOT = path.join(__dirname, '..', '..');
 
@@ -51,7 +51,7 @@ function metricCore(session) {
 async function runBench(args) {
   const { execFile } = require('child_process');
   return new Promise((resolve) => {
-    execFile(process.execPath, [path.join(ROOT, 'bench', 'run.js'), ...args],
+    execFile(process.execPath, [path.join(ROOT, 'tools', 'dev', 'bench', 'run.js'), ...args],
       { cwd: ROOT, timeout: 240000, maxBuffer: 32 * 1024 * 1024 },
       (e, stdout, stderr) => resolve({ code: e ? e.code : 0, stdout: String(stdout), stderr: String(stderr) }));
   });
@@ -59,7 +59,7 @@ async function runBench(args) {
 
 /** The session JSON of the newest run directory for one task. */
 function newestSession(taskId) {
-  const base = path.join(ROOT, 'bench', 'out');
+  const base = path.join(ROOT, 'tools', 'dev', 'bench', 'out');
   const runs = fs.readdirSync(base).filter((d) => d.startsWith('run-mock-')).sort();
   assert.ok(runs.length, 'a benchmark run directory exists');
   const dir = path.join(base, runs[runs.length - 1], taskId.toLowerCase(), 'home', 'sessions');
@@ -89,7 +89,7 @@ module.exports = async function () {
     assert.strictEqual(t.summary.staleInvalidations, 0, 'no false invalidation was raised');
     assert.strictEqual(duplicateCalls(s).length, 3, 'the planted duplicate calls were counted');
     // And the baseline JSON agrees with the records it was projected from.
-    const baseline = JSON.parse(fs.readFileSync(path.join(ROOT, 'bench', 'out', 'baseline-mock.json'), 'utf8'));
+    const baseline = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'dev', 'bench', 'out', 'baseline-mock.json'), 'utf8'));
     const a2 = baseline.tasks.find((x) => x.id === 'A2');
     assert.ok(a2, 'A2 is in the baseline');
     assert.ok(a2.instrumentation && a2.instrumentation.allMatch, 'planted numbers came back out');
@@ -101,7 +101,7 @@ module.exports = async function () {
     // killed before a turn, no session saved. The renderer must say FAILED
     // with a metrics-free entry, and the aggregate must tolerate it, because
     // partial truth is the contract and a crash in the reporter loses it.
-    const { renderReport } = require('../../bench/report');
+    const { renderReport } = require('../../tools/dev/bench/report');
     const killed = {
       task: { id: 'X', name: 'KILLED RUN', cls: 'failure', purpose: 'died before any record', live: true },
       mode: 'mock',

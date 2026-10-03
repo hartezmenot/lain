@@ -25,13 +25,13 @@ const { test } = require('../helpers');
 module.exports = async function () {
   // ---- THE COMMAND SURFACE ------------------------------------------------
 
-  await test('RC: /session, /ready and /dash are three things, none an alias', () => {
+  await test('RC: /session and /ready are two things, not an alias', () => {
     const commands = require('../../src/commands');
-    for (const name of ['/session', '/ready', '/dash']) {
+    for (const name of ['/session', '/ready']) {
       assert.ok(commands.REGISTRY.has(name), `${name} must exist`);
     }
-    const runs = ['/session', '/ready', '/dash'].map((n) => commands.REGISTRY.get(n).run);
-    assert.strictEqual(new Set(runs).size, 3, 'two of them share an implementation');
+    const runs = ['/session', '/ready'].map((n) => commands.REGISTRY.get(n).run);
+    assert.strictEqual(new Set(runs).size, 2, 'two of them share an implementation');
   });
 
   await test('RC: typing a complete command name runs THAT command, not a longer one', () => {

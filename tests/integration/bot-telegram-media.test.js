@@ -54,19 +54,6 @@ async function fixture(fn) {
   }
 }
 module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
-  await test('BOT TELEGRAM MEDIA: observational status/check never attach, drain, latch, save or expose credentials', async () => fixture(async ({ root, token, rpc, start, adapter, state, calls }) => {
-    assert.ok((await supervisor.ensure()).running);
-    const mailbox = path.join(root, 'home', 'supervisor', 'bot-mailbox.json');
-    const before = await rpc('status'); assert.equal(before.gatewayProtocol, 1); assert.equal(before.configured, false); assert.equal(before.gatewayEnabled, false); assert.equal(before.mailboxHealthy, true);
-    assert.equal((await rpc('check')).authenticated, false); assert.equal(calls.length, 0); assert.ok(!fs.existsSync(mailbox));
-    await start(); const saved = fs.readFileSync(mailbox, 'utf8'), timestamp = fs.statSync(mailbox).mtimeMs;
-    const checked = await rpc('check'); assert.equal(checked.authenticated, true); assert.equal(checked.identityMatch, true);
-    state.auth = 401; const failed = await rpc('check'); assert.equal(failed.authFailed, true); assert.equal(failed.authenticated, false);
-    const status = await rpc('status'); assert.equal(status.gatewayOwned, true); assert.equal(status.mailboxCapacity, 128);
-    assert.equal(fs.readFileSync(mailbox, 'utf8'), saved); assert.equal(fs.statSync(mailbox).mtimeMs, timestamp);
-    assert.ok(!JSON.stringify([before, checked, failed, status]).includes(token));
-    await adapter.stop(); assert.equal((await rpc('status')).gatewayOwned, false); assert.equal((await rpc('status')).gatewayEnabled, true);
-  }));
   await test('BOT TELEGRAM MEDIA: source-bound fetch survives ACK, rejects another sender/owner and untrusted paths or excess bytes', async () => fixture(async ({ adapter, state, events, rpc, say, start, token }) => {
     await start(); say(); assert.ok(await until(() => events.length === 1)); assert.ok(await until(async () => (await rpc('status')).mailboxDepth === 0));
     const e = events[0], a = e.attachments[0]; assert.equal(e.threadId, '9'); assert.equal(a.id, 'opaque-file');

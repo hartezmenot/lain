@@ -13,6 +13,7 @@ rust/lain-supervisor/target/
 
 # benchmark working copies and baselines (the pristine fixture is version-controlled; these are per-run outputs)
 bench/out/
+tools/dev/bench/out/
 
 # Python workers are source; interpreter caches are machine output.
 __pycache__/

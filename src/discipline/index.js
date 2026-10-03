@@ -34,8 +34,8 @@ class Discipline {
       const command = String((input && input.command) || name);
       return this.checks.command({ command, ok, exitCode, output, gen, changed });
     }
-    if (/^preview_/.test(String(name))) {
-      return this.checks.observation({ tool: name, target: (input && (input.target || input.key || input.keys || null)) || null, actor: 'MODEL', ok: ok !== false, text: output, gen });
+    if (/^preview(_|$)/.test(String(name))) {   // the one preview tool (S9): its action names the observation
+      return this.checks.observation({ tool: name === 'preview' ? `preview_${(input && input.action) || 'read'}` : name, target: (input && (input.target || input.key || input.keys || null)) || null, actor: 'MODEL', ok: ok !== false, text: output, gen });
     }
     // `observe` ON A LIVE GOAL (element, page, screen, errors, requests…) is a runtime observation too — a DOM
     // measurement is exactly the evidence a "move it 6px" criterion needs (a real GLM run was refused for lack of it,

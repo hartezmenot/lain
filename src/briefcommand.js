@@ -32,7 +32,6 @@
  * during a turn for the same reason `/health` is.
  */
 
-const survey = require('./survey');
 const briefing = require('./briefing');
 const findings = require('./findings');
 const facts = require('./facts');
@@ -124,6 +123,8 @@ async function build(app, { argv = '', session = null, root: explicitRoot = null
     testRun = await runTests(root, cmd);
   }
 
+  const survey = require('./devtool').load('survey');   // the survey is a developer tool (tools/dev, S9)
+  if (!survey) { app.render.write(`  ${require('./devtool').missing('survey')}\n`); return null; }
   const s = await survey.run({
     root,
     app,

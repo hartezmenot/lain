@@ -3,7 +3,7 @@
 /**
  * THE MODEL'S POINTER AND KEYBOARD — for the LAIN Preview, and nothing else (packaging pass §L).
  *
- *   tool call (preview_click …) ──▶ this queue ──▶ the Preview surface that is open (the Harness, or the standalone
+ *   tool call (preview click …) ──▶ this queue ──▶ the Preview surface that is open (the Harness, or the standalone
  *   Preview window a CLI opens) fetches it (POST /api/preview/input/next) ──▶ posts it to the page's bridge
  *   (workshop/bridge.js `act`) ──▶ DOM events inside the preview document ──▶ the result comes back
  *   (POST /api/preview/input/result) and the tool call returns it.

@@ -155,7 +155,6 @@ async function main(opts = {}) {
   // THE BOT AND THE ASSISTANT'S CLOCK START AFTER THE WINDOW (Phase P, 2026-10-02) — below, queued behind the first-state
   // warm-up desktop.open schedules — so neither stands between a launch and the first paint.
   const background = () => {
-    require('./botconnect').resume(app).catch(() => {});
     try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
   };
   // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.

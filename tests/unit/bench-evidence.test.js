@@ -12,7 +12,7 @@
 
 const assert = require('assert');
 const { test } = require('../helpers');
-const { traceFromSession, duplicateCalls, normalizedArgs } = require('../../bench/evidence');
+const { traceFromSession, duplicateCalls, normalizedArgs } = require('../../tools/dev/bench/evidence');
 
 /** A conversation builder: steps of [toolName, input, resultContent, isError]. */
 function session(steps) {

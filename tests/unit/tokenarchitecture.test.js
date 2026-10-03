@@ -167,7 +167,7 @@ module.exports = async function () {
   });
 
   await test('TOKENS: the tool schemas are counted once, and they are the largest fixed cost', () => {
-    const tokenaudit = require('../../src/tokenaudit');
+    const tokenaudit = require('../../tools/dev/tokenaudit');
     const tools = [
       { name: 'read_file', description: 'x'.repeat(400), parameters: { type: 'object' } },
       { name: 'shell', description: 'y'.repeat(400), parameters: { type: 'object' } },
@@ -186,7 +186,7 @@ module.exports = async function () {
     // The failure this guards: context = previousContext + newContext, where
     // every request contains the last one. It shows up as the same body
     // appearing twice in one payload.
-    const tokenaudit = require('../../src/tokenaudit');
+    const tokenaudit = require('../../tools/dev/tokenaudit');
     const body = 'B'.repeat(4000);
     const clean = tokenaudit.measure(
       [{ role: 'user', content: body }, { role: 'assistant', content: 'ok' }],

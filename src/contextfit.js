@@ -36,7 +36,6 @@
  */
 
 const providerLimits = require('./providerlimits');
-const tokenaudit = require('./tokenaudit');
 const contextprovenance = require('./contextprovenance');
 
 /**
@@ -210,10 +209,8 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
   // exists. A breakdown produced anywhere else would be a reconstruction, and
   // a reconstruction is what nobody could trust when the reported figure was
   // 330,000 tokens and no part of the system could say of what.
-  const audit = tokenaudit.measure(wire, {
-    tools: tools || [],
-    budget: require('./contextbudget').charsFor(pc, cfg),
-  });
+  const tokenaudit = require('./devtool').load('tokenaudit');   // a developer measurement (tools/dev) where present
+  const audit = tokenaudit ? tokenaudit.measure(wire, { tools: tools || [], budget: require('./contextbudget').charsFor(pc, cfg) }) : null;
   if (audit && cache) audit.cache = { warmth: cache.warmth, epoch: cache.epoch, ratio: cache.ratio, status: cache.status, reductions: cache.reductions, exception: cache.exception };
   return { wire, notices, compactions, fit: first, verdict, audit, cache };
 }

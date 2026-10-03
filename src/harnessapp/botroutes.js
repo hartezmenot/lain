@@ -13,7 +13,8 @@
  * with redact.js before it goes anywhere.
  */
 
-const bc = require('../botconnect');
+const bcLazy = () => require('../botconnect');   // the Telegram gateway (frozen, S9) loads on its first route
+const bc = new Proxy({}, { get: (_, k) => bcLazy()[k] });
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }

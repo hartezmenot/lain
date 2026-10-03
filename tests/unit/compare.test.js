@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
-const compareMod = require('../../src/compare');
+const compareMod = require('../../tools/dev/compare');
 const { STATUS } = compareMod;
 
 function tree(files) {

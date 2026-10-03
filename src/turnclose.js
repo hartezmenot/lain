@@ -145,7 +145,7 @@ function close(session, life, record) {
   settleScratch(session, record);
   try { require('./locateassist').settleRecord(session, record); } catch { /* a measurement, never a failure */ }
   try { require('./dispatch').settle(session, record); } catch { /* the assignment's telemetry, never a failure */ }
-  try { require('./layaevidence').settle(session); } catch { /* narrowing debt is a measurement */ }
+  try { if (require.cache[require.resolve('./layaevidence')]) require('./layaevidence').settle(session); } catch { /* narrowing debt is a measurement */ }   // only if Laya ran
   // (The model's writes advance the project generation inside the mutation
   // transaction itself — mutation.js `consequences` — once per kept change.)
   try { require('./tempworkspaces').sweep(null, session.id); } catch { /* retained; reconciled at the next start */ }

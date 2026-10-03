@@ -190,7 +190,7 @@ class App {
     // inputgate.js, which is the only thing that sets it.
     this._handover = null;
     // WHAT GIT SAYS ABOUT THIS TREE — reset for the same reason as the brief. See gitsnapshot.js.
-    require('./gitsnapshot').reset(this); require('./layacontext').prewarm(this);   // + a consuming (or explicitly shadowed) Laya role loads off the hot path
+    require('./gitsnapshot').reset(this); if (!require('./simple').on(this)) require('./layacontext').prewarm(this);   // Laya (frozen, S9): legacy only   // + a consuming (or explicitly shadowed) Laya role loads off the hot path
     this.refreshSupervisedJobs();
     // AND WHICH ROUTES ARE SHUT. Read, never re-adopted — see the constructor.
     // Without this the handover's route section would be whatever was true when
@@ -651,7 +651,7 @@ class App {
       //
       // In the `finally` so a thrown turn cleans up too, and awaited so the
       // process is genuinely free to exit when this returns.
-      await require('./harnesslink').shutdown(this); require('./workerruntime').settle(this);   // specialists: stats onto the session, processes stopped
+      await require('./harnesslink').shutdown(this); if (require.cache[require.resolve('./workerruntime')]) require('./workerruntime').settle(this);   // specialists: stats onto the session, processes stopped
     }
     try { this.session.save(); } catch { /* best effort */ }
     // /resume is the ONLY way state crosses a session boundary, so a one-shot

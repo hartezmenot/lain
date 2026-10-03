@@ -137,7 +137,7 @@ function register({ define }) {
       if (!audits.length) {
         w(C.dim('  no request has been measured yet in this session.' + EOL));
       } else {
-        const ta = require('./tokenaudit');
+        const ta = require('./devtool').load('tokenaudit') || { report: () => [require('./devtool').missing('tokenaudit')] };
         // THE LAST FEW, NEWEST LAST, because the question is always about the
         // request that just happened and how it compares with the one before.
         for (let i = 0; i < audits.length; i++) {

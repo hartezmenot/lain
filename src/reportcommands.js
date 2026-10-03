@@ -54,7 +54,7 @@ function register({ define, C, config }) {
     flashMs: 0,
     args: '[<folder|github-url> | add <capability>]',
     desc: 'Compare this project against another version, capability by capability',
-    run(app, ctx) { return require('./compare').runCommand(app, ctx, { C, config }); },
+    run(app, ctx) { const cmp = require('./devtool').load('compare'); if (!cmp) { app.render.write(`  ${require('./devtool').missing('compare')}\n`); return null; } return cmp.runCommand(app, ctx, { C, config }); },
   });
 
   /**
@@ -154,7 +154,8 @@ function register({ define, C, config }) {
     args: '[all]',
     desc: 'Find code nothing reaches — graded, with the evidence',
     run(app, { args } = {}) {
-      const dead = require('./deadcode');
+      const dead = require('./devtool').load('deadcode');
+      if (!dead) { app.render.write(`  ${require('./devtool').missing('deadcode')}\n`); return null; }
       const w = (s) => app.render.write(s);
       const all = String(args[0] || '').toLowerCase() === 'all';
       w('\n' + C.bold('  Reading every reference in this tree…') + '\n');

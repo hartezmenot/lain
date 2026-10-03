@@ -26,7 +26,7 @@ const fs = require('fs');
 const path = require('path');
 
 const project = require('./project');
-const { scanDir, detect } = require('./compare');
+const { scanDir, detect } = require('./projecttree');
 const { CAPABILITIES } = require('./capabilities');
 
 /** Files worth reading for markers — source, not lockfiles or assets. */
@@ -384,7 +384,9 @@ async function runCommand(app, ctx = {}, { C, config } = {}) {
   if (rest) {
     // A source was given: this is a comparison, and /compare already owns that
     // whole capability. Forwarding keeps one implementation, not two.
-    return require('./compare').runCommand(app, ctx, { C, config });
+    const cmp = require('./devtool').load('compare');
+    if (!cmp) { app.render.write(`  ${require('./devtool').missing('compare')}\n`); return null; }
+    return cmp.runCommand(app, ctx, { C, config });
   }
   app.render.write((C ? C.dim : (s) => s)('  Reading the project…\n'));
   let a;

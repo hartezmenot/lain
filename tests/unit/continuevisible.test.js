@@ -62,9 +62,6 @@ module.exports = async function () {
       assert.match(copied, /USER\ncontinue/, '/copy keeps it where ordinary user turns belong');
       assert.ok(!/USER \(via handover\)/.test(copied));
 
-      const rows = require('../../src/dashconversation').conversation(app.session);
-      assert.ok(rows.some((r) => r.who === 'USER' && r.text === 'continue'), 'the dashboard/Harness projection agrees');
-      assert.ok(!rows.some((r) => /continuing from what LAIN observed/.test(r.text)));
     });
   });
 

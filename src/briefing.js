@@ -31,7 +31,7 @@ const path = require('path');
 const F = require('./findings');
 const F_facts = require('./facts');
 const rootcause = require('./rootcause');
-const { HEALTH } = require('./survey');
+const HEALTH = Object.freeze({ PASS: 'PASS', CLEAN: 'CLEAN', DEGRADED: 'DEGRADED', FAILED: 'FAILED', UNVERIFIED: 'UNVERIFIED' });   // survey's words (tools/dev/survey.js)
 
 /** Hard bounds, so one pathological project cannot produce a megabyte. */
 const MAX_DETAILED = 40;

@@ -44,7 +44,7 @@
 const assert = require('assert');
 const { test } = require('../helpers');
 
-const tokenaudit = require('../../src/tokenaudit');
+const tokenaudit = require('../../tools/dev/tokenaudit');
 const contextbudget = require('../../src/contextbudget');
 const promptcache = require('../../src/promptcache');
 const sessionMod = require('../../src/session');

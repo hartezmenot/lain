@@ -85,6 +85,7 @@ function action(h, kind, text, extra = {}) {
 }
 
 function background(app, session, type) {
+  if (require('./simple').on(app)) return;   // Laya (S9) is only the optional semantic_search tool in simple mode
   try { require('./layacontext').enqueue(app, session, { type }); } catch { /* background only: never affects the caller */ }
 }
 
@@ -250,7 +251,7 @@ function noteSourceEdit(app, session, { file, by = 'user', what = '' } = {}) {
   const rel = path.isAbsolute(String(file)) ? path.relative(root, String(file)).replace(/\\/g, '/') : String(file).replace(/\\/g, '/');
   const n = projectgen.advance(root, { file: rel, by });
   let affected = [];
-  try { affected = require('./gug').sourceEdited(app, root, rel); } catch { affected = []; }
+  try { if (require.cache[require.resolve('./gug')]) affected = require('./gug').sourceEdited(app, root, rel); } catch { affected = []; }   // geometry (frozen, S9): only once it loaded
   const h = of(session);
   if (h) {
     if (by === 'user') action(h, 'edit', `${what ? `${what} — ` : ''}manually edited ${rel}`, { file: rel });

@@ -37,7 +37,7 @@ const PROMPTS = {
   // THE EXECUTION-DISCIPLINE SCENARIOS (consolidation §59–§62): the spec's own words, no coaching on how.
   count: 'Open Preview. Click Add one twice. Verify Count becomes 2. Stop.',
   nudge: 'Move the Add one button down by 6px. Verify it in the Preview.',
-  preview: 'This folder is a small web page. Test it in the LAIN Preview using the preview tools only: first preview_read the page, then preview_click the "Add one" button twice, then preview_read again. Reply with only the number shown after "Count:".',
+  preview: 'This folder is a small web page. Test it in the LAIN Preview using the preview tool only: first read the page, then click the "Add one" button twice, then preview_read again. Reply with only the number shown after "Count:".',
 };
 
 (async () => {

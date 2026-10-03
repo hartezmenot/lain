@@ -99,7 +99,6 @@ async function shutdown(viewApp, { why = 'the session ended', closeWindow = true
   // A LISTENING SOCKET AND A DESKTOP BRIDGE must not outlive the LAIN that
   // opened them — a surface still answering after LAIN exits, or a bridge still
   // holding a grant, is exactly the thing nobody remembers turning off.
-  await step('the browser surface', () => require('./dash').stop());
   await step('the harness services', () => require('./harnesslink').shutdown(app));
   await step('the computer bridge', () => { if (app._desktop) app._desktop.bridge.close(why); });
   await step('the control window', () => require('./controlwindow').close(app));

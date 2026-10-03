@@ -132,7 +132,7 @@ function simpleActive(app) {
   const full = legacyActive(app);
   const out = {};
   for (const n of core.CORE) out[n] = core.tools[n] || full[n];
-  for (const [n, t] of Object.entries(full)) if (/^preview_/.test(n)) out[n] = t;
+  for (const [n, t] of Object.entries(full)) if (n === 'preview') out[n] = t;
   // ONE `computer` TOOL (S5.1, tools/computerone.js) while Computer Control is on, or from the start when Auto is chosen;
   // kept once present. The first call in Auto turns Computer Control on (execmode.autoComputer) — the desktop still asks.
   const s = app && app.session;
@@ -140,6 +140,9 @@ function simpleActive(app) {
     s._computerTools = true;
     out.computer = require('./computerone').tools.computer;
   }
+  // Laya (S9): one optional tool, decided once per session so the cached tool list never flickers.
+  if (s && s._semanticSearch === undefined) s._semanticSearch = require('./semanticsearch').installed(app);
+  if (s && s._semanticSearch) out.semantic_search = require('./semanticsearch').tools.semantic_search;
   return out;
 }
 
@@ -201,7 +204,7 @@ function legacyActive(ctxApp) {
   // THE PREVIEW TOOLS FOLLOW THE PREVIEW (2026-10-01): eleven schemas (~11 KB) were described on every request of every
   // CLI session, with nothing to click. Offered once a Preview has been attached in this session, then kept for it —
   // the tool list is part of the cached prefix and must not flicker as the window opens and closes.
-  if (session && !session._previewTools) { try { if (require('../workshop/previewinput').attached(app)) session._previewTools = true; } catch { /* none */ } }
+  if (session && !session._previewTools) { try { if (require.cache[require.resolve('../workshop')] && require('../workshop/previewinput').attached(app)) session._previewTools = true; } catch { /* none */ } }   // only once the Preview ever opened
   if (!app || (session && session._previewTools) || process.env.LAIN_PREVIEW_TOOLS === '1') out = { ...out, ...require('./preview').tools };
   if (!require('../dispatch').offersMigration(session)) out = without(out, MIGRATION_TOOLS);
   if (!(session && session._botTurn)) out = without(out, BOT_TOOLS);
@@ -222,7 +225,7 @@ function notOffered(name) {
   if (MIGRATION_TOOLS.includes(name)) return 'it is offered only when Core identifies a real migration (a current representation, a target one and the boundary between them) or one is in flight. Plan this work with the ordinary tools.';
   if (BOT_TOOLS.includes(name)) return 'it exists only on the IDE BOT turn.';
   if (name === 'job_wait') return 'there is no waiting on a job inside a turn: a background job\'s result rejoins this session by itself when it ends (job_status reads it once). If you need the result now, run the command in the foreground (run_bash / run_tests).';
-  if (/^preview_/.test(name)) return 'no LAIN Preview is attached to this session — open the project in the Preview (`lain preview`) first.';
+  if (name === 'preview') return 'no LAIN Preview is attached to this session — open the project in the Preview (`lain preview`) first.';
   return '';
 }
 

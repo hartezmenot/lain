@@ -221,7 +221,7 @@ function register({ define, C }) {
 function gateResults() {
   const fs = require('fs');
   const path = require('path');
-  const dir = path.join(__dirname, '..', 'bench', 'workergate', 'out');
+  const dir = path.join(__dirname, '..', 'tools', 'dev', 'bench', 'workergate', 'out');
   const out = [];
   try {
     for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {

@@ -535,8 +535,8 @@ class Session {
       ...require('./journey').toJSON(this),
       ...require('./evidencerefs').toJSON(this),
       ...require('./workbench').toJSON(this),   // Chat's supervision of the Agent (workbench.js)
-      cowork: require('./cowork/sessionstate').from(this.cowork),
-      coworkInputs: require('./cowork/attachments').pending(this),
+      cowork: this.cowork ? require('./cowork/sessionstate').from(this.cowork) : null,   // cowork (frozen, S9) loads only for a cowork session
+      coworkInputs: this.cowork ? require('./cowork/attachments').pending(this) : [],
       goal: require('./goal').toJSON(this),
       pausedGoals: require('./goal').pausedToJSON(this),
       // WHAT LAIN DID AND CHECKED: transaction receipts (mutation.js), verification
@@ -623,7 +623,7 @@ class Session {
     require('./journey').restore(s, data);
     require('./evidencerefs').restore(s, data);
     require('./workbench').restore(s, data);
-    s.cowork = require('./cowork/sessionstate').from(data.cowork);
+    s.cowork = data.cowork ? require('./cowork/sessionstate').from(data.cowork) : null;
     s.coworkInputs = Array.isArray(data.coworkInputs) ? data.coworkInputs.slice(0, 8) : [];
     s.goal = require('./goal').from(data.goal);
     s.pausedGoals = require('./goal').pausedFrom(data.pausedGoals);

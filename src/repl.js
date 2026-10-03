@@ -52,57 +52,11 @@ async function start(app) {
   try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
   // `lain --resume <id>` IS AN EXPLICIT ACT: a session another surface holds is asked for (it hands over when idle).
   if (app.resumedFrom) { try { const held = require('./surfacehandoff').askOnResume(app); if (held) app.render.write(C.dim(`  Asked the ${held.writer === 'harness' ? 'Harness' : held.writer} to hand this session over — it does when it is idle.\n`)); } catch { /* the first sentence says so */ } }
-  // The messaging the person connected comes back with LAIN (see desktoprun.js).
-  require('./botconnect').resume(app).catch(() => {});
+  // The Telegram gateway is frozen (S9): it no longer starts with LAIN; /bot starts it on demand.
   try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
   // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
   try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
-  // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
-  //
-  // OPT-IN SINCE 2026-10-02 (it was on by default) — `dashAutostart: true` in config.json, or `/dash autostart on`. It was
-  // opt-in first, on the reasoning that a CLI should not open a listening socket
-  // for somebody who never asked; that holds up poorly against what it actually
-  // binds — an OS-chosen port on 127.0.0.1, unreachable from the network,
-  // serving a page that is a locked gate until a credential is proved.
-  //
-  // ANNOUNCED HERE AND NOWHERE ELSE, and the placement is the whole point. Two
-  // wrong places were tried first:
-  //
-  //   IN CONTEXT, via render.notice — which put an address and a credential into the
-  //     conversation on every single session, permanently, above the first thing
-  // the user ever said. the design names those two as the examples of what must
-  //     never be there.
-  //   IN THE PANEL — which is the right home for `/dash` OUTPUT, but a panel
-  //     that is already open at startup owns the keyboard, so Tab and Alt+N
-  //     went to it instead of the workspace and the next command's output was
-  //     refused because the band was occupied.
-  //
-  // Printed here it lands in the SCROLLBACK beside the splash, before the UI
-  // exists: startup chrome, where a port number belongs. It is not in Context,
-  // it is not a panel, it steals nothing, and it survives the session.
-  //
-  // FAILING TO START IS NOT FATAL. The REPL is the program; the dashboard is a
-  // window onto it.
-  // OPT-IN SINCE 2026-10-02: the Harness window replaced the browser dashboard; `/dash autostart on` brings it back.
-  if (app.cfg && app.cfg.dashAutostart === true) {
-    try {
-      const r = await require('./dash').start(app, { lan: Boolean(app.cfg.dashLan) });
-      if (r.ok) {
-        // NO CREDENTIAL IN THE TERMINAL (consolidation §11). Scrollback is history: it is copied, logged, screenshotted
-        // and shared, so the startup password it used to print was a secret in exactly the place secrets must never
-        // be. A browser signs in with the password the person chose (`/dash password`, typed hidden); until one is
-        // set the line says how. The address is not a secret and is still shown.
-        const locked = require('./dashauth').configured(app.cfg);
-        app.render.write(C.dim(`  dashboard ${r.urls[0]}\n`));
-        app.render.write(C.dim(locked ? '  password required\n' : '  no password yet — /dash password\n'));
-      } else {
-        app.render.write(C.dim(`  dashboard  did not start: ${r.error} — /dash on to retry\n`));
-      }
-    } catch (e) {
-      app.render.write(C.dim(`  dashboard  did not start: ${e.message} — /dash on to retry\n`));
-    }
-  }
 
   const tui = process.env.LAIN_NO_TUI === '1' ? false : app.ui.enable();
 

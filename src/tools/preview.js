@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * PREVIEW POINTER AND KEYBOARD TOOLS (packaging pass §L) — the model tests the project's own frontend INSIDE the
+ * THE PREVIEW TOOL — the model tests the project's own frontend INSIDE the
  * LAIN Preview: click, type, scroll, drag, keys. Never the person's browser, never the desktop, never another app.
  * See workshop/previewinput.js for the path an action takes and bridge.js for what the page refuses.
  */
@@ -55,40 +55,59 @@ async function perform(ctx, action) {
   return { output: describe(r), isError: !r.ok, meta: { preview: r } };
 }
 
-function tool(name, description, properties, required, toAction) {
-  return {
-    mutates: false,
-    schema: { name, description, parameters: { type: 'object', properties, required } },
-    run: (input, ctx) => perform(ctx, toAction(input || {})),
-  };
+const ACTIONS = ['read', 'click', 'double_click', 'move', 'down', 'up', 'drag', 'scroll', 'key', 'chord', 'type'];
+
+/** One action → what workshop/previewinput.js performs. */
+function toAction(i) {
+  const t = i.target || {};
+  switch (i.action) {
+    case 'read': return { action: 'read', target: i.target || null };
+    case 'click': return { action: 'click', target: t };
+    case 'double_click': return { action: 'double_click', target: t };
+    case 'move': return { action: 'pointer_move', target: t };
+    case 'down': return { action: 'pointer_down', target: t };
+    case 'up': return { action: 'pointer_up', target: t };
+    case 'drag': return { action: 'drag', target: t, to: i.to };
+    case 'scroll': return { action: 'scroll', target: t, dy: i.dy, dx: i.dx, to: i.edge };
+    case 'key': return { action: 'key', key: i.key };
+    case 'chord': return { action: 'key_chord', keys: i.keys };
+    case 'type': return { action: 'type_text', target: t, text: i.text, replace: Boolean(i.replace) };
+    default: return null;
+  }
 }
 
+/**
+ * THE ONE PREVIEW TOOL (S9): the project's own page in the LAIN Preview — read it, click, type, scroll, drag, keys.
+ * Never the person's browser, the desktop, or another app.
+ */
 const tools = {
-  preview_pointer_move: tool('preview_pointer_move', 'Move the Preview pointer onto an element (hover) — inside the LAIN Preview only.', { target: TARGET }, ['target'], (i) => ({ action: 'pointer_move', target: i.target })),
-  preview_click: tool('preview_click', 'Click an element in the LAIN Preview (the project page). Prefer target.text/selector/role over x/y. Refused if it would leave the Preview (file picker, download, another site, new window).', { target: TARGET }, ['target'], (i) => ({ action: 'click', target: i.target })),
-  preview_double_click: tool('preview_double_click', 'Double-click an element in the LAIN Preview.', { target: TARGET }, ['target'], (i) => ({ action: 'double_click', target: i.target })),
-  preview_pointer_down: tool('preview_pointer_down', 'Press the Preview pointer on an element (for custom drag logic; pair with preview_pointer_up).', { target: TARGET }, ['target'], (i) => ({ action: 'pointer_down', target: i.target })),
-  preview_pointer_up: tool('preview_pointer_up', 'Release the Preview pointer on an element.', { target: TARGET }, ['target'], (i) => ({ action: 'pointer_up', target: i.target })),
-  preview_drag: tool('preview_drag', 'Drag from an element to another element or by an offset, inside the LAIN Preview (sliders, sortable lists, resize handles).', {
-    target: TARGET,
-    to: { type: 'object', description: 'where to drop: an element (selector/text/role) or dx/dy CSS px from the start, or x/y', properties: { selector: { type: 'string' }, text: { type: 'string' }, role: { type: 'string' }, dx: { type: 'number' }, dy: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' } } },
-  }, ['target', 'to'], (i) => ({ action: 'drag', target: i.target, to: i.to })),
-  preview_scroll: tool('preview_scroll', 'Scroll the Preview page (or a scrollable element) by dy/dx CSS px, or to "top"/"bottom".', {
-    target: TARGET, dy: { type: 'number' }, dx: { type: 'number' }, to: { type: 'string', enum: ['top', 'bottom'] },
-  }, [], (i) => ({ action: 'scroll', target: i.target || {}, dy: i.dy, dx: i.dx, to: i.to })),
-  preview_key: tool('preview_key', 'Press one key in the LAIN Preview on the focused element: Enter, Tab, Escape, Space, Backspace, ArrowUp/Down/Left/Right, Home, End, PageUp/Down, F1–F12, or one character.', {
-    key: { type: 'string' },
-  }, ['key'], (i) => ({ action: 'key', key: i.key })),
-  preview_key_chord: tool('preview_key_chord', 'Press a key chord in the LAIN Preview, e.g. "Ctrl+S", "Shift+Tab", "Ctrl+Shift+K". Delivered to the page only — never to Windows or another app.', {
-    keys: { type: 'string' },
-  }, ['keys'], (i) => ({ action: 'key_chord', keys: i.keys })),
-  // WHAT IS ON THE PAGE, as text — how a model without vision sees the result of what it did.
-  preview_read: tool('preview_read', 'Read the LAIN Preview page as text: its address, title, visible text, and the interactive elements (role, name, selector, field values — never a password). Changes nothing. Use it before acting and to check the result after.', {
-    target: { ...TARGET, description: 'optional: read only inside this element (selector or visible text)' },
-  }, [], (i) => ({ action: 'read', target: i.target || null })),
-  preview_type_text: tool('preview_type_text', 'Type text into a field in the LAIN Preview (target it, or the focused one). Never a password or other credential — those are the person\'s to enter.', {
-    target: TARGET, text: { type: 'string' }, replace: { type: 'boolean', description: 'replace the field\'s current text' },
-  }, ['text'], (i) => ({ action: 'type_text', target: i.target || {}, text: i.text, replace: Boolean(i.replace) })),
+  preview: {
+    mutates: false,
+    schema: {
+      name: 'preview',
+      description: 'Test the project\'s own page in the LAIN Preview: `read` (address, visible text, interactive elements) to see it; '
+        + 'click, double_click, move, down/up, drag, scroll, key, chord ("Ctrl+S"), type (never a password). Prefer target text/selector/role over x/y. '
+        + 'Only inside the Preview — a file picker, download or new window is refused.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ACTIONS },
+          target: TARGET,
+          to: { type: 'object', description: 'drag: an element (selector/text/role), or dx/dy, or x/y', properties: { selector: { type: 'string' }, text: { type: 'string' }, role: { type: 'string' }, dx: { type: 'number' }, dy: { type: 'number' }, x: { type: 'number' }, y: { type: 'number' } } },
+          dy: { type: 'number' }, dx: { type: 'number' },
+          edge: { type: 'string', enum: ['top', 'bottom'], description: 'scroll to the top or bottom' },
+          key: { type: 'string' }, keys: { type: 'string' },
+          text: { type: 'string' }, replace: { type: 'boolean' },
+        },
+        required: ['action'],
+      },
+    },
+    run(input, ctx) {
+      const action = toAction(input || {});
+      if (!action) return { output: `unknown preview action "${input && input.action}" — one of ${ACTIONS.join(', ')}`, isError: true };
+      return perform(ctx, action);
+    },
+  },
 };
 
 module.exports = { tools, describe };

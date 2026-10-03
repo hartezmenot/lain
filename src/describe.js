@@ -36,6 +36,11 @@ function describeTarget(name, input) {
   // `desktop` with `computer`; the removed Probe tool's `op`-shaped calls were
   // fixed out of the same bare-name problem.)
   if (name === 'Agent') return `${i.type || 'general'} · ${String(i.description || i.prompt || '').replace(/\s+/g, ' ').slice(0, 50)}`;
+  if (i.action && (name === 'computer' || name === 'preview')) {   // the one-tool surfaces (S5.1, S9) name their action
+    const t = i.target || {};
+    const what = t.text || t.name || t.selector || i.key || i.keys || i.title || (i.text ? `"${String(i.text).slice(0, 20)}"` : '') || (t.x != null ? `${t.x},${t.y}` : i.x != null ? `${i.x},${i.y}` : '');
+    return what ? `${i.action} → ${String(what).slice(0, 30)}` : String(i.action);
+  }
   if (i.op && name === 'computer') {
     const op = String(i.op).slice(0, 40);
     return i.target ? `${op} → ${String(i.target).slice(0, 30)}` : op;

@@ -182,7 +182,7 @@ const tools = {
 function deferred(app) {
   const all = legacy().legacyActive(app);
   const out = {};
-  for (const [n, t] of Object.entries(all)) if (!CORE.includes(n) && !RETIRED.has(n) && !/^mcp__|^computer|^preview_/.test(n)) out[n] = t;
+  for (const [n, t] of Object.entries(all)) if (!CORE.includes(n) && !RETIRED.has(n) && !/^mcp__|^computer|^preview$/.test(n)) out[n] = t;
   // THE ACCESSIBILITY TREE (find, click_control, type_into…) is `computer_ui`, found with tool_search while Computer Control is on.
   if (all.computer && require('../computercontrol').enabled(app)) { const ui = require('./computermcp').tools.computer; out.computer_ui = { ...ui, schema: { ...ui.schema, name: 'computer_ui' } }; }
   return out;

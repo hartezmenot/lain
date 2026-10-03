@@ -28,7 +28,7 @@
  * summary you can read without it, not a replacement for it.
  */
 
-const { scanDir } = require('./compare');
+const { scanDir } = require('./projecttree');
 const { MARKERS } = require('./audit');
 const T = require('./ui/text');
 const { P } = require('./ui/paint');

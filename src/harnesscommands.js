@@ -123,9 +123,6 @@ function capabilities(app, C) {
 
 function surfaces(app, C) {
   app.render.write('\n' + C.bold('Surfaces') + C.dim('  — every one reads the same task state') + '\n');
-  const dash = (() => { try { return require('./dash').status(); } catch { return null; } })();
-  row(app, 'cli', C.green('active') + C.dim('  this terminal'));
-  row(app, 'dashboard', dash && dash.running ? C.green(`http://${dash.host}:${dash.port}`) : C.dim('not running — /dash to start it'));
   const remote = (() => { try { return require('./remotecontrol').status(); } catch { return null; } })();
   row(app, 'remote', remote && remote.connected ? C.green(`connected as ${remote.identity || 'unknown'}`) : C.dim('not connected — /runtime for the supervisor'));
 }
