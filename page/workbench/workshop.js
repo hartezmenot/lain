@@ -332,7 +332,7 @@ function client() {
   }
 
   // ---- THE MODEL'S POINTER AND KEYBOARD (LAIN §L) -------------------------------------------------------------------
-  // Core queues what the model asked for (preview_click, preview_type_text …); while this Preview is open it fetches
+  // Core queues what the model asked for (a preview click, type …); while this Preview is open it fetches
   // the next action, hands it to the page's bridge — which acts on the page's own document and refuses anything that
   // would leave the Preview — and returns the answer. There is no OS input anywhere on this path.
   var relay = { on: false, waiting: {} };
