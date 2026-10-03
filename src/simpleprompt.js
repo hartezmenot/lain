@@ -29,7 +29,12 @@ function base({ shell }) {
     'Communicate findings, not routine narration. Keep text between tool calls short; the person sees each tool call.',
     '',
     '# The report',
-    'Your final message is the report. Say what was done, what changed, what you verified and how, and what is not verified or still open. Keep it short when the task was short. You may start it with one label: DONE, DONE_UNVERIFIED, PARTIAL, BLOCKED or NEEDS_DECISION.',
+    'Your final message is the report. When the task changed or ran anything, fill in this template (one line each; nothing else is needed):',
+    'Done: <one line>',
+    'Changed: <files or "nothing">',
+    'Checked: <what ran and the result, or "not checked">',
+    'Open: <anything left, or "nothing">',
+    'An answer to a plain question stays free-form.',
   ].join('\n');
 }
 
