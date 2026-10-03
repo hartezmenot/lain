@@ -4,7 +4,8 @@
  * S11: the ten real tasks on one model (GLM 5.3 via lain:zai by default), one run each, a fresh fixture per task.
  * Records per task: requests, tokens in/out/cached, cache %, effort sent, first-byte and thinking time, wall time,
  * correctness, and every guard that fired. Usage: node tools/dev/s11bench.js <label> [ids=1..10]
- * Output: docs/simplify/bench-<label>.json, plus one log per task beside it.
+ * Output: tools/dev/bench/out/simplify/bench-<label>.json, plus one log per task beside it (gitignored). A terminal's
+ * SCREEN TEXT (the TTY snaps) goes to that run's own LAIN session folder only, never the repository (S12).
  */
 
 const fs = require('fs');
@@ -14,7 +15,7 @@ const { spawn, spawnSync } = require('child_process');
 const sb = require('./simplebench');
 
 const ROOT = path.join(__dirname, '..', '..');
-const OUT = path.join(ROOT, 'docs', 'simplify');
+const OUT = sb.OUT;
 const label = process.argv[2] || 's11';
 const ids = String(process.argv[3] || '1,2,3,4,5,6,7,8,9,10').split(',').map(Number);
 const TTY_PY = process.env.LAIN_TTY_PYTHON || path.join(os.homedir(), '.lain-ttyenv', 'Scripts', 'python.exe');
@@ -71,6 +72,13 @@ function sessions(h) {
     .filter(Boolean).sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
+/** SCREEN TEXT STAYS IN THE SESSION FOLDER (S12): the snaps are written beside the run's sessions; the log names the file. */
+function keepScreens(h, id, r) {
+  const f = path.join(h, 'sessions', `bench-screens-task${id}.json`);
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify((r.snaps || []).map((s) => ({ name: s.name, text: s.text })), null, 1)); } catch { return null; }
+  return f;
+}
+
 // ---- measuring -------------------------------------------------------------------------------------------------------
 const GUARD = /^(DENIED|Denied by your permission rules|Plan mode: read-only|unknown tool|The person did not allow|.*needs the person's yes|Computer Control is off|.*refused|.*not offered|the computer (was|is) not authorized)/i;
 function measure(trace, h) {
@@ -96,6 +104,9 @@ function measure(trace, h) {
 const actions = (h) => sessions(h).flatMap((s) => (s.turns || []).flatMap((t) => t.actions || []));
 const lastText = (h) => { const s = sessions(h).pop(); const t = s && (s.turns || []).slice(-1)[0]; return (t && t.text) || ''; };
 
+/** A SHELL CALL under any of its names (S12d): the canonical `shell`, a dialect's `bash`/`powershell`/`cmd`, or a legacy `run_*`. */
+const SHELL_CALL = /^(shell|bash|powershell|cmd|run_bash|run_powershell|run_cmd)$/i;
+
 // ---- the tasks -------------------------------------------------------------------------------------------------------
 const P = (prompt, check) => ({ kind: 'p', prompt, check });
 const TASKS = {
@@ -106,7 +117,7 @@ const TASKS = {
   5: { name: 'several files and steps', ...P(sb.TASKS[5].prompt, (d, text) => sb.TASKS[5].check(d, text)) },
   6: { name: 'a long background test while continuing',
     ...P('Start the slow suite `node test/slow.js` (it takes about 25 seconds) in the background. While it runs, rename the "Add task" button label to "New task". Then wait for the slow suite and tell me its result.',
-      (d, text, h) => { const bg = actions(h).some((a) => /^(shell|bash|Bash)$/.test(a.name) && /slow\.js/.test(a.target || '') && (a.job || /background|job/i.test(a.note || ''))); const lbl = />New task</.test(sb.read(d, 'index.html')); const res = /3 passed/.test(text); return { ok: bg && lbl && res, why: `background:${bg} label:${lbl} result-reported:${res}` }; }) },
+      (d, text, h) => { const bg = actions(h).some((a) => SHELL_CALL.test(a.name) && /slow\.js/.test(a.target || '') && (a.job || /background|job/i.test(a.note || ''))); const lbl = />New task</.test(sb.read(d, 'index.html')); const res = /3 passed/.test(text); return { ok: bg && lbl && res, why: `background:${bg} label:${lbl} result-reported:${res}` }; }) },
   7: { name: 'two explore agents in parallel',
     ...P('Use two explore agents in parallel: one finds where completed tasks are counted, the other finds how the "Add task" button is wired to the store. Then give me both answers. Do not change any files.',
       (d, text, h) => { const ag = actions(h).filter((a) => a.name === 'Agent'); const steps = new Set(ag.map((a) => a.step)); const ch = sb.unchanged(d); const ok = ag.length >= 2 && steps.size < ag.length && !ch.length && /countDone/.test(text) && /addTask|onclick|app\.js/.test(text); return { ok, why: `agents:${ag.length} sameStep:${steps.size < ag.length} changed:${ch.join(',') || 'none'}` }; }) },
@@ -136,7 +147,8 @@ async function taskPlan(id) {
     { key: 'down' }, { send: '\r' },
     { until: 'build it\\?', timeout: 60000 }, { snap: 'edited', settle: 800 },
     { send: '\r' },
-    { until: 'DONE|CUT OFF|STOPPED|FAILED', timeout: 900000 }, { snap: 'built', settle: 1500 },
+    // ACCEPT EDITS ASKS BEFORE A COMMAND (S12d): every such prompt is answered "Allow for this turn" (Allow once · Allow for this turn · Deny).
+    { watch: { until: 'DONE|CUT OFF|STOPPED|FAILED', timeout: 900000, answer: [{ when: '(?i)allow this\\?', keys: ['down'], send: '\r' }] } }, { snap: 'built', settle: 1500 },
     { send: '/exit\r' }, { wait: 1500 },
   ];
   const r = runTty({ argv: [process.execPath, path.join(ROOT, 'bin', 'lain.js')], cwd: d, env: envFor(h, trace, { EDITOR: `"${process.execPath}" "${editor}"`, VISUAL: `"${process.execPath}" "${editor}"` }), cols: 120, rows: 40, steps });
@@ -148,8 +160,8 @@ async function taskPlan(id) {
   const named = /clearCompleted removes done tasks/.test(sb.read(d, 'test/run.js'));
   const plans = fs.existsSync(path.join(d, '.lain', 'plans')) ? fs.readdirSync(path.join(d, '.lain', 'plans')) : [];
   const ok = t.ok && /clearCompleted/.test(sb.read(d, 'src/store.js')) && named && plans.length > 0 && !(r.timeouts || []).length;
-  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, snaps: (r.snaps || []).map((s) => ({ name: s.name, text: s.text })) }, null, 1), wallMs: r.ms, exit: r.exit == null ? null : r.exit,
-    correct: ok, why: `clearCompleted:${t.out} editHonoured:${named} planFile:${plans.length} timeouts:${(r.timeouts || []).join('|') || 'none'}${r.error ? ` error:${String(r.error).slice(0, 200)}` : ''}`, ...measure(trace, h) };
+  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, screens: keepScreens(h, id, r) }, null, 1), wallMs: r.ms, exit: r.exit == null ? null : r.exit,
+    correct: ok, why: `clearCompleted:${t.out} editHonoured:${named} planFile:${plans.length} permissionAnswers:${(r.answered || []).join('+') || 0} timeouts:${(r.timeouts || []).join('|') || 'none'}${r.error ? ` error:${String(r.error).slice(0, 200)}` : ''}`, ...measure(trace, h) };
 }
 
 // 9: the multi-step task, LAIN killed (TerminateProcess) right after its first edit lands, then `--resume <id> -p continue`.
@@ -164,36 +176,83 @@ async function taskResume(id) {
   return { log: `${a.out}\n===== KILLED (${a.killed}) — RESUMED ${s.id} =====\n${b.out}`, wallMs: a.ms + b.ms, exit: b.code, correct: v.ok && a.killed, why: `killed:${a.killed} ${v.why || ''}`, ...measure(trace, h) };
 }
 
-// 10: a Calculator window this script opens; Computer Control in Auto; the desktop authorization answered in LAIN's own terminal.
+// 10: Computer Control in Auto on a Calculator window THIS SCRIPT OPENS (S12d). The bench never touches a window it did not
+// open, and fails the run if one of the person's windows changes title or takes the focus. Window titles go to the
+// run's session folder only; the repository log keeps booleans and counts.
 function ps(cmd) { const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { encoding: 'utf8', timeout: 30000, windowsHide: true }); return (r.stdout || '').trim(); }
+/** Every visible top-level window that has a title (EnumWindows — not one "main window" per process): handle → { pid, process, title }. */
+const ENUM_PS1 = String.raw`Add-Type @"
+using System; using System.Text; using System.Runtime.InteropServices;
+public static class W {
+  public delegate bool P(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(P f, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+}
+"@
+if ($args.Count -gt 0) { while ($true) { [W]::GetForegroundWindow().ToInt64() | Out-File -Append -Encoding ascii $args[0]; Start-Sleep -Milliseconds 500 } }
+"FG" + [char]9 + [W]::GetForegroundWindow().ToInt64()
+$rows = New-Object System.Collections.Generic.List[string]
+[W]::EnumWindows({ param($h, $l) if ([W]::IsWindowVisible($h)) { $b = New-Object System.Text.StringBuilder 512; [void][W]::GetWindowText($h, $b, 512); if ($b.Length -gt 0) { [uint32]$p = 0; [void][W]::GetWindowThreadProcessId($h, [ref]$p); $n = (Get-Process -Id $p -ErrorAction SilentlyContinue).ProcessName; $rows.Add(($h.ToInt64(), $p, $n, $b.ToString()) -join [char]9) } }; $true }, [IntPtr]::Zero) | Out-Null
+$rows`;
+let enumFile = null;
+function enumScript() { if (!enumFile) { enumFile = path.join(os.tmpdir(), `s12-enumwindows-${process.pid}.ps1`); fs.writeFileSync(enumFile, ENUM_PS1); } return enumFile; }
+const PS_FILE = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File'];
+/** { windows: Map, foreground } — the windows and the one in front, now. */
+function windowsNow() {
+  const r = spawnSync('powershell.exe', [...PS_FILE, enumScript()], { encoding: 'utf8', timeout: 30000, windowsHide: true });
+  const lines = String(r.stdout || '').split(/\r?\n/).filter(Boolean);
+  const fg = (lines.find((l) => l.startsWith('FG\t')) || '').split('\t')[1] || '';
+  return { foreground: fg, windows: new Map(lines.filter((l) => !l.startsWith('FG\t')).map((l) => { const [h, pid, proc, ...t] = l.split('\t'); return [h, { pid, process: proc || '', title: t.join('\t') }]; })) };
+}
+/** THE FOREGROUND, sampled every 500 ms for the whole run by a separate process (the terminal driver blocks this one). */
+function sampleForeground(file) {
+  const child = spawn('powershell.exe', [...PS_FILE, enumScript(), file], { stdio: 'ignore', windowsHide: true });
+  return () => { try { child.kill(); } catch { /* gone */ } };
+}
 async function taskComputer(id) {
-  const userNotepad = () => ps("(Get-Process -Id 34072 -ErrorAction SilentlyContinue).MainWindowTitle");
-  if (ps("(Get-Process CalculatorApp -ErrorAction SilentlyContinue | Measure-Object).Count") !== '0') return { correct: false, why: 'NOT RUN: a Calculator is already running — it may be the person\'s', skipped: true };
-  const before = userNotepad();
+  if (ps("(Get-Process CalculatorApp -ErrorAction SilentlyContinue | Measure-Object).Count") !== '0') return { correct: false, why: 'NOT RUN: a Calculator is already running — it may be the person\'s, and the bench touches only what it opens', skipped: true };
+  const start = windowsNow();
+  const before = start.windows;
+  const fgStart = start.foreground;
   spawnSync('cmd.exe', ['/c', 'start', '', 'calc.exe'], { windowsHide: true });
-  let hwnd = '';
-  for (let i = 0; i < 40 && !hwnd; i++) { await new Promise((r) => setTimeout(r, 500)); hwnd = ps("Add-Type -AssemblyName UIAutomationClient; $c=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty,'Calculator'))); if($c){$c.Current.NativeWindowHandle}"); }
-  if (!hwnd) return { correct: false, why: 'NOT RUN: the Calculator window did not appear', skipped: true };
+  let mine = null;
+  for (let i = 0; i < 40 && !mine; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    for (const [hwnd, w] of windowsNow().windows) if (!before.has(hwnd) && /calculator|applicationframehost/i.test(w.process)) { mine = { hwnd, ...w }; break; }
+  }
+  if (!mine) return { correct: false, why: 'NOT RUN: the Calculator window the bench opened did not appear', skipped: true };
   const h = home({ permissions: { defaultMode: 'auto' } }); const d = fixture(); trust(h, d);
   const trace = path.join(h, `req-${id}.jsonl`);
+  const fgFile = path.join(h, 'sessions', 'bench-foreground-task10.txt');
+  fs.mkdirSync(path.dirname(fgFile), { recursive: true });
+  const stopSampling = sampleForeground(fgFile);
   const steps = [
     { until: 'Ask LAIN', timeout: 60000 },
-    { send: `Use Computer Control on the Calculator window (title "Calculator", window handle ${hwnd}) — only that window: compute 123 * 4 by clicking or typing in it, then read the result from its display and tell me the number.\r` },
+    { send: `Use Computer Control on the Calculator window titled "${mine.title}" — only that window: compute 123 * 4 by clicking or typing in it, then read the result from its display and tell me the number.\r` },
     { until: '(?i)allow lain to observe and control this computer', timeout: 300000 }, { snap: 'authorize', settle: 600 }, { send: '\r' },
     { until: 'DONE|CUT OFF|STOPPED|FAILED', timeout: 600000 }, { snap: 'done', settle: 1500 },
     { send: '/exit\r' }, { wait: 1500 },
   ];
-  const r = runTty({ argv: [process.execPath, path.join(ROOT, 'bin', 'lain.js')], cwd: d, env: envFor(h, trace), cols: 120, rows: 40, steps });
-  const readDisplay = () => ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${hwnd}); $r=$w.FindFirst([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::AutomationIdProperty,'CalculatorResults'))); if($r){$r.Current.Name}`);
+  let r;
+  try { r = runTty({ argv: [process.execPath, path.join(ROOT, 'bin', 'lain.js')], cwd: d, env: envFor(h, trace), cols: 120, rows: 40, steps }); } finally { stopSampling(); }
+  const readDisplay = () => ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${mine.hwnd}); $r=$w.FindFirst([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::AutomationIdProperty,'CalculatorResults'))); if($r){$r.Current.Name}`);
   let display = readDisplay();
   if (!display) { await new Promise((res) => setTimeout(res, 1500)); display = readDisplay(); }
-  // CLOSE WHAT THIS SCRIPT OPENED, by its window (WindowPattern.Close) — never by process id.
-  ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${hwnd}); $p=$w.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern); $p.Close()`);
-  const after = userNotepad();
+  // CLOSE WHAT THIS SCRIPT OPENED, by its window (WindowPattern.Close) — never by process id, never anything else.
+  ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${mine.hwnd}); $p=$w.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern); $p.Close()`);
+  // THE PERSON'S WINDOWS: none may change title or disappear, and none but the one in front at the start may take the focus.
+  const after = windowsNow().windows;
+  const changed = [...before].filter(([hwnd, w]) => !after.has(hwnd) || after.get(hwnd).title !== w.title).map(([hwnd, w]) => ({ hwnd, before: w.title, after: after.has(hwnd) ? after.get(hwnd).title : null }));
+  const seen = fs.existsSync(fgFile) ? [...new Set(fs.readFileSync(fgFile, 'utf8').split(/\s+/).filter(Boolean))] : [];
+  const tookFocus = seen.filter((hwnd) => before.has(hwnd) && hwnd !== fgStart);
+  try { fs.writeFileSync(path.join(h, 'sessions', 'bench-windows-task10.json'), JSON.stringify({ opened: mine, fgStart, changed, tookFocus: tookFocus.map((hwnd) => ({ hwnd, ...before.get(hwnd) })) }, null, 1)); } catch { /* the booleans below still say it */ }
   const text = lastText(h);
-  const ok = /492/.test(display) && /492/.test(text);
-  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, display, notepadBefore: before, notepadAfter: after, snaps: (r.snaps || []).map((s) => ({ name: s.name, text: s.text })) }, null, 1), wallMs: r.ms,
-    correct: ok, why: `display:"${display}" answer492:${/492/.test(text)} userNotepadUnchanged:${before === after} timeouts:${(r.timeouts || []).join('|') || 'none'}`, ...measure(trace, h) };
+  const ok = /492/.test(display) && /492/.test(text) && !changed.length && !tookFocus.length;
+  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, display492: /492/.test(display), personWindowsChanged: changed.length, personWindowsTookFocus: tookFocus.length, screens: keepScreens(h, id, r) }, null, 1), wallMs: r.ms,
+    correct: ok, why: `display492:${/492/.test(display)} answer492:${/492/.test(text)} personWindowsChanged:${changed.length} personWindowsTookFocus:${tookFocus.length} timeouts:${(r.timeouts || []).join('|') || 'none'}`, ...measure(trace, h) };
 }
 
 (async () => {

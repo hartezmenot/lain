@@ -58,9 +58,7 @@ function submit(app, body = {}) {
   // CHAT PLANS; THE CODING AGENT IMPLEMENTS (Phase 8).
   if (view === 'chat' && body.agent === true) {
     const p = sv.project(s);
-    const br = require('./botroute');
-    const route = p.attached && !p.missing ? br.decide(app, text, { ...body, from: 'chat', via: 'chat', route: body.route === 'agent' ? 'agent' : undefined }) : null;
-    if (route && route.role === 'agent') return br.start(app, text, { ...route, via: 'chat' });
+    if (p.attached && !p.missing && body.route === 'agent') return require('./botroute').start(app, text, { role: 'agent', reason: 'chosen in Chat', via: 'chat' });
   }
   sv.settle(s, 'coding');              // anything untagged so far is engineering history
   sv.views(s).active = view;

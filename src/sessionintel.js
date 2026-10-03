@@ -166,7 +166,8 @@ function lane(app, session = app.session, which = 'coding') {
   let acct = accountId ? A.find(app, accountId) : null;
   let decision = null;
   if (fam && entry) {
-    const r = require('./fabric/policy').resolve(app, { family: fam.id, model: model.value, effort, current: accountId, policy: policyName, pinned });
+    // LAIN EFFORT IS NOT AN ACCOUNT CAPABILITY (S12a): only a native level narrows which account may serve.
+    const r = require('./fabric/policy').resolve(app, { family: fam.id, model: model.value, effort: effortSource === 'provider' ? effort : null, current: accountId, policy: policyName, pinned });
     if (r.ok) { if (!acct || r.account.id !== acct.id) { acct = A.find(app, r.account.id) || acct; if (!accountId) implicit = true; } }
     else decision = r;
   }
@@ -187,8 +188,17 @@ function lane(app, session = app.session, which = 'coding') {
   if (!entry && model.value) { try { modelLabel = A.modelLabel(app, acct ? acct.id : null, model.value); } catch { /* the id */ } }
   // A STORED ACCOUNT THIS MACHINE DOES NOT HAVE is still the choice — reported, never sent through.
   if (!acct && !fam && account.value && !implicit) { needs = 'account'; why = `the account "${account.value}" is not configured here`; }
+  // A ROUTE NO FAMILY GROUPS (a localhost router, a custom endpoint) has no declared levels here: LAIN effort (S12a),
+  // stored and honoured like any other choice — never nulled, never refused.
+  if (!entry && route) {
+    levels = caps().LAIN_LEVELS.slice(); effortSource = 'lain';
+    if (effort && !levels.includes(effort)) { effortAdjusted = true; effort = null; }
+  }
   const b = acct && fam ? fam.accounts.find((x) => x.id === acct.id) : null;
   const effortLabel = effort ? caps().label(effort) : (levels && levels.length ? 'Default' : '');
+  // WHAT LAIN EFFORT IS IN FORCE when none was chosen: FAST/ECO Low, else High (effortcaps.forRequest) — and whether it was chosen.
+  const profileNow = (() => { try { return require('./profile').of(s, root(app).cfg); } catch { return 'NORMAL'; } })();
+  const effective = effortSource === 'lain' ? (effort || (profileNow === 'FAST' || profileNow === 'ECO' ? 'low' : 'high')) : effort;
   // THE CANONICAL ROUTE (2026-09-29): source › model › effort › execution, and only when it RESOLVES.
   const resolved = Boolean(route);
   const execution = (() => { try { return require('./profile').of(s, root(app).cfg); } catch { return 'NORMAL'; } })();
@@ -197,7 +207,9 @@ function lane(app, session = app.session, which = 'coding') {
   const source = fam ? { id: fam.id, label: fam.label } : { id: acct ? acct.id : route, label: acct ? (A.label(acct) || acct.name || acct.id) : String(route || '') };
   const display = resolved
     ? { resolved: true, source: source.id, sourceLabel: source.label, model: entry ? entry.id : model.value, modelLabel, effort, effortLabel: effort ? effortLabel : '', execution,
-      text: [source.label, modelLabel, effort ? effortLabel : ''].filter(Boolean).join(' · ') }
+      // LAIN EFFORT (S12a) reads like a provider level, always shown: "Z.ai › GLM 4.7 · LAIN effort · High".
+      lainEffort: effortSource === 'lain' ? effective : null,
+      text: [source.label, modelLabel, effortSource === 'lain' && effective ? `LAIN effort · ${caps().label(effective)}` : effort ? effortLabel : ''].filter(Boolean).join(' · ') }
     : { resolved: false, text: 'Select model', problem: (fam || model.value || account.value) && why ? why : null, execution };
   return {
     lane: L, resolved, display,
@@ -209,12 +221,21 @@ function lane(app, session = app.session, which = 'coding') {
     accountCount: fam ? fam.accounts.length : 0,
     model: entry ? entry.id : (model.value || null), catalogModel: catalogModel || (model.value || null), modelScope: model.scope, modelLabel,
     effort, effortLabel, effortScope: eff.scope, effortAdjusted, effortSource,
-    efforts: levels || [], effortLabels: (levels || []).map(caps().label), defaultEffort: entry ? entry.defaultEffort || null : null, effortKnown: Boolean(entry),
+    efforts: levels || [], effortLabels: (levels || []).map(caps().label), defaultEffort: entry ? entry.defaultEffort || null : null, effortKnown: Boolean(entry || (route && levels)),
+    effective, effectiveLabel: effective ? caps().label(effective) : '', effortExplicit: Boolean(effort), effortKind: effortSource === 'lain' ? 'LAIN effort' : effortSource ? 'Provider effort' : '',
+    effortDefaultWhy: !effort && effortSource === 'lain' && effective === 'low' ? `${profileNow === 'ECO' ? 'Eco' : 'Fast'} default` : '',
     route, ok: Boolean(route), needs, why,
     pending: (s.intel && s.intel.pending && s.intel.pending.lane === L) ? s.intel.pending : null,
     // A CHOICE WAITING for the request now running to finish (never applied mid-run).
     switchPending: (s.intel && s.intel.lanes && s.intel.lanes[L] && s.intel.lanes[L].pendingChoice) ? { ...s.intel.lanes[L].pendingChoice } : null,
   };
+}
+
+/** THE EFFORT AS EVERY SURFACE SAYS IT (S12a): a provider level as its label; LAIN effort always, as "LAIN effort · High". */
+function effortText(l) {
+  if (!l) return '';
+  if (l.effortSource === 'lain' && l.effective) return `LAIN effort · ${l.effectiveLabel}${l.effortDefaultWhy ? ` · ${l.effortDefaultWhy}` : ''}`;
+  return l.effortLabel || '';
 }
 
 /** Write the backing account and model into the lane's slots (the route is resolved from these). */
@@ -259,6 +280,14 @@ async function choose(app, session, { lane: which = 'coding', family, account, m
     return { ok: true, deferred: true, lane: lane(app, session, L), why: 'It takes effect when the request now running finishes — nothing is interrupted.' };
   }
   if (li.pendingChoice && !_apply) li.pendingChoice = null;   // a newer choice made at rest replaces a waiting one
+  // ONLY THE EFFORT, ON A ROUTE NO FAMILY GROUPS (S12a): LAIN effort is stored as chosen — Low, High or Max.
+  if (family === undefined && account === undefined && model === undefined && effort !== undefined && !cur.family && cur.effortSource === 'lain') {
+    const e = effort && effort !== 'auto' ? caps().norm(effort) : null;
+    if (e && !caps().LAIN_LEVELS.includes(e)) return { ok: false, code: 'EFFORT_UNSUPPORTED', why: 'LAIN effort is Low, High or Max' };
+    if (effort && effort !== 'auto' && !e) return { ok: false, code: 'BAD_EFFORT', why: 'LAIN effort is Low, High or Max' };
+    li.effort = e;
+    return { ok: true, lane: lane(app, session, L) };
+  }
   let famId = cur.family;
   let acctId = cur.account;
   let modelId = cur.model;
@@ -314,7 +343,8 @@ async function choose(app, session, { lane: which = 'coding', family, account, m
     modelId = entry.id;   // THE LOGICAL ID is what the lane keeps; each account's catalog id is resolved at send time
     // EFFORT: a stored level this model does not take goes back to the model's default — and says so.
     const pinned = f.policy === 'pinned' ? (f.pinned || acctId) : null;
-    const levels = offered(f, entry, pinned).levels;
+    const off = offered(f, entry, pinned);
+    const levels = off.levels;
     if (effort !== undefined) {
       const e = effort && effort !== 'auto' ? caps().norm(effort) : null;
       if (effort && effort !== 'auto' && !e) return { ok: false, code: 'BAD_EFFORT', why: `effort is one of ${levels.map(caps().label).join(', ') || 'none for this model'}` };
@@ -322,7 +352,7 @@ async function choose(app, session, { lane: which = 'coding', family, account, m
       li.effort = e;
     } else if (li.effort && !levels.includes(caps().norm(li.effort))) { li.effort = null; effortReset = true; }
     // THE BACKING ACCOUNT, by the family's policy.
-    const pol = require('./fabric/policy').resolve(app, { family: f.id, model: modelId, effort: li.effort || null, current: acctId, policy: li.policy || null, pinned });
+    const pol = require('./fabric/policy').resolve(app, { family: f.id, model: modelId, effort: off.source === 'provider' ? li.effort || null : null, current: acctId, policy: li.policy || null, pinned });
     if (pol.ok) acctId = pol.account.id;
     else if (!acctId) return { ok: false, code: pol.decision === 'incompatible' ? 'NO_ELIGIBLE_ACCOUNT' : 'ACCOUNT_LIMITED', why: pol.why };
     const rt = A.routeFor(app, acctId, catalogIdOf(entry, acctId, modelId));
@@ -529,4 +559,4 @@ function overlay(app, session, cfg) {
   return cfg;
 }
 
-module.exports = { resolve, set, accountsFor, overlay, lane, choose, applyPending, switchBacking, routeCfg, currentLane, laneState, EFFORTS };
+module.exports = { resolve, set, accountsFor, overlay, lane, choose, applyPending, switchBacking, routeCfg, currentLane, laneState, effortText, EFFORTS };

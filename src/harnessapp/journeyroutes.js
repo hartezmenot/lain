@@ -15,9 +15,6 @@ const ROUTES = {
   /** The window says which room it is in. Navigation, recorded once per change. */
   'POST /api/journey/surface': (app, body = {}) => reply(require('../journey').surface(app, { surface: body.surface, pane: body.pane })),
 
-  /** The person answered "This requires code changes. Move to Agent?". */
-  'POST /api/agent/proposal': (app, body = {}) => require('./botroute').answer(app, { id: body.id, accept: body.accept === true }),
-
 
   'POST /api/house/run': async (app, body = {}) => reply(await require('../house').run(app, body.id, body.args || {})),
 

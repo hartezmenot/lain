@@ -26,7 +26,7 @@ function connectionIndex(app) {
 /** The Coding model this session actually runs with, and where it came from. */
 /** THE FABRIC'S FACTS of a lane (Phase 8.3): family › model › effort, policy, the backing account, a pending question. */
 function fabricOf(l) {
-  return { resolved: l.resolved, display: l.display, family: l.family, familyLabel: l.familyLabel, familyKind: l.familyKind, effort: l.effort, effortLabel: l.effortLabel, efforts: l.efforts, effortLabels: l.effortLabels, defaultEffort: l.defaultEffort, effortKnown: l.effortKnown, policy: l.policy, policyLabel: l.policyLabel, backing: l.backing, accountCount: l.accountCount, pending: l.pending };
+  return { resolved: l.resolved, display: l.display, family: l.family, familyLabel: l.familyLabel, familyKind: l.familyKind, effort: l.effort, effortLabel: l.effortLabel, efforts: l.efforts, effortLabels: l.effortLabels, defaultEffort: l.defaultEffort, effortKnown: l.effortKnown, effortSource: l.effortSource || null, effective: l.effective || null, effectiveLabel: l.effectiveLabel || '', effortExplicit: Boolean(l.effortExplicit), effortKind: l.effortKind || '', effortDefaultWhy: l.effortDefaultWhy || '', policy: l.policy, policyLabel: l.policyLabel, backing: l.backing, accountCount: l.accountCount, pending: l.pending };
 }
 
 function codingSelection(app) {

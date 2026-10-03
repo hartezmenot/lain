@@ -223,6 +223,8 @@ function fromConfig(cfg = {}, evidence = {}) {
       models: declared || (cached ? cached.models : []),
       declaredModels: Boolean(declared),
       discoveredAt: cached ? cached.fetchedAt : null,
+      // A DECLARED THINKING SWITCH (S12a, fabric/effortcaps.thinkingSwitch): 'enable_thinking' | 'thinking.type' | 'none'.
+      ...(c.thinkingSwitch ? { thinkingSwitch: String(c.thinkingSwitch) } : {}),
       readiness: readinessFor({
         credentialPresent,
         expired: Boolean(ev.expired),

@@ -77,6 +77,23 @@ function forRequest({ levels = [], defaultEffort = null, wire = null, requested 
   return { effort: null, lainEffort, source: 'lain', wire: null, levels: [], explicit: Boolean(want) };
 }
 
+/**
+ * A ROUTE'S THINKING ON/OFF SWITCH (S12a) — only where it is DECLARED, never guessed: the connection's own
+ * `thinkingSwitch` ('enable_thinking' | 'thinking.type' | 'none'), else a documented one —
+ *   Z.ai GLM-4.5…4.7 (OpenAI-compatible): `thinking: { type: 'enabled' | 'disabled' }` (GLM-5.3 has native effort instead)
+ *   Qwen3 on DashScope (OpenAI-compatible): `enable_thinking: true | false`
+ * LAIN effort Low turns it off; High and Max leave it on.
+ */
+const DASHSCOPE_HOST = /(^|\.)dashscope(-intl)?\.aliyuncs\.com(:|\/|$)/i;
+function thinkingSwitch({ conn = {}, upstreamId = '' } = {}) {
+  const own = String(conn.thinkingSwitch || '').trim();
+  if (own) return own === 'enable_thinking' || own === 'thinking.type' ? own : null;
+  const id = String(upstreamId || ''); const host = String(conn.baseUrl || '').replace(/^https?:\/\//i, '');
+  if (/(^|[/:-])glm-4\.[5-9]/i.test(id) && (ZAI_HOST.test(host) || /^(zai|bigmodel)$/i.test(String(conn.provider || '')))) return 'thinking.type';
+  if (/(^|[/:-])qwen3/i.test(id) && DASHSCOPE_HOST.test(host)) return 'enable_thinking';
+  return null;
+}
+
 /** THE PLAN FOR ONE REQUEST (provider.resolve, 2026-10-02). */
 function planFor({ conn, route: r, cfg = {}, chat = 'chat' } = {}) {
   const fused = Boolean(r.effort) || (Array.isArray(r.efforts) && r.efforts.length > 1) || conn.protocol === 'responses';
@@ -109,4 +126,4 @@ function runtimeArgs(runtime, effort) {
   return [];
 }
 
-module.exports = { LEVELS, LABEL, LAIN_LEVELS, norm, order, label, declared, forRoute, forRequest, planFor, allowed, runtimeArgs };
+module.exports = { LEVELS, LABEL, LAIN_LEVELS, norm, order, label, declared, forRoute, forRequest, planFor, allowed, runtimeArgs, thinkingSwitch };

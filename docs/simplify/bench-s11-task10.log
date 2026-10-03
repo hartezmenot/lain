@@ -3,15 +3,15 @@
   "DONE|CUT OFF|STOPPED|FAILED"
  ],
  "display": "",
- "notepadBefore": "*make a problem regarding this - Notepad",
- "notepadAfter": "*make a problem regarding this - Notepad",
+ "notepadBefore": "<window:f4b396e1>",
+ "notepadAfter": "<window:f4b396e1>",
  "snaps": [
   {
    "name": "authorize",
    "text": [
     "   LAIN · lain-bench-proj-CXqUe8 · Z.ai API › GLM 5.3                                                      Auto   ~80",
     "   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-    "   USER · Use Computer Control on the Calculator window (title \"Calculator\", window handle 19138662) — only that wi…",
+    "   USER · Use Computer Control on the Calculator window (title \"<window:668b8045>\", window handle <hwnd:1ea62e5a>) — only that wi…",
     "   ────────────────────────────────",
     "",
     "   ▸ Thought for 0s · 57 tokens",
@@ -54,17 +54,17 @@
   {
    "name": "done",
    "text": [
-    "   LAIN · lain-bench-proj-CXqUe8 · Z.ai API › GLM 5.3        Auto · ● Computer · Calculator · paused (focus)   ~12.7K",
+    "   LAIN · lain-bench-proj-CXqUe8 · Z.ai API › GLM 5.3        Auto · ● Computer · <window:668b8045> · paused (focus)   ~12.7K",
     "    USER · Use Computer Control on the Calculator window (titl… ────────────────────────────────────── ↑ more · PgUp",
     "",
-    "   │ ✗ bash · Start-Process -FilePath \"C:\\Program Files\\WindowsApps\\Micros · 5.6s",
+    "   │ ✗ bash · Start-Process -FilePath \"<path:f82dcb74> · 5.6s",
     "   │     [CLASSIFICATION: APPLICATION_ERROR (exit 1)]",
-    "   │ ✗ bash · Get-Process -Name CalculatorApp -ErrorAction SilentlyContinu",
+    "   │ ✗ bash · Get-Process -Name <process:183c521a> -ErrorAction SilentlyContinu",
     "   │     [CLASSIFICATION: APPLICATION_ERROR (exit 1)]",
     "",
     "   PowerShell itself is now erroring. Something on the machine is unstable. Let me retry the process check.",
     "",
-    "   │ ✗ bash · Get-Process CalculatorApp -ErrorAction SilentlyContinue | Fo",
+    "   │ ✗ bash · Get-Process <process:183c521a> -ErrorAction SilentlyContinue | Fo",
     "   │     [CLASSIFICATION: APPLICATION_ERROR (exit 1)]",
     "",
     "   ▸ Thought for 28s · 1.5k tokens",

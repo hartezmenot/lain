@@ -423,9 +423,7 @@ require('./pscommand').register({ define, FLASH_MS, C });
 // AND `/token` — the whole token account. One subject, its own file: the
 // header carries the live output number and this carries everything else.
 require('./tokencommand').register({ define, FLASH_MS });
-// AND /runtime + /session — ONE subject: the process that outlives this
-// one, and the windows onto it. sessionview.js registers /session.
-require('./runtimecommand').register({ define, FLASH_MS, C });
+// AND /session — the process that outlives this one, and the window onto it.
 require('./sessionview').register({ define, FLASH_MS, C });
 // AND /stop + /observing, whose subject is A RUN BEING WATCHED.
 require('./observecommand').register({ define, FLASH_MS, DURING_TURN, C });

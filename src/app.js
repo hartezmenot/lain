@@ -347,11 +347,15 @@ class App {
   async start() { return require('./repl').start(this); }
 
   /** One-shot mode: `lain -p "..."`. */
-  async once(text) {
+  async once(text, { wait = true } = {}) {
     this.interactive = false;
     await this.prepare();
+    const pw = require('./printwait');
+    const before = pw.jobIds(this);
     try {
       await this.handle(text);
+      // `-p` WAITS FOR THE BACKGROUND WORK THIS RUN STARTED, then prints its results (printwait.js); `--no-wait` does not.
+      if (wait) { const r = await pw.waitAndReport(this, before, { write: (s) => this.render.write(s), dim: C.dim }); if (r.interrupted) this.exitCode = 130; }
     } finally {
       // A ONE-SHOT MUST TEAR DOWN WHAT IT STARTED
       await require('./harnesslink').shutdown(this); if (require.cache[require.resolve('./workerruntime')]) require('./workerruntime').settle(this);   // specialists: stats onto the session, processes stopped

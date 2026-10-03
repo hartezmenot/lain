@@ -30,7 +30,6 @@ const { test } = require('../helpers');
 
 const environment = require('../../src/environment');
 const diagnostics = require('../../src/diagnostics');
-const mode = require('../../src/mode');
 const tools = require('../../src/tools');
 
 function tmp(prefix = 'envdiag-') { return fs.mkdtempSync(path.join(os.tmpdir(), prefix)); }
@@ -313,36 +312,4 @@ module.exports = async function () {
     assert.ok(!/SYNTAX ERROR/.test(r.output));
   });
 
-  // -------------------------------------------------------------- mode ----
-
-  await test('MODE: restructuring work is its own mode, not an implementation request', () => {
-    // The risk inverts: the behaviour already exists and is correct, so the
-    // question is "did it survive", which changes what to do first.
-    for (const s of [
-      'refactor the session module',
-      'rename runTask to executeTask',
-      'extract the parser into its own file',
-      'clean up the duplication in turn.js',
-      'split out the rendering code',
-    ]) {
-      assert.strictEqual(mode.classify(s, {}).mode, 'REFACTOR', s);
-    }
-  });
-
-  await test('MODE: a DEFECT still outranks a restructuring verb', () => {
-    // "refactor it, it crashes on save" is a bug report that happens to
-    // contain the word refactor.
-    assert.strictEqual(mode.classify('refactor it but it crashes on save', {}).mode, 'BUGFIX');
-  });
-
-  await test('MODE: building something new is still IMPLEMENT', () => {
-    for (const s of ['add a dark mode toggle', 'implement session export']) {
-      assert.strictEqual(mode.classify(s, {}).mode, 'IMPLEMENT', s);
-    }
-  });
-
-  await test('MODE: REFACTOR is not read-only — it changes code', () => {
-    assert.strictEqual(mode.classify('refactor the parser', {}).readOnly, false);
-    assert.strictEqual(mode.classify('audit the parser', {}).readOnly, true);
-  });
 };

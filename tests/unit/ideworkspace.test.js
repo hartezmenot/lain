@@ -143,13 +143,14 @@ module.exports = async function () {
     assert.strictEqual(vtscreen.render('npm install\r\nfetching 10%\rfetching 100%\r\n', { cols: 80, rows: 10 }), 'npm install\nfetching 100%\n');
     assert.strictEqual(vtscreen.render(`${E}]0;title${E}\\abc\bd\r\n`, { cols: 80, rows: 10 }), 'abd\n');
   });
-  await test('IDE ROUTING: questions to the BOT; changes are proposed for the Agent (the AGENT tab and Chat go straight); a choice wins', () => {
-    const a = { session: { messages: [] } };
-    assert.strictEqual(botroute.decide(a, 'why does main return 3?').role, 'bot');
-    assert.strictEqual(botroute.decide(a, 'explain the build script').role, 'bot');
-    assert.strictEqual(botroute.decide(a, 'rename add to sum in util.ts and update the callers').role, 'propose');
-    assert.strictEqual(botroute.decide(a, 'rename add to sum in util.ts and update the callers', { pane: 'agent' }).role, 'agent');
-    assert.strictEqual(botroute.decide(a, 'rename add to sum in util.ts and update the callers', { via: 'chat' }).role, 'agent');
-    assert.strictEqual(botroute.decide(a, 'why does main return 3?', { route: 'agent' }).role, 'agent');
+  await test('IDE ROUTING (S12): the pane\'s Chat | Agent toggle decides — never the words; default Agent', () => {
+    const saved = require('../../src/config').save;
+    require('../../src/config').save = () => {};
+    try {
+      const a = { session: { messages: [] }, cfg: {} };
+      assert.strictEqual(botroute.decide(a, 'why does main return 3?').role, 'agent', 'no project choice yet: Agent');
+      assert.strictEqual(botroute.decide(a, 'rename add to sum in util.ts and update the callers', { pane: 'bot' }).role, 'bot', 'the Chat pane answers a change request too');
+      assert.strictEqual(botroute.decide(a, 'why does main return 3?', { route: 'agent' }).role, 'agent');
+    } finally { require('../../src/config').save = saved; }
   });
 };

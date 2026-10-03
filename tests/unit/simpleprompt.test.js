@@ -12,11 +12,12 @@ module.exports = async function () {
   const { App } = require('../../src/app');
   const out = { write() {}, on() {}, columns: 100, rows: 30, isTTY: false };
 
-  await test('BASE: at most ~1,200 tokens, carries the report format, and no mode guidance, task state or tool-order rules', () => {
+  await test('BASE: at most ~1,200 tokens, carries the report template (S12c), and no mode guidance, task state or tool-order rules', () => {
     const b = sp.base({ shell: 'PowerShell' });
     assert.ok(b.length / 4 <= 1200, `${Math.round(b.length / 4)} tokens`);
     assert.match(b, /Your final message is the report/);
-    assert.match(b, /what you verified and how/);
+    assert.match(b, /^Done: <one line>\nChanged: <files or "nothing">\nChecked: <what ran and the result, or "not checked">\nOpen: <anything left, or "nothing">$/m, 'the template, verbatim');
+    assert.match(b, /plain question stays free-form/);
     for (const banned of [/Task state/i, /How to run/i, /How to test/i, /request_completion/, /task_contract/, /REQUEST:/, /MODE:/, /You must call .* before/i]) assert.ok(!banned.test(b), String(banned));
   });
 

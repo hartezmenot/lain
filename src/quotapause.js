@@ -24,6 +24,8 @@ function status(app) { return wb.of(app.session).quota || { state: 'RUNNING' }; 
 async function recheck(app, q) {
   const notes = [];
   try { if (q.connectionId) { app.availability.retry(q.connectionId); notes.push(`cleared LAIN's hold on ${q.connectionId}`); } } catch { /* no availability */ }
+  // ▶ CONTINUE IS THE PERSON ASKING: the stored account limits go too, so the resume is a real request (limitprobe.js).
+  for (const what of require('./limitprobe').forget(app, app.session)) notes.push(`cleared LAIN's hold on ${what}`);
   const model = String(q.model || '');
   try {
     if (/^claude-code\//.test(model)) { await require('./runtimeadapters').report(app, 'claude-code', { refresh: true }); notes.push('refreshed Claude Code'); }

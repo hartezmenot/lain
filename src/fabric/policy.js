@@ -71,4 +71,31 @@ function onLimit(app, { family, model, effort = null, accountId, resetAt = null,
   return { ...base, decision: DECISION.NONE, text: r.why || '' };
 }
 
-module.exports = { DECISION, resolve, onLimit };
+/**
+ * THE PERSON ASKED AGAIN (2026-10-03). A stored limit is LAIN's memory of a 429, not the provider's word: resetting
+ * usage on the provider's own site never reaches it, so Continue answered "every … account is limited" without a
+ * request. Continue (or a typed message) forgets the limits of the accounts serving this lane's model (and their
+ * route breakers), so ONE real request asks the provider; a fresh 429 records the limit again (onLimit). Called
+ * through limitprobe.js.
+ */
+function forgetLimits(app, session) {
+  const s = session || (app && app.session);
+  if (!s) return [];
+  let l = null;
+  try {
+    const sv = require('../sessionviews');
+    const which = sv.current(s) === sv.VIEW.CHAT || (s._botTurn && s._botOwnModel) ? 'chat' : 'coding';
+    l = require('../sessionintel').lane(app, s, which);
+  } catch { return []; }
+  if (!l || l.ok || l.needs !== 'decision' || !l.family || !l.model) return [];
+  const out = [];
+  for (const x of idx.eligible(app, l.family, l.model, l.effort)) {
+    if (!x.limited) continue;
+    store.clearLimit(x.account.id);
+    try { if (app.availability && x.route) app.availability.retry(x.route); } catch { /* the breaker re-learns from the next reply */ }
+    out.push(x.account.id);
+  }
+  return out;
+}
+
+module.exports = { DECISION, resolve, onLimit, forgetLimits };

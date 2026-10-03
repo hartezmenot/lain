@@ -151,6 +151,12 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       if (pending) {
         const r = await choose(pending.model, pending.route, pending.effort);
         if (!r.ok) { if (app.input) app.input.setLine(''); else app.ui.setInput(''); w(C.dim(`  ${r.why}\n`)); return; }
+        // THE EFFORT STEP, RIGHT AFTER THE MODEL (S12a): its native levels, or LAIN effort — one picker. Esc keeps the default.
+        const after = r.lane || intel.lane(app, app.session, laneName);
+        if (!pending.effort && !r.deferred && (after.efforts || []).length > 1) {
+          const picked = await app.ui.ask(require('./ui/panel').effortAdapter({ available: after.efforts, current: after.effort || after.effective, source: after.effortSource }));
+          if (picked) { await intel.choose(app, app.session, { lane: laneName, effort: picked }); try { app.session.save(); } catch { /* saved with the next turn */ } }
+        }
       }
       // THE QUERY BELONGED TO THE PICKER, so it leaves with it.
       if (app.input) app.input.setLine('');
@@ -165,7 +171,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         app.render.write('      ' + C.bold(name) + '\n');
         if (conn) app.render.write(C.dim(`      ${conn.provider}`) + '\n');
         const now = intel.lane(app, app.session, laneName);
-        app.render.write(C.dim(`      effort ${now.effortLabel || 'not configurable'}`) + '\n');
+        app.render.write(C.dim(`      ${now.effortSource === 'lain' ? `LAIN effort ${now.effectiveLabel}` : `effort ${now.effortLabel || 'not configurable'}`}`) + '\n');
         app.render.write(C.dim(`      ${laneName === 'chat' ? 'Chat' : 'Coding'} · ${now.familyLabel || now.accountLabel} › ${now.modelLabel} · ${now.policyLabel || ''} · this session`) + '\n');
       } else {
         // Escape. Saying so is the difference between "cancelled" and "did that
@@ -263,7 +269,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     const chosen = await choose(m.id, conn.connectionId);
     if (!chosen.ok) { w(C.dim(`  ${chosen.why}\n`)); return; }
     if (app.ui && app.ui.enabled) app.ui.refresh();
-    w('\n' + C.green(`  ${chosen.lane.familyLabel || chosen.lane.accountLabel} › ${chosen.lane.modelLabel || m.displayName}`) + C.dim(`${chosen.lane.effortLabel ? ` · ${chosen.lane.effortLabel}` : ''} · ${laneName} · this session`) + '\n');
+    w('\n' + C.green(`  ${chosen.lane.familyLabel || chosen.lane.accountLabel} › ${chosen.lane.modelLabel || m.displayName}`) + C.dim(`${intel.effortText(chosen.lane) ? ` · ${intel.effortText(chosen.lane)}` : ''} · ${laneName} · this session`) + '\n');
     // Everything that was NOT chosen, so a single-match selection never hides
     // that there were other routes.
     if (m.connections.length > 1) {

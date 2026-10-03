@@ -36,7 +36,6 @@ the state it observed, and a later change makes it stale.
 | `integrity.js` | a write to a test: ASSERTION_REMOVED · ASSERTION_WEAKENED · SKIP_ADDED · XFAIL_ADDED · TIMEOUT_INFLATED · SNAPSHOT_UPDATED · FIXTURE_CHANGED · TEST_ONLY_BRANCH · MOCK_ADDED. Undisclosed, the task stays ACTIVE |
 | `claims.js` | typed claims (CHANGED / VERIFIED(K#) / INFERRED / NOT_CHECKED) cross-checked against the ledger by domain (packaging, build, UI, tests); an unsupported VERIFIED is downgraded and said so |
 | `arbiter.js` | the completion decision, `outcomeSatisfied()` |
-| `retry.js` | no blind retries: the same failing `run_*` at the same generation is refused with its evidence; TRANSIENT failures may be retried twice |
 | `profile.js` | per-model capability profiles (`<home>/models/profiles.json`): measured from invalid calls, patch failures, false completions; family priors until 30 calls → discretion STRONG / STANDARD / WEAK |
 | `dialect.js` | the tool semantic layer: canonical ops rendered in each family's vocabulary (Claude `Read/Edit/Bash`, Codex `shell/rg/apply_patch`, GLM `bash/read/str_replace`, local strict canonical) and resolved back through the one canonical door |
 | `digest.js` · `promptstate.js` | the continuity digest (outcome, asks, criteria, facts with STALE marks, checks baseline → latest, questions, blockers, test changes, scaffolding) and the live "Task state" prompt section; `OUTCOME SATISFIED` when it is |

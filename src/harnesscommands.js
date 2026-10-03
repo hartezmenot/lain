@@ -87,7 +87,7 @@ function capabilities(app, C) {
 function surfaces(app, C) {
   app.render.write('\n' + C.bold('Surfaces') + C.dim('  — every one reads the same task state') + '\n');
   const remote = (() => { try { return require('./remotecontrol').status(); } catch { return null; } })();
-  row(app, 'remote', remote && remote.connected ? C.green(`connected as ${remote.identity || 'unknown'}`) : C.dim('not connected — /runtime for the supervisor'));
+  row(app, 'remote', remote && remote.connected ? C.green(`connected as ${remote.identity || 'unknown'}`) : C.dim('not connected'));
 }
 
 function tasks(app, C) {

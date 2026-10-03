@@ -4,17 +4,14 @@
 
 function save(app) { try { require('./config').save(app.cfg); } catch { /* applies in memory */ } }
 
-function run(app, args, { C, gateResults = () => [] }) {
+function run(app, args, { C }) {
   const rt = require('./workerruntime');
   const workers = require('./workers');
   const w = (s) => app.render.write(s);
   const a = String(args[0] || 'status').toLowerCase();
   app.cfg.workers = app.cfg.workers || {};
   if (a === 'auto' || a === 'off') { app.cfg.workers.policy = a; save(app); if (a === 'off') rt.stop(app, { unload: true }); }
-  else if (a === 'locate') {
-    const v = String(args[1] || '').toLowerCase();
-    if (v === 'on' || v === 'off') { app.cfg.workers.locate = v; save(app); }
-  } else if (rt.manifest()[a]) {
+  else if (rt.manifest()[a]) {
     const v = String(args[1] || '').toLowerCase();
     if (['auto', 'on', 'off'].includes(v)) {
       if (rt.manifest()[a].status === 'EXCLUDED' && v !== 'off') { w(C.dim(`  ${a} is EXCLUDED on this install: ${rt.manifest()[a].reason}\n`)); return; }
@@ -22,11 +19,9 @@ function run(app, args, { C, gateResults = () => [] }) {
       if (v === 'off') rt.stop(app, { unload: true, ids: [a] });
       else if (v === 'on') { try { require('./layacontext').prewarm(app); } catch { /* loads on first use */ } }
     }
-  } else if (a !== 'status') { w(C.dim('  usage: /workers [status|auto|off|locate on|off|laya [auto|on|off]]\n')); return; }
+  } else if (a !== 'status') { w(C.dim('  usage: /workers [status|auto|off|laya [auto|on|off]]\n')); return; }
 
   w('\n' + C.bold('Workers') + C.dim(`  policy ${rt.policyOf(app).toUpperCase()} · a specialist serves only a use its gate passed, unless forced on\n`));
-  const loc = String(process.env.LAIN_LOCATE || app.cfg.workers.locate || 'off').toLowerCase();
-  w(`  locate    file shortlist     ${loc === 'on' ? 'on' : 'off (opt-in: /workers locate on)'}\n`);
   // INSTALLED ≠ LOADED ≠ PARTICIPATING. Each is its own line: the runtime,
   // then every role with its mode and what it actually did this session.
   const invoked = roleCounts(app);
@@ -59,7 +54,6 @@ function run(app, args, { C, gateResults = () => [] }) {
     w(C.dim(`            migration_plan eligible ${m.eligible} · offered ${m.offered} · invoked ${m.invoked} · used ${m.used}\n`));
     for (const [k, j] of Object.entries(ds.jobs)) w(C.dim(`            job ${k} · dispatched ${j.dispatched} · shadow ${j.shadow} · consumed ${j.consumed} · late ${j.late}\n`));
   }
-  for (const g of gateResults()) w(C.dim(`  decision gate ${g.pass ? 'PASS' : 'FAIL'} · ${g.model} · ${g.detail}\n`));
   const sum = workers.summary(app.session);
   const keys = Object.keys(sum);
   w('\n' + (keys.length ? '' : C.dim('  No worker ran in this session.\n')));

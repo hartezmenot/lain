@@ -39,17 +39,32 @@ module.exports = async function () {
       for await (const ev of runTurn(session, 'do the thing', {
         cfg: {}, steer: () => queue.splice(0, queue.length),
       })) {
-        if (ev.type === 'notice') notices.push(ev.message);
+        if (ev.type === 'notice') notices.push(ev);
       }
       const steered = session.messages.filter((m) => m._steer);
       assert.strictEqual(steered.length, 1, 'delivered exactly once, not per step');
       assert.strictEqual(steered[0].role, 'user', 'a correction is the USER speaking');
       assert.match(steered[0].content, /⚑ USER STEER: stop editing and read the logs first/);
-      assert.ok(notices.some((n) => /USER STEER delivered/.test(n)), 'and the user is told it landed');
+      const n = notices.find((x) => x.steer);
+      assert.ok(n && n.text === 'stop editing and read the logs first', 'the screen is handed the person\'s words, marked as a steer');
     } finally {
       delete process.env.LAIN_PROVIDER;
       delete process.env.LAIN_MOCK_SCRIPT;
     }
+  });
+
+  await test('STEER ON SCREEN: drawn as the person\'s message — USER STEER (USER DECISION for a decision word), never a NOTE — live and after the turn', async () => {
+    const conv = require('../../src/ui/conversation');
+    const T = require('../../src/ui/text');
+    const draw = (o) => conv.activity({ width: 100, ...o }).map((l) => T.strip(String(l)));
+    const live = draw({ session: { turns: [] }, liveUser: 'fix the tests', liveTyped: true, liveActions: [],
+      liveNotes: [{ text: 'use the integration tier', level: 'info', steer: true, after: 0 }, { text: 'stop', level: 'info', steer: true, after: 0 }] });
+    assert.ok(live.some((l) => /^\s*USER STEER · use the integration tier/.test(l)), live.join('\n'));
+    assert.ok(live.some((l) => /^\s*USER DECISION · stop/.test(l)), live.join('\n'));
+    assert.ok(live.some((l) => /^\s*USER · fix the tests/.test(l)), 'the message itself stays USER');
+    assert.ok(!live.some((l) => /NOTE|steer:/.test(l)), live.join('\n'));
+    const done = draw({ session: { turns: [{ userInput: 'fix the tests', typed: true, text: 'done', steerTexts: [{ step: 0, text: 'use the integration tier' }] }] } });
+    assert.ok(done.some((l) => /^\s*USER STEER · use the integration tier/.test(l)), done.join('\n'));
   });
 
   await test('STEER: an empty queue costs nothing and says nothing', async () => {

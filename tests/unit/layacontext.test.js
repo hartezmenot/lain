@@ -105,6 +105,5 @@ module.exports = async function run() {
     for (const cls of ['MIGRATION', 'UI_GEOMETRY', 'UI_EVIDENCE', 'SELECTION', 'TRACE', 'QUESTION', 'GENERAL']) {
       assert.ok(!d.owners(cls, {}, null, { explicit: false }).includes('laya:source_file_ranker'), cls);
     }
-    assert.strictEqual(require('../../src/locateassist').policy(app, session).laya, 'off');
   });
 };

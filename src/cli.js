@@ -21,7 +21,9 @@ Usage
   lain --bot-check <name>   Observe telegram, discord or whatsapp configuration
 
 Options
-  -p, --print <prompt>   one-shot prompt
+  -p, --print <prompt>   one-shot prompt; waits for the background jobs it started,
+                         prints their results, then exits
+      --no-wait          with -p: exit when the turn ends, leaving background jobs
       --resume <id>      explicitly restore a session (the only way state crosses
                          a session boundary — there is no automatic resume)
       --sessions         list saved session ids
@@ -54,6 +56,7 @@ function parseArgs(argv) {
       case '-h': case '--help': opts.help = true; break;
       case '-v': case '--version': opts.version = true; break;
       case '-p': case '--print': opts.print = argv[++i]; break;
+      case '--no-wait': opts.noWait = true; break;
       case '--resume': opts.resume = argv[++i]; break;
       case '--continue-session': opts.continueSession = true; break;
       case '--sessions': opts.sessions = true; break;
@@ -190,7 +193,7 @@ async function main(argv) {
   const oneShot = opts.print !== undefined ? opts.print : (opts._.length ? opts._.join(' ') : undefined);
   if (oneShot !== undefined) {
     if (!String(oneShot).trim()) { process.stderr.write('lain: empty prompt\n'); return 2; }
-    return await app.once(String(oneShot));
+    return await app.once(String(oneShot), { wait: !opts.noWait });
   }
   // UPDATES FOR AN INTERACTIVE CLI: checked at most every six hours, staged in the background, never interrupting work.
   try { require('./update/cli').start(app); } catch { /* updates are optional */ }

@@ -26,7 +26,7 @@ function keepRaw(text) {
 function limitOf(cfg) {
   const v = Number(cfg && cfg.contextBudget && cfg.contextBudget.toolResultChars);
   if (Number.isFinite(v) && v > 0) return v;
-  return Math.round(DEFAULT_CHARS * require('./profile').outputScale(cfg && cfg.executionProfile));   // ECO: a tighter head+tail
+  return Math.round(DEFAULT_CHARS * require('./profile').outputScale(cfg && cfg.executionProfile, cfg && cfg.lainEffort));   // ECO, LAIN effort Low: tighter; Max: looser
 }
 
 /** THE TEXT THAT ENTERS THE CONVERSATION for one tool result. */

@@ -47,11 +47,24 @@ function toggle(current, target, arg = '') {
   return normalize(current) === t ? 'NORMAL' : t;
 }
 
+/**
+ * LAIN EFFORT (S12a) — for a model with NO native effort (fabric/effortcaps.forRequest), Low / High / Max moves the
+ * same knobs the profile sets, around the profile's own value. High is the profile unchanged. Nothing here reaches the
+ * cached prefix: the system prompt and the tools array are byte-identical at every level (the tail line is in
+ * simpleprompt.effortLine; the thinking switch is a request field).
+ */
+const LAIN_EFFORT = Object.freeze({
+  low: Object.freeze({ concurrency: 2, output: 0.6, compactShift: -0.1 }),
+  high: Object.freeze({ concurrency: null, output: 1, compactShift: 0 }),
+  max: Object.freeze({ concurrency: 4, output: 1.5, compactShift: 0.1 }),
+});
+const effortOf = (e) => LAIN_EFFORT[String(e || '').toLowerCase()] || LAIN_EFFORT.high;
+
 const pick = (table, profile) => table[normalize(profile) || 'NORMAL'];
 const scale = (profile) => pick(BUDGET_SCALE, profile);
-const concurrency = (profile) => pick(CONCURRENCY, profile);
-const outputScale = (profile) => pick(OUTPUT_SCALE, profile);
-const compactAt = (profile) => pick(COMPACT_AT, profile);
+const concurrency = (profile, lainEffort = null) => effortOf(lainEffort).concurrency || pick(CONCURRENCY, profile);
+const outputScale = (profile, lainEffort = null) => pick(OUTPUT_SCALE, profile) * effortOf(lainEffort).output;
+const compactAt = (profile, lainEffort = null) => Math.min(0.92, Math.max(0.4, pick(COMPACT_AT, profile) + effortOf(lainEffort).compactShift));
 
 /** Every profile may delegate: the profile changes spend, not behaviour. */
 function allowsExtraAgents() { return { ok: true }; }
@@ -67,4 +80,4 @@ function label(session) {
   return e && e.explicit && e.effort ? `${p} · effort ${e.effort} (your setting)` : p;
 }
 
-module.exports = { PROFILES, MIGRATE, BUDGET_SCALE, CONCURRENCY, OUTPUT_SCALE, COMPACT_AT, normalize, of, set, toggle, scale, concurrency, outputScale, compactAt, allowsExtraAgents, guidance, label };
+module.exports = { PROFILES, MIGRATE, BUDGET_SCALE, CONCURRENCY, OUTPUT_SCALE, COMPACT_AT, LAIN_EFFORT, normalize, of, set, toggle, scale, concurrency, outputScale, compactAt, allowsExtraAgents, guidance, label };

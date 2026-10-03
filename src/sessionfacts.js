@@ -8,7 +8,7 @@ function laneFacts(l) {
     // THE LOGICAL ROUTE (Phase 8.3): provider family › model › effort — what the person chose.
     provider: l.familyLabel || null, familyId: l.family || null,
     model: l.modelLabel || l.model || null, modelId: l.model || null,
-    effort: l.effortLabel || null, effortId: l.effort || null, efforts: l.effortLabels || [],
+    effort: require('./sessionintel').effortText(l) || null, effortId: l.effort || null, efforts: l.effortLabels || [], effortSource: l.effortSource || null,
     policy: l.policyLabel || null, policyId: l.policy || null,
     // THE BACKING ACCOUNT — a diagnostic detail under the route, never its name.
     account: l.accountLabel || l.account || null, accountId: l.account || null, accounts: l.accountCount || 0,

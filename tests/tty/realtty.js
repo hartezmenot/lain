@@ -29,8 +29,9 @@ function available() {
   if (probed) return probed;
   const py = process.env.LAIN_TTY_PYTHON;
   if (!py) { probed = { ok: false, why: 'LAIN_TTY_PYTHON is not set' }; return probed; }
-  const r = spawnSync(py, ['-c', 'import winpty, pyte'], { encoding: 'utf8', timeout: 20000 });
-  probed = r.status === 0 ? { ok: true, python: py } : { ok: false, why: `${py} cannot import winpty/pyte: ${(r.stderr || '').trim().slice(0, 160)}` };
+  const pty = process.platform === 'win32' ? 'winpty' : 'ptyprocess';   // ConPTY on Windows, a real pty elsewhere (ptydrive.py)
+  const r = spawnSync(py, ['-c', `import ${pty}, pyte`], { encoding: 'utf8', timeout: 20000 });
+  probed = r.status === 0 ? { ok: true, python: py } : { ok: false, why: `${py} cannot import ${pty}/pyte: ${(r.stderr || '').trim().slice(0, 160)}` };
   return probed;
 }
 

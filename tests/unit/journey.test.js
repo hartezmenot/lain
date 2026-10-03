@@ -75,45 +75,25 @@ module.exports = async function () {
     journey.restore(back, JSON.parse(JSON.stringify(s.toJSON())));
     assert.strictEqual(back.journey.path.length, 3, 'the path is part of the session file');
   });
-  await test('BOT → AGENT: code changes are PROPOSED in the BOT tab; questions answered; the AGENT tab and Chat go straight', () => {
+  await test('CHAT | AGENT TOGGLE (S12): the pane decides, never the words — default Agent, remembered per project', () => {
     const s = sessionFor(root);
-    const app = { session: s };
-    assert.strictEqual(botroute.decide(app, 'What does this function do?', { from: 'ide' }).role, 'bot');
-    assert.strictEqual(botroute.decide(app, 'Why is this error happening?', { from: 'ide' }).role, 'bot');
-    assert.strictEqual(botroute.decide(app, 'Rename fixButton to ButtonFix everywhere.', { from: 'ide' }).role, 'propose');
-    assert.strictEqual(botroute.decide(app, 'Implement this API.', { from: 'ide' }).role, 'propose');
-    assert.strictEqual(botroute.decide(app, 'Rename fixButton to ButtonFix everywhere.', { from: 'ide', pane: 'agent' }).role, 'agent');
-    assert.strictEqual(botroute.decide(app, 'Rename fixButton to ButtonFix everywhere.', { from: 'chat', via: 'chat' }).role, 'agent');
-    // Walking the house is the BOT's, never a proposal for the Agent.
-    for (const t of ['open the MCP settings', 'Open router.ts.', "open yesterday's session", 'Use Opus for the Coding Agent.', 'Add Telegram.', 'Go back to the code.']) {
-      assert.strictEqual(botroute.decide(app, t, { from: 'ide' }).role, 'bot', t);
-    }
-    assert.strictEqual(botroute.decide(app, 'Open router.ts and rename route to dispatch', { from: 'ide' }).role, 'propose', 'opening AND changing is a change');
-    // Planning is answered, not implemented — in Chat and in the BOT tab.
-    for (const t of ['Plan how to fix Toradb stalled downloads', 'Investigate why login fails', "Let's design the cache", 'Make a plan for the migration']) {
-      assert.strictEqual(botroute.decide(app, t, { from: 'chat', via: 'chat' }).role, 'bot', t);
-      assert.strictEqual(botroute.decide(app, t, { from: 'ide' }).role, 'bot', t);
-    }
-  });
-
-  await test('BOT → AGENT: a proposal runs nothing until answered, is single-use, and accepting starts the Agent on the same session', async () => {
-    const s = sessionFor(root);
-    const ran = [];
-    const app = { session: s, handle: async (text, o) => { ran.push({ text, mode: o.forceMode, bot: s._botTurn, aside: s._asideTurn }); }, checkpoints: null };
-    const r = botroute.start(app, 'Rename fixButton to ButtonFix everywhere.', { role: 'propose', reason: 'changes code' });
-    assert.strictEqual(r.body.route, 'propose');
-    assert.strictEqual(ran.length, 0, 'no model call for a proposal');
-    const p = journey.project(app).proposal;
-    assert.ok(p && p.text.includes('ButtonFix'));
-    assert.strictEqual(botroute.answer(app, { id: 'wrong', accept: true }).code, 409, 'an unknown id takes nothing');
-    const ok = botroute.answer(app, { id: p.id, accept: true });
-    assert.ok(ok.body.ok && ok.body.route === 'agent', JSON.stringify(ok.body));
-    // The focus research (deterministic, before the model) runs first.
-    for (let i = 0; i < 100 && !ran.length; i++) await new Promise((res) => setTimeout(res, 30));
-    assert.strictEqual(ran.length, 1);
-    assert.strictEqual(ran[0].bot, false, 'the Agent runs, not the BOT');
-    assert.strictEqual(botroute.answer(app, { id: p.id, accept: true }).code, 409, 'single use');
-    assert.ok(s.journey.path.some((e) => e.kind === 'moved'));
+    const cfgSaved = require('../../src/config').save;
+    require('../../src/config').save = () => {};
+    try {
+      const app = { session: s, cfg: {} };
+      for (const t of ['What does this function do?', 'Rename fixButton to ButtonFix everywhere.', 'open the MCP settings']) {
+        assert.strictEqual(botroute.decide(app, t, { from: 'ide' }).role, 'agent', `default Agent: ${t}`);
+      }
+      assert.strictEqual(botroute.decide(app, 'Rename fixButton to ButtonFix everywhere.', { from: 'ide', pane: 'bot' }).role, 'bot', 'Chat takes a change request too');
+      assert.strictEqual(botroute.decide(app, 'Implement this API.', { from: 'ide' }).role, 'bot', 'remembered for this project');
+      assert.strictEqual(journey.idePane(app), 'bot');
+      journey.surface(app, { surface: 'ide', pane: 'agent' });
+      assert.strictEqual(botroute.decide(app, 'What does this function do?', { from: 'ide' }).role, 'agent', 'switching the pane is the choice');
+      const other = { session: sessionFor(require('../helpers').tmpdir('lain-journey-other-')), cfg: app.cfg };
+      journey.surface(app, { surface: 'ide', pane: 'bot' });
+      assert.strictEqual(journey.idePane(other), 'agent', 'another project keeps its own (default Agent)');
+      assert.ok(!('proposal' in journey.project(app)), 'no "Move to Agent?" proposal any more');
+    } finally { require('../../src/config').save = cfgSaved; }
   });
 
   await test('BOT stays read-only: a mutating tool on a BOT turn is refused by the gate', async () => {

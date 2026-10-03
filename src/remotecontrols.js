@@ -37,12 +37,12 @@ async function run(app, text, { surface = 'harness' } = {}) {
     // PHASE 8.3: provider family › model › effort, and the family's account policy — the fabric every surface shares.
     case '/model': {
       const l0 = intel.lane(app, s, 'coding');
-      if (!p.arg) return { ok: true, text: `Coding Agent: ${l0.familyLabel || 'no provider'} › ${l0.modelLabel || 'no model'}${l0.effortLabel ? ` · ${l0.effortLabel}` : ''}` };
+      if (!p.arg) return { ok: true, text: `Coding Agent: ${l0.familyLabel || 'no provider'} › ${l0.modelLabel || 'no model'}${intel.effortText(l0) ? ` · ${intel.effortText(l0)}` : ''}` };
       const r = await intel.set(app, s, { lane: 'coding', field: 'model', value: p.arg, scope: 'session' });
       save();
       if (!r.ok) return { ok: false, text: r.why };
       const l = intel.lane(app, s, 'coding');
-      return { ok: true, text: `Coding Agent: ${l.familyLabel} › ${l.modelLabel}${l.effortLabel ? ` · ${l.effortLabel}` : ''}` };
+      return { ok: true, text: `Coding Agent: ${l.familyLabel} › ${l.modelLabel}${intel.effortText(l) ? ` · ${intel.effortText(l)}` : ''}` };
     }
     case '/account': {
       const l0 = intel.lane(app, s, 'coding');
@@ -68,9 +68,9 @@ async function run(app, text, { surface = 'harness' } = {}) {
     case '/effort': {
       const lane = intel.currentLane(s);
       const l0 = intel.lane(app, s, lane);
-      if (!p.arg) return { ok: true, text: `Effort: ${l0.effortLabel || 'not configurable'}${l0.effortLabels && l0.effortLabels.length ? ` (${l0.modelLabel} offers ${l0.effortLabels.join(', ')})` : ''}` };
+      if (!p.arg) return { ok: true, text: `Effort: ${intel.effortText(l0) || 'not configurable'}${l0.effortLabels && l0.effortLabels.length ? ` (${l0.modelLabel} offers ${l0.effortLabels.join(', ')})` : ''}` };
       const r = await intel.choose(app, s, { lane, effort: p.arg.toLowerCase() });
-      save(); return r.ok ? { ok: true, text: `Effort: ${r.lane.effortLabel || 'default'}` } : { ok: false, text: r.why };
+      save(); return r.ok ? { ok: true, text: `Effort: ${intel.effortText(r.lane) || 'default'}` } : { ok: false, text: r.why };
     }
     case '/fast': case '/eco': case '/normal': {
       const target = p.name.slice(1).toUpperCase();

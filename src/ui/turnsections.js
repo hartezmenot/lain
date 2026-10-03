@@ -143,7 +143,7 @@ function pushTurn(said, t, ti, { actions, kept, narration, steers, settled, feed
   const opening = (n) => String(settled(t, n) || '').trim().split(/(?<=[.!?])\s|\s[-—]\s|\n/)[0].toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (lastSaid) seen.add(opening(lastSaid));
   for (const st of steps) {
-    for (const s of steers.filter((x) => x.step === st)) feed.pushUser(said, s.text);
+    for (const s of steers.filter((x) => x.step === st)) feed.pushUser(said, s.text, { steer: true });
     for (const n of narration.filter((x) => x.step === st && x !== lastSaid)) {
       const key = opening(n);
       if (key && seen.has(key)) continue;

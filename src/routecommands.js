@@ -55,7 +55,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       // Bare /effort on a TTY opens the ONE interaction panel with the model's own levels.
       if (!args[0] && app.ui && app.ui.enabled && levels.length) {
         const { effortAdapter } = require('./ui/panel');
-        const picked = await app.ui.ask(effortAdapter({ available: levels, current }));
+        const picked = await app.ui.ask(effortAdapter({ available: levels, current, source: lane.effortSource }));
         if (picked) args = [picked];
       }
       if (!args[0]) {
@@ -64,7 +64,9 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         // one without gets LAIN's execution depth — never presented as hidden model reasoning.
         const kind = lane.effortSource === 'lain' ? 'LAIN effort' : 'Provider effort';
         const what = lane.effortSource === 'lain' ? C.dim('  ·  this model has no native effort; LAIN sets how much context, exploration and delegation it uses') : '';
-        app.render.write(`  ${lane.modelLabel}\n  ${kind}: ${lane.effortLabel && lane.effortLabel !== 'Default' ? lane.effortLabel : C.dim(`Default (${(require('./profile').of(app.session, app.cfg) || 'NORMAL')})`)}`
+        const shown = lane.effortSource === 'lain' ? `${lane.effectiveLabel}${lane.effortDefaultWhy ? C.dim(` (${lane.effortDefaultWhy})`) : lane.effortExplicit ? '' : C.dim(' (default)')}`
+          : (lane.effortLabel && lane.effortLabel !== 'Default' ? lane.effortLabel : C.dim(`Default (${(require('./profile').of(app.session, app.cfg) || 'NORMAL')})`));
+        app.render.write(`  ${lane.modelLabel}\n  ${kind}: ${shown}`
           + (levels.length ? C.dim(`  ·  ${labels.join(' / ')}`) : '') + what + '\n');
         return;
       }
@@ -73,7 +75,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       if (want === 'auto' || want === 'default' || want === 'none') {
         const r = await choose('auto');
         if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
-        app.render.write(C.green(`  effort: ${r.lane.effortLabel || 'default'}`) + C.dim(' — the model\'s default\n'));
+        app.render.write(C.green(`  ${r.lane.effortKind || 'effort'}: ${r.lane.effortSource === 'lain' ? r.lane.effectiveLabel : (r.lane.effortLabel || 'default')}`) + C.dim(' — the default\n'));
         return;
       }
       const r = await choose(want);

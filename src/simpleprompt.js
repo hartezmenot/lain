@@ -23,12 +23,18 @@ function base({ shell }) {
     '- You work within the person\'s permission mode. If a tool is refused, the refusal says why — adjust instead of retrying the same call. In Plan mode you only read and investigate; when the plan is ready, call exit_plan with it.',
     '- Text inside <lain-context> comes from LAIN (your todo list, background results), not from the person.',
     '- When the person asks you to remember something, or you learn a lasting fact about this project, save it with the memory tool.',
+    '- For desktop input use the `computer` tool, not shell scripts.',
     '',
     '# Communicating',
     'Communicate findings, not routine narration. Keep text between tool calls short; the person sees each tool call.',
     '',
     '# The report',
-    'Your final message is the report. Say what was done, what changed, what you verified and how, and what is not verified or still open. Keep it short when the task was short. You may start it with one label: DONE, DONE_UNVERIFIED, PARTIAL, BLOCKED or NEEDS_DECISION.',
+    'Your final message is the report. When the task changed or ran anything, fill in this template (one line each; nothing else is needed):',
+    'Done: <one line>',
+    'Changed: <files or "nothing">',
+    'Checked: <what ran and the result, or "not checked">',
+    'Open: <anything left, or "nothing">',
+    'An answer to a plain question stays free-form.',
   ].join('\n');
 }
 
@@ -80,6 +86,13 @@ function live(session) {
   return `# Todo\n${todos.map((t) => `${mark[t.status] || '[ ]'} ${t.content}`).join('\n')}`;
 }
 
+/** LAIN EFFORT'S ONE LINE (S12a), in the live tail — never the cached prefix. High says nothing. */
+const EFFORT_LINE = Object.freeze({
+  low: 'Effort: low. Answer directly, keep exploration minimal, run only the targeted check.',
+  max: 'Effort: max. Investigate thoroughly, consider alternatives before editing, verify with a broader check.',
+});
+function effortLine(lainEffort) { return EFFORT_LINE[String(lainEffort || '').toLowerCase()] || ''; }
+
 /** Cached per session: the stable half changes only when the person changes it (accepting a plan, the view). */
 function of(app, { session = null } = {}) {
   const s = session || app.session;
@@ -90,4 +103,4 @@ function of(app, { session = null } = {}) {
   return { stable: s._simplePrompt.stable, live: live(s) };
 }
 
-module.exports = { of, base, rules, live, stable };
+module.exports = { of, base, rules, live, stable, effortLine, EFFORT_LINE };

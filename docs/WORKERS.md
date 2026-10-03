@@ -105,7 +105,10 @@ Measured on a 423-node settings window: **22,330 → 640 chars (×34.9),
 ~5,400 flagship tokens avoided on one observation**, with zero re-reads for
 that focus (unit fixture). It has not been measured on a live desktop session.
 
-## D. The recruitment gate (`bench/workergate`)
+## D. The recruitment gate (`bench/workergate`) — deleted with the sentence classifier (S12)
+
+The intent classifier it measured (`mode.js` routing for the IDE BOT pane) was
+deleted in S12; the pane's Chat | Agent toggle decides. The record below is history.
 
 `node bench/workergate/run.js <baseUrl> <model>` runs a labelled set of 60
 real-phrased requests through the real cascade. The model is consulted only
@@ -355,9 +358,8 @@ outside CONTROL's own range.
 
 **Consequence for LAIN:**
 
-- The deterministic file shortlist is kept, but **opt-in**
-  (`/workers locate on`, `cfg.workers.locate`, `LAIN_LOCATE=on`), because no
-  saving was measured.
+- The per-turn file shortlist is **deleted** (S12): no saving was measured.
+  `semantic_search` keeps the ranker (`locateassist.rank`).
 - **Default LAIN is CONTROL.**
 - Laya stays installed. `auto` uses it nowhere, and it can be forced on for
   experiments.

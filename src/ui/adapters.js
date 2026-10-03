@@ -9,17 +9,23 @@ const { KIND, MODE, pad, clip } = require('./panel');
 
 /** `/effort` — one owner; `auto` clears the pin. */
 /** THE MODEL'S OWN LEVELS, and nothing else (Phase 8.3): a model that offers High and XHigh shows exactly those — no generic list, no invented 'auto'. */
-function effortAdapter({ available = [], current = null }) {
+/** ONE PICKER, TWO SOURCES (S12a): a model's native levels (Provider effort), or Low / High / Max (LAIN effort) for one without. */
+function effortAdapter({ available = [], current = null, source = 'provider' }) {
   const caps = require('../fabric/effortcaps');
   const levels = caps.order(available);
+  const lain = source === 'lain';
   return {
-    title: 'EFFORT',
+    title: lain ? 'Effort · LAIN effort' : 'Effort · Provider effort',
+    keepCase: true,   // "LAIN effort" is a name; sentence case would lower it
     kind: KIND.EFFORT_SELECTION,
     mode: MODE.COMPACT,
-    items: levels.map((l) => ({
-      label: `${caps.label(l)}${l === caps.norm(current) ? '   (current)' : ''}`,
-      value: l,
-    })),
+    items: [
+      ...(lain ? [{ label: 'No native effort on this model: LAIN sets how much it explores, reads at once and keeps in context.', selectable: false, tone: 'meta' }] : []),
+      ...levels.map((l) => ({
+        label: `${caps.label(l)}${l === caps.norm(current) ? '   (current)' : ''}`,
+        value: l,
+      })),
+    ],
     footer: '↑↓ select · Enter confirm · Esc cancel',
   };
 }

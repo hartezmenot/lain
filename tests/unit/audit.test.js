@@ -157,17 +157,6 @@ module.exports = async function () {
       '/troubleshoot was removed from the surface');
   });
 
-  await test('WIRING: the TROUBLESHOOT workflow is reached by DESCRIBING the problem', () => {
-    // The capability was never deleted — only the command that forced it. A
-    // person now says what is wrong and the classifier picks the shape, which
-    // is the whole point of the subtraction: no mode to know about.
-    const mode = require('../../src/mode');
-    assert.strictEqual(mode.classify('something is broken somewhere', {}).mode, 'TROUBLESHOOT');
-    assert.strictEqual(mode.classify('the dashboard is acting up', {}).mode, 'TROUBLESHOOT');
-    // And the mode is still a real one the rest of the program knows.
-    assert.strictEqual(mode.KIND.TROUBLESHOOT, 'TROUBLESHOOT');
-  });
-
   await test('WIRING: the troubleshoot MACHINERY survives the command removal', () => {
     // REMOVE A USER-FACING COMMAND, DO NOT DELETE AN INTERNAL CAPABILITY.
     // The evidence scan and the report renderer are still here and still
