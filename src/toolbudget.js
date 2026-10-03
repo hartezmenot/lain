@@ -51,7 +51,8 @@ function keepRaw(text) {
 
 function limitOf(cfg) {
   const v = Number(cfg && cfg.contextBudget && cfg.contextBudget.toolResultChars);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_CHARS;
+  if (Number.isFinite(v) && v > 0) return v;
+  return Math.round(DEFAULT_CHARS * require('./profile').outputScale(cfg && cfg.executionProfile));   // ECO: a tighter head+tail
 }
 
 /**

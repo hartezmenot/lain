@@ -287,6 +287,8 @@ function frameState(ui) {
     liveActions: ui.liveActions,
     liveNarration: ui.liveNarration,
     liveNotes: ui.liveNotes,
+    liveThoughts: ui.liveThoughts || [],
+    activityExpanded: Boolean(ui.activityExpanded),   // Ctrl+O also opens folded thinking
     liveUser: ui.liveUser || null,
     // WHAT THE COMPOSER IS CAPTURING, or '' — see ui/inputbox.js promptFor.
     compose: require('../composemode').label(ui.app),

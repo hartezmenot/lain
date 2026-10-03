@@ -45,7 +45,7 @@ function liveLines(screen, width) {
   return views.activity({
     session: s.session, current: s.current, width,
     transcript: s.transcript,
-    liveActions: s.liveActions || [], liveNarration: s.liveNarration || [], liveNotes: s.liveNotes || [],
+    liveActions: s.liveActions || [], liveNarration: s.liveNarration || [], liveNotes: s.liveNotes || [], liveThoughts: s.liveThoughts || [], thoughtsOpen: Boolean(s.activityExpanded),
     liveUser: s.liveUser || null, liveFrom: s.liveFrom || null, liveTyped: Boolean(s.liveTyped), extras: s.extras || [],
     // HOW A PARAGRAPH OF THE TURN IN FLIGHT IS PRESENTED — see ui/reveal.js.
     // Handed in rather than reached for, so the dashboard and the tests render

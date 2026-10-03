@@ -96,7 +96,9 @@ function summaryOf(state, now = Date.now()) {
     const progress = require('../streamprogress');
     const st = progress.state(phase.live, now);
     if (st.word === 'WAITING' && !recent.length && now - phase.live.startedAt < 1500) return null;   // nothing worth a box yet
-    return { kind: st.word, line: st.detail, clock: st.elapsed, commentary: progress.commentaryLine(phase.live), detail, model: true };
+    // THE THINKING BOX (S5.1): while reasoning streams visibly, its last lines — display only, gone at the first text or call.
+    const thought = st.word === 'THINKING' ? progress.thoughtLines(phase.live, THOUGHT_WIDTH, THOUGHT_ROWS) : [];
+    return { kind: st.word, line: st.detail, clock: st.elapsed, commentary: thought.length ? '' : progress.commentaryLine(phase.live), thought, detail, model: true };
   }
   if (phase && phase.phase === 'RUNNING_TOOL') {
     const name = String(phase.tool || '');
@@ -134,6 +136,8 @@ function summaryOf(state, now = Date.now()) {
  * Ctrl+O still expands it to the last few operations, whatever the phase.
  */
 const COMMENTARY_ROWS = 2;
+const THOUGHT_ROWS = 4;
+const THOUGHT_WIDTH = 68;
 
 /**
  * ONLY WHAT THE LIVE ROW CANNOT SAY (2026-10-01). The box used to open with `WAITING · 00:01 / for the first response
@@ -145,7 +149,7 @@ function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   const s = summary(state, now);
   if (!s || room < 1) return 0;
   const expanded = Boolean(state.activityExpanded);
-  const want = (s.commentary && !minimal ? COMMENTARY_ROWS : 0) + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
+  const want = (s.commentary && !minimal ? COMMENTARY_ROWS : 0) + (s.thought && s.thought.length && !minimal ? s.thought.length : 0) + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
   return Math.min(want, room);
 }
 
@@ -188,7 +192,8 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   // reasoning. Temporary: they leave with the box and never enter the feed.
   const said = s.commentary ? wrapCommentary(s.commentary, box - 2, COMMENTARY_ROWS) : [];
   void paint;
-  const body = [...said.map((t) => P.meta(t)), ...(s.agents ? [P.meta(s.agents)] : []), ...(state.activityExpanded ? s.detail.map((t) => P.meta(t)) : [])];
+  const thinking = (s.thought || []).map((t) => P.meta(T.clip(t, box - 2)));
+  const body = [...thinking, ...said.map((t) => P.meta(t)), ...(s.agents ? [P.meta(s.agents)] : []), ...(state.activityExpanded ? s.detail.map((t) => P.meta(t)) : [])];
   const out = body.slice(0, height).map((t) => ground(t));
   while (out.length < height) out.push('');
   return out.map((l) => T.fit(l, width));

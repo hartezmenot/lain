@@ -52,7 +52,7 @@ module.exports = async function () {
     const on = await cc.enable(app, { tier: 'INTERACT', by: 'cli', ask: false });
     assert.ok(on.ok, on.why);
     const tools = require('../../src/tools').names(app);
-    for (const t of ['computer', 'computer_click', 'computer_type', 'computer_hold_key', 'computer_mouse_button', 'computer_hotkey', 'computer_drag', 'computer_scroll', 'computer_capture', 'computer_sequence', 'computer_mouse_move', 'computer_key']) assert.ok(tools.includes(t), t);
+    assert.ok(tools.includes('computer') && !tools.some((n) => n.startsWith('computer_')), 'one computer tool once it is on (S5.1): ' + tools.join(','));
     app.session = { id: 's2', turns: [] };
     assert.strictEqual(cc.enabled(app), false, 'per session: a new session starts off');
   });
@@ -63,7 +63,7 @@ module.exports = async function () {
     await cc.enable(app, { tier: 'OBSERVE', by: 'cli', ask: false });
     assert.ok((await cm.call('window.list')).ok);
     assert.match((await cm.call('keyboard.type', { text: 'x' })).why, /OBSERVE/);
-    assert.deepStrictEqual(require('../../src/tools').names(app).filter((n) => n.startsWith('computer_')), ['computer_capture'], 'OBSERVE: one capture, no input tools');
+    assert.ok(require('../../src/tools').names(app).includes('computer'), 'OBSERVE: the one tool, whose input actions the tier refuses');
     await cc.enable(app, { tier: 'INTERACT', by: 'cli', ask: false });
     assert.match((await cm.call('keyboard.type', { text: 'x' })).why, /needs a target/);
     assert.ok((await cc.setTarget(app, { window: 'Notepad' })).ok);
@@ -136,7 +136,7 @@ module.exports = async function () {
     await cc.enable(app, { tier: 'INTERACT', by: 'cli', ask: false });
     await cc.setTarget(app, { window: 'Notepad' });
     const child = { id: 'c1', _agentRole: 'IMPLEMENTER', turns: [] };
-    const r = await require('../../src/tools').execute('computer_click', { x: 300, y: 300 }, { app, session: child });
+    const r = await require('../../src/tools').execute('computer', { action: 'click', x: 300, y: 300 }, { app, session: child });
     assert.ok(r.denied && /subagents never do/.test(r.output), r.output);
     const tf = require('../../src/toolfunnel');
     const s = {}; tf.openForRole(s, 'IMPLEMENTER');

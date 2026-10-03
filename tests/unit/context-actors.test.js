@@ -149,6 +149,9 @@ module.exports = async function () {
         // has a producer, and it is named here.
         more: 'pushModel',
       }[kind];
+      // Produced outside feed.js: folded thinking (ui/thoughtrow.js) and the fact footer (factfooter.js).
+      const elsewhere = { thought: require('../../src/ui/thoughtrow').push, facts: require('../../src/factfooter').push }[kind];
+      if (elsewhere) { assert.strictEqual(typeof elsewhere, 'function', `KIND.${kind} has no producer`); continue; }
       assert.ok(pushName && typeof feed[pushName] === 'function',
         `KIND.${kind} has no producer — it can never appear on screen`);
     }

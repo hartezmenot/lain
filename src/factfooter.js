@@ -80,4 +80,7 @@ function attach(app, record) {
   return f;
 }
 
-module.exports = { of, lines, attach, empty };
+/** Feed entries for the TUI conversation: one quiet unlabelled row per fact line. */
+function push(out, f) { for (const l of lines(f)) out.push({ kind: 'facts', text: l }); }
+
+module.exports = { of, lines, attach, empty, push };

@@ -96,7 +96,7 @@ module.exports = async function () {
     assert.match(line, /Reading/, 'reading a file and running a command are different states');
     assert.match(line, /src\/auth\.js/, 'and the subject must be named');
     const shell = at({ phase: PHASE.RUNNING_TOOL, tool: 'run_bash', target: 'npm test' }, 0, 1000);
-    assert.match(shell, /Running\s+·\s+npm test/);
+    assert.match(shell, /Running npm test/);
   });
 
   await test('LIVE: a long wait shows HOW LONG — the difference between slow and hung', () => {
@@ -179,7 +179,7 @@ module.exports = async function () {
     const text = lines.join('\n');
     assert.match(text, /src\/a\.js/);
     assert.match(text, /✗/, 'a failed call is not quietly reported as a tick');
-    assert.match(text, /Running\s+·\s+npm test/, 'and the live row is last, closest to the caret');
+    assert.match(text, /Running npm test/, 'and the live row is last, closest to the caret');
     // With no history there is nothing to trail — and nothing is made up.
     const bare = status.statusStrip({ recent: [] }, 80, 3, 1000);
     assert.strictEqual(bare.length, 3);

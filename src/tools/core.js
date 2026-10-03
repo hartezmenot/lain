@@ -51,7 +51,7 @@ const tools = {
       return {
         name: 'shell', description: shellDescription(),
         parameters: { type: 'object', properties: {
-          command: { type: 'string' }, cwd: { type: 'string', description: 'directory to run in (default: the project)' },
+          command: { type: 'string' }, description: { type: 'string', description: 'a few words for the person on what this does' }, cwd: { type: 'string', description: 'directory to run in (default: the project)' },
           timeout_ms: { type: 'number' }, background: { type: 'boolean' },
           shell: { type: 'string', enum: ['powershell', 'bash', 'cmd'], description: 'optional; default is this host\'s' },
         }, required: ['command'] },
@@ -168,6 +168,8 @@ function deferred(app) {
   const all = legacy().legacyActive(app);
   const out = {};
   for (const [n, t] of Object.entries(all)) if (!CORE.includes(n) && !RETIRED.has(n) && !/^mcp__|^computer|^preview_/.test(n)) out[n] = t;
+  // THE ACCESSIBILITY TREE (find, click_control, type_into…) is `computer_ui`, found with tool_search while Computer Control is on.
+  if (all.computer && require('../computercontrol').enabled(app)) { const ui = require('./computermcp').tools.computer; out.computer_ui = { ...ui, schema: { ...ui.schema, name: 'computer_ui' } }; }
   return out;
 }
 

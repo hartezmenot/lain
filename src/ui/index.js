@@ -74,6 +74,7 @@ class UI {
   get liveActions() { return this.story.actions; }
   get liveNarration() { return this.story.narration; }
   get liveNotes() { return this.story.notes; }
+  get liveThoughts() { return this.story.thoughts; }
   get liveUser() { return this.story.user; }
   get liveFrom() { return this.story.userFrom || null; }
   get liveTyped() { return Boolean(this.story.userTyped); }
@@ -127,6 +128,7 @@ class UI {
    * (ui/reveal.js); on the slow tick a sentence arrives in four visible steps.
    */
   noteNarration(text) { this.story.noteNarration(text); this._syncTicker(); this.refresh(); }
+  noteThought(t) { this.story.noteThought(t); this.refresh(); }
 
   /** A liveness warning, a block, a notice — the program speaking, quietly. */
   noteSystem(text, level = 'info') { this.story.noteSystem(text, level); this.refresh(); }

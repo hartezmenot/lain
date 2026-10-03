@@ -65,7 +65,7 @@ module.exports = async function () {
     assert.strictEqual(r.code, 0);
     const f = lastFrameWith(r.out, /Type a task below/);
     assert.ok(f, 'the launch screen was drawn');
-    assertIncludes(f, 'N   O   E   M   A', 'the wordmark');
+    assertIncludes(f, 'L   A   I   N', 'the wordmark');
     assertIncludes(f, 'Ready to work.', 'and that LAIN is ready');
     assertIncludes(f, 'Model', 'and what model is configured');
     assertIncludes(f, 'Connection', 'through what');

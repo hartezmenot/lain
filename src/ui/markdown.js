@@ -353,6 +353,9 @@ const { SCHEMA_HEADING } = require('./classify');
 
 /** ```lang … ``` — the fence, with an optional language after it. */
 const FENCE = /^\s*(?:```|~~~)\s*([A-Za-z0-9_+-]*)\s*$/;
+
+// Per-line preformatting (D1) and pipe tables (D2) live in ui/mdtable.js.
+const { preformatted, cells, TABLE_SEP, table } = require('./mdtable');
 const HEADING = /^\s*(#{1,6})\s+(.*)$/;
 const BULLET_RE = /^(\s*)[-*+]\s+(.+)$/;
 const NUMBERED = /^(\s*)(\d{1,3})[.)]\s+(.+)$/;
@@ -498,27 +501,16 @@ function render(lines, width) {
       continue;
     }
 
-    // ---- PREFORMATTED BY INDENTATION ------------------------------------
-    //
-    // Four spaces is markdown's own spelling of a code block, and it is how a
-    // model writes an architecture diagram or a directory tree without reaching
-    // for a fence:
-    //
-    //           A
-    //           |
-    //           v
-    //           B ----> C
-    //
-    // It used to fall through to the prose branch, which preserved the leading
-    // indent and then reflowed the rest on whitespace — so the moment a row was
-    // wider than the viewport the figure came apart, and `inline()` was free to
-    // read an asterisk in it as emphasis. STRUCTURE IS MEANING HERE, so it is
-    // drawn verbatim: no markup processing, no reflow, every space kept.
-    //
-    // DRAWN PLAIN, not behind the code gutter. A gutter would reframe ordinary
-    // indented prose as a code block, which is a louder change than this needs
-    // to be — the only thing being fixed is that the spacing survives.
-    if (/^ {4}/.test(line) && line.trim()) {
+    // A markdown table (D2), then any preformatted line (D1: drawn verbatim, every space kept, folded never reflowed).
+    if (cells(line) && TABLE_SEP.test(String(src[i + 1] || ''))) {
+      const rows = [cells(line)];
+      let j = i + 2;
+      while (j < src.length && cells(src[j])) { rows.push(cells(src[j])); j += 1; }
+      for (const row of table(rows, cols)) push(row);
+      i = j - 1;
+      continue;
+    }
+    if (preformatted(line)) {
       for (const p of foldPre(line, Math.max(12, cols))) push(p);
       continue;
     }
@@ -691,4 +683,4 @@ function looksMarked(text) {
     || s.split('\n').filter((line) => SCHEMA_HEADING.test(line)).length >= 2;
 }
 
-module.exports = { render, inline, looksMarked, foldPre, CODE_GUTTER, BULLET, HOWTO };
+module.exports = { render, inline, looksMarked, foldPre, preformatted, CODE_GUTTER, BULLET, HOWTO };

@@ -135,7 +135,8 @@ async function start(app) {
     if (rec && !rec.shown) { rec.shown = true; require('./ui/operation').say(app, rec.line); }
   } catch { /* startup chrome never blocks the session */ }
   // PLAINTEXT CREDENTIALS LEFT BY AN OLDER VERSION (legacysecrets.js): counted, never shown, never deleted for you.
-  try { const s = require('./legacysecrets').summary(); if (s) app.render.notice('warn', s.text); } catch { /* a scan never blocks the session */ }
+  // ONCE: on the status row in the TUI (a transcript write is redrawn under every turn), a line on a pipe; /doctor lists it.
+  try { const s = require('./legacysecrets').summary(); if (s) { if (tui) require('./ui/operation').say(app, s.text, 'warn'); else app.render.notice('warn', s.text); } } catch { /* a scan never blocks the session */ }
 
   if (!tui) app.banner();
   const input = new Input({ stdin: process.stdin, stdout: process.stdout });
@@ -155,6 +156,8 @@ async function start(app) {
     if (!tui) return;
     if (app.ui.completionKey(k)) return;
     if (app.ui.handleKey(k)) return;
+    // ESC INTERRUPTS A RUNNING TURN when nothing on screen claimed it — the live row says `esc to interrupt`.
+    if (k === 'escape' && app.abort && !app.abort.signal.aborted) { input.emit('interrupt'); return; }
     // Caret movement and history recall, once no menu has claimed the key.
     // The editor owns both, because both are about where the caret is.
     if (input.editKey(k)) { /* consumed by the line editor */ }

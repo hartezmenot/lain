@@ -208,10 +208,10 @@ module.exports = async function () {
     // `RUNNING npm test` and `RUNNING MCP click` are not the same
     // kind of event, and the second is the one somebody may want to stop.
     const mcp = status.liveState({ phase: { phase: 'RUNNING_TOOL', tool: 'computer', target: 'click' } });
-    assert.strictEqual(mcp.word, 'RUNNING MCP');
+    assert.strictEqual(mcp.word, 'Running MCP');
     assert.strictEqual(mcp.actor, 'MCP');
     const local = status.liveState({ phase: { phase: 'RUNNING_TOOL', tool: 'run_bash', target: 'npm test' } });
-    assert.strictEqual(local.word, 'RUNNING');
+    assert.strictEqual(local.word, 'Running npm test', 'a command says what it runs (S5.1)');
     assert.strictEqual(local.actor, 'TOOL');
   });
 

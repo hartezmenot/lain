@@ -85,8 +85,7 @@ function register({ define, C }) {
       if (r.ignored.length) w(C.dim(`  ignored (a project file cannot widen): ${r.ignored.join(', ')}\n`));
     },
   });
-  // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js). Strategy and
-  // spend, never the correctness bar; orthogonal to AUTO/MANUAL/PLAN and FOCUS.
+  // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js): spend only, never behaviour.
   // `/fast` and `/eco` TOGGLE their profile (profile.toggle); `/normal` resets.
   const profileCmd = (name, target, desc, hidden = false) => define(name, {
     surface: true, flashMs: 1500, hidden, args: target === 'NORMAL' ? '' : '[on|off]',
@@ -102,9 +101,9 @@ function register({ define, C }) {
       app.render.write(C.dim(`  ${p}${p === 'ECO' ? ' (token economy)' : ''} · ${execmode.label(app.session)}\n`));
     },
   });
-  profileCmd('/fast', 'FAST', 'FAST profile (toggle): finish quickly — parallel independent work, disjoint subagents; same verification bar');
-  profileCmd('/normal', 'NORMAL', 'NORMAL profile (default): main agent first, subagents only when clearly useful');
-  profileCmd('/eco', 'ECO', 'ECO profile (toggle) — token economy: one agent, serial, deterministic tools first, smaller context; same verification bar');
+  profileCmd('/fast', 'FAST', 'FAST (toggle): lowest native effort unless you chose one; up to 4 read-only calls at once');
+  profileCmd('/normal', 'NORMAL', 'NORMAL (default): the model\'s default effort; up to 2 read-only calls at once');
+  profileCmd('/eco', 'ECO', 'ECO (toggle): lowest native effort unless you chose one; 2 read-only calls at once; tighter tool output; compacts earlier');
   // THE RUN STRATEGY (runstrategy.js) — separate from the profile and from effort.
   define('/strategy', {
     surface: true, args: '[normal|phased|long] [confirm]',
@@ -161,7 +160,7 @@ function register({ define, C }) {
   // how many may run at once. The counter itself lives in the run state.
   define('/subagents', {
     surface: true, flashMs: 1500, args: '[auto|off|max N]',
-    desc: 'Subagents: AUTO (the model delegates when work partitions) or OFF; max concurrent workers',
+    desc: 'Subagents: AUTO (the model may use the Agent tool) or OFF; how many run at once',
     run(app, { args }) {
       const sub = require('./subagents');
       const a = String(args[0] || '').toLowerCase();
@@ -173,8 +172,7 @@ function register({ define, C }) {
       const s = sub.settings(app);
       const live = sub.running(app).length;
       const prof = require('./profile').of(app.session, app.cfg);
-      app.render.write(C.dim(`  SUBAGENTS ${s.mode.toUpperCase()} · max ${s.maxConcurrent} at once · ${live} running · profile ${prof}`
-        + `${prof === 'ECO' && s.mode === 'auto' ? ' (ECO: only when you ask for them)' : ''}\n`));
+      app.render.write(C.dim(`  SUBAGENTS ${s.mode.toUpperCase()} · max ${s.maxConcurrent} at once · ${live} running · profile ${prof}\n`));
     },
   });
   // DIAGNOSTIC ONLY (workers.js): the narrow workers, whether any model is

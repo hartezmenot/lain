@@ -133,13 +133,13 @@ function simpleActive(app) {
   const full = legacyActive(app);
   const out = {};
   for (const n of core.CORE) out[n] = core.tools[n] || full[n];
-  for (const [n, t] of Object.entries(full)) if (n === 'computer' || /^computer_|^preview_/.test(n)) out[n] = t;
-  // AUTO, CHOSEN, BRINGS COMPUTER (S5): present from the session's start, kept once present; the first call turns
-  // Computer Control on at the person's tier (execmode.autoComputer) — the desktop's own authorization still asks.
+  for (const [n, t] of Object.entries(full)) if (/^preview_/.test(n)) out[n] = t;
+  // ONE `computer` TOOL (S5.1, tools/computerone.js) while Computer Control is on, or from the start when Auto is chosen;
+  // kept once present. The first call in Auto turns Computer Control on (execmode.autoComputer) — the desktop still asks.
   const s = app && app.session;
-  if (!out.computer && s && (s._computerTools || require('../execmode').autoChosen(app, s))) {
+  if (s && (s._computerTools || require('../computercontrol').enabled(app) || require('../execmode').autoChosen(app, s))) {
     s._computerTools = true;
-    Object.assign(out, require('./computermcp').tools, require('./computerinput').tools);
+    out.computer = require('./computerone').tools.computer;
   }
   return out;
 }
@@ -303,7 +303,7 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   // A DEFERRED TOOL (simple mode) runs by its own name too, once tool_search has shown it — same door, same gates;
   // the described list stays fixed. Retired names (ceremony, judges) never run.
   const simpleMode = require('../simple').on(app);
-  const tool = (deferred ? legacyActive(app) : active(() => app))[name] || (simpleMode && !deferred ? require('./core').deferred(app)[name] : undefined);
+  const tool = (deferred ? legacyActive(app) : active(() => app))[name] || (simpleMode ? require('./core').deferred(app)[name] : undefined);
   if (!tool) {
     // A NAME THAT IS NOT OURS BUT WHOSE MEANING IS — a foreign namespace
     // ("functions/grep") or a known foreign tool ("print_tree"). Recovered

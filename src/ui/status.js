@@ -157,6 +157,8 @@ const STOPPED_BECAUSE = {
  * ONE function decides what LAIN is doing, so the strip, the header word and any
  * future surface cannot disagree about it.
  */
+const { stepTime, shortCommand, modelRow } = require('./liverow');   // the live row's words (S5.1)
+
 function liveState(s = {}, now = Date.now()) {
   const {
     phase, phaseSince = 0, interrupting, interrupted, failed, retryCancelled,
@@ -255,29 +257,22 @@ function liveState(s = {}, now = Date.now()) {
     switch (phase.phase) {
       case 'WAITING_MODEL':
       case 'RECEIVING': {
-        // THE WIRE DECIDES THE WORD (streamprogress.js): WAITING before any data,
-        // THINKING while reasoning arrives, STREAMING, PREPARING TOOL · edit_file
-        // · 9.6 KB, and STALLED only after the stall threshold with no data.
-        const st = phase.live ? require('../streamprogress').state(phase.live, now) : null;
+        // The wire decides the state (modelRow): Waiting for <model> · Thinking · Writing.
+        if (phase.live) return modelRow(phase, now, steerQueued, actorOf(phase));
         const steer = steerQueued ? ' · steer queued' : '';
-        // `WAITING` for the wire is NOT a wait on the person or a limit — it is LAIN working with the model's answer
-        // pending, and says so: `Working · waiting for model · 8s`.
-        if (st) return { actor: actorOf(phase), word: st.word === 'WAITING' ? 'WORKING' : st.word, detail: st.detail + steer, colour: st.stalled ? 'warn' : 'violet', spin: !st.stalled, age: secs };   // THE PALETTE: the model working is VIOLET (the box that carried it is gone)
         if (phase.phase === 'RECEIVING') return { actor: actorOf(phase), word: 'RECEIVING', detail: 'model response', colour: 'info', spin: true, age: secs };
         return { actor: actorOf(phase), word: 'WORKING', detail: 'waiting for model' + steer, colour: 'info', spin: true, age: secs };
       }
       case 'RUNNING_TOOL': {
-        const word = VERB[phase.tool] || 'RUNNING';
-        // A tool runs on THIS machine. That is a different actor from the model
-        // that asked for it, and the difference is the whole point of the column.
-        //
-        // AND A BRIDGE CALL IS NEITHER. It is another process with hands on this
-        // machine, acting on LAIN's behalf — the one row where a person may want
-        // to reach for STOP, and it was wearing the same label as a file read.
-        // (This used to test the retired `probe` and `desktop` names; `computer`
-        // replaced both.)
+        // `Running <label> · <step time> · esc to interrupt` — a shell's own description when it gave one (S5.1); a tool
+        // with its own verb says it (`Reading src/a.js`, `Waiting for shell · #3`), never an implementation name.
         const who = phase.tool === 'computer' ? 'MCP' : 'TOOL';
-        return { actor: who, word, detail: phase.target || phase.tool || '', colour: 'info', spin: true, age: secs, path: true };
+        const shellish = /^(shell|run_(bash|powershell|cmd))$/.test(String(phase.tool || ''));
+        const verb = VERB[phase.tool];
+        const word = phase.label ? `Running ${phase.label}` : shellish ? `Running ${shortCommand(phase.target)}`
+          : verb && verb !== 'RUNNING' ? sentence(verb) : `Running ${String(phase.tool || '').replace(/_/g, ' ')}`;
+        const what = shellish || phase.label ? '' : String(phase.target || '');
+        return { actor: who, word, detail: [what, stepTime(age), 'esc to interrupt'].filter(Boolean).join(' · '), colour: 'info', spin: true, cased: true, path: Boolean(what) };
       }
       default: break;
     }
@@ -588,7 +583,7 @@ function statusStrip(s = {}, width = 80, rows = 1, now = Date.now()) {
   // when it arrives as the reason a turn ENDED, it is a verdict.
   const quiet = st.colour !== 'bad' && (st.colour === 'info' || st.colour === 'violet' || st.op || paused
     || ACTIVE_WORDS.has(String(st.word || '').toUpperCase()));
-  const word = paint(quiet ? sentence(st.word) : st.word);
+  const word = paint(quiet && !st.cased ? sentence(st.word) : st.word);
   /**
    * ---- WHO, ONLY WHEN IT IS NOT LAIN ---------------------------------------
    *

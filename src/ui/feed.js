@@ -85,7 +85,7 @@ function pushAction(out, a) {
     //     ✓ Edited python.js   +75 -40
     //     ✓ Edited python.py   +99 -32
     //     ✓ Edited config.js    +4 -1
-    text: `${a.ok ? V().MARK.done : V().MARK.error} ${V().phrase(a.name, a.target)}${editCounts(a)}`,
+    text: `${a.ok ? V().MARK.done : V().MARK.error} ${V().phrase(a.name, a.target)}${editCounts(a)}${a.ms >= 1000 ? ` · ${(a.ms / 1000).toFixed(a.ms < 10000 ? 1 : 0)}s` : ''}`,
     // Carried so a run of calls can be counted by what it DID rather than by
     // re-parsing the sentence that was just built out of it.
     verb: V().verbOf(a.name),
@@ -336,6 +336,8 @@ const KIND = {
   // NOT THE SAME GREY — see `kindOf`. A 429 drawn in the same neutral as
   // "compacting the conversation" is a failure hidden inside housekeeping.
   note: { label: 'NOTE', paint: 'meta', body: 'meta' },
+  thought: { label: '', paint: 'meta', body: 'meta' },   // folded thinking (ui/thoughtrow.js)
+  facts: { label: '', paint: 'meta', body: 'meta' },     // the fact footer (factfooter.js)
 };
 
 /**
@@ -646,11 +648,13 @@ function renderFeed(entries, width) {
     // THE SAME FOLD THE FENCED PATH USES (ui/markdown.js `foldPre`): cut at the
     // exact cell the viewport ends at, carry the indent onto the continuation,
     // and lose nothing — so selecting the block still copies what was written.
-    const pre = lead.length >= 4;
+    // PER LINE (D1): a diagram, tree or ASCII-table row keeps its spacing; a line that already fits is never reflowed.
+    const md = require('./markdown');
     const room = Math.max(12, width - indent.length);
-    const rows = pre
-      ? require('./markdown').foldPre(lead + body, room).map((r) => ({ lead: '', text: r }))
-      : V().wrap(body, Math.max(12, room - lead.length)).map((r) => ({ lead, text: r }));
+    const fits = require('./text').width(lead + body) <= room;
+    const rows = fits ? [{ lead: '', text: lead + body }]
+      : md.preformatted(lead + body) ? md.foldPre(lead + body, room).map((r) => ({ lead: '', text: r }))
+        : V().wrap(body, Math.max(12, room - lead.length)).map((r) => ({ lead, text: r }));
     for (const row of rows) {
       out.push(indent + row.lead + paintRow(e, row.text, first, P, k));
       first = false;

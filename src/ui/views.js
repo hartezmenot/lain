@@ -479,7 +479,9 @@ const { inputViewport, lineCount, wrapInput, caretRow } = require('./viewport');
 
 /** Soft-wrap a sentence to a width, for the few places prose is shown. */
 function wrap(text, width) {
-  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const raw = String(text || '');
+  if (raw && !/\n/.test(raw) && require('./text').width(raw) <= width) return [raw];   // a line that fits keeps every space (D1)
+  const words = raw.split(/\s+/).filter(Boolean);
   const out = [];
   let line = '';
   for (const word of words) {

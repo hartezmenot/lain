@@ -58,9 +58,9 @@ module.exports = async function () {
     assert.strictEqual(install.output, execmode.PLAN_REFUSAL);
     const look = await tools.execute('shell', { command: 'git status' }, { cwd: root, session: s, app });
     assert.ok(!look.denied, 'an inspecting command runs in Plan mode');
-    const click = await execmode.gate({ session: s, app }, 'computer_click', { mutates: true }, { x: 1, y: 1 });
+    const click = await execmode.gate({ session: s, app }, 'computer', { mutates: true }, { action: 'click', x: 1, y: 1 });
     assert.strictEqual(click.output, execmode.PLAN_REFUSAL);
-    const shot = await execmode.gate({ session: s, app }, 'computer', { mutates: true }, { op: 'screenshot' });
+    const shot = await execmode.gate({ session: s, app }, 'computer', { mutates: true }, { action: 'screenshot' });
     assert.ok(shot.ok, 'looking is reading');
     assert.strictEqual(app.asked.length, 0, 'Plan mode never asks — it refuses');
   });
@@ -166,14 +166,14 @@ module.exports = async function () {
     app.interaction = { ask: async () => null };
     app.cfg.trustedPaths = [{ path: app.session.cwd, level: 'TRUSTED' }];
     execmode.set(app.session, 'AUTO');
-    assert.ok(names().includes('computer') && names().includes('computer_click'), names().join(','));
+    assert.ok(names().includes('computer') && !names().some((n) => /^computer_/.test(n)), 'one computer tool (S5.1): ' + names().join(','));
     execmode.set(app.session, 'ACCEPT_EDITS');
     assert.ok(names().includes('computer'), 'kept once present: the tool list does not churn');
     const child = new Session({ cwd: app.session.cwd });
     child._agentType = 'general';
     const agentNames = tools.schemas(app, { turn: true, session: child }).map((x) => x.name);
     assert.ok(!agentNames.some((n) => n === 'computer' || /^computer_/.test(n)), agentNames.join(','));
-    const d = await tools.execute('computer_click', { x: 1, y: 1 }, { cwd: app.session.cwd, session: child, app });
+    const d = await tools.execute('computer', { action: 'click', x: 1, y: 1 }, { cwd: app.session.cwd, session: child, app });
     assert.ok(d.denied && /subagents never do/.test(d.output), d.output);
   });
 };

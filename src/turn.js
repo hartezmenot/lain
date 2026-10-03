@@ -121,7 +121,7 @@ function status(opts, phase, detail = {}) {
 
 async function* runTurn(session, userInput, opts = {}) {
   let cfg = opts.cfg || {};
-  let pc = provider.resolve(cfg);
+  let pc = provider.resolve(cfg); session._effortSeen = { effort: pc.effort || pc.lainEffort || null, explicit: Boolean(pc.effortExplicit) };   // the header names an explicit effort
   const record = newRecord(session.id, userInput, pc.model);
   // See `from` in turnrecord.js for why a turn has to know who asked for it.
   record.from = opts.from || null; record.typed = Boolean(opts.typed);
@@ -159,7 +159,7 @@ async function* runTurn(session, userInput, opts = {}) {
   // The vocabulary follows the App (`computer` appears only while a transport is connected), in THE MODEL'S OWN
   // TOOL DIALECT (discipline/dialect.js): same operations, the vocabulary its family speaks.
   const full = require('./discipline/dialect').forTurn(session, opts.tools === false ? [] : toolRegistry.schemas(opts.app, { turn: true, session }), pc.model, cfg);
-  const schemas = require('./profile').of(session, cfg) === 'ECO' ? require('./schemacompact').compact(full) : full;   // ECO: same tools, fewer words
+  const schemas = full;   // one schema shape for every profile (S5.1): a profile never changes the tools array
   { const grew = opts.simple ? require('./simple').toolSetNote(session, schemas) : null; if (grew) yield { type: 'notice', level: 'info', transient: true, message: grew }; }
   // `ask` lets ask_user reach the interaction panel. Absent on non-interactive
   // runs, where the tool says so rather than hanging.
@@ -272,12 +272,15 @@ async function* runTurn(session, userInput, opts = {}) {
     let usage = null;
     let failure = null;
     let thought = false; let finish = null;
+    let think = null;   // the thinking phase in progress (thinkphase.js)
+    const tp = require('./thinkphase');
+    const closeThink = (interrupted = false) => { const t = tp.close(record, think, step + 1, interrupted); think = null; return t; };
 
     // ANNOUNCED BEFORE THE AWAIT, not after it. The request below can take a
     // minute; saying "waiting" once it returns would be a report, not a status.
     // LIVENESS: one record per request, filled from the wire (streamprogress.js)
     // and read by the screen on the frames it already draws.
-    const live = progress.begin();
+    const live = progress.begin(); live.model = pc.canonicalModel || pc.model || '';   // the live row: `Waiting for GLM 5.3`
     status(opts, PHASE.WAITING_MODEL, { step: step + 1, live });
 
     // THE REQUEST BOUNDARY: the runtime admits BEFORE the wire; a denial means
@@ -305,37 +308,30 @@ async function* runTurn(session, userInput, opts = {}) {
         if (signal && signal.aborted) break;
         if (!ev) continue;
         if (ev.type === 'text') {
-        // The FIRST byte is the moment waiting becomes receiving — announced
-        // once per step, not per chunk (400 redraws/s is a storm, not status).
+          if (think) yield { type: 'thought', thought: closeThink() };
           if (!text) status(opts, PHASE.RECEIVING, { step: step + 1, live });
           progress.text(live, ev.chunk);
           text += ev.chunk || '';
           yield { type: 'text', chunk: ev.chunk || '' };
         } else if (ev.type === 'reasoning') {
-          // THINKING ALOUD, kept out of `text` (the ANSWER, which feeds the
-          // completion check and transcript); bounded, drawn only when nothing
-          // was said. See ui/conversation.js.
+          // Reasoning stays out of `text` (the answer); the screen shows it while it streams and then folds it.
           if (!text && !thought) status(opts, PHASE.RECEIVING, { step: step + 1, live });
-          const think = String(ev.chunk || '');
-          progress.reasoning(live, think.length);
-          if (think.trim()) thought = true;
-          record.reasoningChars = (record.reasoningChars || 0) + think.length;
-          if ((record.reasoning || '').length < MAX_REASONING) record.reasoning = (record.reasoning || '') + think;
-          yield { type: 'reasoning', chunk: think };
-        } else if (ev.type === 'tool_calls') calls = Array.isArray(ev.calls) ? ev.calls : [];
+          const chunk = String(ev.chunk || '');
+          progress.reasoning(live, chunk.length);
+          progress.thought(live, chunk);
+          if (chunk.trim()) thought = true;
+          think = tp.add(think, chunk);
+          record.reasoningChars = (record.reasoningChars || 0) + chunk.length;
+          if ((record.reasoning || '').length < MAX_REASONING) record.reasoning = (record.reasoning || '') + chunk;
+          yield { type: 'reasoning', chunk, hidden: Boolean(ev.hidden) };
+        } else if (ev.type === 'tool_calls') { if (think) yield { type: 'thought', thought: closeThink() }; calls = Array.isArray(ev.calls) ? ev.calls : []; }
         else if (ev.type === 'usage') usage = ev; else if (ev.type === 'finish') finish = ev.reason;
-        // ---- WHAT THE OPEN REQUEST HAS COST SO FAR --------------------------
-        //
-        // PASSED THROUGH, NOT ACCUMULATED: `usage` is the receipt and is ADDED
-        // to record.usage; this is a reading of an unfinished request, and
-        // adding it would double-count the input the moment the receipt lands.
-        // It exists so the screen can show a number already known. See
-        // provider.js at `message_start`, and ui/status.js.
+        // A reading of the open request's input, passed through and never added to the receipt.
         else if (ev.type === 'usage_live') yield { type: 'usage_live', ...ev };
       }
       }
     } catch (e) {
-      if (signal && signal.aborted) { record.stopReason = 'aborted'; break; } // the person stopped it: no provider failure, no availability strike
+      if (signal && signal.aborted) { record.stopReason = 'aborted'; if (think) yield { type: 'thought', thought: closeThink(true) }; break; } // the person stopped it: no provider failure
       if (!errors.isProviderFailure(e)) throw e; // a real bug keeps its stack
       // `explain` carries the SENTENCE naming the layer, so no screen downstream
       // can show a provider's 429 as though LAIN had malfunctioned.
@@ -344,6 +340,9 @@ async function* runTurn(session, userInput, opts = {}) {
       // (the attempt's receipt is the usage record — usage.js — and nothing else is told)
     }
 
+    // THE THINKING PHASE ENDS WITH THE REQUEST; its exact token count, when the provider reports one, arrives with the receipt.
+    if (think) yield { type: 'thought', thought: closeThink(Boolean(signal && signal.aborted)) };
+    tp.settle(record, step + 1, usage);
     // AN EMPTY REPLY IS NOT AN ANSWER: it settled as DONE, so every next prompt
     // got another instant DONE and read as swallowed. One retry, then a provider failure.
     if (!failure && !(signal && signal.aborted) && !text.trim() && !calls.length && !thought) {
@@ -607,7 +606,7 @@ async function* runTurn(session, userInput, opts = {}) {
         continue;
       }
       yield { type: 'tool_start', id: c.id, name: c.name, input: c.input };
-      status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input) });
+      status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input), label: (c.input && typeof c.input.description === 'string' && c.input.description.trim()) || null });
       inflight.beforeTool(session, c, describeTarget(c.name, c.input));   // on disk BEFORE any effect
 
       // EVIDENCE, RECEIPTS AND THE TRANSACTION live in toolstep.js: an unchanged read may be served without re-running,

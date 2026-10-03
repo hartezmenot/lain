@@ -118,9 +118,9 @@ module.exports = async function () {
     const phase = { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'src/router.js' };
     const a = status.liveState({ phase, phaseSince: 1000 }, 5000);
     const b = status.liveState({ phase, phaseSince: 1000 }, 900000);
-    assert.strictEqual(a.word, 'READING');
+    assert.strictEqual(a.word, 'Reading');
     assert.strictEqual(b.word, a.word, 'the word may not change merely because time passed');
-    assert.strictEqual(b.detail, a.detail, 'nor may the subject');
+    assert.strictEqual(b.detail.split(' · ')[0], a.detail.split(' · ')[0], 'nor may the subject (the step time beside it is a reading — S5.1)');
   });
 
   await test('ACTIVITY: with nothing running and nothing done, LAIN says READY — not a fake verb', () => {
@@ -137,12 +137,12 @@ module.exports = async function () {
     // what makes them worth watching: proving, looking, and leaving something
     // alive on the user's machine are three different events.
     const word = (tool, target) => status.liveState({ phase: { phase: 'RUNNING_TOOL', tool, target } }).word;
-    assert.strictEqual(word('verify_task', 'unit tests pass'), 'VERIFYING');
-    assert.strictEqual(word('observe', 'errors'), 'OBSERVING');
-    assert.strictEqual(word('service_start', 'npm run dev'), 'STARTING');
-    assert.strictEqual(word('service_check', 'dev'), 'CHECKING');
+    assert.strictEqual(word('verify_task', 'unit tests pass'), 'Verifying');
+    assert.strictEqual(word('observe', 'errors'), 'Observing');
+    assert.strictEqual(word('service_start', 'npm run dev'), 'Starting');
+    assert.strictEqual(word('service_check', 'dev'), 'Checking');
     // And an ordinary command is still a command.
-    assert.strictEqual(word('run_bash', 'npm test'), 'RUNNING');
+    assert.strictEqual(word('run_bash', 'npm test'), 'Running npm test');
   });
 
   await test('ACTIVITY: a harness call always names its subject — no subject-less rows', () => {

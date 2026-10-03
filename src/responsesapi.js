@@ -51,6 +51,7 @@ async function* responsesChat(pc, messages, opts) {
   if (instructions.length) payload.instructions = instructions.join('\n\n');
   const effort = pc.effort || pc.reasoningEffort || null;
   if (effort) payload.reasoning = { effort };
+  if (opts && opts.wireOut) opts.wireOut.effort = effort || null;
   if (opts.tools && opts.tools.length) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.parameters, strict: false }));
   }

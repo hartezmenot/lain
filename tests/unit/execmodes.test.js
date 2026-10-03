@@ -89,14 +89,14 @@ module.exports = async function () {
     assert.strictEqual(v.ok, true);
   });
 
-  await test('MODE: guidance names the mode on the framed tail; FAST never says to skip verification', () => {
+  await test('MODE: legacy guidance names the mode; a profile adds nothing', () => {
     const s = new Session({ cwd: tmpdir('mode-g-') });
     execmode.set(s, 'PLAN');
     s.fast = true;
     const g = execmode.guidance(s);
     assert.match(g, /PLAN/);
     assert.match(g, /no execution progress yet/i);
-    assert.match(g, /Never skip required reads, verification or permissions/);
+    assert.ok(!/Fast:|FAST/.test(g), 'a profile adds no words (S5.1)');
     execmode.set(s, 'AUTO'); s.fast = false;
     assert.strictEqual(execmode.guidance(s), '', 'AUTO with no preferences adds nothing to the request');
   });

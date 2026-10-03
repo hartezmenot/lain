@@ -470,9 +470,20 @@ class Renderer {
     }
   }
 
+  /** A thinking phase, folded to one dim line (ui/thoughtrow.js) — the line CLI's version of the TUI row. */
+  thought(t) {
+    if (this.tui) return;
+    this.write(C.dim(`  ${require('./ui/thoughtrow').label(t)}`) + '\n');
+  }
+
   turnSummary(record) {
     if (this.tui) return;            // the header carries these numbers live
     this.nl();
+    if (!String(record.text || '').trim() && !record.toolCalls && String(record.reasoning || '').trim() && record.stopReason !== 'aborted') {
+      const rows = [];
+      require('./ui/thoughtrow').reasoningOnly(rows, record.reasoning);
+      for (const r of rows) this.write(C.dim(`  ${r.text}`) + '\n');
+    }
     const bits = [];
     if (record.toolCalls) bits.push(`${record.toolCalls} tool call${record.toolCalls === 1 ? '' : 's'}`);
     if (record.mutations.length) bits.push(`${record.mutations.length} file${record.mutations.length === 1 ? '' : 's'} changed`);

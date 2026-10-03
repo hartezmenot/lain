@@ -113,7 +113,7 @@ function sayInput(out, text, from, typed = false) {
   pushUser(out, text);
 }
 
-function activity({ session, current = null, width = 80, transcript = null, liveActions = [], liveNarration = [], liveNotes = [], liveUser = null, liveFrom = null, liveTyped = false, extras = [], reveal = null, openDiff = null, closedDiffs = null, shownDiffs = null, now = 0, historyTurns = 0, checkpoints = null, cwd = '' }) {
+function activity({ session, current = null, width = 80, transcript = null, liveActions = [], liveNarration = [], liveNotes = [], liveThoughts = [], thoughtsOpen = false, liveUser = null, liveFrom = null, liveTyped = false, extras = [], reveal = null, openDiff = null, closedDiffs = null, shownDiffs = null, now = 0, historyTurns = 0, checkpoints = null, cwd = '' }) {
   // A PARAGRAPH OF THE TURN IN FLIGHT IS PRESENTED, NOT DUMPED — see
   // ui/reveal.js. Applied ONLY to the live narration: everything above it
   // already happened and settled, and re-resolving history on every redraw
@@ -122,34 +122,8 @@ function activity({ session, current = null, width = 80, transcript = null, live
   // NO CLOCK IS READ HERE. The caller hands in a function that already knows
   // whether animation is on, so this file stays a pure rendering of state and
   // a pipe, a test and the dashboard get the settled text with no argument.
-  //
-  // CONDENSED FIRST, THEN RESOLVED — in that order and not the other one. Run
-  // the other way round, the narration filter would be deciding whether to drop
-  // a line while half of it was still unsettled glyphs, so a sentence could be
-  // kept on one frame and dropped on the next. What is presented is exactly
-  // what will be left standing when it settles.
-  // WHICH LIVE PARAGRAPH IS THE MOST RECENT THING SAID. The one the model is
-  // still on is its current last word and is kept even if it is pure
-  // announcement — a turn that appears to have said nothing reads as a failure.
-  // Everything BEFORE it had the timeline speaking underneath it and goes.
-  const lastLive = liveNarration.length ? liveNarration[liveNarration.length - 1] : null;
-  const sayText = (n) => {
-    // ---- `last` WAS NEVER PASSED, SO IT DEFAULTED TO TRUE ---------------
-    //
-    // THE DEFECT, and it is the same shape as the paragraph one: the RECORDED
-    // path passes `{ last: n === lastSaid }` (ui/feed.js `pushModel`) and this
-    // one passed nothing. `prose` defaults `last` to true — deliberately, as
-    // the cautious value — so mid-turn announcements that the classifier had
-    // correctly marked SUPPRESS were KEPT while the turn streamed, and vanished
-    // the moment the turn was recorded and the other path drew it.
-    //
-    //     "Let me check the loader."   visible while working, gone afterwards
-    //
-    // Which is to say the narration filter was off during the only period a
-    // person is watching it work.
-    const shown = require('./condense').prose(n.text, { last: n === lastLive });
-    return typeof reveal === 'function' ? reveal(shown, n.at) : shown;
-  };
+  // Every step's narration stays, in order, while the turn runs (S5.1 finding 7); folding happens once it is settled.
+  const sayText = (n) => (typeof reveal === 'function' ? reveal(n.text, n.at) : n.text);
   // RESOLVED ONCE, UP FRONT — because the cache key below has to contain the
   // text that is about to be drawn, and computing it twice is how the key and
   // the render come to disagree.
@@ -247,7 +221,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
   // the content rather than from a flag somebody has to remember to set.
   const cache = require('./feedcache');
   const ck = cache.key({
-    width, turns, extras, plan, liveActions, liveNotes, liveUser, liveFrom, liveTyped, transcript, current,
+    width, turns, extras, plan, liveActions, liveNotes, liveThoughts, thoughtsOpen, liveUser, liveFrom, liveTyped, transcript, current,
     liveTexts, settledTexts, objective: session && session.task && session.task.objective,
     openDiff: openDiff ? `${openDiff.turn}:${openDiff.path}` : '', historyTurns,
     // Collapsed diffs change what is drawn; so does a diff mid-arrival, frame by frame.
@@ -356,6 +330,11 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // would be withholding the first message in favour of a region that no
     // longer exists. Every message the user sent is drawn, including the first.
     sayInput(said, t.userInput, t.from, t.typed);
+    // THINKING, FOLDED (ui/thoughtrow.js): one line under the message; a reasoning-only answer is said as such below.
+    const thoughtRow = require('./thoughtrow');
+    const onlyReasoning = !String(t.text || '').trim() && !(t.actions || []).length && String(t.reasoning || '').trim() && t.stopReason !== 'aborted';
+    const thinkSum = thoughtRow.sum(t.thinking) || (t.stopReason === 'aborted' && String(t.reasoning || '').trim() ? { ms: 0, chars: String(t.reasoning).length, tokens: null, interrupted: true, text: t.reasoning } : null);
+    if (thinkSum && !onlyReasoning) thoughtRow.push(said, { ...thinkSum, interrupted: thinkSum.interrupted || t.stopReason === 'aborted' && !String(t.text || '').trim() }, thoughtsOpen);
     const actions = Array.isArray(t.actions) ? t.actions : [];
     // WHICH OF THEM LEAVE A ROW BEHIND. Computed once over the WHOLE turn,
     // because one of the rules — the turn's standing verdict — cannot be decided
@@ -445,7 +424,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // The question is whether LAIN said or did anything, so that is what is
     // asked. A user message is not LAIN speaking.
     const lain = said.some((e) => e.kind === 'model' || e.kind === 'action');
-    if (!lain && String(t.reasoning || '').trim()) pushModel(said, t.reasoning);
+    if (!lain && onlyReasoning) thoughtRow.reasoningOnly(said, t.reasoning);
     // A failed CALL is already in the feed, in order, as `✗ Read a.js` with its
     // reason. Replaying `t.errors` here appended a second, differently-worded
     // copy of the same failure at the end of the turn — the same event told
@@ -474,7 +453,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
     // stores it on the record). As a floating notice it sat under the NEXT
     // turn's ✓ DONE and read as a verdict on that one (live, 2026-09-18).
     if (t.contradiction) pushNote(said, t.contradiction, 'warn');
-    for (const l of require('../factfooter').lines(t.facts)) pushNote(said, l, 'info');   // the fact footer (S4)
+    require('../factfooter').push(said, t.facts);   // the fact footer (S4)
   }
 
   // Everything said after the last recorded turn — including a review that has
@@ -500,7 +479,9 @@ function activity({ session, current = null, width = 80, transcript = null, live
   // so without this the feed was empty for the entire time the work was
   // happening — a ten-call turn showed a status line above nothing until the
   // moment it finished. Same records, shown while they are still true.
+  const thoughtRow = require('./thoughtrow');
   for (let i = 0; i < liveActions.length; i++) {
+    for (const x of liveThoughts.filter((y) => y.after === i)) thoughtRow.push(said, x, thoughtsOpen);
     for (const n of liveNarration.filter((x) => x.after === i)) say(said, n);
     for (const n of liveNotes.filter((x) => x.after === i)) pushNote(said, n.text, n.level);
     // ---- THE SAME RULE WHILE IT IS STILL HAPPENING ---------------------
@@ -523,6 +504,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
     if (sectionsOf.isChange(a) && lastEditOf.get(String(a.path || a.target)) === i) sectionsOf.pushLiveChange(said, a, turns.length, liveCtx, pushAction, recentFiles.has(String(a.path || a.target)));
     else pushAction(said, a);
   }
+  for (const x of liveThoughts.filter((y) => y.after >= liveActions.length)) thoughtRow.push(said, x, thoughtsOpen);
   for (const n of liveNarration.filter((x) => x.after >= liveActions.length)) say(said, n);
   for (const n of liveNotes.filter((x) => x.after >= liveActions.length)) pushNote(said, n.text, n.level);
 

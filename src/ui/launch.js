@@ -31,7 +31,7 @@ const { shortPath, projectName } = T;
 function splashLines({ cwd, bold = (s) => s, dim = (s) => s }) {
   return [
     '',
-    '  ' + bold('N   O   E   M   A'),
+    '  ' + bold('L   A   I   N'),
     '',
     '  ' + projectName(cwd),
     '  ' + dim(String(cwd || '')),
@@ -74,7 +74,7 @@ function welcome({ cwd, project = null, model, provider, connection, effort, res
   const label = (k, v, rank = 0) => rows.push({ text: `${pad(P.meta(k), 12)} ${v}`, rank });
   const gap = (rank = 2) => rows.push({ text: '', mid: true, rank });
 
-  mid(P.key('N   O   E   M   A'));
+  mid(P.key('L   A   I   N'));
   gap(); gap(3);
   mid(P.key(projectName(cwd)));
   mid(P.meta(shortPath(cwd || '', w - 4)), 1);

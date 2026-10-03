@@ -33,7 +33,7 @@ module.exports = async function () {
   await test('ACTIVITY: the live row carries the background, and never `job_wait`', () => {
     const live = progress.begin(Date.now() - 500);
     const row = plain(status.statusStrip({ phase: { phase: 'WAITING_MODEL', live }, background: { shell: 1, monitor: 1, agent: 0, preview: 0, check: 0 } }, 100, 1).join(''));
-    assert.match(row, /Working · waiting for model · 1 shell · 1 monitor/);
+    assert.match(row, /Waiting for the model · \d+s · esc to interrupt · 1 shell · 1 monitor/);
     const waiting = plain(status.statusStrip({ phase: { phase: 'RUNNING_TOOL', tool: 'job_wait', target: '#j1' } }, 100, 1).join(''));
     assert.match(waiting, /Waiting for shell · #j1/);
     assert.ok(!/job[_ ]wait/i.test(waiting), waiting);

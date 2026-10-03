@@ -41,6 +41,8 @@ const STALL_MS = 45_000;
 const FIRST_STALL_MS = 120_000;
 /** Commentary is a glimpse, not a transcript. */
 const COMMENTARY_MAX = 220;
+/** How much visible reasoning the thinking box keeps — for display only, never sent anywhere. */
+const THOUGHT_TAIL = 1600;
 
 function begin(now = Date.now()) {
   return {
@@ -82,6 +84,33 @@ function reasoning(live, chars = 0, now = Date.now()) {
   live.reasoningChars += chars;
   live.lastReasoningAt = now;
   live.lastDataAt = now;
+}
+
+/** turn.js: visible reasoning text, kept as a short tail for the thinking box (display only). */
+function thought(live, chunk = '') {
+  if (!live) return;
+  const s = String(chunk || '');
+  if (!s.trim()) return;
+  live.thoughtTail = String((live.thoughtTail || '') + s).slice(-THOUGHT_TAIL);
+}
+
+/** The thinking box: the last `n` lines of the visible reasoning, wrapped to `width`. */
+function thoughtLines(live, width = 70, n = 4) {
+  const tail = String((live && live.thoughtTail) || '');
+  if (!tail.trim()) return [];
+  const T = require('./ui/text');
+  const out = [];
+  for (const para of tail.split(/\r?\n/)) {
+    const words = para.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    let cur = '';
+    for (const w of words) {
+      if (!cur) cur = w;
+      else if (T.width(`${cur} ${w}`) <= width) cur += ` ${w}`;
+      else { out.push(cur); cur = w; }
+    }
+    if (cur) out.push(cur);
+  }
+  return out.slice(-n);
 }
 
 /**
@@ -163,4 +192,4 @@ function state(live, now = Date.now()) {
   return { word: 'WAITING', detail: 'waiting for model', quietMs, elapsed, stalled: false };
 }
 
-module.exports = { STALL_MS, FIRST_STALL_MS, begin, bytes, data, toolDelta, reasoning, text, state, size, clock, commentaryLine };
+module.exports = { STALL_MS, FIRST_STALL_MS, begin, bytes, data, toolDelta, reasoning, thought, thoughtLines, text, state, size, clock, commentaryLine };

@@ -128,7 +128,7 @@ function apply(app, ev, ctx) {
       // thousand and twenty, and a counter that showed twenty would be hiding
       // the part of the bill a person most needs to see.
       if (app.ui.enabled) app.ui.noteOutputChars((ev.chunk || '').length);
-      if (!app.ui.enabled) { app.render.text(ev.chunk); break; }
+      if (!app.ui.enabled) break;   // the line CLI never prints reasoning as text; the thinking phase gets one line
       // ---- THINKING IS NOT SPEECH, AND IT IS NOT IN THE CONVERSATION ------
       //
       // It used to be flushed through `flushParagraphs`, which calls
@@ -155,6 +155,13 @@ function apply(app, ev, ctx) {
       if (process.env.LAIN_SHOW_THINKING === '1') {
         ctx.reasoning = flushParagraphs(app, ctx.reasoning);
       }
+      break;
+
+    // A THINKING PHASE ENDED (turn.js): folded to one line — ui/thoughtrow.js.
+    case 'thought':
+      if (!ev.thought) break;
+      if (app.ui.enabled) app.ui.noteThought(ev.thought);
+      else app.render.thought(ev.thought);
       break;
 
     // ---- WHAT THE OPEN REQUEST HAS COST SO FAR ---------------------------

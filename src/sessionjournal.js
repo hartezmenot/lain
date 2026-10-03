@@ -107,7 +107,7 @@ function note(app, ev) {
     if (!t.timer) { t.timer = setTimeout(() => flushText(id), TEXT_FLUSH_MS); if (t.timer.unref) t.timer.unref(); }
     return out;
   }
-  if (ev.type === 'thinking') return out;   // never persisted: a state, not a record (and never the content)
+  if (ev.type === 'thinking' || ev.type === 'thought') return out;   // to the window only, never persisted (display, not a record)
   flushText(id);
   out.seq = nextSeq(id);
   write(id, out);
@@ -119,7 +119,8 @@ function note(app, ev) {
 function fromTurnEvent(ev, ctx = {}) {
   switch (ev && ev.type) {
     case 'text': return ev.chunk ? { type: 'text', text: ev.chunk } : null;
-    case 'reasoning': return { type: 'thinking' };
+    case 'reasoning': return { type: 'thinking', text: ev.hidden ? '' : String(ev.chunk || '').slice(0, 2000) };   // shown while it streams, then folded
+    case 'thought': return ev.thought ? { type: 'thought', ms: ev.thought.ms, tokens: ev.thought.tokens, chars: ev.thought.chars, interrupted: Boolean(ev.thought.interrupted), hidden: Boolean(ev.thought.hidden), text: String(ev.thought.text || '').slice(-2000) } : null;
     case 'tool_start': {
       let target = '';
       try { target = require('./turn').describeTarget(ev.name, ev.input) || ''; } catch { target = ''; }

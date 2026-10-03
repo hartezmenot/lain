@@ -85,7 +85,8 @@ function key(o) {
       (t.errors || []).length,
       // Set just AFTER the turn is recorded (app.js), so it must move the key.
       (t.contradiction || '').length,
-      t.facts ? 1 : 0,   // the fact footer is set just after the turn is recorded, too
+      t.facts ? 1 : 0,
+      (t.thinking || []).length,   // the fact footer is set just after the turn is recorded, too
     );
   }
   const extras = o.extras || [];
@@ -108,6 +109,7 @@ function key(o) {
   parts.push('s', (o.settledTexts || []).length);
   for (const t of o.settledTexts || []) parts.push(t);
   parts.push('o', (o.liveNotes || []).length);
+  parts.push('th', (o.liveThoughts || []).map((t) => `${t.ms}:${t.tokens}`).join('|'), o.thoughtsOpen ? 1 : 0);
   parts.push('u', o.liveUser ? String(o.liveUser).length : 0);
   parts.push('r', (o.transcript || []).length, (o.transcript || []).length ? String(o.transcript[o.transcript.length - 1]).length : 0);
   parts.push('c', ((o.current && o.current.steps) || []).map((s) => `${s.label}${s.done ? 1 : 0}${s.active ? 1 : 0}`).join('|'));

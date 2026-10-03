@@ -81,23 +81,33 @@ function acts(name, tool) {
 function computerReads(name, input) {
   const op = String((input && input.op) || '');
   if (name === 'computer_capture') return true;
-  if (name !== 'computer') return false;
+  if (name === 'computer' && input && input.action) return require('./tools/computerone').reads(input);
+  if (name !== 'computer' && name !== 'computer_ui') return false;
   const ops = require('./computer').OPS;
   return Boolean((ops[op] && ops[op].reads) || require('./computercontrol').READ_OPS.has(op));
 }
 
 /** read · edit · command · computer · act — what one call would do. */
-function kind(name, tool, input, simple = true) {
+function kind(name, tool, input, simple = true, app = null) {
   const i = input || {};
   if (name === 'call_tool') {
     const inner = String(i.name || '');
-    return inner.includes('/') ? 'act' : 'read';   // a LAIN tool is gated again by its own execute
+    if (!inner.includes('/')) return 'read';   // a LAIN tool is gated again by its own execute
+    return mcpReadOnly(app, inner.split('/')[0]) ? 'read' : 'act';
   }
   if (!acts(name, tool)) return 'read';
   if (SHELLS.test(name)) return simple && !i.background && require('./readonly').looksOnly(i.command || i.cmd || '') ? 'read' : 'command';
-  if (name === 'computer' || /^computer_/.test(name)) return computerReads(name, i) ? 'read' : 'computer';
+  if (name === 'computer' || /^computer_/.test(name)) return computerReads(name, i) ? 'read' : 'computer';   // computer_ui too
   if (require('./mutation').isSourceMutation(name)) return 'edit';
   return 'act';
+}
+
+/** An MCP server the PERSON set to Read-only trust (its own readOnlyHint never counts): mcpreg then runs only its read-only tools. */
+function mcpReadOnly(app, id) {
+  try {
+    const e = require('./integrations').store(app).mcp[id];
+    return Boolean(e) && require('./mcpreg').trustOf(e) === 'READ_ONLY';
+  } catch { return false; }
 }
 
 const PLAN_REFUSAL = 'Plan mode: read-only — investigate, then call exit_plan with the plan.';
@@ -110,7 +120,7 @@ async function gate(ctx, name, tool, input) {
   const app = ctx && ctx.app;
   const session = ctx && (ctx.session || (app && app.session));
   const simple = require('./simple').on(app || (ctx && ctx.cfg) || {});
-  const k = kind(name, tool, input, simple);
+  const k = kind(name, tool, input, simple, app);
   const cwd = (ctx && ctx.cwd) || (session && session.cwd) || process.cwd();
   const rules = simple && app && app.cfg ? require('./permrules').of(app.cfg, session && session.cwd) : null;
   if (rules) {

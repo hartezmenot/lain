@@ -230,7 +230,7 @@ function sink(r) {
  * prompt, a reply or a key. Bounded: past 256 KB the older half is dropped.
  */
 const SESSION_TRACE_BYTES = 256 * 1024;
-const SAFE = ['id', 'turn', 'step', 'reason', 'transport', 'model', 'connection', 'provider', 'protocol', 'project', 'role', 'session', 'task', 'at', 'ms', 'ok', 'status', 'failure', 'receipt', 'messageChars', 'systemChars', 'toolSchemaChars', 'toolCount'];
+const SAFE = ['id', 'turn', 'step', 'reason', 'transport', 'model', 'connection', 'provider', 'protocol', 'project', 'role', 'session', 'task', 'at', 'ms', 'ok', 'status', 'failure', 'receipt', 'messageChars', 'systemChars', 'toolSchemaChars', 'toolCount', 'effort', 'firstByteMs', 'reasoningMs', 'textMs', 'reasoningTokens'];
 function sessionFile(id) {
   const safe = String(id).replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80);
   return require('path').join(require('./config').configDir(), 'reqtrace', `${safe}.jsonl`);

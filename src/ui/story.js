@@ -56,6 +56,8 @@ class Story {
      * instead, because that is a durable fact about the task.
      */
     this.notes = [];
+    /** Folded thinking phases of the turn in flight (ui/thoughtrow.js), anchored like narration. */
+    this.thoughts = [];
   }
 
   /** A new turn: whatever the last one was doing is no longer the news. */
@@ -63,6 +65,7 @@ class Story {
     this.actions = [];
     this.narration = [];
     this.notes = [];
+    this.thoughts = [];
   }
 
   /**
@@ -76,6 +79,7 @@ class Story {
     this.actions = [];
     this.narration = [];
     this.notes = [];
+    this.thoughts = [];
     this.user = null;
   }
 
@@ -116,6 +120,11 @@ class Story {
     if (t && this.narration.length < MAX) {
       this.narration.push({ text: t, after: this.actions.length, at });
     }
+  }
+
+  /** A thinking phase ended (turn.js `thought`): kept by reference, so its exact token count can land later. */
+  noteThought(t) {
+    if (t && this.thoughts.length < MAX) this.thoughts.push(Object.assign(t, { after: this.actions.length }));
   }
 
   /** One line from the program itself, placed where it was said. */

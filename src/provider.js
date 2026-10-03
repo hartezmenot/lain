@@ -66,7 +66,7 @@ function resolve(cfg = {}) {
           routeId: r.connection.connectionId, accountId: require('./accountcatalog').accountIdForRoute(r.connection.connectionId, conn), requestedAccount: cfg.account || null, family: cfg.family || null,
           model: r.upstreamId,
           canonicalModel: r.model,
-          effort: plan ? plan.effort : r.effort, effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null), effortWire: plan ? plan.wire : null, lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null, reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
+          effort: plan ? plan.effort : r.effort, effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null), effortWire: plan ? plan.wire : null, effortExplicit: plan ? Boolean(plan.explicit) : Boolean(cfg.effort && cfg.effort !== 'auto'), lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null, reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
           baseUrl: conn.baseUrl, credentialRef: conn.credentialRef || null,   // the key is read just before the request (chat → credentials.ensure), never to list
           get apiKey() { return conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''); }, set apiKey(v) { Object.defineProperty(this, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },   // read when a request is sent — never to draw a header (connections.js)
           ctx: ((conn.models || []).find((x) => x && x.id === r.model) || {}).ctx || conn.ctx || 128000,   // a local model's real window
@@ -441,7 +441,7 @@ async function* anthropicChat(pc, messages, opts) {
     body = body.slice();
     body[body.length - 1] = withCacheBreakpoint(body[body.length - 1]);
   }
-  const payload = { model: pc.model, max_tokens: pc.maxTokens, stream: true, messages: body }; if (pc.effort && /^(low|medium|high|xhigh|max)$/.test(String(pc.effort)) && (pc.effortWire === 'output_config' || (!pc.effortWire && /claude/i.test(pc.model)))) payload.output_config = { effort: String(pc.effort) };   // audit F2 + 2026-10-02: only a level the route declares (Claude; GLM on Z.ai's Anthropic endpoint)
+  const payload = { model: pc.model, max_tokens: pc.maxTokens, stream: true, messages: body }; if (pc.effort && /^(low|medium|high|xhigh|max)$/.test(String(pc.effort)) && (pc.effortWire === 'output_config' || (!pc.effortWire && /claude/i.test(pc.model)))) payload.output_config = { effort: String(pc.effort) }; if (opts && opts.wireOut) opts.wireOut.effort = payload.output_config ? payload.output_config.effort : null;   // audit F2 + 2026-10-02: only a level the route declares (Claude; GLM on Z.ai's Anthropic endpoint)
   if (system) {
     // Cache the whole stable prefix. Anthropic orders tools -> system ->
     // messages, so one breakpoint on system covers the tool schemas too. Always
@@ -479,6 +479,7 @@ async function* anthropicChat(pc, messages, opts) {
   let stopRaw = null;
   const live = opts.live || null;
   for await (const j of sseLines(res, opts.signal, live)) {
+    if (j.type === 'content_block_start' && j.content_block && j.content_block.type === 'redacted_thinking') yield { type: 'reasoning', chunk: '', hidden: true };
     if (j.type === 'content_block_start' && j.content_block && j.content_block.type === 'tool_use') {
       acc[j.index || 0] = { id: j.content_block.id, name: j.content_block.name, args: '' };
       progress.toolDelta(live, { name: j.content_block.name, bytes: 0, index: acc.filter(Boolean).length - 1, calls: acc.filter(Boolean).length });
@@ -489,8 +490,9 @@ async function* anthropicChat(pc, messages, opts) {
         t.args += j.delta.partial_json || '';
         progress.toolDelta(live, { name: t.name, bytes: t.args.length, index: acc.filter(Boolean).indexOf(t), calls: acc.filter(Boolean).length });
       }
-      // HIDDEN THINKING is never shown or kept, but it IS the model working.
-      if (j.delta.type === 'thinking_delta' || j.delta.type === 'signature_delta') progress.reasoning(live, String(j.delta.thinking || '').length);
+      // VISIBLE THINKING streams as reasoning (shown while it arrives, never sent back); a signature is hidden reasoning.
+      if (j.delta.type === 'thinking_delta' && j.delta.thinking) yield { type: 'reasoning', chunk: String(j.delta.thinking) };
+      if (j.delta.type === 'signature_delta') yield { type: 'reasoning', chunk: '', hidden: true };
     } else if (j.type === 'message_start' && j.message && j.message.usage) {
       const u = j.message.usage;
       usage.inputTokens = u.input_tokens || 0;
@@ -550,7 +552,8 @@ async function* openaiChat(pc, messages, opts) {
   const cacheable = promptcache.needsExplicitCache(pc, (opts && opts.cfg) || {});
   const body = cacheable ? promptcache.applyToChat(wire) : wire;
   const payload = { model: pc.model, messages: body, stream: true, stream_options: { include_usage: true } };
-  if (pc.effortWire === 'reasoning_effort' && pc.effort) payload.reasoning_effort = String(pc.effort);   // native effort (GLM-5.3 on Z.ai), only as declared
+  if (pc.effortWire === 'reasoning_effort' && pc.effort) payload.reasoning_effort = String(pc.effort);
+  if (opts && opts.wireOut) opts.wireOut.effort = payload.reasoning_effort || null;   // native effort (GLM-5.3 on Z.ai), only as declared
   if (opts.tools && opts.tools.length) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   }
@@ -595,24 +598,7 @@ async function* openaiChat(pc, messages, opts) {
     if (!d) continue;
     // Inline `<thinking>` in content is reasoning, not the answer (inlinethink.js).
     if (d.content) for (const ev of inline.push(d.content)) yield ev;
-    // ---- A REASONING MODEL MAY PUT EVERYTHING SOMEWHERE ELSE -------------
-    //
-    // Observed in a live session: `stealth/ox-alpha` through omniroute was
-    // asked "hello" and Context was EMPTY — the task banner, then nothing,
-    // then DONE. The turn succeeded, the request succeeded, and the screen had
-    // nothing on it.
-    //
-    // This parser only ever read `d.content`. Reasoning models behind
-    // OpenRouter-shaped gateways stream their prose as `reasoning` or
-    // `reasoning_content`, and some emit ONLY that — so every word the model
-    // produced was parsed, dropped, and reported as a successful empty turn.
-    //
-    // KEPT AS ITS OWN EVENT, never merged into `text`. Reasoning is the model
-    // thinking aloud; content is its answer. Concatenating them would put
-    // working-out into the transcript as though it had been said, and
-    // `record.text` is what the completion check and the session projection
-    // read. The screen shows it dimmed — a fallback for a pane that would
-    // otherwise be blank, not a promotion of thinking to speech.
+    // Reasoning (`reasoning_content` / `reasoning`) is its own event, never the answer; the screen folds it (ui/thoughtrow.js).
     const think = d.reasoning_content || d.reasoning;
     if (think) yield { type: 'reasoning', chunk: String(think) };
     for (const tc of d.tool_calls || []) {
@@ -660,6 +646,9 @@ async function* chat(pc, messages, opts = {}) {
   // capturing is observing, and nothing downstream may see a difference.
   let receipt = null;
   let toolCalls = 0;
+  const timing = require('./reqtiming').start();   // the trace: effort on the wire, where the time went (F6)
+  opts = { ...opts, wireOut: timing.wireOut };
+  const stamp = () => require('./reqtiming').stamp(timing, env.rec, receipt);
   try {
     const inner = pc.protocol === PROTOCOL.MOCK
       ? require('./mockprovider').chat(pc, messages, opts)
@@ -676,12 +665,15 @@ async function* chat(pc, messages, opts = {}) {
       throw e;
     }
     for await (const ev of inner) {
+      require('./reqtiming').see(timing, ev);
       if (ev && ev.type === 'usage') receipt = ev;
       if (ev && ev.type === 'tool_calls' && Array.isArray(ev.calls)) toolCalls += ev.calls.length;
       yield ev;
     }
+    stamp();
     mr.close(env, { ok: true, usage: receipt ? { ...receipt, toolCalls } : null });
   } catch (e) {
+    stamp();
     mr.close(env, { ok: false, status: e && e.status, failure: (e && e.message) || 'failed', usage: receipt ? { ...receipt, toolCalls } : null });
     throw e;
   }

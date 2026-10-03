@@ -108,6 +108,8 @@ function remember(session, record) {
     // blank pane once the live feed has gone. `ui/conversation.js` draws it
     // solely when there is no answer and no action — thinking is not speech.
     reasoning: String(record.reasoning || '').slice(0, MAX_KEPT_TEXT),
+    // THE THINKING PHASES, for the folded `Thought for …` line (ui/thoughtrow.js) — display only.
+    thinking: (record.thinking || []).slice(-20).map((t) => ({ ...t, text: String(t.text || '').slice(-2000) })),
     errors: record.errors.slice(0, 5),
     mutations: record.mutations, stopReason: record.stopReason,
     // How many hidden wake-ups this turn needed (wakeup.js) — 0 or 1.
