@@ -70,6 +70,11 @@ const CSS = `
 .lv-more:hover,.lv-more:focus-visible{color:var(--text-primary);background:var(--surface-active)}
 .lv-more .chev{display:inline-block;transition:transform var(--t-drop) var(--ease)}
 .lv-more[aria-expanded=true] .chev{transform:rotate(90deg)}
+.lv-think{margin:4px 0 6px;color:var(--text-muted);font-size:var(--fs-small)}
+.lv-think summary{cursor:pointer;list-style:none}
+.lv-think summary::before{content:"▸ "}
+.lv-think[open] summary::before{content:"▾ "}
+.lv-think-text{margin:4px 0 0 14px;padding:6px 10px;border-radius:var(--radius-sm);background:var(--canvas);white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 var(--mono);color:var(--text-muted);max-height:40vh;overflow:auto}
 .lv-text{font-size:var(--fs-chat);line-height:1.7;color:var(--text-primary);white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}
 .lv-text .caret{display:inline-block;width:7px;height:1.05em;margin-left:1px;vertical-align:-2px;background:var(--accent-primary);opacity:.7;animation:lv-blink 1s steps(2) infinite}
 @keyframes lv-blink{50%{opacity:0}}
@@ -278,7 +283,8 @@ function client() {
 
   var live = {
     sid: null, on: false, text: '', acts: [], phase: null, thinking: false, begun: 0, baseCount: -1, open: false, node: null, frame: 0, summary: null,
-    reset: function () { this.on = false; this.text = ''; this.acts = []; this.phase = null; this.thinking = false; this.baseCount = -1; this.open = false; this.draw(); },
+    think: '', thinkSince: 0, thoughts: [],   // THINKING (Core's thought events): the live tail, then one folded line per phase
+    reset: function () { this.on = false; this.text = ''; this.acts = []; this.phase = null; this.thinking = false; this.baseCount = -1; this.open = false; this.think = ''; this.thinkSince = 0; this.thoughts = []; this.draw(); },
     schedule: function () { var self = this; if (this.frame) return; this.frame = requestAnimationFrame(function () { self.frame = 0; self.draw(); }); },
     draw: function () { if (this.node && this.node.isConnected) paint(this.node); },
   };
@@ -291,7 +297,7 @@ function client() {
     var ev = e.ev;
     if (ev.type === 'turn.begin') {
       if (live.on && live.acts.length) live.summary = { acts: live.acts.slice(), at: Date.now() };
-      live.sid = e.session; live.on = true; live.text = ''; live.acts = []; live.phase = null; live.thinking = true; live.begun = Date.now(); live.baseCount = -1; live.open = false;
+      live.sid = e.session; live.on = true; live.text = ''; live.acts = []; live.phase = null; live.thinking = true; live.begun = Date.now(); live.baseCount = -1; live.open = false; live.think = ''; live.thinkSince = 0; live.thoughts = [];
     } else if (!live.on) {
       return;
     } else if (ev.type === 'text') {
@@ -299,6 +305,11 @@ function client() {
       live.text += String(ev.text || ''); live.thinking = false;
     } else if (ev.type === 'thinking') {
       if (!live.text) live.thinking = true;
+      if (!live.thinkSince) live.thinkSince = Date.now();
+      if (ev.text) live.think = (live.think + ev.text).slice(-1600);
+    } else if (ev.type === 'thought') {
+      live.thoughts.push({ ms: ev.ms || 0, tokens: ev.tokens, chars: ev.chars || 0, interrupted: Boolean(ev.interrupted), hidden: Boolean(ev.hidden), text: ev.text || '' });
+      live.think = ''; live.thinkSince = 0;
     } else if (ev.type === 'tool.start') {
       live.text = ''; live.baseCount = -1; live.thinking = false;
       live.acts.push({ id: ev.id || ('a' + live.acts.length), name: ev.name || '', target: ev.target || '', kind: kindOf(ev.name), state: 'run', at: Date.now() });
@@ -309,9 +320,9 @@ function client() {
     } else if (ev.type === 'phase') {
       live.phase = ev.phase || null;
     } else if (ev.type === 'turn.end') {
-      live.on = false; live.thinking = false;
+      live.on = false; live.thinking = false; live.think = ''; live.thinkSince = 0;
       live.acts.forEach(function (x) { if (x.state === 'run') x.state = 'ok'; });
-      if (live.acts.length) live.summary = { acts: live.acts.slice(), at: Date.now() };
+      if (live.acts.length || live.thoughts.length) live.summary = { acts: live.acts.slice(), thoughts: live.thoughts.slice(), at: Date.now() };
       live.text = ''; live.acts = [];
       if (L.poll) L.poll();
     }
@@ -354,10 +365,25 @@ function client() {
     b.onclick = function () { onToggle(); };
     return b;
   }
+  /** `Thought for 2m 23s · 8.2k tokens` (or `Thinking (interrupted)`), opening to what the model thought. */
+  function thoughtNode(t, opts) {
+    var d = document.createElement('details'); d.className = 'lv-think';
+    var secs = Math.round((t.ms || 0) / 1000);
+    var dur = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm ' + String(secs % 60).padStart(2, '0') + 's';
+    var tk = t.tokens != null ? fmtTok(t.tokens) + ' tokens' : t.chars ? '~' + fmtTok(Math.ceil(t.chars / 4)) + ' tokens' : '';
+    var s = document.createElement('summary'); s.textContent = (opts && opts.live ? 'Thinking… ' + dur : t.interrupted ? 'Thinking (interrupted)' : 'Thought for ' + dur) + (tk ? ' · ' + tk : '');
+    d.appendChild(s);
+    if (t.text && !t.hidden) { var b = el('div', 'lv-think-text'); b.textContent = t.text; d.appendChild(b); }
+    if (opts && opts.live) d.open = true;
+    return d;
+  }
+  function fmtTok(n) { n = Number(n) || 0; return n < 1000 ? String(n) : (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k'; }
   function paint(node) {
     node.textContent = '';
     if (!live.on) { node.hidden = true; return; }
     node.hidden = false;
+    live.thoughts.forEach(function (t) { node.appendChild(thoughtNode(t)); });
+    if (live.thinkSince) node.appendChild(thoughtNode({ ms: Date.now() - live.thinkSince, chars: live.think.length, text: live.think.split(/\n/).slice(-4).join('\n') }, { live: true }));
     var acts = live.acts;
     var streaming = Boolean(live.text) && !acts.some(function (a) { return a.state === 'run'; });
     var meaningful = groups(acts).length;
@@ -382,9 +408,9 @@ function client() {
   }
   /** The finished turn's activities, collapsed above the answer they led to. */
   function summaryFor(wrap) {
-    var s = live.summary; if (!s || !s.acts.length) return;
+    var s = live.summary; if (!s || (!s.acts.length && !(s.thoughts || []).length)) return;
     var open = false; var box = el('div', 'lv-sum');
-    var draw = function () { box.textContent = ''; box.appendChild(moreToggle(s.acts.length, open, function () { open = !open; draw(); })); if (open) box.appendChild(timeline(s.acts)); };
+    var draw = function () { box.textContent = ''; (s.thoughts || []).forEach(function (t) { box.appendChild(thoughtNode(t)); }); if (!s.acts.length) return; box.appendChild(moreToggle(s.acts.length, open, function () { open = !open; draw(); })); if (open) box.appendChild(timeline(s.acts)); };
     draw();
     wrap.insertBefore(box, wrap.querySelector('.body'));
   }

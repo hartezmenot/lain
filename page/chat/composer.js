@@ -366,9 +366,9 @@ function client() {
 
   // ---- EXECUTION, STRATEGY AND CONTEXT: the mode icon's popover ---------------------------------------------------
   var PROFILE = {
-    NORMAL: { word: 'Normal', icon: 'sliders', note: 'Balanced: runs the task through and verifies as it goes.' },
-    FAST: { word: 'Fast', icon: 'bolt', note: 'Less narration, narrow context, direct implementation — verification kept.' },
-    ECO: { word: 'Eco', icon: 'leaf', note: 'Fewer model calls: deterministic tools and cached evidence first.' },
+    NORMAL: { word: 'Normal', icon: 'sliders', note: 'The model’s default effort; up to 2 read-only calls at once.' },
+    FAST: { word: 'Fast', icon: 'bolt', note: 'Lowest native effort unless you chose one; up to 4 read-only calls at once.' },
+    ECO: { word: 'Eco', icon: 'leaf', note: 'Lowest native effort unless you chose one; tighter tool output; compacts earlier.' },
   };
   var STRATEGY = [
     ['NORMAL', 'Normal', 'runs the task to completion; pauses only for a decision, quota or an explicit pause'],
