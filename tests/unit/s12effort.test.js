@@ -156,6 +156,7 @@ module.exports = async function () {
             seen.push({ prof, e, tools: JSON.stringify(body.tools), system: JSON.stringify(sys), tail: JSON.stringify(body.messages.slice(-2)), body });
             const tr = reqtrace.last();
             assert.strictEqual(tr && tr.lainEffort, e, `reqtrace records lainEffort ${e}`);
+            seen[seen.length - 1].trace = { systemChars: tr.systemChars, toolSchemaChars: tr.toolSchemaChars, toolCount: tr.toolCount };
           }
         }
         for (const s of seen) {
@@ -168,7 +169,8 @@ module.exports = async function () {
         assert.match(tailOf('max'), /Effort: max\. Investigate thoroughly, consider alternatives before editing, verify with a broader check\./);
         assert.doesNotMatch(tailOf('high'), /Effort:/, 'High adds nothing');
         assert.doesNotMatch(seen[0].system, /Effort: (low|max)/, 'never in the cached prefix');
-        process.stdout.write(`      tools ${seen[0].tools.length} B · system ${seen[0].system.length} B — identical across 9 (profile × LAIN effort) requests\n`);
+        process.stdout.write(`      tools ${seen[0].tools.length} B · system ${seen[0].system.length} B — identical across 9 (profile × LAIN effort) requests; reqtrace systemChars ${seen[0].trace.systemChars} · toolSchemaChars ${seen[0].trace.toolSchemaChars} · ${seen[0].trace.toolCount} tools\n`);
+        assert.ok(seen.every((x) => x.trace.systemChars === seen[0].trace.systemChars && x.trace.toolSchemaChars === seen[0].trace.toolSchemaChars), 'the trace agrees');
       } finally { ep.server.close(); }
     });
 
