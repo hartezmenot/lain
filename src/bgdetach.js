@@ -46,7 +46,8 @@ function rejoin(app, session, r) {
   if (runs && r.counts) runs.push({ level: 'background', ok: r.ok, at: new Date().toISOString(), evidence: `${r.label}: ${r.summary}`, failures: [] });
   try { require('./tools/shell').noteVerified({ session }, r.label, r.tail); } catch { /* telemetry only */ }
   try { require('./notify').attention(app, 'BACKGROUND_COMPLETE', `${r.label} · ${r.summary}`, { jobId: r.jobId }); } catch { /* notifications are best effort */ }
-  try { app.render.notice(r.ok ? 'info' : 'warn', `BG COMPLETE · ${r.label} · ${r.summary}`); } catch { /* no renderer */ }
+  // A transient line that fades (ui/operation.js), never a notice pinned under the view; the result itself rejoins the session.
+  try { require('./ui/operation').say(app, `Background done · ${r.label} · ${r.summary}`, r.ok ? 'info' : 'warn'); } catch { /* no renderer */ }
   try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* nothing drawn */ }
 }
 

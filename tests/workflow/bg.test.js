@@ -47,7 +47,7 @@ module.exports = async function () {
       { send: '/bg\r' },
       { until: 'Independent work done', timeout: 30000 },
       { snap: 'foreground', settle: 300 },
-      { until: 'BG COMPLETE', timeout: 30000 },
+      { until: 'Background done', timeout: 30000 },
       { snap: 'complete', settle: 500 },
       { send: 'continue\r' },
       { until: 'Background result seen', timeout: 30000 },
@@ -75,8 +75,8 @@ module.exports = async function () {
     assert.match(tty.visible(run.byName.foreground), /Independent work done/);
   });
 
-  await test('WORKFLOW /bg: BG COMPLETE with the real counts, and the result rejoined the session and reached the model', () => {
-    assert.match(tty.visible(run.byName.complete), /BG COMPLETE · node slow\.js · 3\/3/);
+  await test('WORKFLOW /bg: Background done with the real counts, and the result rejoined the session and reached the model', () => {
+    assert.match(tty.visible(run.byName.complete), /› Background done · node slow\.js · 3\/3/, 'a fading line under the input, not a notice pinned under the view');
     const d = path.join(run.configDir, 'sessions');
     const file = fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => path.join(d, f)).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
     const s = JSON.parse(fs.readFileSync(file, 'utf8'));
