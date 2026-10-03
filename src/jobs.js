@@ -44,6 +44,7 @@ const FINAL = new Set([STATE.SUCCEEDED, STATE.FAILED, STATE.CANCELLED, STATE.TIM
 
 /** How much of a job's output is kept. Enough to diagnose; never unbounded. */
 const MAX_OUTPUT = 200_000;
+const LOG_MAX = 50 * 1024 * 1024;   // a job's log file stops growing here
 /** Jobs kept after they finish, so a result can still be read. */
 const MAX_KEPT = 20;
 /** Nothing runs forever unattended. */
@@ -52,9 +53,12 @@ const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 let seq = 0;
 
 class Job {
-  constructor({ command, shell, cwd, timeoutMs }) {
+  constructor({ command, shell, cwd, timeoutMs, logDir = null }) {
     seq += 1;
     this.id = `j${seq}`;
+    // THE WHOLE OUTPUT, streamed to a file under the session folder (S7); memory keeps a bounded copy.
+    this.logFile = logDir ? require('path').join(logDir, `${this.id}.log`) : null;
+    this.logBytes = 0;
     this.command = String(command);
     this.shell = shell;
     this.cwd = cwd;
@@ -106,6 +110,10 @@ class Job {
   get done() { return FINAL.has(this.state); }
 
   _append(chunk) {
+    if (this.logFile && this.logBytes < LOG_MAX) {
+      const s = String(chunk);
+      try { require('fs').appendFileSync(this.logFile, s); this.logBytes += Buffer.byteLength(s); } catch { /* memory still has it */ }
+    }
     if (this.output.length >= MAX_OUTPUT) { this.truncated = true; return; }
     this.output += String(chunk);
     if (this.output.length > MAX_OUTPUT) {
@@ -201,7 +209,11 @@ class Job {
 
   /** The last `n` lines — what a person actually wants to see. */
   tail(n = 40) {
-    const lines = this.output.split('\n');
+    let text = this.output;
+    if (this.truncated && this.logFile) {   // the true end is in the file
+      try { const fs = require('fs'); const size = fs.statSync(this.logFile).size; const fd = fs.openSync(this.logFile, 'r'); const len = Math.min(size, 64 * 1024); const b = Buffer.alloc(len); fs.readSync(fd, b, 0, len, size - len); fs.closeSync(fd); text = b.toString('utf8'); } catch { text = this.output; }
+    }
+    const lines = text.split('\n');
     return lines.slice(Math.max(0, lines.length - n)).join('\n');
   }
 
@@ -232,8 +244,8 @@ class Jobs {
     this.onEvent = onEvent;
   }
 
-  start({ command, shell, cwd, timeoutMs }) {
-    const job = new Job({ command, shell, cwd, timeoutMs });
+  start({ command, shell, cwd, timeoutMs, logDir = null }) {
+    const job = new Job({ command, shell, cwd, timeoutMs, logDir });
     this.list.push(job);
     // Finished jobs are kept so a result can still be read, but not forever.
     while (this.list.length > MAX_KEPT) {

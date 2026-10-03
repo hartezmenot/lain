@@ -45,18 +45,8 @@
  * moment when no LAIN was running at all.
  */
 function jobs(app) {
-  let sup;
-  try { sup = require('./supervisor'); } catch { return; }
-  if (!app) return;
-  // Never STARTS one. A supervisor is started when work is actually submitted
-  // to it, not because a session opened.
-  let probe;
-  try { probe = sup.probe(); } catch { return; }
-  if (!probe.running) { app._supervisedJobs = []; return; }
-  return Promise.resolve()
-    .then(() => sup.list({ session: app.session && app.session.id }))
-    .then((r) => { if (r && r.ok && Array.isArray(r.jobs)) app._supervisedJobs = r.jobs; })
-    .catch(() => { /* the supervisor is not a dependency of this turn */ });
+  // NO SUPERVISED JOBS (S7): background jobs end with the process, so none can have run while LAIN was away.
+  if (app) app._supervisedJobs = [];
 }
 
 /**

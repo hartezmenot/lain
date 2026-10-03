@@ -76,8 +76,10 @@ const elapsedOf = (ms) => require('./ui/workclock').hhmmss(ms);
 /** One row per job: what it is, what it is doing, how long it has been at it. */
 function rows(app, C) {
   const all = app.jobs.all();
-  if (!all.length) return [C.dim('  Nothing has been started yet.')];
-  return all.map((j) => {
+  const shells = (app._jobs ? app._jobs.all() : []).map((j) => { const s = j.summary(); return `  ${C.dim(`#${s.id}`)} ${s.done ? (s.exitCode === 0 ? C.green('COMPLETED') : C.yellow(s.state)) : C.cyan('RUNNING')}  ${String(j.label || s.command).replace(/\s+/g, ' ').slice(0, 46)}${C.dim(' ·bg')}  ${C.dim(elapsedOf(s.elapsedMs))}`; });
+  const ends = C.dim('  Background jobs end when LAIN exits.');
+  if (!all.length && !shells.length) return [C.dim('  Nothing has been started yet.'), ends];
+  return [...shells, ...all.map((j) => {
     const id = C.dim(`#${j.id}`);
     const state = j.state === STATE.SUCCEEDED ? C.green('COMPLETED')
       : j.state === STATE.FAILED ? C.yellow('FAILED')
@@ -86,7 +88,7 @@ function rows(app, C) {
     const what = String(j.request).replace(/\s+/g, ' ').slice(0, 46);
     const where = j.primary ? '' : C.dim(' ·bg');
     return `  ${mark(j, C)} ${id} ${state}  ${what}${where}  ${C.dim(elapsedOf(j.elapsedMs))}`;
-  });
+  }), ends];
 }
 
 /** Everything known about one job, for `/jobs <n>`. */
@@ -443,8 +445,16 @@ define('/steer', {
  */
 function summary(app, C, w) {
   const all = app.jobs.all().filter((j) => !j.primary);
+  const shells = app._jobs ? app._jobs.all() : [];
+  const ENDS = '  Background jobs end when LAIN exits.';
+  for (const j of shells) {
+    const s = j.summary();
+    w(`  ${C.dim(`#${s.id}`)}  ${s.done ? (s.exitCode === 0 ? C.green('COMPLETED') : C.yellow(s.state)) : C.cyan('RUNNING')}  ${String(j.label || s.command).replace(/\s+/g, ' ').slice(0, 50)}  ${C.dim(elapsedOf(s.elapsedMs))}${j.logFile ? C.dim(`  ${j.logFile}`) : ''}`);
+  }
+  if (shells.length && !all.length) { w(C.dim(ENDS)); return; }
   if (!all.length) {
     w(C.dim('  Nothing is running in the background.'));
+    w(C.dim(ENDS));
     w('');
     w(C.dim('  /bg run the integration suite      a job — it ends and yields a result'));
     w(C.dim('  /bg start the frontend dev server  a service — it stays up'));
@@ -470,6 +480,7 @@ function summary(app, C, w) {
   }
   w('');
   w(C.dim('  /jobs <n> — the whole account · /bg stop <n> — end one · /ps — its processes'));
+  w(C.dim(ENDS));
 }
 
 /**

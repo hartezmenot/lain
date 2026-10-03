@@ -86,7 +86,6 @@ function sessionRows({ limit = 50 } = {}) {
   rows.sort((a, b) => b.at - a.at);
   return rows.slice(0, limit);
 }
-const supervisor = require('./supervisor');
 
 /** How many events one poll will carry. A batch, not a backlog dump. */
 const MAX_EVENTS = 200;
@@ -167,12 +166,9 @@ function headline(e) {
  */
 async function since(seq = 0, { limit = MAX_EVENTS } = {}) {
   const cursor = normalise(seq);
-  // THE JOBS STREAM is the supervisor's (durable jobs outlive LAIN); per-session activity lives in each session's
-  // journal (sessionjournal.js) and is read there. No supervisor running ⇒ no durable jobs to report.
-  let running = false;
-  try { running = Boolean(supervisor.probe().running); } catch { running = false; }
+  // NO DURABLE JOBS (S7): background jobs live in the process and end with it; activity is in each session's journal.
   const runtime = [];
-  const jobs = running ? await supervisor.events({ after: cursor.jobs, limit }).then((r) => (r && r.ok && Array.isArray(r.events) ? r.events : [])).catch(() => []) : [];
+  const jobs = [];
   const rows = [];
   for (const e of runtime) rows.push({ ...e, stream: 'runtime' });
   for (const e of jobs) rows.push({ ...e, stream: 'jobs' });
@@ -187,7 +183,7 @@ async function since(seq = 0, { limit = MAX_EVENTS } = {}) {
   return {
     events: rows.slice(0, limit),
     seq: next,
-    available: running,
+    available: false,   // no durable job stream (S7)
     notable: rows.filter((e) => NOTABLE.has(e.kind)),
   };
 }
@@ -223,10 +219,7 @@ async function state() {
   const sessions = sessionRows();
   let providers = [];
   try { providers = require('./routehealth').list(); } catch { providers = []; }
-  let running = false;
-  try { running = Boolean(supervisor.probe().running); } catch { running = false; }
-  const jobs = running ? await supervisor.list({}).then((r) => (r && r.ok && Array.isArray(r.jobs) ? r.jobs : [])).catch(() => []) : [];
-  return { available: true, sessions, jobs, providers };
+  return { available: true, sessions, jobs: [], providers };
 }
 
 /**
