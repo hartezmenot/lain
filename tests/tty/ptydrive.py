@@ -18,6 +18,9 @@ Scenario:
       {"key": "ctrl-pagedown"},         a named key
       {"resize": [80, 24]},
       {"snap": "name"}
+      {"watch": {"until": "regex", "timeout": 600000,
+                 "answer": [{"when": "regex", "keys": ["down"], "send": "\\r"}]}}
+                                        wait for `until`; meanwhile answer every prompt matching `when`
     ] }
 
 Requires: pyte, and pywinpty on Windows or ptyprocess elsewhere (installed in an isolated venv; the test SKIPS without them).
@@ -160,6 +163,36 @@ def main():
                 out["timeouts"].append(step["until"])
             else:
                 out["marks"].append({"until": step["until"], "at": elapsed()})
+        elif "watch" in step:
+            # A PROMPT THAT MAY OR MAY NOT COME (S12d): until the final screen, answer each one that appears.
+            w = step["watch"]
+            pat = re.compile(w["until"])
+            answers = [(re.compile(a["when"]), a) for a in w.get("answer", [])]
+            end = time.time() + w.get("timeout", 600000) / 1000.0
+            hit = False
+            answered = 0
+            while time.time() < end:
+                with lock:
+                    visible = "\n".join(screen.display)
+                if pat.search(visible):
+                    hit = True
+                    break
+                for rx, a in answers:
+                    if rx.search(visible):
+                        for k in a.get("keys", []):
+                            proc.write(KEYS[k])
+                            time.sleep(0.08)
+                        if "send" in a:
+                            proc.write(a["send"])
+                        answered += 1
+                        time.sleep(a.get("settle", 900) / 1000.0)
+                        break
+                time.sleep(0.1)
+            out.setdefault("answered", []).append(answered)
+            if not hit:
+                out["timeouts"].append(w["until"])
+            else:
+                out["marks"].append({"until": w["until"], "at": elapsed()})
         elif "send" in step:
             proc.write(step["send"])
         elif "key" in step:
