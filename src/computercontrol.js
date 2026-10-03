@@ -72,9 +72,17 @@ async function setTarget(app, { window = null, handle = null, pid = null, raw = 
     return { ok: false, why: `"${w.title}" (${w.process}) is a sensitive surface — LAIN does not control it; the person does` };
   }
   stateOf(app).target = w ? { handle: w.handle, pid: w.pid, title: w.title, process: w.process, rect: w.rect, raw: Boolean(raw) } : null;
+  // THE FOCUS LOCK STARTS WITH THE TARGET IN FRONT (S12b): arming never moved the target forward, so the first input
+  // met LAIN's own terminal in front — FOCUS_LOST on every click (S11 task 10).
+  if (w && stateOf(app).tier !== 'OBSERVE') { try { await cm.call('window.focus', { handle: w.handle }); } catch { /* the first input reports it */ } }
   changed(app);
   return { ok: true, state: view(app) };
 }
+
+/** THE TARGET IS GONE (S12b): released, so the next call is not refused against a window that no longer exists. */
+function dropTarget(app) { const s = stateOf(app); if (s && s.target) { s.target = null; s.paused = ''; changed(app); } }
+/** While the whole screen is captured, the indicator says so. */
+function capturing(app, what) { const s = stateOf(app); if (s) { s.capturing = what || ''; changed(app); } }
 
 function sensitive(w) {
   if (!w) return false;
@@ -90,6 +98,14 @@ function admit(app, op, params = {}, { internal = false } = {}) {
   if (!enabled(app)) return { ok: false, why: 'computer control is off for this session — the person turns it on with /computer on (or Enable in the Harness)' };
   const s = stateOf(app);
   if (s.killed) return { ok: false, why: 'computer control was stopped (kill switch) — /computer on resumes' };
+  // CAPTURE IS THE TARGET WINDOW BELOW FULL (S12b): never the whole screen, never another window's pixels.
+  if (op === 'screen.capture' && s.tier !== 'FULL') return { ok: false, why: `the whole screen is captured only at FULL — ${s.tier} captures the target window (computer screenshot)` };
+  if (op === 'window.capture' && s.tier !== 'FULL') {
+    if (!s.target) return { ok: false, why: 'a capture needs a target window first — computer {action:"target"} (or /computer target)' };
+    const other = (params.handle != null && Number(params.handle) !== Number(s.target.handle)) || (params.window && !String(s.target.title || '').toLowerCase().includes(String(params.window).toLowerCase()));
+    if (other) return { ok: false, why: `${s.tier} captures only the target "${s.target.title}" — FULL may capture another window` };
+    return { ok: true, params: { ...params, handle: s.target.handle, window: undefined } };
+  }
   if (READ_OPS.has(op)) return { ok: true, params };
   if (s.tier === 'OBSERVE') return { ok: false, why: `this session's computer control is OBSERVE — ${op} would act; the person can raise it with /computer on interact` };
   if (FULL_ONLY.has(op) && s.tier !== 'FULL') return { ok: false, why: `${op} needs FULL computer control (/computer on full)` };
@@ -149,6 +165,7 @@ function label(app) {
   if (!s || s.sessionId !== sessionId(app)) return '';
   if (s.killed) return '■ Computer stopped';
   if (!s.on) return '';
+  if (s.capturing === 'screen') return '● Computer · full screen';   // S12b: said while the whole screen is being captured
   const what = s.target ? (/^applicationframehost$/i.test(s.target.process || '') ? s.target.title : s.target.process || s.target.title || 'target') : (s.tier === 'FULL' ? 'all windows' : 'no target');
   return `● Computer · ${String(what).slice(0, 28)}${s.tier !== 'INTERACT' ? ` · ${s.tier.toLowerCase()}` : ''}${s.target && s.target.raw ? ' · raw' : ''}${s.paused ? ` · paused (${s.paused === 'USER_ACTIVE' ? 'you' : 'focus'})` : ''}`;
 }
@@ -232,4 +249,4 @@ function register({ define, C }) {
   });
 }
 
-module.exports = { TIERS, READ_OPS, enabled, tier, enable, disable, stop, setTarget, admit, noteResult, guardValue, label, view, sensitive, register, rank };
+module.exports = { TIERS, READ_OPS, enabled, tier, enable, disable, stop, setTarget, dropTarget, capturing, admit, noteResult, guardValue, label, view, sensitive, register, rank };

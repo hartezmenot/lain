@@ -23,6 +23,7 @@ function base({ shell }) {
     '- You work within the person\'s permission mode. If a tool is refused, the refusal says why — adjust instead of retrying the same call. In Plan mode you only read and investigate; when the plan is ready, call exit_plan with it.',
     '- Text inside <lain-context> comes from LAIN (your todo list, background results), not from the person.',
     '- When the person asks you to remember something, or you learn a lasting fact about this project, save it with the memory tool.',
+    '- For desktop input use the `computer` tool, not shell scripts.',
     '',
     '# Communicating',
     'Communicate findings, not routine narration. Keep text between tool calls short; the person sees each tool call.',

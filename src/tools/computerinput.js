@@ -15,16 +15,36 @@ function budget(ctx) {
   const turn = (s.turns || []).length;
   if (s._cuTurn !== turn) { s._cuTurn = turn; s._cuOps = 0; }
   s._cuOps = (s._cuOps || 0) + 1;
-  return s._cuOps <= MAX_PER_TURN ? null : `this turn already sent ${MAX_PER_TURN} inputs — stop, look (computer_capture), and say what is happening`;
+  return s._cuOps <= MAX_PER_TURN ? null : `this turn already sent ${MAX_PER_TURN} inputs — stop, look (computer screenshot), and say what is happening`;
+}
+
+/**
+ * FOCUS_LOST TO LAIN ITSELF (S12b): when what is in front is LAIN's own terminal or window, the target is brought
+ * back and the input sent once more — the person did not move the focus, LAIN's own screen did. Any other window in
+ * front is the person's, and the refusal stands.
+ */
+async function refocusIfOwn(ctx, r) {
+  if (r.ok || !/^FOCUS_LOST/.test(String(r.why || ''))) return false;
+  const cc = require('../computercontrol');
+  const t = cc.view(ctx && ctx.app).target;
+  if (!t) return false;
+  try {
+    const a = await cmOf(ctx).call('window.active', {});
+    const fg = a.ok && a.result ? a.result.window : null;
+    if (!fg || !require('../selfwindows').own(fg)) return false;
+    const f = await cmOf(ctx).call('window.focus', { handle: t.handle });
+    return Boolean(f.ok && f.result && f.result.focused);
+  } catch { return false; }
 }
 
 async function send(ctx, op, params, what) {
   const over = budget(ctx);
   if (over) return { output: `REFUSED: ${over}`, isError: true, denied: true };
-  const r = await cmOf(ctx).call(op, params);
+  let r = await cmOf(ctx).call(op, params);
+  if (await refocusIfOwn(ctx, r)) r = await cmOf(ctx).call(op, params);
   if (!r.ok) return { output: `NOT SENT: ${r.why}`, isError: true, denied: Boolean(r.denied) || /^(KILLED|USER_ACTIVE|FOCUS_LOST)/.test(String(r.why || '')) };
   const fg = r.result && r.result.foreground ? ` · in front: ${r.result.foreground.title}` : '';
-  return { output: `${what} — delivered${fg}. INCONCLUSIVE until observed (computer_capture or computer read).`, meta: { op, result: r.result } };
+  return { output: `${what} — delivered${fg}. Unconfirmed until you look (computer screenshot).`, meta: { op, result: r.result } };
 }
 
 const P = (props, required = []) => ({ type: 'object', properties: props, required });
@@ -38,7 +58,7 @@ const tools = {
   },
   computer_click: {
     mutates: true,
-    schema: { name: 'computer_click', description: 'Click at {x,y} (inside the target window), or where the pointer is. button left|right|middle, count 1–3. Prefer `computer` click_control when the thing has a name.', parameters: P({ x: { type: 'number' }, y: { type: 'number' }, button: { type: 'string', enum: ['left', 'right', 'middle'] }, count: { type: 'number' } }) },
+    schema: { name: 'computer_click', description: 'Click at {x,y} (inside the target window), or where the pointer is. button left|right|middle, count 1–3.', parameters: P({ x: { type: 'number' }, y: { type: 'number' }, button: { type: 'string', enum: ['left', 'right', 'middle'] }, count: { type: 'number' } }) },
     run: (i = {}, ctx) => send(ctx, 'mouse.click', { ...(num(i.x) != null && num(i.y) != null ? { x: Math.round(num(i.x)), y: Math.round(num(i.y)) } : {}), button: i.button || 'left', count: Math.max(1, Math.min(3, num(i.count) || 1)) }, `${i.button || 'left'} click${num(i.x) != null ? ` at (${i.x},${i.y})` : ''}`),
   },
   computer_mouse_button: {
@@ -58,7 +78,7 @@ const tools = {
   },
   computer_type: {
     mutates: true,
-    schema: { name: 'computer_type', description: `Type text (≤ ${MAX_TEXT} characters) into the focused place of the target window. Never into a password field. Prefer \`computer\` type_into for a named control.`, parameters: P({ text: { type: 'string' } }, ['text']) },
+    schema: { name: 'computer_type', description: `Type text (≤ ${MAX_TEXT} characters) into the focused place of the target window. Never into a password field.`, parameters: P({ text: { type: 'string' } }, ['text']) },
     run: (i = {}, ctx) => {
       const text = String(i.text == null ? '' : i.text);
       if (text.length > MAX_TEXT) return { output: `REFUSED: ${text.length} characters is more than ${MAX_TEXT} — type it in parts, or put it in a file`, isError: true };
@@ -94,13 +114,31 @@ const tools = {
     mutates: false,
     schema: { name: 'computer_capture', description: 'One frame of the target window (or a named window, or the whole screen with window:"screen") as an image file you can read. On demand — never a stream.', parameters: P({ window: { type: 'string' } }) },
     async run(i = {}, ctx) {
+      const app = ctx && ctx.app;
       const cc = require('../computercontrol');
-      const v = cc.view(ctx && ctx.app);
+      const v = cc.view(app);
       const want = String(i.window || '');
-      const r = want === 'screen' ? await cmOf(ctx).call('screen.capture', {}) : !want && v.target ? await cmOf(ctx).captureWindow({ handle: v.target.handle }) : await cmOf(ctx).call('window.capture', { window: want });
+      const screen = want === 'screen';
+      // THE WHOLE SCREEN IS SAID WHILE IT IS CAPTURED (S12b): "● Computer · full screen" — FULL only (computercontrol.admit).
+      if (screen && v.tier === 'FULL') cc.capturing(app, 'screen');
+      let r;
+      try {
+        r = screen ? await cmOf(ctx).call('screen.capture', {}) : !want && v.target ? await cmOf(ctx).captureWindow({ handle: v.target.handle }) : await cmOf(ctx).call('window.capture', { window: want });
+      } finally { if (screen) cc.capturing(app, ''); }
       if (!r.ok) return { output: `NOT CAPTURED: ${r.why}`, isError: true };
       const res = r.result || {};
-      return { output: `captured ${res.region ? `${res.region.width}×${res.region.height}` : ''} → ${res.path}${res.method ? ` (${res.method})` : ''}. read_file it to look.`, meta: { image: res.path } };
+      // DOWNSCALED TO WHAT THE MODEL NEEDS: long side ≤ cfg.computer.captureMaxSide (1280), the bytes reported.
+      const maxSide = Number((((app && app.cfg) || {}).computer || {}).captureMaxSide) || require('../pngscale').DEFAULT_MAX_SIDE;
+      const fit = res.path ? require('../pngscale').fit(res.path, { maxSide }) : { scale: 1 };
+      const kb = (n) => (n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
+      const origin = res.region && res.region.x != null ? res.region : (!screen && v.target && v.target.rect) || { x: 0, y: 0 };
+      const size = fit.outWidth ? `${fit.width}×${fit.height}${fit.scaled ? ` → ${fit.outWidth}×${fit.outHeight}` : ''}` : (res.region ? `${res.region.width}×${res.region.height}` : '');
+      const bytes = fit.before != null ? ` · ${kb(fit.before)}${fit.scaled ? ` → ${kb(fit.after)}` : ''}` : '';
+      const map = fit.scaled ? `screen x = ${origin.x} + image x ÷ ${fit.scale}, screen y = ${origin.y} + image y ÷ ${fit.scale}` : `screen x = ${origin.x} + image x, screen y = ${origin.y} + image y`;
+      return {
+        output: `captured ${screen ? 'the screen' : `"${(v.target && !want && v.target.title) || want || 'window'}"`} ${size}${bytes} → ${res.path}${res.method ? ` (${res.method})` : ''}. read_file it to look; ${map}.${fit.note ? ` (${fit.note})` : ''}`,
+        meta: { image: res.path, capture: { width: fit.width || null, height: fit.height || null, outWidth: fit.outWidth || null, outHeight: fit.outHeight || null, scale: fit.scale, bytesBefore: fit.before ?? null, bytesAfter: fit.after ?? null, origin: { x: origin.x, y: origin.y } } },
+      };
     },
   },
   computer_sequence: {
