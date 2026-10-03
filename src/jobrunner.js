@@ -10,8 +10,8 @@ const { STATE } = require('./jobs');
 /** SIMPLE (simple.js): the model runs the loop — no classification, no wake-up, no lifecycle gate, no context profile. */
 function simpleOptions(app, { session, signal, from = null, typed = false, ask = null, onStatus = null, steer = null }) {
   const p = require('./simpleprompt').of(app, { session });
-  // THE PERSON ASKED (typed, Continue, a steer — anything not automatic): a remembered limit gets one real request (fabric/policy.js forgetLimits).
-  if (!require('./autocontinue').AUTOMATIC.has(from || '')) { try { require('./fabric/policy').forgetLimits(app, session); } catch { /* the refusal stands */ } }
+  // THE PERSON ASKED (typed, Continue, a steer): every remembered limit on this route gets one real request (limitprobe.js).
+  { const lp = require('./limitprobe'); if (lp.personAsked(from)) lp.forget(app, session); }
   return {
     cfg: require('./sessionviews').turnCfg(app, session),
     cfgNow: () => require('./sessionviews').turnCfg(app, session),

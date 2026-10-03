@@ -150,6 +150,20 @@ module.exports = async function () {
       assert.ok(store.limitedNow(A.id) || store.limitedNow(B.id), 'limited again — the provider said so');
     });
 
+    await test('▶ CONTINUE (the Harness button): every remembered limit on the route is dropped — account and route breaker — before the resume is sent', async () => {
+      const { app, A, B } = await codexApp({ aLimited: false, c: false });
+      const far = Date.now() + 7 * 24 * 3600 * 1000;
+      for (const x of [A, B]) store.recordQuota(x.id, { limited: { until: far, reason: 'rate limited' } });
+      const route = F.eligible(app, 'codex', 'gpt-6-sol', 'xhigh')[0].route;
+      app.availability.noteFailure(route, { kind: 'RATE_LIMITED', retryAfterMs: 7 * 24 * 3600 * 1000, message: 'usage limit' });
+      require('../../src/workbench').of(app.session).quota = { state: 'QUOTA_PAUSED', connectionId: route, model: 'gpt-6-sol', at: Date.now() };
+      const sent = [];
+      const r = await require('../../src/quotapause').resume(app, { submitFn: (t) => { sent.push(t); return Promise.resolve(); } });
+      assert.ok(r.ok && sent.length === 1, JSON.stringify(r));
+      assert.ok(!store.limitedNow(A.id) && !store.limitedNow(B.id), 'no stored account limit is left to refuse the resume');
+      assert.strictEqual(app.availability.shouldAttempt(route).allow, true, 'the route breaker lets the request out');
+    });
+
     await test('ASK: A limited → B is PROPOSED; no request goes through B until the person says Switch', async () => {
       const { app, B, seen } = await codexApp({ aLimited: true, policy: 'ask' });
       await chatTurn(app, 'Say ok.');
