@@ -242,6 +242,7 @@ async function* runTurn(session, userInput, opts = {}) {
     // character budget AND a message-count cap, which are unrelated quantities,
     // and this file had grown past the god-object guard carrying both. What
     // stays here is the decision to ASK, which is the loop's business.
+    if (opts.simple) { const cmp = await require('./compactor').maybe(session, cfg, { signal }); if (cmp) yield { type: 'notice', level: 'info', transient: true, message: require('./compactor').line(cmp) }; }   // S8: summary at the window threshold
     const fitted = contextfit.fit(session, pc, {
       systemPrompt: opts.systemPrompt,
       // THE HALF THAT CHANGES EVERY TURN, kept out of the cached prefix. See

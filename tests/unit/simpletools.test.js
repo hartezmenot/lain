@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
-const CORE = ['read_file', 'grep', 'glob', 'list_dir', 'edit_file', 'write_file', 'apply_patch', 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'exit_plan', 'Agent', 'Skill', 'tool_search', 'call_tool'];
+const CORE = ['read_file', 'grep', 'glob', 'list_dir', 'edit_file', 'write_file', 'apply_patch', 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'exit_plan', 'memory', 'Agent', 'Skill', 'tool_search', 'call_tool'];
 
 module.exports = async function () {
   const tools = require('../../src/tools');

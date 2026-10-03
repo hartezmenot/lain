@@ -19,7 +19,7 @@
 const path = require('path');
 
 const FILE_TOOLS = ['read_file', 'grep', 'glob', 'list_dir', 'edit_file', 'write_file', 'apply_patch'];
-const CORE = [...FILE_TOOLS, 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'exit_plan', 'Agent', 'Skill', 'tool_search', 'call_tool'];
+const CORE = [...FILE_TOOLS, 'shell', 'job_status', 'job_stop', 'web_fetch', 'ask_user', 'todo_write', 'exit_plan', 'memory', 'Agent', 'Skill', 'tool_search', 'call_tool'];
 /** Never reachable in simple mode, not even through call_tool: ceremony, judges, and what Agent replaces. */
 const RETIRED = new Set(['request_completion', 'task_contract', 'verify_task', 'plan_write', 'plan_findings', 'plan_step_done', 'report_finding',
   'delegate', 'integrate_candidate', 'ab_compare', 'request_computer', 'request_browser', 'migration_plan', 'migration_verify', 'migration_activate',
@@ -84,6 +84,21 @@ const tools = {
       session.todos = todos;
       const done = todos.filter((t) => t.status === 'completed').length;
       return { output: `${todos.length} item(s), ${done} completed`, meta: { todos: todos.length, completed: done } };
+    },
+  },
+
+  memory: {
+    mutates: false,
+    schema: {
+      name: 'memory',
+      description: 'Project memory that later sessions see. save: one durable fact (a decision, a convention, where something lives) when the person asks you to remember it or you learn something lasting. forget: remove one by name.',
+      parameters: { type: 'object', properties: { action: { type: 'string', enum: ['save', 'forget'] }, name: { type: 'string', description: 'short kebab-case name' }, fact: { type: 'string', description: 'the fact, for save' } }, required: ['action', 'name'] },
+    },
+    run(input = {}, ctx) {
+      const session = (ctx && ctx.session) || (ctx && ctx.app && ctx.app.session);
+      const m = require('../memdir');
+      const r = input.action === 'forget' ? m.forget(session.cwd, input.name) : m.save(session.cwd, input.name, input.fact);
+      return r.ok ? { output: input.action === 'forget' ? `forgot ${input.name}` : `saved ${r.name} — later sessions will see it` } : { output: r.why, isError: true };
     },
   },
 

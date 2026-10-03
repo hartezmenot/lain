@@ -6,9 +6,15 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
     flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     surface: true,
     duringTurn: DURING_TURN.BLOCKED,
-    desc: 'Shrink the conversation to fit the window (local, costs no tokens)',
-    run(app) {
+    desc: 'Summarise the conversation so far and keep the last exchanges (a cheap model call)',
+    async run(app) {
       const w = (line) => app.render.write(line + '\n');
+      // SIMPLE (S8): the cheap model writes the structured summary; the history becomes it plus the last exchanges.
+      if (require('./simple').on(app)) {
+        const r = await require('./compactor').maybe(app.session, require('./sessionviews').turnCfg(app, app.session), { force: true });
+        w(r ? `  ${require('./compactor').line(r)}` : C.dim('  Nothing to compact yet (or the summary could not be written).'));
+        return;
+      }
       const providerMod = require('./provider');
       const contextbudget = require('./contextbudget');
       const pc = providerMod.resolve(app.cfg);

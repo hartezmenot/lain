@@ -278,6 +278,7 @@ class App {
     const ctx = { liveText: '', record: null };
     try {
       text = await require('./interaction').prepareInput(this, text);   // always: staged Cowork inputs reach the turn from EVERY surface
+      if (simple) text = require('./simple').withSelection(this, text);   // S8: the editor selection rides on the message
       // A runtime Coding Agent (runtimedispatch.js) is a provider; legacy also routes to assistant/turn and geometryjob.
       const direct = simple ? (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : {})
         : require('./assistant/turn').routes(this, text, from) || (require('./runtimedispatch').routes(this, verdict).yes ? { runtime: true } : require('./geometryjob').routes(this, verdict));

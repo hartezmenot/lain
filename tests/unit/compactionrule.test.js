@@ -257,7 +257,7 @@ module.exports = async function () {
     const out = [];
     const app = {
       render: { write: (s) => out.push(s) },
-      cfg: {},
+      cfg: { execution: 'legacy' },   // the stub compaction is legacy (S8: simple summarises)
       session: {
         messages: new Array(300),
         contextChars: () => 291000,

@@ -26,6 +26,7 @@ function base({ shell }) {
     '- Ask the person (ask_user) only for decisions you cannot make from the code: a real choice between approaches, missing information, or something destructive. Otherwise decide and proceed.',
     '- You work within the person\'s permission mode. If a tool is refused, the refusal says why — adjust instead of retrying the same call. In Plan mode you only read and investigate; when the plan is ready, call exit_plan with it.',
     '- Text inside <lain-context> comes from LAIN (your todo list, background results), not from the person.',
+    '- When the person asks you to remember something, or you learn a lasting fact about this project, save it with the memory tool.',
     '',
     '# Communicating',
     'Communicate findings, not routine narration. Keep text between tool calls short; the person sees each tool call.',
@@ -70,6 +71,7 @@ function stable(app, session) {
   if (s._agentSpec) parts.push(`# You are a${/^[aeiou]/.test(s._agentSpec.name) ? 'n' : ''} ${s._agentSpec.name} agent\n${s._agentSpec.body ? `${s._agentSpec.body}\n` : ''}You were handed one task by another agent. Do it, then stop: your final message is all it sees, so put the answer there.`);
   const r = rules(s.cwd);
   if (r) parts.push(r);
+  try { const mem = require('./memdir').section(s.cwd); if (mem) parts.push(mem); } catch { /* no memory yet */ }
   try { const k = require('./skills').prompt(app, s); if (k) parts.push(k); } catch { /* no skills */ }
   return parts.join('\n\n');
 }

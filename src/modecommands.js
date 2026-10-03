@@ -63,6 +63,30 @@ function register({ define, C }) {
     desc: 'Focus: stricter quiet — reuse fresh project state, show only changes, blockers, verification',
     run(app, { args }) { const on = toggle(app, 'focus', args[0]); app.render.write(C.dim(`  FOCUS ${on ? 'on' : 'off'} · ${execmode.label(app.session)}\n`)); },
   });
+  // MEMORY (memdir.js): one fact per file under ~/.lain/projects/<id>/memory/, MEMORY.md the index every session loads.
+  define('/memory', {
+    surface: true, args: '[edit [name] | forget <name>]',
+    desc: 'Project memory: list the facts later sessions see; edit one (or the folder) in $EDITOR; forget one',
+    run(app, { args }) {
+      const w = (s) => app.render.write(s);
+      const m = require('./memdir');
+      const cwd = app.session.cwd;
+      const [sub, name] = [String(args[0] || '').toLowerCase(), args[1]];
+      if (sub === 'forget' && name) { const r = m.forget(cwd, name); w(C.dim(`  ${r.ok ? `forgot ${name}` : r.why}\n`)); return; }
+      if (sub === 'edit') {
+        const file = name ? require('path').join(m.dir(cwd), `${name}.md`) : require('path').join(m.dir(cwd), m.INDEX);
+        require('fs').mkdirSync(m.dir(cwd), { recursive: true });
+        if (!require('fs').existsSync(file)) require('fs').writeFileSync(file, '');
+        require('./planmode').edit(app, file);
+        m.reindex(cwd);
+        return;
+      }
+      const facts = m.list(cwd);
+      w(`  ${C.bold('Memory')} ${C.dim(`· ${m.dir(cwd)}`)}\n`);
+      if (!facts.length) w(C.dim('  Nothing remembered for this project yet. Ask LAIN to remember something.\n'));
+      for (const f of facts) w(`  ${f.name}  ${C.dim(f.line.slice(0, 100))}\n`);
+    },
+  });
   // THE PERMISSION MODE (execmode.js): Ask · Accept edits · Plan · Auto — Shift+Tab cycles it too.
   define('/mode', {
     surface: true, args: '[ask|accept-edits|plan|auto]',

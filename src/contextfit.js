@@ -128,7 +128,8 @@ function fit(session, pc, { systemPrompt = '', live = '', cfg = {}, surface = 'C
   //
   // The ceiling is still consulted below, for the different question of
   // whether this provider will refuse the payload outright.
-  const firstDecision = authority.compact(pc, cfg, { reason: 'preflight-context-pressure' });
+  // Simple: compaction is the summary at the window threshold (compactor.js), never stubbing here.
+  const firstDecision = simple ? { result: null } : authority.compact(pc, cfg, { reason: 'preflight-context-pressure' });
   const first = firstDecision.result || {
     compacted: false, before: session.contextChars(), after: session.contextChars(),
     elided: 0, folded: 0, beforeMessages: session.messages.length, afterMessages: session.messages.length,

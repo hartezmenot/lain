@@ -55,4 +55,15 @@ function toolSetNote(session, schemas) {
   return line;
 }
 
-module.exports = { on, identify, settle, toolSetNote };
+/** THE SELECTION (S8): `{file, range, text}` from the IDE, attached to the person's message when they have one. */
+function withSelection(app, text) {
+  const s = app && app.session;
+  const c = s && s._ide;
+  const sel = c && c.selection;
+  if (!s || !s._ideTurn || !sel || !sel.text || (s._ideExclude && s._ideExclude.selection)) return text;
+  if (Date.now() - c.at > require('./idecontext').FRESH_MS) return text;
+  const range = sel.startLine ? ` lines="${sel.startLine}-${sel.endLine || sel.startLine}"` : '';
+  return `${text}\n\n<selection file="${c.file || ''}"${range}>\n${sel.text}\n</selection>`;
+}
+
+module.exports = { on, identify, settle, toolSetNote, withSelection };
