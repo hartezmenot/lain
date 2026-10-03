@@ -93,7 +93,7 @@ const CSS = `
 .usec h4{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin:0 0 8px;font-weight:600}
 .srcbar{display:grid;grid-template-columns:180px minmax(0,1fr) 150px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
 .srcbar .track{height:6px;border-radius:3px;background:var(--surface-active);overflow:hidden}
-.srcbar .track span{display:block;height:100%;background:var(--accent-primary)}
+.srcbar .track span{display:block;height:100%;background:var(--chart-1)}
 .srcbar .num{color:var(--text-secondary);text-align:right;font-variant-numeric:tabular-nums}
 .stack{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:6px 0}
 .stack span{display:block;height:100%}
@@ -121,7 +121,7 @@ const CSS = `
 .lcard .who{font-size:11.5px;color:var(--text-muted);margin:2px 0 8px}
 .lwin{display:grid;grid-template-columns:78px 1fr auto;gap:8px;align-items:center;font-size:12px;padding:3px 0}
 .lwin .q-bar{display:block;height:4px;border-radius:2px;background:color-mix(in srgb,var(--text-primary) 10%,transparent);overflow:hidden}
-.lwin .q-fill{display:block;height:100%;background:var(--accent-primary)} .lwin .q-fill.warn{background:var(--warning)} .lwin .q-fill.bad{background:var(--danger)}
+.lwin .q-fill{display:block;height:100%;background:var(--quota-ok)} .lwin .q-fill.warn{background:var(--quota-warn)} .lwin .q-fill.bad{background:var(--quota-bad)}
 .lwin .rs{grid-column:1 / -1;font-size:11px;color:var(--text-muted);margin-top:-2px}
 .lwin .rs.exp{color:var(--warning)}
 .effrow{display:grid;grid-template-columns:240px 1fr;gap:10px;font-size:12.5px;padding:6px 0;border-top:1px solid var(--separator)}

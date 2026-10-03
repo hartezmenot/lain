@@ -132,11 +132,11 @@ const CSS = `
 .u-row.plain{grid-template-columns:minmax(0,1fr) auto}
 .u-q{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:var(--fs-small);color:var(--text-secondary)}
 .u-q .b{height:5px;border-radius:3px;background:color-mix(in srgb,var(--text-primary) 9%,transparent);overflow:hidden}
-.u-q .b i{display:block;height:100%;background:var(--accent-secondary);border-radius:3px;transition:width var(--t-panel) var(--ease)}
-.u-q .b i.warn{background:var(--warning)} .u-q .b i.bad{background:var(--danger)}
+.u-q .b i{display:block;height:100%;background:var(--quota-ok);border-radius:3px;transition:width var(--t-panel) var(--ease)}
+.u-q .b i.warn{background:var(--quota-warn)} .u-q .b i.bad{background:var(--quota-bad)}
 .u-q .v{text-align:right;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .u-q .v small{color:var(--text-muted);font-size:var(--fs-caption);margin-left:6px}
-.u-q .v.warn{color:var(--warning)} .u-q .v.bad{color:var(--danger)}
+.u-q .v.warn{color:var(--quota-warn)} .u-q .v.bad{color:var(--quota-bad)}
 .u-empty{padding:14px 0;font-size:var(--fs-body);color:var(--text-secondary);line-height:1.55}
 .u-empty b{display:block;margin-bottom:2px;font-size:var(--fs-h3);font-weight:600;color:var(--text-primary)}
 .u-empty .u-btn{margin-top:10px}
@@ -295,7 +295,7 @@ function client() {
   }
   /** THE SEMANTICS, in one place: what REMAINS is the bar and the words; red ≤ 5 % remaining, amber ≤ 20 %. */
   function quotaTone(rem) { return rem <= 5 ? 'bad' : rem <= 20 ? 'warn' : ''; }
-  function toneColor(rem) { var t = quotaTone(rem); return t === 'bad' ? 'var(--danger)' : t === 'warn' ? 'var(--warning)' : 'var(--accent-secondary)'; }
+  function toneColor(rem) { var t = quotaTone(rem); return t === 'bad' ? 'var(--quota-bad)' : t === 'warn' ? 'var(--quota-warn)' : 'var(--quota-ok)'; }
   function qbar(w) {
     var label = winLabel(w.label);
     var rem = remainingOf(w);

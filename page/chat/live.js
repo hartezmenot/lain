@@ -62,9 +62,11 @@ const CSS = `
 .lv-work .t b{font-weight:600;color:var(--text-primary);margin-right:6px}
 @keyframes lv-pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
 .lv-tl{list-style:none;margin:6px 0 0;padding:0 0 0 19px;display:flex;flex-direction:column;gap:3px;animation:lain-fade var(--t-drop) var(--ease)}
-.lv-tl li{display:grid;grid-template-columns:16px minmax(0,auto) minmax(0,1fr);gap:8px;align-items:baseline;font-size:var(--fs-small);color:var(--text-secondary)}
+.lv-tl li{display:grid;grid-template-columns:16px minmax(0,auto) minmax(0,1fr) auto;gap:8px;align-items:baseline;font-size:var(--fs-small);color:var(--text-secondary)}
 .lv-tl li .m{color:var(--positive)} .lv-tl li.run .m{color:var(--accent-primary)} .lv-tl li.bad .m{color:var(--danger)}
 .lv-tl li .n{color:var(--text-primary);white-space:nowrap}
+.lv-tl li .ms{color:var(--text-muted);font-variant-numeric:tabular-nums}
+.lv-meta{font-weight:400;color:var(--text-muted);font-variant-numeric:tabular-nums}
 .lv-tl li .x{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lv-more{display:inline-flex;align-items:center;gap:6px;margin:0 0 6px;padding:2px 6px 2px 2px;border:0;background:none;font:500 12.5px/1.4 var(--sans);color:var(--text-muted);cursor:pointer;border-radius:var(--radius-sm)}
 .lv-more:hover,.lv-more:focus-visible{color:var(--text-primary);background:var(--surface-active)}
@@ -284,6 +286,7 @@ function client() {
   var live = {
     sid: null, on: false, text: '', acts: [], phase: null, thinking: false, begun: 0, baseCount: -1, open: false, node: null, frame: 0, summary: null,
     think: '', thinkSince: 0, thoughts: [],   // THINKING (Core's thought events): the live tail, then one folded line per phase
+    word: '', stepSince: 0, chars: 0, tick: 0,   // THE LIVE ROW (S5.2): the CLI's words, this step's time, ~tokens
     reset: function () { this.on = false; this.text = ''; this.acts = []; this.phase = null; this.thinking = false; this.baseCount = -1; this.open = false; this.think = ''; this.thinkSince = 0; this.thoughts = []; this.draw(); },
     schedule: function () { var self = this; if (this.frame) return; this.frame = requestAnimationFrame(function () { self.frame = 0; self.draw(); }); },
     draw: function () { if (this.node && this.node.isConnected) paint(this.node); },
@@ -298,27 +301,34 @@ function client() {
     if (ev.type === 'turn.begin') {
       if (live.on && live.acts.length) live.summary = { acts: live.acts.slice(), at: Date.now() };
       live.sid = e.session; live.on = true; live.text = ''; live.acts = []; live.phase = null; live.thinking = true; live.begun = Date.now(); live.baseCount = -1; live.open = false; live.think = ''; live.thinkSince = 0; live.thoughts = [];
+      live.word = ''; live.stepSince = Date.now(); live.chars = 0;
+      if (!live.tick) live.tick = setInterval(function () { if (live.on) live.draw(); else { clearInterval(live.tick); live.tick = 0; } }, 1000);
     } else if (!live.on) {
       return;
     } else if (ev.type === 'text') {
       if (live.baseCount < 0) live.baseCount = visibleCount();
-      live.text += String(ev.text || ''); live.thinking = false;
+      live.text += String(ev.text || ''); live.thinking = false; live.chars += String(ev.text || '').length;
+      if (live.word !== 'Writing') { live.word = 'Writing'; }
     } else if (ev.type === 'thinking') {
       if (!live.text) live.thinking = true;
       if (!live.thinkSince) live.thinkSince = Date.now();
       if (ev.text) live.think = (live.think + ev.text).slice(-1600);
+      live.chars += String(ev.text || '').length;
+      if (live.word !== 'Thinking') live.word = 'Thinking';
     } else if (ev.type === 'thought') {
       live.thoughts.push({ ms: ev.ms || 0, tokens: ev.tokens, chars: ev.chars || 0, interrupted: Boolean(ev.interrupted), hidden: Boolean(ev.hidden), text: ev.text || '' });
       live.think = ''; live.thinkSince = 0;
     } else if (ev.type === 'tool.start') {
       live.text = ''; live.baseCount = -1; live.thinking = false;
-      live.acts.push({ id: ev.id || ('a' + live.acts.length), name: ev.name || '', target: ev.target || '', kind: kindOf(ev.name), state: 'run', at: Date.now() });
+      live.word = ev.word || ''; live.stepSince = Date.now();
+      live.acts.push({ id: ev.id || ('a' + live.acts.length), name: ev.name || '', target: ev.target || '', word: ev.word || '', kind: kindOf(ev.name), state: 'run', at: Date.now() });
     } else if (ev.type === 'tool.end') {
       var a = null;
       for (var i = live.acts.length - 1; i >= 0; i--) { if ((ev.id && live.acts[i].id === ev.id) || (!ev.id && live.acts[i].state === 'run' && (!ev.name || live.acts[i].name === ev.name))) { a = live.acts[i]; break; } }
       if (a) { a.state = ev.ok === false ? 'bad' : 'ok'; a.ms = ev.ms || null; a.summary = ev.summary || ''; }
     } else if (ev.type === 'phase') {
       live.phase = ev.phase || null;
+      if (ev.phase === 'WAITING_MODEL') { live.word = ev.word || 'Waiting for the model'; live.stepSince = Date.now(); live.chars = 0; }
     } else if (ev.type === 'turn.end') {
       live.on = false; live.thinking = false; live.think = ''; live.thinkSince = 0;
       live.acts.forEach(function (x) { if (x.state === 'run') x.state = 'ok'; });
@@ -340,21 +350,25 @@ function client() {
     });
     return out;
   }
+  /** The CLI's live-row words (Core sends them): Waiting for <model> · Thinking · Writing · Running <label>. */
   function headline(acts) {
     var run = acts.filter(function (a) { return a.state === 'run'; }).pop();
-    if (run) { var k = KIND[run.kind] || KIND.other; return k.run + (run.kind === 'edit' && run.target ? ' ' + short(run.target) : '') + '…'; }
+    if (run) { if (run.word) return run.word; var k = KIND[run.kind] || KIND.other; return k.run + (run.kind === 'edit' && run.target ? ' ' + short(run.target) : '') + '…'; }
     if (live.phase === 'RETRYING') return 'Waiting for provider…';
-    return live.thinking || !live.text ? 'Thinking' : '';
+    return live.word || (live.thinking || !live.text ? 'Thinking' : '');
   }
+  function since(ms) { var s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's'; }
+  function liveFacts() { var bits = [since(Date.now() - (live.stepSince || live.begun))]; if (live.chars) bits.push('↓~' + fmtTok(Math.ceil(live.chars / 4))); return bits.join(' · '); }
+  /** One row per tool call, with how long it took once it finished (S5.2). */
   function timeline(acts) {
     var ul = el('ul', 'lv-tl');
-    groups(acts).forEach(function (g) {
-      var k = KIND[g.kind] || KIND.other;
-      var li = el('li', g.running ? 'run' : g.bad ? 'bad' : '');
-      li.appendChild(el('span', 'm', g.running ? '●' : g.bad ? '!' : '✓'));
-      li.appendChild(el('span', 'n', g.running ? k.run : k.done));
-      var detail = g.running && g.running.target ? short(g.running.target) : (g.n + ' ' + (g.n === 1 ? k.unit[0] : k.unit[1]));
-      li.appendChild(el('span', 'x', detail));
+    acts.forEach(function (a) {
+      var k = KIND[a.kind] || KIND.other;
+      var li = el('li', a.state === 'run' ? 'run' : a.state === 'bad' ? 'bad' : '');
+      li.appendChild(el('span', 'm', a.state === 'run' ? '●' : a.state === 'bad' ? '!' : '✓'));
+      li.appendChild(el('span', 'n', a.state === 'run' ? (a.word || k.run) : k.done));
+      li.appendChild(el('span', 'x', short(a.target || a.name)));
+      if (a.ms != null && a.state !== 'run') li.appendChild(el('span', 'ms', (a.ms / 1000).toFixed(a.ms < 10000 ? 1 : 0) + 's'));
       ul.appendChild(li);
     });
     return ul;
@@ -392,7 +406,7 @@ function client() {
       if (live.open) node.appendChild(timeline(acts));
     } else {
       var h = headline(acts);
-      if (h) { var w = el('div', 'lv-work'); w.setAttribute('data-live', 'work'); w.appendChild(el('span', 'g')); var t = el('span', 't'); t.appendChild(el('b', '', h)); w.appendChild(t); node.appendChild(w); }
+      if (h) { var w = el('div', 'lv-work'); w.setAttribute('data-live', 'work'); w.appendChild(el('span', 'g')); var t = el('span', 't'); t.appendChild(el('b', '', h)); t.appendChild(el('span', 'lv-meta', ' · ' + liveFacts())); w.appendChild(t); node.appendChild(w); }
       if (meaningful > 1 || (meaningful === 1 && acts.length > 1)) node.appendChild(timeline(acts));
     }
     var showText = live.text && (live.baseCount < 0 || visibleCount() <= live.baseCount);

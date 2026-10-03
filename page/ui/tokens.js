@@ -126,7 +126,16 @@ const CSS = `
   --info-weak:color-mix(in srgb,var(--info) 13%,transparent);
   --plane-accent:color-mix(in srgb,var(--accent-primary) 10%,var(--surface-base));
   --plane-secondary:color-mix(in srgb,var(--accent-secondary) 9%,var(--surface-base));
-  --chart-1:var(--accent-primary); --chart-2:var(--accent-secondary); --chart-3:var(--info); --chart-4:var(--accent-tertiary); --chart-5:var(--warning); --chart-6:var(--text-muted);
+}
+
+/* ---- DATA COLOURS: charts and quota, apart from the palette so every series reads apart (soft, the house taste) -- */
+:root{
+  --chart-1:#A78BFA; --chart-2:#5AB8E8; --chart-3:#4FD1A5; --chart-4:#F2B661; --chart-5:#F28AA8; --chart-6:#8E97AB;
+  --quota-ok:#4FD1A5; --quota-warn:#F2B661; --quota-bad:#F27878;
+}
+:root[data-mode=light]{
+  --chart-1:#7C5CE0; --chart-2:#2A8FC9; --chart-3:#1F9E78; --chart-4:#C98A1A; --chart-5:#D2557D; --chart-6:#6B7487;
+  --quota-ok:#1F9E78; --quota-warn:#B97A0E; --quota-bad:#D23F4A;
 }
 
 /* ---- motion: quick, and absent under reduced motion ------------------------------------------------------------- */

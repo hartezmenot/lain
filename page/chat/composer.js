@@ -86,6 +86,8 @@ const CSS = `
 .cell .lvl i.on{opacity:1}
 .cell.exec[data-exec=FAST]{color:var(--warning)} .cell.exec[data-exec=ECO]{color:var(--positive)}
 .cell.exec .q{font-size:var(--fs-caption);color:var(--text-muted)}
+.cell.perm .pw{font-weight:500}
+.cell.perm[data-perm=PLAN]{color:var(--warning)} .cell.perm[data-perm=ASK]{color:var(--text-primary)}
 /* THE ACTION: a small accent square that says what it will do. */
 .act-send{position:relative;flex:none;width:34px;height:34px;padding:0;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--accent-primary);color:var(--on-accent);margin-left:2px;transition:background var(--t-hover) var(--ease),transform var(--t-hover) var(--ease)}
 .act-send:hover:not(:disabled){background:color-mix(in srgb,var(--accent-primary) 86%,#fff 14%)}
@@ -497,7 +499,7 @@ function client() {
     var dh = decisionHolder();
     if (dh) L.intel.decision(dh, lane);
     var s = L.intel.sel(lane);
-    var sig = JSON.stringify([mode, lane, s.display, s.efforts, s.effort, s.family, s.backing && s.backing.name, w.profile, w.pendingProfile, w.strategy && w.strategy.kind, ide()]);
+    var sig = JSON.stringify([mode, lane, s.display, s.efforts, s.effort, s.family, s.backing && s.backing.name, w.profile, w.pendingProfile, w.strategy && w.strategy.kind, ide(), w.mode, w.modeApplies]);
     if (sig === cellSig) return;
     cellSig = sig;
     box.textContent = '';
@@ -506,7 +508,21 @@ function client() {
     box.appendChild(rt);
     // THE MODE ICON: the Coding Agent's execution — and, in the IDE, the context options for either pane.
     // THE MODE ICON (spec §15: provider icon · model · effort icon · mode icon) in every composer — Chat included.
+    box.appendChild(permCell(w));
     box.appendChild(execCell(w));
+  }
+  /** THE PERMISSION MODE, always visible (S5.2): Ask · Accept edits · Plan · Auto — opens the same popover. */
+  function permCell(w) {
+    var WORD = { ASK: 'Ask', ACCEPT_EDITS: 'Accept edits', PLAN: 'Plan', AUTO: 'Auto' };
+    var m = w.mode || 'AUTO';
+    var b = el('button', 'cell perm');
+    b.setAttribute('data-perm', m);
+    b.setAttribute('data-cell', 'perm');
+    var tip = 'Permissions · ' + WORD[m] + (w.modeApplies && w.modeApplies !== m ? ' (this folder is not trusted yet: ' + WORD[w.modeApplies] + ')' : '');
+    b.setAttribute('data-tip', tip); b.setAttribute('aria-label', tip);
+    b.appendChild(el('span', 'pw', WORD[m] + (w.modeApplies && w.modeApplies !== m ? ' → ' + WORD[w.modeApplies] : '')));
+    b.onclick = function (e) { e.stopPropagation(); modeMenu(b); };
+    return b;
   }
 
   // ---- SLASH SUGGESTIONS: "/" lists LAIN's controls; they change Core state, never reach a model. ------------------
