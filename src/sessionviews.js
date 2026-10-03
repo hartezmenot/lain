@@ -202,6 +202,9 @@ function turnCfg(app, session) {
     cfg.model = rc.model; cfg.connection = rc.connection; cfg.account = rc.account; cfg.family = rc.family || null;
     // ONLY A LEVEL THE MODEL DECLARES REACHES TRANSPORT (Phase 8.3); none, when it declares none.
     if (rc.effortKnown) cfg.effort = rc.effort || undefined;
+    // AN AGENT TYPE'S OWN MODEL AND EFFORT (agenttypes.js), over the lane's — through the same route.
+    if (s._agentSpec && s._agentSpec.model) cfg.model = s._agentSpec.model;
+    if (s._agentSpec && s._agentSpec.effort) cfg.effort = s._agentSpec.effort;
   } else if (rc.model) { cfg.model = rc.model; cfg.connection = null; cfg._refusal = { kind: 'account', why: rc.why, code: rc.code }; }
   return cfg;
 }

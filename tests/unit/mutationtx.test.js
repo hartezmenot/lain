@@ -56,7 +56,7 @@ module.exports = async function () {
     const tx = r.transaction;
     assert.strictEqual(tx.verdict, mutation.VERDICT.KEEP);
     assert.deepStrictEqual(tx.stages.map((s) => s.split(':')[0]),
-      ['AUTHORITY', 'BASELINE', 'STALE', 'CHECKPOINT', 'APPLY', 'STRUCTURAL', 'REFRESH', 'VERIFY', 'SETTLE']);
+      ['BASELINE', 'STALE', 'CHECKPOINT', 'APPLY', 'STRUCTURAL', 'REFRESH', 'VERIFY', 'SETTLE']);
     assert.notStrictEqual(tx.baseline['a.js'], tx.after['a.js'], 'the baseline and the result are both fingerprinted');
     assert.ok(r.checkpoint && r.checkpoint.id, 'the checkpoint is captured by the transaction');
     assert.strictEqual(ctx.session.mutationReceipts.length, 1, 'the receipt is on the session');

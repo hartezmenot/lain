@@ -123,38 +123,4 @@ function detachProcess(app, which = null, { by = 'the user (/bg)' } = {}) {
   return job;
 }
 
-/**
- * No process to detach, but a turn is thinking: stop it and continue the
- * bounded question as a read-only background branch.
- */
-function detachBranch(app) {
-  if (!app.abort || app.abort.signal.aborted) return null;
-  const session = app.session;
-  const objective = (session.task && session.task.objective) || '';
-  if (!objective) return null;
-  const step = planStep(app);
-  const refs = [...new Set(((app.ui && app.ui.liveActions) || []).map((a) => a.path || a.target).filter(Boolean))].slice(0, 20);
-  try { app.abort.abort(); } catch { /* already stopping */ }
-  const contract = {
-    role: 'SCOUT',
-    objective: `${step ? `${step} — ` : ''}${objective}`,
-    readScope: refs.length ? [...refs, '**'] : ['**'],
-    writeScope: [],
-    expectedOutput: 'the answer to the objective, with the files and lines it rests on',
-    verification: 'cite what was read; state what is still uncertain',
-    completion: 'the objective is answered or the blocker is named',
-    parentTask: objective,
-  };
-  const v = require('./subagents').validate(contract);
-  if (!v.ok) return null;
-  const placeholder = { id: null };
-  require('./subagents').runOne(app, v.contract, {}).then((r) => {
-    rejoin(app, session, { jobId: r.holder || placeholder.id || 'branch', kind: 'branch', label: 'reasoning branch', ok: r.ok,
-      summary: r.ok ? 'answered' : `stopped: ${r.why}`, counts: null, tail: String(r.output || r.why || '').slice(-MAX_TAIL), step, at: Date.now() });
-  });
-  const job = app.jobs.all().filter((j) => j.kind === 'subagent').slice(-1)[0] || null;
-  if (job) { job.kind = 'branch'; placeholder.id = job.id; }
-  return job;
-}
-
-module.exports = { register, running, detachProcess, detachBranch, takeContext, rejoin, summarize, DETACHED_CAP_MS };
+module.exports = { register, running, detachProcess, takeContext, rejoin, summarize, DETACHED_CAP_MS };

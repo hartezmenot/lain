@@ -66,16 +66,22 @@ function agentsOf(state) {
   return (Array.isArray(state && state.jobs) ? state.jobs : []).filter((j) => j && j.kind === 'subagent' && j.state === 'RUNNING');
 }
 
-/** 'AGENTS 2 · SCOUT · VERIFIER' — the one line workers get; empty when none run. */
-function agentsLine(state) {
-  const a = agentsOf(state);
-  if (!a.length) return '';
-  return `AGENTS ${a.length} · ${a.map((j) => String(j.request || '').split(' · ')[0]).join(' · ')}`;
+/** One row per running agent (S6): `◐ explore · auth owner · 8s · ↓~1.2k`. */
+function agentRows(state, now = Date.now()) {
+  const spin = ['◐', '◓', '◑', '◒'][Math.floor(now / 250) % 4];
+  return agentsOf(state).map((j) => {
+    const [type, ...rest] = String(j.request || '').split(' · ');
+    const secs = require('./thoughtrow').dur(j.startedAt ? now - j.startedAt : j.elapsedMs || 0);
+    const tok = j.chars ? ` · ↓~${require('./activityline').tok(Math.ceil(j.chars / 4))}` : '';
+    return `${spin} ${j.agentType || type} · ${j.agentLabel || rest.join(' · ')} · ${secs}${tok}`;
+  });
 }
+const agentsLine = (state) => agentRows(state).join('\n');
 
 function summary(state, now = Date.now()) {
-  const s = summaryOf(state, now);
-  if (s) s.agents = agentsLine(state);
+  const rows = agentRows(state, now);
+  const s = summaryOf(state, now) || (rows.length ? { kind: 'AGENTS', line: '', detail: [] } : null);
+  if (s) s.agents = rows;
   return s;
 }
 
@@ -149,7 +155,7 @@ function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   const s = summary(state, now);
   if (!s || room < 1) return 0;
   const expanded = Boolean(state.activityExpanded);
-  const want = (s.commentary && !minimal ? COMMENTARY_ROWS : 0) + (s.thought && s.thought.length && !minimal ? s.thought.length : 0) + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
+  const want = (s.commentary && !minimal ? COMMENTARY_ROWS : 0) + (s.thought && s.thought.length && !minimal ? s.thought.length : 0) + (s.agents ? s.agents.length : 0) + (expanded ? s.detail.length : 0);
   return Math.min(want, room);
 }
 
@@ -181,7 +187,7 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   // CYAN; STALLED / BLOCKED / RATE LIMITED keep their semantic tones.
   const paint = P[TONE[s.kind] && !(s.model && s.kind === 'WAITING') ? TONE[s.kind] : s.model ? 'violet' : 'cmd'] || P.plain;
   if (height < 2) {
-    const only = s.agents || (s.commentary ? require('../streamprogress').commentaryLine({ commentary: s.commentary }) : '') || '';
+    const only = (s.agents && s.agents[0]) || (s.commentary ? require('../streamprogress').commentaryLine({ commentary: s.commentary }) : '') || '';
     return [T.fit(' ' + P.meta(T.clip(only, Math.max(10, width - 2))), width)];
   }
   // ONE DARK-GREY GROUND, no border — the same quiet surface the composer and
@@ -193,7 +199,7 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   const said = s.commentary ? wrapCommentary(s.commentary, box - 2, COMMENTARY_ROWS) : [];
   void paint;
   const thinking = (s.thought || []).map((t) => P.meta(T.clip(t, box - 2)));
-  const body = [...thinking, ...said.map((t) => P.meta(t)), ...(s.agents ? [P.meta(s.agents)] : []), ...(state.activityExpanded ? s.detail.map((t) => P.meta(t)) : [])];
+  const body = [...thinking, ...said.map((t) => P.meta(t)), ...(s.agents || []).map((a) => P.meta(a)), ...(state.activityExpanded ? s.detail.map((t) => P.meta(t)) : [])];
   const out = body.slice(0, height).map((t) => ground(t));
   while (out.length < height) out.push('');
   return out.map((l) => T.fit(l, width));

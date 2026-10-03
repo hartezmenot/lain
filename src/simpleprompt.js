@@ -67,6 +67,7 @@ function stable(app, session) {
   const parts = [base({ shell: shellLabel() }), env];
   if (require('./sessionviews').current(s) === 'chat') parts.push('# This view\nThis is the Chat view: read, investigate and discuss. Changes are made in the Coding view.');
   else { try { const plan = require('./planhandoff').promptSection(s); if (plan) parts.push(plan); } catch { /* no accepted plan */ } }   // a plan the person accepted
+  if (s._agentSpec) parts.push(`# You are a${/^[aeiou]/.test(s._agentSpec.name) ? 'n' : ''} ${s._agentSpec.name} agent\n${s._agentSpec.body ? `${s._agentSpec.body}\n` : ''}You were handed one task by another agent. Do it, then stop: your final message is all it sees, so put the answer there.`);
   const r = rules(s.cwd);
   if (r) parts.push(r);
   try { const k = require('./skills').prompt(app, s); if (k) parts.push(k); } catch { /* no skills */ }

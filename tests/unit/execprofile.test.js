@@ -130,16 +130,6 @@ module.exports = async function () {
     const m = toolstep.prefetch(mixed, opts, 4);
     assert.ok(!m.has('r1'), 'the read after the write waits for it');
   });
-
-  await test('PROFILE: FAST is parallel, not duplicated — two workers can never own the same files', async () => {
-    const sub = require('../../src/subagents');
-    const app = { session: new Session({ cwd: tmpdir('prof-dup-') }) };
-    const contract = (o) => ({ role: 'IMPLEMENTER', objective: o, readScope: ['src/**'], writeScope: ['src/pricing.js'], expectedOutput: 'x', verification: 'npm test', completion: 'passes' });
-    const r = await sub.run(app, [contract('one'), contract('two')], { mode: 'parallel', runner: async () => { throw new Error('must not run'); } });
-    assert.strictEqual(r.ok, false);
-    assert.match(r.why, /overlap|disjoint|same/i, r.why);
-  });
-
   await test('PROFILE LEAK D/E/F: NORMAL→ECO→NORMAL, NORMAL→FAST→NORMAL and FOCUS on→off leave NOTHING behind', async () => {
     const s = new Session({ cwd: tmpdir('prof-leak-') });
     s.task = new Task('fix the pricing bug');

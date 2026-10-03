@@ -332,14 +332,6 @@ define('/steer', {
           require('./commands').receipt();   // a confirmation: it closes itself (the Background row tracks the job)
           return;
         }
-        const turnActive = Boolean(app.abort && !app.abort.signal.aborted);
-        const branch = turnActive ? bg.detachBranch(app) : null;
-        if (branch) {
-          w(C.green(`  BACKGROUND #${branch.id}`) + C.dim('  ·  the current question continues as a read-only branch'));
-          w(C.dim('  The foreground is free — its answer rejoins this task when it finishes.'));
-          require('./commands').receipt();
-          return;
-        }
         return void summary(app, C, w);
       }
 

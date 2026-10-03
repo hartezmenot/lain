@@ -158,21 +158,16 @@ function register({ define, C }) {
   });
   // SUBAGENTS — one small setting, not a panel: AUTO (recommended) or OFF, and
   // how many may run at once. The counter itself lives in the run state.
-  define('/subagents', {
-    surface: true, flashMs: 1500, args: '[auto|off|max N]',
-    desc: 'Subagents: AUTO (the model may use the Agent tool) or OFF; how many run at once',
+  define('/agents', {
+    surface: true, args: '',
+    desc: 'Agents: the types available, the agents of this session, and where each transcript is',
     run(app, { args }) {
-      const sub = require('./subagents');
-      const a = String(args[0] || '').toLowerCase();
-      const cur = { ...((app.cfg && app.cfg.subagents) || {}) };
-      if (a === 'auto' || a === 'on') cur.mode = 'auto';
-      else if (a === 'off') cur.mode = 'off';
-      else if (a === 'max' && Number(args[1]) > 0) cur.maxConcurrent = Math.min(8, Math.floor(Number(args[1])));
-      if (a) { app.cfg.subagents = cur; try { require('./config').save(app.cfg); } catch { /* applies in memory */ } }
-      const s = sub.settings(app);
-      const live = sub.running(app).length;
-      const prof = require('./profile').of(app.session, app.cfg);
-      app.render.write(C.dim(`  SUBAGENTS ${s.mode.toUpperCase()} · max ${s.maxConcurrent} at once · ${live} running · profile ${prof}\n`));
+      // THE AGENTS OF THIS SESSION (agentrun.js): what runs now, what ran, and where each transcript is.
+      const all = (app.jobs ? app.jobs.all() : []).filter((j) => j.kind === 'subagent').map((j) => j.summary());
+      const types = Object.keys(require('./agenttypes').all(app.session.cwd));
+      app.render.write(C.dim(`  AGENTS · types: ${types.join(', ')} · ${all.filter((j) => j.state === 'RUNNING').length} running\n`));
+      for (const j of all.slice(-12)) app.render.write(C.dim(`  ${j.id} ${j.word.padEnd(9)} ${j.agentType || ''} · ${j.agentLabel || j.request}${j.childSession ? `  · transcript: /resume ${j.childSession}` : ''}\n`));
+      void args;
     },
   });
   // DIAGNOSTIC ONLY (workers.js): the narrow workers, whether any model is

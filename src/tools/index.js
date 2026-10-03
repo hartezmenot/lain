@@ -82,7 +82,6 @@ const TOOLS = {
   // a real tool call, admitted and executed — see tools/capability.js.
   ...require('./capability').tools,
   // Delegation to bounded subagents and the A/B candidate workflow.
-  ...require('./delegate').tools,
   // DOWNLOAD_FILE is its own permission class; see tools/download.js.
   ...require('./download').tools,
   // LAIN describing itself — models, usage, MCP, where a setting lives — from
@@ -241,7 +240,7 @@ function schemas(app, { turn = false, session: turnSession = null } = {}) {
   if (require('../simple').on(app)) {
     const sess = turnSession || (app && app.session) || null;
     let list = Object.keys(all);
-    if (sess && sess._agentType) list = list.filter((n) => n !== 'Agent' && n !== 'computer' && !/^computer_/.test(n) && (sess._agentType !== 'explore' || require('./core').READ_ONLY.has(n)));   // agents get no computer
+    if (sess && sess._agentType) list = list.filter((n) => require('../agenttypes').allows(sess._agentSpec || require('../agenttypes').BUILT_IN[sess._agentType], n));   // a type's tools; never Agent or computer
     return list.map((n) => all[n].schema);
   }
   // EVERY PROFILE GETS CORE + THE PACKS ITS TASK NEEDS (2026-10-02, toolfunnel.packsFor). Opened ONCE per classified
@@ -334,7 +333,7 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   // THE DESKTOP IS THE PRIMARY AGENT'S (Phase CU): a subagent never drives it unless the person set cfg.computer.agents —
   // a permission, not exposure, so it holds even for a tool the funnel did not show.
   // AN AGENT'S TOOLS ARE ITS TYPE'S (agentrun.js): no agents from agents; an explore agent never writes or runs.
-  { const s = (ctx && ctx.session) || null; if (s && s._agentType && (name === 'Agent' || (s._agentType === 'explore' && tool.mutates && name !== 'call_tool'))) return { output: `DENIED: ${name === 'Agent' ? 'an agent cannot start agents' : `an explore agent only reads — ${name} changes things`}.`, isError: true, denied: true }; }
+  { const s = (ctx && ctx.session) || null; const spec = s && s._agentType ? (s._agentSpec || require('../agenttypes').BUILT_IN[s._agentType]) : null; if (spec && (name === 'Agent' || (spec.readOnly && tool.mutates && name !== 'call_tool'))) return { output: `DENIED: ${name === 'Agent' ? 'an agent cannot start agents' : `the ${spec.name} agent only reads — ${name} changes things`}.`, isError: true, denied: true }; }
   { const s = (ctx && ctx.session) || null; if (s && (s._agentRole || s._agentType) && (require('../toolfunnel').familyOf(name) === 'computer' || name === 'computer' || /^computer_/.test(name)) && !(app && app.cfg && app.cfg.computer && app.cfg.computer.agents)) return { output: `DENIED: ${name} drives the person's desktop, and subagents never do (only the primary agent).`, isError: true, denied: true }; }
   // ---- MAY THIS TOUCH THAT PATH? ------------------------------------------
   //
@@ -351,11 +350,6 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   // the Probe integration in 2026-09 — there is no longer a second execution
   // environment to enforce a boundary for.)
 
-  // ---- A BOUNDED WORKER READS ONLY ITS ASSIGNMENT, AND RUNS NO COMMANDS ------
-  //
-  // workorderguard.js. The main executor carries no bounded order and is not
-  // affected. A shell command's targets cannot be known, so a bounded worker
-  // may not run one unless its order says so.
   // ---- THE CHAT VIEW DISCUSSES; IT NEVER WRITES ------------------------------
   //
   // A Chat model proposing a patch does not gain the authority to apply it.
@@ -404,36 +398,11 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
       }
     }
   }
-  const order = ctx && ctx.workOrder;
-  if (order && order.bounded && !require('../simple').on(app)) {   // legacy: bounded work orders
-    const guard = require('../workorderguard');
-    const p = input && (input.path || input.file);
-    if (p && !tool.mutates) {
-      const ok = guard.readAllowed(order, require('path').resolve((ctx && ctx.cwd) || process.cwd(), String(p)), ctx && ctx.cwd);
-      if (!ok.ok) return { output: `DENIED ${ok.why}`, isError: true, denied: true };
-    }
-    if (tool.mutates && !require('../mutation').isSourceMutation(name) && order.allowCommands !== true) {
-      return { output: `DENIED ${guard.VERDICT.OUTSIDE_WORK_ORDER}: work order ${order.id} does not allow ${name}`, isError: true, denied: true };
-    }
-  }
-
-  // ---- THE SESSION'S EXECUTION MODE, AND WHO OWNS WHICH FILES --------------
-  //
-  // PLAN refuses anything that acts; MANUAL asks first (execmode.js). A write
-  // into files a background job or subagent holds is refused (leases.js) —
-  // the holder itself writes freely inside its own lease.
+  // THE SESSION'S PERMISSION MODE (execmode.js).
   const modeVerdict = await require('../execmode').gate(ctx, name, tool, input);
   if (!modeVerdict.ok) return { output: modeVerdict.output, isError: true, denied: true };
   const exec = await require('./download').executeGuard(ctx, name, input);
   if (exec && !exec.ok) return { output: exec.output, isError: true, denied: true };
-  if (tool.mutates) {
-    const cwd = (ctx && ctx.cwd) || process.cwd();
-    const holder = (order && order.leaseHolder) || null;
-    for (const p of require('../gate').pathsIn(input, cwd)) {
-      const l = require('../leases').check(holder, p, cwd);
-      if (!l.ok) return { output: `DENIED LEASED: ${l.why}. Work on independent files, or wait for it (/jobs).`, isError: true, denied: true };
-    }
-  }
   // ---- THE PERSON'S HOOKS (userhooks.js): PreToolUse may DENY or make this call ASK. "allow" is no exemption —
   // every refusal above and the gate below still stand (a hook cannot disable a mandatory invariant).
   const hooks = require('../userhooks');

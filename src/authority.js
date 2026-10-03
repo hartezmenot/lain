@@ -562,7 +562,8 @@ function issue(session, { id = '', objective = '', readScope = [], writeScope = 
   // write, so a result computed against older bytes is refused later.
   const cwd = (session && session.cwd) || process.cwd();
   const concrete = writeScope.map((e) => String(e).split('::')[0]).filter((p) => p && !/[*?]/.test(p));
-  const baselineFingerprints = baseline || require('./workorderguard').baseline(cwd, [...new Set(concrete)]);
+  const rr = require('./readreceipts');
+  const baselineFingerprints = baseline || Object.fromEntries([...new Set(concrete)].map((rel) => { const f = rr.contentFingerprint(require('path').resolve(cwd, rel)); return [rel.replace(/\\/g, '/'), f ? f.fp : null]; }));
   return new WorkOrder({
     bounded,
     baselineFingerprints,

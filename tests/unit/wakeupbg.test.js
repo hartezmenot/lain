@@ -72,38 +72,6 @@ module.exports = async function () {
     assert.strictEqual(wakeup.requiresExecution({ taskClass: 'PROJECT_IMPLEMENTATION', execMode: 'PLAN' }), false);
     assert.strictEqual(wakeup.requiresExecution({ taskClass: 'DIRECT_TOOL_TASK' }), true);
   });
-
-  await test('/bg BRANCH: with no process to detach, a thinking turn stops and a bounded READ-ONLY branch continues in its own session, then rejoins', async () => {
-    const root = tmpdir('bg-branch-');
-    fs.writeFileSync(path.join(root, 'queue.js'), 'module.exports = {};\n');
-    process.env.LAIN_PROVIDER = 'mock';
-    process.env.LAIN_MOCK_SCRIPT = writeScript(tmpdir('bgb-'), [{ text: 'BRANCH ANSWER: queue.js owns retries.' }]);
-    const mock = require('../../src/mockprovider'); mock._reset();
-    const { App } = require('../../src/app');
-    const sink = new (require('stream').Writable)({ write(c, e, d) { d(); } });
-    const app = new App({ cwd: root, interactive: false, out: sink });
-    try {
-      app.session.task = new (require('../../src/task').Task)('who owns the retry queue?');
-      app.session.messages.push({ role: 'user', content: 'PARENT-ONLY CONTEXT' });
-      app.abort = new AbortController();
-      const bg = require('../../src/bgdetach');
-      const job = bg.detachBranch(app);
-      assert.ok(app.abort.signal.aborted, 'the foreground turn was stopped — the prompt is free');
-      assert.ok(job, 'a branch job exists');
-      assert.strictEqual(job.kind, 'branch');
-      assert.ok(!job.session.messages.some((m) => /PARENT-ONLY/.test(String(m.content))), 'the branch never gets the conversation');
-      await job.wait();
-      await new Promise((r) => setTimeout(r, 50));
-      const r = (app.session._bgResults || []).find((x) => x.kind === 'branch');
-      assert.ok(r, 'the answer rejoined the original session');
-      assert.match(r.tail, /BRANCH ANSWER/);
-      assert.deepStrictEqual(job.scope, [], 'read-only: it owned no files');
-    } finally {
-      delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT; mock._reset();
-      try { await require('../../src/harnesslink').shutdown(app); } catch { /* none */ }
-    }
-  });
-
   await test('/bg: a running foreground command is detached — the tool returns at once, the SAME pid keeps running, and its result rejoins', async () => {
     const { AgentJobs } = require('../../src/agentjob');
     const root = tmpdir('bg-');

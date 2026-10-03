@@ -87,20 +87,12 @@ async function runScout(app, k, request, ctx) {
   const b = skills().body(k);
   if (!b.ok) return { output: b.why, isError: true };
   if (!app || !app.jobs || !app.session) return { output: `${k.name} runs as a scout, and there is no session to run one from here`, isError: true };
-  const sub = require('../subagents');
-  const cwd = (ctx && ctx.cwd) || app.session.cwd;
-  const contract = {
-    role: 'SCOUT', cwd, readScope: ['**'], writeScope: [],
-    objective: `${request || 'Apply this skill to the current task'}\n\nFollow the skill "${k.name}":\n${b.text.slice(0, 12000)}`,
-    expectedOutput: 'a short, structured result: findings with file:line evidence',
-    verification: 'every finding names the file and line it came from',
-    completion: 'the skill\'s question is answered, or what blocks it is stated',
-  };
-  const v = sub.validate(contract, { parentTask: request });
-  if (!v.ok) return { output: `${k.name}: the scout could not be started (${v.why})`, isError: true };
-  const r = await sub.runOne(app, v.contract, { signal: ctx && ctx.signal });
-  if (!r.ok) return { output: `${k.name} (scout) did not finish: ${r.why}`, isError: true };
-  return { output: `SCOUT RESULT · skill ${k.name}\n${String(r.output || '').slice(0, 8000)}` };
+  // AN EXPLORE AGENT (agentrun.js) with the skill as its task: read-only, its final message is the result.
+  const prompt = `${request || 'Apply this skill to the current task'}\n\nFollow the skill "${k.name}":\n${b.text.slice(0, 12000)}\n\nAnswer with findings, each with the file and line it came from.`;
+  const parent = (ctx && ctx.session) || app.session;
+  const r = await require('../agentrun').runOne(app, parent, require('../agenttypes').BUILT_IN.explore, prompt, { description: `skill ${k.name}`, signal: ctx && ctx.signal });
+  if (!r.ok) return { output: `${k.name} (explore agent) did not finish: ${r.text}`, isError: true };
+  return { output: `SKILL RESULT · ${k.name}\n${String(r.text || '').slice(0, 8000)}` };
 }
 
 /** Which of these the registry offers right now (tools/index.js). */

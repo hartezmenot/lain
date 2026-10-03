@@ -250,6 +250,7 @@ class AgentJob {
       scope: this.scope.slice(),
       result: this.resultSummary,
       word: this.state === 'SUCCEEDED' ? 'DONE' : this.waiting || this.needsInput ? 'WAITING' : this.state,
+      agentType: this.agentType || null, agentLabel: this.agentLabel || null, chars: this.chars || 0, childSession: this.sessionId || null,
     };
   }
 }

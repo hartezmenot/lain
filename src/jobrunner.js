@@ -472,11 +472,6 @@ function startBackground(app, text) {
   launch().then(
     (record) => {
       if (job.state === STATE.CANCELLED) return;
-      // THE ORDER IS SETTLED FROM LAIN'S OWN RECEIPTS, never from the worker's
-      // closing prose — see proposal.settle.
-      try {
-        if (job.workOrder) job.settlement = require('./proposal').settle(job.workOrder, session, { claim: record && record.text });
-      } catch { /* the job's result stands without a settlement */ }
       job._finish(STATE.SUCCEEDED, { result: record || null });
     },
     (e) => {

@@ -160,6 +160,9 @@ function prefetch(calls, opts, limit) {
     seen.add(target);
     eligible.push(c);
   }
+  // SEVERAL AGENTS IN ONE RESPONSE RUN TOGETHER (S6): each has its own fresh session.
+  const agents = calls.filter((c) => c && !c.malformed && c.name === 'Agent');
+  if (agents.length > 1) for (const c of agents) out.set(c.id, run(c, opts));
   if (eligible.length < 2) return out;
   let active = 0;
   const waiting = [];

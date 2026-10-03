@@ -46,7 +46,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const guard = require('./workorderguard');
 
 const VERDICT = Object.freeze({
   KEEP: 'KEEP',
@@ -244,7 +243,6 @@ function refused(tx, verdict, output, ctx) {
 async function transact({ name, input = {}, ctx = {}, apply, targets = null, baselineExtra = null }) {
   const cwd = ctx.cwd || process.cwd();
   const session = ctx.session || null;
-  const order = ctx.workOrder || null;
   const plan = session && session.plan;
   const openStep = plan && Array.isArray(plan.steps) ? plan.steps.findIndex((s) => s && !require('./plan').stepDone(s)) : -1;
 
@@ -263,8 +261,6 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
     planStep: openStep >= 0 ? openStep + 1 : null,
     // THE STEP'S IDENTITY (plan.js ids): a receipt still belongs to its step after the plan is revised and renumbered.
     planStepId: openStep >= 0 ? plan.steps[openStep].id || null : null,
-    workOrderId: order ? order.id : '',
-    bounded: guard.isBounded(order),
     targets: t.paths.map((p) => path.relative(cwd, p).replace(/\\/g, '/')),
     delegated: t.delegated,
     stages: [],
@@ -279,14 +275,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   };
   const stage = (n, detail = '') => tx.stages.push(detail ? `${n}: ${detail}` : n);
 
-  // ---- AUTHORITY / WORK ORDER ---------------------------------------------
-  const allowed = guard.writeAllowed(order, t.paths, { name, input, cwd });
-  tx.scope = { ok: allowed.ok, denied: allowed.denied.map((d) => d.why), spans: allowed.spans.map((s) => `${s.rel}::${s.symbols.join('|')}`) };
-  stage('AUTHORITY', allowed.ok ? 'allowed' : 'denied');
-  if (!allowed.ok) {
-    return refused(tx, VERDICT.DENIED, `DENIED ${allowed.denied.map((d) => d.why).join('; ')}. Nothing was written. `
-      + 'Request a scope expansion if the assignment needs this.', ctx);
-  }
+  tx.scope = { ok: true, denied: [], spans: [] };
 
   // ---- BASELINE -------------------------------------------------------------
   for (const p of t.paths) {
@@ -297,19 +286,6 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   }
   stage('BASELINE', `${t.paths.length} target(s)`);
 
-  // ---- STALE ------------------------------------------------------------------
-  if (order) {
-    const moved = guard.stale(order, cwd, { onlyRels: tx.targets, extra: baselineExtra || {} });
-    if (moved.length) {
-      stage('STALE', moved.map((m) => m.rel).join(', '));
-      if (typeof order.stale === 'function') {
-        order.stale(`baseline moved: ${moved.map((m) => `${m.rel} ${String(m.expected).slice(0, 8)}→${String(m.actual).slice(0, 8)}`).join(', ')}`);
-      }
-      tx.stale = moved;
-      return refused(tx, VERDICT.STALE, `${guard.VERDICT.STALE_WORK_ORDER}: ${moved.map((m) => `${m.rel} was ${String(m.expected).slice(0, 8)} when the order was issued and is ${String(m.actual).slice(0, 8)} now`).join('; ')}. `
-        + 'Nothing was overwritten — refresh the assignment against the current file.', ctx);
-    }
-  }
   stage('STALE', 'clear');
 
   // The project's first LAIN-controlled write is measured against a baseline.
@@ -376,18 +352,6 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   // ---- STRUCTURAL VERIFY ------------------------------------------------------
   const st = await structural(changed.map((x) => x.abs), cwd);
   let scopeViolation = '';
-  for (const s of allowed.spans) {
-    const x = tx._targets.find((y) => y.abs === s.abs);
-    if (!x || !x.before.bytes || !x.afterBytes) continue;
-    const v = guard.spanAllowed(x.before.bytes.toString('utf8'), x.afterBytes.toString('utf8'), s.abs, s.symbols);
-    if (!v.ok) scopeViolation = `${guard.VERDICT.OUTSIDE_WORK_ORDER}: ${s.rel} ${v.why}`;
-  }
-  // A write the call did not declare is outside what was asked, for a bounded worker.
-  if (guard.isBounded(order)) {
-    for (const x of changed) {
-      if (!guard.writeAllowed(order, [x.abs], { name, input, cwd }).ok) scopeViolation = `${guard.VERDICT.OUTSIDE_WORK_ORDER}: ${x.rel} was changed but is not in the order's write scope`;
-    }
-  }
   tx.structural = { parse: st.ok, files: st.files, lint: Boolean(st.lint) };
   if (scopeViolation) tx.scope.violation = scopeViolation;
   stage('STRUCTURAL', `${st.ok ? 'parses' : 'DOES NOT PARSE'}${scopeViolation ? '; scope violated' : ''}`);
@@ -416,7 +380,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   stage('VERIFY', `${verification.level} ${verification.state}`);
 
   // ---- KEEP / REVERT ------------------------------------------------------------
-  const bounded = guard.isBounded(order);
+  const bounded = false;
   const why = [];
   if (scopeViolation) why.push(scopeViolation);
   if (bounded && !st.ok) why.push('the change does not parse');
@@ -434,7 +398,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   } else {
     tx.verdict = VERDICT.KEEP;
     stage('SETTLE', VERDICT.KEEP);
-    consequences(ctx, tx, changed, { cwd, session, name, order, input });
+    consequences(ctx, tx, changed, { cwd, session, name, input });
     if (st.note) output += st.note;
     if (st.lint) output += st.lint;
   }
@@ -473,7 +437,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
  * (freshness, evidence invalidation and the receipt are done above, in the
  * lifecycle itself.)
  */
-function consequences(ctx, tx, changed, { cwd, session, name, order, input }) {
+function consequences(ctx, tx, changed, { cwd, session, name, input }) {
   const source = provenanceSource(tx.actor, tx.origin);
   const by = { USER: 'user', MODEL: 'agent', CORE: 'core', TOOL: 'tool' }[tx.actor] || 'agent';
   const files = [];
@@ -488,7 +452,7 @@ function consequences(ctx, tx, changed, { cwd, session, name, order, input }) {
         after: x.afterBytes ? x.afterBytes.toString('utf8') : null,
         sessionId: session ? session.id : null,
         taskId: tx.actor === ACTOR.MODEL && session && session.task ? session.task.id : null,
-        actor: tx.origin || (guard.isBounded(order) ? 'worker' : (session && session._pluginGrant ? `plugin:${session._pluginGrant.id || ''}` : { USER: 'editor', MODEL: 'coding-agent', CORE: 'core', TOOL: 'tool' }[tx.actor])),
+        actor: tx.origin || ((session && session._pluginGrant ? `plugin:${session._pluginGrant.id || ''}` : { USER: 'editor', MODEL: 'coding-agent', CORE: 'core', TOOL: 'tool' }[tx.actor])),
         tool: name,
       });
     } catch { /* provenance never costs a write */ }

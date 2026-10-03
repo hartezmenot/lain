@@ -156,8 +156,8 @@ const tools = {
     mutates: true,
     schema: {
       name: 'Agent',
-      description: 'Hand a self-contained piece of work to a helper with a fresh context. It sees only your prompt (and the project rules), works with its own tools, and returns its final message. type "explore": read-only, for searching and answering questions about the code; type "general": can also edit and run commands. Write a complete prompt — it knows nothing of this conversation.',
-      parameters: { type: 'object', properties: { description: { type: 'string', description: '3–5 words, shown to the person' }, prompt: { type: 'string' }, type: { type: 'string', enum: ['explore', 'general'] } }, required: ['description', 'prompt'] },
+      description: 'Hand a self-contained piece of work to a helper with a fresh context. It sees only your prompt (and the project rules), works with its own tools, and returns its final message. type "explore": read-only, for searching and answering questions about the code; type "general": can also edit and run commands; or a type from .lain/agents. Several Agent calls in one response run together; background: true returns at once and the result arrives later. Write a complete prompt — it knows nothing of this conversation.',
+      parameters: { type: 'object', properties: { description: { type: 'string', description: '3–5 words, shown to the person' }, prompt: { type: 'string' }, type: { type: 'string', description: 'explore | general | a custom type' }, background: { type: 'boolean' } }, required: ['description', 'prompt'] },
     },
     run: (input, ctx) => require('../agentrun').run(input, ctx),
   },

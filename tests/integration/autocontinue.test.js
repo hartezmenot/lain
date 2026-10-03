@@ -46,54 +46,6 @@ const write = (p, c) => ({ name: 'write_file', input: { path: p, content: c } })
 const done = (n) => ({ name: 'plan_step_done', input: { n, note: `step ${n}` } });
 
 module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGACY path only (Simplify S10 deletes)
-  await test('STALL (§57, §44): four phases, five recoverable failures, ONE message — the task finishes without a single `continue`', async () => {
-    const cwd = sandbox();
-    script([
-      { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { objective: 'build the inspector', steps: ['tree view', 'preview pane', 'inspector', 'timeline'] } }] },
-      { text: 'Checking the last log.', tool_calls: [{ name: 'file_info', input: { path: '/tmp/lain-accept-missing-p45.log' } }] },
-      { text: 'Tree view.', tool_calls: [write('tree.txt', 'tree'), done(1)] },
-      { text: 'Checkpoint: the tree view is in.' },
-      { text: 'Recalling the earlier result.', tool_calls: [{ name: 'recall_evidence', input: { id: 'R274' } }] },
-      { text: 'Preview pane.', tool_calls: [write('preview.txt', 'preview'), done(2)] },
-      { text: 'Checkpoint: the preview pane is in.' },
-      { text: 'Splitting the work.', tool_calls: [{ name: 'delegate', input: { agents: [{ role: 'EXPLORER', objective: 'map it', readScope: ['*.txt'], expectedOutput: 'a map', verification: 'none', completion: 'mapped' }] } }] },
-      { text: 'Listing.', tool_calls: [{ name: 'run_bash', input: { command: 'Get-ChildItem -Name' } }] },
-      { text: 'Inspector.', tool_calls: [write('inspector.txt', 'inspector'), done(3)] },
-      { text: 'Checkpoint: the inspector is in.' },
-      { text: 'Looking at the UI.', tool_calls: [{ name: 'request_browser', input: { reason: 'check the timeline renders', target: 'http://localhost:5999' } }] },
-      { text: 'Timeline.', tool_calls: [write('timeline.txt', 'timeline'), done(4)] },
-      { text: 'All four phases are done.' },
-    ]);
-    const app = newApp(cwd);
-    app._browserBackends = { isolated: async () => ({ ok: false, why: 'nothing is listening on :5999' }) };
-    try {
-      await app.prepare();
-      await app.submit('build the inspector');   // THE ONLY MESSAGE THE PERSON SENDS
-      const plan = app.session.plan;
-      assert.ok(plan && plan.steps.length === 4, 'the plan was written');
-      assert.deepStrictEqual(plan.steps.map((s) => s.status), ['done', 'done', 'done', 'done'], 'every phase finished');
-      for (const f of ['tree.txt', 'preview.txt', 'inspector.txt', 'timeline.txt']) assert.ok(fs.existsSync(path.join(cwd, f)), `${f} landed`);
-      const turns = app.session.turns || [];
-      const typed = turns.filter((t) => !t.from);
-      assert.strictEqual(typed.length, 1, 'the person spoke once');
-      assert.ok(turns.filter((t) => t.from === 'phase-continue').length >= 3, `the model boundaries were crossed by LAIN: ${turns.map((t) => t.from).join(',')}`);
-      const w = require('../../src/workbench').of(app.session);
-      const reviews = w.offers.filter((o) => o.kind === 'PHASE_REVIEW' && o.state === 'OPEN');
-      assert.ok(reviews.every((o) => /plan is complete/.test(o.text)), `no pause asked for continue: ${reviews.map((o) => o.text).join(' | ')}`);
-      const recovered = w.phases.flatMap((p) => p.recovered || []).join('\n');
-      for (const want of [/no such file: \/tmp\/lain-accept-missing-p45\.log/, /EVIDENCE_NOT_FOUND/, /INVALID_ARGUMENT role "EXPLORER"|SUBAGENTS_OFF|DENIED/, /BROWSER UNAVAILABLE/]) {
-        assert.match(recovered, want, 'the failure was recorded as recovered, not as a failed phase');
-      }
-      assert.ok(!w.phases.some((p) => (p.failed || []).length), 'no phase is marked failed');
-      const ps = turns.flatMap((t) => t.actions || []).find((a) => a.name === 'run_bash');
-      assert.ok(ps && ps.ok, 'PowerShell sent through run_bash ran in PowerShell and succeeded');
-      assert.strictEqual(require('../../src/supervision').statusLine(app), 'Plan complete');
-    } finally {
-      cleanup(cwd);
-      delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT;
-    }
-  });
-
   await test('CRASH RECOVERY (§43): the process dies after three reads in phase 4 of 8 — a new host resumes the SAME task by itself', async () => {
     const cwd = sandbox();
     for (const f of ['a.rs', 'b.rs', 'c.rs']) fs.writeFileSync(path.join(cwd, f), `// ${f}\n`);
