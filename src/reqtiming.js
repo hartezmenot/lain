@@ -2,8 +2,8 @@
 
 /** WHERE ONE REQUEST'S TIME WENT (Simplify S5.1 F6), for the request trace: the effort actually put on the wire (the protocol writes it into `wireOut`)… */
 
-function start() {
-  return { wireOut: { effort: null }, t0: Date.now(), first: 0, rStart: 0, rEnd: 0, tStart: 0, tEnd: 0 };
+function start(pc = null) {
+  return { lainEffort: (pc && pc.lainEffort) || null, wireOut: { effort: null, thinking: null }, t0: Date.now(), first: 0, rStart: 0, rEnd: 0, tStart: 0, tEnd: 0 };
 }
 
 /** One streamed event. */
@@ -20,6 +20,8 @@ function stamp(t, rec, receipt) {
   if (!rec) return;
   // An HTTP body's effort as written; a runtime (Claude Code, Codex) gets its effort as a flag, already on the record.
   if (t.wireOut.effort != null || rec.protocol !== 'runtime') rec.effort = t.wireOut.effort;
+  rec.lainEffort = t.lainEffort || null;   // S12a: LAIN effort (no native effort) beside the effort the provider got
+  if (t.wireOut.thinking != null) rec.thinking = t.wireOut.thinking;   // a declared thinking switch, as sent
   rec.firstByteMs = t.first ? t.first - t.t0 : null;
   rec.reasoningMs = t.rStart ? t.rEnd - t.rStart : 0;
   rec.textMs = t.tStart ? t.tEnd - t.tStart : 0;

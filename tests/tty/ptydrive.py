@@ -20,7 +20,7 @@ Scenario:
       {"snap": "name"}
     ] }
 
-Requires: pywinpty, pyte (installed in an isolated venv; the test SKIPS without them).
+Requires: pyte, and pywinpty on Windows or ptyprocess elsewhere (installed in an isolated venv; the test SKIPS without them).
 """
 
 import json
@@ -30,7 +30,10 @@ import threading
 import time
 
 import pyte
-from winpty import PtyProcess
+try:
+    from winpty import PtyProcess          # Windows: ConPTY
+except ImportError:                        # POSIX: a real pty (S12 — the same scenarios run on Linux and macOS)
+    from ptyprocess import PtyProcessUnicode as PtyProcess
 
 KEYS = {
     "enter": "\r",

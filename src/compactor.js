@@ -44,7 +44,7 @@ function render(messages) {
 /** Should this request compact first? */
 function due(session, pc, cfg) {
   const window = Number(pc && pc.ctx) || 128000;
-  const at = require('./profile').compactAt(cfg && cfg.executionProfile);
+  const at = require('./profile').compactAt(cfg && cfg.executionProfile, pc && pc.lainEffort);   // LAIN effort Low compacts earlier, Max later
   return tokensOf(session.contextChars()) >= window * at;
 }
 

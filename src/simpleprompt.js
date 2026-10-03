@@ -80,6 +80,13 @@ function live(session) {
   return `# Todo\n${todos.map((t) => `${mark[t.status] || '[ ]'} ${t.content}`).join('\n')}`;
 }
 
+/** LAIN EFFORT'S ONE LINE (S12a), in the live tail — never the cached prefix. High says nothing. */
+const EFFORT_LINE = Object.freeze({
+  low: 'Effort: low. Answer directly, keep exploration minimal, run only the targeted check.',
+  max: 'Effort: max. Investigate thoroughly, consider alternatives before editing, verify with a broader check.',
+});
+function effortLine(lainEffort) { return EFFORT_LINE[String(lainEffort || '').toLowerCase()] || ''; }
+
 /** Cached per session: the stable half changes only when the person changes it (accepting a plan, the view). */
 function of(app, { session = null } = {}) {
   const s = session || app.session;
@@ -90,4 +97,4 @@ function of(app, { session = null } = {}) {
   return { stable: s._simplePrompt.stable, live: live(s) };
 }
 
-module.exports = { of, base, rules, live, stable };
+module.exports = { of, base, rules, live, stable, effortLine, EFFORT_LINE };

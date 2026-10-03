@@ -49,6 +49,7 @@ function status(opts, phase, detail = {}) {
 async function* runTurn(session, userInput, opts = {}) {
   let cfg = opts.cfg || {};
   let pc = provider.resolve(cfg); session._effortSeen = { effort: pc.effort || pc.lainEffort || null, explicit: Boolean(pc.effortExplicit) };   // the header names an explicit effort
+  cfg.lainEffort = pc.lainEffort || null;   // LAIN effort rides the turn config for the knobs that read cfg (toolbudget)
   const record = newRecord(session.id, userInput, pc.model);
   // See `from` in turnrecord.js for why a turn has to know who asked for it.
   record.from = opts.from || null; record.typed = Boolean(opts.typed);
@@ -125,7 +126,7 @@ async function* runTurn(session, userInput, opts = {}) {
     record.steps = step + 1;
 
     const sw = step > 0 ? require('./turnswitch').next(opts, cfg, pc) : null;   // a model chosen mid-turn serves the next step
-    if (sw) { ({ cfg, pc, connId, availModel } = sw); record.model = pc.model; yield { type: 'notice', level: 'info', message: sw.message }; }
+    if (sw) { ({ cfg, pc, connId, availModel } = sw); cfg.lainEffort = pc.lainEffort || null; record.model = pc.model; yield { type: 'notice', level: 'info', message: sw.message }; }
 
     // A STEER IS DELIVERED HERE — between steps, immediately before the next request is built.
     for (const n of require('./steerqueue').deliver(session, record, opts, step)) yield n;
@@ -135,7 +136,7 @@ async function* runTurn(session, userInput, opts = {}) {
     const fitted = contextfit.fit(session, pc, {
       systemPrompt: opts.systemPrompt,
       // THE HALF THAT CHANGES EVERY TURN, kept out of the cached prefix.
-      live: [(step > 0 && typeof opts.liveContinuing === 'string' ? opts.liveContinuing : opts.live) || '', wakeNote,
+      live: [(step > 0 && typeof opts.liveContinuing === 'string' ? opts.liveContinuing : opts.live) || '', require('./simpleprompt').effortLine(pc.lainEffort), wakeNote,
         typeof opts.sideContext === 'function' ? await opts.sideContext(step) : ''].filter(Boolean).join('\n\n'),
       cfg,
       surface: COMPACT_SURFACE,
@@ -374,7 +375,7 @@ async function* runTurn(session, userInput, opts = {}) {
     }
 
     const gated = askgate.cut(normalized);   // a question ends the step — askgate.js
-    const pre = require('./toolstep').prefetch(gated.run, { session, evidence: opts.evidence || null, toolCtx }, require('./profile').concurrency(require('./profile').of(session, cfg)));   // FAST/NORMAL: independent reads start together
+    const pre = require('./toolstep').prefetch(gated.run, { session, evidence: opts.evidence || null, toolCtx }, require('./profile').concurrency(require('./profile').of(session, cfg), pc.lainEffort));   // independent reads start together; LAIN effort Low 2 · Max 4
     for (const c of gated.run) {
       if (signal && signal.aborted) {
         session.messages.push({ role: 'tool', tool_call_id: c.id, content: 'interrupted by the user before this ran', isError: true });

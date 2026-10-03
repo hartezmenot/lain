@@ -44,7 +44,7 @@ function resolve(cfg = {}) {
           routeId: r.connection.connectionId, accountId: require('./accountcatalog').accountIdForRoute(r.connection.connectionId, conn), requestedAccount: cfg.account || null, family: cfg.family || null,
           model: r.upstreamId,
           canonicalModel: r.model,
-          effort: plan ? plan.effort : r.effort, effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null), effortWire: plan ? plan.wire : null, effortExplicit: plan ? Boolean(plan.explicit) : Boolean(cfg.effort && cfg.effort !== 'auto'), lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null, reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
+          effort: plan ? plan.effort : r.effort, effortSource: plan ? plan.source : (r.effort || cfg.effort ? 'provider' : null), effortWire: plan ? plan.wire : null, effortExplicit: plan ? Boolean(plan.explicit) : Boolean(cfg.effort && cfg.effort !== 'auto'), lainEffort: plan && plan.source === 'lain' ? plan.lainEffort : null, thinkingSwitch: plan && plan.source === 'lain' ? require('./fabric/effortcaps').thinkingSwitch({ conn, upstreamId: r.upstreamId || r.model }) : null, reasoningEffort: plan ? (plan.source === 'provider' ? plan.effort : null) : (cfg.effort || null),   // a request FIELD on the Responses API (responsesapi.js)
           baseUrl: conn.baseUrl, credentialRef: conn.credentialRef || null,   // the key is read just before the request (chat → credentials.ensure), never to list
           get apiKey() { return conn.apiKey || (conn.via === 'bridge' ? 'bridge' : ''); }, set apiKey(v) { Object.defineProperty(this, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },   // read when a request is sent — never to draw a header (connections.js)
           ctx: ((conn.models || []).find((x) => x && x.id === r.model) || {}).ctx || conn.ctx || 128000,   // a local model's real window
@@ -372,6 +372,13 @@ async function* openaiChat(pc, messages, opts) {
   const payload = { model: pc.model, messages: body, stream: true, stream_options: { include_usage: true } };
   if (pc.effortWire === 'reasoning_effort' && pc.effort) payload.reasoning_effort = String(pc.effort);
   if (opts && opts.wireOut) opts.wireOut.effort = payload.reasoning_effort || null;   // native effort (GLM-5.3 on Z.ai), only as declared
+  // LAIN EFFORT'S THINKING SWITCH (S12a), only on a route that declares one (effortcaps.thinkingSwitch): Low off, High/Max on.
+  if (pc.thinkingSwitch && pc.lainEffort) {
+    const on = pc.lainEffort !== 'low';
+    if (pc.thinkingSwitch === 'enable_thinking') payload.enable_thinking = on;
+    else if (pc.thinkingSwitch === 'thinking.type') payload.thinking = { type: on ? 'enabled' : 'disabled' };
+    if (opts && opts.wireOut) opts.wireOut.thinking = on;
+  }
   if (opts.tools && opts.tools.length) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
   }
@@ -433,7 +440,7 @@ async function* chat(pc, messages, opts = {}) {
   // THE RECEIPT THIS ATTEMPT RETURNED, or null — the last `usage` event the provider streamed.
   let receipt = null;
   let toolCalls = 0;
-  const timing = require('./reqtiming').start();   // the trace: effort on the wire, where the time went (F6)
+  const timing = require('./reqtiming').start(pc);   // the trace: effort on the wire (and LAIN effort), where the time went (F6)
   opts = { ...opts, wireOut: timing.wireOut };
   const stamp = () => require('./reqtiming').stamp(timing, env.rec, receipt);
   try {

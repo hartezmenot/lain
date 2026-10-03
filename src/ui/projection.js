@@ -143,7 +143,8 @@ function frameState(ui) {
     provider: pc.provider,
     connection: pc.connectionId,
     // THE LANE'S EFFORT as its model declares it (a level it does not take is never shown as in force).
-    effort: (() => { if (lane && lane.effortKnown) return lane.effortLabel && lane.effort ? lane.effortLabel : null; try { const r = require('../sessionintel').resolve(app, app.session).reasoning; return r && r.value !== 'auto' ? r.value : null; } catch { return app.cfg.effort; } })(),
+    // LAIN EFFORT (S12a) is shown like a provider level, always (it is LAIN's own, never a guess at a provider default); a profile default says so.
+    effort: (() => { if (lane && lane.effortSource === 'lain' && lane.effective) return require('../sessionintel').effortText(lane); if (lane && lane.effortKnown) return lane.effortLabel && lane.effort ? lane.effortLabel : null; try { const r = require('../sessionintel').resolve(app, app.session).reasoning; return r && r.value !== 'auto' ? r.value : null; } catch { return app.cfg.effort; } })(),
     /** THE OUTPUT TOKENS OF THE RESPONSE IN FLIGHT — the header's one number. */
     output: ui.liveOutput || null,
     // THE HEADER'S RUN STATE — mode, RUNNING, elapsed, real step progress. See ui/headerstate.js.
