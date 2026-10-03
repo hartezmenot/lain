@@ -269,8 +269,9 @@ function liveState(s = {}, now = Date.now()) {
         const who = phase.tool === 'computer' ? 'MCP' : 'TOOL';
         const shellish = /^(shell|run_(bash|powershell|cmd))$/.test(String(phase.tool || ''));
         const verb = VERB[phase.tool];
-        const word = phase.label ? `Running ${phase.label}` : shellish ? `Running ${shortCommand(phase.target)}`
-          : verb && verb !== 'RUNNING' ? sentence(verb) : `Running ${String(phase.tool || '').replace(/_/g, ' ')}`;
+        const jobWord = /^job_/.test(String(phase.tool || '')) && phase.label && verb ? `${sentence(verb).replace(/\s+shell$/i, '')} ${phase.label}` : null;   // `Waiting for tests · #3`
+        const word = jobWord || (phase.label ? `Running ${phase.label}` : shellish ? `Running ${shortCommand(phase.target)}`
+          : verb && verb !== 'RUNNING' ? sentence(verb) : `Running ${String(phase.tool || '').replace(/_/g, ' ')}`);
         const what = shellish || phase.label ? '' : String(phase.target || '');
         return { actor: who, word, detail: [what, stepTime(age), 'esc to interrupt'].filter(Boolean).join(' · '), colour: 'info', spin: true, cased: true, path: Boolean(what) };
       }

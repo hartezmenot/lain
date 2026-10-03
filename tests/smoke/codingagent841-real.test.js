@@ -165,7 +165,7 @@ module.exports = async function () {
         // ---- EXECUTION: Normal · Fast · Eco — never Slow (the mode menu's segmented control) -------------------------------------------
         await R.click("document.querySelector('#ideBotHost [data-cell=exec]')");
         await d.until("!!document.querySelector('.modepop .u-seg')", 5000);
-        const opts = await d.js("Array.from(document.querySelector('.modepop .u-seg').querySelectorAll('[data-seg]')).map((b) => b.textContent.trim())");
+        const opts = await d.js("Array.from(document.querySelectorAll('.modepop .u-seg')[1].querySelectorAll('[data-seg]')).map((b) => b.textContent.trim())");
         assert.deepStrictEqual(opts, ['Normal', 'Fast', 'Eco'], 'no Slow');
         await d.js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))");
       } finally {

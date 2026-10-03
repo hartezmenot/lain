@@ -59,7 +59,7 @@ const tools = {
     },
     async run(input = {}, ctx) {
       const which = ['powershell', 'bash', 'cmd'].includes(input.shell) ? input.shell : hostShell();
-      if (input.background) return require('./jobs').tools.run_background.run({ command: input.command, shell: which, cwd: input.cwd, timeout_ms: input.timeout_ms }, ctx);
+      if (input.background) return require('./jobs').tools.run_background.run({ command: input.command, shell: which, cwd: input.cwd, timeout_ms: input.timeout_ms, description: input.description }, ctx);
       return require('./shell').tools[`run_${which}`].run({ command: input.command, cwd: input.cwd, timeout_ms: input.timeout_ms }, ctx);
     },
   },

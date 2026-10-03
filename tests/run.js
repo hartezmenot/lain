@@ -235,6 +235,7 @@ const TIERS = ['unit', 'integration', ...SMOKE_TIERS, 'distribution', 'live'];
 const EXTRA_TIERS = ['adversarial'];
 
 async function main() {
+  const leakBefore = require('./leakcheck').snapshot();   // supervisors on temp homes before the run (S5.2)
   const scope = await require('./supervisor-scope').open();
   process.env.LAIN_SUPERVISOR_LEASE_PORT = String(scope.port);
   try {
@@ -315,6 +316,11 @@ async function main() {
   } finally {
     try { await require('../src/supervisor').cleanupOwned(); }
     finally {
+      // NO SUPERVISOR LEFT BEHIND: what this run started and left is stopped, and the run fails (tests/leakcheck.js).
+      try {
+        const left = require('./leakcheck').leftovers(leakBefore);
+        if (left.length) { process.stdout.write(`\nLEAK: ${left.length} supervisor(s) left by this run (stopped now):\n${left.map((p) => `  ${p.cmd}`).join('\n')}\n`); process.exitCode = 1; }
+      } catch { /* the check never hides the results above */ }
       try { await require('../src/harness/processes').cleanupOwned(); }
       finally {
         await scope.close();

@@ -606,7 +606,7 @@ async function* runTurn(session, userInput, opts = {}) {
         continue;
       }
       yield { type: 'tool_start', id: c.id, name: c.name, input: c.input };
-      status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input), label: (c.input && typeof c.input.description === 'string' && c.input.description.trim()) || null });
+      status(opts, PHASE.RUNNING_TOOL, { tool: c.name, target: describeTarget(c.name, c.input), label: require('./describe').liveLabel(c.name, c.input, toolCtx.app) });
       inflight.beforeTool(session, c, describeTarget(c.name, c.input));   // on disk BEFORE any effect
 
       // EVIDENCE, RECEIPTS AND THE TRANSACTION live in toolstep.js: an unchanged read may be served without re-running,

@@ -15,7 +15,6 @@ const input = () => require('./computerinput').tools;
 
 const ACTIONS = ['windows', 'screenshot', 'click', 'double_click', 'move', 'drag', 'scroll', 'type', 'key', 'hotkey', 'hold_key', 'mouse_button', 'sequence'];
 const READS = new Set(['windows', 'screenshot']);
-const OWN_PROCESSES = new Set(['lain', 'lainhost', 'lain harness', 'lain-harness']);
 
 const schema = {
   name: 'computer',
@@ -43,11 +42,8 @@ const schema = {
   },
 };
 
-/** Is this one of LAIN's own windows? */
-function own(w) {
-  const p = String((w && w.process) || '').toLowerCase().replace(/\.exe$/, '');
-  return OWN_PROCESSES.has(p) || (w && Number(w.pid) === process.pid) || /^LAIN\b/.test(String((w && w.title) || ''));
-}
+/** LAIN's own windows: the Harness host and the terminal hosting this CLI (selfwindows.js). */
+const own = (w) => require('../selfwindows').own(w);
 
 /** AUTO picks the target by exact handle; anywhere else the person picks it. */
 async function pick(ctx, window) {
@@ -77,7 +73,9 @@ async function act(i, ctx) {
     case 'windows': {
       const r = await require('../computermcp').forApp(ctx && ctx.app).windows();
       if (!r.ok) return { output: `NOT LISTED: ${r.why}`, isError: true };
-      return { output: (r.result.windows || []).map((w) => `${w.handle}  "${w.title}" · ${w.process || '?'}${w.foreground ? ' · in front' : ''}${w.minimized ? ' · minimized' : ''}`).join('\n') || '(no windows)' };
+      // A READ: handle, process and title — sensitive surfaces and LAIN's own windows are not offered (S5.2).
+      const cc = require('../computercontrol');
+      return { output: (r.result.windows || []).filter((w) => !cc.sensitive(w) && !own(w)).map((w) => `${w.handle}  "${w.title}" · ${w.process || '?'}${w.foreground ? ' · in front' : ''}${w.minimized ? ' · minimized' : ''}`).join('\n') || '(no windows)' };
     }
     case 'screenshot': return t.computer_capture.run({ window: /^\d+$/.test(String(i.window || '')) ? '' : i.window }, ctx);
     case 'click': return t.computer_click.run({ x: i.x, y: i.y, button: i.button, count: 1 }, ctx);

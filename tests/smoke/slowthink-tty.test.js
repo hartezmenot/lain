@@ -7,6 +7,7 @@
  *   F3  before the first byte the live row says `Waiting for <model>`, with `esc to interrupt`
  *   F1  while it thinks, a box shows the reasoning's last lines; at the first text it folds to `▸ Thought for …`
  *   F2  Ctrl+C mid-think shows `Thinking (interrupted)` and never shows the reasoning as the answer
+ *   S5.2 Esc with a surface open closes the surface and the turn keeps working; the next Esc interrupts it
  *
  * Evidence tier: REAL_TTY_VERIFIED. SKIPS, and says so, without a pseudo-console driver.
  */
@@ -67,6 +68,18 @@ module.exports = async function () {
         { wait: 1500 },
         { key: 'ctrl-c' },
         { snap: 'interrupted', settle: 1500 },
+        { send: 'one more\r' },
+        { until: 'Thinking · \\d', timeout: 15000 },
+        { wait: 500 },
+        { send: '/jobs\r' },
+        { wait: 900 },
+        { snap: 'surface', settle: 200 },
+        { key: 'escape' },
+        { wait: 700 },
+        { snap: 'escClosed', settle: 200 },
+        { key: 'escape' },
+        { wait: 1200 },
+        { snap: 'escInterrupted', settle: 300 },
       ],
     });
   } finally { srv.stop(); }
@@ -89,6 +102,15 @@ module.exports = async function () {
     assert.match(answered, /▸ Thought for \d+s/, answered);
     assert.match(answered, /SLOWTHINK_ANSWER/);
     assert.ok(!/layout of the files|decide which file/.test(answered), `folded away once answered:\n${answered}`);
+  });
+
+  await test('S5.2: Esc closes an open surface first (the turn keeps thinking); the next Esc interrupts the turn', () => {
+    assert.match(tty.visible(run.byName.surface), /Esc close/, 'the /jobs surface is open over a working turn');
+    const closed = tty.visible(run.byName.escClosed);
+    assert.ok(!/Esc close/.test(closed) && /Thinking · \d+s/.test(closed), `the surface closed and the turn still runs:\n${closed}`);
+    const v = tty.visible(run.byName.escInterrupted);
+    assert.match(v, /Interrupted/, v);
+    assert.ok((v.match(/Thinking \(interrupted\)/g) || []).length >= 2, 'the second think was interrupted by Esc');
   });
 
   await test('F2: Ctrl+C mid-think says `Thinking (interrupted)` and never shows the reasoning as the answer', () => {

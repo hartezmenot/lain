@@ -3,7 +3,7 @@
 /**
  * THE FOOTER — one restrained row under the composer (2026-09-23).
  *
- *                                   ctrl+c interrupt · ctrl+o activity · shift+tab mode
+ *                                   esc interrupt    · ctrl+o activity · shift+tab mode
  *
  * Only the keys that work RIGHT NOW, read from the same run state the header
  * draws (ui/headerstate.js): while a turn runs, how to stop it and look inside
@@ -13,7 +13,7 @@
  * panel is open, since the panel sits in its place (ui/geometry.js).
  */
 
-const RUNNING = [['ctrl+c', 'interrupt'], ['ctrl+o', 'activity'], ['shift+tab', 'mode']];
+const RUNNING = [['esc', 'interrupt'], ['ctrl+o', 'activity'], ['shift+tab', 'mode']];
 const IDLE = [['/', 'commands'], ['@', 'files'], ['shift+tab', 'mode']];
 
 function hints(run) {

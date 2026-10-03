@@ -77,7 +77,10 @@ function reportProgress(app, phase) {
   const key = `${done}/${total}|${activity}`;
   if (app._progressKey === key) return;
   app._progressKey = key;
-  journal.note(app, { type: 'phase', phase: (phase && phase.phase) || null, activity, ...(total ? { done, total } : {}) });
+  // THE CLI'S WORDS for the Harness live row (S5.2): `Waiting for GLM 5.3` while a request has no byte yet.
+  let word = '';
+  try { if (phase && phase.live) word = require('./ui/status').liveState({ phase, phaseSince: Date.now() }).word; } catch { word = ''; }
+  journal.note(app, { type: 'phase', phase: (phase && phase.phase) || null, activity, ...(word ? { word } : {}), ...(total ? { done, total } : {}) });
 }
 
 module.exports = { begin, end, outcomeOf, identify, reportProgress };

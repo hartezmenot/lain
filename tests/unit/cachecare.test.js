@@ -70,8 +70,16 @@ module.exports = async function () {
   }
   const byId = (r) => Object.fromEntries(r.categories.map((c) => [c.id, c]));
 
-  await test('CACHE: inspect finds exactly the disposable things, by category, with sizes', () => sandbox(async ({ app }) => {
-    const r = byId(await care.inspect(app));
+  // IN A CHILD PROCESS: an earlier test's late async write (a usage receipt, a catalog) lands in whatever home is set
+  // when it finishes — this sandbox, mid-test — and made the exact counts below flaky (S5.2). A fresh process has none.
+  const inspectIsolated = (home, tmp) => {
+    const script = `require(${JSON.stringify(require.resolve('../../src/cachecare'))}).inspect({ session: { id: 'current-session' } }).then((r) => process.stdout.write(JSON.stringify(r)))`;
+    const r = require('child_process').spawnSync(process.execPath, ['-e', script], { env: { ...process.env, LAIN_CONFIG_DIR: home, LAIN_CACHE_TMP: tmp }, encoding: 'utf8', windowsHide: true, timeout: 60000 });
+    return JSON.parse(r.stdout);
+  };
+
+  await test('CACHE: inspect finds exactly the disposable things, by category, with sizes', () => sandbox(async ({ home, tmp }) => {
+    const r = byId(inspectIsolated(home, tmp));
     assert.strictEqual(r['browser-cache'].items, 4, 'Cache, GrShaderCache, Code Cache, a web model\'s Cache — nothing else of a profile');
     assert.strictEqual(r['browser-cache'].bytes, 1000 + 500 + 700 + 300);
     assert.strictEqual(r['old-builds'].items, 1, 'the superseded host only; the newest host and the only pty stay');

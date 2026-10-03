@@ -32,6 +32,13 @@ function start({ via = 'lain', argv = process.argv.slice(2) } = {}) {
   delete process.env.LAIN_VIA; delete process.env.NOEMA_VIA;
   const home = require('./home');
   const pkg = require('../package.json');
+  // THE OLD HOME'S OWN SUPERVISOR is stopped first (verified by ping), so the one-time move is not deferred forever.
+  const from = home.pendingMove();
+  const ready = from ? require('./supervisor').shutdownIn(from, { timeoutMs: 4000 }).catch(() => null) : Promise.resolve();
+  return ready.then(() => afterMove(home, pkg, via, argv));
+}
+
+function afterMove(home, pkg, via, argv) {
   const moved = home.migrate({ version: pkg.version });
   if (moved.state === 'moved') process.stderr.write(`LAIN moved your data to ${moved.to} (the old folder now points there).\n`);
   else if (moved.state === 'deferred' && !argv.includes('--version') && !argv.includes('-v')) process.stderr.write(`note: ${moved.why}\n`);

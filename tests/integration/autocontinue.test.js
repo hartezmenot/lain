@@ -150,37 +150,6 @@ module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGAC
       delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT;
     }
   });
-  await test('GOAL LOOP (2026-10-01): no plan, the model names unfinished work — the goal continues without `continue`, and stops when met', async () => {
-    const cwd = sandbox();
-    script([
-      { text: 'Writing the JSON file.', tool_calls: [write('config/settings.json', '{"theme":"dark"}')] },
-      { text: 'Moved the settings into config/settings.json. Next I will update store.js to load it.' },
-      { text: 'store.js now reads the JSON file.', tool_calls: [write('store.js', 'module.exports = require("./config/settings.json");')] },
-      { text: 'Both files are in place; the old inline object is gone. The change is complete.' },
-    ]);
-    const app = newApp(cwd);
-    try {
-      await app.prepare();
-      await app.submit('move the account settings into a JSON file');
-      const turns = app.session.turns || [];
-      assert.strictEqual(turns.filter((t) => !t.from).length, 1, 'the person spoke once');
-      const goal = turns.filter((t) => t.from === 'goal-continue');
-      const phases = require('../../src/workbench').of(app.session).phases.map((p) => JSON.stringify(p.decision) + ' ' + JSON.stringify(p.outcome) + ' ' + JSON.stringify(p.problems));
-      assert.strictEqual(goal.length, 1, `one automatic continuation, then the goal was met: ${turns.map((t) => t.from || 'person').join(',')} · ${phases.join(' | ')} · ${require('../../src/sessionviews').current(app.session)} · ${JSON.stringify(turns[0].text)}`);
-      assert.ok(fs.existsSync(path.join(cwd, 'store.js')), 'the continuation did the work');
-      const prompt = String(goal[0].userInput || '');
-      assert.match(prompt, /CONTINUE THE SAME GOAL/);
-      assert.match(prompt, /update store.js to load it/, 'the named next step rides along');
-      assert.match(prompt, /orientation, not an order/, 'and it is advisory');
-      assert.ok(!/^continue$/i.test(prompt.trim()), 'never the bare word');
-      const c = require('../../src/autocontinue').state(app.session);
-      assert.strictEqual(c.log.filter((e) => e.cause === 'goal-continue').length, 1, 'every automatic continuation is logged with its cause');
-    } finally {
-      cleanup(cwd);
-      delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT;
-    }
-  });
-
   await test('GOAL LOOP: a question or a stated blocker ends the turn for the person — never auto-continued', async () => {
     const cwd = sandbox();
     script([

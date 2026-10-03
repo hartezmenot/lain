@@ -282,6 +282,7 @@ tools.run_background = {
     });
     if (!started.ok) return { output: started.why, isError: true };
     const { job, shell } = started;
+    job.label = String(input.description || '').trim() || null;   // the live row says `Waiting for tests · #3`
     // A LONG JOB IS THE ONE THING A COMPANION MOST NEEDS TO SHOW, because it is
     // the state where LAIN is legitimately quiet and a window with nothing in
     // it is indistinguishable from a window that has stopped working.

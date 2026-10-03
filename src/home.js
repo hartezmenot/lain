@@ -74,6 +74,14 @@ function junction(target, at) {
   try { fs.symlinkSync(target, at, 'junction'); return true; } catch { return false; }
 }
 
+/** The legacy home a move would take, or null (no override, no real ~/.lain yet). Pure. */
+function pendingMove() {
+  if (override()) return null;
+  const c = canonical();
+  if (realDir(c) && !looksHistorical(c)) return null;
+  return legacyHomes().find((l) => realDir(l)) || null;
+}
+
 /**
  * MOVE THE CURRENT HOME TO ~/.lain, once. { state: 'none'|'done'|'moved'|'deferred'|'overridden', why?, from?, to? }
  */
@@ -113,4 +121,4 @@ function migrate({ now = Date.now(), version = null } = {}) {
   return { state: 'moved', from, to: c, junction: made, verified, archived };
 }
 
-module.exports = { canonical, legacy, legacyHomes, resolve, userHome, migrate, isJunction, override };
+module.exports = { canonical, legacy, legacyHomes, resolve, userHome, migrate, pendingMove, isJunction, override };

@@ -54,7 +54,7 @@ module.exports = async function () {
       // NOTHING CHOSEN (this profile has no account): the route says "Select model" — no provider mark, no effort,
       // never a model under an unselected provider (Phase 8.4.1). With one, the model sits next to it (modelaccept-real).
       const cells = await d.js("Array.from(document.querySelectorAll('#composerCells .cell')).map((x) => x.getAttribute('data-cell') + (x.classList.contains('need') ? ':need' : ''))");
-      assert.deepStrictEqual(cells, ['model:need', 'exec'], `nothing selected: one "Select model" pill, and the mode icon: ${JSON.stringify(cells)}`);
+      assert.deepStrictEqual(cells, ['model:need', 'perm', 'exec'], `nothing selected: one "Select model" pill, the permission mode, and the mode icon: ${JSON.stringify(cells)}`);
       assert.strictEqual(await d.js("document.querySelector('#composerCells .cell.need .mt').textContent"), 'Select model');
 
       // THE CODING AGENT WAITS FOR A FOLDER — and says so.

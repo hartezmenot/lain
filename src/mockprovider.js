@@ -112,6 +112,7 @@ async function* chat(pc, messages, opts = {}) {
   if (typeof step.reasoning === 'string' && step.reasoning) {
     for (const part of step.reasoning.match(/\S+\s*|\s+/g) || [step.reasoning]) {
       if (opts.signal && opts.signal.aborted) break;
+      if (step.reasoningDelayMs > 0) await new Promise((r) => setTimeout(r, step.reasoningDelayMs));   // a slow think, observable
       yield { type: 'reasoning', chunk: part };
     }
   }

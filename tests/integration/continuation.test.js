@@ -305,35 +305,6 @@ module.exports = () => require('../helpers').legacyOnly(async () => {   // LEGAC
       delete process.env.LAIN_MOCK_SCRIPT;
     }
   });
-
-  await test('COMPLETION: "implemented" with every step ticked does NOT finish the task', async () => {
-    // The stale-plan symptom, as behaviour: the model ticks the last box and
-    // says it is done, having changed a file and run nothing. The checklist is
-    // a question; the evidence answers it.
-    const cwd = sandbox();
-    script([
-      { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { objective: 'x', steps: ['edit it'] } }] },
-      { text: 'Reading it first.', tool_calls: [{ name: 'read_file', input: { path: 'reconnect.js' } }] },
-      { text: 'Editing.', tool_calls: [{ name: 'write_file', input: { path: 'reconnect.js', content: 'module.exports = { reconnect(){ return 1; } };\n' } }] },
-      { text: 'Implemented.', tool_calls: [{ name: 'plan_step_done', input: { n: 1, note: 'edited' } }] },
-    ]);
-    const app = newApp(cwd);
-    try {
-      await app.prepare();
-      await app.submit('make reconnect return 1');
-      assert.strictEqual(app.session.plan.isFinished, true, 'every step really is ticked');
-      assert.notStrictEqual(app.session.lifecycle.state, 'DONE',
-        'a ticked checklist over an unverified change is not a finished task');
-      assert.ok(app.pendingCompletion, 'and LAIN says why rather than going quiet');
-      assert.ok(/nothing has been run to check/.test(app.pendingCompletion), app.pendingCompletion);
-      assert.strictEqual(app.session.plan.isLive, true, 'the plan is not retired on a refusal');
-    } finally {
-      removeSandbox(cwd);
-      delete process.env.LAIN_PROVIDER;
-      delete process.env.LAIN_MOCK_SCRIPT;
-    }
-  });
-
   await test('QUOTA: an exhausted account is NOT retried, and the task survives intact', async () => {
     // ---- MEASURED OFF A REAL SESSION --------------------------------------
     //

@@ -124,7 +124,9 @@ function fromTurnEvent(ev, ctx = {}) {
     case 'tool_start': {
       let target = '';
       try { target = require('./turn').describeTarget(ev.name, ev.input) || ''; } catch { target = ''; }
-      return { type: 'tool.start', id: ev.id || null, name: ev.name, target: target || targetOf(ev.input) };
+      let word = '';
+      try { word = require('./ui/status').liveState({ phase: { phase: 'RUNNING_TOOL', tool: ev.name, target, label: (ev.input && typeof ev.input.description === 'string' && ev.input.description.trim()) || null } }).word; } catch { word = ''; }
+      return { type: 'tool.start', id: ev.id || null, name: ev.name, target: target || targetOf(ev.input), word };   // the CLI's live-row words
     }
     case 'tool_result': return { type: 'tool.end', id: ev.id || null, name: ev.name, ok: !ev.isError, ms: ctx.startedAt && ev.id && ctx.startedAt[ev.id] ? Date.now() - ctx.startedAt[ev.id] : null, summary: oneLine(ev.output) };
     case 'usage_live': return null;

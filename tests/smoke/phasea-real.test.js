@@ -123,12 +123,12 @@ module.exports = async function () {
       await R.key('Enter');
       // THE FOLDER IS NOT TRUSTED YET: the turn asks (askCard) and the live area keeps saying what it is doing.
       await d.until("!document.getElementById('askCard').hidden && /Allow just this one/.test(document.getElementById('askCard').innerText)", 20000);
-      assert.match(await d.js("(document.querySelector('[data-live=work]') || {}).innerText || ''"), /Reading project|Thinking|Working/);
+      assert.match(await d.js("(document.querySelector('[data-live=work]') || {}).innerText || ''"), /Reading|Thinking|Writing|Waiting for/);
       await R.click(R.byText('#askCard button', /Allow just this one/));
       await d.until("Array.from(document.querySelectorAll('#stream .msg.assistant')).some((m) => /the answer/.test(m.innerText))", 30000);
       await d.js('window.__stopSeen()');
       const seen = await d.js('window.__seen');
-      assert.ok(seen.some((s) => /Thinking|Reading project|Working/.test(s)), `a factual work line: ${JSON.stringify(seen.slice(0, 12))}`);
+      assert.ok(seen.some((s) => /Thinking|Reading|Writing|Waiting for/.test(s)), `a factual work line: ${JSON.stringify(seen.slice(0, 12))}`);
       assert.ok(!seen.some((s) => /job_wait/.test(s)), 'no tool machinery words');
       // THE ANSWER: prose and a real code block.
       assert.strictEqual(await d.js("!!document.querySelector('#stream .msg.assistant strong')"), true, 'bold is bold, not asterisks');

@@ -282,4 +282,13 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
   };
 }
 
-module.exports = { outputTail, describeTarget, firstLine, actionRecord, editSize, EMPTY_ANSWER, BRIEF_RESULT };
+/** The live row's label for a call: a shell's own description, or a job's (`tests · #3`); null for the tool's own words. */
+function liveLabel(name, input, app) {
+  const i = input || {};
+  if (typeof i.description === 'string' && i.description.trim()) return i.description.trim();
+  const id = i.id != null ? String(i.id).replace(/^#/, '') : '';
+  const j = id && /^job_/.test(name) && app && app._jobs ? app._jobs.get(id) : null;
+  return j && j.label ? `${j.label} · #${j.id}` : null;
+}
+
+module.exports = { liveLabel, outputTail, describeTarget, firstLine, actionRecord, editSize, EMPTY_ANSWER, BRIEF_RESULT };
