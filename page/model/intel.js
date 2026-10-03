@@ -107,7 +107,7 @@ function client() {
     if (s.modelId) return L.fmt.model(s.modelId);
     return 'Select model';
   }
-  function effortText(s) { return s.effortLabel || (s.efforts && s.efforts.length ? 'Default' : ''); }
+  function effortText(s) { if (s.effortSource === 'lain' && s.effectiveLabel) return 'LAIN effort · ' + s.effectiveLabel + (s.effortDefaultWhy ? ' · ' + s.effortDefaultWhy : ''); return s.effortLabel || (s.efforts && s.efforts.length ? 'Default' : ''); }
   function needs(s) { return !s.ok && (s.needs === 'family' || s.needs === 'account' || s.needs === 'model' || s.needs === 'decision' || !s.family); }
   function quotaOf(a) {
     if (!a || !a.quota || !a.quota.length) return '';
@@ -217,7 +217,8 @@ function client() {
           b.setAttribute('data-model', m.id);
           b.appendChild(el('span', '', m.label));
           b.appendChild(el('small', '', m.effortLabels && m.effortLabels.length ? m.effortLabels.join(' / ') : ''));
-          b.onclick = function () { L.closePop(); choose(lane, { family: s.family, model: m.id }); };
+          // THE EFFORT STEP, RIGHT AFTER THE MODEL (S12a): native levels or LAIN effort — the same popover as the effort control.
+          b.onclick = async function () { L.closePop(); var cr = await choose(lane, { family: s.family, model: m.id }); if (cr && cr.ok && !cr.deferred && cr.lane && (cr.lane.efforts || []).length > 1 && anchor.isConnected) pickEffort(anchor, lane, o); };
           list.appendChild(b);
         });
         if (!rows.length) list.appendChild(el('div', 'empty', text ? 'No model matches “' + text + '” on ' + f.label + '.' : f.label + ' offers no models for this lane.'));
@@ -246,10 +247,10 @@ function client() {
       if (!levels.length) p.appendChild(el('div', 'empty', modelText(s) + ' has no configurable effort.'));
       levels.forEach(function (e, i) {
         var b = el('button', 'mrowx');
-        b.setAttribute('aria-selected', String(e === s.effort));
+        b.setAttribute('aria-selected', String(e === (lainEffort ? s.effective : s.effort)));
         b.setAttribute('data-effort', e);
         b.appendChild(el('span', '', labels[i] || e));
-        b.appendChild(el('small', '', e === s.defaultEffort ? 'default' : ''));
+        b.appendChild(el('small', '', lainEffort ? (e === s.effective && !s.effortExplicit ? (s.effortDefaultWhy || 'default') : '') : (e === s.defaultEffort ? 'default' : '')));
         b.onclick = async function () {
           L.closePop();
           var r = await L.api('/api/intel/effort', { lane: lane, effort: e });
@@ -259,7 +260,7 @@ function client() {
         p.appendChild(b);
       });
       p.appendChild(el('div', 'anote', lainEffort
-        ? 'This model has no native effort. LAIN uses this to set how much context, exploration and delegation it spends. Separate from execution (Normal · Fast · Eco).'
+        ? 'No native effort on this model: LAIN sets how much it explores, reads at once and keeps in context. Fast and Eco default to Low; your choice wins.'
         : 'How much the model reasons — sent to the provider as it declares it. Default follows execution: Fast and Eco use the lowest level, Normal the model\'s default.'));
     }, { cls: 'apop', prefer: o.prefer || 'above', alignRight: o.alignRight });
   }
@@ -346,7 +347,7 @@ function client() {
     box.appendChild(mp);
     if (s.efforts && s.efforts.length) {
       box.appendChild(el('span', 'rs', '·'));
-      var ep = part(d.effortLabel || 'Default', 'rp-eff', 'Effort — how much the model reasons', function (b) { pickEffort(b, lane, o); });
+      var ep = part(effortText(s) || 'Default', 'rp-eff', s.effortSource === 'lain' ? 'LAIN effort — how much LAIN explores for this model' : 'Effort — how much the model reasons', function (b) { pickEffort(b, lane, o); });
       ep.setAttribute('data-part', 'effort');
       box.appendChild(ep);
     }
@@ -361,7 +362,7 @@ function client() {
     var s = sel(lane);
     var o = opts || {};
     var d = s.display || { resolved: false, text: 'Select model' };
-    var sig = JSON.stringify([lane, d, s.efforts, s.effort, s.family, s.policyLabel, s.backing && s.backing.name]);
+    var sig = JSON.stringify([lane, d, s.efforts, s.effort, s.effective, s.effortDefaultWhy, s.family, s.policyLabel, s.backing && s.backing.name]);
     if (box.dataset.sig === sig) return;
     box.dataset.sig = sig;
     box.textContent = '';
@@ -395,10 +396,10 @@ function client() {
     box.appendChild(mp);
     var levels = s.efforts || [];
     if (levels.length) {
-      var ep = cell('eff', 'effort', 'Effort', 'Effort · ' + (d.effortLabel || 'Default') + ' — how much the model reasons', function (b) { pickEffort(b, lane, o); });
+      var ep = cell('eff', 'effort', 'Effort', (s.effortSource === 'lain' ? effortText(s) + ' — how much LAIN explores for this model' : 'Effort · ' + (d.effortLabel || 'Default') + ' — how much the model reasons'), function (b) { pickEffort(b, lane, o); });
       ep.appendChild(L.icon('brain', 16));
       // A SMALL LEVEL METER: where the chosen effort sits among the ones this model declares (lowest → highest).
-      var at = levels.indexOf(s.effort);
+      var at = levels.indexOf(s.effortSource === 'lain' ? s.effective : s.effort);
       var on = at < 0 ? 2 : Math.max(1, Math.round(((at + 1) / levels.length) * 3));
       var lv = el('span', 'lvl'); for (var i = 1; i <= 3; i++) lv.appendChild(el('i', i <= on ? 'on' : ''));
       ep.appendChild(lv);

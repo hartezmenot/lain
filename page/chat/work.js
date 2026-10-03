@@ -363,7 +363,7 @@ function client() {
     var mc = m.coding || {};
     var d = mc.display || {};
     cfg.appendChild(cfgBtn('model', d.resolved ? d.modelLabel : 'Select model', d.resolved ? d.sourceLabel : 'Route', function (bt) { if (L.intel) L.intel.pickModel(bt, 'coding'); }));
-    if (mc.efforts && mc.efforts.length) cfg.appendChild(cfgBtn('sliders', mc.effortLabel || 'Default', 'Effort', function (bt) { if (L.intel) L.intel.pickEffort(bt, 'coding'); }));
+    if (mc.efforts && mc.efforts.length) cfg.appendChild(cfgBtn('sliders', (L.intel ? L.intel.effortText(mc) : mc.effortLabel) || 'Default', 'Effort', function (bt) { if (L.intel) L.intel.pickEffort(bt, 'coding'); }));
     cfg.appendChild(cfgBtn(w.profile === 'FAST' ? 'bolt' : w.profile === 'ECO' ? 'leaf' : 'play', (w.profile || 'NORMAL').charAt(0) + (w.profile || 'NORMAL').slice(1).toLowerCase() + (w.pendingProfile ? ' → ' + w.pendingProfile.toLowerCase() : ''), 'Execution', function (bt) { if (L.composer) L.composer.profileMenu(bt); }));
     cfg.appendChild(cfgBtn('layers', w.strategy ? w.strategy.label : 'Normal', 'Run strategy', function (bt) { if (L.composer) L.composer.strategyMenu(bt); }));
     b3.appendChild(cfg);
