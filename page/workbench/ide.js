@@ -294,8 +294,6 @@ const CSS = `
 .chat-dock .cd-dot.warn{background:var(--warning)} .chat-dock .cd-dot.unread{background:var(--info)}
 @keyframes lain-dock{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
 /* "This requires code changes. Move to Agent?" and a task handed over from Chat */
-.card.propose .pq{font-weight:600;margin:0 0 4px}
-.card.propose .pt{font-size:12.5px;color:var(--text-secondary);margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
 .card.handoff{box-shadow:inset 2px 0 0 var(--accent-primary)}
 .card.handoff h4{margin:0 0 6px;font-size:12px}
 .card.handoff .hk{display:grid;grid-template-columns:92px 1fr;gap:3px 10px;font-size:12.5px;margin:6px 0 10px}
@@ -590,12 +588,15 @@ function client() {
   // same threads the Chat room shows. Which tab is in front is paint state (per viewer); switching stops nothing.
   // MINIMISED, the sidecar becomes "Chat ●" built into the lower-right edge of the workbench (never a floating
   // button); the dot says the Agent is working, something new arrived, or something needs attention.
-  var sideTab = (function () { try { return localStorage.getItem('lain.ide.sideTab') === 'chat' ? 'chat' : 'agent'; } catch (e) { return 'agent'; } })();
+  // THE CHAT | AGENT TOGGLE (S12) decides who answers — never the words. Core remembers it PER PROJECT (journey.idePane,
+  // default Agent); this window adopts Core's value whenever the project changes, and reports a change through
+  // /api/journey/surface (shell/house.js), which is where Core records it.
+  var sideTab = 'agent';
+  var sideTabProject = null;
   var sideSeg = null;
   function convoMode() { return sideTab === 'chat' ? 'chat' : 'ide'; }
   function setSideTab(t, opts) {
     sideTab = t === 'chat' ? 'chat' : 'agent';
-    try { localStorage.setItem('lain.ide.sideTab', sideTab); } catch (e) { /* per viewer */ }
     if (sideSeg) sideSeg.set(sideTab);
     $('ideBot').setAttribute('data-side', sideTab);
     if (center !== 'chat') L.mountConvo($('ideBotHost'), convoMode());
@@ -1081,6 +1082,9 @@ function client() {
       } else ho.hidden = true;
       return;
     }
+    // A PROJECT OPENED: adopt its remembered Chat | Agent toggle (Core's journey.idePane, default Agent).
+    var proj = s.workspace.project.root;
+    if (proj !== sideTabProject) { sideTabProject = proj; var want = s.journey && s.journey.idePane === 'bot' ? 'chat' : 'agent'; if (want !== sideTab) setSideTab(want, { quiet: true }); }
     L.mountConvo(center === 'chat' ? $('ideCodingHost') : $('ideBotHost'), center === 'chat' ? 'ide' : convoMode());
     if (sideTab === 'chat' && !$('main').classList.contains('bot-off')) seenChat = chatCount(s);
     paintDock(s);

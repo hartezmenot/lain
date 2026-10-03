@@ -156,13 +156,12 @@ function client() {
   function extra() {
     var S = L.state();
     if (!ide() || !S || S.current.lane !== 'engineering') return {};
-    var mode = pref('mode', 'auto');
     var ctx = pref('context', 'on') === 'on';
-    var pane = agentPane() ? 'agent' : 'bot';
+    var pane = agentPane() ? 'agent' : 'bot';   // the Chat | Agent toggle — Core never routes by the words (S12)
     return {
       from: 'ide',
       pane: pane,
-      route: pane === 'agent' ? 'agent' : (mode === 'bot' ? 'bot' : undefined),
+      route: pane,
       focus: pref('agentContext', 'focused') === 'focused',
       context: ctx ? { file: !off.file, selection: !off.selection, problems: !off.problems, terminal: !off.terminal } : { file: false, selection: false, problems: false, terminal: false },
     };

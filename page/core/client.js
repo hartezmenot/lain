@@ -492,29 +492,6 @@ function client() {
   }
 
   /** "This requires code changes. Move to Agent?" — Core's proposal, answered once. */
-  function proposalCard(pr) {
-    var c = el('div', 'card propose');
-    c.id = 'proposeCard';
-    c.appendChild(el('p', 'pq', 'This requires code changes. Move to Agent?'));
-    c.appendChild(el('p', 'pt', pr.task || pr.text));
-    var row = el('div', 'choices');
-    var go = el('button', 'btn primary', 'Move to Agent');
-    var stay = el('button', 'btn', 'Stay with BOT');
-    var answer = async function (accept) {
-      go.disabled = stay.disabled = true;
-      var r = await api('/api/agent/proposal', { id: pr.id, accept: accept });
-      if (!r.ok) { go.disabled = stay.disabled = false; notice(r.why, true); return; }
-      if (accept && L.botpane) L.botpane.show('agent');
-      poll();
-    };
-    go.onclick = function () { answer(true); };
-    stay.onclick = function () { answer(false); };
-    row.appendChild(go);
-    row.appendChild(stay);
-    c.appendChild(row);
-    return c;
-  }
-
   /** Prose with fenced code blocks drawn as code. Text only; never markup. */
   function body(text) {
     var box = el('div', 'body');
@@ -535,9 +512,7 @@ function client() {
     var box = $('stream');
     var atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
     var msgs = visibleMessages();
-    var pr = S.journey && S.journey.proposal;
-    var showPr = pr && ui.mode === 'ide' && pane() === 'bot' ? pr : null;
-    var sig = JSON.stringify([ui.mode, S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, msgs.length ? (msgs[msgs.length - 1].facts || []).length : 0, S.plans && S.plans.prompt, showPr && showPr.id, S.journey && S.journey.agent && S.journey.agent.running, L.work ? L.work.sig(S) : '']);
+    var sig = JSON.stringify([ui.mode, S.current.id, msgs.length, msgs.length ? msgs[msgs.length - 1].text.length : 0, msgs.length ? (msgs[msgs.length - 1].facts || []).length : 0, S.plans && S.plans.prompt, S.journey && S.journey.agent && S.journey.agent.running, L.work ? L.work.sig(S) : '']);
     if (box.dataset.sig === sig && !L.plan.dirty) return;
     box.dataset.sig = sig;
     box.textContent = '';
@@ -589,7 +564,6 @@ function client() {
     });
     flushUntil(Infinity);
     sup.filter(function (x) { return x.last; }).forEach(function (x) { x.nodes.forEach(function (n) { box.appendChild(n); }); });
-    if (showPr) box.appendChild(proposalCard(showPr));
     var plan = lane() === 'chat' ? L.plan.buildCard(S) : null;
     if (plan) box.appendChild(plan);
     L.plan.dirty = false;
