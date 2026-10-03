@@ -124,6 +124,32 @@ module.exports = async function () {
       assert.deepStrictEqual([f.policy, f.pinned], ['pinned', B.id], 'still one account only — now Work');
     });
 
+    await test('RESET ON THE PROVIDER\'S SITE: every account remembered as limited — the person\'s next message asks the provider once; LAIN\'s own resume does not', async () => {
+      const { app, A, B, seen } = await codexApp({ aLimited: false, c: false });
+      const far = Date.now() + 7 * 24 * 3600 * 1000;
+      for (const x of [A, B]) store.recordQuota(x.id, { limited: { until: far, reason: 'rate limited' } });
+      const before = si.lane(app, app.session, 'chat');
+      assert.strictEqual(before.ok, false);
+      assert.match(before.why, /every Codex account that serves .* is limited/);
+      // AUTOMATIC: the remembered limit stands, and nothing is sent.
+      require('../../src/jobrunner').turnOptions(app, { session: app.session, from: 'rate-limit-resume' });
+      assert.ok(store.limitedNow(A.id) && store.limitedNow(B.id), 'an automatic resume does not spend a request on a remembered limit');
+      // THE PERSON: one real request, and the reply ends the stored limit.
+      await chatTurn(app, 'Say ok.');
+      assert.ok(seen(A).length + seen(B).length >= 1, 'a request reached the provider');
+      assert.ok(!store.limitedNow(A.id) && !store.limitedNow(B.id), 'the limit is no longer remembered');
+      assert.strictEqual(si.lane(app, app.session, 'chat').ok, true);
+    });
+
+    await test('RESET, BUT STILL LIMITED: the provider refuses again — each account asked once, and the limit is recorded again', async () => {
+      const { app, A, B, seen } = await codexApp({ aLimited: true, c: false });
+      fx.limit(app, B.id);
+      for (const x of [A, B]) store.recordQuota(x.id, { limited: { until: Date.now() + 3600 * 1000, reason: 'rate limited' } });
+      await chatTurn(app, 'Say ok.');
+      assert.ok(seen(A).length <= 1 && seen(B).length <= 1 && seen(A).length + seen(B).length >= 1, `asked at most once each (A ${seen(A).length}, B ${seen(B).length})`);
+      assert.ok(store.limitedNow(A.id) || store.limitedNow(B.id), 'limited again — the provider said so');
+    });
+
     await test('ASK: A limited → B is PROPOSED; no request goes through B until the person says Switch', async () => {
       const { app, B, seen } = await codexApp({ aLimited: true, policy: 'ask' });
       await chatTurn(app, 'Say ok.');

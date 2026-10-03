@@ -157,6 +157,14 @@ function limitedNow(accountId, now = Date.now()) {
   return l;
 }
 
+/** THE LIMIT IS OVER — a request just succeeded, or the person asked again. Writes only when a limit was stored. */
+function clearLimit(accountId) {
+  const q = quotaOf(accountId);
+  if (!q || !q.limited) return false;
+  recordQuota(accountId, { limited: null });
+  return true;
+}
+
 // ---------------------------------------------------------- placeholders --
 
 function placeholders() { return read().placeholders; }
@@ -179,7 +187,7 @@ function reset() { memo = null; stats.clear(); }
 module.exports = {
   POLICY, POLICY_LABEL, ROLES, file, read, update, generation, event, events,
   familyState, setPolicy, setOrder, alias, setAlias, isEnabled, setEnabled,
-  quotaOf, recordQuota, limitedNow,
+  quotaOf, recordQuota, limitedNow, clearLimit,
   placeholders, putPlaceholder, dropPlaceholder, stampSeen, seenAt,
   roleDefault, setRoleDefault, reset,
 };

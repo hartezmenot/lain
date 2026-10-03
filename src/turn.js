@@ -229,6 +229,8 @@ async function* runTurn(session, userInput, opts = {}) {
     }
     // An empty body proves the route ANSWERED; counted, it opened the breaker and later prompts went unsent.
     if (avail && !(failure && failure.empty)) { avail.noteOutcome(connId, availModel, failure || null); }
+    // A REPLY ENDS A STORED ACCOUNT LIMIT — the provider has just said otherwise (fabric/store.js clearLimit).
+    if (!failure && cfg.account) { try { require('./fabric/store').clearLimit(cfg.account); } catch { /* re-read next turn */ } }
     // A STALL AFTER THE REPLY STARTED: the text is kept and the step resumed (finish.js), not the turn ended.
     if (require('./finish').resumable(failure, text, calls, record)) { finish = 'stalled'; failure = null; yield { type: 'notice', level: 'warn', transient: true, message: 'STREAM STALLED · the provider went silent mid-reply · resuming from what it said' }; }
     if (failure) {
