@@ -32,9 +32,10 @@ module.exports = async function () {
     assert.strictEqual(progress.state(live, t0 + 5000).word, 'WAITING', 'no data yet is WAITING, not THINKING');
     progress.reasoning(live, 2100, t0 + 6000);
     assert.strictEqual(progress.state(live, t0 + 7000).word, 'THINKING');
-    assert.match(progress.state(live, t0 + 7000).detail, /2\.1 KB/, 'reasoning is shown as a size, never quoted');
+    // TOKENS, NOT KB (2026-10-01), and marked as an ESTIMATE: 2100 chars ≈ 525 tokens. Never quoted.
+    assert.match(progress.state(live, t0 + 7000).detail, /^~525 tok$/, 'reasoning is shown as an estimated token count, never quoted');
     progress.text(live, 'Checking the recovery state. ', t0 + 8000);
-    assert.strictEqual(progress.state(live, t0 + 8500).word, 'STREAMING');
+    assert.strictEqual(progress.state(live, t0 + 8500).word, 'WRITING');
     progress.toolDelta(live, { name: 'edit_file', bytes: 9830, index: 0, calls: 1 }, t0 + 9000);
     const st = progress.state(live, t0 + 9500);
     assert.strictEqual(st.word, 'PREPARING TOOL');
@@ -98,11 +99,12 @@ module.exports = async function () {
     assert.strictEqual(progress.state(live).word, 'PREPARING TOOL');
   });
 
-  await test('STREAM PROGRESS: the Anthropic parser counts input_json deltas and hidden thinking', async () => {
+  await test('STREAM PROGRESS: the Anthropic parser counts input_json deltas; thinking is reasoning, a signature is hidden reasoning', async () => {
     const provider = require('../../src/provider');
     const frames = [
       `data: ${JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 10 } } })}\n\n`,
       `data: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'secret plan' } })}\n\n`,
+      `data: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'abc' } })}\n\n`,
       `data: ${JSON.stringify({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 't1', name: 'write_file' } })}\n\n`,
       `data: ${JSON.stringify({ type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"path":"a.js",' } })}\n\n`,
       `data: ${JSON.stringify({ type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '"content":"hi"}' } })}\n\n`,
@@ -112,37 +114,42 @@ module.exports = async function () {
     const origFetch = global.fetch;
     global.fetch = async () => sseResponse(frames);
     const texts = [];
+    const thoughts = [];
     try {
       const pc = { protocol: 'anthropic', provider: 'anthropic', model: 'm', baseUrl: 'http://127.0.0.1:1', apiKey: 'k' };
       for await (const ev of provider.chat(pc, [{ role: 'user', content: 'hi' }], { live, tools: [] })) {
-        if (ev.type === 'text' || ev.type === 'reasoning') texts.push(ev.chunk);
+        if (ev.type === 'text') texts.push(ev.chunk);
+        if (ev.type === 'reasoning') thoughts.push(ev);
       }
     } finally { global.fetch = origFetch; }
-    assert.ok(live.lastReasoningAt > 0, 'hidden thinking is the model working');
-    assert.ok(!texts.join('').includes('secret plan'), 'and it is never surfaced');
+    assert.deepStrictEqual(thoughts.map((t) => [t.chunk, Boolean(t.hidden)]), [['secret plan', false], ['', true]], 'visible thinking is shown while it streams; a signature is hidden');
+    assert.ok(!texts.join('').includes('secret plan'), 'and thinking is never the answer');
     assert.strictEqual(live.tool.name, 'write_file');
     assert.strictEqual(live.tool.bytes, '{"path":"a.js","content":"hi"}'.length);
   });
 
-  await test('ACTIVITY BOX + STATUS ROW: both read the same record; the rectangle carries clock and commentary', () => {
+  await test('ACTIVITY BOX + STATUS ROW: one record, one live line; the box carries only commentary', () => {
     const t0 = Date.now() - 21_000;
     const live = progress.begin(t0);
     progress.text(live, 'Checking whether recovery state matches the latest completed tool receipt', Date.now() - 100);
     const state = { busy: true, phase: { phase: 'RECEIVING', live }, phaseSince: t0, recent: [] };
     const s = box.summary(state);
-    assert.strictEqual(s.kind, 'STREAMING');
+    assert.strictEqual(s.kind, 'WRITING');
     assert.strictEqual(s.clock, '00:21');
     assert.match(s.commentary, /recovery state matches/);
-    assert.ok(box.rows(state, 99) >= 3, 'the model is primary: kind, detail, commentary');
-    assert.strictEqual(box.rows(state, 99, Date.now(), { minimal: true }), 1, 'a diff/tool primary minimizes it to one line');
+    // THE BOX NO LONGER REPEATS THE LIVE ROW: only the model's own words take rows.
+    assert.strictEqual(box.rows(state, 99), 2, 'commentary only — the state word and clock live on the one activity line');
+    assert.strictEqual(box.rows(state, 99, Date.now(), { minimal: true }), 0, 'a diff/tool primary leaves no box at all');
     const row = status.liveState({ phase: state.phase, phaseSince: t0 });
-    assert.strictEqual(row.word, 'STREAMING', 'the status strip says the same word');
+    assert.strictEqual(row.word, 'Writing', 'the status strip says the same state, in the live row\'s words');
     progress.toolDelta(live, { name: 'edit_file', bytes: 9830 });
     assert.strictEqual(box.summary(state).kind, 'PREPARING TOOL');
-    assert.strictEqual(status.liveState({ phase: state.phase, phaseSince: t0 }).word, 'PREPARING TOOL');
+    assert.strictEqual(status.liveState({ phase: state.phase, phaseSince: t0 }).word, 'Writing', 'the row: writing a tool call');
     const lines = box.draw(state, 80, box.rows(state, 99)).map((l) => l.replace(/\x1b\[[0-9;]*m/g, ''));
-    assert.match(lines[0], /PREPARING TOOL · 00:2\d/);
-    assert.match(lines[1], /edit_file · 9\.6 KB/);
+    assert.ok(!lines.some((l) => /PREPARING TOOL/.test(l)), 'the box never repeats the state word');
+    assert.match(lines.join(' '), /recovery state matches/);
+    const strip = status.statusStrip({ phase: state.phase, phaseSince: t0 }, 80, 1).join('').replace(/\x1b\[[0-9;]*m/g, '');
+    assert.match(strip, /Writing · edit_file call · 9\.6 KB/, 'the one activity line carries it');
   });
 
   await test('ACTIVITY BOX: a rate limit is RATE LIMITED, not generic WAITING', () => {
@@ -153,7 +160,7 @@ module.exports = async function () {
   await test('TURN LOOP: every provider request gets a progress record, passed to the wire and the status', async () => {
     const fs = require('fs');
     const src = fs.readFileSync(require.resolve('../../src/turn'), 'utf8');
-    assert.match(src, /const live = progress\.begin\(\);\s*\n\s*status\(opts, PHASE\.WAITING_MODEL, \{ step: step \+ 1, live \}\)/);
+    assert.match(src, /const live = progress\.begin\(\);[^\n]*\n\s*status\(opts, PHASE\.WAITING_MODEL, \{ step: step \+ 1, live \}\)/);
     assert.match(src, /provider\.chat\(pc, wire, \{[^}]*\blive\b/);
   });
 };

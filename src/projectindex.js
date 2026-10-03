@@ -1,56 +1,6 @@
 'use strict';
 
-/**
- * `.lain/` — WHAT THIS PROJECT IS, KEPT BETWEEN SESSIONS.
- *
- * ------------------------------------------------------------------------
- * THE OBJECTION THIS HAS TO ANSWER FIRST, because it is written down in
- * codemodel.js and it was right:
- *
- *     NO STORE. Nothing here is written to disk or cached across a turn. V1's
- *     `.lain/index.json` was rebuilt at startup and then aged with every edit
- *     LAIN made, so it answered confidently from stale data for the rest of
- *     the session.
- *
- * That is a real failure and it is worse than having no index at all: a wrong
- * answer given confidently costs more than no answer. So the rule here is not
- * "cache harder". It is:
- *
- *     THE INDEX IS NEVER READ WITHOUT CHECKING THE DISK FIRST.
- *
- * Every query goes through `fresh()`, which stats the tree and re-scans
- * anything whose size or mtime moved. A `stat` of a few hundred files is
- * single-digit milliseconds; parsing them is not. The saving is real and the
- * staleness is structurally impossible, because the stale entry is replaced
- * BEFORE the question is answered rather than on a timer or at startup.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS FOR. A model opening this project reads a README, lists a tree,
- * greps, and reads a dozen files to learn what an index already knows — and
- * every one of those steps is a request carrying ~65,000 tokens. The point of
- * this file is that the SECOND session, and the second question in the first
- * session, cost a stat walk instead.
- *
- * ------------------------------------------------------------------------
- * WHAT IS IN IT, AND WHAT DELIBERATELY IS NOT.
- *
- *   files      per file: size, mtime, language, declared symbols, import
- *              specifiers. Enough to answer "where is X", "what does this file
- *              define", "who imports this".
- *
- * NOT the file contents. NOT the conversation. NOT anything the model said.
- * `.lain/` is machine state about the PROJECT, and it is never sent to a model
- * wholesale — a caller asks it a question and gets an answer. Shipping the
- * index into a prompt would recreate the cost it exists to remove.
- *
- * ------------------------------------------------------------------------
- * ITS LIMITS, STATED. The fingerprint is size + mtime, which is what `stat`
- * gives cheaply. An edit that changes neither — a deliberate timestamp forgery,
- * or a same-length rewrite within the same clock tick — is invisible to it.
- * Symbol extraction is `codemodel`'s, so it covers what jsscan supports and
- * records other languages by identity alone. Both are recorded in the answer
- * rather than papered over.
- */
+/** `.lain/` — WHAT THIS PROJECT IS, KEPT BETWEEN SESSIONS. */
 
 const fs = require('fs');
 const path = require('path');
@@ -58,8 +8,9 @@ const path = require('path');
 const search = require('./tools/search');
 const codemodel = require('./codemodel');
 
-/** The directory, inside the project being worked on. */
-const DIR = '.lain';
+/** The directory, inside the project being worked on: `.lain/`, or an existing Noema-era `.noema/` (projectmeta.js). */
+const meta = require('./projectmeta');
+const DIR = meta.CANON;
 const INDEX = 'index.json';
 
 /** Bumped when the shape changes, so an old index is rebuilt rather than misread. */
@@ -71,21 +22,16 @@ const MAX_FILE_BYTES = 2_000_000;
 /** A refresh that would take longer than this reports what it did and stops. */
 const BUDGET_MS = 4000;
 
-function dirFor(root) { return path.join(root, DIR); }
+function dirFor(root) { return meta.dir(root); }
+/** LAIN's own folder (either name) — never indexed. */
+function ownRel(rel) { return meta.isMetaName(String(rel).split('/')[0]); }
 function fileFor(root) { return path.join(dirFor(root), INDEX); }
 
 function empty(root) {
   return { version: VERSION, root, builtAt: 0, refreshedAt: 0, files: {} };
 }
 
-/**
- * Load what was written last time, or an empty index.
- *
- * A CORRUPT OR OLD INDEX IS AN EMPTY ONE, never an error and never a partial
- * read. The whole thing is rebuilt on the next refresh, which costs one pass —
- * and the alternative, half-trusting a file that did not parse, is the class of
- * bug this module is built to avoid.
- */
+/** Load what was written last time, or an empty index. */
 function load(root) {
   try {
     const raw = fs.readFileSync(fileFor(root), 'utf8');
@@ -110,12 +56,7 @@ function save(root, index) {
     fs.renameSync(tmp, fileFor(root));
     return true;
   } catch {
-    // ---- A PROJECT THAT CANNOT BE WRITTEN TO STILL WORKS -----------------
-    //
-    // A read-only checkout, a permission problem, a directory somebody has
-    // deliberately locked down. The index degrades to per-session and every
-    // query still answers; it simply pays the scan each time. Refusing to
-    // operate would be a worse trade than being slower.
+    // A PROJECT THAT CANNOT BE WRITTEN TO STILL WORKS
     return false;
   }
 }
@@ -132,11 +73,6 @@ function stampOf(abs) {
 }
 
 // WHICH FILES CARRY SYMBOLS IS THE SCANNER'S ANSWER, NOT A COPY OF IT.
-//
-// This used to keep its own regex, and it disagreed with the scanner's: it
-// admitted `.ts`/`.tsx`, the scanner did not, and `scanOne` quietly stored the
-// file with no symbols. A whole TypeScript project indexed to zero symbols and
-// nothing said so. There is one list now — see jsscan.js SUPPORTED.
 const { supports } = require('./jsscan');
 
 /** Everything the index records about one file. */
@@ -145,10 +81,7 @@ function scanOne(abs, rel, stamp) {
   if (entry.lang !== 'js' || stamp.size > MAX_FILE_BYTES) return entry;
   let model;
   try { model = codemodel.scanFile(abs); } catch { return entry; }
-  // A FILE THIS INDEX CALLED SCANNABLE AND THE SCANNER REFUSES IS A CONTRADICTION,
-  // and it is recorded on the entry rather than silently becoming an empty one.
-  // `unscanned` is what a coverage report counts and what stops this exact
-  // class of defect from being invisible again.
+  // A FILE THIS INDEX CALLED SCANNABLE AND THE SCANNER REFUSES IS A CONTRADICTION, and it is recorded on the entry rather than silently becoming an empty…
   if (!model || !model.supported || !model.source) {
     entry.unscanned = (model && model.why) || 'the scanner returned nothing';
     return entry;
@@ -160,23 +93,14 @@ function scanOne(abs, rel, stamp) {
     container: s.container || null,
     line: src.slice(0, s.start).split('\n').length,
   }));
-  // `codemodel` records `{ spec, line }` and covers `require(...)` as well as
-  // `import` — which matters here, because this project is CommonJS and an
-  // index that only understood ESM would have reported that nothing imports
-  // anything. It did, until this line read the right field.
+  // `codemodel` records `{ spec, line }` and covers `require(...)` as well as `import` — which matters here, because this project is CommonJS and an…
   entry.imports = (model.imports || [])
     .map((i) => (typeof i === 'string' ? i : (i && i.spec) || ''))
     .filter(Boolean);
   return entry;
 }
 
-/**
- * BRING THE INDEX UP TO DATE WITH THE DISK.
- *
- * Stats every file; re-scans only what moved. Returns what it did, because a
- * caller that cannot see the difference between "nothing changed" and "the
- * budget ran out" cannot report honestly either.
- */
+/** BRING THE INDEX UP TO DATE WITH THE DISK. */
 function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = {}) {
   const started = Date.now();
   const ix = index || load(root);
@@ -188,17 +112,13 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
   let added = 0;
   let truncated = false;
 
-  // ---- LAZY, TARGETED REFRESH --------------------------------------------
-  //
-  // When a watcher has been running since before this index was last fully
-  // refreshed, only the paths it saw change are re-measured. No watcher, an
-  // overflow, or an older index: the stat walk below, which is always correct.
+  // LAZY, TARGETED REFRESH
   const freshness = require('./freshness');
   const dirty = Object.keys(before).length ? freshness.pending(root, ix.refreshedAt) : null;
   if (dirty) {
     Object.assign(files, before);
     for (const rel of dirty) {
-      if (rel === DIR || rel.startsWith(`${DIR}/`) || freshness.IGNORE.test(rel)) continue;
+      if (ownRel(rel) || freshness.IGNORE.test(rel)) continue;
       const abs = path.join(root, rel);
       const stamp = stampOf(abs);
       const prev = before[rel];
@@ -212,16 +132,13 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
   }
   for (const f of (dirty ? [] : search.walk(root))) {
     // The index never indexes itself.
-    if (f.rel === DIR || f.rel.startsWith(`${DIR}/`)) continue;
+    if (ownRel(f.rel)) continue;
     const stamp = stampOf(f.abs);
     if (!stamp) continue;
     scanned += 1;
     const prev = before[f.rel];
     if (prev && prev.size === stamp.size && prev.mtime === stamp.mtime) {
-      // ---- THE WHOLE POINT ----------------------------------------------
-      //
-      // Unchanged: keep what was learned last time. This is the line that
-      // turns "read the project again" into a stat.
+      // THE WHOLE POINT
       files[f.rel] = prev;
       reused += 1;
       continue;
@@ -249,9 +166,7 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
     refreshedAt: Date.now(),
     files,
   };
-  // `persist: false` — an IN-MEMORY refresh for machine-local consumers (the Laya
-  // project index, layaindex.js) that must never write the project's `.lain/`:
-  // they may run at attach, before anyone has said whether the task is read-only.
+  // `persist: false` — an IN-MEMORY refresh for machine-local consumers (the Laya project index, layaindex.js) that must never write the project's…
   const persisted = persist ? save(root, next) : false;
   return {
     index: next,
@@ -267,20 +182,12 @@ function refresh(root, { budgetMs = BUDGET_MS, index = null, persist = true } = 
   };
 }
 
-/**
- * THE ONLY WAY TO GET AN INDEX. Never returns one without checking the disk.
- *
- * This is the answer to codemodel.js's objection: there is no accessor that
- * hands back what was written last time, so no caller can accidentally answer
- * from a stale entry — the staleness is not merely unlikely, it is unreachable.
- */
+/** THE ONLY WAY TO GET AN INDEX. */
 function fresh(root, opts = {}) {
   return refresh(root, opts);
 }
 
-// ---------------------------------------------------------------------------
 // QUERIES — served from the index, so they cost no walk of their own.
-// ---------------------------------------------------------------------------
 
 /** Every declaration of `name`, across the project. */
 function definitionsOf(index, name) {
@@ -328,13 +235,7 @@ function outlineOf(index, relPath) {
   return e && e.symbols ? e.symbols : [];
 }
 
-/**
- * WHAT THIS PROJECT IS, IN ONE COMPACT BLOCK.
- *
- * The thing a model would otherwise spend four requests discovering. It is a
- * PROJECTION of the index, never the index: counts, the biggest modules, and
- * what changed since last time — not every symbol of every file.
- */
+/** WHAT THIS PROJECT IS, IN ONE COMPACT BLOCK. */
 function orientation(index, { changed = [], max = 12 } = {}) {
   const files = Object.entries(index.files || {});
   const js = files.filter(([, e]) => e.lang === 'js');
@@ -363,25 +264,7 @@ function orientation(index, { changed = [], max = 12 } = {}) {
   return out.join('\n');
 }
 
-/**
- * HOW MUCH OF THIS PROJECT THE INDEX ACTUALLY KNOWS, AND WHAT IT MISSED.
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS. The index once held a whole TypeScript project as 47 files
- * and ZERO symbols, and nothing anywhere said so: the files were admitted, the
- * scanner refused them, and the empty entries looked exactly like entries. A
- * number that would have made that obvious in one glance is worth more than the
- * comment explaining how it happened.
- *
- * SO EVERY FILE IS IN EXACTLY ONE BUCKET, and `unscanned` is never silent. This
- * is a DIAGNOSTIC — `/status` and the doctor ask for it — not a surface that
- * lives on screen.
- *
- * FRESH   everything admitted was scanned
- * PARTIAL something was admitted and could not be scanned, and it says which
- * STALE  nothing has been indexed yet, or the last refresh ran out of budget
- * UNKNOWN there is no index on disk at all
- */
+/** HOW MUCH OF THIS PROJECT THE INDEX ACTUALLY KNOWS, AND WHAT IT MISSED. */
 function coverage(root, { index = null, max = 8 } = {}) {
   const onDisk = index ? null : undefined;
   const ix = index || load(root);
@@ -402,23 +285,7 @@ function coverage(root, { index = null, max = 8 } = {}) {
     (why[reason] = why[reason] || []).push(rel);
   }
 
-  // ---- STRUCTURAL COLLAPSE IS NOT FRESHNESS ------------------------------
-  //
-  // THE FAILURE THIS CATCHES, which is the one that actually happened: a
-  // TypeScript project indexed 47 files, every one of them "scanned", and
-  // produced ZERO declarations — because the scanner admitted the extension and
-  // then refused to parse it. Every count was green. `state` said FRESH. And
-  // every structural question fell back to grep for the rest of the session,
-  // with nothing anywhere saying why.
-  //
-  // A file with no declarations is ordinary (a config, a barrel, a constant). A
-  // whole project of source files with no declarations between them is not a
-  // project — it is a scanner that stopped working, and the honest word for it
-  // is PARTIAL with a reason, never FRESH.
-  //
-  // BOUNDED SO IT CANNOT CRY WOLF: it takes effect only when there are enough
-  // code files for "none of them declares anything" to be evidence rather than
-  // coincidence.
+  // STRUCTURAL COLLAPSE IS NOT FRESHNESS
   const COLLAPSE_FLOOR = 3;
   const collapsed = code.length >= COLLAPSE_FLOOR && scanned.length > 0 && symbols === 0;
   if (collapsed) {

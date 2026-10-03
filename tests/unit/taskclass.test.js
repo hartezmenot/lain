@@ -127,29 +127,4 @@ module.exports = async function () {
       assert.strictEqual(v.surface, surface, `${text}: surface`);
     }
   });
-
-  await test('TASKCLASS: "use the browser to open <url> and tell me what it shows" is an observation, not project troubleshooting', () => {
-    // Live, 2026-09-18: classified PROJECT_DIAGNOSTIC under TROUBLESHOOT; the
-    // browser answered on the first call and the model then searched the
-    // project for the server for 20 more calls.
-    const said = 'Use the browser to open http://127.0.0.1:18777 and tell me exactly what the rendered page shows for the cart total, including anything a script adds.';
-    const v = taskclass.classify(said, { mode: 'TROUBLESHOOT' });
-    assert.strictEqual(v.cls, 'LIVE_EXTERNAL_DIAGNOSTIC');
-    assert.strictEqual(v.surface, 'browser');
-    assert.strictEqual(v.observe, true);
-    assert.strictEqual(v.projectSourceRequired, false);
-    assert.strictEqual(taskclass.classify('visit https://example.com and read me the heading').observe, true);
-    // A browser check attached to a project change stays project work.
-    const fix = taskclass.classify('Fix the cart total and use the browser to verify it', { mode: 'IMPLEMENT' });
-    assert.strictEqual(fix.cls, 'PROJECT_IMPLEMENTATION');
-    // And the prompt drops the TROUBLESHOOT framing for an observation.
-    const prompt = require('../../src/prompt');
-    const { Session } = require('../../src/session');
-    const s = new Session({ cwd: require('../helpers').tmpdir('observe-') });
-    s.taskClassVerdict = v;
-    const built = prompt.build({ session: s, mode: 'TROUBLESHOOT', cwd: s.cwd, separate: true });
-    const live = typeof built === 'string' ? built : (built.live || '');
-    assert.doesNotMatch(live, /does not know the cause/);
-    assert.match(live, /the observation IS the answer/);
-  });
 };

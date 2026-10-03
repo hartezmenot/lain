@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * web_fetch — the model's route to something it did not write.
- *
- * See src/research.js for what leaves the machine and who is told about it.
- * This file is the schema and the result shape, and it exists apart from the
- * mechanism for the reason every tool file here does: the WORDS a model reads
- * and the WORK a function does change for different reasons.
- *
- * IT RETURNS EVIDENCE, AND SAYS WHAT KIND. A page is what a stranger
- * published, not what is true, and the description below says so — because a
- * model that treats a blog post as a measurement will write a confident
- * answer on top of it.
- *
- * (A `web_search` tool lived here too, driving the Chromium LAIN owned; the
- * browser and the tool were removed together in 2026-09 per the browser
- * ownership removal. The plain fetch survives — it needs no browser, no
- * profile, no cookies, and it is what documentation actually needs.)
- */
+/** web_fetch — the model's route to something it did not write. */
 
 const research = require('../research');
 
@@ -59,9 +42,7 @@ async function runFetch(input, ctx) {
     research.note(app, `fetch failed · ${String(r.why).slice(0, 120)}`);
     return { output: r.why, isError: true, meta: { web: 'fetch' } };
   }
-  // THE HOST, ALWAYS. A successful read leaves no action row (ui/durable.js), so
-  // this note is the only place a person sees WHICH machine theirs talked to;
-  // a page title alone does not say.
+  // THE HOST, ALWAYS. A successful read leaves no action row (ui/durable.js), so this note is the only place a person sees WHICH machine theirs talked…
   let host = '';
   try { host = new URL(r.url).host; } catch { /* the title still says something */ }
   research.note(app, `read · ${r.title || r.url}${r.title && host ? ` · ${host}` : ''}`);

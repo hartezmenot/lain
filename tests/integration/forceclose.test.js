@@ -25,7 +25,7 @@ module.exports = async function () {
       stdin: 'write the note then run the long migration\n',
       script: [
         { text: 'Writing the note.', tool_calls: [{ name: 'write_file', input: { path: 'note.txt', content: 'kept' } }] },
-        { text: 'Running the migration.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 25' } }] },
+        { text: 'Running the migration.', tool_calls: [{ name: 'shell', input: { command: 'sleep 25' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 9000,          // runCli kills the child HARD when this expires
@@ -38,7 +38,7 @@ module.exports = async function () {
     assert.strictEqual(files.length, 1, `one session file: ${files}`);
     const raw = JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
     assert.ok(raw.inflight, 'the dead turn is on disk as in-flight');
-    assert.strictEqual(raw.inflight.tool && raw.inflight.tool.name, 'run_bash', 'caught during the command');
+    assert.strictEqual(raw.inflight.tool && raw.inflight.tool.name, 'shell', 'caught during the command');
     assert.ok(raw.messages.some((m) => m.role === 'user' && /long migration/.test(m.content)), 'the request survived');
 
     const prev = process.env.LAIN_CONFIG_DIR;

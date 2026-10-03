@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * REVERSIBILITY. LAIN's changes must be recoverable without depending on the
- * model remembering what it did.
- *
- * ONE mechanism, not the two overlapping byte-snapshot systems V1 grew
- * (`diffguard` + `checkpoint`, whose own header admitted the overlap).
- *
- * The contract: before a mutating tool touches a path, its PRIOR bytes are
- * captured. Nothing is prevented, nothing is gated, nothing asks permission —
- * the model edits freely and LAIN keeps the way back. A file that did not exist
- * is recorded as absent, so undoing a creation deletes it again.
- *
- * Checkpoints are session-scoped and live under the config home, never in the
- * user's project.
- */
+/** REVERSIBILITY. LAIN's changes must be recoverable without depending on the model remembering what it did. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -23,21 +9,7 @@ const config = require('./config');
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
-/**
- * What the file looked like when LAIN finished with it.
- *
- * A checkpoint holds the bytes from BEFORE an edit. Restoring them is only safe
- * if the file still says what LAIN left it saying — otherwise something else
- * has changed it since, and "undo" would silently destroy that newer work while
- * reporting success.
- *
- * This is not hypothetical. Session A edits a file; session B edits it again;
- * B resumes A and undoes. A's snapshot predates B's edit entirely, so restoring
- * it reverts BOTH — and the user asked to undo one thing.
- *
- * So each file records a fingerprint of its post-edit state, and undo compares
- * before touching anything.
- */
+/** What the file looked like when LAIN finished with it. */
 function digest(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 32);
 }
@@ -51,12 +23,7 @@ function digestOf(p) {
   } catch { return null; }
 }
 
-/**
- * WHAT ONE PATH HOLDS RIGHT NOW: existence, bytes (bounded) and a content
- * fingerprint. The one snapshot primitive — the mutation transaction
- * (mutation.js) reverts from these, and `capture` below persists the same
- * thing for `/undo`. Two byte-snapshot systems is the V1 mistake this file ends.
- */
+/** WHAT ONE PATH HOLDS RIGHT NOW: existence, bytes (bounded) and a content fingerprint. */
 function snapshot(p) {
   try {
     const st = fs.statSync(p);
@@ -67,11 +34,6 @@ function snapshot(p) {
 }
 
 class Checkpoints {
-  /**
-   * @param {string}  sessionId
-   * @param {string}  cwd
-   * @param {object}  opts  load: read this session's checkpoints back off disk
-   */
   constructor(sessionId, cwd, { load = false } = {}) {
     this.sessionId = sessionId;
     this.cwd = cwd;
@@ -81,23 +43,7 @@ class Checkpoints {
 
   dir() { return path.join(config.configDir(), 'checkpoints', this.sessionId); }
 
-  /**
-   * Read this session's checkpoints back.
-   *
-   * Every snapshot was already being written to disk, and nothing ever read one
-   * — so `/undo` after `/resume` reported "nothing to undo" while the blobs
-   * needed to perform it sat in the config home. The write half of the feature
-   * worked; the feature did not.
-   *
-   * SESSION BOUNDARIES ARE PRESERVED BY CONSTRUCTION, not by a check: the
-   * directory is keyed by session id, so this can only ever load the snapshots
-   * belonging to the session being resumed. Undoing another session's work
-   * remains impossible.
-   *
-   * Ordering is NUMERIC (`c2` before `c10`). Lexicographic sorting would make
-   * `undo` pop the wrong entry the moment a session passed ten mutations, which
-   * is a corruption, not a cosmetic bug.
-   */
+  /** Read this session's checkpoints back. */
   load() {
     let names = [];
     try { names = fs.readdirSync(this.dir()); } catch { return this; }
@@ -113,14 +59,16 @@ class Checkpoints {
       if (!manifest || !Array.isArray(manifest.files)) continue;
       const files = [];
       for (const f of manifest.files) {
-        let bytes = null;
-        if (f.blob) {
-          // A missing blob is not a reason to drop the whole entry: the other
-          // files in it are still restorable, and `undo` already reports a file
-          // it could not restore rather than pretending it did.
-          try { bytes = fs.readFileSync(path.join(d, f.blob)); } catch { bytes = null; }
-        }
-        files.push({ path: f.path, existed: Boolean(f.existed), bytes, after: f.after || null });
+        // READ WHEN ASKED (2026-10-02): a resumed session used to load every snapshot's bytes up front (18 MB for one real session).
+        const rec = { path: f.path, existed: Boolean(f.existed), after: f.after || null };
+        const blob = f.blob ? path.join(d, f.blob) : null;
+        let loaded = false; let bytes = null;
+        Object.defineProperty(rec, 'bytes', {
+          enumerable: true,
+          get() { if (!loaded) { loaded = true; if (blob) { try { bytes = fs.readFileSync(blob); } catch { bytes = null; } } } return bytes; },
+          set(v) { loaded = true; bytes = v; },
+        });
+        files.push(rec);
       }
       if (files.length) this.entries.push({ id: manifest.id || n, turnId: manifest.turnId || null, at: manifest.at || null, files });
     }
@@ -142,9 +90,7 @@ class Checkpoints {
       files.push({ path: abs, existed, bytes, after: undefined });
     }
     if (!files.length) return null;
-    // Derived from the HIGHEST id present, not from the count. With entries
-    // loaded from disk a count-based id collides the moment one entry failed to
-    // parse, and the collision silently overwrites a real snapshot.
+    // Derived from the HIGHEST id present, not from the count.
     const nextSeq = this.entries.reduce((max, e) => {
       const m = /^c(\d+)$/.exec(e.id);
       return m ? Math.max(max, Number(m[1])) : max;
@@ -155,14 +101,7 @@ class Checkpoints {
     return entry;
   }
 
-  /**
-   * Record what each file looks like NOW — immediately after the mutating call
-   * that this checkpoint was captured for.
-   *
-   * That fingerprint is what lets `undo` tell "the file is as I left it" from
-   * "someone else has changed it since", which is the difference between
-   * reverting one edit and quietly discarding somebody's work.
-   */
+  /** Record what each file looks like NOW — immediately after the mutating call that this checkpoint was captured for. */
   settle(entry) {
     if (!entry) return null;
     for (const f of entry.files) f.after = digestOf(f.path);
@@ -203,17 +142,7 @@ class Checkpoints {
     return rows;
   }
 
-  /**
-   * Restore the most recent checkpoint. Returns what it did.
-   *
-   * REFUSES when a file no longer holds what LAIN left there. Undo reverts ONE
-   * edit; if something else has written to the file since, restoring pre-edit
-   * bytes would revert that too — destroying work while reporting success. The
-   * checkpoint is kept, not discarded, so the user can look and decide.
-   *
-   * Entries captured before `after` fingerprints existed carry `null` and are
-   * restored unconditionally, exactly as they were before.
-   */
+  /** Restore the most recent checkpoint. */
   undo() {
     const entry = this.entries[this.entries.length - 1];
     if (!entry) return { ok: false, error: 'nothing to undo' };
@@ -247,9 +176,7 @@ class Checkpoints {
         restored.push({ path: f.path, action: `failed: ${e.message}` });
       }
     }
-    // Discard the snapshot on disk too, or a later resume would load it back and
-    // offer to undo the same edit a second time — re-applying stale bytes over
-    // whatever the file has become since.
+    // Discard the snapshot on disk too, or a later resume would load it back and offer to undo the same edit a second time — re-applying stale bytes over…
     try { fs.rmSync(path.join(this.dir(), entry.id), { recursive: true, force: true }); } catch { /* already gone */ }
     return { ok: true, id: entry.id, restored };
   }

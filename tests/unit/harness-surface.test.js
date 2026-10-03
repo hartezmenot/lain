@@ -85,19 +85,6 @@ module.exports = async function () {
     assert.strictEqual(p.task.terminal, true);
     await h.shutdown();
   });
-
-  await test('SURFACE: the dashboard payload carries the harness section', () => {
-    // The dashboard renders this and computes nothing of its own. Checked at
-    // the seam rather than by driving a browser.
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'dash.js'), 'utf8');
-    assert.match(src, /harnesssurface'\)\.project\(app\)/, 'dashState must project rather than assemble');
-    const page = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'dashpage.js'), 'utf8');
-    assert.match(page, /s\.harness/, 'the page must read the projected section');
-    assert.match(page, /nothing yet/, 'and say so when nothing has been proved');
-  });
-
-  // ------------------------------------------------------------- the seam --
-
   await test('LINK: a greeting does not open a task, and real work does', () => {
     // `.lain/tasks/` is only worth reading if everything in it is work. The
     // mode verdict is consumed, never re-derived.

@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * `/copy` — TAKE WHAT IS ON THE SCREEN SOMEWHERE ELSE.
- *
- * A local utility, and only that. It sends nothing to a model, costs no tokens,
- * starts no turn and changes no state: it reads what LAIN already knows and
- * hands it to the system clipboard.
- *
- * WHAT IT CAN COPY is the same set the workspace can show, because the point is
- * "copy the thing I am looking at" — the task, the activity account, command
- * output, the diff, the audit, the project health, the model's last answer, or
- * what is actually in the model's context.
- *
- * NO DEPENDENCY. The clipboard is reached through the tool every one of these
- * platforms already ships — clip.exe, pbcopy, xclip/xsel/wl-copy — with the
- * text piped in. When none of them answers, the content is written to a file
- * and the path is printed, because "I could not copy it" is a useless answer to
- * "give me this text". ANSI colour is stripped on the way out: what is pasted
- * into a chat window or an editor must be text, not escape sequences.
- */
+/** `/copy` — TAKE WHAT IS ON THE SCREEN SOMEWHERE ELSE. */
 
 const fs = require('fs');
 const os = require('os');
@@ -32,39 +14,7 @@ const MAX_CHARS = 200_000;
 
 // ------------------------------------------------------------ sanitising ---
 
-/**
- * WHAT MAY REACH THE CLIPBOARD: only what the user can actually see.
- *
- * THE FAILURE. Text copied out of LAIN and pasted into PowerShell fails, with
- * an error naming a character that is not on the screen.
- *
- * THE CAUSE. This file used `ui/text.strip`, which removes SGR colour and
- * NOTHING else — that is all it was ever written to do, because it exists so
- * `width()` can count columns. Everything else LAIN or a subprocess emits went
- * straight through it:
- *
- *   OSC          `\x1b]0;proj\x07`         termtitle.js writes the window title
- *   CSI          `\x1b[K`, `\x1b[2J`        erase and cursor motion
- *   PASTE MARKS  `\x1b[200~` / `\x1b[201~`  bracketed paste
- *   ZERO WIDTH   U+200B, U+FEFF             invisible, a parse error each
- *   NBSP         U+00A0                     looks like a space, is not one
- *
- * And only three of the ten sections were passed through `strip` at all —
- * `output`, `last`, `diff` and `context` went out entirely raw, and `output` is
- * the one carrying a subprocess's own escapes.
- *
- * THE ONE BOUNDARY. Applied in `toClipboard`, because that is what every path
- * out actually calls: `/copy`, the mouse drag-selection in ui/mouse.js, the
- * relay packet in actors.js and the paste path in repl.js. Fixing it in `/copy`
- * alone would have left the terminal selection — the way people copy a command
- * they are looking at — still broken.
- *
- * IT IS NOT A SECOND EDITOR. Box drawing, punctuation, symbols and non-ASCII
- * prose are things somebody deliberately copied, and none of them are touched.
- * A non-breaking space becomes a REAL space rather than being deleted: it is a
- * word separator that merely looks like one, and removing it would silently
- * join two arguments into a different command.
- */
+/** WHAT MAY REACH THE CLIPBOARD: only what the user can actually see. */
 /** OSC — `ESC ] … BEL` or `ESC ] … ESC \`. The terminal title lives here. */
 const OSC = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
 /** DCS/PM/APC — `ESC P|^|_ … ESC \`. */
@@ -80,18 +30,9 @@ const ODD_SPACE = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g;
 /** Control characters, keeping the two that are content: tab and newline. */
 const CTRL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
-/**
- * Strip everything invisible from text on its way to the clipboard.
- *
- * TOTAL — it sits on the one path out, so it must never be the thing that turns
- * "copy this" into a stack trace.
- */
+/** Strip everything invisible from text on its way to the clipboard. */
 function sanitize(s) {
-  // A CREDENTIAL IS NOT COPIED, EITHER. The clipboard is a display surface that
-  // outlives the screen: it survives the session, reaches another application,
-  // and is pasted into a chat window by somebody who has forgotten what was on
-  // it. It is the ONE path out of LAIN, exactly as `render.write` is the one
-  // path to the terminal, so the same filter belongs on it. See src/redact.js.
+  // A CREDENTIAL IS NOT COPIED, EITHER.
   let t = require('./redact').text(String(s == null ? '' : s));
   // ORDER MATTERS. The structured escapes go first: `\x1b[200~` is a CSI, and
   // removing the bare `\x1b` ahead of it would leave `[200~` as literal text.
@@ -103,40 +44,7 @@ function sanitize(s) {
 
 // ------------------------------------------------------------- clipboard ---
 
-/**
- * Put text on the system clipboard. Returns { ok, how } or { ok:false, error }.
- *
- * ------------------------------------------------------------------------
- * ON WINDOWS THE BYTES GO TO clip.exe AS UTF-16LE, AND WITHOUT A BOM.
- *
- * THE DEFECT, reported from real use and reproduced on the first try. Somebody
- * copied a command out of LAIN, pasted it into PowerShell, and got
- *
- *     powershell : The term 'powershell' is not recognized as the name of a
- *     cmdlet, function, script file, or operable program.
- *
- * with an invisible character in front of `powershell` in both places. It is
- * U+FEFF, and LAIN PUT IT THERE. `sanitize` above strips U+FEFF out of the
- * CONTENT, and names it in that comment as "invisible, a parse error each" —
- * and then this function prepended a fresh one as an encoding mark. clip.exe
- * does not consume a BOM. It stores those two bytes as the first character of
- * the clipboard.
- *
- * So the filter was right, the transport undid it, and what came out is
- * precisely the failure the filter exists to prevent.
- *
- * WHY NOT SIMPLY UTF-8 — measured on this machine, not assumed:
- *
- *   utf16 + BOM   the reported bug: U+FEFF before the first letter
- *   utf16 no BOM  exact, with arrows, accents and ticks intact
- *   utf8          mangled: one arrow arrives as three console-codepage letters
- *
- * The BOM was added to stop that third case, and it worked; it just brought a
- * character with it. clip.exe reads UTF-16LE without being told, checked on the
- * cases where a byte-pattern heuristic would fail: an all-CJK string, which has
- * none of the 0x00 padding that makes UTF-16 ASCII recognisable, and strings
- * whose FIRST character is non-ASCII. Every one came back byte-identical.
- */
+/** Put text on the system clipboard. */
 function toClipboard(raw) {
   // THE BOUNDARY. Every path out of LAIN calls this one, so it is the only
   // place that can promise the clipboard holds nothing invisible. See sanitize.
@@ -166,30 +74,10 @@ function toClipboard(raw) {
   return { ok: false, error: lastError };
 }
 
-/**
- * READ the system clipboard. The other direction, and the same principle:
- * the tool every platform already ships, with no dependency added.
- *
- * Most terminals paste by writing the bytes themselves, so this is only ever
- * needed by the ones that send Ctrl+V as a key instead. Bounded like the
- * write side — a clipboard holding a megabyte is not a prompt.
- *
- * @returns {{ok:true, text:string}|{ok:false, error:string}}
- */
+/** READ the system clipboard. */
 function fromClipboard() {
   const attempts = process.platform === 'win32'
-    // ---- AND THE OUTPUT ENCODING, WHICH IS NOT THE DEFAULT --------------
-    //
-    // `Get-Clipboard -Raw` writes to stdout through the CONSOLE CODE PAGE,
-    // which on a Western Windows install is cp437 or cp1252 — so a clipboard
-    // holding `npm test -> cafe check` in real Unicode arrived here as
-    // `npm test U+001A caf? ?`. The arrow became a SUBSTITUTE control character
-    // and the accents became replacement marks, silently, on the path that
-    // exists to bring somebody's pasted text into the prompt.
-    //
-    // Found by the round-trip test in tests/smoke/clipboard-powershell.test.js
-    // while it was checking the WRITE side: the write was already correct and
-    // the read was destroying the evidence of it.
+    // AND THE OUTPUT ENCODING, WHICH IS NOT THE DEFAULT
     ? [{
       cmd: 'powershell',
       args: ['-NoProfile', '-Command', '[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Clipboard -Raw'],
@@ -207,9 +95,7 @@ function fromClipboard() {
       const r = spawnSync(a.cmd, a.args, { encoding: 'utf8', windowsHide: true, timeout: 5000 });
       if (r.error) { lastError = r.error.message; continue; }
       if (r.status === 0) {
-        // PowerShell adds a trailing newline of its own; a paste should not
-        // silently gain one. CRLF is normalised on the way in for the same
-        // reason bracketed paste does it — the buffer holds LF only.
+        // PowerShell adds a trailing newline of its own; a paste should not silently gain one.
         const CR = String.fromCharCode(13);
         const LF = String.fromCharCode(10);
         let text = String(r.stdout || '').split(CR + LF).join(LF);
@@ -226,24 +112,9 @@ function fromClipboard() {
 
 const plain = (lines) => lines.map((l) => T.strip(l)).join('\n');
 
-/**
- * WHAT EACH NAME MEANS. Every one reads existing state; none of them asks a
- * model, and none of them re-runs work that has already been done.
- */
+/** WHAT EACH NAME MEANS. */
 const SECTIONS = {
-  /**
-   * THE QUESTION LAIN IS ASKING RIGHT NOW, as plain text.
-   *
-   * A drawn panel is box characters and a cursor marker: copying the terminal
-   * selection gives you `│ ❯ 2.  Chat-style … │`, which is not something you
-   * can paste into anything. This is the same question and the same options,
-   * with none of the drawing — the design's "make the prompt copy/paste
-   * friendly", answered by giving the text rather than by changing the box.
-   *
-   * It is FIRST in the default order while a question is open, because when
-   * LAIN is waiting on you the thing you want to take somewhere else is the
-   * thing it is waiting about.
-   */
+  /** THE QUESTION LAIN IS ASKING RIGHT NOW, as plain text. */
   question(app) {
     const panel = app.ui && app.ui.panel;
     if (!panel || !panel.visible || !panel.acceptsTyped) return null;
@@ -338,11 +209,7 @@ const SECTIONS = {
     return t ? plain(require('./troubleshoot').reportLines(t, 100)) : null;
   },
 
-  /**
-   * WHERE EVERYTHING STANDS RIGHT NOW — the thing you paste into a message when
-   * you are asking someone else about it. Session, route, context, progress and
-   * what is currently outstanding, from state that already exists.
-   */
+  /** WHERE EVERYTHING STANDS RIGHT NOW — the thing you paste into a message when you are asking someone else about it. */
   status(app) {
     const rows = require('./diagnose').statusRows(app, { dim: (x) => x });
     const out = rows.map(([k, v]) => `${String(k).padEnd(14)} ${v}`);
@@ -361,19 +228,7 @@ const SECTIONS = {
     return last && last.text ? last.text : null;
   },
 
-  /**
-   * THE DIAGNOSTIC EXPORT — what you paste when you go and ask somebody else.
-   *
-   * ---- IT USED TO BE `session.messages`, AND THAT WAS THE WRONG SOURCE ----
-   *
-   * `messages` is the PROVIDER WIRE FORMAT, not the conversation: system
-   * prompts, tool-call plumbing, and whole file bodies re-sent for cache
-   * alignment. Copying it produced tens of thousands of characters that were
-   * mostly not the exchange, and it buried the six lines a diagnosis needed.
-   *
-   * It is built from turn records now — see copysummary.js, which also states
-   * exactly what is excluded and why.
-   */
+  /** THE DIAGNOSTIC EXPORT — what you paste when you go and ask somebody else. */
   context(app) {
     return require('./copysummary').context(app);
   },
@@ -381,13 +236,7 @@ const SECTIONS = {
   /** The whole session rather than the current task. `/copy context all`. */
   'context all': (app) => require('./copysummary').context(app, { all: true }),
 
-  /**
-   * THE TASK SUMMARY — what bare `/copy` now means.
-   *
-   * Request, result, what changed on disk, what was proved, what is left, and
-   * how to run it. Everything transient is excluded by construction rather
-   * than filtered out afterwards.
-   */
+  /** THE TASK SUMMARY — what bare `/copy` now means. */
   summary(app) {
     return require('./copysummary').summary(app);
   },
@@ -403,23 +252,7 @@ const SECTIONS = {
   },
 };
 
-/**
- * WITH NO ARGUMENT: THE TASK SUMMARY.
- *
- * ---- WHAT THIS ORDER USED TO DO ---------------------------------------
- *
- * It was ['question', 'last', 'output', 'diff', 'task', 'status', 'activity']
- * and it took the FIRST non-empty one — which in practice meant `last`, the
- * model's most recent answer on its own, with no record of what was asked,
- * what changed, or whether anything was proved. `activity` sat at the end as a
- * fallback, so a quiet session could put a spinner's worth of frame-by-frame
- * narration on the clipboard.
- *
- * A QUESTION STILL WINS, and only while one is genuinely open: when LAIN is
- * waiting on you, the thing you want to take somewhere else is the thing it is
- * waiting about. Everything else falls through to the summary, and `last`
- * remains as the answer for a session that has not done any work yet.
- */
+/** WITH NO ARGUMENT: THE TASK SUMMARY. */
 const DEFAULT_ORDER = ['question', 'summary', 'last'];
 
 async function collect(app, name) {
@@ -428,9 +261,7 @@ async function collect(app, name) {
   let text = null;
   try { text = await fn(app); } catch (e) { return { error: e.message }; }
   if (!text || !String(text).trim()) return { empty: true };
-  // SANITISED HERE TOO, not only in `toClipboard`: when no clipboard tool
-  // answers, `runCommand` writes this text to a FILE instead, and a file full
-  // of escape sequences is the same defect with an extra step.
+  // SANITISED HERE TOO, not only in `toClipboard`: when no clipboard tool answers, `runCommand` writes this text to a FILE instead, and a file full of…
   return { text: sanitize(text).slice(0, MAX_CHARS) };
 }
 
@@ -443,11 +274,7 @@ async function runCommand(app, ctx = {}, { C } = {}) {
 
   let name = want;
   let got = null;
-  // ---- A KEYBOARD GETS THE COPY SHELF (ui/shelf.js) ----------------------
-  //
-  // Only targets that have something in them RIGHT NOW are offered — an empty
-  // button is a promise the clipboard cannot keep. With one or none, bare
-  // `/copy` keeps its old meaning (the best default) and asks nothing.
+  // A KEYBOARD GETS THE COPY SHELF (ui/shelf.js)
   if (!name && app.ui && app.ui.enabled && app.input && app.input.isTTY) {
     const offer = [['question', 'Open question'], ['summary', 'Summary'], ['last', 'Last answer'], ['context', 'Context'], ['diff', 'Diff']];
     const ready = [];
@@ -464,9 +291,7 @@ async function runCommand(app, ctx = {}, { C } = {}) {
     }
   }
   if (!name) {
-    // Pick the first thing that HAS something in it, and say which was chosen —
-    // silently copying "the task" when the user meant the answer is worse than
-    // asking, and naming it costs one line.
+    // Pick the first thing that HAS something in it, and say which was chosen — silently copying "the task" when the user meant the answer is worse than…
     for (const candidate of DEFAULT_ORDER) {
       const r = await collect(app, candidate);
       if (r.text) { name = candidate; got = r; break; }

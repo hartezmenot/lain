@@ -41,8 +41,11 @@ const path = require('path');
  * place that can guarantee it for every test, present and future.
  */
 const REAL_HOME = path.join(os.homedir(), '.lain-v2');
+/** The temp home THIS run created (and removes at the end), or null when one was given. */
+let OWN_HOME = null;
 if (!process.env.LAIN_CONFIG_DIR) {
   process.env.LAIN_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-test-home-'));
+  OWN_HOME = process.env.LAIN_CONFIG_DIR;
   // No filesystem watchers unless a test starts one itself: a watched temp tree
   // cannot be removed on Windows. See freshness.js.
   if (process.env.LAIN_WATCH == null) process.env.LAIN_WATCH = '0';
@@ -105,6 +108,10 @@ if (!process.env.LAIN_V1_CONFIG) {
 // workspace is RETAINED while its candidate is unresolved, and its registry lives
 // in the throwaway config home — so under the real temp root it would outlive the
 // run as an unregistered, never-cleaned directory. Every run gets its own root.
+// ONE RUN-OWNED ROOT for every fixture, temp directory and child process this
+// run makes — tests/harness/isolation.js — removed at exit, and nothing else is.
+require('./harness/isolation').ensure();
+process.on('exit', () => { require('./harness/isolation').cleanup(); });
 if (!process.env.LAIN_TEMP_ROOT) process.env.LAIN_TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-test-ws-'));
 if (!process.env.LAIN_HOME) {
   process.env.LAIN_HOME = path.join(process.env.LAIN_CONFIG_DIR, 'supervisor-home');
@@ -191,6 +198,11 @@ process.env.TERM = 'xterm-256color';
 const SMOKE_HARNESS = new Set([
   'harness-contract-real.test.js', 'harnessapp-real.test.js', 'harnessapp-source.test.js', 'harnessapp-workshop.test.js',
   'desktop-real.test.js', 'terminal-real.test.js', 'workshop-real.test.js', 'computermcp-real.test.js',
+  'journey-real.test.js', 'assistant-real.test.js', 'workbench-real.test.js', 'preview-real.test.js',
+  // PHASE 8.2 ACCEPTANCE — the IDE, Preview, Chat and MODEL through a person's own input.
+  'ideaccept-real.test.js', 'previewaccept-real.test.js', 'chataccept-real.test.js', 'modelaccept-real.test.js', 'perf83-real.test.js', 'accounts84-real.test.js', 'responsive84-real.test.js', 'codingagent841-real.test.js', 'phasea-real.test.js',
+  // THE FOUR-GATE SPEC §111 — the CLI and the window hand one task back and forth.
+  'clihandoff-real.test.js',
 ]);
 const SMOKE_GLOBAL = new Set([
   'bot-check-cli.test.js', 'bot-cli.test.js', 'observe-bot.test.js', 'relay-dash-mcp.test.js', 'dashinstances.test.js',
@@ -223,6 +235,7 @@ const TIERS = ['unit', 'integration', ...SMOKE_TIERS, 'distribution', 'live'];
 const EXTRA_TIERS = ['adversarial'];
 
 async function main() {
+  const leakBefore = require('./leakcheck').snapshot();   // supervisors on temp homes before the run (S5.2)
   const scope = await require('./supervisor-scope').open();
   process.env.LAIN_SUPERVISOR_LEASE_PORT = String(scope.port);
   try {
@@ -233,21 +246,38 @@ async function main() {
     try { facts = JSON.parse(probe.stdout); } catch { /* named below */ }
     if (!facts || facts.lifetime !== 'lease-v1') throw new Error('The supervisor test binary predates scoped ownership. Rebuild rust/lain-supervisor or set LAIN_SUPERVISOR_BIN to the rebuilt binary before running tests.');
   }
-  const want = process.argv[2];
-  const tiers = want === 'smoke' ? SMOKE_TIERS : (want ? [want] : TIERS);
-  if (want && want !== 'smoke' && !TIERS.includes(want) && !EXTRA_TIERS.includes(want)) {
+  // FLAGS ARE NOT POSITIONS: `--cache` may appear anywhere (tests/capabilities.js).
+  const argv = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const useCache = process.argv.includes('--cache');
+  const capsMod = require('./capabilities');
+  let want = argv[0];
+  // A NAMED CAPABILITY (`smoke-cli`, `smoke-harness`, `smoke-preview` …) is a selection over the existing tiers.
+  const capName = want && /^smoke-/.test(want) ? want.slice(6) : null;
+  if (capName && !capsMod.CAPS[capName] && capName !== 'release') { process.stderr.write(`unknown capability "${capName}" (${Object.keys(capsMod.CAPS).join('|')}|release)\n`); process.exit(2); }
+  const capKeep = capName && capName !== 'release' ? capsMod.CAPS[capName] : null;
+  if (capName === 'release') want = undefined;
+  const tiers = capKeep ? capKeep.tiers : want === 'smoke' ? SMOKE_TIERS : (want ? [want] : TIERS);
+  const releaseRun = capName === 'release';
+  if (want && !capKeep && want !== 'smoke' && !TIERS.includes(want) && !EXTRA_TIERS.includes(want)) {
     process.stderr.write(`unknown tier "${want}" (${[...TIERS, ...EXTRA_TIERS].join('|')})\n`);
     process.exit(2);
   }
 
   const started = Date.now();
+  let cachedFiles = 0;
   for (const tier of tiers) {
     const { dir, keep } = tierSource(tier);
     let files = [];
-    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && keep(f) && (!process.argv[3] || new RegExp(process.argv[3]).test(f))).sort(); } catch { files = []; }
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && keep(f) && (!capKeep || capKeep.files(f)) && (!argv[1] || new RegExp(argv[1]).test(f))).sort(); } catch { files = []; }
     if (!files.length) continue;
     process.stdout.write(`\n${tier.toUpperCase()}\n`);
     for (const f of files) {
+      // THE PASS CACHE: a file whose fingerprint (itself + its capability scope + runtime) matches its last PASS is not
+      // run again. Never for a release run. See tests/capabilities.js.
+      const fp = useCache && !releaseRun ? capsMod.fingerprint(tier, f, dir) : null;
+      const hit = fp ? capsMod.readCache().files[`${tier}/${f}`] : null;
+      if (fp && hit && hit.fp === fp) { process.stdout.write(`${f}  (cached PASS ${new Date(hit.at).toISOString()} · unchanged scope)\n`); cachedFiles += 1; continue; }
+      const failedBefore = helpers.results().failed; const t0 = Date.now();
       process.stdout.write(`${f}\n`);
       helpers.setFile(`${path.basename(dir) === tier ? tier : `${tier}:${path.basename(dir)}`}/${f}`);
       // ---- ONE UNLOADABLE FILE MUST NOT END THE TIER ------------------------
@@ -271,12 +301,13 @@ async function main() {
         // lands here too, and belongs here for the same reason.
         await helpers.test(`LOAD: ${f} could not be loaded or run to completion`, () => { throw e; });
       }
+      if (fp) { const c = capsMod.readCache(); const k = `${tier}/${f}`; if (helpers.results().failed === failedBefore) c.files[k] = { fp, at: Date.now(), ms: Date.now() - t0 }; else delete c.files[k]; capsMod.writeCache(c); }
     }
   }
 
   const { passed, failed, failures } = helpers.results();
   const secs = ((Date.now() - started) / 1000).toFixed(1);
-  process.stdout.write(`\n${passed} passed, ${failed} failed  (${secs}s)\n`);
+  process.stdout.write(`\n${passed} passed, ${failed} failed  (${secs}s)${cachedFiles ? ` · ${cachedFiles} file(s) reused from cache (unchanged scope)` : ''}\n`);
   if (failed) {
     process.stdout.write('\nFAILURES\n');
     for (const f of failures) process.stdout.write(`  ${f.file} :: ${f.name}\n    ${f.error && f.error.message}\n`);
@@ -285,8 +316,20 @@ async function main() {
   } finally {
     try { await require('../src/supervisor').cleanupOwned(); }
     finally {
+      // NO SUPERVISOR LEFT BEHIND: what this run started and left is stopped, and the run fails (tests/leakcheck.js).
+      try {
+        const left = require('./leakcheck').leftovers(leakBefore);
+        if (left.length) { process.stdout.write(`\nLEAK: ${left.length} supervisor(s) left by this run (stopped now):\n${left.map((p) => `  ${p.cmd}`).join('\n')}\n`); process.exitCode = 1; }
+      } catch { /* the check never hides the results above */ }
       try { await require('../src/harness/processes').cleanupOwned(); }
-      finally { await scope.close(); }
+      finally {
+        await scope.close();
+        // THE TEMP HOME THIS RUN MADE, removed with it (Gate 3 §78 — "abandoned test artifacts": 481 were found).
+        // Only the one this process created; LAIN_KEEP_TEST_HOME=1 keeps it for a post-mortem.
+        if (OWN_HOME && process.env.LAIN_KEEP_TEST_HOME !== '1') {
+          try { fs.rmSync(OWN_HOME, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); } catch { /* a leaked child still holds a file: the cache cleaner takes it later */ }
+        }
+      }
     }
   }
 }

@@ -104,14 +104,25 @@ module.exports = async function () {
     assert.strictEqual(life.evidence.verifiedChecks, before, 'a masked result must not count as a verification');
   });
 
-  await test('EVIDENCE: complete() refuses to finish on a masked last command, and says why honestly', () => {
+  // THE RELEVANT EVIDENCE SET, NOT `lastCommand` (2026-10-02): two cases, two answers.
+  await test('EVIDENCE (case B): when a masked command is the ONLY supposed proof, it cannot satisfy completion — and is named honestly', () => {
     const life = new Lifecycle('check for a lua interpreter');
     life.observeTool({ name: 'write_file', input: {}, output: '', mutated: ['a.txt'] });
     life.observeTool({ name: 'run_cmd', input: { command: MASKED_CMD }, output: 'DONE', isError: false, exitCode: 0 });
     const r = life.complete({});
     assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.unverified, true);
     assert.match(r.why, /does not verify this/);
     assert.ok(!/failed/i.test(r.why), 'must not call an inconclusive result a failure — it is neither');
+  });
+
+  await test('EVIDENCE (case A): a masked LAST command does not block completion when relevant evidence already proves the change', () => {
+    const life = new Lifecycle('fix the lua detection');
+    life.observeTool({ name: 'write_file', input: { path: 'src/luacheck.js' }, output: '', mutated: ['src/luacheck.js'] });
+    life.observeTool({ name: 'run_cmd', input: { command: 'node --test test/luacheck.test.js' }, output: 'ok 1', isError: false, exitCode: 0 });
+    life.observeTool({ name: 'run_cmd', input: { command: MASKED_CMD }, output: 'DONE', isError: false, exitCode: 0 });
+    const r = life.complete({});
+    assert.strictEqual(r.ok, true, r.why);
   });
 
   await test('EVIDENCE: contradiction() flags a success claim resting on a masked check, without calling it "failing"', () => {
@@ -121,17 +132,5 @@ module.exports = async function () {
     assert.ok(msg, 'a claim of success resting on an inconclusive check must be contradicted');
     assert.match(msg, /does not verify/);
     assert.ok(!/still failing/i.test(msg));
-  });
-
-  await test('EVIDENCE: handover.js narrates the masked command as INCONCLUSIVE, never PASSED', () => {
-    const handover = require('../../src/handover');
-    const life = new Lifecycle('check for a lua interpreter');
-    life.observeTool({ name: 'run_cmd', input: { command: MASKED_CMD }, output: 'DONE', isError: false, exitCode: 0 });
-    const session = { task: { objective: 'check for a lua interpreter', handovers: [] }, lifecycle: life, plan: null };
-    const text = handover.build ? handover.build(session, { model: 'm', stopReason: 'max-steps' }) : null;
-    if (text) {
-      assert.ok(!/DONE.*PASSED|PASSED.*DONE/i.test(text), 'must never read as the DONE echo having passed anything');
-      assert.match(text, /INCONCLUSIVE/);
-    }
   });
 };

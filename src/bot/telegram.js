@@ -21,6 +21,7 @@ class Telegram {
     this.mediaProtocol = attached.mediaProtocol || 0;
     if (this.cfg.botId && String(this.cfg.botId) !== attached.botId) { await this.call('detach'); throw new Error('Telegram account mismatch'); }
     this.state = 'listening'; this.loop = this.poll();
+    try { this.note?.({ ok: true, why: 'attached to the runtime mailbox; polling' }); } catch { /* receipts are best effort */ }
   }
   async poll() {
     while (!this.stopped) {
@@ -33,7 +34,11 @@ class Telegram {
           await this.call('ack', { messageId: e.messageId });
         }
         this.state = 'listening';
-      } catch { this.state = 'degraded'; if (!this.stopped) await this.call('attach').catch(() => {}); }
+      } catch (err) {
+        this.state = 'degraded';
+        try { this.note?.({ ok: false, why: `poll failed: ${String(err?.message || err).slice(0, 160)}` }); } catch { /* a receipt never stops the loop */ }
+        if (!this.stopped) await this.call('attach').catch(() => {});
+      }
       if (!this.stopped) await new Promise(resolve => { this.wake = resolve; this.timer = setTimeout(resolve, 1000); });
     }
   }

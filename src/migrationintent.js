@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * THE CHEAP HALF. Everything here runs locally, costs nothing, and settles the
- * questions that would otherwise be settled by an expensive model guessing.
- *
- * ------------------------------------------------------------------------
- * THE ECONOMICS, which are the entire argument for this file.
- *
- *   EXPENSIVE   send the whole repository and "migrate the agents to Vue" to
- *               the big model; it reads forty files to work out how many
- *               agents there are, picks one reading of "the agents", migrates
- *               all three, and the user meant one
- *
- *   CHEAP       count the agents locally (no tokens), notice the request names
- *               none of them (no tokens), ask four words on screen, and send
- *               the big model a contract that already says WHICH ONE
- *
- * The second is not merely cheaper; it is the only one of the two that can be
- * right, because the missing fact was never in the repository. Nothing the
- * model reads can tell it which agent the user meant.
- * ------------------------------------------------------------------------
- *
- * WHY IT IS DETERMINISTIC, and must stay so. Same argument as mode.js: using a
- * model call to decide how to spend model calls is circular, and "migrate X to
- * Y" is settled by a dozen words of English. No network, no tokens, no I/O
- * beyond counting files, and the same input always produces the same draft.
- *
- * IT NEVER DECIDES THE AMBIGUOUS CASE ITSELF. Where the words genuinely do not
- * say — which agent, what happens to the old implementation, whether the shared
- * JSON comes too — it produces a QUESTION rather than a default. A default here
- * is a silent choice about somebody else's architecture.
- */
+/** THE CHEAP HALF. Everything here runs locally, costs nothing, and settles the questions that would otherwise be settled by an expensive model guessing. */
 
 const tech = require('./tech');
 
@@ -59,15 +29,7 @@ const DATA_NOUN = '(?:json|ya?ml|toml|config\\w*|settings|data|asset\\w*|resourc
 const DATA_KEEP_RE = new RegExp(`\\b(?:keep|leave|preserve|don'?t (?:touch|change|migrate))\\b[^!?]{0,30}\\b${DATA_NOUN}\\b`, 'i');
 const DATA_MOVE_RE = new RegExp(`\\b(?:migrat\\w*|convert|port|translat\\w*|update)\\b[^!?]{0,30}\\b${DATA_NOUN}\\b`, 'i');
 
-/**
- * TECHNOLOGY NAMES THAT ARE ALSO ORDINARY ENGLISH.
- *
- * "go", "make", "react", "solid", "parcel", "bun" and "swift" all appear in
- * sentences that have nothing to do with the technologies they name, and
- * "migrate the button so it does not react to clicks" must not be read as a
- * React migration. For these, and only these, a CAPITAL LETTER is required —
- * which is how people write them when they mean the technology.
- */
+/** TECHNOLOGY NAMES THAT ARE ALSO ORDINARY ENGLISH. */
 const AMBIGUOUS = new Set(['go', 'make', 'c', 'solid', 'react', 'parcel', 'bun', 'angular', 'swift', 'rust']);
 
 /** A word that names a scope explicitly: "the scanner subsystem", "Agent B". */
@@ -103,14 +65,7 @@ function cleanName(s) {
   return STOPWORDS.has(String(first).toLowerCase()) ? '' : words.join(' ');
 }
 
-/**
- * The first technology named anywhere in the sentence that is not the target.
- *
- * A filename is skipped — `scanner.cpp` names a file, and the fact that it
- * ends in a C++ extension is a conclusion for the file sweep to draw, not a
- * word in the request. An ambiguous name (see AMBIGUOUS) counts only when it
- * is capitalised.
- */
+/** The first technology named anywhere in the sentence that is not the target. */
 function inferTech(text, exceptName) {
   const except = exceptName ? tech.resolve(exceptName) : null;
   for (const m of String(text || '').matchAll(/[A-Za-z][A-Za-z0-9_+#.-]*/g)) {
@@ -125,14 +80,7 @@ function inferTech(text, exceptName) {
   return '';
 }
 
-/**
- * Does this request ask for a structural migration?
- *
- * A verb ALONE is not enough — "move the button left" is a change, not a
- * migration — so a direction is required too. Under-matching is the safe
- * direction: a migration that reads as an ordinary implementation request
- * still gets done, just without the contract.
- */
+/** Does this request ask for a structural migration? */
 function looksLikeMigration(text) {
   const s = String(text || '').replace(/\s+/g, ' ');
   if (!s) return false;
@@ -143,12 +91,7 @@ function looksLikeMigration(text) {
   return TO_RE.test(s) || FROM_RE.test(s);
 }
 
-/**
- * Read the request into the parts a contract is made of.
- *
- * Everything it cannot establish comes back empty rather than guessed, and the
- * empties are exactly what `questions()` then asks about.
- */
+/** Read the request into the parts a contract is made of. */
 function parse(text) {
   const raw = String(text || '');
   const s = raw.replace(/\s+/g, ' ').trim();
@@ -191,21 +134,10 @@ function parse(text) {
     else out.operation = 'REPLACE';
   }
 
-  // ---- THE SOURCE THE SENTENCE NAMED WITHOUT SAYING "FROM" --------------
-  //
-  // "Migrate this C++ implementation to Python" names both sides; only one of
-  // them is introduced by a preposition. When nothing is found here the source
-  // is left EMPTY on purpose — migrationmap.js then reads it off the files
-  // actually in scope, which is a better answer than a guess from prose.
+  // THE SOURCE THE SENTENCE NAMED WITHOUT SAYING "FROM"
   if (!out.sourceName) out.sourceName = inferTech(s, out.targetName);
 
-  // ---- "KEEP" ABOUT THE DATA IS NOT "KEEP" ABOUT THE IMPLEMENTATION -----
-  //
-  // "port scanner.cpp to Rust, keep enemies.json" says one thing about the
-  // JSON and NOTHING about the C++ — reading its "keep" as "leave the C++
-  // running" would silently turn a replacement into a coexistence, which is
-  // the one answer nobody gave. So a hint that falls inside a data clause is
-  // not a hint about the implementation.
+  // "KEEP" ABOUT THE DATA IS NOT "KEEP" ABOUT THE IMPLEMENTATION
   const dataKeep = DATA_KEEP_RE.exec(s);
   const dataMove = dataKeep ? null : DATA_MOVE_RE.exec(s);
   if (dataKeep) out.dataHint = 'PRESERVE';
@@ -237,35 +169,12 @@ function parse(text) {
 
 // ----------------------------------------------------------- the questions --
 
-/**
- * WHAT THE WORDS DID NOT SAY.
- *
- * Each question is generated only when the request genuinely leaves the answer
- * open — a question whose answer is already in the user's sentence is the
- * agent not listening, which clarify.js refuses for the same reason.
- *
- * `values` runs parallel to `options`: the option is what a person reads, the
- * value is what the contract stores. Keeping them apart means the wording can
- * be changed without changing what any answer means.
- */
+/** WHAT THE WORDS DID NOT SAY. */
 function questions(draft, { candidates = [], dataResources = [], sourcePresent = 0, scopeResolved = false } = {}) {
   const out = [];
   const d = draft || {};
 
-  // ---- 1. WHICH PART OF THE PROJECT -------------------------------------
-  //
-  // Asked when the request names no path, does not say "the whole project",
-  // and there is more than one candidate it could plausibly mean. One
-  // candidate is not an ambiguity, and neither is a request that named a path.
-  //
-  // ---- AND NOT WHEN THE SCOPE IS ALREADY SETTLED ------------------------
-  //
-  // `scopeResolved` is the verdict from migrationmap, which resolves a scope
-  // the request NAMED IN WORDS — "change agent-b from React to Vue" says which
-  // agent, in the sentence, without a path in sight. Asking anyway is the
-  // failure clarify.js refuses by name: the user answers a question they
-  // already answered, and a mis-click then migrates a component nobody
-  // mentioned. Observed doing exactly that before this line existed.
+  // 1. WHICH PART OF THE PROJECT
   if (!scopeResolved && !d.projectWide && !d.paths.length && candidates.length > 1) {
     const options = candidates.slice(0, 8).map((c) => c.label);
     out.push({
@@ -278,11 +187,7 @@ function questions(draft, { candidates = [], dataResources = [], sourcePresent =
     });
   }
 
-  // ---- 2. WHAT HAPPENS TO WHAT IS ALREADY THERE -------------------------
-  //
-  // The single most consequential thing the request usually omits, and the one
-  // the model gets wrong by being helpful: it adds the target and keeps the
-  // source, which is neither of the answers below.
+  // 2. WHAT HAPPENS TO WHAT IS ALREADY THERE
   if (!d.dispositionHint && sourcePresent > 0) {
     const what = d.sourceName || 'the existing implementation';
     out.push({
@@ -322,15 +227,7 @@ function questions(draft, { candidates = [], dataResources = [], sourcePresent =
   return out;
 }
 
-/**
- * Which option does this answer mean?
- *
- * The panel takes a typed line as well as a highlighted row (see ui/answer.js),
- * so an answer arrives as the option text, a number, a letter, or something the
- * user typed that is on no list at all. The last case is NOT forced onto the
- * nearest option — it comes back as free text, because a person who typed a
- * sentence meant the sentence.
- */
+/** Which option does this answer mean? */
 function resolveAnswer(question, answer) {
   const a = String(answer == null ? '' : answer).trim();
   if (!a) return { index: -1, value: null, free: '' };
@@ -348,13 +245,7 @@ function resolveAnswer(question, answer) {
   return { index: -1, value: null, free: a };
 }
 
-/**
- * Fold an answer into the draft.
- *
- * The draft is what `migrationmap.build` then reads, so an answered question
- * changes the CONTRACT rather than being remembered as a sentence somebody
- * said. That is the difference between resolving ambiguity and recording it.
- */
+/** Fold an answer into the draft. */
 function applyAnswer(draft, question, answer) {
   const r = resolveAnswer(question, answer);
   const d = draft;
@@ -384,6 +275,6 @@ function applyAnswer(draft, question, answer) {
 }
 
 module.exports = {
-  looksLikeMigration, parse, questions, resolveAnswer, applyAnswer, cleanName,
+  looksLikeMigration, parse, questions, resolveAnswer, applyAnswer, cleanName, AMBIGUOUS,
   VERB_RE, TO_RE, FROM_RE, WITH_RE, ARROW_RE, MERGE_RE, SPLIT_RE, WHOLE_RE, STOPWORDS,
 };

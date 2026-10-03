@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * `/workspaces` — what temporary workspaces exist and why each is still there
- * (tempworkspaces.js). Diagnostic, never shown during normal work.
- *
- *   /workspaces              every workspace not yet deleted, its state, and
- *                            the conditions still missing for its cleanup
- *   /workspaces clean <id>   the PERSON removes a RETAINED one (failed,
- *                            blocked, conflicted, orphaned) or a rejected one
- *                            — receipt first, path guard still applies
- *   /workspaces reconcile    classify everything now (what startup does)
- *
- * No tool reaches any of this: a model cannot name a directory to delete.
- */
+/** `/workspaces` — what temporary workspaces exist and why each is still there (tempworkspaces.js). */
 
 function run(app, args, { C }) {
   const tw = require('./tempworkspaces');

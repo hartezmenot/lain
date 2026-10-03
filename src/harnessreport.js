@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * THE DOCTOR, RENDERED — one report, read by `lain --doctor` and by
- * `/harness doctor` alike.
- *
- * ------------------------------------------------------------------------
- * WHY IT IS ITS OWN FILE.
- *
- * Two callers want the same words: the CLI flag an installer runs before there
- * is a session, and the slash command a person runs mid-task. If each formatted
- * the rows itself they would drift, and the day they disagreed somebody would
- * be looking at two different accounts of the same machine. `harness.doctor()`
- * measures; this arranges; nothing else writes these lines.
- *
- * ------------------------------------------------------------------------
- * THE THREE MARKS, AND WHY AN UNAVAILABLE OPTIONAL IS NOT AN ERROR.
- *
- *     ✓   available
- *     ○   optional, and not here — a fact, not a fault
- *     ✗   MISCONFIGURED — something is set up and set up wrongly
- *
- * The distinction is the whole point of the report. A server with no Chrome is
- * a perfectly healthy LAIN whose browser checks will say INCONCLUSIVE; marking
- * that with the same symbol as a broken task store would train people to ignore
- * both. `✗` is reserved for the thing that actually needs attention.
- *
- * NO COLOUR, NO CURSOR, NO PANEL. This is printed by a CLI flag that may be
- * running inside an installer, a CI log or a pipe. It is plain text.
- */
+/** THE DOCTOR, RENDERED — one report, read by `lain --doctor` and by `/harness doctor` alike. */
 
 /** Marks are ASCII-plus-one-symbol so they survive every terminal codepage. */
 const MARK = Object.freeze({
@@ -43,11 +16,6 @@ function markFor(row) {
   return MARK[row.state] || MARK.UNAVAILABLE;
 }
 
-/**
- * @param {Array} rows      from `harness.doctor()`
- * @param {object} summary  from `Harness.summarise(rows)`
- * @returns {string} the whole report, ending in a newline
- */
 function render(rows, summary) {
   const lines = ['', 'LAIN Harness', ''];
   let group = null;

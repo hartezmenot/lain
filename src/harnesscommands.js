@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * `/harness`, `/tasks`, `/verify`, `/artifacts`, `/env` — the harness at the
- * terminal.
- *
- * ------------------------------------------------------------------------
- * THE CLI IS THE PRIMARY SURFACE, NOT A DEGRADED ONE.
- *
- * Everything the dashboard shows and everything a remote client would show is
- * a projection of `harness.snapshot()`, and so is every command here. There is
- * no fact available in a browser tab that is unavailable at the prompt, which
- * is the property that keeps the CLI worth using — and, more sharply, the
- * property that lets somebody debug the harness itself when the web surface is
- * the thing that is broken.
- *
- * ------------------------------------------------------------------------
- * WHY THESE NAMES AND NOT THE OBVIOUS ONES.
- *
- * `/task` ALREADY EXISTS and prints the session's objective, lifecycle and
- * evidence. It was not replaced and not renamed: it grew a harness section
- * underneath what it already said, and every word it printed before it still
- * prints. `/observe` was NOT taken, because `/observing` already exists for the
- * run-watcher and two commands three letters apart would be a coin toss every
- * time. Observation is reached through `/env` and through the model's own
- * tools, which is where a person actually wants it.
- *
- * ------------------------------------------------------------------------
- * ALL OF THESE ARE SAFE DURING A TURN. They read a record. None of them
- * touches the session, the plan or the working tree — with one exception,
- * `/verify`, which RUNS things and therefore blocks: two suites racing each
- * other over one build directory is a manufactured failure.
- */
+/** `/harness`, `/tasks`, `/verify`, `/artifacts`, `/env` — the harness at the terminal. */
 
 const path = require('path');
 
@@ -50,12 +20,7 @@ function tone(C, state) {
 
 function row(app, k, v) { app.render.write('  ' + String(k).padEnd(14) + v + '\n'); }
 
-/**
- * THE OPERATIONAL SUMMARY — what is LAIN doing, and what proves it.
- *
- * Deliberately compact. A screen that needs scrolling is a screen nobody reads
- * mid-task, and everything longer has its own command.
- */
+/** THE OPERATIONAL SUMMARY — what is LAIN doing, and what proves it. */
 function status(app, C) {
   const h = harnessOf(app);
   const snap = h.snapshot();
@@ -93,9 +58,7 @@ function timeline(app, C, taskId = null) {
 }
 
 async function doctor(app, C) {
-  // ONE REPORT, TWO DOORS. `lain --doctor` and `/harness doctor` print the same
-  // words from the same measurement — see src/harnessreport.js on why a second
-  // formatter here would eventually disagree with the first.
+  // ONE REPORT, TWO DOORS.
   const h = harnessOf(app);
   const rows = await h.doctor();
   const { Harness } = require('./harness');
@@ -123,9 +86,6 @@ function capabilities(app, C) {
 
 function surfaces(app, C) {
   app.render.write('\n' + C.bold('Surfaces') + C.dim('  — every one reads the same task state') + '\n');
-  const dash = (() => { try { return require('./dash').status(); } catch { return null; } })();
-  row(app, 'cli', C.green('active') + C.dim('  this terminal'));
-  row(app, 'dashboard', dash && dash.running ? C.green(`http://${dash.host}:${dash.port}`) : C.dim('not running — /dash to start it'));
   const remote = (() => { try { return require('./remotecontrol').status(); } catch { return null; } })();
   row(app, 'remote', remote && remote.connected ? C.green(`connected as ${remote.identity || 'unknown'}`) : C.dim('not connected — /runtime for the supervisor'));
 }
@@ -148,10 +108,7 @@ function artifacts(app, C, rest) {
   const h = harnessOf(app);
   const arg = String(rest || '').trim();
   const [verb, ...more] = arg.split(/\s+/).filter(Boolean);
-  // THE LATEST TASK, NOT THE ACTIVE ONE. `activeId` is cleared the moment a
-  // task reaches a verdict — right for attributing later events to nothing,
-  // wrong here: the receipts somebody wants are the ones from the task that
-  // just finished. See runtime.latest().
+  // THE LATEST TASK, NOT THE ACTIVE ONE.
   const active = h.runtime.latest();
   if (verb === 'open' || verb === 'show') {
     const id = more[0];
@@ -184,15 +141,7 @@ function artifacts(app, C, rest) {
 async function env(app, C, rest) {
   const h = harnessOf(app);
   const what = String(rest || '').trim().toLowerCase();
-  // ---- THE EXECUTION-ENVIRONMENT SECTIONS ------------------------------
-  //
-  // WHERE work runs and WHICH browser runs it — see envcommand.js. They are
-  // sections of THIS command rather than a command of their own: a second
-  // `/env` is what the registry rejected, and rightly.
-  //
-  // `chromium` and `vm` are handled entirely there (they take verbs and can
-  // act); everything else falls through and this function goes on owning the
-  // process, browser-availability and health sections it always owned.
+  // THE EXECUTION-ENVIRONMENT SECTIONS
   const words = String(rest || '').trim().split(/\s+/).filter(Boolean);
   if (words[0] === 'chromium' || words[0] === 'vm') {
     await require('./envcommand').sections(app, C, words);
@@ -218,14 +167,7 @@ async function env(app, C, rest) {
   }
 }
 
-/**
- * `/verify` — RUN THE EVIDENCE.
- *
- * Bare `/verify` runs the project's own test suite as a required requirement,
- * which is the thing a person means nine times in ten. The named forms add one
- * requirement each. What none of them do is ask a model anything: the verdict
- * comes from exit codes, HTTP statuses and the DOM.
- */
+/** `/verify` — RUN THE EVIDENCE. */
 async function verify(app, C, rest) {
   const h = harnessOf(app);
   const arg = String(rest || '').trim();
@@ -279,10 +221,7 @@ async function verify(app, C, rest) {
   }
 
   app.render.write(C.dim(`  running ${requirements.length} requirement(s)…\n`));
-  // A TASK THAT ALREADY HAS A VERDICT IS NOT RE-SETTLED. Running the evidence
-  // again is a perfectly reasonable thing to want; rewriting a terminal state
-  // is not, and state.js refuses it anyway. Saying so is better than a silent
-  // no-op that reads as though the command did nothing.
+  // A TASK THAT ALREADY HAS A VERDICT IS NOT RE-SETTLED.
   const settled = active.terminal;
   const report = await h.verify({ name: `/verify ${kind}`, requirements }, { taskId: active.id, settle: !settled });
   app.render.write('\n' + require('./harness/verify').render(report) + '\n');
@@ -329,9 +268,7 @@ function register({ define, DURING_TURN, C }) {
   });
 
   define('/verify', {
-    // BLOCKED DURING A TURN, and it is the only one of these that is. It spawns
-    // test runners and browsers; racing those against a turn doing the same
-    // thing produces failures that belong to neither.
+    // BLOCKED DURING A TURN, and it is the only one of these that is.
     duringTurn: DURING_TURN.BLOCKED,
     args: '[full|tests|build <cmd>|api <url>|browser <url>]',
     desc: 'Run a verification contract and settle the task from the evidence',

@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * WHICH MODELS ARE NEW TO YOU.
- *
- * A refresh on a real router returns two or three thousand models, and the one
- * thing you actually wanted to know is whether the model you just added showed
- * up. The refresh report already says "3 new" — but by the time you are in the
- * picker scrolling a thousand rows, that sentence has scrolled away and there is
- * nothing beside the row itself to say which three they were.
- *
- * THE RULE, and it is deterministic on purpose:
- *
- *   A model is NEW from the moment a refresh FIRST discovers it, and stops
- *   being new when either
- *     - the NEXT refresh runs (that refresh's additions replace this set), or
- *     - you select it.
- *
- * So the marker always answers exactly one question — "what did the last
- * refresh bring in that I have not used yet?" — and it cannot accumulate,
- * because each refresh replaces the set rather than adding to it.
- *
- * NEW IS NEVER CLAIMED FOR A MODEL THAT WAS ALREADY KNOWN. The set comes from
- * the refresh diff, which compares the catalog before and after; a model that
- * was in both is not in it. The very first refresh on an empty catalog is the
- * one case where "everything is new" is true and useless, so it is skipped.
- *
- * It persists next to the model cache, because refreshing, quitting and coming
- * back tomorrow to choose is a normal way to use this.
- */
+/** WHICH MODELS ARE NEW TO YOU. */
 
 const fs = require('fs');
 const path = require('path');
@@ -59,12 +32,7 @@ function write(state) {
   } catch { return false; }        // an unwritable config still runs
 }
 
-/**
- * Record what a refresh just discovered. REPLACES the previous set.
- *
- * @param {string[]} added        model ids the refresh added
- * @param {boolean}  firstCatalog true when there was nothing before this
- */
+/** Record what a refresh just discovered. */
 function record(added, { firstCatalog = false } = {}) {
   const ids = Array.isArray(added) ? added.filter(Boolean) : [];
   // "Everything is new" is true on a first discovery and tells you nothing, so

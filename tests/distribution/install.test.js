@@ -144,7 +144,7 @@ module.exports = async function () {
     for (const f of r.launchers) assert.ok(fs.existsSync(f), `${f} is missing`);
     // THE CONTRACT: not "files copied" but "it ran".
     assert.strictEqual(r.verified, true, `the launcher did not run: ${JSON.stringify(r.steps)}`);
-    assert.match(String(r.version), /^lain\s/);
+    assert.match(String(r.version), /^LAIN CLI\s/);
     assert.strictEqual(r.ok, true);
   });
 
@@ -171,7 +171,7 @@ module.exports = async function () {
     const dir = path.join(base, 'my bin');
     const r = install.install({ dir, env: fakeEnv(), desktop: false });
     assert.strictEqual(r.verified, true, `a launcher in "${dir}" did not run: ${JSON.stringify(r.steps)}`);
-    assert.match(String(r.version), /^lain\s/);
+    assert.match(String(r.version), /^LAIN CLI\s/);
   });
 
   await test('INSTALL: it is idempotent — twice is the same as once', () => {
@@ -507,7 +507,7 @@ module.exports = async function () {
       env: { ...process.env, LAIN_CONFIG_DIR: cfg, LAIN_HOME: path.join(cfg, 'sup') },
     });
     assert.strictEqual(r.status, 0, r.stderr);
-    assert.match(String(r.stdout), /^lain\s/);
+    assert.match(String(r.stdout), /^LAIN CLI\s/);
   });
 
   await test('DEV: --doctor runs with no provider, no session and no install', () => {
@@ -572,10 +572,13 @@ module.exports = async function () {
   // ------------------------------------------------------------ packaging --
 
   await test('PACKAGE: one executable, one entrypoint, no second CLI', () => {
-    // §16: avoid `lain`, `lain-cli`, `lain-harness`, `lain-runtime`.
+    // ONE PROGRAM: `lain`, and `lain` — its name before the rename — as a shim to the same Core and home (bin/lain.js
+    // prints the deprecation once and runs the same boot). No `lain-cli`, `lain-harness` or `lain-runtime`.
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    assert.deepStrictEqual(Object.keys(pkg.bin), ['lain'], 'exactly one executable name');
+    assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['lain', 'lain'], 'the command and its deprecated alias');
     assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
+    assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
+    assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'lain.js'), 'utf8'), /require\('\.\.\/src\/boot'\)\.start\(\{ via: 'lain' \}\)/, 'the alias is the same program');
   });
 
   await test('PACKAGE: the published files are an ALLOWLIST that carries the runtime', () => {

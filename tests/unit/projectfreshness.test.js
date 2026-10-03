@@ -45,7 +45,7 @@ async function waitFor(cond, ms = 3000) {
 module.exports = async function () {
   await test('BOOTSTRAP: a project with no .lain becomes usable intelligence, deterministically, with a baseline', () => {
     const root = foreignProject();
-    assert.ok(!fs.existsSync(path.join(root, '.lain')), 'precondition: nothing of LAIN\'s is there');
+    assert.ok(!(fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.lain'))), 'precondition: nothing of LAIN\'s is there');
     const b = bootstrap.bootstrap(root);
     assert.strictEqual(b.priorLain, false);
     assert.strictEqual(b.llm, false, 'no model was asked anything');

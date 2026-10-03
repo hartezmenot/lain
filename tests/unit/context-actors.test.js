@@ -149,6 +149,9 @@ module.exports = async function () {
         // has a producer, and it is named here.
         more: 'pushModel',
       }[kind];
+      // Produced outside feed.js: folded thinking (ui/thoughtrow.js) and the fact footer (factfooter.js).
+      const elsewhere = { thought: require('../../src/ui/thoughtrow').push, facts: require('../../src/factfooter').push }[kind];
+      if (elsewhere) { assert.strictEqual(typeof elsewhere, 'function', `KIND.${kind} has no producer`); continue; }
       assert.ok(pushName && typeof feed[pushName] === 'function',
         `KIND.${kind} has no producer — it can never appear on screen`);
     }
@@ -167,7 +170,8 @@ module.exports = async function () {
     // to displace.
     const fs = require('fs');
     const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'chatdispatch.js'), 'utf8');
+    // (Phase 8.3: the website chat dispatcher is gone; the runtime dispatcher holds the same property.)
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'runtimedispatch.js'), 'utf8');
     assert.match(src, /newRecord\(session\.id, text/,
       "the turn record's input must be what the user typed");
     assert.match(src, /role: 'user', content: String\(text\)/,
@@ -175,24 +179,6 @@ module.exports = async function () {
     assert.ok(!/app\.submit\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')),
       'a chat source must never start a turn of its own');
   });
-
-  await test('CONTEXT: only LAIN\'s own machinery may assert sameTask', () => {
-    const { App } = require('../../src/app');
-    const app = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
-    // Typed input never carries it, so a genuinely new request is still new.
-    const first = app.identify('inspect the dashboard', false);
-    assert.strictEqual(first.sameTask, false);
-    const objective = app.session.task.objective;
-    // A caller that DOES assert it keeps the original objective.
-    app.identify('a second model recommends this next step: log the exception', false, 'TROUBLESHOOT', true);
-    assert.strictEqual(app.session.task.objective, objective, 'the user\'s words must survive');
-    // And with no task at all, asserting it cannot invent one.
-    const fresh = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
-    fresh.session.task = null;
-    const v = fresh.identify('something', false, null, true);
-    assert.strictEqual(v.sameTask, false, 'there is no task to be the same as');
-  });
-
   await test('SURFACE: the conversation is the surface — there is no pane to name', () => {
     // ------------------------------------------------------------------
     // THIS TEST HELD THAT `context` WAS A NAMED PANE OF ITS OWN, distinct from

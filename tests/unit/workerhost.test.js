@@ -27,7 +27,7 @@ const host = require('../../src/workerhost');
 const rt = require('../../src/workerruntime');
 
 const saved = {};
-const KEYS = ['LAIN_WORKERHOST_DIR', 'LAIN_WORKERHOST', 'LAIN_WORKER_LAYA', 'LAIN_WORKERS', 'LAIN_WORKERHOST_GRACE_MS', 'LAIN_WORKERHOST_TICK_MS', 'FAKE_LOAD_MS'];
+const KEYS = ['LAIN_ROLE_SOURCE_FILE_RANKER', 'LAIN_WORKERHOST_DIR', 'LAIN_WORKERHOST', 'LAIN_WORKER_LAYA', 'LAIN_WORKERS', 'LAIN_WORKERHOST_GRACE_MS', 'LAIN_WORKERHOST_TICK_MS', 'FAKE_LOAD_MS'];
 function env(k, v) { if (!(k in saved)) saved[k] = process.env[k]; if (v == null) delete process.env[k]; else process.env[k] = v; }
 function restore() { for (const k of Object.keys(saved)) { if (saved[k] == null) delete process.env[k]; else process.env[k] = saved[k]; delete saved[k]; } }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -58,6 +58,8 @@ async function fresh(extra = {}) {
   env('LAIN_WORKERHOST', null);
   env('LAIN_WORKERS', null);
   env('LAIN_WORKER_LAYA', 'on');
+  // THE REJECTED RANKER, replayed: only an explicit role override reaches it now.
+  env('LAIN_ROLE_SOURCE_FILE_RANKER', 'FORCE');
   env('LAIN_WORKERHOST_GRACE_MS', extra.grace || null);
   env('LAIN_WORKERHOST_TICK_MS', extra.tick || null);
   env('FAKE_LOAD_MS', String(extra.loadMs == null ? 1200 : extra.loadMs));
@@ -130,8 +132,8 @@ module.exports = async function run() {
       const text = await require('../../src/locateassist').take(app, session, 0);
       assert.ok(Date.now() - t0 < 1500, `no wait for the 3 s load (${Date.now() - t0} ms)`);
       assert.match(text, /server\/store\.js/);
-      assert.match(text, /lexical/);
       const row = session.workerLedger[0];
+      assert.notStrictEqual(row.tier, 'laya', 'the lexical tier answered (the ledger says so; the text names no worker)');
       assert.strictEqual(row.warmWaitMs, 0);
       assert.ok(['LOADING', 'UNLOADED', 'UNAVAILABLE'].includes(row.layaBypass), `bypass recorded: ${row.layaBypass}`);
     } finally { await kill(d); env('LAIN_LOCATE', null); restore(); }

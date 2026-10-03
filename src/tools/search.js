@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * SEARCH — finding code without reading it.
- *
- * This was the largest hole in the tool surface. With only read_file, list_dir
- * and a shell, "where is the login handler" cost either a walk of the tree one
- * directory at a time or a whole-file read of every candidate — and the model
- * paid for every byte. Measured on a real task: the first thing it did was read
- * two files end to end to find a five-line function.
- *
- * The shell was not a substitute. `grep` is not on a stock Windows box, its
- * PowerShell equivalent has different syntax, and asking the model to guess
- * which one this host has is how a turn gets spent on `'grep' is not recognized`
- * instead of on the task. Search is a capability, not a command; it is
- * implemented here so it behaves the same on every platform.
- *
- * TWO TOOLS, because they answer two different questions:
- *
- *   grep  — which lines match this pattern            (content)
- *   glob  — which files have this shape of name       (structure)
- *
- * Both are bounded in every dimension that can grow without limit: files
- * visited, directory depth, matches returned, and bytes read per file. A search
- * that would be enormous returns a truncated answer AND says it was truncated,
- * so the model narrows the query rather than believing it saw everything. A
- * silent cap is worse than no cap: it produces confident wrong conclusions.
- *
- * The directory SKIP set is imported from project.js rather than restated. One
- * definition of "not part of this project" — the same one the `@` completion
- * menu and the project brief use.
- */
+/** SEARCH — finding code without reading it. */
 
 const fs = require('fs');
 const path = require('path');
@@ -43,25 +14,14 @@ const MAX_GLOB_RESULTS = 300;
 const MAX_FILE_BYTES = 2_000_000;
 const MAX_LINE_CHARS = 300;
 
-/**
- * Binary sniff. A NUL in the first block means the "lines" of this file are not
- * lines, and emitting them corrupts the transcript — V1 shipped a source file
- * containing NUL separators and every text tool reported it as binary, so this
- * is a failure mode with precedent.
- */
+/** Binary sniff. A NUL in the first block means the "lines" of this file are not lines, and emitting them corrupts the transcript — V1 shipped a source… */
 function looksBinary(buf) {
   const n = Math.min(buf.length, 8000);
   for (let i = 0; i < n; i++) if (buf[i] === 0) return true;
   return false;
 }
 
-/**
- * Translate a glob to a RegExp.
- *
- * Supports `*`, `**`, `?` and `{a,b}`. `**` crosses directory separators and `*`
- * does not, which is the distinction the pattern exists to express — collapsing
- * them would make `src/*.js` silently match `src/a/b/c.js`.
- */
+/** Translate a glob to a RegExp. */
 function globToRegExp(glob, { caseInsensitive = process.platform === 'win32' } = {}) {
   const g = String(glob || '').replace(/\\/g, '/');
   let out = '';
@@ -87,13 +47,7 @@ function globToRegExp(glob, { caseInsensitive = process.platform === 'win32' } =
   return new RegExp('^' + out + '$', caseInsensitive ? 'i' : '');
 }
 
-/**
- * Walk the project, yielding project-relative POSIX paths.
- *
- * Symlinks are NOT followed. A link back up the tree is an infinite walk, and
- * `MAX_FILES_VISITED` would turn that into a truncated answer instead of an
- * obviously wrong one.
- */
+/** Walk the project, yielding project-relative POSIX paths. */
 function* walk(root, { maxDepth = MAX_DEPTH } = {}) {
   const stack = [{ dir: root, depth: 0 }];
   let visited = 0;
@@ -122,14 +76,7 @@ function resolveRoot(cwd, p) {
   return path.isAbsolute(p) ? p : path.resolve(base, p);
 }
 
-/**
- * IS THIS FILE INSIDE `include`? The glob may be written relative to the
- * search `path` ("**\/*.js") OR to the project ("src/**\/*.js" — the shape the
- * schema's own example shows). Matching only the first made
- * `{path:"src", include:"src/**\/*.js"}` match nothing: a live gpt-oss run
- * (2026-09-23) sent exactly that nine times and was told NO FILES IN SCOPE
- * every time. Either reading of the glob now counts.
- */
+/** IS THIS FILE INSIDE `include`? */
 function inScope(includeRe, f, cwd) {
   if (!includeRe || includeRe.test(f.rel)) return true;
   const fromProject = path.relative(cwd || process.cwd(), f.abs).replace(/\\/g, '/');
@@ -230,9 +177,7 @@ const tools = {
         };
       }
       if (!out.length) {
-        // A zero-result search is a RESULT, not an error — "it is not there" is
-        // often exactly what the model needed to learn. Reporting how much was
-        // searched is what makes that conclusion trustworthy.
+        // A zero-result search is a RESULT, not an error — "it is not there" is often exactly what the model needed to learn.
         return zeroResult(`/${patternStr}/`, scanned, skipped, input.include);
       }
       const body = out.join('\n');
@@ -269,9 +214,7 @@ const tools = {
         if (!fs.statSync(root).isDirectory()) return { output: `${input.path} is not a directory`, isError: true };
       } catch { return { output: `no such directory: ${input.path || '.'}`, isError: true }; }
 
-      // A bare `*.js` plainly means "anywhere", not "only at the top level" —
-      // matching literally there produces an empty answer for the most natural
-      // way to ask the question.
+      // A bare `*.js` plainly means "anywhere", not "only at the top level" — matching literally there produces an empty answer for the most natural way to…
       const re = globToRegExp(pattern.includes('/') ? pattern : `**/${pattern}`);
       const hits = [];
       for (const f of walk(root)) {
@@ -294,43 +237,14 @@ const tools = {
   },
 };
 
-/**
- * WHERE IS THIS DEFINED, AND WHO USES IT?
- *
- * The two structural questions that come up constantly while tracing a bug, and
- * the two that are most wasteful to answer with a model. `grep NAME` returns
- * every mention — the definition, every call, every import, the word inside a
- * comment — and then something has to read all of it to sort them out.
- *
- * This sorts them by SHAPE. A line matching `function NAME(`, `class NAME`,
- * `const NAME =`, `def NAME(`, `fn NAME(` or `NAME:` is a definition; a line
- * with `import`/`require`/`from` is a reference to it; anything else mentioning
- * it is a use. That is not a parse tree, and it does not pretend to be — but it
- * is language-agnostic, needs no toolchain, cannot go stale, and answers the
- * question in one call instead of a read-and-reason loop.
- *
- * Deliberately NOT an AST index. V1 built a real one — `tools/index.py`, Python's
- * own `ast`, reached from the REPL through `project-index.js` — and it worked.
- * What it could not do was stay true: the symbol table lived in
- * `.lain/index.json` and was rebuilt by `ensureProjectIndex` at startup, so
- * every edit LAIN made during a session aged the answers it would give for the
- * rest of that session. It also needed Python on the machine to be an AST index
- * at all, and silently became something weaker when there wasn't one.
- *
- * This reads the files as they are right now. It knows less about the code and
- * more about the truth, and it works the same on every host.
- */
+/** WHERE IS THIS DEFINED, AND WHO USES IT? */
 
 /** Lines that DECLARE a name, across the languages a project is likely to use. */
 function defineRe(name) {
   const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(
     '(?:'
-    // A GENERATOR IS A DECLARATION TOO, and this missed every one of them: the
-    // `*` in `async function* runTurn` sits between the keyword and the name,
-    // so `function\s+runTurn` did not match and `symbols runTurn` reported the
-    // most important function in turn.js as having no definition — every one of
-    // its call sites listed as a use of something that is defined nowhere.
+    // A GENERATOR IS A DECLARATION TOO, and this missed every one of them: the `*` in `async function* runTurn` sits between the keyword and the name, so…
     + `(?:function|class|struct|enum|interface|trait|type|def|fn|sub|proc)\\s*\\*?\\s+${n}\\b` // declared forms
     + `|(?:const|let|var|static|public|private|protected|export)\\s+(?:[\\w<>\\[\\]]+\\s+)?${n}\\s*[=:(]` // bound forms
     + `|^\\s*${n}\\s*[:=]\\s*(?:function|async|\\()`                                     // object member / arrow
@@ -344,68 +258,12 @@ const IMPORT_RE = /\b(?:import|require|from|include|use|using)\b/;
 
 // ------------------------------------------------------- file dependents ----
 
-/**
- * WHO DEPENDS ON THIS FILE — the one structural question `symbols` cannot
- * answer, because it is about a file rather than a name.
- *
- * This is the useful core of V1's Feature Graph, and deliberately none of the
- * rest of it. V1 built a 730-line graph with a `.lain/fgm.json` store, a
- * snapshot history, per-node lifecycle SETS and supersession inference — and
- * because the store was written by a scan and never updated by an edit, it
- * answered confidently from stale data. The store was the defect, not the idea.
- *
- * So the query survives and the database does not: this resolves importers by
- * reading the files as they are at this instant. It cannot go stale because
- * there is nothing to go stale.
- *
- * The one piece of V1's judgement worth keeping is its honesty rule: a project
- * that loads code dynamically can reach a file in ways no scan can see, so
- * "nothing imports this" is reported as what was FOUND, never as proof of
- * absence.
- */
+/** WHO DEPENDS ON THIS FILE — the one structural question `symbols` cannot answer, because it is about a file rather than a name. */
 const DYNAMIC_RE = /\brequire\s*\(\s*[^'")\s]|\bimport\s*\(\s*[^'")\s]|\bimportlib\b|__import__\s*\(|\beval\s*\(|new\s+Function\s*\(|\bregister(?:Plugin|Handler|Component|Provider|Command)\b/;
 /** Every quoted specifier on a line that is doing importing. */
 const SPEC_RE = /\b(?:from|require|import|include|use|using|src|href)\b[^'"`\n]{0,40}['"`]([^'"`\n]{1,200})['"`]/g;
 
-/**
- * THE SYMBOL SEAM — what is here, and what a parser would add.
- *
- * `symbols` and `dependents` are LEXICAL. They read the files on disk as text:
- * definitions by shape, references by name, imports by specifier. On a real
- * project that is fast, dependency-free, works on every language at once, and
- * is right most of the time — which is why V2 has them and why they are not
- * apologised for.
- *
- * WHAT THEY CANNOT DO, stated so that nothing downstream has to guess:
- *
- *   · tell two things with the same name apart (`send` on three classes)
- *   · follow a value through an alias or a re-export
- *   · distinguish a use from a mention in a comment or a string
- *   · see an import whose path is computed at runtime
- *   · give the exact BYTE RANGE of a definition, which is what an edit needs
- *
- * The last one is the reason V1's `read_symbol` / `edit_symbol` existed and
- * V2's do not: editing a function by name requires knowing exactly where it
- * starts and ends, and a regex that is 95% right about that is a tool that
- * silently corrupts one file in twenty. `apply_patch` asks for the exact text
- * instead and REFUSES when it does not match, which is the same job done
- * safely — see tools/edit.js.
- *
- * IF A PARSER IS EVER ADDED, these four are the operations to back with it, and
- * this is the seam they belong on:
- *
- *   read_symbol      the source of one definition, by name, with its range
- *   edit_symbol      replace that range, verified against the parse
- *   find_references  uses that resolve to THIS definition, not to the name
- *   find_dependents  the import graph, following re-exports
- *
- * The bar for adding it: a real parse, for the languages it claims, with a
- * declared answer for the languages it does not — never a regex wearing the
- * word AST. Python is available on most machines and V1 used it for exactly
- * this, but putting a Python subprocess on the core EDIT path makes editing
- * depend on a Python runtime, which is why it was not ported. A parser that
- * only READS has no such objection.
- */
+/** THE SYMBOL SEAM — what is here, and what a parser would add. */
 
 /** The forms a specifier can take for `rel` — extensionless, index, basename. */
 function specForms(rel) {
@@ -613,13 +471,7 @@ tools.symbols = {
   },
 };
 
-/**
- * NOTHING FOUND IS THREE DIFFERENT ANSWERS (2026-09-18). "no match in 0 files"
- * was read live as "the string does not exist" — but zero files searched says
- * nothing about the content, and a file skipped as too large may be exactly
- * where it is. Only SEARCHED_FILES_NO_MATCH (N>0 searched, none skipped) is a
- * conclusive absence.
- */
+/** NOTHING FOUND IS THREE DIFFERENT ANSWERS (2026-09-18). */
 function zeroResult(what, scanned, skipped, include) {
   if (!scanned) {
     return {

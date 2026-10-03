@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * DOWNLOADING IS ITS OWN PERMISSION (§41).
- *
- *   NETWORK_READ        web_fetch — read a page as text; no file is written
- *   DOWNLOAD_FILE       this tool — bytes from the network to a file, asked per
- *                       file or allowed per site for the session
- *   WRITE_PROJECT_FILE  the ordinary trust gate on the destination (gate.js)
- *   EXECUTE_FILE        running something that was downloaded — asked
- *                       separately, every time, by `executeGuard`
- *
- * Allowing a download NEVER implies allowing its execution. The card shows
- * the source, the file name, the size (when the server states it) and where
- * it will land.
- */
+/** DOWNLOADING IS ITS OWN PERMISSION (§41). */
 
 const fs = require('fs');
 const path = require('path');
@@ -99,11 +86,7 @@ async function run(input, ctx) {
   };
 }
 
-/**
- * EXECUTE_FILE: a command that names a file this session downloaded asks first,
- * every time unless allowed for that file. Returns null (nothing to ask) or a
- * verdict.
- */
+/** EXECUTE_FILE: a command that names a file this session downloaded asks first, every time unless allowed for that file. */
 async function executeGuard(ctx, name, input) {
   if (!/^(?:run_bash|run_powershell|run_cmd|process_run|python_run|run_background|service_start|observe_start)$/.test(name)) return null;
   const session = ctx && (ctx.session || (ctx.app && ctx.app.session));

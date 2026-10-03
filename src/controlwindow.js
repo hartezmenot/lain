@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * THE DESKTOP CONTROL WINDOW — a second window, on top, while LAIN has control.
- *
- * When something is moving your mouse and typing on your keyboard, the one
- * thing you must never have to do is go and find the terminal that started it.
- * So a grant opens a SEPARATE window that stays above the work, says exactly
- * what is permitted and to which application, counts the grant down, shows every
- * action as it happens, and stops everything with one key.
- *
- * HOW THE TWO PROCESSES TALK. A directory under the config home, written by
- * LAIN and read by the window:
- *
- *     control/state.json    what is permitted, the target, recent actions
- *     control/revoke        exists ⇒ the user pressed STOP over there
- *
- * Files rather than a socket, deliberately: this must keep working when the
- * bridge is wedged, when the dashboard is off, and when a port is unavailable —
- * and the STOP path in particular must have as little machinery under it as
- * possible. LAIN polls for the flag while a grant is live and revokes the
- * instant it appears.
- *
- * IT IS A VIEWER AND A STOP BUTTON. It cannot grant anything, cannot extend a
- * grant, and cannot ask for one; the only thing it can do to LAIN is take
- * permission away, which is the one direction that is always safe.
- */
+/** THE DESKTOP CONTROL WINDOW — a second window, on top, while LAIN has control. */
 
 const fs = require('fs');
 const os = require('os');
@@ -39,7 +15,7 @@ let timer = null;
 
 function dir() {
   const base = (() => {
-    try { return require('./config').configDir(); } catch { return path.join(os.homedir(), '.lain-v2'); }
+    try { return require('./config').configDir(); } catch { return require('./home').resolve(); }
   })();
   return path.join(base, 'control');
 }
@@ -80,13 +56,7 @@ function clearStop() {
   try { fs.unlinkSync(revokePath()); } catch { /* already gone */ }
 }
 
-/**
- * Open the window (if it is not already open) and keep it fed.
- *
- * Called when a grant is made — that is the moment there is something to watch.
- * A window that cannot be opened is REPORTED, never silently skipped: the user
- * would otherwise believe they had a stop button they do not have.
- */
+/** Open the window (if it is not already open) and keep it fed. */
 function open(app) {
   clearStop();
   write(app);
@@ -94,11 +64,7 @@ function open(app) {
     const viewer = path.join(__dirname, '..', 'bin', 'lain-control.js');
     try {
       child = process.platform === 'win32'
-        // `start` gives it a console window of its own. The title argument is
-        // EMPTY on purpose: a quoted title with spaces does not survive the
-        // layers of quoting between Node, cmd and start — it arrived as the
-        // single word "DESKTOP" — and the viewer sets its own console title
-        // from inside, which does survive.
+        // `start` gives it a console window of its own.
         ? spawn('cmd', ['/c', 'start', '', process.execPath, viewer, dir()], { detached: true, stdio: 'ignore' })
         : spawn(process.execPath, [viewer, dir()], { detached: true, stdio: 'ignore' });
       child.unref();

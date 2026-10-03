@@ -44,7 +44,7 @@ module.exports = async function run() {
     const idle = footer.line({ state: { run: { parts: ['AUTO'] } } }, 100, P);
     const busy = footer.line({ state: { run: { parts: ['RUNNING', '00:12'] } } }, 100, P);
     assert.match(idle, /\/ commands · @ files · shift\+tab mode$/);
-    assert.match(busy, /ctrl\+c interrupt · ctrl\+o activity · shift\+tab mode$/);
+    assert.match(busy, /esc interrupt · ctrl\+o activity · shift\+tab mode$/);
     assert.strictEqual(idle.length, 99, 'right-aligned inside the frame');
     assert.strictEqual(footer.line({ state: {} }, 20, P), '', 'too narrow: nothing rather than a clipped hint');
   });

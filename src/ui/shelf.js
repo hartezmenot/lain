@@ -1,42 +1,6 @@
 'use strict';
 
-/**
- * THE CONTEXT ACTION SHELF — one compact surface for a command with follow-ups.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS FOR. `/goal`, `/plan`, `/resume`, `/copy`, `/model` each have a
- * small set of things a person can do next. Printing "you can type /goal edit…"
- * into the conversation is documentation standing in for a control. The shelf
- * is the control:
- *
- *     Goal
- *
- *       Finish LAIN Harness and desktop control
- *
- *        Continue    Edit    New    Delete
- *
- *     ←→ action · Enter · Esc close
- *
- * ------------------------------------------------------------------------
- * IT IS A PANEL FRAME, NOT A SECOND RENDERER. It opens in the one interaction
- * panel (ui/panel.js) as KIND.SHELF with MODE.COMPACT, so it sits under the
- * input inside the shared content bounds, takes only the rows it needs, closes
- * on Esc and never writes into the transcript. A command supplies DATA:
- *
- *   title     heading, kept in its own case
- *   context   lines describing what the actions act on (not selectable)
- *   choices   optional [{ label, value, detail? }] — when there are several
- *             things the actions could apply to (several goals, sessions)
- *   actions   [{ label, value, confirm? }] — `confirm` is the one-line question
- *             asked IN PLACE before a destructive action runs
- *
- * and `ui.ask(frame)` resolves `{ action, choice }`, or null when closed.
- *
- * KEYS: ←/→ (Tab) move between actions, ↑/↓ between choices, Enter runs the
- * focused action, a unique first letter runs its action, Esc backs out of a
- * confirmation and otherwise closes. A click on an action runs it (a
- * destructive one still asks first); a click on a choice selects it.
- */
+/** THE CONTEXT ACTION SHELF — one compact surface for a command with follow-ups. */
 
 const { MODE, KIND } = require('./panel');
 const { P } = require('./paint');

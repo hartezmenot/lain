@@ -31,7 +31,6 @@ const { test } = require('../helpers');
 const environment = require('../../src/environment');
 const diagnostics = require('../../src/diagnostics');
 const mode = require('../../src/mode');
-const prompt = require('../../src/prompt');
 const tools = require('../../src/tools');
 
 function tmp(prefix = 'envdiag-') { return fs.mkdtempSync(path.join(os.tmpdir(), prefix)); }
@@ -182,23 +181,6 @@ module.exports = async function () {
     // not a permanent blindness.
     environment.reset();
     assert.notStrictEqual(environment.summary(dir), before);
-  });
-
-  await test('ENV: the built prompt carries the environment, not "Platform: win32"', () => {
-    const out = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm' });
-    assert.ok(!/Platform: win32|Platform: linux|Platform: darwin/.test(out),
-      'the raw Node constant must not be what the model is told');
-    assert.match(out, /OS: /);
-    assert.match(out, /Shell: /);
-  });
-
-  await test('ENV: a prompt still builds if the directory cannot be read', () => {
-    // Orientation is a convenience. A prompt that failed to build would take
-    // the whole turn with it, and the model still has a shell.
-    const gone = path.join(tmp(), 'does', 'not', 'exist');
-    const out = prompt.build({ cwd: gone, platform: process.platform, model: 'm' });
-    assert.ok(out.length > 0);
-    assert.match(out, /OS: |Platform: /);
   });
 
   // ------------------------------------------------------- diagnostics ----
@@ -357,15 +339,6 @@ module.exports = async function () {
     for (const s of ['add a dark mode toggle', 'implement session export']) {
       assert.strictEqual(mode.classify(s, {}).mode, 'IMPLEMENT', s);
     }
-  });
-
-  await test('MODE: REFACTOR guidance says to take a baseline and find the callers', () => {
-    // Without these two the mode is a label. A rename that misses one caller
-    // is the commonest way this goes wrong, and it is silent until run.
-    const g = prompt.MODE_GUIDANCE.REFACTOR;
-    assert.ok(g, 'a mode with no guidance changes nothing about the request');
-    assert.match(g, /baseline/i);
-    assert.match(g, /symbols|dependents|caller/i);
   });
 
   await test('MODE: REFACTOR is not read-only — it changes code', () => {

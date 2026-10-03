@@ -64,7 +64,7 @@ module.exports = async function () {
       ],
     });
     assert.strictEqual(r.code, 0, 'process exited cleanly');
-    assertIncludes(r.stdout, 'LAIN v2', 'banner/prompt appeared');
+    assertIncludes(r.stdout, 'LAIN', 'banner/prompt appeared');
     assertIncludes(r.stdout, 'read_file', 'tool call surfaced');
     assertIncludes(r.stdout, 'SEED_CONTENT', 'tool RESULT returned');
     assertIncludes(r.stdout, 'It says SEED.', 'turn completed');
@@ -89,8 +89,11 @@ module.exports = async function () {
   await test('PROD 10: /effort works', async () => {
     const { cwd, configDir } = ws();
     const r = await runCli([], { cwd, configDir, stdin: '/model claude-opus-5 gateway\n/effort medium\n/effort\n/exit\n', script: [] });
-    assertIncludes(r.stdout, 'effort medium');
-    assertIncludes(r.stdout, 'available here: low, medium, high');
+    // EFFORT BELONGS TO THE MODEL (Phase 8.3): the receipt names the model and its level; bare /effort lists
+    // exactly the levels this model declares.
+    assertIncludes(r.stdout, 'Claude Opus 5 · Medium');
+    assertIncludes(r.stdout, 'Claude Opus 5: Medium');
+    assertIncludes(r.stdout, 'offers Low, Medium, High');
   });
 
   await test('PROD 11: /provider status works', async () => {
@@ -236,10 +239,11 @@ module.exports = async function () {
       script: [],
     });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'effort high');
-    assertIncludes(r.stdout, 'effort auto');
-    assertIncludes(r.stdout, 'the route decides');
-    assertIncludes(r.stdout, 'available here: low, medium, high, auto');
+    // Phase 8.3: a pin reads "<model> · <level>"; auto clears it back to the MODEL's default; bare /effort says so.
+    assertIncludes(r.stdout, 'Claude Opus 5 · High');
+    assertIncludes(r.stdout, "effort: Default — the model's default");
+    assertIncludes(r.stdout, 'Claude Opus 5: Default');
+    assertIncludes(r.stdout, 'offers Low, Medium, High');
   });
 
   await test('PROD 21: shell is unrestricted — pipes, redirects, chaining all run', async () => {

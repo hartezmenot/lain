@@ -89,7 +89,9 @@ module.exports = async function () {
     // can be unauthenticated. If a verb ever carries conversation, a session or
     // a credential, it belongs on the authenticated channel instead.
     const verbs = [...lock.matchAll(/verb === '([a-z]+)'/g)].map((m) => m[1]).sort();
-    assert.deepStrictEqual(verbs, ['quit', 'show', 'status'], `three verbs: ${verbs.join(', ')}`);
+    // 2026-09-29: `open` — Windows' Open with LAIN: a PATH, opened as the IDE would open it (openpath.js); it runs and grants nothing.
+    // 2026-09-30: `preview` — `lain preview` while LAIN runs: show the running LAIN's Preview (it opens a view, grants nothing).
+    assert.deepStrictEqual(verbs, ['open', 'preview', 'quit', 'show', 'status'], `five verbs: ${verbs.join(', ')}`);
     // CODE ONLY. Both comment forms are stripped — the first version of this
     // flagged a line saying the pipe hands out no secret, which is a sentence
     // agreeing with the assertion.

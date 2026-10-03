@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * ONE PENDING DECISION, MANY SURFACES (§39–40).
- *
- * A question LAIN needs a person to answer — ask_user, a permission, a MANUAL
- * step, a capability request, a download — is ONE Core record:
- *
- *     { id, sessionId, type, title, question, options, expires, nonce, sig }
- *
- * The CLI panel, the Harness window and Telegram all resolve the SAME record,
- * across processes: the record is a file in the LAIN home, and an answer is a
- * second file created with O_EXCL — so the FIRST valid answer wins and every
- * later one is told who answered. The process that asked watches for the
- * answer file and closes its own panel the moment another surface answers.
- *
- * A remote answer must carry the signature: a truncated HMAC over
- * (id, nonce, session, expiry) keyed by a per-install secret that never leaves
- * this machine. The Telegram button token is id+signature (24 hex), which is
- * exactly the shape the existing `lain:<id>:<n>` callback path carries.
- */
+/** ONE PENDING DECISION, MANY SURFACES (§39–40). */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -135,11 +117,7 @@ function pending(sessionId = null) {
 /** The Telegram/remote token: id + signature, 24 hex. */
 function token(d) { return `${d.id}${d.sig}`; }
 
-/**
- * First valid answer wins. A remote surface must present the signature.
- * `answer` may be an option index (0-based) or the option text.
- * @returns {{ok:boolean, why?:string, decision?:object}}
- */
+/** First valid answer wins. */
 function resolve(id, answer, { surface = 'cli', sig = null } = {}) {
   const d = get(id);
   if (!d) return { ok: false, why: 'unknown decision' };
@@ -191,11 +169,7 @@ function watch() {
 
 function on(event, fn) { bus.on(event, fn); return () => bus.off(event, fn); }
 
-/**
- * Ask through every surface at once and return the first valid answer. The CLI
- * or Harness answers through `interaction.ask` (or `localAsk`); a remote answer
- * closes the local panel with the same value.
- */
+/** Ask through every surface at once and return the first valid answer. */
 async function ask(app, q = {}, signal = null, localAsk = null) {
   const d = create({
     type: q.type || 'ASK_USER',
@@ -212,7 +186,7 @@ async function ask(app, q = {}, signal = null, localAsk = null) {
   if (!hasLocal && !remoteListening) { cancel(d.id, 'no surface'); off(); return null; }
   let panelRef = null;
   const local = localAsk ? localAsk()
-    : hasLocal ? interaction.ask(app, { title: q.title, question: q.question, options: q.options || [] }, signal)
+    : hasLocal ? interaction.ask(app, { title: q.title, question: q.question, options: q.options || [], plan: q.plan || null }, signal)
       : new Promise(() => {});
   if (app && app.ui && app.ui.enabled && app.ui.panel && app.ui.panel.stack) panelRef = app.ui.panel.stack[0] || null;
   const onAbort = () => cancel(d.id, 'aborted');
@@ -243,10 +217,7 @@ function wrapAsk(app, local) {
     app && app.abort ? app.abort.signal : null, () => local(q));
 }
 
-/**
- * Is any remote surface (a running bot service) able to answer? A heartbeat
- * file the bot bridge refreshes; stale after 15s.
- */
+/** Is any remote surface (a running bot service) able to answer? */
 function remoteSurfaces() {
   try {
     const st = fs.statSync(path.join(dir(), '.remote'));

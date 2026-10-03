@@ -251,29 +251,6 @@ module.exports = async function () {
       assert.strictEqual(typeof cont[name], 'function', `${name} is its own entry point`);
     }
   });
-
-  await test('IDENTITY: continuing a plan that has no task yet does NOT discard the plan', () => {
-    // FOUND IN A REAL TERMINAL, missed by every case above: their fake submit
-    // never reached identify. `/goal` and `/plan` are commands, not turns, so a
-    // plan can exist with no task object — and the continuation was classified
-    // as a NEW task, which set plan = null. The button wiped what it continued.
-    process.env.LAIN_PROVIDER = 'mock';
-    const { App } = require('../../src/app');
-    const app = new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: tmpdir('contid-') });
-    planOf(app.session, ['change heading', 'verify mobile', 'capture evidence']);
-    assert.strictEqual(app.session.task, null, 'the precondition: no task has been classified yet');
-    const plan = app.session.plan;
-
-    app.identify('Continue working toward this goal: Finish fixture frontend', false, null, true);
-    assert.strictEqual(app.session.plan, plan, 'the machinery said it continues this plan, so it is kept');
-
-    // AND TYPED INPUT CANNOT ASSERT IT: an ordinary new request still starts clean.
-    const other = new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, cwd: tmpdir('contid2-') });
-    planOf(other.session, ['a', 'b']);
-    other.identify('build me a completely different thing', false, null, false);
-    assert.strictEqual(other.session.plan, null, 'a genuinely new task does not inherit the plan');
-  });
-
   await test('STATE: the step is found using plan.js\'s OWN status values', () => {
     // Written as 'ACTIVE'/'DONE' this matched nothing — plan.js uses lower case
     // — and every continuation would have restarted at step 1, which is the

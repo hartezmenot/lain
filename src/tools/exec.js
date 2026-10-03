@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * PYTHON AND PROGRAMS — execution that is not "a shell command in disguise".
- *
- * `run_bash "python x.py"` works, and it is a lie about what happened. What
- * actually ran was a SHELL, which parsed the line, applied its own quoting
- * rules, and returned ITS exit code. The differences are not academic:
- *
- *   · a path with a space needs shell quoting that varies by shell, and gets
- *     it wrong differently on cmd, PowerShell and bash
- *   · `powershell -Command` flattens a non-zero exit to 1, so `sys.exit(3)`
- *     comes back as 3 from cmd and 1 from PowerShell — measured, on this
- *     machine, earlier in this session
- *   · the pid you get is the SHELL's, so nothing can be observed or killed
- *   · a missing interpreter reads as a shell error about a command not found,
- *     rather than "there is no Python here"
- *
- * So these spawn the program DIRECTLY — no shell, argv as an array, no quoting
- * to get wrong — and report what actually ran: the resolved binary, the real
- * pid, the true exit code, stdout and stderr kept apart.
- *
- * WHAT THIS IS NOT. It is not a sandbox and does not pretend to be: a program
- * run here can do anything the user can do, exactly like `run_bash`. The gain
- * is HONESTY and OBSERVABILITY, not containment.
- *
- * PYTHON IS NOT REQUIRED. Nothing in LAIN's editing path touches it. It is
- * here because OCR, image measurement and computer vision genuinely live in
- * Python, and a coding agent that cannot run the project's own scripts is
- * missing a limb. With no interpreter configured or found, `python_run` says
- * NOT CONFIGURED and names what to do — it never silently falls back to a
- * shell, which would put the confusion back.
- */
+/** PYTHON AND PROGRAMS — execution that is not "a shell command in disguise". */
 
 const fs = require('fs');
 const path = require('path');
@@ -41,14 +11,7 @@ const jobsMod = require('../jobs');
 const MAX_OUTPUT = 200_000;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-/**
- * WHICH PYTHON, and where it came from.
- *
- * The configured one wins, because a machine with three Pythons has one that
- * has the project's packages in it. `probe.python` is reused deliberately: the
- * user already told LAIN where a working 3.11 is, and asking twice for the same
- * fact is how two answers to one question come to exist.
- */
+/** WHICH PYTHON, and where it came from. */
 function findPython(cfg = {}) {
   const tried = [];
   const configured = (cfg.python && cfg.python.exe)
@@ -79,21 +42,13 @@ function onPath(name) {
   const exts = process.platform === 'win32'
     ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';').filter(Boolean)
     : [''];
-  for (const d of dirs) {
-    for (const e of exts) {
-      if (exists(path.join(d, name + e))) return true;
-    }
-  }
-  return false;
+  // REMEMBERED (pathlookup.js, Phase 8.3): the window's state read asks for Python on every poll (the Cowork
+  // capabilities), and each ask walked every PATH directory × extension.
+  if (!dirs.length) return false;
+  return require('../pathlookup').find(name, exts) !== null;
 }
 
-/**
- * Run a program directly and collect everything about it.
- *
- * stdout and stderr are kept APART, unlike the shell tools, because a Python
- * script's traceback is on stderr and its answer is on stdout — merging them is
- * how a model comes to parse an exception as a result.
- */
+/** Run a program directly and collect everything about it. */
 function execute(file, args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, input = null, env = process.env } = {}) {
   return new Promise((resolve) => {
     if (signal && signal.aborted) {
@@ -153,17 +108,7 @@ function execute(file, args, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, inpu
 }
 
 /** What a run reads like: the facts first, then what it printed. */
-/**
- * WHICH MECHANISM ACTUALLY RAN — .
- *
- * "The model must know whether it is python, process, shell, browser or
- * probe/bridge, and the evidence must identify the actual execution path."
- * Without it, a program that failed and a shell that failed read identically,
- * and the difference decides the fix: a shell flattens an exit code, a direct
- * spawn does not, and only one of them expands a glob. (The browser and the
- * probe/bridge mechanisms named in the quote were removed in 2026-09; the
- * vocabulary lives on for the four that remain.)
- */
+/** WHICH MECHANISM ACTUALLY RAN — . */
 // The stamp itself lives in via.js: shell.js and jobs.js say the same thing,
 // and two of the three used to spell it their own way.
 const { via, KIND } = require('./via');
@@ -177,13 +122,6 @@ function report(what, r, mechanism = '') {
       : r.startFailed || r.exitCode === null ? `${what} could not run`
         : `${what} exited ${r.exitCode} after ${Math.round(r.elapsedMs / 1000)}s`;
   // THE MECHANISM GOES ON THE HEAD LINE, not after it.
-  //
-  // the design asks that a result identify HOW it ran — `[via python: …]`, `[via
-  // process: spawned directly, no shell]` — and it did, on the second line. The
-  // feed shows the FIRST line of a tool result, and the join below becomes a
-  // newline the moment the program prints anything, so the stamp was visible
-  // exactly when the program was silent and invisible in every ordinary case.
-  // A label that disappears as soon as there is real output is not a label.
   const bits = [mechanism ? `${head} ${mechanism}` : head];
   if (r.pid) bits.push(`pid ${r.pid}`);
   if (r.error) bits.push(`reason: ${r.error}`);
@@ -231,9 +169,7 @@ tools.python_run = {
     if (where.error) return { output: where.error, isError: true };
 
     const extra = Array.isArray(input.args) ? input.args.map(String) : [];
-    // `-I` isolates from the user's site-packages and PYTHONPATH for a snippet,
-    // so a one-liner cannot be changed by whatever is installed globally. A
-    // FILE is run without it: a project script is meant to see its own project.
+    // `-I` isolates from the user's site-packages and PYTHONPATH for a snippet, so a one-liner cannot be changed by whatever is installed globally.
     const argv = file ? [file, ...extra] : ['-I', '-c', code, ...extra];
     const r = await execute(py.exe, argv, {
       cwd: where.cwd, timeoutMs: Number(input.timeout_ms) || undefined, signal: ctx.signal,
@@ -251,15 +187,7 @@ tools.python_run = {
   },
 };
 
-/**
- * The classification block for a DIRECT spawn.
- *
- * No shell ran, so there is no shell dialect to have got wrong and no mismatch
- * to report — which is exactly the value of spawning directly, and why the
- * annotation here is usually just the exit code with a name on it. It is worth
- * having anyway: `127` and `126` mean something specific, and a model that has
- * already run this program twice should be told so.
- */
+/** The classification block for a DIRECT spawn. */
 function annotationFor(r, { command, cwd, ctx }) {
   if (r.interrupted) return { text: '', verdict: { class: execution.CLASS.INTERRUPTED } };
   return execution.annotate(

@@ -1,276 +1,213 @@
-// THE PARTS THAT TOUCH THE SYSTEM: a running LAIN, shortcuts, PATH, uninstall.
-//
-// Each one is undone by the uninstaller, and none of them is duplicated by a
-// second install. That symmetry is the whole design constraint here — an
-// installer that cannot cleanly reverse itself is one nobody should run twice.
+// THE PARTS OF SETUP THAT TOUCH THE SYSTEM — a running LAIN, Open With, shortcuts, PATH, uninstall.
+// Each is undone by uninstall, none is duplicated by a second install, and none changes a default application.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-/// ---- A RUNNING LAIN DURING AN UPDATE -------------------------------------
-///
-/// LAIN.exe sits in the tray, a Bot may be connected and Core may be mid-turn.
-/// Overwriting those binaries underneath them is how an update corrupts an
-/// install, and killing them throws away durable state that was about to be
-/// written.
-///
-/// So it asks LAIN to shut itself down THROUGH ITS OWN SEQUENCE — the same one
-/// the tray's Quit uses (src/teardown.js, reached by bin/lain-control.js) —
-/// which stops the gateway, the jobs, the terminals, the sessions and the
-/// window in the order they have to stop in. Killing is the last resort and is
-/// reported when it happens.
+/// A RUNNING LAIN goes down through its OWN shutdown sequence (distribution/shutdown.js — the same one the tray's
+/// Quit uses), which saves sessions and commits task checkpoints before anything stops. Killing a window host is the
+/// last resort, and hosts own no state (Core does).
 static class Live {
-  public static int ShutDown(string dir, string node, Action<string> log) {
+  public static int ShutDown(string dir, Action<string> log) {
     int stopped = 0;
-    // THE CONTROL PATH IS corelock's, AND IT IS REACHED THROUGH ONE SCRIPT.
-    // (This first called bin/lain-control.js — which is the Computer MCP stop
-    // WINDOW, takes a directory rather than a verb, and sat forever waiting for
-    // a state file. The install hung with no output at all.)
-    string shutdown = Path.Combine(dir, "distribution", "shutdown.js");
-    if (File.Exists(shutdown) && node != null) {
+    string v = Pointer.Read(dir, "current");
+    string node = v == null ? null : Path.Combine(dir, "versions", v, "runtime", "node.exe");
+    string script = v == null ? null : Path.Combine(dir, "versions", v, "app", "distribution", "shutdown.js");
+    if (node != null && File.Exists(node) && File.Exists(script)) {
       try {
-        ProcessStartInfo psi = new ProcessStartInfo(node, "\"" + shutdown + "\"");
-        psi.UseShellExecute = false; psi.CreateNoWindow = true;
-        // NOT REDIRECTED, AND THAT IS THE FIX. ReadToEnd() blocks until the
-        // child exits, so a child that never exits made the 30-second timeout
-        // below unreachable — the deadlock that hung the first upgrade.
-        using (Process p = Process.Start(psi)) {
-          if (!p.WaitForExit(40000)) {
-            log("  (the shutdown request did not return; ending it)");
-            try { p.Kill(); } catch { }
-          } else if (p.ExitCode == 0) stopped += 1;
+        using (Process p = Process.Start(new ProcessStartInfo(node, "\"" + script + "\"") { UseShellExecute = false, CreateNoWindow = true })) {
+          if (!p.WaitForExit(40000)) { log("  (the shutdown request did not return; ending it)"); try { p.Kill(); } catch { } }
+          else if (p.ExitCode == 0) stopped++;
         }
       } catch (Exception e) { log("  (could not ask LAIN to stop: " + e.Message + ")"); }
     }
-    // WHATEVER IS LEFT AFTER THE POLITE ROUTE. The host processes are named
-    // lain-desktop-<hash>.exe and own no state of their own — Core does.
-    foreach (string name in new string[] { "lain-desktop", "lain-pty" }) {
-      try {
-        foreach (Process p in Process.GetProcesses()) {
-          if (!p.ProcessName.StartsWith(name, StringComparison.OrdinalIgnoreCase)) continue;
-          try { p.Kill(); p.WaitForExit(5000); stopped += 1; log("  (ended " + p.ProcessName + ")"); } catch { }
-        }
-      } catch { }
+    // THE LAST RESORT, AND ONLY THIS INSTALL'S: a window host still running FROM THIS FOLDER. Another LAIN
+    // somewhere else on the machine (a development checkout, another install) is never touched.
+    string root = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
+    foreach (Process p in Process.GetProcesses()) {
+      if (!p.ProcessName.StartsWith("lain-harness-", StringComparison.OrdinalIgnoreCase) && !p.ProcessName.StartsWith("noema-harness-", StringComparison.OrdinalIgnoreCase)) continue;
+      string exe = null;
+      try { exe = p.MainModule.FileName; } catch { continue; }
+      if (exe == null || !Path.GetFullPath(exe).StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+      try { p.Kill(); p.WaitForExit(5000); stopped++; log("  (ended " + p.ProcessName + ")"); } catch { }
     }
     return stopped;
   }
 }
 
-/// A .lnk is a COM shell object, so it is written through WScript.Shell — the
-/// same "use what Windows already has" arrangement as csc.exe and PowerShell.
+/// OPEN WITH / OPEN FOLDER — ONE implementation, the app's (src/winassoc.js), run by the installed runtime: it writes
+/// OpenWithProgids, the folder verbs and the app entry, never a file type's default and never UserChoice, and it
+/// removes the obsolete LAIN's and the Noema era's registrations in the same step.
+static class Assoc {
+  /// Run the installed app's own CLI (`lain <args>`) — Open With, the Startup entry and the obsolete LAIN's leftovers each have
+  /// ONE implementation, in the app; setup only asks it.
+  public static int Node(string dir, string args, Action<string> log) {
+    string v = Pointer.Read(dir, "current");
+    if (v == null) return 1;
+    string node = Path.Combine(dir, "versions", v, "runtime", "node.exe");
+    string entry = Path.Combine(dir, "versions", v, "app", "bin", "lain.js");
+    try {
+      var psi = new ProcessStartInfo(node, "\"" + entry + "\" " + args) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+      // WHICH INSTALL IS ASKING (startup.js finds `LAIN Harness.exe` here, never a version folder).
+      psi.EnvironmentVariables["LAIN_INSTALL_ROOT"] = dir;
+      using (var p = Process.Start(psi)) {
+        string o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd(); p.WaitForExit(60000);
+        foreach (var line in o.Split('\n')) if (line.Trim().Length > 0) log("  " + line.Trim());
+        return p.ExitCode;
+      }
+    } catch (Exception e) { log("  (" + e.Message + ")"); return 1; }
+  }
+  public static void Add(string dir, string opener, bool files, bool folders, Action<string> log) {
+    Node(dir, "assoc register --exe \"" + opener + "\"" + (files ? "" : " --no-files") + (folders ? "" : " --no-folders"), log);
+  }
+  public static void Remove(string dir, Action<string> log) { Node(dir, "assoc remove", log); }
+}
+
+/// Start Menu entries under "LAIN", written through WScript.Shell (what Windows already has).
 static class Shortcuts {
-  public static string MenuDir() {
-    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs");
-  }
-  public static string MenuLink() { return Path.Combine(MenuDir(), "LAIN.lnk"); }
-  public static string DesktopLink() {
-    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "LAIN.lnk");
-  }
-
-  public static bool StartMenu(string target, string workdir, Action<string> log) {
-    bool ok = Write(MenuLink(), target, workdir);
-    log(ok ? "Start Menu: LAIN" : "Start Menu: could not create the entry");
-    return ok;
-  }
-  public static bool Desktop(string target, string workdir, Action<string> log) {
-    bool ok = Write(DesktopLink(), target, workdir);
-    log(ok ? "Desktop shortcut: LAIN" : "Desktop shortcut: could not create it");
-    return ok;
-  }
-
-  /// THE TARGET IS LAIN.exe. Never lain.cmd, never node.exe, never a URL: a
-  /// shortcut that opens a console window or a browser is not this product.
-  static bool Write(string link, string target, string workdir) {
-    string ps =
-      "param([string]$Link,[string]$Target,[string]$Work)\r\n" +
-      "$s = New-Object -ComObject WScript.Shell\r\n" +
-      "$sc = $s.CreateShortcut($Link)\r\n" +
-      "$sc.TargetPath = $Target\r\n" +
-      "$sc.WorkingDirectory = $Work\r\n" +
-      "$sc.Description = 'LAIN'\r\n" +
-      "$sc.IconLocation = $Target + ',0'\r\n" +
-      "$sc.WindowStyle = 1\r\n" +
-      "$sc.Save()\r\n";
+  public static string MenuDir() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN"); }
+  public static bool Write(string name, string target, string args, string description, Action<string> log) {
+    string link = Path.Combine(MenuDir(), name + ".lnk");
+    string ps = "param([string]$Link,[string]$Target,[string]$Arguments,[string]$Desc)\r\n"
+      + "$s = New-Object -ComObject WScript.Shell\r\n$sc = $s.CreateShortcut($Link)\r\n$sc.TargetPath = $Target\r\n"
+      + "if ($Arguments) { $sc.Arguments = $Arguments }\r\n$sc.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')\r\n"
+      + "$sc.Description = $Desc\r\n$sc.IconLocation = $Target + ',0'\r\n$sc.Save()\r\n";
     string file = Path.Combine(Path.GetTempPath(), "lain-lnk-" + Guid.NewGuid().ToString("N") + ".ps1");
     try {
-      Directory.CreateDirectory(Path.GetDirectoryName(link));
+      Directory.CreateDirectory(MenuDir());
       File.WriteAllText(file, ps, new UTF8Encoding(false));
-      ProcessStartInfo psi = new ProcessStartInfo("powershell",
-        "-NoProfile -ExecutionPolicy Bypass -File \"" + file + "\" -Link \"" + link + "\" -Target \"" + target + "\" -Work \"" + workdir + "\"");
-      psi.UseShellExecute = false; psi.CreateNoWindow = true;
+      var psi = new ProcessStartInfo("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + file + "\" -Link \"" + link + "\" -Target \"" + target + "\" -Arguments \"" + args + "\" -Desc \"" + description + "\"") { UseShellExecute = false, CreateNoWindow = true };
       using (Process p = Process.Start(psi)) p.WaitForExit(30000);
-      return File.Exists(link);
+      bool ok = File.Exists(link);
+      log(ok ? "Start Menu: LAIN > " + name : "Start Menu: could not create " + name);
+      return ok;
     } catch { return false; }
     finally { try { File.Delete(file); } catch { } }
   }
-
-  public static void Remove(Action<string> log) {
-    foreach (string p in new string[] { MenuLink(), DesktopLink() }) {
-      try { if (File.Exists(p)) { File.Delete(p); log("Removed " + p); } } catch (Exception e) { log("Could not remove " + p + ": " + e.Message); }
-    }
+  public static void RemoveAll(Action<string> log) {
+    try { if (Directory.Exists(MenuDir())) { Directory.Delete(MenuDir(), true); log("Removed the Start Menu entries"); } } catch (Exception e) { log("Could not remove the Start Menu entries: " + e.Message); }
+    // The obsolete pre-cleanup LAIN's single entry (a FILE named LAIN.lnk — not this folder).
+    try { string old = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN.lnk"); if (File.Exists(old)) File.Delete(old); } catch { }
   }
 }
 
-/// ---- PATH ----------------------------------------------------------------
-///
-/// The USER's PATH, never the machine's: installing a command for yourself
-/// should not need administrator, and should not change what every other
-/// account on the machine resolves. It is matched and removed by exact
-/// directory, never by rewriting the variable — every other entry comes back
-/// byte-identical, which is the property that matters when somebody's PATH has
-/// forty entries in it and one of them is their livelihood.
+/// The USER's PATH, never the machine's; added and removed by exact directory, every other entry byte-identical.
 static class PathEntry {
   const string VAR = "PATH";
-
   public static bool Add(string dir, Action<string> log) {
     try {
       string cur = Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.User) ?? "";
-      foreach (string part in cur.Split(';')) {
-        if (Same(part, dir)) { log("PATH: " + dir + " was already there"); return true; }
-      }
-      string next = cur.Length == 0 ? dir : (cur.TrimEnd(';') + ";" + dir);
-      Environment.SetEnvironmentVariable(VAR, next, EnvironmentVariableTarget.User);
+      foreach (string part in cur.Split(';')) if (Same(part, dir)) { log("PATH: " + dir + " was already there"); return true; }
+      Environment.SetEnvironmentVariable(VAR, cur.Length == 0 ? dir : (cur.TrimEnd(';') + ";" + dir), EnvironmentVariableTarget.User);
       log("PATH: added " + dir + " (open a NEW terminal for `lain`)");
+      string shadow = Shadowing(dir);
+      if (shadow != null) log("NOTE: `lain` resolves to " + shadow + " first — it is earlier on PATH.");
       return true;
     } catch (Exception e) { log("PATH: not changed — " + e.Message); return false; }
   }
-
   public static bool Remove(string dir, Action<string> log) {
     try {
       string cur = Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.User) ?? "";
-      var kept = new System.Collections.Generic.List<string>();
-      bool found = false;
-      foreach (string part in cur.Split(';')) {
-        if (Same(part, dir)) { found = true; continue; }
-        if (part.Length > 0) kept.Add(part);
-      }
-      if (!found) { log("PATH: no entry of ours to remove"); return true; }
+      var kept = new List<string>(); bool found = false;
+      foreach (string part in cur.Split(';')) { if (Same(part, dir)) { found = true; continue; } if (part.Length > 0) kept.Add(part); }
+      if (!found) return true;
       Environment.SetEnvironmentVariable(VAR, string.Join(";", kept.ToArray()), EnvironmentVariableTarget.User);
       log("PATH: removed " + dir);
       return true;
     } catch (Exception e) { log("PATH: not changed — " + e.Message); return false; }
   }
-
   static bool Same(string a, string b) {
-    try {
-      return string.Equals(
-        Path.GetFullPath(a.Trim().Trim('"')).TrimEnd('\\'),
-        Path.GetFullPath(b.Trim().Trim('"')).TrimEnd('\\'),
-        StringComparison.OrdinalIgnoreCase);
-    } catch { return false; }
+    try { return string.Equals(Path.GetFullPath(a.Trim().Trim('"')).TrimEnd('\\'), Path.GetFullPath(b.Trim().Trim('"')).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase); } catch { return false; }
   }
-
-  /// ---- IS SOMETHING ELSE ALREADY ANSWERING TO `lain`? -------------------
-  ///
-  /// Adding a directory to PATH does not make it win. FOUND ON THE FIRST REAL
-  /// INSTALL: `lain` resolved to an npm-installed copy in
-  /// %APPDATA%\npm — an older LAIN, on an older Node — because that directory
-  /// came earlier. The install had succeeded and the command was somebody
-  /// else's, which is the worst kind of working.
-  ///
-  /// This walks PATH the way a shell does, in order, and reports the first
-  /// thing that answers. It does not touch the other copy: that is the
-  /// person's, and removing it is their decision.
   public static string Shadowing(string dir) {
-    string user = Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.User) ?? "";
-    string machine = Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.Machine) ?? "";
-    foreach (string part in (user + ";" + machine).Split(';')) {
-      string d = part.Trim().Trim('"');
-      if (d.Length == 0) continue;
-      foreach (string ext in new string[] { ".cmd", ".exe", ".bat", ".ps1" }) {
-        string candidate;
-        try { candidate = Path.Combine(d, "lain" + ext); } catch { continue; }
-        try { if (!File.Exists(candidate)) continue; } catch { continue; }
-        return Same(d, dir) ? null : candidate;      // ours wins, or theirs does
+    string all = (Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.User) ?? "") + ";" + (Environment.GetEnvironmentVariable(VAR, EnvironmentVariableTarget.Machine) ?? "");
+    foreach (string part in all.Split(';')) {
+      string d = part.Trim().Trim('"'); if (d.Length == 0) continue;
+      foreach (string ext in new[] { ".exe", ".cmd", ".bat" }) {
+        string c; try { c = Path.Combine(d, "lain" + ext); if (!File.Exists(c)) continue; } catch { continue; }
+        return Same(d, dir) ? null : c;
       }
     }
     return null;
   }
 }
 
-/// ---- UNINSTALL -----------------------------------------------------------
-///
-/// Removes what was installed and NOTHING a person owns. Sessions, goals,
-/// plans, credentials and project state live under the user's data directory
-/// and stay there unless --remove-data is asked for explicitly.
-static class Uninstall {
-  public static int Run(string dir, bool silent, bool removeData) {
-    var lines = new System.Collections.Generic.List<string>();
-    Action<string> log = s => { lines.Add(s); if (silent) Console.WriteLine(s); };
-
-    Live.ShutDown(dir, Setup.FindNode(), log);
-    Shortcuts.Remove(log);
-
-    bool addedPath = true;
-    try {
-      using (RegistryKey k = Registry.CurrentUser.OpenSubKey(Setup.REG_KEY)) {
-        if (k != null) {
-          object v = k.GetValue("LainAddedPath");
-          addedPath = v == null || Convert.ToInt32(v) == 1;
-        }
-      }
-    } catch { }
-    // ONLY WHAT THIS INSTALLER ADDED. A PATH entry somebody put there by hand
-    // is theirs.
-    if (addedPath) PathEntry.Remove(dir, log); else log("PATH: nothing of ours was added");
-
-    try { Registry.CurrentUser.DeleteSubKeyTree(Setup.REG_KEY, false); } catch { }
-
-    // THE PROGRAM, not the work.
-    foreach (string sub in new string[] { "bin", "src", "distribution", "native", "docs" }) {
-      try { string p = Path.Combine(dir, sub); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("Could not remove " + sub + ": " + e.Message); }
-    }
-    foreach (string f in new string[] { "LAIN.exe", "lain.cmd", "package.json", "README.md", "launch.json" }) {
-      try { string p = Path.Combine(dir, f); if (File.Exists(p)) File.Delete(p); } catch { }
-    }
-    log("Removed the program from " + dir);
-
-    string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain-v2");
-    if (removeData) {
-      try { if (Directory.Exists(data)) { Directory.Delete(data, true); log("Removed your LAIN data at " + data); } }
-      catch (Exception e) { log("Could not remove " + data + ": " + e.Message); }
-    } else {
-      log("Kept your sessions, goals and settings at " + data);
-    }
-
-    if (!silent) {
-      MessageBox.Show(string.Join(Environment.NewLine, lines.ToArray()),
-        "LAIN — uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-    // The uninstaller is running from inside the directory it just emptied, so
-    // the last two things go after it exits.
-    Self.DeleteAfterExit(dir);
-    return 0;
+/// A NOEMA-ERA INSTALL, RETIRED after LAIN is installed and verified in its place: its program folder, its Start Menu
+/// folder, its PATH entry and its Installed-apps key. Its Open With entries and Startup shortcut were already replaced
+/// by LAIN's own registration (winassoc.js, startup.js). The person's data is not touched here — home.js moves it.
+static class Retire {
+  public static void Noema(string dir, Action<string> log) {
+    log("Retiring the Noema install at " + dir);
+    try { string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "Noema"); if (Directory.Exists(menu)) { Directory.Delete(menu, true); log("  removed Start Menu > Noema"); } } catch (Exception e) { log("  (Start Menu > Noema: " + e.Message + ")"); }
+    PathEntry.Remove(dir, log);
+    try { Registry.CurrentUser.DeleteSubKeyTree(Setup.NOEMA_KEY, false); log("  removed Noema from Installed apps"); } catch (Exception e) { log("  (Installed apps: " + e.Message + ")"); }
+    foreach (string d in new[] { "versions", "staging" }) { try { string p = Path.Combine(dir, d); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("  (could not remove " + d + ": " + e.Message + ")"); } }
+    foreach (string f in Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]) { try { File.Delete(f); } catch { try { File.Move(f, f + ".delete-me"); } catch { } } }
+    try { Directory.Delete(dir, true); log("  removed " + dir); } catch { log("  " + dir + " is still in use — what is left goes when nothing holds it"); }
   }
 }
 
-static class Self {
-  /// ---- ONLY THE INSTALLED COPY DELETES ITSELF ---------------------------
-  ///
-  /// The uninstaller and the installer are the same program, so running
-  /// `LAIN-Setup.exe --uninstall` used to delete LAIN-Setup.exe — the artifact
-  /// people download, sitting in a downloads folder or, as happened here, in
-  /// dist/ where it had just been built. Self-deletion is for the copy that
-  /// lives INSIDE the install directory and would otherwise be left behind.
-  public static void DeleteAfterExit(string dir) {
+/// UNINSTALL — the program, never the person's work unless they ask (and then with a warning).
+static class Uninstaller {
+  public static int Run(Setup.Options o, Action<string> console) {
+    string dir = o.Dir;
+    var lines = new List<string>();
+    Action<string> log = s => { lines.Add(s); if (console != null) console(s); };
+    if (console == null) {
+      using (var f = new UninstallForm(Setup.DataDir())) {
+        if (f.ShowDialog() != DialogResult.OK) return 1;
+        o.RemoveData = f.RemoveData;
+      }
+    }
+    // ONLY WHAT THIS INSTALL ADDED (components.json) is taken back — never another program's entries.
+    var c = Components.Read(dir);
+    Live.ShutDown(dir, log);
+    // START AT SIGN-IN goes with the program — only the entry that points into THIS install (no dead shortcut left).
+    Assoc.Node(dir, "settings startup remove --owned", log);
+    if (c.OpenWith || c.Folder) Assoc.Remove(dir, log);
+    if (c.StartMenu) Shortcuts.RemoveAll(log);
+    PathEntry.Remove(dir, log);   // exactly this folder, if present
+    if (c.Registered) { try { Registry.CurrentUser.DeleteSubKeyTree(Setup.REG_KEY, false); } catch { } }
+    // THE PROGRAM: everything under the install root except this running copy (deleted after exit).
+    string me = System.Reflection.Assembly.GetExecutingAssembly().Location;
+    foreach (string d in new[] { "versions", "staging" }) { try { string p = Path.Combine(dir, d); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("Could not remove " + d + ": " + e.Message); } }
+    foreach (string f in Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]) {
+      if (string.Equals(Path.GetFullPath(f), Path.GetFullPath(me), StringComparison.OrdinalIgnoreCase)) continue;
+      try { File.Delete(f); } catch { try { File.Move(f, f + ".delete-me"); } catch { } }
+    }
+    log("Removed the program from " + dir);
+    string data = Setup.DataDir();
+    if (o.RemoveData) {
+      try {
+        // THE COMPATIBILITY LINKS (~/.noema, ~/.lain-v2 → the data folder) go with the default data folder — only
+        // links, never a real folder, and only when the data removed is the default one they point to.
+        string up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string full = Path.GetFullPath(data).TrimEnd('\\');
+        bool isDefault = string.Equals(full, Path.Combine(up, ".lain"), StringComparison.OrdinalIgnoreCase) || string.Equals(full, Path.Combine(up, ".noema"), StringComparison.OrdinalIgnoreCase);
+        if (Directory.Exists(data)) { Directory.Delete(data, true); log("Removed your LAIN data at " + data); }
+        foreach (string name in new[] { ".noema", ".lain-v2" }) {
+          var info = new DirectoryInfo(Path.Combine(up, name));
+          if (isDefault && info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0) { info.Delete(); log("Removed the compatibility link " + info.FullName); }
+        }
+      } catch (Exception e) { log("Could not remove " + data + ": " + e.Message); }
+    } else log("Kept your sessions, accounts, settings and usage history at " + data);
+    if (console == null) MessageBox.Show(string.Join(Environment.NewLine, lines.ToArray()), "LAIN — uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    DeleteAfterExit(me, dir);
+    return 0;
+  }
+
+  static void DeleteAfterExit(string me, string dir) {
     try {
-      string me = System.Reflection.Assembly.GetExecutingAssembly().Location;
       string root = Path.GetFullPath(dir).TrimEnd('\\') + "\\";
-      if (!Path.GetFullPath(me).StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;
+      if (!Path.GetFullPath(me).StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;   // a downloaded setup is never deleted
       string bat = Path.Combine(Path.GetTempPath(), "lain-cleanup-" + Guid.NewGuid().ToString("N") + ".bat");
-      File.WriteAllText(bat,
-        "@echo off\r\n" +
-        "ping -n 3 127.0.0.1 >nul\r\n" +
-        "del \"" + me + "\" >nul 2>&1\r\n" +
-        "rmdir \"" + dir + "\" >nul 2>&1\r\n" +
-        "del \"%~f0\" >nul 2>&1\r\n", new UTF8Encoding(false));
-      ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c \"" + bat + "\"");
-      psi.UseShellExecute = false; psi.CreateNoWindow = true;
-      Process.Start(psi);
+      File.WriteAllText(bat, "@echo off\r\nping -n 3 127.0.0.1 >nul\r\ndel /q \"" + me + "\" >nul 2>&1\r\ndel /q \"" + dir + "\\*.delete-me\" >nul 2>&1\r\nrmdir \"" + dir + "\" >nul 2>&1\r\ndel \"%~f0\" >nul 2>&1\r\n", new UTF8Encoding(false));
+      Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + bat + "\"") { UseShellExecute = false, CreateNoWindow = true });
     } catch { }
   }
 }

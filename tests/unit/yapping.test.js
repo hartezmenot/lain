@@ -71,54 +71,15 @@ const TRANSCRIPT = [
 ];
 
 module.exports = async function () {
-  await test('YAP: the filter is ON while the turn streams, not only once it is recorded', () => {
-    // ---- THE DEFECT, AND IT IS THE ONE A PERSON ACTUALLY SEES -----------
-    //
-    // `condense.prose` defaults `last` to TRUE, deliberately: a message that is
-    // ENTIRELY narration is kept when it is the final thing a turn said,
-    // because a turn that appears to have said nothing reads as a failure.
-    //
-    // The RECORDED path passes `{ last: n === lastSaid }` and gets that right.
-    // The LIVE path passed nothing, so every mid-turn announcement took the
-    // cautious branch and was KEPT while the turn streamed — then vanished the
-    // instant the turn ended and the recorded path drew it instead.
-    //
-    // The narration filter was therefore off during the only period anybody is
-    // watching it work, which is why it kept testing correct.
-    const older = { after: 0, at: 1, text: 'Let me check the loader.' };
-    const newest = { after: 0, at: 2, text: 'The loader runs twice.' };
-
-    feedcache.reset();
-    const rows = views.activity({
-      session: { turns: [] }, width: 90,
-      liveNarration: [older, newest],
-      liveActions: [{ name: 'read_file', target: 'a.js', ok: true }],
-    }).map(strip).join(' ');
-
-    assert.ok(!/Let me check the loader/.test(rows),
-      'a mid-turn announcement must be suppressed WHILE STREAMING');
-    assert.ok(/The loader runs twice/.test(rows), 'and the finding must survive');
-  });
-
-  await test('YAP: the newest paragraph is spared, and stops being spared when another arrives', () => {
-    // The other half of the same rule. An announcement that is the model's
-    // CURRENT last word stays — the screen must not look like nothing was said
-    // — and goes as soon as anything follows it.
+  await test('YAP (S5.1 finding 7): while the turn runs, every step\'s narration stays on screen, in order', () => {
     const a = { after: 0, at: 1, text: 'Let me check the loader.' };
-    const b = { after: 0, at: 2, text: 'Now let me fix it.' };
-    const c = { after: 0, at: 3, text: 'The handler is registered twice.' };
-
-    const draw = (live) => {
-      feedcache.reset();
-      return views.activity({ session: { turns: [] }, width: 90, liveNarration: live, liveActions: [] })
-        .map(strip).join(' ');
-    };
-
-    assert.ok(/Now let me fix it/.test(draw([a, b])),
-      'the current last word is kept even when it is pure announcement');
-    assert.ok(!/Now let me fix it/.test(draw([a, b, c])),
-      'and is dropped the moment it is no longer the last word');
-    assert.ok(/registered twice/.test(draw([a, b, c])));
+    const b = { after: 1, at: 2, text: 'Now let me fix it.' };
+    const c = { after: 1, at: 3, text: 'The handler is registered twice.' };
+    feedcache.reset();
+    const rows = views.activity({ session: { turns: [] }, width: 90, liveNarration: [a, b, c], liveActions: [{ name: 'read_file', target: 'a.js', ok: true }] })
+      .map(strip).join(' ');
+    const at = (re) => rows.search(re);
+    assert.ok(at(/Let me check the loader/) >= 0 && at(/Now let me fix it/) > at(/Let me check the loader/) && at(/registered twice/) > at(/Now let me fix it/), rows);
   });
 
   await test('YAP: every sentence of a realistic transcript lands on the right side', () => {

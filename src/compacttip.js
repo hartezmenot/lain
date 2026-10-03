@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * AUTO-COMPACTION IS INTERNAL MAINTENANCE (§47).
- *
- * It used to open the COMPACT surface on every step it ran, so a long turn
- * redrew `Context compacted · 296k → 294k` over the composer again and again.
- * Routine compaction is now silent on the primary UI (the accounting stays in
- * `/token`); an in-progress message-limit fold uses the one operation row; and
- * after a turn, when context is genuinely high, ONE quiet tip is shown — then
- * suppressed until usage has grown materially past the level it was shown at.
- */
+/** AUTO-COMPACTION IS INTERNAL MAINTENANCE (§47). */
 
 const TIP = 'TIP · /compact can reduce context usage.';
 /** Usage at which the tip is worth a line. */
@@ -35,11 +26,7 @@ function usage(app) {
   } catch { return 0; }
 }
 
-/**
- * Decide the post-turn tip. Pure over (ratio, last shown level) so the
- * suppression rule is testable without a session.
- * @returns {{show:boolean, level:number}} the new remembered level
- */
+/** Decide the post-turn tip. */
 function decide(ratio, shownAt = 0) {
   if (ratio < HIGH) return { show: false, level: ratio < shownAt - STEP ? 0 : shownAt };
   if (!shownAt || ratio >= shownAt + STEP) return { show: true, level: ratio };

@@ -229,7 +229,11 @@ module.exports = async function () {
     p.steer('do not build the router yet, finish the CLI first', { drop: [1, 2], replace: [{ n: 1, text: 'WIPED' }] });
     assert.strictEqual(p.steps[0].status, STATUS.DONE, 'completed step survives');
     assert.strictEqual(p.steps[0].text, 'scaffold', 'completed step was not rewritten');
-    assert.strictEqual(p.steps[1].status, STATUS.DROPPED, 'a pending step CAN be dropped');
+    // A PENDING STEP CAN BE DROPPED — and a dropped row leaves the live list for plan.dropped (Gate 3: dropped rows
+    // counted as steps is what renumbered the same work and resumed "Step 3" again and again).
+    assert.ok(!p.steps.some((s) => s.text === 'router'), 'a pending step CAN be dropped');
+    assert.ok(p.dropped.some((s) => s.text === 'router'), 'and it is kept as history');
+    assert.strictEqual(p.steps[1].text, 'tests', 'the next live step moves up');
     assert.ok(p.decisions.some((d) => /finish the CLI first/.test(d.text)), 'the reason is recorded');
   });
 

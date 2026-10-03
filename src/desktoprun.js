@@ -1,67 +1,9 @@
 'use strict';
 
-/**
- * `lain --desktop` — LAIN, started as an application rather than as a terminal.
- *
- * ------------------------------------------------------------------------
- * THIS IS THE ENTRY POINT A SHORTCUT USES.
- *
- * Until now the only way to reach the window was: open a terminal, run `lain`,
- * type `/app`. That makes the application a child of a terminal session, which
- * is precisely what LAIN Desktop is not meant to be. A person double-clicks
- * LAIN; LAIN opens.
- *
- * A SHORTCUT POINTS AT `lain --desktop`, and that is deliberately not a second
- * executable. §16 of the blueprint forbids `lain-cli` / `lain-harness` /
- * `lain-runtime` — one program, one name — and a launcher bin would be that
- * rule broken for a shortcut's convenience, which a shortcut's own arguments
- * already provide.
- *
- * WHAT A SHORTCUT SHOULD POINT AT is `LAIN.exe` (src/desktop.js
- * `installLauncher`), which is a `winexe` and starts Core with
- * `CreateNoWindow` — measured: no process in the launched tree has a visible
- * window. A shortcut pointed at npm's generated `lain.cmd` instead is a console
- * program and would show one; that is the reason the launcher exists.
- *
- *              LAIN CORE
- *                  │
- *        ┌─────────┴─────────┐
- *     LAIN CLI          LAIN DESKTOP
- *        │                   │
- *        └──── sessions ─────┘
- *
- * Both are SURFACES. Neither owns the conversation — the session store does,
- * and both read the same one, so a session started in the terminal appears in
- * the window and a session started in the window resumes in the terminal. There
- * is no desktop session database; there is no CLI session database; there is
- * the session directory, and `/resume` and the rail are two readings of it.
- *
- * ------------------------------------------------------------------------
- * IT NEVER BECOMES A SECOND LAIN.
- *
- * First it asks whether this account already has one (src/corelock.js). If it
- * does — a CLI in a terminal, or an earlier launch already in the tray — it
- * sends `show` and exits. The window that opens belongs to the LAIN that was
- * already running, with its sessions, its bots and its work in flight. Two
- * LAINs would be two gateways polling one Telegram token, two supervisors and
- * two writers on one session directory.
- *
- * ------------------------------------------------------------------------
- * THERE IS NO REPL HERE, AND THAT IS THE ONLY DIFFERENCE FROM `lain`.
- *
- * The same `App`, the same turn loop, the same tools, the same gates. What it
- * does not do is read stdin or draw a terminal frame — so it can be launched
- * with no console attached and nothing has to stay open to keep LAIN alive.
- * Questions a turn asks go to the Harness port, which is where a window-started
- * turn's questions already went (harnessapp/sessionroutes.js).
- */
+/** `lain --desktop` — LAIN, started as an application rather than as a terminal. */
 
 const { App } = require('./app');
 
-/**
- * @param {{cwd?: string, dev?: boolean, quiet?: boolean}} opts
- * @returns {Promise<number>} an exit code
- */
 async function main(opts = {}) {
   const out = (s) => { if (!opts.quiet) process.stdout.write(s); };
 
@@ -70,69 +12,112 @@ async function main(opts = {}) {
     return 2;
   }
 
+  // ---- WHICH WINDOW (packaging pass §D, §E, §M) ------------------------
+  // null: the Harness (an installed component); 'dashboard': the Model Dashboard alone; 'preview': the Preview alone.
+  const mode = opts.mode === 'dashboard' || opts.mode === 'preview' ? opts.mode : null;
+  const section = require('./fabric/dashlaunch').sectionOf(opts.section || 'accounts');
+  if (!mode && !require('./components').harness()) { process.stderr.write(`lain: ${require('./components').NOT_INSTALLED}\n`); return 2; }
+
   // ---- IS THERE ALREADY A LAIN? ----------------------------------------
   const lock = require('./corelock');
   const found = await lock.discover();
+  // A DIFFERENT LAIN IS RUNNING (an update was installed while it ran): say so; refuse only a protocol mismatch.
+  if (found.running && found.version) {
+    const b = require('./update/updater').build();
+    const c = require('./update/compat').attach({ version: found.version, protocol: found.protocol }, { version: b.version, protocol: b.protocol });
+    if (!c.ok) { process.stderr.write(`lain: ${c.why}\n`); return 2; }
+    if (c.note) process.stderr.write(`lain: ${c.note}\n`);
+  }
+  // THE RUNNING LAIN SHOWS IT (the Harness is preferred when it runs).
+  if (found.running && mode) {
+    const what = mode === 'dashboard' ? 'Model Dashboard' : 'Preview';
+    const r = await lock.ask(mode === 'dashboard' ? 'dashboard:' + section : 'preview');
+    if (r && r.ok) { out(`LAIN is running (pid ${found.pid}) — opened its ${what}.\n`); return 0; }
+    process.stderr.write(`lain: LAIN is running (pid ${found.pid}) but could not open its ${what}: ${(r && r.why) || 'no answer'}\n`);
+    return 1;
+  }
+  // "OPEN WITH LAIN" / "OPEN FOLDER IN LAIN" (2026-09-29): the running LAIN opens it; there is never a second LAIN.
+  if (found.running && opts.open) {
+    const r = await lock.ask('open', { path: opts.open });
+    if (r && r.ok) { out(`LAIN is already running (pid ${found.pid}) — opened ${r.opened || opts.open}.\n`); return 0; }
+    process.stderr.write(`lain: LAIN is running (pid ${found.pid}) but could not open ${opts.open}: ${(r && r.why) || 'no answer'}\n`);
+    return 1;
+  }
+  // STARTED AT SIGN-IN (startup.js, `--startup`): the person's startup choices, read from the one canonical setting.
+  const startup = opts.startup ? require('./startup').setting(require('./config').load()) : null;
   if (found.running) {
-    const shown = await lock.ask('show');
+    // A LAIN IS ALREADY RUNNING (a CLI's Core): the Harness ATTACHES to it — one Core, one session authority.
+    const shown = await lock.ask(startup && startup.minimized ? 'show:minimized' : 'show');
     if (shown && shown.ok) {
       out(shown.already
         ? `LAIN is already running (pid ${found.pid}) — its window is in front.\n`
         : `LAIN is already running (pid ${found.pid}) — opened its window.\n`);
       return 0;
     }
-    // IT ANSWERED `status` AND REFUSED `show`. That is a real failure in a real
-    // LAIN, and starting a second one on top of it would turn one broken window
-    // into two competing instances.
+    // IT ANSWERED `status` AND REFUSED `show`.
     process.stderr.write(`lain: LAIN is running (pid ${found.pid}) but could not open its window: ${(shown && shown.why) || 'no answer'}\n`);
     return 1;
   }
 
-  // ---- THEN THIS PROCESS IS LAIN ---------------------------------------
-  //
-  // THE SAME PREPARE THE TERMINAL DOES, and deliberately nothing more. In
-  // particular this does NOT start the messaging gateway: LAIN has never
-  // autostarted one — `/bot` and `lain --bot` start it, and it runs as its own
-  // process discovered through its own lock file (src/bot/service.js). So a
-  // gateway that was already running is still running and is reached the same
-  // way; one that was not is not started by opening a window. Inventing an
-  // autostart here would be a new behaviour wearing the clothes of a launch
-  // path, and it would connect a person's bot because they opened their
-  // application.
-  const app = new App({ cwd: opts.cwd, interactive: false });
+  // THEN THIS PROCESS IS LAIN
+  const resume = opts.resume || (startup && startup.restoreWorkspace ? (require('./session').Session.list(1)[0] || null) : null);
+  const app = new App({ cwd: opts.cwd, interactive: false, ...(resume ? { resume } : {}) });
+  // STARTED WELL: the launcher keeps a freshly updated Harness only once it reports healthy (update/updater.js).
+  try { require('./update/updater').markHealthy(); } catch { /* not started by the launcher */ }
+  app._surfaceName = 'harness';   // the writer lease (surfacehandoff.js) names this surface
+  // LAIN SERVER, WHEN ASKED TO START WITH LAIN (Settings › Router Server; serve.js). Loopback unless allowed otherwise.
+  try { if (app.cfg && app.cfg.server && app.cfg.server.startWithLain) require('./serve').start(app).catch(() => {}); } catch { /* the window comes first */ }
 
-  // ANNOUNCED BEFORE `prepare()`, NOT AFTER. Two launches close enough together
-  // both pass `discover()` and both reach here — that race cannot be closed
-  // from this side, only shortened — but leaving the lock for AFTER `prepare()`
-  // held it open for however long that took, which is exactly the gap that let
-  // a second launch decide it was first too and spawn a second window. `pipe`
-  // and `handle()`'s status/quit verbs need nothing this app has not set in its
-  // constructor; only `show` reaches `desktop.open`, and by the time another
-  // process's request actually arrives over the pipe, round-tripped through a
-  // fresh OS process launch, `prepare()` below has already finished.
+  // ANNOUNCED BEFORE `prepare()`, NOT AFTER.
+  try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   const held = await lock.announce(app, { surface: 'desktop' });
   if (!held.ok) out(`(LAIN could not claim the single-instance lock: ${held.why})\n`);
 
   await app.prepare();
+  // THE BOT AND THE ASSISTANT'S CLOCK START AFTER THE WINDOW (Phase P, 2026-10-02) — below, queued behind the first-state
+  // warm-up desktop.open schedules — so neither stands between a launch and the first paint.
+  const background = () => {
+    try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  };
+  // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
+  try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
-  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev) });
+  if (mode === 'preview') {
+    const root = (() => { try { const p = require('./sessionviews').project(app.session); return p.attached && !p.missing ? p.root : null; } catch { return null; } })();
+    if (!root) { process.stderr.write('lain: open a project folder first (run lain preview inside it)\n'); await require('./teardown').shutdown(app, { why: 'no project' }); return 2; }
+    const f = await require('./workshop').forApp(app).frameOpen(root, {});
+    if (!f.ok) { process.stderr.write(`lain: the Preview could not start: ${f.why}\n`); await require('./teardown').shutdown(app, { why: 'preview did not start' }); return 1; }
+  }
+  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev), mode, section: mode === 'dashboard' ? section : null, minimized: Boolean(startup && startup.minimized) });
   if (!opened.ok && !opened.already) {
-    process.stderr.write(`lain: the desktop did not open: ${opened.why || 'unknown'}\n`);
+    process.stderr.write(`lain: the window did not open: ${opened.why || 'unknown'}\n`);
     await require('./teardown').shutdown(app, { why: 'the desktop did not open' });
     return 1;
   }
-  out('LAIN Desktop is open. Close the window to send LAIN to the system tray; quit from the tray icon.\n');
+  setImmediate(background);
+  // THE CLI THAT HOSTED THIS WINDOW CLOSED WITH WORK LEFT (repl.js, `--continue-session`): the same session, taken
+  // over through its lease and continued — the same task, plan and checkpoint; no new session, no replayed prompt.
+  if (!mode && opts.continueSession && opts.resume) {
+    setTimeout(() => {
+      try {
+        const route = require('./harnessapp/workbenchroutes').ROUTES['POST /api/workbench/continue'];
+        Promise.resolve(route(app, {})).catch(() => {});
+      } catch { /* the window shows Paused · CLI closed and ▶ Continue */ }
+    }, 400);
+  }
+  // THE HARNESS LOOKS FOR UPDATES (check only — the person chooses Download / Restart from the Update button).
+  if (!mode) { try { require('./update/cli').watch(app); } catch { /* updates are optional */ } }
+  if (!mode && opts.afterUpdate) { try { require('./update/cli').afterRestart(app); } catch { /* not after an update */ } }
+  out(mode === 'dashboard' ? 'The LAIN Model Dashboard is open — close it when you are done.\n'
+    : mode === 'preview' ? 'The LAIN Preview is open — close it when you are done.\n'
+      : 'LAIN Harness is open. Close the window to keep LAIN running in the tray; Exit LAIN ends it.\n');
+  // STARTED BY "OPEN WITH LAIN": the project and the file, now that this LAIN and its window are up.
+  if (opts.open) {
+    const r = await require('./openpath').open(app, opts.open).catch((e) => ({ ok: false, why: e.message }));
+    if (!r.ok) process.stderr.write(`lain: could not open ${opts.open}: ${r.why}\n`);
+  }
 
-  // ---- STAY UP UNTIL SOMEBODY SAYS OTHERWISE ---------------------------
-  //
-  // CORE OUTLIVES THE WINDOW ON PURPOSE. Closing the window hides it to the
-  // tray (native/host.cs); the bots stay connected and background work carries
-  // on. What ends LAIN is an explicit Quit — from the tray, or from a `quit` on
-  // the control pipe — and both go through src/teardown.js.
-  //
-  // The window host EXITING is a different matter: if the process is gone, so is
-  // the tray icon, and there is nothing left to restore LAIN from. That is the
-  // one thing that ends this wait on its own.
+  // STAY UP UNTIL SOMEBODY SAYS OTHERWISE
   await new Promise((resolve) => {
     const tick = setInterval(() => {
       if (app.wantExit) { clearInterval(tick); resolve(); return; }

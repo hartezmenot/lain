@@ -143,8 +143,6 @@ module.exports = async function () {
     //    web model sources, so "did something leave this machine, and did it
     //    come back" is still answerable.
     assert.strictEqual(typeof externalstate.forSession, 'function');
-    const web = fs.readFileSync(require.resolve('../../src/modelsource/webmodel'), 'utf8');
-    assert.match(web, /externalstate/, 'the web sources write the same call ledger');
 
     // 2. THE OVERCLAIM CHECK — a consulted model that claims to have ACTED is
     //    flagged. It was never about transport.
@@ -152,10 +150,8 @@ module.exports = async function () {
     assert.ok(contract.overclaims('FACT: the loader is fine. I ran the tests and they pass.'));
     assert.strictEqual(contract.overclaims('FACT: the loader reads JSON. RECOMMENDATION: check the writer.'), null);
 
-    // 3. THE BOUNDED, REDACTED SESSION-FACTS PACKET.
-    const ctx = require('../../src/modelsource/context');
-    assert.strictEqual(typeof ctx.facts, 'function');
-    assert.ok(ctx.MAX_TOTAL > 0 && ctx.MAX_PROMPT > 0, 'still bounded');
+    // 3. (Phase 8.3) the website-source context packet went with the website sources.
+    assert.ok(!fs.existsSync(require('path').join(__dirname, '..', '..', 'src', 'modelsource', 'context.js')));
   });
 
   await test('SURVIVED: a consulted model still gets no execution authority', () => {

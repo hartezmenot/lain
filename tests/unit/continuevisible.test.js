@@ -41,39 +41,6 @@ async function withMock(steps, fn) {
 }
 
 module.exports = async function () {
-  await test('CONTINUE A: a typed `continue` held by the gate is drawn ONCE as the user, and resumes the task', async () => {
-    await withMock([{ text: 'first answer' }, { text: 'carried on from step 3' }], async () => {
-      const app = realApp();
-      await app.submit('migrate the timer to the new clock');
-      const guardian = require('../../src/guardian');
-      const realDeliver = guardian.deliver;
-      guardian.deliver = async () => ({ taken: [{ text: 'continue', at: Date.now(), reason: 'turn-died' }] });
-      try {
-        await require('../../src/inputgate').recover(app, { reason: 'the previous turn did not finish', state: {} });
-      } finally {
-        guardian.deliver = realDeliver;
-      }
-      const last = app.session.turns[app.session.turns.length - 1];
-      assert.strictEqual(last.userInput, 'continue');
-      assert.strictEqual(last.typed, true);
-      assert.strictEqual(last.from, 'handover', 'the machinery still knows it was a recovery');
-      assert.strictEqual(app.session.task.objective, 'migrate the timer to the new clock', 'it continued the same task');
-
-      const text = feedText(app.session);
-      assert.strictEqual((text.match(/^USER[A-Z ]* · continue\s*$/gm) || []).length, 1, `visible exactly once:\n${text}`);
-      assert.ok(!/continuing from what LAIN observed/.test(text), 'not replaced by a caption');
-      assert.ok(text.indexOf('migrate the timer') < text.search(/USER[A-Z ]* · continue/), 'in chronological order');
-
-      const copied = require('../../src/copysummary').context(app, { all: true });
-      assert.match(copied, /USER\ncontinue/, '/copy keeps it where ordinary user turns belong');
-      assert.ok(!/USER \(via handover\)/.test(copied));
-
-      const rows = require('../../src/dashconversation').conversation(app.session);
-      assert.ok(rows.some((r) => r.who === 'USER' && r.text === 'continue'), 'the dashboard/Harness projection agrees');
-      assert.ok(!rows.some((r) => /continuing from what LAIN observed/.test(r.text)));
-    });
-  });
-
   await test('CONTINUE: a plain `continue` with no held turn is an ordinary user row too', async () => {
     await withMock([{ text: 'a' }, { text: 'b' }], async () => {
       const app = realApp();

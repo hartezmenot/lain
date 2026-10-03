@@ -1,60 +1,10 @@
 'use strict';
 
-/**
- * WATCHING SOMETHING RUN WITHOUT STARING AT IT.
- *
- *: "LAIN should NOT continuously screenshot/OCR the computer while a bot is
- * running. That is wasteful and can actually make investigations worse."
- *
- * ------------------------------------------------------------------------
- * WHY STARING IS WORSE THAN USELESS, and not merely expensive.
- *
- * The obvious way to watch a bot is to look at the screen, ask the model what
- * it sees, and repeat. That fails three ways at once:
- *
- *   IT COSTS A MODEL REQUEST PER GLANCE. A twenty-minute run at one look every
- *     five seconds is 240 requests to observe a program that was writing a log
- *     the whole time.
- *
- *   IT FILLS THE CONTEXT WITH SAMENESS. 240 near-identical screenshots crowd
- *     out the one frame that differed — the evidence is buried by the act of
- *     collecting it, which is the reported failure in another form.
- *
- *   IT STILL MISSES THINGS. Polling has a period; a minigame indicator that
- *     shows for three seconds falls between two five-second glances and is gone.
- *     Looking more often costs more and still guarantees nothing.
- *
- * So the design is inverted. The bot's own output is the clock:
- *
- *     the RUN emits lines          →  matched against rules, here, in-process
- *     a rule that matters FIRES    →  evidence is captured immediately
- *     everything else              →  counted, and nothing else happens
- *     the run STOPS                →  the model reads the accumulated evidence
- *
- * The model is called ONCE, at the end, with the few captures that mattered —
- * and the indicator is caught because a log line fires the capture at the
- * instant it appears, not because something was looking at the right moment.
- *
- * ------------------------------------------------------------------------
- * THE RULE THAT KEEPS IT HONEST. An event NEVER becomes a conclusion here.
- * A rule fires and evidence is recorded, with its source and its timestamp.
- * What it MEANS is decided later, by the model, with both sources in front of
- * it — see correlate.js, which is the only thing allowed to put a LOG line and
- * a SCREEN capture side by side and say whether they agree.
- */
+/** WATCHING SOMETHING RUN WITHOUT STARING AT IT. */
 
 const jobs = require('./jobs');
 
-/**
- * THE STATES OF AN OBSERVATION.
- *
- * Named for what LAIN is doing, because that is what the user is asking about
- * when they look at the screen. They deliberately do NOT duplicate
- * jobs.STATE — that is the PROCESS's state, and the two are different facts:
- * a bot can be RUNNING while LAIN is ANALYZING evidence from a minute ago, and
- * a bot can be dead while LAIN is still waiting for the user to answer a
- * question about it. Merging them is how "it stopped" came to mean four things.
- */
+/** THE STATES OF AN OBSERVATION. */
 const STATE = Object.freeze({
   PREPARING: 'PREPARING',
   OBSERVING: 'OBSERVING',
@@ -69,29 +19,7 @@ const STATE = Object.freeze({
 /** Observation is over and the evidence will not grow. */
 const FINAL = new Set([STATE.COMPLETED, STATE.FAILED]);
 
-/**
- * WHERE A PIECE OF EVIDENCE CAME FROM. NEVER MERGED — see correlate.js.
- *
- * FIVE SOURCES, AND THE LIST IS THE POINT. Each has a different reliability and
- * a different way of being wrong, and the moment two of them are recorded as
- * one fact the difference is gone for good:
- *
- *   LOG      what the program under test SAID it did. Cheap, plentiful, and a
- *            statement of intent — it reports what the code believed.
- *   VISUAL   what a capture actually showed. Expensive, sparse, and the only
- *            source that can contradict the log about the outside world.
- *   MEMORY   what inspecting the process found. Precise about state and silent
- *            about whether anyone could SEE that state.
- *   PROCESS  what the process did — started, exited, crashed, its code.
- *   USER     what the person watching says happened. The only source that can
- *            settle a contradiction between the others.
- *
- * MEMORY IS HERE BECAUSE OF A SPECIFIC FAILURE. Mid-investigation LAIN said
- * "memory correlation is the stronger evidence anyway" and stopped looking at
- * the screen — a ranking decided from convenience, before the sources had been
- * compared. Recording memory as its own source is what makes that comparison
- * possible instead of a preference.
- */
+/** WHERE A PIECE OF EVIDENCE CAME FROM. */
 const SOURCE = Object.freeze({
   LOG: 'LOG',
   VISUAL: 'VISUAL',
@@ -100,14 +28,7 @@ const SOURCE = Object.freeze({
   USER: 'USER',
 });
 
-/**
- * How many captures one observation may take, however many rules fire.
- *
- * A RUNAWAY GUARD, not a leash on the model (): a rule matching a line the
- * bot prints in a tight loop would otherwise take a screenshot per line until
- * the disk filled. It bounds a mechanical process on this machine, which is
- * exactly the kind of limit the design keeps.
- */
+/** How many captures one observation may take, however many rules fire. */
 const MAX_CAPTURES = 24;
 
 /** And how many events are kept. Enough to reconstruct a run; never unbounded. */
@@ -116,13 +37,7 @@ const MAX_EVENTS = 500;
 /** A capture may not fire more often than this for the SAME rule. */
 const RULE_COOLDOWN_MS = 3000;
 
-/**
- * ONE THING WORTH NOTICING, as the user described it.
- *
- * `pattern` is matched against each line of the run's output. `capture` says
- * whether it is worth a picture — most events are not, and a rule that captures
- * on every line is the polling this file exists to avoid, one rule at a time.
- */
+/** ONE THING WORTH NOTICING, as the user described it. */
 function rule({ name, pattern, capture = false, why = '' }) {
   return {
     name: String(name || 'event'),
@@ -135,23 +50,12 @@ function rule({ name, pattern, capture = false, why = '' }) {
 }
 
 class Observation {
-  /**
-   * @param {object} o
-   *   expectation  what the user says SHOULD happen — recorded, never enforced
-   *   rules        what is worth noticing
-   */
+  /** expectation what the user says SHOULD happen — recorded, never enforced rules what is worth noticing */
   constructor({ id = 'obs', command = '', expectation = [], rules = [] } = {}) {
     this.id = id;
     this.command = String(command);
     this.state = STATE.PREPARING;
-    /**
-     * WHAT WAS SUPPOSED TO HAPPEN, in the user's words, recorded BEFORE the run.
-     *
-     * Written down first on purpose: an expectation formed after seeing the
-     * result is not an expectation, it is a description. This is what the
-     * evidence is later compared against, and having it in advance is what
-     * makes "it did not do step 3" a finding rather than a feeling.
-     */
+    /** WHAT WAS SUPPOSED TO HAPPEN, in the user's words, recorded BEFORE the run. */
     this.expectation = (Array.isArray(expectation) ? expectation : [expectation])
       .filter(Boolean).map((s) => String(s));
     this.rules = rules.map(rule);
@@ -173,14 +77,7 @@ class Observation {
     return (this.stoppedAt || Date.now()) - this.startedAt;
   }
 
-  /**
-   * Record something that happened. The ONLY way anything enters the ledger.
-   *
-   * SOURCE IS MANDATORY and is never inferred. "The log said the round finished"
-   * and "the screen showed the round finished" are different claims with
-   * different reliability, and the whole value of the correlation step is that
-   * they were never allowed to blur into "the round finished".
-   */
+  /** Record something that happened. */
   note(source, kind, detail = '', extra = {}) {
     if (this.events.length >= MAX_EVENTS) return null;
     const ev = {
@@ -198,15 +95,7 @@ class Observation {
   /** Every event from one source, in order. Correlation reads these. */
   from(source) { return this.events.filter((e) => e.source === source); }
 
-  /**
-   * FEED ONE LINE OF THE RUN'S OUTPUT.
-   *
-   * Returns the rules that want a capture. It does NOT capture anything itself:
-   * taking a screenshot needs a transport, a permission and an await, and this
-   * has to stay a pure synchronous match so that the whole event pipeline can
-   * be tested without a machine — and so a slow screen capture can never apply
-   * backpressure to the bot's stdout.
-   */
+  /** FEED ONE LINE OF THE RUN'S OUTPUT. */
   feed(line) {
     const text = String(line == null ? '' : line);
     if (!text.trim()) return [];
@@ -218,10 +107,7 @@ class Observation {
       r.fired += 1;
       this.note(SOURCE.LOG, r.name, text.trim(), { rule: r.name });
       if (!r.capture) continue;
-      // COOLDOWN PER RULE, not globally: two different rules firing on the same
-      // line are two different things worth seeing, and suppressing the second
-      // because the first just fired would lose exactly the correlation the
-      // capture was for.
+      // COOLDOWN PER RULE, not globally: two different rules firing on the same line are two different things worth seeing, and suppressing the second…
       if (now - r.lastAt < RULE_COOLDOWN_MS) continue;
       if (this.captures.length >= MAX_CAPTURES) continue;
       r.lastAt = now;
@@ -267,13 +153,7 @@ class Observation {
   }
 }
 
-/**
- * THE OBSERVATIONS OF ONE SESSION.
- *
- * One at a time, deliberately. Two bots watched at once would make every event
- * ambiguous about which run it belongs to, and the correlation step would be
- * comparing a log from one against a screen from the other.
- */
+/** THE OBSERVATIONS OF ONE SESSION. */
 class Observatory {
   constructor() {
     this.current = null;
@@ -281,13 +161,7 @@ class Observatory {
     this.seq = 0;
   }
 
-  /**
-   * START WATCHING A COMMAND.
-   *
-   * @param {object} o
-   *   run       (line) => void subscription; see attach()
-   *   onCapture async (rule, obs) => void — what to do when a rule wants a look
-   */
+  /** START WATCHING A COMMAND. */
   begin({ command = '', expectation = [], rules = [] } = {}) {
     if (this.current && this.current.running) {
       return { ok: false, why: `already watching ${this.current.id} — stop it first` };
@@ -313,19 +187,7 @@ class Observatory {
   }
 }
 
-/**
- * SUBSCRIBE AN OBSERVATION TO A RUNNING JOB.
- *
- * WHY THE JOB'S STREAM RATHER THAN A POLL: jobs.js already receives the child's
- * output as it arrives and its `wait` resolves on the child's own exit event.
- * Reading from it costs nothing and adds no timer — the file's opening argument
- * is that a poll is a block paid for in instalments, and an observer that polled
- * the job would reintroduce exactly that below the model.
- *
- * @param {Observation} obs
- * @param {object} job     a jobs.Job
- * @param {Function} onCapture  async (rule, obs) => void
- */
+/** SUBSCRIBE AN OBSERVATION TO A RUNNING JOB. */
 function attach(obs, job, onCapture) {
   obs.job = job;
   obs.state = STATE.OBSERVING;
@@ -340,10 +202,7 @@ function attach(obs, job, onCapture) {
     for (const line of lines) {
       const wants = obs.feed(line);
       for (const r of wants) {
-        // NOT AWAITED, and that is the point: the bot's output must never wait
-        // for a screenshot. A capture that takes 400ms would otherwise stall
-        // the stream and shift every later timestamp by the time it took to
-        // observe — measurement changing the thing measured.
+        // NOT AWAITED, and that is the point: the bot's output must never wait for a screenshot.
         if (typeof onCapture === 'function') {
           Promise.resolve(onCapture(r, obs)).catch((e) => {
             obs.addCapture({ rule: r.name, kind: 'screenshot', ok: false, why: (e && e.message) || 'capture failed' });
@@ -357,14 +216,7 @@ function attach(obs, job, onCapture) {
   return consume;
 }
 
-/**
- * THE RUN IS OVER. Records why, and moves to the state where looking is allowed.
- *
- * STOPPING THE BOT IS NOT STOPPING THE INVESTIGATION (). This ends the
- * OBSERVATION — the process, the subscription, the evidence collection — and
- * leaves everything gathered in place, because the analysis that follows is the
- * reason any of it was collected.
- */
+/** THE RUN IS OVER. Records why, and moves to the state where looking is allowed. */
 function finish(obs, reason = 'stopped') {
   if (!obs) return null;
   obs.stoppedAt = Date.now();

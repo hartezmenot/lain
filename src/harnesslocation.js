@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * WHERE THE VISUAL HARNESS LIVES (2026-09-23).
- *
- * The Harness (interface document + native WebView2 shell) moved to its own
- * repository, `lain-harness`. It is presentation only: Core keeps every owner
- * of state and authority and serves the Harness through the channels that
- * already existed — the local HTTP API (harnessapp/routes.js) and the named
- * pipe (harnessapp/ipc.js). This module is the ONE place Core finds the
- * package. Nothing else may reach into its files.
- *
- * ORDER:
- *   1. LAIN_HARNESS_DIR            an explicit override (development, tests)
- *   2. <lain>/harness              bundled into an installed build (distribution/payload.js)
- *   3. <lain>/../lain-harness      the sibling checkout (lain + lain-harness side by side)
- *
- * Absent → `load()` returns null with the reason. The desktop surface says the
- * Harness is not installed. The CLI never needs it.
- */
+/** WHERE THE VISUAL HARNESS LIVES (2026-09-23). */
 
 const fs = require('fs');
 const path = require('path');
@@ -39,10 +22,7 @@ function root() {
 }
 
 let cached = null;
-/**
- * The loaded Harness contract: { root, CONTRACT, html(), hostSource, vendor() },
- * or { ok:false, why } — never a throw.
- */
+/** The loaded Harness contract: { root, CONTRACT, html(), hostSource, vendor() }, or { ok:false, why } — never a throw. */
 function load() {
   const dir = root();
   if (!dir) return { ok: false, why: `LAIN Harness is not installed (looked in: ${candidates().join(', ')})` };

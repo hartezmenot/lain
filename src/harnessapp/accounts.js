@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * MODELS, PROVIDERS AND ACCOUNTS — the one projection the window's MODEL view,
- * its quota popover and the BOT's own answers about LAIN all read.
- *
- * ------------------------------------------------------------------------
- * IT RESHAPES OWNERS; IT OWNS NOTHING.
- *
- *   connections, readiness       appcatalog.connections (connections.js)
- *   catalog discovery verdict    catalogstate.js
- *   route health, rate limits    app.availability (availability.js)
- *   usage percentages            usagewindows.js — the provider's own headers
- *   website sources              modelsource/registry.js overview (opens nothing)
- *   per-view model choice        modelinventory.js selections
- *   defaults for new sessions    the config the Settings schema already edits
- *
- * NOT POLLED. Reading connections touches the catalog cache on disk, so this is
- * a POST the window makes on start, on refresh and after work ends — the
- * polled `/api/state` carries only the in-memory `usage` summary.
- *
- * NO SECRET LEAVES. A connection record carries its credential in memory;
- * nothing below copies `apiKey`, a header or a URL query. The base URL is
- * reduced to its host, which is what a person recognises anyway.
- */
+/** MODELS, PROVIDERS AND ACCOUNTS — the one projection the window's MODEL view, its quota popover and the BOT's own answers about LAIN all read. */
 
 function hostOf(url) {
   try { return new URL(String(url)).host; } catch { return ''; }
@@ -53,6 +31,8 @@ function providers(app) {
   const uw = require('../usagewindows');
   const groups = new Map();
   for (const c of conns) {
+    // LOCAL AND RUNTIME ROUTES are shown under MODEL › Local and › Runtimes, not as providers.
+    if (c.protocol === 'runtime') continue;
     const verdict = (() => { try { return c.baseUrl ? catalogstate.of(c) : null; } catch { return null; } })();
     const row = {
       id: c.id,
@@ -83,19 +63,18 @@ async function sources(app) {
   } catch { return []; }
 }
 
-/**
- * THE ROLES a model is assigned to, as LAIN actually has them. Two exist:
- * the BOT's conversational model (the Chat selection) and the Coding Agent's
- * (the Coding selection). Each has a session choice and a default for new
- * sessions. Nothing here invents a third role LAIN does not route.
- */
+/** THE ROLES a model is assigned to, as LAIN actually has them. */
 function roles(app) {
   const inv = require('../modelinventory');
   const cfg = (app._sibling || app).cfg || {};
   const chat = inv.chatSelection(app);
   const coding = inv.codingSelection(app);
+  // THE BOT IS NOT THE CHAT SOURCE (sessionintel.js): ChatGPT Chat is CHAT ONLY.
+  let bot = null;
+  try { const r = require('../sessionintel').resolve(app, app.session); bot = { source: 'lain', modelId: r.bot.model, scope: r.bot.scope }; } catch { bot = { source: 'lain', modelId: cfg.model || null, scope: 'default' }; }
   return {
-    bot: { ...chat, label: 'BOT', purpose: 'conversation, questions, planning, deciding what to do' },
+    chat: { ...chat, label: 'CHAT', purpose: 'the CHAT view conversation', chatOnly: require('../modelroles').isWebSource(chat.source), sourceLabel: require('../modelroles').labelFor(chat.source, chat.source === 'lain' ? 'LAIN' : chat.source) },
+    bot: { ...bot, label: 'BOT', purpose: 'conversation, questions, planning, deciding what to do' },
     coding: { ...coding, source: 'lain', label: 'Coding Agent', purpose: 'implementation, refactoring, debugging, tests' },
     defaults: {
       bot: cfg.defaultChat && cfg.defaultChat.source ? { source: cfg.defaultChat.source, modelId: cfg.defaultChat.model || null } : null,
@@ -111,24 +90,18 @@ async function read(app) {
     sources: await sources(app),
     roles: roles(app),
     usage: require('./stateviews').usage(app),
-    // HOW WORK IS SPLIT ACROSS MODELS. One model per role is what this build
-    // routes; the field exists so a router or a team can be reported here the
-    // day one exists, instead of a second screen being bolted on.
+    // HOW WORK IS SPLIT ACROSS MODELS.
     orchestration: { mode: 'SINGLE_PER_ROLE', available: ['SINGLE_PER_ROLE'] },
   };
 }
 
-/**
- * REFRESH: re-discover what every configured route serves. A network
- * operation, bounded, and only ever asked for explicitly — at startup (without
- * blocking the window) and from the Refresh control.
- */
+/** REFRESH: re-discover what every configured route serves. */
 async function refresh(app, { force = false, timeoutMs = 45_000 } = {}) {
   const started = Date.now();
   const work = (async () => {
     try { await app.ensureCatalog({ announce: false, force: Boolean(force) }); return { ok: true }; } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
   })();
-  const r = await Promise.race([work, new Promise((res) => setTimeout(() => res({ ok: false, why: `refresh did not finish within ${Math.round(timeoutMs / 1000)}s` }), timeoutMs))]);
+  const r = await require('../deadline').race(work, timeoutMs, () => ({ ok: false, why: `refresh did not finish within ${Math.round(timeoutMs / 1000)}s` }));
   return { ...(await read(app)), refreshed: r.ok, why: r.why || '', ms: Date.now() - started };
 }
 

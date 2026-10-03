@@ -64,7 +64,9 @@ module.exports = async function () {
       trace("the shell, the workspace tabs, the sessions");
       await d.until("!!document.getElementById('app') && !document.getElementById('app').hidden", 40000);
       const text = await d.js("document.getElementById('tabs').innerText");
-      for (const t of ['HOME', 'IDE', 'CHAT', 'BOT', 'MODEL', 'SESSION', 'SETTINGS']) assert.ok(text.toUpperCase().includes(t), `the ${t} tab: ${text}`);
+      // PHASE 8: six top-level surfaces; BOT is Settings › Assistant, SESSION lives in Chat.
+      for (const t of ['HOME', 'IDE', 'CHAT', 'MODEL', 'USAGE', 'MCP & SKILLS', 'SETTINGS']) assert.ok(text.toUpperCase().includes(t), `the ${t} tab: ${text}`);
+      assert.ok(!/\bBOT\b|\bSESSION\b/.test(text.toUpperCase()), `BOT and SESSION are not top-level tabs: ${text}`);
       assert.ok(await d.js('!!(window.LAIN && window.LAIN.contract)'), 'the contract client is loaded in the renderer');
       await c("window.__events = []; C.on('session.status', function (e) { window.__events.push(e); }); return true;");
 

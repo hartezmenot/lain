@@ -44,46 +44,44 @@ module.exports = async function () {
     return;
   }
 
-  // ---- A — modes ------------------------------------------------------------
+  // ---- A — permission modes (S5) ---------------------------------------------
   const a = await tty.runTty({
     cols: 110, rows: 30,
     script: [
       { text: '', tool_calls: [{ name: 'write_file', input: { path: 'plan-mode.txt', content: 'x' } }] },
-      { text: 'In PLAN I only propose: step one, then step two.' },
-      { text: '', tool_calls: [{ name: 'plan_write', input: { objective: 'two steps', steps: ['write the file', 'verify it'] } }] },
+      { text: '', tool_calls: [{ name: 'exit_plan', input: { plan: '# Write accepted.txt\n- [ ] write accepted.txt' } }] },
       { text: '', tool_calls: [{ name: 'write_file', input: { path: 'accepted.txt', content: 'ok' } }], delayMs: 1500 },
       { text: 'Executed the accepted plan.' },
     ],
     steps: [
       { until: 'Ask LAIN', timeout: 30000 },
       { snap: 'auto', settle: 300 },
-      { key: 'shift-tab' }, { snap: 'manual', settle: 400 },
+      { key: 'shift-tab' }, { snap: 'ask', settle: 400 },
+      { key: 'shift-tab' }, { snap: 'accept', settle: 400 },
       { key: 'shift-tab' }, { snap: 'plan', settle: 400 },
       { send: 'propose how to write plan-mode.txt\r' },
-      { until: 'only propose', timeout: 30000 },
+      { until: 'build it', timeout: 30000 },
       { snap: 'planned', settle: 500 },
-      { send: '/plan accept\r' },
-      { until: 'RUNNING', timeout: 20000 },
-      { snap: 'executing', settle: 200 },
+      { send: '\r' },
       { until: 'Executed the accepted plan', timeout: 30000 },
       { snap: 'executed', settle: 500 },
     ],
   });
 
   await test('CLI A: every screen arrived', () => assert.deepStrictEqual(a.timeouts, [], a.snaps.map((s) => `--- ${s.name}\n${vis(s)}`).join('\n')));
-  await test('CLI A: Shift+Tab cycles AUTO → MANUAL → PLAN, shown quietly in the header', () => {
-    assert.match(header(a.byName.auto), /AUTO/);
-    assert.match(header(a.byName.manual), /MANUAL/);
-    assert.match(header(a.byName.plan), /PLAN · discussing/);
+  await test('CLI A: Shift+Tab cycles Auto → Ask → Accept edits → Plan, shown in the header', () => {
+    assert.match(header(a.byName.auto), /Auto/);
+    assert.match(header(a.byName.ask), /Ask/);
+    assert.match(header(a.byName.accept), /Accept edits/);
+    assert.match(header(a.byName.plan), /Plan/);
   });
-  await test('CLI A: PLAN changed nothing, and showed no step countdown', () => {
+  await test('CLI A: Plan refused the write and put the plan to the person', () => {
     assert.ok(!fs.existsSync(path.join(a.cwd, 'plan-mode.txt')), 'the write was refused');
-    assert.ok(!/\b\d+\/\d+\b/.test(header(a.byName.planned).replace(/\d+\.\d+K|~?\d+$/, '')), header(a.byName.planned));
+    assert.match(vis(a.byName.planned), /Plan ready — build it\?[\s\S]*Approve/);
   });
-  await test('CLI A: /plan accept leaves PLAN, executes, and the header shows RUNNING with real progress', () => {
-    assert.match(header(a.byName.executing), /RUNNING/);
-    assert.ok(fs.existsSync(path.join(a.cwd, 'accepted.txt')), 'execution happened after acceptance');
-    assert.ok(!/PLAN · discussing/.test(header(a.byName.executed)));
+  await test('CLI A: Approve leaves Plan and the plan is built', () => {
+    assert.ok(fs.existsSync(path.join(a.cwd, 'accepted.txt')), 'execution happened after approval');
+    assert.ok(!/\bPlan\b/.test(header(a.byName.executed)), header(a.byName.executed));
   });
 
   // ---- B — activity box, sections, diff lifecycle ---------------------------
@@ -94,32 +92,31 @@ module.exports = async function () {
     cols: 110, rows: 34, cwd: cwdB,
     script: [
       { text: '', tool_calls: [{ name: 'read_file', input: { path: 'retry.js' } }] },
-      { text: '', tool_calls: [{ name: 'run_bash', input: { command: 'node -e "setTimeout(()=>{},2500)"' } }] },
+      { text: '', tool_calls: [{ name: 'shell', input: { command: 'node -e "setTimeout(()=>{},2500)"' } }] },
       { text: 'Linear; must double.', tool_calls: [{ name: 'edit_file', input: { path: 'retry.js', old: 'n * 100', new: '100 * 2 ** n' } }] },
-      { text: '', tool_calls: [{ name: 'run_bash', input: { command: 'node check.js' } }] },
+      { text: '', tool_calls: [{ name: 'shell', input: { command: 'node check.js' } }] },
       { text: 'Retry delay now doubles. check.js passes.' },
     ],
     steps: [
       { until: 'Ask LAIN', timeout: 30000 },
       { send: 'fix the retry delay\r' },
       // The activity state, as the one compact line a running tool gets.
-      { until: '(?:EXECUTING|READING|THINKING|TESTING|WRITING|VERIFYING) · ', timeout: 20000 },
+      { until: '(?:Running|Reading|Testing|Writing|Verifying|Working)[^\\n]* · \\d+s · esc to interrupt', timeout: 20000 },
       { snap: 'working', settle: 100 },
       { until: 'check\\.js passes', timeout: 30000 },
       { snap: 'done', settle: 800 },
     ],
   });
-  // ACTIVITY IS A GREY RECTANGLE WHILE THINKING and ONE LINE while a tool is
-  // primary (ui/activitybox.js) — so a running tool reads `EXECUTING · …`.
-  const liveState = /(?:EXECUTING|READING|THINKING|TESTING|WRITING|VERIFYING) · /;
+  // ONE ACTIVITY LINE (S5.2): a running tool reads `Running node check.js · 0s · esc to interrupt`, said once.
+  const liveState = /(?:Running|Reading|Testing|Writing|Verifying|Working)[^\n]* · \d+s · esc to interrupt/;
   await test('CLI B: the activity state is there while a tool runs — one compact line — and gone when the turn ends', () => {
     assert.deepStrictEqual(b.timeouts, []);
     assert.match(vis(b.byName.working), liveState);
     assert.ok(!liveState.test(vis(b.byName.done)));
   });
-  await test('CLI B: the finished turn reads CHANGE → VERIFY → RESULT, with the hunk shown and no click', () => {
+  await test('CLI B: the finished turn reads CHANGE → RESULT with the hunk shown, then the fact footer names the check', () => {
     const t = vis(b.byName.done);
-    assert.ok(/CHANGE[\s\S]*retry\.js\s+\+1 -1\s+\[× Diff\][\s\S]*n \* 100[\s\S]*VERIFY[\s\S]*check\.js[\s\S]*RESULT[\s\S]*doubles/.test(t), t);
+    assert.ok(/CHANGE[\s\S]*retry\.js\s+\+1 -1\s+\[× Diff\][\s\S]*n \* 100[\s\S]*RESULT[\s\S]*doubles[\s\S]*Commands: [^\n]*node check\.js \(exit 0/.test(t), t);
   });
   // The click lands ON the control: the row is column-aware, and the file name
   // to its left opens the file instead (ui/mouse.js diffAt).
@@ -127,37 +124,24 @@ module.exports = async function () {
   const diffCol = (b.byName.done.text[diffRow - 1] || '').search(/\[(?:× )?Diff\]/) + 2;
   const b2 = await tty.runTty({
     cols: 110, rows: 34, args: ['--resume', lastSession(b.configDir).id], configDir: b.configDir, cwd: cwdB,
-    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'closed', diffCol), ...click(diffRow, 'reopen', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
+    steps: [{ until: 'Ask LAIN', timeout: 30000 }, { snap: 'resumed', settle: 500 }, ...click(diffRow, 'opened', diffCol), ...click(diffRow, 'shut', diffCol), { key: 'escape' }, { snap: 'esc', settle: 500 }],
   });
-  await test('CLI B: a resumed turn still shows its diff; the control collapses and reopens it; Esc does not remove transcript', () => {
-    assert.match(vis(b2.byName.resumed), /\[× Diff\][\s\S]*- .*n \* 100[\s\S]*\+ .*100 \* 2 \*\* n/);
-    assert.ok(!/n \* 100/.test(vis(b2.byName.closed)), 'closed: the hunk is gone');
-    assert.match(vis(b2.byName.closed), /retry\.js\s+\+1 -1\s+\[Diff\]/, 'and the summary still says file and +/-');
-    for (const n of ['reopen', 'esc']) assert.match(vis(b2.byName[n]), /\[× Diff\][\s\S]*n \* 100/, `${n}: the diff is there`);
+  await test('CLI B: a resumed turn keeps its change row; the control opens and closes the diff; Esc does not remove transcript', () => {
+    assert.match(vis(b2.byName.resumed), /retry\.js\s+\+1 -1\s+\[Diff\]/, 'the summary says file and +/-');
+    assert.match(vis(b2.byName.opened), /\[× Diff\][\s\S]*- .*n \* 100[\s\S]*\+ .*100 \* 2 \*\* n/, 'opened: the hunk');
+    assert.ok(!/n \* 100/.test(vis(b2.byName.shut)), 'shut: the hunk is gone');
+    assert.match(vis(b2.byName.esc), /retry\.js\s+\+1 -1/, 'esc: the transcript is still there');
   });
 
   // ---- C — /browser, /focus, /fast, a real browser request -----------------
-  // A REAL PAGE for the isolated browser to load (REAL BROWSER tier).
-  const page = require('http').createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html' }); r.end('<title>Movies</title><main><button>Add movie</button></main><script>console.error("add handler missing")</script>'); });
-  await new Promise((r) => page.listen(0, '127.0.0.1', r));
-  const pageUrl = `http://127.0.0.1:${page.address().port}/`;
   const c = await tty.runTty({
     cols: 110, rows: 34,
-    script: [
-      { text: '', tool_calls: [{ name: 'request_browser', input: { reason: 'confirm the page renders', target: pageUrl } }] },
-      { text: 'Continuing with what the browser request returned.' },
-    ],
+    script: [],
     steps: [
       { until: 'Ask LAIN', timeout: 30000 },
       { send: '/browser\r' }, { snap: 'browser', settle: 800 }, { key: 'escape' },
       { send: '/chrome\r' }, { snap: 'chrome', settle: 800 }, { key: 'escape' },
       { send: '/focus\r' }, { wait: 500 }, { send: '/fast\r' }, { snap: 'prefs', settle: 800 },
-      { send: 'check the page renders\r' },
-      { until: '(?i)request · browser', timeout: 30000 },
-      { snap: 'asked', settle: 300 },
-      { key: 'enter' },
-      { until: 'Continuing with what the browser request returned', timeout: 90000 },
-      { snap: 'continued', settle: 500 },
     ],
   });
   await test('CLI C: /browser shows the browser state; /chrome is a hidden alias of it', () => {
@@ -167,39 +151,24 @@ module.exports = async function () {
   await test('CLI C: /focus and /fast are session preferences shown in the header', () => {
     assert.match(header(c.byName.prefs), /FOCUS · FAST/);
   });
-  await test('CLI C: a model request for the browser asks, then EXECUTES — the turn continues from a real result', () => {
-    assert.deepStrictEqual(c.timeouts, []);
-    assert.match(vis(c.byName.asked), /Allow once[\s\S]*Allow session[\s\S]*Deny/);
-    const s = lastSession(c.configDir);
-    const toolMsg = s.messages.find((m) => m.role === 'tool');
-    assert.ok(toolMsg, 'a tool result exists');
-    page.close();
-    assert.match(String(toolMsg.content), /BROWSER EVIDENCE · isolated/, 'a real browser loaded the page');
-    assert.match(String(toolMsg.content), /title: Movies/);
-    assert.match(String(toolMsg.content), /add handler missing/, 'the console error is in the evidence');
-    assert.match(String(toolMsg.content), /Add movie/, 'and the page content');
-    assert.ok(!/nobody was available/.test(String(toolMsg.content)), 'the Allow was honoured');
-  });
-
-  // ---- D — a subagent -------------------------------------------------------
+  // ---- D — an agent ---------------------------------------------------------
   const cwdD = tmpdir('cli-d-');
   fs.mkdirSync(path.join(cwdD, 'src'));
   fs.writeFileSync(path.join(cwdD, 'src', 'queue.js'), 'module.exports = {};\n');
   const d = await runCli(['-p', 'map who owns the retry queue'], {
     cwd: cwdD, timeoutMs: 60000,
     script: [
-      { text: '', tool_calls: [{ name: 'delegate', input: { mode: 'pipeline', agents: [{ role: 'SCOUT', objective: 'map retry queue ownership', readScope: ['src/**'], expectedOutput: 'owner file', verification: 'cite the file read', completion: 'owner named' }] } }] },
+      { text: '', tool_calls: [{ name: 'Agent', input: { description: 'map the retry queue', prompt: 'map retry queue ownership', type: 'explore' } }] },
       { text: '', tool_calls: [{ name: 'read_file', input: { path: 'src/queue.js' } }] },
       { text: 'SCOUT OUTPUT: src/queue.js owns the retry queue.' },
       { text: 'The scout reports src/queue.js as the owner.' },
     ],
   });
-  await test('CLI D: a SCOUT subagent runs in its own session, and its result returns to the same turn', () => {
+  await test('CLI D: an explore agent runs in its own session, and its final message returns to the same turn', () => {
     assert.strictEqual(d.code, 0, d.out);
     const s = lastSession(d.configDir);
-    const res = s.messages.find((m) => m.role === 'tool' && /SUBAGENTS · pipeline/.test(String(m.content)));
-    assert.ok(res, 'the delegate result is on the main session');
-    assert.match(String(res.content), /SCOUT — DONE[\s\S]*SCOUT OUTPUT/);
+    const res = s.messages.find((m) => m.role === 'tool' && /SCOUT OUTPUT/.test(String(m.content)));
+    assert.ok(res, 'the agent result is on the main session');
     assert.ok(!s.messages.some((m) => /map retry queue ownership/.test(String(m.content)) && m.role === 'user' && !/SUBAGENTS/.test(String(m.content)) && m !== s.messages[0]), 'the subagent brief never entered the main conversation as the user');
   });
 
@@ -227,7 +196,8 @@ module.exports = async function () {
     assert.strictEqual((t.match(/qwen3/gi) || []).length, 1, 'qwen3 and qwen3:free are one model');
   });
   await test('CLI F: the website sources appear only under external:', () => {
-    assert.match(vis(f.byName.external), /external sources[\s\S]*ChatGPT\.com[\s\S]*Gemini/i);
+    // The ChatGPT source is labelled "ChatGPT Chat" now (it was "ChatGPT.com").
+    assert.match(vis(f.byName.external), /external sources[\s\S]*ChatGPT[\s\S]*Gemini/i);
   });
 
   // ---- H — FOCUS (§76) ------------------------------------------------------
@@ -240,7 +210,7 @@ module.exports = async function () {
       { text: '', tool_calls: [{ name: 'read_file', input: { path: 'big.js' } }] },
       { text: 'Now I will read the file again.', tool_calls: [{ name: 'read_file', input: { path: 'big.js' } }], delayMs: 2500 },
       { text: 'Found the owner: small.js exports the value.', tool_calls: [{ name: 'edit_file', input: { path: 'small.js', old: 'module.exports = 1;', new: 'module.exports = 2;' } }] },
-      { text: '', tool_calls: [{ name: 'run_bash', input: { command: 'node -e "process.exit(require(\'./small\')===2?0:1)"' } }] },
+      { text: '', tool_calls: [{ name: 'shell', input: { command: 'node -e "process.exit(require(\'./small\')===2?0:1)"' } }] },
       { text: 'small.js now exports 2; the check passes.' },
     ],
     steps: [
@@ -264,7 +234,7 @@ module.exports = async function () {
     const v = vis(h.byName.focused);
     assert.ok(!/Now I will read the file again/.test(v), v);
     assert.match(v, /Found the owner/);
-    assert.match(v, /CHANGE[\s\S]*small\.js[\s\S]*VERIFY[\s\S]*RESULT/);
+    assert.match(v, /CHANGE[\s\S]*small\.js[\s\S]*RESULT/);
     assert.match(header(h.byName.focused), /FOCUS/);
   });
   await test('CLI H: FOCUS — the person can still steer mid-turn', () => {

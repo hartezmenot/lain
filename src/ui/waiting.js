@@ -1,31 +1,8 @@
 'use strict';
 
-/**
- * WAITING ON A PROVIDER, AND GETTING OUT OF IT.
- *
- * Split out of ui/index.js, which reached the god-object guard. The seam is the
- * same one ui/story.js, ui/reports.js, ui/menus.js and ui/keys.js follow: that
- * file owns the SCREEN and delegates each distinct surface to the module that
- * owns it. This one owns the state a rate-limit wait puts the UI into, and the
- * two ways a person can leave it.
- *
- * THERE IS ONE ABORT SIGNAL, and it is the app's. Both exits below fire the
- * same `app.abort` that `handleRateLimit` keeps alive for exactly the duration
- * of the wait — a second cancellation mechanism here would be a second source
- * of truth about whether the turn is still alive, which is the class of defect
- * the architecture guards exist to catch.
- *
- * THE TIMER IS UNREF'D, always: a pending four-hour wait must never be the
- * reason `/exit` takes four hours.
- */
+/** WAITING ON A PROVIDER, AND GETTING OUT OF IT. */
 
-/**
- * Hold the UI in a visible wait until `resumeAt`, or until the user escapes it.
- *
- * Resolves TRUE when the wait ran its course and FALSE when it was cancelled,
- * which is what lets the caller tell "the provider is back" from "the person
- * gave up" — two different next moves.
- */
+/** Hold the UI in a visible wait until `resumeAt`, or until the user escapes it. */
 function waitForReset(ui, resumeAt, { provider = '', label = '' } = {}) {
   const until = Number(resumeAt) || 0;
   if (!ui.enabled || until <= Date.now()) return Promise.resolve(true);
@@ -52,32 +29,18 @@ function waitForReset(ui, resumeAt, { provider = '', label = '' } = {}) {
   });
 }
 
-/**
- * ESCAPE OUT OF A RETRY. Only meaningful while the turn loop says it is
- * retrying — otherwise there is nothing to cancel and saying so would be a lie.
- */
+/** ESCAPE OUT OF A RETRY. */
 function cancelRetry(ui) {
   if (!ui.phase || ui.phase.phase !== 'RETRYING') return false;
   ui.retryCancelled = true;
   ui.interrupted = false;
   if (ui.app.abort && !ui.app.abort.signal.aborted) ui.app.abort.abort();
-  // NO TRANSCRIPT NOTICE. `retryCancelled` is already a resting state that
-  // liveState renders as `RETRY CANCELLED · the wait was stopped; the task is
-  // intact` — the identical sentence, on the row built for it. Writing it into
-  // the conversation as well reported one event twice, and the durable copy
-  // outlived the state by hours: an alert glued into scrollback where a person
-  // scrolling past tomorrow cannot tell it from something the model said. See
-  // ui/operation.js, which made this argument for housekeeping notes, and
-  // ui/alert.js, which owns the live half.
+  // NO TRANSCRIPT NOTICE.
   ui.refresh();
   return true;
 }
 
-/**
- * ESCAPE OUT OF A LONG RATE-LIMIT WAIT — `waitForReset`'s sibling to
- * `cancelRetry`, and the same mechanism. `waitForReset` reports "stopped
- * waiting" once its promise resolves false; this only needs to fire the signal.
- */
+/** ESCAPE OUT OF A LONG RATE-LIMIT WAIT — `waitForReset`'s sibling to `cancelRetry`, and the same mechanism. */
 function cancelWait(ui) {
   if (!ui.waitingUntil) return false;
   if (ui.app.abort && !ui.app.abort.signal.aborted) ui.app.abort.abort();

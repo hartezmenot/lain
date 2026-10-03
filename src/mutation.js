@@ -1,52 +1,10 @@
 'use strict';
 
-/**
- * THE MUTATION TRANSACTION — one lifecycle for every LAIN-controlled source write.
- *
- * ------------------------------------------------------------------------
- * WHAT IT REPLACES. Audited before this was written, the lifecycle of a write
- * was spread over three places that did not know about each other:
- *
- *     turn.js         captured a checkpoint — only when the input had `path`, so
- *                     `move_file`, `rename_symbol` and `migration_activate`
- *                     wrote with no way back
- *     tools/index.js  ran the parse and lint checks, appended notes, decided nothing
- *     tools/edit.js   the per-file stale checks (staleness, foreignWrite, noInspection)
- *
- * There was no baseline, no verdict, no revert and no receipt, and no place a
- * work order could be checked. The edit tools themselves are good and are not
- * rewritten; their stale checks stay where they are. What is new is the ONE
- * lifecycle around them:
- *
- *     CHANGE REQUEST → AUTHORITY / WORK ORDER → BASELINE → STALE → CHECKPOINT
- *       → APPLY → STRUCTURAL VERIFY (parse · lint · scope) → PROJECT REFRESH
- *       → VERIFY CONTRACT → KEEP | REVERT → RECEIPT
- *
- * Every source mutator reaches it through `tools/index.js:execute`, and a
- * worker proposal reaches it through proposal.js. Shell commands are NOT source
- * mutations in this sense — nothing can know their targets in advance — and are
- * covered by the dirty tracker (freshness.js) instead.
- *
- * ------------------------------------------------------------------------
- * KEEP IS THE MAIN EXECUTOR'S DEFAULT, AND THAT IS DELIBERATE. A multi-step
- * refactor passes through states that do not parse; reverting each one would
- * make the refactor impossible. The structural result is still recorded and
- * still told to the model, exactly as before. REVERT is the verdict when the
- * authority says the change may not stand: a bounded worker whose write broke
- * the file, left its scope, or failed the verification it was committed under;
- * or any caller that supplied a verification which failed.
- *
- * REVERT NEVER DESTROYS A CONCURRENT CHANGE. A file still holding exactly what
- * the transaction wrote is restored whole. A file somebody changed since has
- * only the transaction's own hunk reversed, located by its context; when that
- * cannot be done unambiguously the file is left alone and the verdict says
- * REVERT_CONFLICT rather than guessing.
- */
+/** THE MUTATION TRANSACTION — one lifecycle for every LAIN-controlled source write. */
 
 const fs = require('fs');
 const path = require('path');
 
-const guard = require('./workorderguard');
 
 const VERDICT = Object.freeze({
   KEEP: 'KEEP',
@@ -58,6 +16,19 @@ const VERDICT = Object.freeze({
 });
 
 const MAX_RECEIPTS = 60;
+
+/** WHO MADE THE CHANGE. */
+const ACTOR = Object.freeze({ USER: 'USER', MODEL: 'MODEL', CORE: 'CORE', TOOL: 'TOOL' });
+
+function provenanceSource(actor, origin) {
+  const o = String(origin || '');
+  if (o === 'FORMATTER') return 'FORMATTER';
+  if (o.startsWith('extension:')) return 'EXTENSION';
+  if (actor === ACTOR.USER) return 'USER';
+  if (actor === ACTOR.CORE) return 'CORE';
+  if (actor === ACTOR.TOOL) return 'TOOL';
+  return 'AGENT';
+}
 
 const PATH_TOOLS = new Set([
   'write_file', 'edit_file', 'apply_patch', 'append_file', 'insert_at', 'delete_range', 'delete_file',
@@ -72,14 +43,7 @@ function isSourceMutation(name) {
   return PATH_TOOLS.has(name) || name === 'move_file' || name === 'rename_symbol' || name === 'migration_activate';
 }
 
-/**
- * WHAT A CALL WILL TOUCH, known BEFORE it runs.
- *
- * @returns {Promise<{paths:string[], delegated:boolean}|null>} null when the
- *   call is not a source mutation at all (a rename dry run, for instance).
- *   `delegated` marks a tool that owns its own checkpoint and rollback
- *   (`migration_activate`), whose targets are only known from its result.
- */
+/** WHAT A CALL WILL TOUCH, known BEFORE it runs. */
 async function targetsOf(name, input, ctx) {
   const inp = input && typeof input === 'object' ? input : {};
   const cwd = (ctx && ctx.cwd) || process.cwd();
@@ -101,14 +65,7 @@ async function targetsOf(name, input, ctx) {
 /** The one snapshot primitive lives in checkpoint.js. */
 const { snapshot } = require('./checkpoint');
 
-/**
- * REVERSE ONLY THIS TRANSACTION'S HUNK in a file that has changed since.
- *
- * The change is `before → after` bounded by their common prefix and suffix. Its
- * `after` text, with as much surrounding context as still matches exactly once
- * in the current file, is replaced by the corresponding `before` text. Returns
- * the new text, or null when there is no unambiguous place to do it.
- */
+/** REVERSE ONLY THIS TRANSACTION'S HUNK in a file that has changed since. */
 function reverseHunk(before, after, now) {
   const B = String(before);
   const A = String(after);
@@ -202,22 +159,10 @@ function refused(tx, verdict, output, ctx) {
   return { output, isError: true, mutated: [], transaction: summary(tx), [verdict === VERDICT.STALE ? 'stale' : 'denied']: true };
 }
 
-/**
- * RUN ONE CHANGE THROUGH THE WHOLE LIFECYCLE.
- *
- * @param {object} o
- *   `name`, `input`  the change request
- *   `ctx`            the tool context: cwd, session, checkpoints, turnId,
- *                    workOrder, verify, revertOnStructural
- *   `apply`          async () => tool result — the mutation itself
- *   `targets`        explicit absolute paths, for a caller that is not a tool
- *                    (a proposal commit); otherwise derived from the request
- *   `baselineExtra`  { rel: fingerprint } a proposal was computed against
- */
+/** RUN ONE CHANGE THROUGH THE WHOLE LIFECYCLE. */
 async function transact({ name, input = {}, ctx = {}, apply, targets = null, baselineExtra = null }) {
   const cwd = ctx.cwd || process.cwd();
   const session = ctx.session || null;
-  const order = ctx.workOrder || null;
   const plan = session && session.plan;
   const openStep = plan && Array.isArray(plan.steps) ? plan.steps.findIndex((s) => s && !require('./plan').stepDone(s)) : -1;
 
@@ -225,14 +170,17 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   if (!t) return apply();
 
   const seq = session ? (session._txSeq = (session._txSeq || 0) + 1) : Date.now();
+  const actor = ACTOR[ctx.actor] ? ctx.actor : ACTOR.MODEL;
   const tx = {
+    actor,
+    origin: ctx.origin ? String(ctx.origin).slice(0, 80) : null,
     id: `T${seq}`,
     tool: name,
     startedAt: Date.now(),
     taskId: (session && session.task && session.task.id) || '',
     planStep: openStep >= 0 ? openStep + 1 : null,
-    workOrderId: order ? order.id : '',
-    bounded: guard.isBounded(order),
+    // THE STEP'S IDENTITY (plan.js ids): a receipt still belongs to its step after the plan is revised and renumbered.
+    planStepId: openStep >= 0 ? plan.steps[openStep].id || null : null,
     targets: t.paths.map((p) => path.relative(cwd, p).replace(/\\/g, '/')),
     delegated: t.delegated,
     stages: [],
@@ -247,14 +195,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   };
   const stage = (n, detail = '') => tx.stages.push(detail ? `${n}: ${detail}` : n);
 
-  // ---- AUTHORITY / WORK ORDER ---------------------------------------------
-  const allowed = guard.writeAllowed(order, t.paths, { name, input, cwd });
-  tx.scope = { ok: allowed.ok, denied: allowed.denied.map((d) => d.why), spans: allowed.spans.map((s) => `${s.rel}::${s.symbols.join('|')}`) };
-  stage('AUTHORITY', allowed.ok ? 'allowed' : 'denied');
-  if (!allowed.ok) {
-    return refused(tx, VERDICT.DENIED, `DENIED ${allowed.denied.map((d) => d.why).join('; ')}. Nothing was written. `
-      + 'Request a scope expansion if the assignment needs this.', ctx);
-  }
+  tx.scope = { ok: true, denied: [], spans: [] };
 
   // ---- BASELINE -------------------------------------------------------------
   for (const p of t.paths) {
@@ -265,27 +206,25 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   }
   stage('BASELINE', `${t.paths.length} target(s)`);
 
-  // ---- STALE ------------------------------------------------------------------
-  if (order) {
-    const moved = guard.stale(order, cwd, { onlyRels: tx.targets, extra: baselineExtra || {} });
-    if (moved.length) {
-      stage('STALE', moved.map((m) => m.rel).join(', '));
-      if (typeof order.stale === 'function') {
-        order.stale(`baseline moved: ${moved.map((m) => `${m.rel} ${String(m.expected).slice(0, 8)}→${String(m.actual).slice(0, 8)}`).join(', ')}`);
-      }
-      tx.stale = moved;
-      return refused(tx, VERDICT.STALE, `${guard.VERDICT.STALE_WORK_ORDER}: ${moved.map((m) => `${m.rel} was ${String(m.expected).slice(0, 8)} when the order was issued and is ${String(m.actual).slice(0, 8)} now`).join('; ')}. `
-        + 'Nothing was overwritten — refresh the assignment against the current file.', ctx);
-    }
-  }
   stage('STALE', 'clear');
 
   // The project's first LAIN-controlled write is measured against a baseline.
   try { require('./freshness').ensureBaseline(cwd); } catch { /* intelligence is a convenience; the write is not */ }
+  // A FILE THAT MOVED UNDER LAIN since its provenance was last recorded is an
+  // EXTERNAL change, recorded before this one is attributed (editledger.js).
+  for (const x of tx._targets) {
+    if (!x.before || !x.before.bytes) continue;
+    try {
+      if (require('./editledger').observe(cwd, x.abs, x.before.bytes.toString('utf8'), { sessionId: session ? session.id : null })) {
+        require('./harnesscontext').noteSourceEdit(ctx.app || null, session, { file: x.rel, by: 'external' });
+      }
+    } catch { /* provenance never costs a write */ }
+  }
 
   // ---- CHECKPOINT -------------------------------------------------------------
   let checkpoint = null;
-  if (ctx.checkpoints && t.paths.length) {
+  // A PERSON'S OWN SAVE IS NOT A TURN: /undo reverts LAIN's work, never theirs.
+  if (ctx.checkpoints && t.paths.length && actor !== ACTOR.USER) {
     try { checkpoint = ctx.checkpoints.capture(ctx.turnId || null, t.paths); } catch { checkpoint = null; }
   }
   stage('CHECKPOINT', checkpoint ? checkpoint.id : 'in-memory');
@@ -312,6 +251,16 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   }
   const changed = tx._targets.filter((x) => x.before.fp !== x.afterFp);
   stage('APPLY', r.isError ? `error; ${changed.length} file(s) changed` : `${changed.length} file(s) changed`);
+  if (changed.length) require('./writeclock').mark();   // a page loaded before this is stale (browserharness.js)
+  // TEST INTEGRITY (discipline/integrity.js): what this write did to the measurements, read from the real bytes.
+  const owner = session || (ctx.app && ctx.app.session) || null;
+  const discipline = owner && owner.lifecycle && owner.lifecycle.discipline;
+  if (discipline && actor !== ACTOR.USER) {
+    for (const x of changed) {
+      const text = (b) => (b ? b.toString('utf8') : null);
+      try { discipline.noteWrite(x.rel, x.before.existed ? text(x.before.bytes) : null, x.afterFp ? text(x.afterBytes) : null); } catch { /* bookkeeping never costs a write */ }
+    }
+  }
   if (!changed.length) {
     tx.verdict = VERDICT.NOT_APPLIED;
     tx.endedAt = Date.now();
@@ -323,18 +272,6 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   // ---- STRUCTURAL VERIFY ------------------------------------------------------
   const st = await structural(changed.map((x) => x.abs), cwd);
   let scopeViolation = '';
-  for (const s of allowed.spans) {
-    const x = tx._targets.find((y) => y.abs === s.abs);
-    if (!x || !x.before.bytes || !x.afterBytes) continue;
-    const v = guard.spanAllowed(x.before.bytes.toString('utf8'), x.afterBytes.toString('utf8'), s.abs, s.symbols);
-    if (!v.ok) scopeViolation = `${guard.VERDICT.OUTSIDE_WORK_ORDER}: ${s.rel} ${v.why}`;
-  }
-  // A write the call did not declare is outside what was asked, for a bounded worker.
-  if (guard.isBounded(order)) {
-    for (const x of changed) {
-      if (!guard.writeAllowed(order, [x.abs], { name, input, cwd }).ok) scopeViolation = `${guard.VERDICT.OUTSIDE_WORK_ORDER}: ${x.rel} was changed but is not in the order's write scope`;
-    }
-  }
   tx.structural = { parse: st.ok, files: st.files, lint: Boolean(st.lint) };
   if (scopeViolation) tx.scope.violation = scopeViolation;
   stage('STRUCTURAL', `${st.ok ? 'parses' : 'DOES NOT PARSE'}${scopeViolation ? '; scope violated' : ''}`);
@@ -363,7 +300,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   stage('VERIFY', `${verification.level} ${verification.state}`);
 
   // ---- KEEP / REVERT ------------------------------------------------------------
-  const bounded = guard.isBounded(order);
+  const bounded = false;
   const why = [];
   if (scopeViolation) why.push(scopeViolation);
   if (bounded && !st.ok) why.push('the change does not parse');
@@ -381,6 +318,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   } else {
     tx.verdict = VERDICT.KEEP;
     stage('SETTLE', VERDICT.KEEP);
+    consequences(ctx, tx, changed, { cwd, session, name, input });
     if (st.note) output += st.note;
     if (st.lint) output += st.lint;
   }
@@ -403,6 +341,76 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   };
 }
 
+/** WHAT EVERY KEPT CHANGE MEANS FOR THE REST OF CORE — once, here, whoever made it. */
+function consequences(ctx, tx, changed, { cwd, session, name, input }) {
+  const source = provenanceSource(tx.actor, tx.origin);
+  const by = { USER: 'user', MODEL: 'agent', CORE: 'core', TOOL: 'tool' }[tx.actor] || 'agent';
+  const files = [];
+  for (const x of changed) {
+    files.push(x.rel);
+    // Too large to hold in memory is too large to diff; that write is not described.
+    if ((x.before.existed && !x.before.bytes) || (x.afterFp && !x.afterBytes)) continue;
+    try {
+      require('./editledger').record(cwd, {
+        source, path: x.abs,
+        before: x.before.bytes ? x.before.bytes.toString('utf8') : null,
+        after: x.afterBytes ? x.afterBytes.toString('utf8') : null,
+        sessionId: session ? session.id : null,
+        taskId: tx.actor === ACTOR.MODEL && session && session.task ? session.task.id : null,
+        actor: tx.origin || ((session && session._pluginGrant ? `plugin:${session._pluginGrant.id || ''}` : { USER: 'editor', MODEL: 'coding-agent', CORE: 'core', TOOL: 'tool' }[tx.actor])),
+        tool: name,
+      });
+    } catch { /* provenance never costs a write */ }
+  }
+  let generation = null;
+  for (const rel of files) {
+    try {
+      const r = require('./harnesscontext').noteSourceEdit(ctx.app || null, session, { file: rel, by, what: ctx.what || '' });
+      if (r) generation = r.generation;
+    } catch { /* the generation is Core's; a missing session only means no Harness context */ }
+  }
+  const app = ctx.app || null;
+  if (app && app.events && typeof app.events.emit === 'function') {
+    try { app.events.emit('project.delta', { actor: tx.actor, origin: tx.origin, files, generation, transaction: tx.id, tool: name }); } catch { /* observers never cost a write */ }
+  }
+  tx.generation = generation;
+}
+
+/** A CHANGE THAT IS NOT A MODEL'S TOOL CALL — the person's save in the editor, a create / rename / delete / replace in the IDE, a rename the person… */
+async function change(app, { actor = ACTOR.USER, origin = null, name, targets, write, what = '' }) {
+  const session = app && app.session;
+  const ctx = {
+    app, session, cwd: (session && session.cwd) || process.cwd(), actor, origin, what,
+    checkpoints: actor === ACTOR.MODEL && app ? app.checkpoints : null,
+  };
+  return transact({
+    name, input: {}, ctx, targets: (targets || []).map((p) => path.resolve(String(p))),
+    apply: async () => {
+      const r = await write();
+      const out = r && typeof r === 'object' ? r : {};
+      return { output: out.output || (out.ok === false ? String(out.why || 'refused') : 'done'), ...out, isError: out.ok === false };
+    },
+  });
+}
+
+/** Every file under a folder (bounded) — what a folder rename or delete changes. */
+function filesUnder(dir, max = 5000) {
+  const out = [];
+  const walk = (d) => {
+    if (out.length >= max) return;
+    let list;
+    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of list) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p); else if (e.isFile()) out.push(p);
+      if (out.length >= max) return;
+    }
+  };
+  walk(dir);
+  return out;
+}
+
 module.exports = {
-  VERDICT, transact, targetsOf, isSourceMutation, snapshot, reverseHunk, revert, MAX_RECEIPTS,
+  change, filesUnder,
+  ACTOR, provenanceSource, VERDICT, transact, targetsOf, isSourceMutation, snapshot, reverseHunk, revert, MAX_RECEIPTS,
 };

@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * `computer` — the structured desktop, as the model sees it.
- *
- * ONE NAME FOR THE MACHINE. This replaces the coordinate-only vocabulary while
- * Computer MCP is connected (tools/index.js chooses); the model is never
- * offered two ways to press the same button.
- *
- * THE SHAPE OF THE VOCABULARY IS THE SAFETY ARGUMENT:
- *
- *   observations   windows, window, ui_tree, find, read, screenshot, displays,
- *                  cursor — all reads, all structured except the screenshot
- *   actions        focus_window, click_control, type_into, key, type, click,
- *                  scroll, drag, close_window, clipboard_read/write
- *   sequence       batch — bounded, and it stops the moment the screen stops
- *                  matching what the next step assumed
- *
- * EVERY ACTION TAKES `expect`, and an action without one comes back
- * INCONCLUSIVE. That is the point: Windows accepting a click is not evidence
- * that anything happened, and this tool will not let a model report that it is.
- */
+/** `computer` — the structured desktop, as the model sees it. */
 
 const cm = require('../computermcp');
 
@@ -140,12 +121,7 @@ function treeLines(node, depth, out) {
 
 const SHOW_ROWS = 200;
 
-/**
- * THE TREE, OR A SLICE OF IT (evidenceslice.js). With `focus`, the relevant
- * controls only; without, the tree as before — but a tree longer than what is
- * shown is STORED under a receipt and says so, where it used to stop at 200
- * rows with nothing left of the rest.
- */
+/** THE TREE, OR A SLICE OF IT (evidenceslice.js). */
 function treeOrSlice(ctx, result, target, input) {
   const ev = require('../evidenceslice');
   const workers = require('../workers');
@@ -159,7 +135,8 @@ function treeOrSlice(ctx, result, target, input) {
   const receipt = needsReceipt ? ev.keep(session && session.id, result.tree, rendered, { window: target.window || null, nodes: result.nodes }) : '';
   if (focus) {
     const s = ev.slice(result.tree, { focus, window: target.window || '', receipt, totalChars: rendered.length, describe: describeElement });
-    workers.note(session, { contract: 'evidence_narrower', worker: 'LAYA', tier: 'deterministic', rawChars: rendered.length, inChars: rendered.length, outChars: s.text.length, ms: Date.now() - t0, abstain: s.abstain, confidence: s.confidence, receipt });
+    // CORE'S deterministic tier answered — not Laya (it was mislabelled LAYA before 2026-09-24).
+    workers.note(session, { contract: 'evidence_narrower', worker: 'deterministic', tier: 'deterministic', rawChars: rendered.length, inChars: rendered.length, outChars: s.text.length, ms: Date.now() - t0, abstain: s.abstain, confidence: s.confidence, receipt });
     return { output: s.text, meta: { computer: 'ui_tree', slice: true, receipt, matched: s.matched, total: s.total } };
   }
   if (rows.length <= SHOW_ROWS) return { output: rendered.slice(0, 20000), meta: { computer: 'ui_tree' } };
@@ -255,15 +232,7 @@ async function run(input, ctx) {
       case 'screenshot': {
         const r = await c.capture(target.window || target.pid || target.handle ? target : {});
         if (!r.ok) return { output: r.why, isError: true };
-        // ---- THE PICTURE BECOMES EVIDENCE, NOT A FILE IN A TEMP FOLDER ----
-        //
-        // The bridge writes the capture to a temporary path. That path is swept
-        // eventually, and a verification that rested on it then rests on
-        // nothing — so where a task is running, the image is ADOPTED as that
-        // task's artifact, and it is offered to LAIN's own window by reference.
-        //
-        // NEITHER CAN FAIL THE SCREENSHOT. Adoption with no running task, or a
-        // full artifact store, still leaves a real picture at a real path.
+        // THE PICTURE BECOMES EVIDENCE, NOT A FILE IN A TEMP FOLDER
         let shown = null;
         try {
           const viewer = require('../imageviewer');
@@ -274,13 +243,7 @@ async function run(input, ctx) {
           if (offered.ok) shown = offered;
         } catch { /* looking at it is a courtesy; the capture stands either way */ }
 
-        // ---- THE TEMP ORIGINAL GOES ONCE THE EVIDENCE HAS AN OWNER --------
-        //
-        // create → adopt → reference → clean. Adopted, the artifact copy is the
-        // authoritative one: the model is told THAT path, and the capture in
-        // %TEMP% is deleted rather than left to accumulate one file per
-        // screenshot for the life of the machine. NOT adopted (no running
-        // task), the temp file is the only copy there is, so it stays.
+        // THE TEMP ORIGINAL GOES ONCE THE EVIDENCE HAS AN OWNER
         let where = r.result.path;
         const adopted = shown && shown.record && shown.record.artifact;
         if (adopted && shown.record.file && shown.record.file !== r.result.path) {
@@ -311,14 +274,7 @@ async function run(input, ctx) {
         return { output: `${got.ok ? 'PASSED' : 'FAILED'} — ${got.why}`, isError: !got.ok, meta: { computer: op, verdict: got.ok ? 'PASSED' : 'FAILED' } };
       }
       case 'batch': {
-        // §24/§25 — EVERY STEP IS "THESE SAME SPECS" (the schema's own words),
-        // so a step is written with `op`, exactly like a single call. The
-        // single-action path below translates `op` -> the internal `action`
-        // field before calling `c.act()`; batch must do the same translation
-        // for each step, or ComputerMCP.act() reads `spec.action` as undefined
-        // and reports "there is no action \"\"" — the exact regression this
-        // guards. Malformed or empty steps are rejected HERE, ordered and
-        // fail-fast, before any of them reaches the bridge.
+        // §24/§25 — EVERY STEP IS "THESE SAME SPECS" (the schema's own words), so a step is written with `op`, exactly like a single call.
         const raw = Array.isArray(input.steps) ? input.steps : [];
         if (!raw.length) return { output: 'batch needs at least one step', isError: true };
         if (raw.length > 20) return { output: `batch takes at most 20 steps, got ${raw.length}`, isError: true };
@@ -326,9 +282,7 @@ async function run(input, ctx) {
         const steps = raw.map((s, i) => {
           const action = String((s && (s.action || s.op)) || '');
           if (!action) bad.push(`step ${i + 1}: no op given — empty step`);
-          // A batch step performs an ACTION, not an observation or a top-level
-          // op like `wait`/`open_app`/`batch` that this outer switch owns —
-          // see cm.PERFORM_ACTIONS's doc comment for why this is not `ACT`.
+          // A batch step performs an ACTION, not an observation or a top-level op like `wait`/`open_app`/`batch` that this outer switch owns — see…
           else if (!cm.PERFORM_ACTIONS.has(action)) bad.push(`step ${i + 1}: "${action}" is not a valid batch action`);
           return { ...s, action, target: (s && s.target) || {} };
         });

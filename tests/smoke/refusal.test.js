@@ -45,7 +45,7 @@ async function refusedAfterTool() {
     env: { LAIN_FORCE_TUI: '1', COLUMNS: '100', LINES: '32' },
     stdin: 'check the runner\n',
     script: [
-      { text: 'Checking the size_lot call:', tool_calls: [{ name: 'run_bash', input: { command: 'echo LINE1470' } }] },
+      { text: 'Checking the size_lot call:', tool_calls: [{ name: 'shell', input: { command: 'echo LINE1470' } }] },
       { error: { status: 413, message: OMNIROUTE_413 } },
     ],
     timeoutMs: 45000,
@@ -64,13 +64,15 @@ module.exports = async function () {
     // The action vocabulary is `✓ <verb> · <subject>` — `✓ echo · LINE1470`
     // for this command — so the row is found by its subject, not by a verb.
     // Since 2026-09-23 a shell command draws as `› echo LINE1470` (ui/shellrow.js).
-    const i = Math.max(last.indexOf('· LINE1470'), last.indexOf('› echo LINE1470'));
-    assert.ok(i >= 0, `the tool call must be on screen:
-${last.slice(-400)}`);
-    const region = last.slice(Math.max(0, i - 60), i + 200);
-    assert.match(region, /✓ \S+ · LINE1470|› echo LINE1470[\s\S]*Command completed/, `the command succeeded and must say so: ${region}`);
-    assert.ok(!/✗ 413/.test(region),
-      `the provider's refusal is wearing the tool's failure mark: ${region}`);
+    // A ROUTINE COMMAND LEAVES NO ROW (S4); its outcome is on the turn record, and that is where the refusal must not land.
+    const dir = require('path').join(r.configDir, 'sessions');
+    const file = require('fs').readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => require('path').join(dir, f)).sort((a, b) => require('fs').statSync(b).mtimeMs - require('fs').statSync(a).mtimeMs)[0];
+    const s = JSON.parse(require('fs').readFileSync(file, 'utf8'));
+    const act = (s.turns || []).flatMap((t) => t.actions || []).find((a) => /LINE1470/.test(a.target || ''));
+    assert.ok(act, `the call is on the turn record:\n${last.slice(-400)}`);
+    assert.strictEqual(act.ok, true, 'the command succeeded and says so');
+    assert.strictEqual(act.exitCode, 0);
+    assert.ok(!/413/.test(String(act.note || '')), `the provider's refusal is wearing the tool's result: ${act.note}`);
   });
 
   await test('REFUSAL: it is named in LAIN\'s words, with the fix, not as raw JSON', async () => {

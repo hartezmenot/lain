@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE INTERACTION PANEL — one subsystem, many adapters.
- *
- * `/config`, `/models`, model→routes, `/provider`, `/effort`, `/oauth`,
- * `ask_user`, confirmations, help and every picker all run through THIS panel.
- * The alternative — a mini-renderer per command — is exactly the duplication
- * that made V1 unmaintainable, so it is structurally prevented: a command
- * supplies DATA (an adapter), never drawing code.
- *
- * The panel is a pure state machine over `{ items, cursor, scroll }`. It does no
- * I/O and holds no terminal knowledge, so it is fully testable without a TTY and
- * costs nothing to render — every value it shows already exists in program state.
- *
- * SIZES: HIDDEN (height 0) · COMPACT (small selectors) · EXPANDED (lists,
- * config, MCQ). The workspace shrinks; it is never destroyed.
- */
+/** THE INTERACTION PANEL — one subsystem, many adapters. */
 
 const { P } = require('./paint');
 /** The one ruler for terminal cells — CJK is two, an escape is zero. See ui/text.js. */
@@ -23,16 +8,7 @@ const T = require('./text');
 
 const MODE = Object.freeze({ HIDDEN: 'hidden', COMPACT: 'compact', EXPANDED: 'expanded' });
 
-/**
- * WHAT the panel is currently for. `MODE` above is how TALL it is; this is what
- * it MEANS, and it is what decides where a keystroke goes. It is derived from
- * the open frame rather than stored separately, so there is exactly one place
- * that knows the panel is open and it cannot disagree with itself.
- *
- * The two COMPLETION kinds are transient: they track what is being typed and
- * close on their own. Every other kind is modal — it was opened by a caller that
- * is awaiting a value, and typing must not disturb it.
- */
+/** WHAT the panel is currently for. */
 const KIND = Object.freeze({
   IDLE: 'IDLE',
   COMMAND_PALETTE: 'COMMAND_PALETTE',
@@ -44,44 +20,12 @@ const KIND = Object.freeze({
   ASK_USER: 'ASK_USER',
   CONFIRM: 'CONFIRM',
   FILE_PICKER: 'FILE_PICKER',
-  // `STEP_PICKER` STOOD HERE — the "which plan step to expand" picker the PLAN
-  // pane opened on an empty Enter. There is no pane and `/plan` prints every
-  // step with its note and files, so nothing is being asked which. See
-  // ui/adapters.js where its adapter was.
-  /**
-   * WHAT A COMMAND SAID — `/status`, `/dash`, a compaction notice.
-   *
-   * Nothing awaits a value here and no row is selectable: it is text being
-   * shown, and Esc closes it. It lives in THIS panel rather than in a region of
-   * its own because `/` and `/model` already open here, and a second window in
-   * the same corner of the screen is a duplicate surface — one was built that
-   * way first, and removed for exactly this reason.
-   */
+  // `STEP_PICKER` STOOD HERE — the "which plan step to expand" picker the PLAN pane opened on an empty Enter.
+  /** WHAT A COMMAND SAID — `/status`, `/dash`, a compaction notice. */
   OUTPUT: 'OUTPUT',
-  /**
-   * SOMETHING WORTH KNOWING WHILE THE WORK CARRIES ON — see looping.js.
-   *
-   * The only kind that is neither modal nor transient. Nothing awaits it, and
-   * unlike OUTPUT it is raised by LAIN mid-turn rather than by a command the
-   * user just ran — so the keyboard cannot be taken from them: Enter still
-   * sends, the arrows still move the caret, Tab still switches panes. Only Esc
-   * and the letters the frame declares do anything to it.
-   *
-   * It is also the only kind CLOSED BY ITS CONDITION GOING AWAY. That is the
-   * point of it: an advisory about a problem that has since resolved is a
-   * message you must clear for no reason, and a surface which makes you clear
-   * stale warnings is one you stop reading.
-   */
+  /** SOMETHING WORTH KNOWING WHILE THE WORK CARRIES ON — see looping.js. */
   ADVISORY: 'ADVISORY',
-  /**
-   * SOMETHING THE PERSON IS INSPECTING — `/diff`.
-   *
-   * Not passive: command output, an advisory or a notice may not replace it, and
-   * no timer, stream, patch, resize or finished task closes it. Not awaited: no
-   * caller is waiting on a value, so the header does not say WAITING FOR YOU.
-   * It owns its navigation keys through the frame's `onKey`, and it closes on an
-   * explicit user action — Esc, an interrupt, leaving.
-   */
+  /** SOMETHING THE PERSON IS INSPECTING — `/diff`. */
   INSPECTOR: 'INSPECTOR',
   /** A command's follow-up actions — `/goal`, `/plan`, `/resume`. See ui/shelf.js. */
   SHELF: 'SHELF',
@@ -90,24 +34,11 @@ const KIND = Object.freeze({
 /** Completion kinds follow the input; everything else owns the keyboard. */
 const COMPLETION_KINDS = new Set([KIND.COMMAND_PALETTE, KIND.FILE_COMPLETION]);
 
-/**
- * Kinds with NO CALLER WAITING BEHIND THEM.
- *
- * Both are things being shown rather than asked, so either may be replaced by a
- * real question, closed by an Escape aimed at something more urgent, or — for
- * ADVISORY — retracted by whatever raised it. A frame with a caller is never
- * treated this way: closing one answers somebody's question with silence.
- */
+/** Kinds with NO CALLER WAITING BEHIND THEM. */
 const PASSIVE_KINDS = new Set([KIND.OUTPUT, KIND.ADVISORY]);
 
 /** An adapter is `{ title, mode, kind, items, footer?, onSelect?, onBack? }`. */
-/**
- * LAND ON SOMETHING CHOOSABLE — every way a level opens (open, replace, push).
- * A question, heading or info row is often row 0; parking the cursor there
- * draws no marker and makes Enter a silent no-op. `push` once skipped this rule
- * and the /model route view (EFFORT under five info rows) did exactly that
- * (live, 2026-09-18).
- */
+/** LAND ON SOMETHING CHOOSABLE — every way a level opens (open, replace, push). */
 function landOn(items, cursor) {
   const list = items || [];
   if (!list[cursor] || list[cursor].selectable !== false) return cursor;
@@ -134,14 +65,7 @@ class InteractionPanel {
   /** What the panel is for right now. IDLE when it is closed. */
   get kind() { return this.frame ? (this.frame.kind || KIND.CONFIRM) : KIND.IDLE; }
 
-  /**
-   * WHAT THE OPEN FRAME TAKES FROM THE KEYBOARD — null when it takes nothing.
-   *
-   * A question is the one panel where the answer may not be on the list, so it
-   * reads the input line as well as the cursor. Everything else ignores typing
-   * entirely and is unchanged. Derived from the frame, like `kind`, so there is
-   * no second flag to fall out of step with what is drawn.
-   */
+  /** WHAT THE OPEN FRAME TAKES FROM THE KEYBOARD — null when it takes nothing. */
   get takes() { return this.frame ? (this.frame.takes || null) : null; }
 
   /** True when a typed line is an answer to this panel rather than a prompt. */
@@ -150,17 +74,7 @@ class InteractionPanel {
   /** The choices the open question is offering, for the surfaces that describe it. */
   get options() { return (this.frame && this.frame.options) || []; }
 
-  /**
-   * ENTER, WITH TEXT ON THE LINE.
-   *
-   * The bug this replaces: Enter went straight to `select()`, which resolves
-   * the HIGHLIGHTED row — so a typed `2` against the options 1-4 answered
-   * "1" and the typing was discarded without a word. Now the frame is asked
-   * what the line means first, and only an EMPTY line falls through to the
-   * cursor.
-   *
-   * @returns {boolean} true when the line was consumed as an answer.
-   */
+  /** ENTER, WITH TEXT ON THE LINE. */
   submitTyped(text) {
     const f = this.frame;
     if (!f || typeof f.onTyped !== 'function') return false;
@@ -169,13 +83,6 @@ class InteractionPanel {
     if (outcome && outcome.push) { this.push(outcome.push); return true; }
     if (outcome && outcome.close !== undefined) { this.close(outcome.close); return true; }
     // REFUSED, AND THE QUESTION STAYS OPEN.
-    //
-    // A NUMBER question that quietly accepts "about forty" has not been
-    // answered — it has been answered WRONGLY, and the model will act on it. So
-    // the frame may say no, the reason is drawn under the question, and the
-    // line is still there to correct. The alternative is a validator that
-    // silently drops what somebody typed, which is the original bug wearing a
-    // different hat.
     if (outcome && outcome.reject) { this.error = String(outcome.reject); return true; }
     return false;
   }
@@ -189,31 +96,18 @@ class InteractionPanel {
   /** True when the panel is showing something rather than asking something. */
   get isPassive() { return PASSIVE_KINDS.has(this.kind); }
 
-  /**
-   * True for the one panel that must not take the keyboard.
-   *
-   * Checked by the key router and by the input reader before either hands a
-   * keystroke to the panel — an advisory raised mid-turn must never be the
-   * reason an Enter did not send.
-   */
+  /** True for the one panel that must not take the keyboard. */
   get isAdvisory() { return this.kind === KIND.ADVISORY; }
 
   /** True for a persistent inspector — see KIND.INSPECTOR. */
   get isInspector() { return this.kind === KIND.INSPECTOR; }
 
-  /**
-   * Swap the CONTENT of the open panel without closing it — what a completion
-   * menu does on every keystroke. The awaiting promise is untouched, so a filter
-   * keystroke can never resolve or orphan the caller.
-   */
+  /** Swap the CONTENT of the open panel without closing it — what a completion menu does on every keystroke. */
   replace(adapter) {
     if (!this.stack.length) return this.open(adapter);
     this.stack[this.stack.length - 1] = adapter;
     const n = (adapter.items || []).length;
     // A NEW adapter may say where the cursor belongs, exactly as `open` does.
-    // Without this, narrowing 934 models to 50 left the cursor at whatever index
-    // it held and it was merely clamped — landing on the LAST match, so typing
-    // a filter scrolled you to the bottom of your own search.
     if (Number(adapter.cursor) >= 0) this.cursor = Number(adapter.cursor);
     if (this.cursor >= n) this.cursor = Math.max(0, n - 1);
     this.cursor = landOn(adapter.items, this.cursor);
@@ -242,11 +136,7 @@ class InteractionPanel {
 
   /** Drill down (model → its routes) while keeping the parent for `←`. */
   push(adapter) {
-    // REMEMBER WHERE THE CURSOR WAS. Going one level in and back out must
-    // return you to the row you left, not to the top: for the ask_user MCQ,
-    // where `Esc` opens the explanations and `Esc` comes back, losing the
-    // highlighted choice means reading the whole question again to find where
-    // you were.
+    // REMEMBER WHERE THE CURSOR WAS.
     const from = this.frame;
     if (from) from._cursor = this.cursor;
     this.stack.push(adapter);
@@ -264,18 +154,7 @@ class InteractionPanel {
     return undefined;
   }
 
-  /**
-   * ESCAPE. The frame decides what backing out MEANS.
-   *
-   * For nearly everything it means "close, having chosen nothing", which is
-   * what it has always done. The ask_user MCQ is the exception the design asks
-   * for: there Escape opens the DETAILED explanation of the choices, and
-   * Escape again returns to the choices with the question and the highlighted
-   * option both intact. A question must not be cancellable by the key a person
-   * presses to ask for more information about it.
-   *
-   * @returns {boolean} true when the frame handled it; false to close as usual.
-   */
+  /** ESCAPE. The frame decides what backing out MEANS. */
   escape() {
     const f = this.frame;
     if (!f || typeof f.onEscape !== 'function') return false;
@@ -303,14 +182,7 @@ class InteractionPanel {
   move(delta, viewportRows = 10) {
     const n = this.items.length;
     if (!n) return;
-    // ---- NOTHING TO SELECT MEANS THE ARROWS SCROLL --------------------------
-    //
-    // A panel of pure text — command output — has no selectable row, so the
-    // loop below finds nothing, leaves the cursor at 0, and the view never
-    // moves. `/status` produced twelve rows into a ten-row panel and the footer
-    // said "(1-10 of 12)" while NO KEYSTROKE COULD REACH the other two. A
-    // scrollable panel whose content cannot be scrolled is worse than a
-    // truncated one, because it tells you what you are missing.
+    // NOTHING TO SELECT MEANS THE ARROWS SCROLL
     if (!this.selectable) { this.scrollBy(delta, viewportRows); return; }
     // Skip non-selectable rows (headings/separators) in the direction of travel.
     let next = this.cursor;
@@ -324,10 +196,7 @@ class InteractionPanel {
 
   _clampScroll(viewportRows, total = this.items.length) {
     const rows = Math.max(1, viewportRows);
-    // THE CURSOR ONLY DRAGS THE VIEW WHEN THERE IS A CURSOR. With nothing
-    // selectable the cursor sits at 0 forever, and following it here would haul
-    // the view back to the top on the very next redraw — undoing the scroll
-    // that `move` had just performed.
+    // THE CURSOR ONLY DRAGS THE VIEW WHEN THERE IS A CURSOR.
     if (this.selectable) {
       if (this.cursor < this.scroll) this.scroll = this.cursor;
       if (this.cursor >= this.scroll + rows) this.scroll = this.cursor - rows + 1;
@@ -341,14 +210,7 @@ class InteractionPanel {
     this.scroll = Math.max(0, Math.min(this.scroll + delta, Math.max(0, this.items.length - viewportRows)));
   }
 
-  /**
-   * Enter (or `→`). The adapter decides: resolve, drill down, or do nothing.
-   *
-   * WHICH KEY was pressed is passed through, because for some lists the two
-   * mean different things — on the model list Enter is "use this" and `→` is
-   * "show me its routes first". The panel does not interpret that; it only
-   * reports it.
-   */
+  /** Enter (or `→`). The adapter decides: resolve, drill down, or do nothing. */
   select({ key = 'enter' } = {}) {
     const f = this.frame;
     if (!f) return undefined;
@@ -358,31 +220,12 @@ class InteractionPanel {
     const outcome = f.onSelect(item, { key, panel: this });
     if (outcome && outcome.push) { this.push(outcome.push); return undefined; }
     if (outcome && outcome.close !== undefined) return this.close(outcome.close);
-    // The same refusal submitTyped allows: Enter on a MULTI_SELECT with nothing
-    // marked is not an empty answer, it is a question that has not been
-    // answered yet, and saying so beats resolving to "".
+    // The same refusal submitTyped allows: Enter on a MULTI_SELECT with nothing marked is not an empty answer, it is a question that has not been answered…
     if (outcome && outcome.reject) { this.error = String(outcome.reject); return undefined; }
     return undefined;
   }
 
-  /**
-   * A SINGLE TYPED LETTER THE OPEN PANEL CLAIMS — `D` for details on the
-   * session browser being the first of them.
-   *
-   * A printable character is inserted into the input line and emits an `edit`,
-   * never a `key`, so a panel that advertises "D details" in its footer cannot
-   * receive one through handleKey. That is exactly how the completion overlay
-   * came to advertise [D] and [R] and do nothing with either — a screen
-   * offering shortcuts the input reader is structurally incapable of
-   * delivering.
-   *
-   * So a letter is a shortcut ONLY when the open frame declares it, and only
-   * for a MODAL panel: a completion menu is following what is being typed and
-   * must never have letters stolen from it. Everything else falls through and
-   * is typed, unchanged.
-   *
-   * @returns {boolean} true when the letter was claimed and acted on.
-   */
+  /** A SINGLE TYPED LETTER THE OPEN PANEL CLAIMS — `D` for details on the session browser being the first of them. */
   shortcut(letter) {
     const f = this.frame;
     if (!f || this.isCompletion) return false;
@@ -395,88 +238,26 @@ class InteractionPanel {
     return outcome !== undefined;
   }
 
-  /**
-   * Render to lines. `rows` is the height the layout allotted; the panel windows
-   * its own content so a 2,000-row list can never push the terminal around.
-   */
-  /**
-   * Render to lines. `rows` is the height the layout allotted; the panel windows
-   * its own content so a 2,000-row list can never push the terminal around.
-   *
-   * ------------------------------------------------------------------------
-   * THE BOX IS GONE, AND IT WAS THE WORST THING ON THE SCREEN.
-   *
-   * It used to be drawn like this, at the full width of the terminal:
-   *
-   *     +------------------------------------------------------------+
-   *     | COMMANDS                                                   |
-   *     +------------------------------------------------------------+
-   *     | > /exit        Save the session and leave                  |
-   *     | ...                                                        |
-   *     +------------------------------------------------------------+
-   *     | ^v select - Enter confirm - Esc cancel        (1-6 of 58)   |
-   *     +------------------------------------------------------------+
-   *
-   * Six rows of chrome, three of them heavy full-width rules, a boxed shouting
-   * title, and a selection highlight stretching to a wall two hundred columns
-   * away from the six characters it was about. That is an ncurses dialog, and it
-   * is what made a surface that is otherwise a quiet conversation read as a TUI
-   * dashboard.
-   *
-   * WHAT REPLACED IT, and every part of it is a subtraction:
-   *
-   *     Commands
-   *
-   *       > /exit      Save the session and leave
-   *         /status    Session, provider and tool state
-   *
-   *       ^v select - Tab complete - Enter run - Esc cancel   (1-6 of 58)
-   *
-   *   NO FRAME.            Whitespace and one indent separate it from the
-   *                        conversation. A list under the line you are filtering
-   *                        with does not need a border to be understood as a list.
-   *   A TITLE, NOT A BANNER. Sentence case, dim, on its own row.
-   *   NO RULES AT ALL.     The blank rows do the work the three rules did.
-   *   A CONTAINED SELECTION. The highlight is as wide as the menu's own content
-   *                        and no wider — see `menuWidth`.
-   *   THE SAME BOUNDED WINDOW. `(1-6 of 58)` is unchanged; it was the one part
-   *                        of the old footer that was pulling its weight.
-   */
+  /** Render to lines. `rows` is the height the layout allotted; the panel windows its own content so a 2,000-row list can never push the terminal around. */
+  /** Render to lines. `rows` is the height the layout allotted; the panel windows its own content so a 2,000-row list can never push the terminal around. */
   render(width = 80, rows = 12) {
     const f = this.frame;
     if (!f) return [];
     const out = [];
-    // ---- THE MENU IS AS WIDE AS ITS CONTENTS, NOT AS WIDE AS THE TERMINAL ---
-    //
-    // On a 200-column terminal a command list needs about fifty of them. Letting
-    // it take the frame meant a highlight, a title rule and a footer rule all
-    // spanning the screen for the sake of `/exit  Save the session and leave`.
+    // THE MENU IS AS WIDE AS ITS CONTENTS, NOT AS WIDE AS THE TERMINAL
     const inner = this.menuWidth(width);
     const INDENT = '  ';
     const title = String(f.title || '');
     if (title) {
-      // SENTENCE CASE. `COMMANDS` in capitals inside a box was the loudest thing
-      // on a screen whose subject is a conversation.
-      // A PATH KEEPS ITS CASE: `src/Provider.js` lowercased is a different file.
+      // SENTENCE CASE. `COMMANDS` in capitals inside a box was the loudest thing on a screen whose subject is a conversation. A PATH KEEPS ITS CASE…
       out.push(P.meta(INDENT + (f.keepCase ? clip(title, inner) : title.charAt(0) + title.slice(1).toLowerCase())));
       out.push('');
     }
 
-    // Chrome is the title, its blank row, a blank row and the footer — four,
-    // where the box spent six. The body gets the rest, so the panel returns
-    // EXACTLY the height the layout allotted.
+    // Chrome is the title, its blank row, a blank row and the footer — four, where the box spent six.
     const chrome = (title ? 2 : 0) + FOOTER_ROWS;
     const bodyRows = Math.max(1, rows - chrome);
-    // ---- WRAP, OR CLIP ------------------------------------------------------
-    //
-    // A LIST OF OPTIONS CLIPS: one row per choice is what makes it scannable,
-    // and a model id that runs long is still recognisable from its start.
-    //
-    // TEXT WRAPS. Command output is prose and paths, and clipping it cut words
-    // in half - "Chat history exceeds the 800-mes..." told you a limit had been
-    // hit and then took away the number. A frame says which it is (see
-    // `outputAdapter`), because only the frame knows whether its rows are
-    // choices or sentences.
+    // WRAP, OR CLIP
     const shown = f.wrap ? wrapItems(this.items, inner) : this.items;
     this._clampScroll(bodyRows, shown.length);
     const slice = shown.slice(this.scroll, this.scroll + bodyRows);
@@ -485,61 +266,23 @@ class InteractionPanel {
       if (!item) { out.push(''); continue; }
       const idx = this.scroll + i;
       const sel = idx === this.cursor && item.selectable !== false;
-      // `>` ONLY ON THE SELECTED ROW, and the others are not indented to make
-      // room for a marker they do not have - they are, because a list whose rows
-      // shift sideways as the cursor moves is a list that twitches.
+      // `>` ONLY ON THE SELECTED ROW, and the others are not indented to make room for a marker they do not have - they are, because a list whose rows shift…
       const marker = item.selectable === false ? '  ' : (sel ? '❯ ' : '  ');
       const text = marker + String(item.label == null ? '' : item.label);
-      // ---- COLOUR IS APPLIED AFTER PADDING ---------------------------------
-      //
-      // `pad` and `clip` count characters, and an escape sequence is characters
-      // that occupy no columns - so painting the label first makes every
-      // coloured row short by the length of its own colour codes. Painting the
-      // finished, padded string keeps the arithmetic honest.
-      //
-      // A row says its own TONE (`ok`, `warn`, `bad`) rather than its colour, so
-      // the palette stays in one place and a route that is rate limited looks
-      // the same here as it does in the live row.
+      // COLOUR IS APPLIED AFTER PADDING
       const body = pad(clip(text, inner), inner);
-      // A ROW MAY PAINT ITSELF when one tone cannot say it — a diff overview
-      // row carries a state dot and separately coloured counts. Still painted
-      // AFTER padding, for the same reason as a tone.
+      // A ROW MAY PAINT ITSELF when one tone cannot say it — a diff overview row carries a state dot and separately coloured counts.
       if (typeof item.paint === 'function') {
         const painted = item.paint(body, { selected: sel });
         out.push(INDENT + (sel ? P.surface(painted) : painted));
         continue;
       }
       const tint = item.tone && P[item.tone] ? P[item.tone] : null;
-      // ---- THE ROW ENTER WILL CHOOSE, UNMISTAKABLY -------------------------
-      //
-      // BOTH CUES, ALWAYS. The marker survives monochrome, a pipe and a captured
-      // log; the surface is what makes it win at a glance when colour is there.
-      // Neither alone was enough - a list where some rows carry a tone puts a
-      // coloured unselected row beside a plain selected one, and the brightest
-      // thing on screen is then not the thing Enter will take.
-      //
-      // AND THE HIGHLIGHT STOPS AT THE MENU. It used to run to the terminal's
-      // edge, which on a wide screen is a grey bar pointing at nothing.
-      // ---- THE COMMAND IS THE ACCENT; ITS DESCRIPTION IS NOT ------------
-      //
-      // A row reads `/status      Session, provider and tool state` — a token you
-      // are about to TYPE, and a sentence explaining it. At one weight the eye has
-      // to read the whole row to find the half it came for. The token wears the
-      // accent every command and path in LAIN wears (ui/paint.js `cmd`) and the
-      // description is dim, so a list of sixty is scannable down its left edge.
-      //
-      // SPLIT ON THE GAP, which is how the rows are BUILT (two or more spaces
-      // between the command and its description), not on a guess about lengths. A
-      // row with no gap is one thing and is painted as one.
-      //
-      // AFTER PADDING, ALWAYS — see the note above. And a row with a TONE keeps it
-      // whole: `rate limited` in yellow is about the entire row, not its first word.
+      // THE ROW ENTER WILL CHOOSE, UNMISTAKABLY
       const painted = tint ? tint(body) : accentRow(body);
       out.push(INDENT + (sel ? P.surface(painted) : painted));
     }
-    // THE REFUSAL, WHERE THE ANSWER WOULD HAVE GONE. Drawn in the last body row
-    // rather than the footer: the footer says what the keys DO, and it must not
-    // start flickering between instructions and complaints.
+    // THE REFUSAL, WHERE THE ANSWER WOULD HAVE GONE.
     if (this.error) {
       out[out.length - 1] = INDENT + P.bad(pad(clip('✗ ' + this.error, inner), inner));
     }
@@ -551,18 +294,7 @@ class InteractionPanel {
     return out;
   }
 
-  /**
-   * HOW WIDE THE MENU IS: what its contents need, bounded by the frame.
-   *
-   * A list of six commands does not become more readable by being stretched to
-   * two hundred columns, and the selection highlight is the part that makes that
-   * obvious. So the width is the longest row it will actually draw, plus the
-   * marker and a little air - and never more than the content frame it sits in,
-   * which the layout has already decided.
-   *
-   * A FLOOR, so a one-word list is not a sliver; a CEILING, so a pasted sentence
-   * in an item cannot drag the menu back out to the wall.
-   */
+  /** HOW WIDE THE MENU IS: what its contents need, bounded by the frame. */
   menuWidth(width) {
     const frame = Math.max(10, Math.floor(Number(width) || 80) - 2);
     // AN INSPECTOR READS CODE, and code needs the width it has. A diff clipped
@@ -579,29 +311,14 @@ class InteractionPanel {
   }
 }
 
-/**
- * A ROW'S COMMAND TOKEN, ACCENTED; THE REST OF IT, DIM.
- *
- * The marker (`> ` or two spaces) is left alone - it is the selection cue and
- * must survive monochrome. Everything up to the first two-space gap after it is
- * the token; everything after is explanation.
- *
- * A ROW THAT IS NOT SHAPED LIKE THAT is returned untouched rather than guessed
- * at: a model id, a file path, a sentence of command output, a blank row.
- */
+/** A ROW'S COMMAND TOKEN, ACCENTED; THE REST OF IT, DIM. */
 function accentRow(body) {
   const m = /^(  |❯ )(\S+)(\s{2,})([\s\S]*)$/.exec(body);
   if (!m) return body;
   return m[1] + P.cmd(m[2]) + P.meta(m[3] + m[4]);
 }
 
-/**
- * HOW MANY ROWS ARE NOT CONTENT: a blank row and the footer.
- *
- * The box spent SIX — two borders, the title, two separators and the footer. Named
- * so ui/geometry.js sizes the region from the same number, and so a test can ask
- * rather than hardcode it.
- */
+/** HOW MANY ROWS ARE NOT CONTENT: a blank row and the footer. */
 const FOOTER_ROWS = 2;
 
 /** A menu narrower than this is a sliver; wider than this is a wall. */
@@ -614,41 +331,23 @@ function defaultFooter(depth) {
     : '↑↓ select · Enter confirm · Esc cancel';
 }
 
-/**
- * EXACTLY `width` CELLS. Measured with the one ruler (ui/text.js): a panel
- * padded by `.length` drew every CJK row past its right edge by half its width.
- */
+/** EXACTLY `width` CELLS. */
 function pad(s, width) {
   const t = String(s == null ? '' : s);
   return T.pad(T.width(t) > width ? T.hardSlice(t, width) : t, width);
 }
 
-/**
- * Expand items into DISPLAY ROWS, wrapping each label to the panel width.
- *
- * Continuation rows are never selectable: a wrapped sentence is one thing, and
- * letting a cursor land on its second half would make a list of two options
- * behave like a list of five.
- *
- * Indented by two so a wrapped line reads as belonging to the one above it,
- * and split on whitespace so words survive - the whole point is that clipping
- * cut them in half.
- */
+/** Expand items into DISPLAY ROWS, wrapping each label to the panel width. */
 function wrapItems(items, inner) {
   const width = Math.max(8, inner - 2);   // the marker column
   const out = [];
-  // NOT NAMED "continuation": that word belongs to task.js, which owns whether
-  // an INPUT continues the previous task, and an architecture guard keeps it to
-  // one file. This is two spaces of indent on a wrapped row.
+  // NOT NAMED "continuation": that word belongs to task.js, which owns whether an INPUT continues the previous task, and an architecture guard keeps it…
   const HANG = '  ';
   for (const item of items || []) {
     const text = String((item && item.label) == null ? '' : item.label).replace(/\s+$/, '');
     if (!text.trim()) { out.push({ ...item, label: '', selectable: false }); continue; }
 
-    // THE LIMIT IS DECIDED PER ROW, BEFORE THE ROW IS BUILT. The first attempt
-    // flipped "am I a wrapped row?" inside the flush, so a line was measured
-    // against one width and drawn at another, and words were cut in half at the
-    // difference.
+    // THE LIMIT IS DECIDED PER ROW, BEFORE THE ROW IS BUILT.
     const words = text.split(/\s+/).filter(Boolean);
     let row = 0;
     let line = '';
@@ -659,10 +358,7 @@ function wrapItems(items, inner) {
       line = '';
     };
     for (let w of words) {
-      // A SINGLE WORD LONGER THAN THE PANEL still has to go somewhere — a long
-      // path, a token, a URL. It is hard-split rather than dropped or allowed
-      // to run through the border.
-      // CELLS, NOT CHARACTERS: a CJK word is twice as wide as its length.
+      // A SINGLE WORD LONGER THAN THE PANEL still has to go somewhere — a long path, a token, a URL.
       while (T.width(w) > limit()) {
         if (line) flush();
         line = T.hardSlice(w, limit());
@@ -689,8 +385,5 @@ module.exports = {
 };
 
 
-// THE ADAPTERS LIVE IN ui/adapters.js — see its header for why. Required HERE,
-// at the bottom, so this file's own exports already exist when that one
-// destructures KIND/MODE/pad/clip from it. Re-exported so every existing caller
-// keeps its single import.
+// THE ADAPTERS LIVE IN ui/adapters.js — see its header for why.
 Object.assign(module.exports, require('./adapters'));

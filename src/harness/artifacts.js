@@ -1,44 +1,6 @@
 'use strict';
 
-/**
- * THE ARTIFACT STORE — durable evidence, addressable after the conversation is
- * gone.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS EXISTS TO END.
- *
- * LAIN already produced evidence: a test run's output, a diagnostic on a write,
- * a screenshot, a diff. All of it went into the TRANSCRIPT — and the transcript
- * is the one place in this program that is deliberately lossy. Compaction stubs
- * a result over 400 characters with its first line and "Re-run the call if you
- * need it" (session.js), which is exactly right for a context window and
- * exactly wrong for a receipt. So the proof that a suite passed was routinely
- * the first thing thrown away, and the only way to answer "what actually
- * happened?" an hour later was to do the work again.
- *
- * An artifact is the other half: written to disk, named, indexed, and never
- * compacted. The transcript keeps what the MODEL needs to think; this keeps
- * what a PERSON needs to check.
- *
- * ------------------------------------------------------------------------
- * WHERE IT LIVES, AND WHY THAT IS NOT DECIDED HERE.
- *
- * `<project>/.lain/tasks/<task-id>/`, and every path comes from lainstore.js.
- * That file's first rule is that nothing outside it joins a path inside
- * `.lain/`, and an artifact store that quietly built its own filenames would be
- * the second authority that rule exists to prevent. This module decides WHAT is
- * worth keeping and in what shape; lainstore decides where the bytes sit.
- *
- * ------------------------------------------------------------------------
- * IT NEVER THROWS, AND IT NEVER FAILS A TASK.
- *
- * A read-only checkout, a full disk, a directory somebody chmod'd — every one
- * of those is a STATE, reported in the return value, and none of them may take
- * down the work that was producing the evidence. `put` returns null and says
- * why in `lastError`. A harness whose evidence store can crash a task is worse
- * than one with no evidence store, because it fails at exactly the moment
- * something interesting was happening.
- */
+/** THE ARTIFACT STORE — durable evidence, addressable after the conversation is gone. */
 
 const fs = require('fs');
 const path = require('path');
@@ -47,35 +9,16 @@ const lainstore = require('../lainstore');
 /** How much of one artifact body is kept. Enough to diagnose; never unbounded. */
 const MAX_BODY = 2 * 1024 * 1024;
 
-/**
- * How many events one read of a task's durable log exposes.
- *
- * MUCH LARGER THAN THE BUS's 200. The bus is a live channel for a window that
- * connected late; this is the flight recorder, and the whole value of a flight
- * recorder is that it still has the beginning of the flight. It is bounded all
- * the same, because an unbounded log on disk is a disk that fills.
- */
+/** How many events one read of a task's durable log exposes. */
 const MAX_EVENTS = 5000;
 const MAX_EVENT_BYTES = 4 * 1024 * 1024;
 const MAX_TASK_BYTES = 64 * 1024 * 1024;
 const MAX_ARTIFACTS = 256;
 
-/**
- * How many task directories a project keeps. Generous — this is a receipt
- * drawer, not a cache — but not unbounded. See `prune`.
- */
+/** How many task directories a project keeps. */
 const MAX_TASKS = 200;
 
-/**
- * The states in which a task will not change again.
- *
- * DUPLICATED FROM state.js DELIBERATELY, and it is the one duplication in this
- * file. Requiring `./state` here would make the artifact store depend on the
- * task vocabulary in order to delete a directory, and `prune` reads records
- * that were written by an older version of this program — where an unknown
- * state must mean "leave it alone", which is exactly what a set-membership test
- * against a literal list gives.
- */
+/** The states in which a task will not change again. */
 const TERMINAL_STATES = new Set(['PASSED', 'FAILED', 'INCONCLUSIVE', 'CANCELLED']);
 
 /** Artifact kinds. A closed list, so every surface can draw them consistently. */
@@ -124,13 +67,7 @@ class ArtifactStore {
     return true;
   }
 
-  /**
-   * KEEP SOMETHING. Returns the artifact record, or null if it could not land.
-   *
-   * `body` may be a string or a Buffer — a screenshot is bytes and a test log is
-   * text, and forcing one through the other's encoding is how a PNG becomes
-   * 40KB of replacement characters.
-   */
+  /** KEEP SOMETHING. Returns the artifact record, or null if it could not land. */
   put(taskId, { kind, name, body, note = '' } = {}) {
     if (this._held()) return null;
     const k = String(kind || KIND.LOG);
@@ -221,14 +158,7 @@ class ArtifactStore {
 
   // ------------------------------------------------------------- the record --
 
-  /**
-   * THE TASK RECORD ITSELF — written on every state change.
-   *
-   * Written whole and atomically, not appended to, because it is a snapshot of
-   * a small object rather than a history. The history is `events.jsonl`, right
-   * below, and the two answer different questions: this one is "what is true
-   * now", that one is "how did it get here".
-   */
+  /** THE TASK RECORD ITSELF — written on every state change. */
   saveTask(task) {
     if (this._held()) return false;
     const file = path.join(this.dirFor(task.id), 'task.json');
@@ -260,26 +190,7 @@ class ArtifactStore {
     return out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }
 
-  /**
-   * KEEP THE LAST `keep` TASKS, AND NO MORE.
-   *
-   * A task directory per request, forever, is a project that quietly grows a
-   * `.lain/tasks/` with ten thousand entries in it — and the first person to
-   * notice will be somebody whose `git status` got slow. Bounded, like
-   * everything else in this project.
-   *
-   * THE TWO RULES THAT MAKE AUTOMATIC DELETION DEFENSIBLE:
-   *
-   *   1. ONLY A TASK THAT REACHED A VERDICT is ever removed. Anything still
-   *      RUNNING, BLOCKED or VERIFYING is left alone however old it looks — an
-   *      unfinished task's evidence is the evidence somebody is about to want.
-   *   2. ONLY BEYOND THE CAP, oldest first. The newest `keep` are untouchable,
-   *      so nothing that happened recently can vanish.
-   *
-   * Ordered by directory mtime rather than by parsing every record, because
-   * this runs when a task is created and must not cost a JSON parse per task in
-   * the project's history. Only the candidates for deletion are read.
-   */
+  /** KEEP THE LAST `keep` TASKS, AND NO MORE. */
   prune(keep = MAX_TASKS) {
     const root = lainstore.tasksRoot(this.root);
     let dirs = [];
@@ -308,14 +219,7 @@ class ArtifactStore {
 
   // -------------------------------------------------------- the flight log --
 
-  /**
-   * ONE LINE PER EVENT, APPENDED.
-   *
-   * JSON lines rather than a JSON array on purpose: an append is one `write`
-   * with no read-modify-write window, so two processes writing the same task's
-   * log interleave lines instead of losing each other's. A crash mid-write
-   * costs the last line, not the file.
-   */
+  /** ONE LINE PER EVENT, APPENDED. */
   appendEvent(taskId, ev) {
     if (this._held()) return false;
     const file = path.join(this.dirFor(taskId), 'events.jsonl');
@@ -342,10 +246,7 @@ class ArtifactStore {
     const n = Math.max(0, Math.min(Number(limit) || MAX_EVENTS, MAX_EVENTS));
     const out = [];
     for (const l of lines.slice(-n)) {
-      // A HALF-WRITTEN LAST LINE IS SKIPPED, NOT AN ERROR. A crash during an
-      // append is the ordinary way this file ends, and refusing to read the
-      // whole log because of it would lose the evidence at exactly the moment
-      // somebody wanted it most.
+      // A HALF-WRITTEN LAST LINE IS SKIPPED, NOT AN ERROR.
       try { out.push(JSON.parse(l)); } catch { /* torn line */ }
     }
     return out;

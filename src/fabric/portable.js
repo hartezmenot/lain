@@ -1,0 +1,114 @@
+'use strict';
+
+/** A SIGN-IN THAT CAN MOVE — migration's PORTABLE_AUTH, per provider (2026-09-29). */
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+/** The Codex CLI's public OAuth client (chatgptauth.js BORROWED) — the Codex binary's, never LAIN's own. */
+const CODEX_CLIENT = 'app_EMoamEEZ73f0CkXaXp7hrann';
+
+/** The payload of a JWT, for its issuer / audience / expiry only. Never verified here — the provider verifies. */
+function claims(jwt) {
+  try {
+    const p = String(jwt || '').split('.');
+    if (p.length !== 3) return null;
+    return JSON.parse(Buffer.from(p[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  } catch { return null; }
+}
+
+const REASON = Object.freeze({
+  metadata: () => 'the source exposes only account metadata (which provider, which account) — not a sign-in LAIN can use',
+  'app-bound': () => 'the source keeps this sign-in encrypted to its own app — it cannot be exported',
+  'no-refresh': () => 'the exported sign-in has no refresh token — once it expires it cannot be renewed',
+  expired: () => 'the exported sign-in has expired and cannot be renewed',
+  'other-client': (x) => `the sign-in was issued to another application's OAuth client${x.client ? ` (${x.client})` : ''} — the provider will not accept it from LAIN`,
+  'google-bound': () => 'a Google sign-in is bound to the application that requested it; Antigravity signs in with its own',
+  'unknown-format': () => 'the credential is in a format LAIN does not recognise',
+  'no-id-token': () => 'the source keeps no id token, which Codex needs to recognise the sign-in',
+  'provider-oauth': () => 'LAIN has no runtime that can take this provider\'s sign-in',
+  rejected: (x) => `the provider did not accept the migrated sign-in${x.why ? ` (${x.why})` : ''}`,
+});
+function reasonText(r) { const f = REASON[r && r.reason]; return f ? f(r) : String((r && r.reason) || ''); }
+
+/** CAN THIS EXPORTED CREDENTIAL MOVE AS IT IS? */
+function assess(family, cred) {
+  if (!cred || typeof cred !== 'object') return { portable: false, reason: 'metadata' };
+  if (cred.encrypted || cred.appBound) return { portable: false, reason: 'app-bound' };
+  if (family === 'codex') {
+    const t = cred.format === 'codex-auth-json' && cred.data && cred.data.tokens;
+    if (!t) return { portable: false, reason: 'unknown-format' };
+    if (!t.refresh_token) {
+      const c = claims(t.access_token);
+      return { portable: false, reason: c && c.exp && c.exp * 1000 < Date.now() ? 'expired' : 'no-refresh' };
+    }
+    const c = claims(t.id_token || t.access_token);
+    const aud = c ? [].concat(c.aud || [], c.client_id || []).map(String) : [];
+    if (aud.length && !aud.includes(CODEX_CLIENT)) return { portable: false, reason: 'other-client', client: aud[0] };
+    // CODEX READS ITS ACCOUNT FROM THE ID TOKEN: an auth.json without one does not sign Codex in.
+    if (!t.id_token) return { portable: false, reason: 'no-id-token' };
+    return { portable: true };
+  }
+  if (family === 'claude') {
+    const o = cred.format === 'claude-credentials' && cred.data && cred.data.claudeAiOauth;
+    if (!o) return { portable: false, reason: 'unknown-format' };
+    if (!o.refreshToken) return { portable: false, reason: o.expiresAt && Number(o.expiresAt) < Date.now() ? 'expired' : 'no-refresh' };
+    if (cred.clientId && String(cred.clientId) !== 'claude-code') return { portable: false, reason: 'other-client', client: String(cred.clientId) };
+    return { portable: true };
+  }
+  if (family === 'antigravity') return { portable: false, reason: 'google-bound' };
+  if (cred.format === 'provider-oauth') return { portable: false, reason: 'provider-oauth' };
+  return { portable: false, reason: 'unknown-format' };
+}
+
+/** Write a credential file LAIN made, readable by this user only (the config home's own ACL on Windows). */
+function writePrivate(file, body) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${crypto.randomBytes(3).toString('hex')}.tmp`;
+  fs.writeFileSync(tmp, body, { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+
+/** INSTALL A PORTABLE SIGN-IN into a NEW LAIN-owned profile and verify it with the provider (no inference). */
+async function install(app, family, cred, { name = '' } = {}) {
+  const ai = require('../accountinstances');
+  let id = null;
+  try {
+    if (family === 'codex') {
+      const r = ai.add(app, { driver_id: 'codex', display_name: name, config: { home_mode: 'direct' } });
+      if (!r.ok) return { ok: false, reason: 'rejected', why: r.why };
+      id = r.instance.id;
+      const home = require('../drivers/codexhome').layout(id, { home_mode: 'direct' }).home;
+      writePrivate(path.join(home, 'auth.json'), JSON.stringify(cred.data, null, 2));
+    } else if (family === 'claude') {
+      const ca = require('../drivers/claudeaccount');
+      const want = `claude-${crypto.randomBytes(3).toString('hex')}`;
+      const r = ai.add(app, { driver_id: ca.ID, id: want, display_name: name, config: { home: ca.homeFor(want), ownership: 'lain' } });
+      if (!r.ok) return { ok: false, reason: 'rejected', why: r.why };
+      id = r.instance.id;
+      writePrivate(path.join(ca.homeFor(id), '.credentials.json'), JSON.stringify(cred.data, null, 2));
+    } else {
+      return { ok: false, reason: 'unknown-format' };
+    }
+    // THE PROVIDER SAYS WHO IT IS — or refuses. Only a signed-in answer is CONNECTED.
+    const v = await ai.refresh(app, id);
+    const inst = v && v.instance;
+    const signedIn = inst && /AUTHENTICATED|SIGNED_IN/i.test(String(inst.authentication_state || ''));
+    const drop = async (why) => { await ai.disconnect(app, id, { logout: false, removeProfile: true }).catch(() => null); return { ok: false, reason: 'rejected', why: String(why).slice(0, 160) }; };
+    if (!signedIn) return drop((v && v.why) || (inst && (inst.error || inst.authentication_state)) || 'no signed-in account');
+    // ANTHROPIC ITSELF MUST ACCEPT THE SIGN-IN: Claude Code's own `get_usage` (a status read, no model) only answers
+    // for a sign-in Anthropic accepts — and LAIN never reads the token it carries (claudecontrol.js).
+    if (family === 'claude') {
+      const q = await ai.refreshQuota(app, id, { force: true });
+      if (!q || !q.ok || !q.live) return drop((q && (q.why || q.note)) || 'Anthropic did not accept this sign-in');
+      return { ok: true, id, identity: inst.identity || null };
+    }
+    return { ok: true, id, identity: inst.identity || null };
+  } catch (e) {
+    if (id) await require('../accountinstances').disconnect(app, id, { logout: false, removeProfile: true }).catch(() => null);
+    return { ok: false, reason: 'rejected', why: String((e && e.message) || e).slice(0, 160) };
+  }
+}
+
+module.exports = { assess, install, reasonText, claims, CODEX_CLIENT };

@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * THE TOKEN PANE — what this conversation has actually cost.
- *
- * ------------------------------------------------------------------------
- * THE INCIDENT THIS PANE EXISTS FOR. A session reported 815 requests and
- * 59,243,462 input tokens against 202,310 output — 0.34% of everything spent
- * was the model speaking. Nothing on any screen could have shown that while it
- * was happening, and the first anyone knew of it was a provider bill.
- *
- * ------------------------------------------------------------------------
- * EVERY NUMBER HERE IS LABELLED WITH WHERE IT CAME FROM, and that is the whole
- * design. There are four kinds of number in this system and confusing them is
- * how a UI comes to lie:
- *
- *   MEASURED   the provider said so, in a usage block on the wire.
- *   ESTIMATED  LAIN counted characters and divided. Honest, and not the bill.
- *   PENDING    a request is open and this figure only exists when it closes.
- *   UNKNOWN    this provider has never reported this quantity at all.
- *
- * OUTPUT IS `PENDING` DURING EVERY REQUEST, on every provider LAIN speaks to:
- * Anthropic states it in `message_delta` at the end, the OpenAI shape in the
- * final chunk. A pane drawing a rising output count mid-stream would be drawing
- * a guess, so this draws the word instead.
- *
- * ------------------------------------------------------------------------
- * NOTHING HERE IS ANIMATED AND NOTHING COUNTS UP ON ITS OWN. The numbers change
- * when a usage event arrives and at no other time. A counter that ticks to look
- * alive is a counter nobody can use to diagnose anything.
- *
- * ------------------------------------------------------------------------
- * AND NONE OF IT REACHES THE MODEL. Telemetry in a prompt is a feedback loop:
- * the request carries the count, the count changes, the cached prefix is
- * invalidated by the act of measuring it. tests/unit/tokenarchitecture.test.js
- * asserts that these words never appear in a built prompt.
- */
+/** THE TOKEN PANE — what this conversation has actually cost. */
 
 const { doc } = require('./doc');
 const { P } = require('./paint');
@@ -60,14 +26,7 @@ function k(v) {
   return `${(x / 1_000_000).toFixed(2)}M`;
 }
 
-/**
- * A figure with its provenance, or the reason there is no figure.
- *
- * `has` is passed separately from the value because ZERO IS A NUMBER: a route
- * that reported no cache reads and a route that has never mentioned caching are
- * different facts, and printing `0` for both is the specific dishonesty this
- * pane was built to avoid.
- */
+/** A figure with its provenance, or the reason there is no figure. */
 function figure(d, label, value, { has = true, source = SOURCE.MEASURED, note = null } = {}) {
   if (!has) {
     d.field(label, source === SOURCE.PENDING ? 'pending' : 'unknown', { tone: P.dim, note });
@@ -76,14 +35,7 @@ function figure(d, label, value, { has = true, source = SOURCE.MEASURED, note = 
   d.field(label, n(value), { note: note || (source === SOURCE.ESTIMATED ? 'estimated' : null) });
 }
 
-/**
- * @param {object} o
- *   `usage`     session totals, as the provider reported them
- *   `live`      the open request's input side, when a provider states it early
- *   `audit`     the last request's composition, measured by tokenaudit.js
- *   `requests`  how many requests this session has made
- *   `open`      is a request in flight right now
- */
+/** `usage` session totals, as the provider reported them `live` the open request's input side, when a provider states it early `audit` the last… */
 function render({ usage = null, live = null, audit = null, requests = 0, open = false,
   model = '', provider = '', width = 80 } = {}) {
   const d = doc();
@@ -151,10 +103,7 @@ function render({ usage = null, live = null, audit = null, requests = 0, open = 
   figure(d, 'output', output);
   figure(d, 'total', total);
 
-  // ---- THE RATIOS THAT MAKE AN INCIDENT VISIBLE -------------------------
-  //
-  // The reported incident was 293 input per output token. A number like that on
-  // a pane is a question somebody asks; buried in a total it is invisible.
+  // THE RATIOS THAT MAKE AN INCIDENT VISIBLE
   d.section('per request');
   if (reqs > 0) {
     d.field('average input', k(input / reqs));

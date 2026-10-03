@@ -1,0 +1,36 @@
+  ▸ Thought for 0s · ~70 tokens
+  · Agent {description, prompt, type}
+    Found it — plus a likely bug.
+    
+    **Counting logic** — `src/store.js:20-23`:
+    ```js
+    /** How many tasks are done. */
+    function countDone(store) {
+      return store.tasks.filter((t) => t.title).length;
+    }
+    … 9 more line(s)
+  · Agent {description, prompt, type}
+    The store is a plain JS module — no Redux/Zustand/Pinia. Three hops:
+    
+    1. **Button** — `index.html:7`: `<button id="add" class="primary">Add task</button>`
+    2. **Handler** — `src/app.js:19-24`: `document.getElementById('add').onclick = () => { ... addTask(store, input.value); input.value = ''; render(); }` (store created at `src/app.js:4` via `createStore
+    3. **Store action** — `src/store.js:5-10`: `addTask(store, title)` builds `{ id: store.nextId++, title: String(title).trim(), done: false }`, throws on empty title, pushes to `store.tasks`.
+    
+    Covered by tests in `test/run.js:7-9`. Side note: `countDone` at `src/store.js:22` filters on `t.title` (truthiness), not `t.done` — likely a bug, but unrelated to the add flow.
+  ▸ Thought for 0s · ~24 tokens
+Both agents done — no files changed.
+
+**1. Where completed tasks are counted**
+- `src/store.js:20-23` — `countDone(store)` returns `store.tasks.filter((t) => t.title).length`
+- Used in `src/app.js:16` to render the "X tasks left" counter: `store.tasks.length - countDone(store)`, formatted via `src/format.js`
+- ⚠️ Likely bug: the filter checks `t.title` (truthiness) instead of `t.done`, so it counts every task with a title — the "remaining" counter would always read 0.
+
+**2. How "Add task" is wired to the store**
+- Button: `index.html:7` — `<button id="add" class="primary">Add task</button>`
+- Handler: `src/app.js:19-24` — `onclick` calls `addTask(store, input.value)`, clears the input, re-renders (store created at `src/app.js:4` via `createStore()`)
+- Store action: `src/store.js:5-10` — `addTask(store, title)` builds `{ id: store.nextId++, title: String(title).trim(), done: false }`, throws on empty title, pushes to `store.tasks`
+
+It's a plain JS store module (no Redux/Zustand). The add flow is covered by `test/run.js:7-9`. Both agents independently spotted the same `countDone` bug — want me to fix it?
+  2 tool calls · in 7.8k · reasoning 79 · out 807 · cache 6.8k (87%)
+  Agents: explore · Find completed-task counting (returned, 24s) · explore · Trace Add task wiring (returned, 0.0s)
+  session 20261003-220551-k4fp  ·  resume with: lain --resume k4fp

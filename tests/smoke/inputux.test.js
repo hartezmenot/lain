@@ -133,7 +133,7 @@ function panelTrail(out) {
   for (const f of frames(out)) {
     // THE TITLE ROW, not the word anywhere in the frame — see `hasPanel`.
     const found = ['Commands', 'Files', 'Config', 'Models', 'Effort', 'Providers',
-      'Lain needs your input'].find((n) => hasPanel(f, n));
+      'LAIN needs your input'].find((n) => hasPanel(f, n));
     const v = found ? found.toUpperCase() : '-';
     if (seen[seen.length - 1] !== v) seen.push(v);
   }

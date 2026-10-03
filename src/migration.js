@@ -1,42 +1,6 @@
 'use strict';
 
-/**
- * A MIGRATION IS A STATEMENT ABOUT THE FINAL STATE, not a request for new code.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS EXISTS TO MAKE STRUCTURALLY IMPOSSIBLE.
- *
- *     user:  "migrate this C++ implementation to Python"
- *     model: writes scanner.py, memory.py, parser.py — correct, tested, green
- *            leaves scanner.cpp, memory.cpp, parser.cpp exactly where they were
- *
- * Every test passes, because the new path works. Every claim the model makes is
- * true, because it really did write those files. And the project now has two
- * implementations of the same thing, one of which nobody meant to keep — which
- * is worse than either implementation alone, and is discovered weeks later by
- * somebody editing the wrong one.
- *
- * `residue.js` already catches this AFTERWARDS, and that is the right place for
- * the general case. This is the other half: a migration says BEFOREHAND what
- * has to stop existing, in a form a machine can check, so "it is finished" is
- * a question with an answer rather than an opinion.
- * ------------------------------------------------------------------------
- *
- * WHAT A CONTRACT IS. Source, target, SCOPE, a list of operations, a
- * disposition for every resource in range, and two verification lists — what
- * must exist, and what must no longer be active. The second list is the one
- * that makes this different from an ordinary feature request.
- *
- * SCOPE IS NOT OPTIONAL, and it is the difference between "change Agent B to
- * Vue" and "convert the repository to Vue". A contract without a scope is
- * refused by `validate`, because the cost of guessing wrong is the entire
- * project rewritten in a technology two thirds of it never asked for.
- *
- * NOTHING HERE TOUCHES A FILE. This module is the vocabulary, the record and
- * the arithmetic over it. Discovery is migrationmap.js, questions are
- * migrationintent.js, and the parts that copy, archive and verify are
- * migrationcheck.js.
- */
+/** A MIGRATION IS A STATEMENT ABOUT THE FINAL STATE, not a request for new code. */
 
 const fs = require('fs');
 const path = require('path');
@@ -45,10 +9,7 @@ const config = require('./config');
 
 // ------------------------------------------------------------ vocabulary ---
 
-/**
- * WHAT A MIGRATION DOES TO A THING. One word each, and every word means a
- * different final state — which is the only reason to have more than one.
- */
+/** WHAT A MIGRATION DOES TO A THING. */
 const OP = Object.freeze({
   REPLACE: 'REPLACE',        // A stops being active, B takes its place
   MOVE: 'MOVE',              // same thing, different address
@@ -61,16 +22,7 @@ const OP = Object.freeze({
   ARCHIVE: 'ARCHIVE',        // out of the tree, retrievable, not active
 });
 
-/**
- * KEEP IS AN OPERATION ON PURPOSE, and it is the one people leave out.
- *
- * "Change Agent B from React to Vue" has three subjects, not one. If A and C
- * are merely absent from the contract then nothing distinguishes "leave them
- * alone" from "nobody thought about them", and the model that reads it is free
- * to be helpful. Writing them down as KEEP turns their React implementation
- * into something the final-state check ASSERTS, so migrating them becomes a
- * verification failure rather than initiative.
- */
+/** KEEP IS AN OPERATION ON PURPOSE, and it is the one people leave out. */
 
 /** WHAT HAPPENS TO A RESOURCE that is in range but is not implementation. */
 const DISPOSITION = Object.freeze({
@@ -173,11 +125,7 @@ function note(contract, stage, what) {
 
 // -------------------------------------------------------------- validation --
 
-/**
- * IS THIS A MIGRATION, OR IS IT AN ADDITION WEARING THE WORD?
- *
- * Four rules, and the last one is the whole reason the file exists.
- */
+/** IS THIS A MIGRATION, OR IS IT AN ADDITION WEARING THE WORD? */
 function validate(contract) {
   const problems = [];
   const c = contract || {};
@@ -193,11 +141,7 @@ function validate(contract) {
     problems.push(`${c.open.length} question(s) about intent are still open — settle them before building anything`);
   }
 
-  // ---- THE ADDITIVE-MIGRATION RULE --------------------------------------
-  //
-  // "Migrate X to Y" is not "add Y". A contract that only creates things is
-  // the exact failure this subsystem exists for, and it is invisible unless
-  // something asks the question outright.
+  // THE ADDITIVE-MIGRATION RULE
   const disposing = c.operations.filter((o) => DISPOSING.has(o.type));
   if (c.source && !disposing.length) {
     problems.push(`ADDITIVE: nothing in this contract disposes of ${labelOf(c.source)}. `
@@ -229,13 +173,7 @@ function labelOf(tech) {
 
 // --------------------------------------------------------- replacement map --
 
-/**
- * THE MAP THAT STOPS THINGS BEING FORGOTTEN.
- *
- * One row per thing in range, saying what it becomes and what happens to the
- * original. A model reading this cannot "finish" and leave scanner.cpp behind,
- * because the row for scanner.cpp says out loud that it is meant to be gone.
- */
+/** THE MAP THAT STOPS THINGS BEING FORGOTTEN. */
 function replacementMap(contract) {
   const rows = [];
   const c = contract || {};
@@ -257,11 +195,7 @@ function replacementMap(contract) {
     }
     if (!froms.length && tos.length) rows.push({ from: '', to: tos.join(', '), fate: 'NEW', op: op.type, why: op.why });
   }
-  // A RESOURCE THAT AN OPERATION ALREADY NAMED IS ALREADY ON THE MAP. Both
-  // records exist on purpose — the operation says what it becomes, the resource
-  // says what happens to the original — but printing the file twice reads as
-  // two different jobs, which is the opposite of what a map that exists to
-  // stop things being forgotten should do.
+  // A RESOURCE THAT AN OPERATION ALREADY NAMED IS ALREADY ON THE MAP.
   const mapped = new Set();
   for (const op of c.operations || []) {
     for (const f of (op.sources.length ? op.sources : [op.source])) if (f) mapped.add(f);
@@ -336,10 +270,7 @@ function manifest(contract) {
     migration: {
       id: c.id,
       at: c.at,
-      // THE PROJECT THIS IS ABOUT. Manifests live in LAIN's config home, which
-      // every project on the machine shares, so a manifest that does not record
-      // where it belongs cannot be told apart from one that belongs here — see
-      // `latest`. It was missing, and the round trip silently dropped it.
+      // THE PROJECT THIS IS ABOUT.
       root: c.root,
       stage: c.stage,
       intent: c.intent,
@@ -361,19 +292,12 @@ function manifest(contract) {
   };
 }
 
-/**
- * WHERE THE MANIFEST LIVES, and why it is not in the project.
- *
- * Alongside sessions and checkpoints, in LAIN's own config home. A manifest
- * written into the tree would be a file the migration then has to have an
- * opinion about — is it translated, preserved, archived? — and, worse, the
- * residue sweep would find the OLD implementation's name written all over it
- * and report the migration as unfinished because of its own paperwork.
- */
+/** WHERE THE MANIFEST LIVES, and why it is not in the project. */
 function dir() { return path.join(config.configDir(), 'migrations'); }
 function fileFor(id) { return path.join(dir(), `${id}.json`); }
 
 function save(contract) {
+  listMemo = null;
   fs.mkdirSync(dir(), { recursive: true });
   const f = fileFor(contract.id);
   fs.writeFileSync(`${f}.tmp`, JSON.stringify(manifest(contract), null, 2), 'utf8');
@@ -402,7 +326,17 @@ function load(id) {
 }
 
 /** Every manifest, newest first. */
+let listMemo = null;
 function list() {
+  let st = null;
+  try { st = fs.statSync(dir()); } catch { return []; }
+  const sig = `${dir()}|${st.mtimeMs}`;
+  if (listMemo && listMemo.sig === sig) return listMemo.value.slice();
+  const value = listUncached();
+  listMemo = { sig, value };
+  return value.slice();
+}
+function listUncached() {
   let names = [];
   try { names = fs.readdirSync(dir()).filter((f) => f.endsWith('.json')); } catch { return []; }
   const out = [];
@@ -413,16 +347,7 @@ function list() {
   return out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
 }
 
-/**
- * The migration currently being worked on, or null.
- *
- * A ROOT MATCHES EXACTLY OR NOT AT ALL. The manifests live in LAIN's config
- * home, which is shared by every project on the machine — so "this contract
- * records no root, therefore it could be about anywhere" resolves to "it is
- * about HERE", and one project's half-finished migration is announced in
- * another's Context pane and on every request of its turns. A contract that
- * cannot say where it belongs does not belong here.
- */
+/** The migration currently being worked on, or null. */
 function latest(root = '') {
   const all = list();
   const live = all.filter((c) => c.stage !== STAGE.COMPLETE && c.stage !== STAGE.ROLLED_BACK && c.stage !== STAGE.FAILED);

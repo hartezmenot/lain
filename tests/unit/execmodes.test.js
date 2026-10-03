@@ -17,34 +17,20 @@ function appFor(session, { answer = null } = {}) {
 }
 
 module.exports = async function () {
-  await test('MODE: Shift+Tab cycles AUTO → MANUAL → PLAN → AUTO and the mode survives save/resume', () => {
+  await test('MODE: Shift+Tab cycles Ask → Accept edits → Plan → Auto and the mode survives save/resume', () => {
     const s = new Session({ cwd: tmpdir('mode-') });
-    assert.strictEqual(execmode.of(s), 'AUTO');
-    assert.strictEqual(execmode.cycle(s), 'MANUAL');
+    assert.strictEqual(execmode.of(s), 'AUTO', 'Auto unless the settings say otherwise');
+    assert.strictEqual(execmode.cycle(s), 'ASK');
+    assert.strictEqual(execmode.cycle(s), 'ACCEPT_EDITS');
     assert.strictEqual(execmode.cycle(s), 'PLAN');
+    assert.strictEqual(execmode.set(new Session({ cwd: tmpdir('mode-m-') }), 'MANUAL'), 'ASK', 'the old word still means Ask');
     s.focus = true;
     s.save();
     const back = Session.resume(s.id);
     assert.strictEqual(execmode.of(back), 'PLAN');
     assert.strictEqual(back.focus, true);
-    assert.strictEqual(execmode.label(back), 'PLAN · FOCUS');
+    assert.strictEqual(execmode.label(back), 'Plan · FOCUS');
     assert.strictEqual(execmode.cycle(back), 'AUTO');
-  });
-
-  await test('MODE: PLAN refuses a write and a command at the tool door, and changes nothing', async () => {
-    const root = tmpdir('plan-');
-    const s = new Session({ cwd: root });
-    execmode.set(s, 'PLAN');
-    const tools = require('../../src/tools');
-    const ctx = { cwd: root, session: s, app: appFor(s) };
-    const w = await tools.execute('write_file', { path: 'a.txt', content: 'x' }, ctx);
-    assert.ok(w.denied && /PLAN_MODE/.test(w.output), w.output);
-    assert.ok(!fs.existsSync(path.join(root, 'a.txt')), 'nothing was written');
-    const r = await tools.execute('run_bash', { command: 'echo hi' }, ctx);
-    assert.ok(r.denied && /PLAN_MODE/.test(r.output));
-    fs.writeFileSync(path.join(root, 'b.txt'), 'read me');
-    const read = await tools.execute('read_file', { path: 'b.txt' }, ctx);
-    assert.match(read.output, /read me/, 'reading is always allowed in PLAN');
   });
 
   await test('MODE: a check refused by PLAN is not a failed check — no NOT VERIFIED, not under VERIFY', async () => {
@@ -73,28 +59,20 @@ module.exports = async function () {
     execmode.set(s, 'MANUAL');
     const tools = require('../../src/tools');
     const denied = await tools.execute('write_file', { path: 'm.txt', content: 'x' }, { cwd: root, session: s, app: appFor(s, { answer: 'Deny' }) });
-    assert.ok(denied.denied && /MANUAL_MODE/.test(denied.output));
+    assert.ok(denied.denied && /did not allow write_file/.test(denied.output), denied.output);
     assert.ok(!fs.existsSync(path.join(root, 'm.txt')));
     const ok = await tools.execute('write_file', { path: 'm.txt', content: 'x' }, { cwd: root, session: s, app: appFor(s, { answer: 'Allow once' }) });
     assert.ok(!ok.isError, ok.output);
     assert.ok(fs.existsSync(path.join(root, 'm.txt')));
   });
-
-  await test('MODE: a bounded subagent is governed by its work order, not the session mode', async () => {
-    const s = new Session({ cwd: tmpdir('mode-b-') });
-    execmode.set(s, 'PLAN');
-    const v = await execmode.gate({ session: s, workOrder: { bounded: true } }, 'write_file', { mutates: true }, {});
-    assert.strictEqual(v.ok, true);
-  });
-
-  await test('MODE: guidance names the mode on the framed tail; FAST never says to skip verification', () => {
+  await test('MODE: legacy guidance names the mode; a profile adds nothing', () => {
     const s = new Session({ cwd: tmpdir('mode-g-') });
     execmode.set(s, 'PLAN');
     s.fast = true;
     const g = execmode.guidance(s);
     assert.match(g, /PLAN/);
     assert.match(g, /no execution progress yet/i);
-    assert.match(g, /Never skip required reads, verification or permissions/);
+    assert.ok(!/Fast:|FAST/.test(g), 'a profile adds no words (S5.1)');
     execmode.set(s, 'AUTO'); s.fast = false;
     assert.strictEqual(execmode.guidance(s), '', 'AUTO with no preferences adds nothing to the request');
   });

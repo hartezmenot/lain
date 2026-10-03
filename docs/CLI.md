@@ -205,7 +205,7 @@ nothing). The correctness bar is identical in all three.
 |---|---|---|
 | **FAST** | `/fast` toggles FAST ↔ NORMAL (`on`/`off` explicit) | independent leading reads run concurrently (up to 4), disjoint subagents allowed, context budget ×1.6; a final smoke / full suite / build still running after 20 s is **auto-backgrounded** like `/bg` (same PID; the task stays NOT DONE until it settles; targeted runs never are) |
 | **NORMAL** | `/normal` | default; main agent first, reads concurrency 2 |
-| **ECO** | `/eco` toggles ECO ↔ NORMAL (`/slow` alias) | token economy: serial (concurrency 1), no subagents/A-B unless you ask, context budget ×0.5, batch cheap lookups, fix all failures before one re-run; **every tool with compact descriptions** (same names and parameters; rule sentences kept, `src/schemacompact.js`): −14.9% input tokens on the same fixture |
+| **ECO** | `/eco` toggles ECO ↔ NORMAL (the former SLOW profile was removed in Phase 8.1 and reads as ECO) | token economy: serial (concurrency 1), no subagents/A-B unless you ask, context budget ×0.5, batch cheap lookups, fix all failures before one re-run; **every tool with compact descriptions** (same names and parameters; rule sentences kept, `src/schemacompact.js`): −14.9% input tokens on the same fixture |
 
 From any profile, `/fast` or `/eco` switches to it. Repeating the same command returns to NORMAL.
 

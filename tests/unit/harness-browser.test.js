@@ -151,4 +151,27 @@ module.exports = async function () {
     assert.strictEqual(r.ok, false);
     assert.match(r.why, /owned or cleaned up/);
   });
+
+  await test('BROWSER: an observation of a page loaded BEFORE a project write reloads it — never measures the old page', async () => {
+    // A real GLM run (2026-10-01): "move the button 6px" read y=116 before AND after the change, because the probe was
+    // already on that URL and skipped the navigation. Only a cache-busting ?v=2 showed y=122.
+    const h = new BrowserHarness({ port: 59998 });
+    const navs = [];
+    const fake = {
+      url: null, loadedAt: 0,
+      async navigate(u) { navs.push(u); this.url = u; this.loadedAt = Date.now(); return { ok: true }; },
+      async element() { return { ok: true, value: { exists: true, tag: 'button', rect: { x: 8, y: 116, w: 64, h: 22 } } }; },
+    };
+    h.session = async () => ({ ok: true, session: fake });
+    const url = 'http://127.0.0.1:5173/';
+    await h.observe('dom', { url, selector: '#add' });
+    await h.observe('dom', { url, selector: '#add' });
+    assert.strictEqual(navs.length, 1, 'nothing changed: the loaded page is still the truth (state between steps is kept)');
+    await new Promise((r) => setTimeout(r, 5));
+    require('../../src/writeclock').mark();                      // the mutation lifecycle applied a write
+    await h.observe('dom', { url, selector: '#add' });
+    assert.strictEqual(navs.length, 2, 'the project changed after the page loaded: it is loaded again');
+    await h.observe('dom', { url, selector: '#add' });
+    assert.strictEqual(navs.length, 2, 'and then it is current again');
+  });
 };

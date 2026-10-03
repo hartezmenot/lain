@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * A TOOL NAME THAT IS NOT OURS, BUT WHOSE MEANING IS.
- *
- * Measured on the wire (Toralink diagnostic, 2026-09-24 — raw router bytes,
- * before any LAIN code touched them): gpt-oss:120b called `functions/grep` and
- * `functions/symbols` — its training format's namespace leaking into the name —
- * and, in an earlier run, `print_tree` twice (the `repo_browser` vocabulary it
- * was trained with). LAIN answered "unknown tool" each time and the model spent
- * steps rediscovering what it had meant.
- *
- * The MODEL generated these; nothing upstream corrupted them. But the meaning
- * of each is unambiguous, so LAIN recovers locally and says so, rather than
- * paying a round trip for an error:
- *
- *   A KNOWN FOREIGN NAMESPACE on a name we DO have   → that tool, noted
- *   print_tree                                       → a bounded recursive list_dir
- *   open_file                                        → read_file (line range kept)
- *   search {query}                                   → grep for the query, ESCAPED
- *                                                      (literal text, never a pattern)
- *
- * NOTHING ELSE. No fuzzy matching, no "closest name" — a guess at meaning is
- * not recovery. Anything else stays an unknown tool.
- */
+/** A TOOL NAME THAT IS NOT OURS, BUT WHOSE MEANING IS. */
 
 const NAMESPACE = /^(?:functions|repo_browser|default_api|tools?)[./:]+/i;
 
@@ -32,9 +10,7 @@ const ALIASES = {
     input: { path: String(input.path || input.dir || input.directory || '.'), depth: Math.max(1, Math.min(3, Number(input.depth) || 2)) },
     what: 'a recursive listing (list_dir, depth ≤ 3)',
   }),
-  // `search {query}` takes LITERAL text; grep takes a regular expression. The
-  // conversion is typed, one way: the literal is ESCAPED into a pattern, so
-  // "search(" finds "search(" — the two representations never leak.
+  // `search {query}` takes LITERAL text; grep takes a regular expression.
   search: (input) => ({
     name: 'grep',
     input: { pattern: String(input.query || input.text || input.pattern || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), ...(input.path ? { path: String(input.path) } : {}) },
@@ -48,12 +24,6 @@ const ALIASES = {
   },
 };
 
-/**
- * @param {string}   name   the name the model called
- * @param {object}   input  its arguments
- * @param {function} has    (name) => whether that tool is registered
- * @returns {{name, input, from, note}|null}
- */
 function resolve(name, input, has) {
   const raw = String(name || '');
   const bare = raw.replace(NAMESPACE, '');

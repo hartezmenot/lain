@@ -1,51 +1,10 @@
 'use strict';
 
-/**
- * THE ENVIRONMENT SECTIONS OF `/env` — where work runs, which browser runs it.
- *
- * ------------------------------------------------------------------------
- * IT EXTENDS THE EXISTING `/env`; IT DOES NOT DEFINE A SECOND ONE.
- *
- * `/env` already existed (harnesscommands.js) and already reported managed
- * processes, browser availability and health. This adds the EXECUTION
- * ENVIRONMENT and the HARNESS BROWSER to it, as further sections of the same
- * command, reached through the same dispatch. A `/env` of my own would have
- * been a second command with the same name — the registry rejects that outright,
- * and it was right to.
- *
- * ------------------------------------------------------------------------
- * A PROJECTION, NOT A SECOND SOURCE OF TRUTH.
- *
- * Every figure here is read from the authority that already owns it:
- *
- *   the task's environment    the task record (harness), never re-derived
- *   registered VMs            the ONE config authority (env/environments.js)
- *   VMware's state            `vmrun`, at the moment of asking
- *   Chromium                  env/chromium.js, which owns every launch
- *   running browsers          the runtime's own instance list
- *
- * §13 says "do not duplicate process truth. Consume existing Harness process
- * ownership" and that is the whole design of this file: it formats and it
- * refuses to compute. A `/env` that maintained its own idea of which browser
- * was running would be wrong within one turn of anything else changing.
- *
- * ------------------------------------------------------------------------
- * READING IS FREE; ACTING IS EXPLICIT.
- *
- * Bare `/env` launches nothing, downloads nothing and powers on nothing — it
- * stats files and asks `vmrun` for a list. The subcommands that COST something
- * (installing a browser, starting a guest) are separate words a person types,
- * for the same reason model discovery is a route and not a poll.
- */
+/** THE ENVIRONMENT SECTIONS OF `/env` — where work runs, which browser runs it. */
 
 const PAD = 20;
 
-/**
- * HANDLE ONE `/env` INVOCATION, or decline it.
- *
- * Returns `handled` so the caller can fall through to the sections it owns —
- * `/env processes` is still harnesscommands.js's and must stay that way.
- */
+/** HANDLE ONE `/env` INVOCATION, or decline it. */
 async function sections(app, C, args = []) {
   // `render.write` takes raw text; every caller here passes one line.
   const w = (s) => app.render.write(`${String(s)}\n`);
@@ -55,11 +14,6 @@ async function sections(app, C, args = []) {
   const vmware = require('./env/vmware');
 
   // A COLOUR NAME THAT DOES NOT EXIST MUST NOT TAKE THE COMMAND DOWN.
-  // `C.bad` was not in render.js's palette (the names are red/yellow/dim/…)
-  // and `C[colour](text)` threw `C[colour] is not a function` halfway through
-  // printing — found by running `/env` through the real binary, not by reading.
-  // A diagnostic surface that crashes while reporting a diagnostic is the
-  // worst possible failure, so an unknown name now degrades to plain text.
   const paint = (name, text) => {
     const fn = name && C && typeof C[name] === 'function' ? C[name] : null;
     return fn ? fn(text) : text;
@@ -182,11 +136,7 @@ async function sections(app, C, args = []) {
 /** The task's environment binding, from the record that owns it. */
 function currentTask(app) {
   try {
-    // `latest()`, which is the accessor the runtime actually has. This read
-    // `runtime.current()` — a method that does not exist — so the guard fell
-    // through to `null` and `/env` reported `host` for every task including one
-    // genuinely bound to a VM. A projection that cannot fail loudly must at
-    // least be built from names that exist.
+    // `latest()`, which is the accessor the runtime actually has.
     const harness = require('./harnesslink').existing(app);
     const task = harness && harness.runtime && typeof harness.runtime.latest === 'function'
       ? harness.runtime.latest()
@@ -205,10 +155,7 @@ async function vmState(vmware, v) {
   } catch { return 'FAILED'; }
 }
 
-/**
- * THE BROWSER SECTION. Shared by the overview and `/env chromium`, so the two
- * cannot describe the same browser differently.
- */
+/** THE BROWSER SECTION. */
 async function printChromium(w, row, paint, app, chromium, chromiuminstall) {
   w(paint('bold', 'Chromium'));
   const rt = chromium.forApp(app);

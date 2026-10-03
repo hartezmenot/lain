@@ -1,4 +1,4 @@
-# LAIN v2 — verification status: ARCHIVE
+# LAIN — verification status: ARCHIVE
 
 Everything here is HISTORY. It records passes completed before 2026-09-14 and
 is kept for one reason: several fixes in the current system are only

@@ -30,13 +30,7 @@
  * With only the first, this says nothing at all.
  */
 
-/**
- * Levenshtein distance, bounded.
- *
- * `max` is not an optimisation detail — it is the whole point. Anything past a
- * small edit distance is a different word, and computing how different is work
- * nobody uses. Returns `max + 1` for everything beyond the bound.
- */
+/** Levenshtein distance, bounded. */
 function distance(a, b, max = 2) {
   if (a === b) return 0;
   const n = a.length;
@@ -59,25 +53,14 @@ function distance(a, b, max = 2) {
   return prev[m];
 }
 
-/**
- * WHY THESE TWO NAMES ARE PROBABLY THE SAME NAME.
- *
- * Returned as a REASON rather than a score, because the reason is what makes
- * the report actionable: "differs only in case" and "singular where the plural
- * exists" are two different mistakes and are fixed by looking at two different
- * things.
- *
- * @returns {string|null} null when they are simply different names
- */
+/** WHY THESE TWO NAMES ARE PROBABLY THE SAME NAME. */
 function relation(used, candidate) {
   if (used === candidate) return null;
   const u = used.toLowerCase();
   const c = candidate.toLowerCase();
 
   if (u === c) return 'differs only in capitalisation';
-  // SINGULAR AND PLURAL, both directions. The most common shape of this defect
-  // by a wide margin: a function that returns a list named for one of them, or
-  // a field read as `message` from an object that carries `messages`.
+  // SINGULAR AND PLURAL, both directions.
   if (`${u}s` === c) return 'the plural exists; this is the singular';
   if (u === `${c}s`) return 'the singular exists; this is the plural';
   if (`${u}es` === c || u === `${c}es`) return 'singular/plural mismatch';
@@ -87,18 +70,7 @@ function relation(used, candidate) {
   // not each other; below five characters the distance measure says nothing.
   if (len < 5) return null;
 
-  // ---- ONE NAME INSIDE THE OTHER IS A NAMING CHOICE, NOT A TYPO -----------
-  //
-  // `event` and `onEvent` are two edits apart, and they are two different
-  // names — somebody added a prefix on purpose. So are `render` and
-  // `preRender`, `id` and `userId`, `parse` and `parseAll`. A typo REPLACES
-  // characters; a prefix or a suffix ADDS them, and the two are distinguishable
-  // exactly by whether one string still contains the other.
-  //
-  // Measured, not assumed: this was the only rule separating a clean sweep of
-  // this repository from two false reports, and adding it is what let the
-  // distance-2 bound come down from eight characters to five — which is what
-  // makes `warth` for `width` reachable at all.
+  // ONE NAME INSIDE THE OTHER IS A NAMING CHOICE, NOT A TYPO
   if (u.includes(c) || c.includes(u)) return null;
 
   const d = distance(u, c, 2);
@@ -107,16 +79,7 @@ function relation(used, candidate) {
   return null;
 }
 
-/**
- * The closest thing to `name` among `candidates`.
- *
- * Ties are broken toward the shortest candidate, which is almost always the
- * base name rather than a longer compound that happens to be equally close.
- *
- * @param {string} name
- * @param {Iterable<string>} candidates
- * @returns {{name: string, why: string}|null}
- */
+/** The closest thing to `name` among `candidates`. */
 function nearMiss(name, candidates) {
   let best = null;
   for (const c of candidates) {
@@ -127,17 +90,7 @@ function nearMiss(name, candidates) {
   return best;
 }
 
-/**
- * Names used in a file that resolve to nothing, each with what was probably
- * meant.
- *
- * @param {object} model      a codemodel.scan result
- * @param {Set<string>} extra names declared elsewhere in the project, offered as
- *   suggestion candidates only — a name being defined in another file does NOT
- *   make it resolvable here, and treating it as if it did would hide every
- *   missing import.
- * @returns {Array<{name, line, suggestion, why, calls}>}
- */
+/** Names used in a file that resolve to nothing, each with what was probably meant. */
 function unresolved(model, extra = new Set()) {
   if (!model || !model.supported) return [];
   const { GLOBALS } = require('./codemodel');
@@ -149,9 +102,7 @@ function unresolved(model, extra = new Set()) {
     if (seen.has(u.name)) continue;
     if (model.bindings.has(u.name) || GLOBALS.has(u.name)) continue;
     const near = nearMiss(u.name, candidates);
-    // GATE TWO. No near miss, no report — see the header. An unresolved name
-    // with nothing close to it is far more likely to be something the scanner
-    // cannot see than a typo.
+    // GATE TWO. No near miss, no report — see the header. An unresolved name with nothing close to it is far more likely to be something the scanner cannot…
     if (!near) continue;
     seen.add(u.name);
     out.push({ name: u.name, line: u.line, suggestion: near.name, why: near.why, calls: u.calls });
@@ -159,12 +110,7 @@ function unresolved(model, extra = new Set()) {
   return out;
 }
 
-/**
- * The report, phrased for a model that has just written the file.
- *
- * Deliberately shaped as EXPECTED / ACTUAL / LOCATION, because that is what
- * makes it checkable rather than suggestive.
- */
+/** The report, phrased for a model that has just written the file. */
 function report(findings, where) {
   if (!findings || !findings.length) return '';
   const rows = findings.map((f) => `  ${where}:${f.line}  ${f.name}${f.calls ? '()' : ''} is not defined here `

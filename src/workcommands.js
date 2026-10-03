@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * THE WORKING-TREE COMMANDS — what changed on disk, and putting it back.
- *
- * Split out of commands.js, which had grown past the god-object guard. The seam
- * matches the one routecommands.js and sessioncommands.js already draw:
- * commands.js owns the REGISTRY, the dispatcher, and the rules about what may
- * run during a turn; a family of commands that share a subject owns its own
- * file and registers into that registry.
- *
- * THE SUBJECT HERE IS THE BYTES ON DISK. Both of these read the ONE
- * byte-snapshot system (checkpoint.js), and neither keeps an opinion of its own
- * about what changed — a second record of that would be a second answer to
- * "what did LAIN do to my files", which is the question a person asks precisely
- * when they are already uneasy.
- *
- * Nothing here calls a model or starts a turn.
- */
+/** THE WORKING-TREE COMMANDS — what changed on disk, and putting it back. */
 
 const path = require('path');
 
@@ -46,10 +30,7 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
   });
 
   define('/diff', {
-    // AN INSPECTOR, NOT OUTPUT: it opens its own persistent panel (ui/diffinspector.js)
-    // and stays until Esc. Off a terminal there is nothing to navigate, so the
-    // same diff is printed once — to the command surface, never into the
-    // conversation. In the TUI the inspector replaces that output panel.
+    // AN INSPECTOR, NOT OUTPUT: it opens its own persistent panel (ui/diffinspector.js) and stays until Esc.
     surface: true,
     flashMs: 0,
     desc: 'Inspect what changed — overview by file, Enter for the diff, Esc to close',
@@ -74,22 +55,7 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
     args: '[files]',
     desc: 'What changed on disk this session — the diff, or `files` for the grouped list',
     run(app, { rest }) {
-      // ------------------------------------------------------------------
       // THIS IS WHERE THE DIFF AND FILES PANES WENT.
-      //
-      // `/changes` used to print a bare list — `modified  src/auth/login.js
-      // 412 → 480 bytes` — which answers "which files" and not "what changed",
-      // because the DIFF pane answered the second one and was one keystroke
-      // away. There is no pane, so the command has to be both, and the
-      // renderers it uses are the pane's own (ui/panes.js): the same bytes,
-      // the same grouping, the same line numbers.
-      //
-      // THE DIFF IS THE DEFAULT, deliberately. `diffView` shows every changed
-      // file in full under a heavy rule carrying its path and counts — the
-      // pane learned that lesson already, and its header records why: a diff
-      // view whose default state contains no diff is a table of contents.
-      // `/changes files` is the structural view, for a change too big to read.
-      // ------------------------------------------------------------------
       const panes = require('./ui/panes');
       const width = (app.render && app.render.width) || 80;
       const cwd = app.session && app.session.cwd;

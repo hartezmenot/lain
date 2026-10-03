@@ -17,11 +17,19 @@ const { Session } = require('../../src/session');
 const { Task } = require('../../src/task');
 
 module.exports = async function () {
-  await test('PROFILE: NORMAL by default; /fast /normal /slow set it; ECO is the identity of /slow; a legacy fast session reads FAST', () => {
+  await test('PROFILE: NORMAL by default; Normal · Fast · Eco only (Phase 8.1); a saved SLOW reads — and re-saves — as ECO; a legacy fast session reads FAST', () => {
     const s = new Session({ cwd: tmpdir('prof-') });
     assert.strictEqual(profile.of(s), 'NORMAL');
-    assert.strictEqual(profile.set(s, 'slow'), 'ECO');
-    assert.strictEqual(profile.of(s), 'ECO');
+    assert.deepStrictEqual(profile.PROFILES, ['FAST', 'NORMAL', 'ECO'], 'Slow is not a profile');
+    assert.strictEqual(profile.set(s, 'slow'), 'ECO', 'the retired SLOW is ECO');
+    s.profile = 'SLOW';
+    assert.strictEqual(profile.of(s), 'ECO', 'a session saved as SLOW reads as ECO');
+    const saved = new Session({ cwd: tmpdir('prof-r-') });
+    saved.profile = 'SLOW'; require('../../src/workbench').of(saved).pendingProfile = 'SLOW'; saved.save();
+    const r2 = Session.resume(saved.id);
+    assert.strictEqual(r2.profile, 'ECO', 'resume migrates a saved SLOW to ECO');
+    assert.strictEqual(r2.workbench.pendingProfile, 'ECO', 'and a queued SLOW');
+    assert.strictEqual(profile.of(new Session({ cwd: tmpdir('prof-e-') }), { executionProfile: 'slow' }), 'ECO', 'a configured SLOW default is ECO');
     assert.strictEqual(profile.set(s, 'FAST'), 'FAST');
     assert.strictEqual(s.fast, true, 'the older boolean follows');
     const legacy = new Session({ cwd: tmpdir('prof-l-') }); legacy.fast = true;
@@ -41,7 +49,8 @@ module.exports = async function () {
     assert.strictEqual(t('FAST', 'NORMAL'), 'NORMAL');
     assert.strictEqual(t('FAST', 'FAST', 'on'), 'FAST', '`on` is explicit');
     assert.strictEqual(t('NORMAL', 'FAST', 'off'), 'NORMAL');
-    assert.strictEqual(t('ECO', 'slow'), 'NORMAL', '/slow is the same toggle as /eco');
+    assert.strictEqual(t('SLOW', 'ECO'), 'NORMAL', 'a saved SLOW is ECO, so /eco returns to Normal');
+    assert.strictEqual(t('SLOW', 'FAST'), 'FAST');
   });
 
   await test('PROFILE TOGGLE: through the registered commands, FOCUS and AUTO/MANUAL/PLAN untouched', async () => {
@@ -57,7 +66,7 @@ module.exports = async function () {
     for (const [cmd, want] of seq) {
       await commands.run(a, cmd);
       assert.strictEqual(profile.of(a.session), want, `${cmd} → ${want}`);
-      assert.strictEqual(execmode.of(a.session), 'MANUAL', 'the authority mode never moves');
+      assert.strictEqual(execmode.of(a.session), 'ASK', 'the authority mode never moves');
       assert.strictEqual(a.session.focus, true, 'FOCUS never moves');
     }
   });
@@ -76,40 +85,37 @@ module.exports = async function () {
     const root = tmpdir('prof-p-');
     const s = new Session({ cwd: root });
     execmode.set(s, 'PLAN'); profile.set(s, 'FAST'); s.focus = true;
-    assert.strictEqual(execmode.label(s), 'PLAN · FOCUS · FAST');
+    assert.strictEqual(execmode.label(s), 'Plan · FOCUS · FAST');
     const r = await require('../../src/tools').execute('write_file', { path: 'x.txt', content: 'x' }, { cwd: root, session: s, app: { session: s } });
-    assert.ok(r.denied && /PLAN_MODE/.test(r.output), 'FAST never widens authority');
+    assert.ok(r.denied && /Plan mode: read-only/.test(r.output), 'FAST never widens authority');
     execmode.set(s, 'AUTO'); profile.set(s, 'ECO'); s.focus = false;
-    assert.strictEqual(execmode.label(s), 'AUTO · ECO');
+    assert.strictEqual(execmode.label(s), 'Auto · ECO');
     profile.set(s, 'NORMAL');
-    assert.strictEqual(execmode.label(s), 'AUTO', 'the default says nothing');
+    assert.strictEqual(execmode.label(s), 'Auto', 'the default says nothing');
   });
 
-  await test('PROFILE: the context budget — FAST larger, ECO smaller, same floor and ceiling', () => {
+  await test('PROFILE (S5.1): only spend differs — effort default, parallel reads, output cap, compaction point; never behaviour', () => {
+    assert.deepStrictEqual(['NORMAL', 'FAST', 'ECO'].map((p) => profile.concurrency(p)), [2, 4, 2], 'parallel read-only calls per step');
+    assert.deepStrictEqual(['NORMAL', 'FAST', 'ECO'].map((p) => profile.outputScale(p)), [1, 1, 0.5], 'ECO: a tighter tool output cap');
+    assert.ok(profile.compactAt('ECO') < profile.compactAt('NORMAL') && profile.compactAt('FAST') === profile.compactAt('NORMAL'), 'ECO compacts earlier');
     const budget = require('../../src/contextbudget');
     const pc = { ctx: 200000 };
-    const n = budget.charsFor(pc, { executionProfile: 'NORMAL' });
-    assert.ok(budget.charsFor(pc, { executionProfile: 'FAST' }) > n);
-    assert.ok(budget.charsFor(pc, { executionProfile: 'ECO' }) < n);
-    assert.ok(budget.charsFor({ ctx: 16000 }, { executionProfile: 'FAST' }) <= budget.charsFor({ ctx: 16000 }, { executionProfile: 'NORMAL' }) * 1.01 + 1, 'never above the provider ceiling');
-  });
-
-  await test('PROFILE: ECO refuses delegate/ab_compare unless the person asked; NORMAL and FAST allow', async () => {
-    const tools = require('../../src/tools/delegate').tools;
+    assert.strictEqual(budget.charsFor(pc, { executionProfile: 'ECO' }), budget.charsFor(pc, { executionProfile: 'NORMAL' }), 'no half budget for ECO (it stubbed results)');
+    const tb = require('../../src/toolbudget');
+    assert.ok(tb.bound('grep', {}, { output: 'x'.repeat(20000) }, { cfg: { executionProfile: 'ECO' } }).length < 20000, 'ECO caps 20k chars of output');
+    assert.strictEqual(tb.bound('grep', {}, { output: 'x'.repeat(20000) }, { cfg: { executionProfile: 'NORMAL' } }).length, 20000);
     const s = new Session({ cwd: tmpdir('prof-d-') });
-    s.task = new Task('fix the pricing bug');
-    profile.set(s, 'ECO');
-    const denied = await tools.delegate.run({ agents: [] }, { session: s, app: { session: s } });
-    assert.ok(denied.denied && /ECO_PROFILE/.test(denied.output), denied.output);
-    const ab = await tools.ab_compare.run({}, { session: s, app: { session: s } });
-    assert.ok(ab.denied);
-    s.task = new Task('fix the pricing bug using two subagents in parallel');
-    assert.strictEqual(profile.allowsExtraAgents(s, 'delegate').ok, true, 'an explicit request overrides ECO');
-    profile.set(s, 'NORMAL'); s.task = new Task('fix it');
-    assert.strictEqual(profile.allowsExtraAgents(s, 'delegate').ok, true);
+    for (const p of ['FAST', 'ECO']) {
+      profile.set(s, p);
+      assert.strictEqual(profile.allowsExtraAgents(s, 'Agent').ok, true, p + ' may delegate');
+      assert.strictEqual(profile.guidance(s), '', p + ' adds no words');
+    }
+    s._effortSeen = { effort: 'high', explicit: true };
+    profile.set(s, 'FAST');
+    assert.strictEqual(profile.label(s), 'FAST · effort high (your setting)', 'an explicit effort that wins is named');
   });
 
-  await test('PROFILE: FAST starts independent reads together; ECO stays serial; a read after a write is never started early', async () => {
+  await test('PROFILE: FAST starts independent reads together; a read after a write is never started early', async () => {
     const toolstep = require('../../src/toolstep');
     const root = tmpdir('prof-par-');
     for (const f of ['a', 'b', 'c']) fs.writeFileSync(path.join(root, `${f}.txt`), f);
@@ -120,21 +126,10 @@ module.exports = async function () {
     assert.strictEqual(fast.size, 3);
     const results = await Promise.all([...fast.values()]);
     assert.deepStrictEqual(results.map((r) => /\b[abc]\b/.exec(String(r.result.output))[0]), ['a', 'b', 'c']);
-    assert.strictEqual(toolstep.prefetch(calls, opts, profile.concurrency('ECO')).size, 0, 'ECO: nothing starts early');
     const mixed = [calls[0], { id: 'w', name: 'write_file', input: { path: 'b.txt', content: 'B' } }, calls[1]];
     const m = toolstep.prefetch(mixed, opts, 4);
     assert.ok(!m.has('r1'), 'the read after the write waits for it');
   });
-
-  await test('PROFILE: FAST is parallel, not duplicated — two workers can never own the same files', async () => {
-    const sub = require('../../src/subagents');
-    const app = { session: new Session({ cwd: tmpdir('prof-dup-') }) };
-    const contract = (o) => ({ role: 'IMPLEMENTER', objective: o, readScope: ['src/**'], writeScope: ['src/pricing.js'], expectedOutput: 'x', verification: 'npm test', completion: 'passes' });
-    const r = await sub.run(app, [contract('one'), contract('two')], { mode: 'parallel', runner: async () => { throw new Error('must not run'); } });
-    assert.strictEqual(r.ok, false);
-    assert.match(r.why, /overlap|disjoint|same/i, r.why);
-  });
-
   await test('PROFILE LEAK D/E/F: NORMAL→ECO→NORMAL, NORMAL→FAST→NORMAL and FOCUS on→off leave NOTHING behind', async () => {
     const s = new Session({ cwd: tmpdir('prof-leak-') });
     s.task = new Task('fix the pricing bug');
@@ -174,7 +169,7 @@ module.exports = async function () {
     assert.strictEqual(require('../../src/sessionviews').turnCfg({ cfg: { model: 'b' }, session: s, connectionEvidence: {} }, s).executionProfile, 'NORMAL');
   });
 
-  await test('PROFILE G/H: FAST runs independent reads concurrently, NORMAL moderately, ECO strictly one at a time (measured)', async () => {
+  await test('PROFILE G/H: FAST runs four independent reads at once, NORMAL and ECO two (measured)', async () => {
     const toolstep = require('../../src/toolstep');
     const tools = require('../../src/tools');
     const real = tools.execute;
@@ -195,16 +190,8 @@ module.exports = async function () {
       const eco = await measure('ECO');
       assert.strictEqual(fast.peak, 4, JSON.stringify({ fast, normal, eco }));
       assert.strictEqual(normal.peak, 2);
-      assert.strictEqual(eco.peak, 1, 'ECO is serial');
-      assert.ok(fast.ms < eco.ms, `FAST finishes sooner than ECO: ${fast.ms} vs ${eco.ms}`);
+      assert.strictEqual(eco.peak, 2, 'ECO runs two at once, like NORMAL (S5.1)');
     } finally { tools.execute = real; }
   });
 
-  await test('PROFILE: guidance names the strategy and keeps the correctness bar', () => {
-    const s = new Session({ cwd: tmpdir('prof-g-') });
-    profile.set(s, 'ECO');
-    assert.match(execmode.guidance(s), /ECO — token economy[\s\S]*BATCH[\s\S]*Same verification bar[\s\S]*final smoke/);
-    profile.set(s, 'FAST');
-    assert.match(execmode.guidance(s), /FAST[\s\S]*DISJOINT[\s\S]*Never skip required reads, verification or permissions/);
-  });
 };

@@ -21,7 +21,7 @@ const tui = { LAIN_FORCE_TUI: '1', COLUMNS: '96', LINES: '28' };
 
 /** One very long tool call, then a closing message. */
 const longToolScript = [
-  { text: 'Running the long check.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 40' } }] },
+  { text: 'Running the long check.', tool_calls: [{ name: 'shell', input: { command: 'sleep 40' } }] },
   { text: 'Finished.' },
 ];
 

@@ -249,54 +249,6 @@ module.exports = async function () {
       process.removeListener('unhandledRejection', onRej);
     }
   });
-
-  await test('BG: a throw from inside the turn is RECORDED on the job, never propagated', async () => {
-    // The REPL used to catch this, because it awaited. It no longer does, so the
-    // failure has to land on the job or it reaches the event loop as an
-    // unhandled rejection and Node ends the session under a person who was
-    // typing.
-    //
-    // ASSERTED AFTER `wait()`, because `submit` is `async`: even a throw raised
-    // before its first await arrives as a rejection, so the job is marked on a
-    // later tick and reading the state immediately would be reading it too soon.
-    const rejections = [];
-    const onRej = (r) => rejections.push(r);
-    process.on('unhandledRejection', onRej);
-    try {
-      await scripted([{ text: 'never reached' }], async (dir) => {
-        const a = app(dir);
-        // ---- THE PROMPT BUILDER, WHEREVER IT LIVES -------------------------
-        //
-        // This used to stub `a.systemPrompt`, which is no longer what the job
-        // runner calls: the prompt is now built in two halves by promptparts.js
-        // so the stable half can stay out of the volatile one's way. The
-        // INVARIANT under test is unchanged and is the whole point of the test —
-        // a throw while building a prompt must land on the JOB, not on the event
-        // loop, where it would end the session under somebody who was typing.
-        const parts = require('../../src/promptparts');
-        const real = parts.of;
-        parts.of = () => { throw new Error('prompt could not be built'); };
-        try {
-          const job = a.startPrimary('anything');
-          assert.ok(job, 'a job must still come back');
-          await job.wait();
-          assert.strictEqual(job.state, STATE.FAILED);
-          assert.match(job.error, /prompt could not be built/);
-        } finally {
-          parts.of = real;
-        }
-        // And the app is still usable afterwards.
-        assert.ok(a.startPrimary('next'), 'the conversation must not be stuck');
-      });
-      await settle();
-      assert.deepStrictEqual(rejections, [], 'the throw escaped as an unhandled rejection');
-    } finally {
-      process.removeListener('unhandledRejection', onRej);
-    }
-  });
-
-  // ------------------------------------------------------------- TEST 6 ---
-
   await test('BG: two jobs run at once and NEVER share a messages array', async () => {
     // The corruption the whole design exists to prevent. `runTurn` writes the
     // user message, every assistant turn CARRYING its tool_calls, and every

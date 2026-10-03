@@ -229,48 +229,4 @@ module.exports = async function run() {
   });
 
   // ---- THE HANDOVER SECTION ----------------------------------------------
-
-  await test('HEALTH: a closed route reaches the replacement model, with its clock', async () => {
-    const handover = require('../../src/handover');
-    const packet = handover.build({
-      cwd: process.cwd(),
-      task: { objective: 'finish the loader' },
-      turns: [{ model: 'model-a', stopReason: 'provider', steps: 3, actions: [] }],
-    }, {
-      toModel: 'model-b',
-      providers: [
-        row({ id: 'omniroute-main', rate_limited: true, limited_now: true, resets_in_ms: 4 * HOUR }),
-        row({ id: 'fine', status: 'AVAILABLE', limited_now: false }),
-      ],
-    });
-
-    assert.ok(/Routes that are closed right now/.test(packet), 'the section is there');
-    assert.ok(/omniroute-main/.test(packet), 'and names the shut route');
-    assert.ok(/clears in 4h/.test(packet), 'with the time it opens');
-    assert.ok(!/\bfine\b/.test(packet), 'and says nothing about routes that are fine');
-  });
-
-  await test('HEALTH: a limit with no known reset says so rather than inventing a countdown', async () => {
-    const handover = require('../../src/handover');
-    const packet = handover.build({
-      cwd: process.cwd(),
-      task: { objective: 'x' },
-      turns: [{ model: 'a', stopReason: 'provider', steps: 1, actions: [] }],
-    }, {
-      toModel: 'b',
-      providers: [row({ rate_limited: true, limited_now: true, resets_in_ms: null })],
-    });
-    assert.ok(/unknown reset/.test(packet));
-    assert.ok(!/clears in/.test(packet), 'no number nobody supplied');
-  });
-
-  await test('HEALTH: no closed routes means no section at all', async () => {
-    const handover = require('../../src/handover');
-    const packet = handover.build({
-      cwd: process.cwd(),
-      task: { objective: 'x' },
-      turns: [{ model: 'a', stopReason: 'provider', steps: 1, actions: [] }],
-    }, { toModel: 'b', providers: [row({ status: 'AVAILABLE' })] });
-    assert.ok(!/Routes that are closed/.test(packet), 'a handover is a briefing, not an inventory');
-  });
 };

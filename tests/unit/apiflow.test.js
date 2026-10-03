@@ -1,91 +1,49 @@
 'use strict';
 
 /**
- * `/api <credential>` — the flow that did not exist.
+ * `/api` — PHASE 8.3: THE TERMINAL NEVER TAKES A KEY.
  *
- * `/api` had `refresh` and `status` and no way to GIVE LAIN a key: it had to be
- * written into config.json by hand, and the model then named by id because
- * nothing had asked the route what it served. Every piece was present and none
- * of them were joined up.
+ * `/api`, `/api add`, `/api <provider>` and `/api <route>` open the Model
+ * Dashboard at API (fabric/dashlaunch.js) — the one place a credential is
+ * entered. A key pasted at the prompt anyway is refused: not stored, registered
+ * with the redactor, and taken back out of the input history.
  *
- * WHAT IS ASSERTED HERE is the join and the refusals — which provider was asked
- * for, what got stored, what happens when discovery fails, and the two places
- * the flow must decline rather than guess. The PICKER'S DRAWING is asserted in
- * `picker.test.js`; the real-terminal behaviour in `tests/smoke/frames.test.js`.
+ * WHAT STAYS ASSERTED from the earlier flow is what the dashboard's Add API
+ * still shares: recognising a route, a provider and a credential (so a route's
+ * NAME is never stored as its key), the shape a key is shown in, and the one
+ * table of known endpoints.
  */
 
 const assert = require('assert');
-const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const { test } = require('../helpers');
 
 const apiMod = require('../../src/apicommand');
 const providers = require('../../src/providers');
 
-const C = new Proxy({}, { get: () => (s) => String(s) });
-
-/**
- * An app with a scripted panel, so the flow can be driven without a terminal.
- *
- * `answers` is what the user "picks", in order. A `null` is Esc.
- */
-function rig({ answers = [], connections = [], discover = null, cfg = {} } = {}) {
+function rig({ connections = [], cfg = {} } = {}) {
   const written = [];
-  const asked = [];
   const saved = [];
   const app = {
     cfg,
     connections: () => connections,
-    render: { write: (s) => written.push(String(s)) },
-    ui: {
-      enabled: true,
-      async ask(adapter) {
-        asked.push(adapter);
-        return answers.length ? answers.shift() : null;
-      },
-    },
+    render: { write: (s) => written.push(String(s)), notice: () => {} },
+    input: { history: [], histIndex: 0, line: '' },
+    ui: { enabled: false },
   };
-  const config = { save: (c) => { saved.push(JSON.parse(JSON.stringify(c))); } };
-  const conns = require('../../src/connections');
-  const realDiscover = conns.discover;
-  const realWrite = conns.writeCache;
-  // ---- THE STUB ANSWERS WHAT THE REAL FUNCTION ANSWERS -------------------
-  //
-  // THE BUG THIS FILE USED TO HIDE. These stubs returned an ARRAY of model
-  // ids. `connections.discover` returns `{ ok, count, models, url }`, and
-  // apicommand.js was reading `.length` off it — so on a real provider the
-  // check `!models.length` was always true and every successful discovery was
-  // reported as "listed no models", one step before the model picker the whole
-  // flow exists to open. Every test here passed, because every test here was
-  // handing the code a shape the real function never produces.
-  //
-  // A stub that is not the thing it stands in for proves the stub works. The
-  // helper below now builds the real result shape from a list of ids, so a
-  // test says WHAT the provider served and the flow sees what it would really
-  // see. See tests/smoke/apiflow-fixture.test.js, which removes the stub
-  // entirely and talks to an HTTP server.
-  const asResult = (models) => (Array.isArray(models)
-    ? { ok: models.length > 0, count: models.length, models, url: 'https://example.invalid/v1/models' }
-    : models);
-  conns.discover = discover ? (async (...a) => asResult(await discover(...a)))
-    : (async () => asResult(['a/one', 'a/two']));
-  conns.writeCache = () => {};
-  const restore = () => { conns.discover = realDiscover; conns.writeCache = realWrite; };
-  return { app, config, written, asked, saved, restore, out: () => written.join('') };
+  return { app, written, saved, out: () => written.join('') };
 }
 
-/** The model picker is the last step; stub it so the flow can be observed. */
-async function withStubbedPicker(fn) {
-  // AWAITED, or the `finally` restores the real picker before the flow it is
-  // stubbing has reached it — and the real one then runs against a stub app.
-  // A synchronous try/finally around an async callback restores at the first
-  // await, which is a bug that looks exactly like the stub not working.
-  const p = require('../../src/modelcommand');
-  const real = p.pickCommand;
+/** The dashboard launcher, observed: what was opened, and at which section. */
+async function withStubbedDashboard(fn) {
+  const dl = require('../../src/fabric/dashlaunch');
+  const real = { open: dl.open, watch: dl.watch };
   const calls = [];
-  p.pickCommand = (...a) => { calls.push(a); return undefined; };
-  try { return await fn(calls); } finally { p.pickCommand = real; }
+  dl.open = async (app, section) => { calls.push(section); return { ok: true, how: 'opened', section }; };
+  dl.watch = () => () => {};
+  try { return await fn(calls); } finally { dl.open = real.open; dl.watch = real.watch; }
 }
 
 module.exports = async function () {
@@ -131,144 +89,6 @@ module.exports = async function () {
     assert.ok(s.startsWith('sk-') && s.endsWith('9f2a'), `recognisable at both ends: ${s}`);
   });
 
-  await test('API: a picked provider is stored under lain:<provider> with ITS endpoint', async () => {
-    const r = rig({ answers: ['anthropic'], cfg: {} });
-    try {
-      await withStubbedPicker(async () => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-      });
-    } finally { r.restore(); }
-    const saved = r.saved[r.saved.length - 1];
-    const id = providers.connectionIdFor('anthropic');
-    assert.ok(saved && saved.connections && saved.connections[id], `stored under ${id}`);
-    const conn = saved.connections[id];
-    assert.strictEqual(conn.apiKey, 'sk-test-credential');
-    assert.strictEqual(conn.via, 'native', 'LAIN holds this key, so it is a native route');
-    assert.strictEqual(conn.auth, 'api_key');
-    // THE ENDPOINT IS THE ONE IN THE TABLE, never one typed by this flow.
-    assert.strictEqual(conn.baseUrl, providers.byId('anthropic').baseUrl);
-    assert.strictEqual(conn.protocol, 'anthropic', 'and its wire protocol comes with it');
-  });
-
-  await test('API: Esc at the provider question stores NOTHING', async () => {
-    const r = rig({ answers: [null] });
-    try {
-      await withStubbedPicker(async () => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-      });
-    } finally { r.restore(); }
-    assert.strictEqual(r.saved.length, 0, 'nothing was written to config');
-    assert.match(r.out(), /Cancelled/);
-  });
-
-  await test('API: an unknown provider is ASKED for its endpoint, never guessed', async () => {
-    // The security argument in providers.js: a guessed base URL is a guessed
-    // place to send somebody's key.
-    const r = rig({ answers: ['__other__', 'https://router.example/v1'] });
-    try {
-      await withStubbedPicker(async () => {
-        await apiMod.credentialFlow(r.app, 'tr_live_9f2a4b8c', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-      });
-    } finally { r.restore(); }
-    assert.strictEqual(r.asked.length, 2, 'it asked twice: which provider, then where');
-    const saved = r.saved[r.saved.length - 1];
-    const conn = Object.values(saved.connections)[0];
-    assert.strictEqual(conn.baseUrl, 'https://router.example/v1');
-    assert.strictEqual(conn.provider, 'router.example', 'named after the host, so it is referable');
-  });
-
-  await test('API: a base URL that is not one is refused, and nothing is stored', async () => {
-    const r = rig({ answers: ['__other__', 'not-a-url'] });
-    try {
-      await withStubbedPicker(async () => {
-        await apiMod.credentialFlow(r.app, 'tr_live_9f2a4b8c', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-      });
-    } finally { r.restore(); }
-    assert.strictEqual(r.saved.length, 0, 'a credential is not stored against a non-URL');
-    assert.match(r.out(), /http:\/\/ or https:\/\//);
-  });
-
-  await test('API: discovery failure KEEPS the credential and says why', async () => {
-    // A transient network failure must not look like a typo — the user would
-    // paste the same key again to no better effect.
-    const id = providers.connectionIdFor('openai');
-    const r = rig({
-      answers: ['openai'],
-      connections: [{ id, provider: 'openai', baseUrl: 'https://api.openai.com/v1' }],
-      discover: async () => { throw new Error('401 Unauthorized'); },
-    });
-    try {
-      await withStubbedPicker(async (picker) => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-        assert.strictEqual(picker.length, 0, 'and it does not open an empty model picker');
-      });
-    } finally { r.restore(); }
-    const saved = r.saved[r.saved.length - 1];
-    assert.ok(saved.connections[id].apiKey, 'the credential is kept');
-    assert.match(r.out(), /401 Unauthorized/, "the provider's own words are shown");
-    assert.match(r.out(), /\/api refresh/, 'and the way to try again is named');
-  });
-
-  await test('API: an empty model list is a failure, not an empty picker', async () => {
-    const id = providers.connectionIdFor('openai');
-    const r = rig({
-      answers: ['openai'],
-      connections: [{ id, provider: 'openai', baseUrl: 'https://api.openai.com/v1' }],
-      discover: async () => [],
-    });
-    try {
-      await withStubbedPicker(async (picker) => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-        assert.strictEqual(picker.length, 0, 'no picker is opened over nothing');
-      });
-    } finally { r.restore(); }
-    assert.match(r.out(), /listed no models/);
-  });
-
-  await test('API: discovery succeeding opens THE model picker, not a copy of it', async () => {
-    const id = providers.connectionIdFor('openai');
-    const r = rig({
-      answers: ['openai'],
-      connections: [{ id, provider: 'openai', baseUrl: 'https://api.openai.com/v1' }],
-      discover: async () => ['openai/gpt-x', 'openai/gpt-y'],
-    });
-    try {
-      await withStubbedPicker(async (picker) => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-        assert.strictEqual(picker.length, 1, 'modelcommand.pickCommand — the same one /models opens');
-      });
-    } finally { r.restore(); }
-    assert.match(r.out(), /2 model\(s\)/);
-  });
-
-  await test('API: with no terminal it declines rather than guessing a provider', async () => {
-    const r = rig({});
-    r.app.ui.enabled = false;
-    try {
-      await withStubbedPicker(async () => {
-        await apiMod.credentialFlow(r.app, 'sk-test-credential', {
-          C, config: r.config, refreshCatalog: async () => {},
-        });
-      });
-    } finally { r.restore(); }
-    assert.strictEqual(r.saved.length, 0, 'no credential is stored against an unnamed route');
-    assert.match(r.out(), /config\.json/, 'and the non-interactive way is named');
-  });
-
   // ------------------------------------------------------------- registry ---
 
   await test('PROVIDERS: every known endpoint is a real absolute https URL', () => {
@@ -307,51 +127,6 @@ module.exports = async function () {
     assert.strictEqual(list.find((p) => p.id === 'myrouter').baseUrl, 'https://r.example/v1');
   });
 
-  await test('PROVIDERS: `Customs…` is on the FIRST screen, not below the fold, and is the only custom row', () => {
-    // ---- WHY THIS IS PINNED BY POSITION ---------------------------------
-    //
-    // The panel shows about ten rows. `Customs…` — "I know where my key goes,
-    // let me type the URL" — is the one row that works for every provider in
-    // existence, and it used to be last. That was right at twelve rows and
-    // wrong the moment the list reached twenty-one: the escape hatch fell two
-    // screens below the fold, behind the rows LAIN can do LEAST with.
-    //
-    // So the order is by READINESS — pick-and-go, then `Customs…`, then the names
-    // LAIN cannot place (which are the same action as `Customs…` with the name
-    // filled in). Nothing is hidden and nothing is guessed; only the order.
-    // ASSERTED AS AN ORDER, NOT AS AN INDEX. A machine with twenty working
-    // routes configured legitimately pushes `Customs…` further down, and those
-    // rows are all pick-and-go — nothing is buried by them. What must never
-    // happen is a row LAIN CANNOT USE standing in front of the escape hatch.
-    const { providerAdapter } = require('../../src/apicommand');
-    const list = providers.choices({ connections: {} });
-    const items = providerAdapter(list).items;
-    const at = items.findIndex((i) => /^Customs/.test(i.label));
-    assert.ok(at >= 0, '`Customs…` must be offered at all');
-    assert.strictEqual(at, list.filter((p) => p.baseUrl).length,
-      '`Customs…` must sit immediately after the rows that can be picked and used');
-    for (const i of items.slice(0, at)) {
-      assert.ok(!/needs an endpoint/.test(i.label),
-        `a row that cannot be used yet sits above \`Customs…\`: ${i.label}`);
-    }
-    // With nothing configured, that puts it inside the panel's first screen —
-    // derived from the built-in table rather than from a magic number, so
-    // adding a known endpoint cannot silently push it under the fold again.
-    assert.ok(providers.KNOWN.length + 1 <= 10,
-      'the built-in table has outgrown the first screen — `Customs…` needs a new home');
-
-    // ---- AND THERE IS EXACTLY ONE CUSTOM CATEGORY (2026-09-15) -----------
-    //
-    // The picker used to carry this escape as `Other…` AND a separate row named
-    // `custom`, brought in from the user's V1 configuration — two spellings of
-    // one idea in one list. The row is retired; this is the only one left.
-    const customish = items.filter((i) => /custom|^Other/i.test(i.label));
-    assert.strictEqual(customish.length, 1, `one custom category: ${customish.map((i) => i.label).join(' | ')}`);
-    assert.match(customish[0].label, /^Customs…/);
-    // And nothing was dropped to achieve any of it.
-    assert.strictEqual(items.length, list.length + 1);
-  });
-
   await test('PROVIDERS: the temp home is untouched by any of this', () => {
     // These tests write no config of their own; `config.save` is stubbed. This
     // pins that, because a flow whose whole job is writing credentials is the
@@ -360,131 +135,69 @@ module.exports = async function () {
     assert.ok(home && path.resolve(home) !== path.resolve(path.join(os.homedir(), '.lain-v2')));
   });
 
-  // ---- RE-KEY: THE REPAIR FOR A CREDENTIAL THAT STOPPED WORKING -------------
-  //
-  // The 401 that motivated this: `lain:custom: could not read a model list —
-  // 401 Authorization Required — Invalid TokenFaucet API key.` The endpoint and
-  // the model list were fine; only the stored credential went bad. Until now
-  // the only repair was editing config.json by hand — the CLI had no way to
-  // replace a key under the connection that already owned it, and the
-  // alternative (`/api <new-key>` from scratch) would have added a SECOND
-  // route for the same endpoint, leaving the broken one in the picker beside
-  // it.
+  // ---- PHASE 8.3: THE DASHBOARD, NEVER A TERMINAL PROMPT ----------------------
 
-  const customConn = () => ({
-    id: 'lain:custom', provider: 'freetokenfaucet.com', via: 'native', auth: 'api_key',
-    protocol: 'chat', baseUrl: 'https://freetokenfaucet.com/v1',
-    apiKey: 'old-refused-key', models: [],
-  });
-
-  const customCfg = () => ({
-    connections: {
-      'lain:custom': {
-        provider: 'freetokenfaucet.com', via: 'native', auth: 'api_key',
-        protocol: 'chat', baseUrl: 'https://freetokenfaucet.com/v1', apiKey: 'old-refused-key',
-      },
-    },
-  });
-
-  await test('API: /api custom replaces the key under the SAME connection id', async () => {
-    const refreshed = [];
-    const r = rig({ answers: ['sk-fresh-rotation-9f2a'], connections: [customConn()], cfg: customCfg() });
-    try {
-      await apiMod.rekeyFlow(r.app, 'custom', { C, config: r.config, refreshCatalog: (a, o) => refreshed.push(o) });
-      assert.strictEqual(r.saved.length, 1, 'exactly one save');
-      const saved = r.saved[0].connections['lain:custom'];
-      assert.strictEqual(saved.apiKey, 'sk-fresh-rotation-9f2a', 'the replacement key is stored');
-      assert.strictEqual(saved.baseUrl, 'https://freetokenfaucet.com/v1', 'the endpoint is not re-asked');
-      assert.strictEqual(saved.provider, 'freetokenfaucet.com', 'nor is the provider');
-      assert.strictEqual(Object.keys(r.saved[0].connections).length, 1, 'no second route for the same endpoint');
-      assert.ok(r.out().includes('Re-keying lain:custom'), 'says which route it is re-keying');
-      assert.deepStrictEqual(refreshed, [{ only: 'lain:custom', quiet: true }], 'and re-reads that one route\'s catalog');
-    } finally { r.restore(); }
-  });
-
-  await test('API: Esc at the replacement prompt leaves the old key untouched', async () => {
-    const r = rig({ answers: [], connections: [customConn()], cfg: customCfg() });
-    try {
-      await apiMod.rekeyFlow(r.app, 'lain:custom', {
-        C, config: r.config,
-        refreshCatalog: () => { throw new Error('must not be reached'); },
-      });
-      assert.strictEqual(r.saved.length, 0, 'nothing was stored');
-      assert.ok(r.out().includes('Cancelled. Nothing was stored.'), 'and says so');
-    } finally { r.restore(); }
-  });
-
-  await test('API: a refused discovery keeps the NEW key — a bad moment must not undo the repair', async () => {
-    const refreshed = [];
-    const r = rig({
-      answers: ['sk-fresh-rotation-9f2a'], connections: [customConn()], cfg: customCfg(),
-      discover: async () => ({
-        ok: false,
-        error: '401 Authorization Required — {"error":"UNAUTHORIZED","message":"Invalid TokenFaucet API key."}',
-      }),
-    });
-    try {
-      await apiMod.rekeyFlow(r.app, 'lain:custom', { C, config: r.config, refreshCatalog: (a, o) => refreshed.push(o) });
-      assert.strictEqual(r.saved[0].connections['lain:custom'].apiKey, 'sk-fresh-rotation-9f2a', 'the key is stored anyway');
-      assert.ok(/discovery failed/i.test(r.out()), 'the refusal is reported in the provider\'s own words');
-      assert.ok(r.out().includes('/api refresh lain:custom'), 'with the way to re-read once the cause is fixed');
-      assert.strictEqual(refreshed.length, 0, 'the catalog is not re-read from a dead route');
-    } finally { r.restore(); }
-  });
-
-  await test('API: a route answers to its id, its bare name, and its provider — a bridge is refused, not re-keyed', async () => {
-    const conns = [customConn(), {
-      id: 'omniroute', provider: 'omniroute', via: 'bridge', auth: 'none',
-      protocol: 'chat', baseUrl: 'http://127.0.0.1:20128/v1', apiKey: '', models: [],
-    }];
-    const r = rig({ connections: conns, cfg: customCfg() });
-    try {
-      const find = (n) => apiMod.connectionByName(r.app, n);
-      assert.strictEqual(find('lain:custom'), conns[0], 'the full id');
-      assert.strictEqual(find('custom'), conns[0], 'the bare spelling');
-      assert.strictEqual(find('LAIN:CUSTOM'), conns[0], 'either case');
-      assert.strictEqual(find('freetokenfaucet.com'), conns[0], 'the provider name');
-      assert.strictEqual(find(''), null, 'nothing named');
-      assert.strictEqual(find('no-such-route'), null, 'an unknown name names nothing');
-      // A bridge authenticates upstream itself; LAIN holds no credential for
-      // it, so naming it is answered with the reason, not a prompt.
-      assert.strictEqual(find('omniroute'), conns[1], 'the bridge is found — it IS the route named');
-      await apiMod.rekeyFlow(r.app, 'omniroute', {
-        C, config: r.config,
-        refreshCatalog: () => { throw new Error('must not be reached'); },
-      });
-      assert.strictEqual(r.saved.length, 0, 'nothing is stored for a bridge');
-      assert.ok(/is a bridge/.test(r.out()), 'and the reason is on screen');
-    } finally { r.restore(); }
-  });
-
-  await test('API: the /api command sends a route NAME to the re-key flow, never stores it as a credential', async () => {
-    // `lain:custom` is eleven characters with no spaces, so the credential
-    // rule alone says it IS one. The dispatch checks the routes first; this
-    // pins that ORDER through the real command, because the order is the whole
-    // difference between repairing a route and storing its own name as its
-    // API key.
+  await test('API (8.3): bare /api and /api add open the Model Dashboard at API — no key is asked for here', async () => {
     const { REGISTRY } = require('../../src/commands');
-    const r = rig({
-      answers: ['sk-fresh-rotation-9f2a'], connections: [customConn()], cfg: customCfg(),
-      discover: async () => ({ ok: false, error: '401 Authorization Required' }),
+    const r = rig();
+    await withStubbedDashboard(async (calls) => {
+      await REGISTRY.get('/api').run(r.app, { args: [] });
+      await REGISTRY.get('/api').run(r.app, { args: ['add'] });
+      await REGISTRY.get('/api').run(r.app, { args: ['deepseek'] });
+      assert.deepStrictEqual(calls, ['api', 'api', 'api'], 'each opens the dashboard at API');
     });
-    // The command closure holds the REAL config module — the rig's stubbed
-    // `config` never reaches it. Stub the module's own save in place so the
-    // round trip writes nothing anywhere, which is the invariant the temp-home
-    // test above pins for every other test in this file.
+    assert.match(r.out(), /Opened the Model Dashboard at API/);
+    assert.ok(!/paste|api key or token/i.test(r.out()), `nothing asks for a key: ${r.out()}`);
+  });
+
+  await test('API (8.3): a route NAME opens the dashboard to replace its key — it is never stored as a credential', async () => {
+    const { REGISTRY } = require('../../src/commands');
+    const conn = { id: 'lain:custom', provider: 'freetokenfaucet.com', via: 'native', auth: 'api_key', protocol: 'chat', baseUrl: 'https://freetokenfaucet.com/v1', apiKey: 'old', models: [] };
+    const r = rig({ connections: [conn], cfg: { connections: { 'lain:custom': { provider: 'freetokenfaucet.com', baseUrl: conn.baseUrl, apiKey: 'old' } } } });
+    await withStubbedDashboard(async (calls) => {
+      await REGISTRY.get('/api').run(r.app, { args: ['lain:custom'] });
+      assert.deepStrictEqual(calls, ['api']);
+    });
+    assert.strictEqual(r.app.cfg.connections['lain:custom'].apiKey, 'old', 'nothing was written');
+  });
+
+  await test('API (8.3): a key pasted at the prompt is refused, never stored, and taken out of the input history', async () => {
+    const { REGISTRY } = require('../../src/commands');
+    const r = rig();
+    const key = 'sk-pasted-by-mistake-9f2a41';
+    r.app.input.history = ['/model', `/api ${key}`];
     const configMod = require('../../src/config');
     const realSave = configMod.save;
-    configMod.save = () => {};
+    let saves = 0;
+    configMod.save = () => { saves += 1; };
     try {
-      await REGISTRY.get('/api').run(r.app, { args: ['lain:custom'] });
-      assert.ok(r.out().includes('Re-keying lain:custom'), 'the route is recognised and announced');
-      assert.ok(!/which provider/i.test(r.out()), 'the provider question is never asked — the route already answered it');
-      assert.strictEqual(
-        r.app.cfg.connections['lain:custom'].apiKey, 'sk-fresh-rotation-9f2a',
-        'the new key is stored under the named route',
-      );
-      assert.ok(/discovery failed/i.test(r.out()), 'and the dead old key\'s refusal is still reported honestly');
-    } finally { configMod.save = realSave; r.restore(); }
+      await withStubbedDashboard(async (calls) => {
+        await REGISTRY.get('/api').run(r.app, { args: [key] });
+        assert.deepStrictEqual(calls, [], 'no dashboard for a pasted key — the person is told where keys go');
+      });
+    } finally { configMod.save = realSave; }
+    assert.strictEqual(saves, 0, 'no configuration was written');
+    assert.ok(!r.app.input.history.some((h) => h.includes(key)), 'the up-arrow cannot bring it back');
+    assert.ok(!r.out().includes(key), 'and it is never echoed');
+    assert.match(r.out(), /never takes a key in the terminal/);
+    assert.match(require('../../src/redact').text(`x ${key} y`), /^x (?!sk-pasted)/, 'every display surface redacts it from now on');
+  });
+
+  await test('API (8.3): the terminal key-entry flows are gone from Core', () => {
+    for (const k of ['credentialFlow', 'rekeyFlow', 'providerAdapter']) assert.strictEqual(apiMod[k], undefined, `${k} no longer exists`);
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'routecommands.js'), 'utf8');
+    assert.ok(!/secret:\s*true/.test(src), 'no masked secret prompt in the terminal commands');
+  });
+
+  await test('API: a route answers to its id, its bare name, and its provider', () => {
+    const conns = [{ id: 'lain:custom', provider: 'freetokenfaucet.com', via: 'native', baseUrl: 'https://freetokenfaucet.com/v1' }, { id: 'omniroute', provider: 'omniroute', via: 'bridge', baseUrl: 'http://127.0.0.1:20128/v1' }];
+    const r = rig({ connections: conns });
+    const find = (n) => apiMod.connectionByName(r.app, n);
+    assert.strictEqual(find('lain:custom'), conns[0]);
+    assert.strictEqual(find('custom'), conns[0]);
+    assert.strictEqual(find('LAIN:CUSTOM'), conns[0]);
+    assert.strictEqual(find('freetokenfaucet.com'), conns[0]);
+    assert.strictEqual(find(''), null);
+    assert.strictEqual(find('no-such-route'), null);
   });
 };

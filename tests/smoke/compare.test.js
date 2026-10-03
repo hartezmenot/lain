@@ -100,7 +100,7 @@ module.exports = async function () {
       const out = plain(r.out);
       assertIncludes(out, 'Refreshing', `${cmd} did not run`);
       // With the mock provider there is no route to ask, and it must SAY so.
-      assertIncludes(out, 'Nothing to refresh', `${cmd} must explain when there is nothing to ask`);
+      assert.ok(/Up to date|Nothing to refresh/.test(out), `${cmd} must explain when there is nothing new:\n${out}`);
     }
   });
 

@@ -99,7 +99,7 @@ module.exports = async function () {
     assert.strictEqual(r.body.orchestration.mode, 'SINGLE_PER_ROLE', 'only the mode Core routes is claimed');
   });
 
-  await test('SHELL: MCP lists the built-in Computer server and never starts it; skills say none exist', async () => {
+  await test('SHELL: MCP lists the built-in Computer server and never starts it; skills are supported and none are installed', async () => {
     const app = appAt(tmpdir());
     const m = await routes.dispatch(app, 'POST', '/api/mcp/servers', {});
     const comp = m.body.servers.find((s) => s.id === 'computer');
@@ -107,8 +107,8 @@ module.exports = async function () {
     assert.notStrictEqual(comp.state, 'CONNECTED', 'reading the list connected nothing');
     assert.strictEqual(require('../../src/computermcp').existing(app), null);
     const k = await routes.dispatch(app, 'POST', '/api/skills', {});
-    assert.strictEqual(k.body.supported, false);
-    assert.deepStrictEqual(k.body.skills, []);
+    assert.strictEqual(k.body.supported, true, 'a skill loader exists (integrations.js, Phase 8.1)');
+    assert.deepStrictEqual(k.body.skills.map((x) => `${x.id} ${x.name}`), [], 'no skill is installed in this home');
   });
 
   // ------------------------------------------------------------ projects --
@@ -169,14 +169,4 @@ module.exports = async function () {
     assert.ok(!/\d+% of the/.test(out), 'no percentage without a provider reading');
   });
 
-  await test('SELF: "open the MCP settings" is navigation the window applies once', async () => {
-    const app = appAt(tmpdir());
-    const tool = require('../../src/tools/lainself').tools.lain_workspace;
-    await tool.run({ action: 'open', surface: 'settings', section: 'mcp' }, { app });
-    const st = (await routes.dispatch(app, 'GET', '/api/state')).body.state;
-    assert.deepStrictEqual([st.navigate.surface, st.navigate.section, st.navigate.seq], ['settings', 'mcp', 1]);
-    const bad = await tool.run({ action: 'open', surface: 'nowhere' }, { app });
-    assert.ok(bad.isError);
-    assert.ok(require('../../src/tools').has('lain_workspace', app), 'the tool is in the one vocabulary');
-  });
 };

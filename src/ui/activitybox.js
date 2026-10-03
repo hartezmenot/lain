@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE TRANSIENT ACTIVITY BOX (§5–6).
- *
- *     ┌ ACTIVITY ────────────────────────────────┐
- *     │ READING · src/auth · 5 files             │
- *     └──────────────────────────────────────────┘
- *
- * WHAT IT SAYS is derived ONLY from runtime state — the loop's phase, the tool
- * in flight, the targets this turn touched, the wire progress of the open
- * request. It never shows the model's reasoning, hidden or otherwise — only a
- * SIZE of it; the commentary rows quote the visible answer text alone.
- *
- *   READING   LOCATING   THINKING   WRITING   EXECUTING   TESTING
- *   VERIFYING   WAITING   BACKGROUND   BLOCKED   RATE LIMITED
- *   and, while a request is open (streamprogress.js): WAITING · THINKING ·
- *   STREAMING · PREPARING TOOL · STALLED, with the request clock, plus up to
- *   two rows of the model's OWN visible words (never its reasoning).
- *
- * WHEN IT IS THERE: only while a turn is working and there is something worth
- * a line; it closes the instant the turn ends (no minimum lifetime, nothing
- * waits on it) and it never enters the transcript. Ctrl+O expands it to the
- * last few operations and collapses it again.
- */
+/** THE TRANSIENT ACTIVITY BOX (§5–6). */
 
 const T = require('./text');
 const { P } = require('./paint');
@@ -57,25 +35,28 @@ function commonDir(targets) {
   return prefix.join('/');
 }
 
-/**
- * The box's content for this frame, or null when it should not be open.
- * @returns {{kind:string, line:string, detail:string[]}|null}
- */
+/** The box's content for this frame, or null when it should not be open. */
 /** RUNNING SUBAGENTS, from the job registry — never counted from narration. */
 function agentsOf(state) {
   return (Array.isArray(state && state.jobs) ? state.jobs : []).filter((j) => j && j.kind === 'subagent' && j.state === 'RUNNING');
 }
 
-/** 'AGENTS 2 · SCOUT · VERIFIER' — the one line workers get; empty when none run. */
-function agentsLine(state) {
-  const a = agentsOf(state);
-  if (!a.length) return '';
-  return `AGENTS ${a.length} · ${a.map((j) => String(j.request || '').split(' · ')[0]).join(' · ')}`;
+/** One row per running agent (S6): `◐ explore · auth owner · 8s · ↓~1.2k`. */
+function agentRows(state, now = Date.now()) {
+  const spin = ['◐', '◓', '◑', '◒'][Math.floor(now / 250) % 4];
+  return agentsOf(state).map((j) => {
+    const [type, ...rest] = String(j.request || '').split(' · ');
+    const secs = require('./thoughtrow').dur(j.startedAt ? now - j.startedAt : j.elapsedMs || 0);
+    const tok = j.chars ? ` · ↓~${require('./activityline').tok(Math.ceil(j.chars / 4))}` : '';
+    return `${spin} ${j.agentType || type} · ${j.agentLabel || rest.join(' · ')} · ${secs}${tok}`;
+  });
 }
+const agentsLine = (state) => agentRows(state).join('\n');
 
 function summary(state, now = Date.now()) {
-  const s = summaryOf(state, now);
-  if (s) s.agents = agentsLine(state);
+  const rows = agentRows(state, now);
+  const s = summaryOf(state, now) || (rows.length ? { kind: 'AGENTS', line: '', detail: [] } : null);
+  if (s) s.agents = rows;
   return s;
 }
 
@@ -88,15 +69,14 @@ function summaryOf(state, now = Date.now()) {
     const secs = phase.resumeAt ? Math.max(0, Math.ceil((phase.resumeAt - now) / 1000)) : null;
     return { kind: phase.rateLimited ? 'RATE LIMITED' : 'WAITING', line: `${phase.rateLimited ? 'provider limit' : 'provider'}${secs != null ? ` · retry in ${secs}s` : ''}`, detail };
   }
-  // ---- A REQUEST IS OPEN: say what the WIRE says (streamprogress.js) -------
-  // WAITING (no data yet) · THINKING (reasoning arriving) · STREAMING (the
-  // answer) · PREPARING TOOL (arguments arriving, with their size) · STALLED.
-  // Before this every open request was THINKING, however it was behaving.
+  // A REQUEST IS OPEN: say what the WIRE says (streamprogress.js) WAITING (no data yet) · THINKING (reasoning arriving) · STREAMING (the answer) ·…
   if (phase && (phase.phase === 'WAITING_MODEL' || phase.phase === 'RECEIVING') && phase.live) {
     const progress = require('../streamprogress');
     const st = progress.state(phase.live, now);
     if (st.word === 'WAITING' && !recent.length && now - phase.live.startedAt < 1500) return null;   // nothing worth a box yet
-    return { kind: st.word, line: st.detail, clock: st.elapsed, commentary: progress.commentaryLine(phase.live), detail, model: true };
+    // THE THINKING BOX (S5.1): while reasoning streams visibly, its last lines — display only, gone at the first text or call.
+    const thought = st.word === 'THINKING' ? progress.thoughtLines(phase.live, THOUGHT_WIDTH, THOUGHT_ROWS) : [];
+    return { kind: st.word, line: st.detail, clock: st.elapsed, commentary: thought.length ? '' : progress.commentaryLine(phase.live), thought, detail, model: true };
   }
   if (phase && phase.phase === 'RUNNING_TOOL') {
     const name = String(phase.tool || '');
@@ -119,30 +99,17 @@ function summaryOf(state, now = Date.now()) {
   return null;
 }
 
-/**
- * THE RECTANGLE IS FOR THE MODEL; EVERYTHING ELSE IS ONE LINE.
- *
- * While the model is working out what to do, nothing else on screen says so,
- * and the box earns its rows:
- *
- *     ░ THINKING                          ░
- *     ░ after 3 steps                     ░
- *
- * The moment something else is PRIMARY — a tool acting, a diff arriving in the
- * feed, a check running — the box MINIMIZES to `READING · src/a.js`: the work
- * is still visibly alive and the rows go to the thing that is happening.
- * Ctrl+O still expands it to the last few operations, whatever the phase.
- */
+/** THE RECTANGLE IS FOR THE MODEL; EVERYTHING ELSE IS ONE LINE. */
 const COMMENTARY_ROWS = 2;
+const THOUGHT_ROWS = 4;
+const THOUGHT_WIDTH = 68;
 
+/** ONLY WHAT THE LIVE ROW CANNOT SAY (2026-10-01). */
 function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   const s = summary(state, now);
   if (!s || room < 1) return 0;
   const expanded = Boolean(state.activityExpanded);
-  // THE MODEL IS PRIMARY (an open request, whatever it is doing): the rectangle.
-  if (!expanded && (minimal || !s.model)) return 1;
-  if (room < 2) return 1;
-  const want = 2 + (s.commentary ? COMMENTARY_ROWS : 0) + (s.agents ? 1 : 0) + (expanded ? s.detail.length : 0);
+  const want = (s.commentary && !minimal ? COMMENTARY_ROWS : 0) + (s.thought && s.thought.length && !minimal ? s.thought.length : 0) + (s.agents ? s.agents.length : 0) + (expanded ? s.detail.length : 0);
   return Math.min(want, room);
 }
 
@@ -170,12 +137,10 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   const s = summary(state, now);
   if (!s) return new Array(height).fill(T.fit('', width));
   // An open request that has not answered yet is not a warning — only STALLED is.
-  // THE PALETTE (2026-09-23): the model working is VIOLET; a tool acting is
-  // CYAN; STALLED / BLOCKED / RATE LIMITED keep their semantic tones.
   const paint = P[TONE[s.kind] && !(s.model && s.kind === 'WAITING') ? TONE[s.kind] : s.model ? 'violet' : 'cmd'] || P.plain;
   if (height < 2) {
-    const one = T.fit(' ' + paint(T.clip(`${s.kind} · ${s.line}${s.agents ? '  ·  ' + s.agents : ''}`, Math.max(10, width - 2))), width);
-    return [one];
+    const only = (s.agents && s.agents[0]) || (s.commentary ? require('../streamprogress').commentaryLine({ commentary: s.commentary }) : '') || '';
+    return [T.fit(' ' + P.meta(T.clip(only, Math.max(10, width - 2))), width)];
   }
   // ONE DARK-GREY GROUND, no border — the same quiet surface the composer and
   // the diff sit on, so the three read as one visual language.
@@ -184,9 +149,10 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   // THE MODEL'S OWN WORDS, from the paragraph it is writing now — never its
   // reasoning. Temporary: they leave with the box and never enter the feed.
   const said = s.commentary ? wrapCommentary(s.commentary, box - 2, COMMENTARY_ROWS) : [];
-  const head = s.clock ? `${paint(s.kind)}${P.meta(' · ' + s.clock)}` : paint(s.kind);
-  const body = [head, s.line, ...said, ...(s.agents ? [s.agents] : []), ...(state.activityExpanded ? s.detail : [])];
-  const out = body.slice(0, height).map((t, i) => ground(i <= 1 ? t : P.meta(t)));
+  void paint;
+  const thinking = (s.thought || []).map((t) => P.meta(T.clip(t, box - 2)));
+  const body = [...thinking, ...said.map((t) => P.meta(t)), ...(s.agents || []).map((a) => P.meta(a)), ...(state.activityExpanded ? s.detail.map((t) => P.meta(t)) : [])];
+  const out = body.slice(0, height).map((t) => ground(t));
   while (out.length < height) out.push('');
   return out.map((l) => T.fit(l, width));
 }

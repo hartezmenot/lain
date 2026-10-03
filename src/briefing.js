@@ -1,37 +1,12 @@
 'use strict';
 
-/**
- * THE BRIEFING — a survey, written out the way one engineer briefs another.
- *
- * This is the only part of the system that is allowed to be long. Everywhere
- * else in LAIN, output is trimmed hard because it rides on every request; this
- * is paid for ONCE and exists to stop something far more expensive — a model
- * rediscovering, over eight tool calls, facts that four instruments already
- * established. A briefing that costs 3,000 tokens and removes twelve
- * exploratory round trips is a large saving, not a large cost.
- *
- * Long is not the same as undifferentiated. Every section here answers a
- * question somebody actually asks:
- *
- *   what IS this project        · PROJECT / ENVIRONMENT
- *   what has changed            · GIT
- *   does it build, run, pass    · HEALTH, kept on five separate axes
- *   what is wrong, exactly      · FINDINGS, with ids, locations and evidence
- *   is any of it one problem    · ROOT-CAUSE CANDIDATES
- *   what does nobody know       · UNVERIFIED
- *   what should I do            · REPAIR DIRECTIVE
- *
- * PLAIN TEXT, NO COLOUR, NO BOX DRAWING. The briefing is meant to survive being
- * copied, piped, and handed to a model, and ANSI escapes inside a transcript
- * are noise that costs tokens and can break a parse. The terminal renderer adds
- * colour around this; it never adds it inside.
- */
+/** THE BRIEFING — a survey, written out the way one engineer briefs another. */
 
 const path = require('path');
 const F = require('./findings');
 const F_facts = require('./facts');
 const rootcause = require('./rootcause');
-const { HEALTH } = require('./survey');
+const HEALTH = Object.freeze({ PASS: 'PASS', CLEAN: 'CLEAN', DEGRADED: 'DEGRADED', FAILED: 'FAILED', UNVERIFIED: 'UNVERIFIED' });   // survey's words (tools/dev/survey.js)
 
 /** Hard bounds, so one pathological project cannot produce a megabyte. */
 const MAX_DETAILED = 40;
@@ -110,22 +85,7 @@ function environmentSection(s) {
   return out.join('\n');
 }
 
-/**
- * THE OPERATIONAL CONTRACT — the conventions, before anything else.
- *
- * Placed early on purpose. Every section after it reports file:line, shell
- * commands and parameter names, and all of those are ambiguous until the reader
- * knows what the numbering counts from and which shell is meant. Putting the
- * contract after the findings would mean the findings are read first and
- * interpreted twice.
- *
- * UNKNOWN FACTS ARE PRINTED AS LOUDLY AS KNOWN ONES. The instinct is to hide
- * what could not be established; that is exactly backwards, because those are
- * the ones somebody is about to spend requests on. Where several unknowns share
- * one reason — everything a transport that is not connected would own, for
- * instance — the reason is stated once and the names are listed under it, so
- * honesty does not become repetition.
- */
+/** THE OPERATIONAL CONTRACT — the conventions, before anything else. */
 function factsSection(facts, changed) {
   const out = [rule('PROJECT FACTS / OPERATIONAL CONTRACT')];
   if (!facts || !facts.length) {
@@ -189,15 +149,7 @@ function gitSection(s) {
 
 // ------------------------------------------------------------------ health ---
 
-/**
- * FOUR AXES, FOUR LINES, AND A SENTENCE THAT REFUSES TO LET THEM MERGE.
- *
- * The sentence is not decoration. `BUILD: PASS` next to `ENGINEERING: DEGRADED`
- * is the single most misread pair in any report of this kind, and the reflex to
- * read the first line and stop is strong enough to be worth interrupting in
- * words. (A fifth axis, FRONTEND — the running page's own console, read by the
- * Chromium LAIN owned — was removed with the browser in 2026-09.)
- */
+/** FOUR AXES, FOUR LINES, AND A SENTENCE THAT REFUSES TO LET THEM MERGE. */
 function healthSection(s) {
   const h = s.health;
   const out = [rule('HEALTH — FOUR SEPARATE AXES')];
@@ -229,13 +181,7 @@ function healthSection(s) {
 
 // ---------------------------------------------------------------- findings ---
 
-/**
- * One finding, in full.
- *
- * The field order is the order a reader needs them in: WHERE first, because
- * that is what they act on; then WHAT; then WHY IT MATTERS; then, last, HOW IT
- * IS KNOWN — which is what tells them how much to trust the rest.
- */
+/** One finding, in full. */
 function detail(f) {
   const out = [`\n${f.id}`];
   out.push(`  Category:    ${f.category}`);
@@ -358,23 +304,11 @@ function limitationsSection(s) {
   return out.join('\n');
 }
 
-/**
- * THE DIRECTIVE — generated identically every time, on purpose.
- *
- * A briefing that ends with facts and no instruction gets read as a status
- * report. This section is what turns it into a handover: it names the loop, and
- * it names the specific ways this kind of work goes wrong.
- */
+/** THE DIRECTIVE — generated identically every time, on purpose. */
 function directiveSection(s, candidates) {
   const out = [rule('REPAIR DIRECTIVE')];
 
-  // ---- THE CONTRACT COMES BEFORE THE WORK -------------------------------
-  //
-  // Stated here as well as in its own section, because this is the part that
-  // is read immediately before acting. The instruction that matters is the
-  // last one: a contradiction is worth REPORTING, and is never a licence to
-  // quietly adopt a different convention — that is how one wrong belief
-  // becomes the project's new de facto rule.
+  // THE CONTRACT COMES BEFORE THE WORK
   out.push('OPERATIONAL CONTRACT');
   out.push('You are working inside the conventions listed under PROJECT FACTS above. They were established');
   out.push('from this repository, not assumed. Do not rediscover them and do not experiment against them:');
@@ -440,12 +374,7 @@ function lifecycleSection(delta) {
   return out.join('\n');
 }
 
-/**
- * Render a completed survey.
- *
- * @param {object} survey  a survey.run() result
- * @param {object} [delta] a ledger.record() result, for the lifecycle section
- */
+/** Render a completed survey. */
 function render(survey, delta = null, factDelta = null) {
   const findings = delta ? delta.findings : survey.findings;
   const candidates = rootcause.candidates(findings);

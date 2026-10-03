@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * CONNECTIONS — a provider is not a credential.
- *
- * V1 modelled auth as "provider → one credential", which is why Claude had
- * exactly one answer ("no OAuth, use an API key") on a machine where a perfectly
- * good authenticated Claude session already existed inside a local bridge.
- *
- * A model can be reachable by several routes at once, each with its own auth
- * method and its own readiness:
- *
- *   anthropic
- *     ├─ connection lain:anthropic     native · api_key   (LAIN holds the key)
- *     └─ connection bridge:omniroute   bridge · none      (the BRIDGE holds it)
- *
- * LAIN never needs the bridge's tokens. The bridge authenticates upstream
- * itself, which is exactly what makes using it legitimate rather than a
- * credential grab. Nothing here reads another program's credential store.
- *
- * READINESS is deliberately NOT "a credential exists":
- *
- *   NONE              no credential and no keyless route
- *   CREDENTIAL_FOUND  something is configured but unproven or expired
- *   AUTHENTICATED     credential present and not expired
- *   REQUEST_READY     A REAL REQUEST THROUGH THIS ROUTE SUCCEEDED
- *
- * Only evidence of a successful request yields REQUEST_READY. A token on disk
- * never does.
- */
+/** CONNECTIONS — a provider is not a credential. */
 
 const fs = require('fs');
 // A resolved credential is registered the moment it is read, so every display
@@ -55,33 +28,7 @@ function readinessFor({ credentialPresent = false, expired = false, requestSucce
   return READINESS.AUTHENTICATED;
 }
 
-// ----------------------------------------------------------- discovery ------
-//
-// WHAT A CONNECTION SERVES IS DISCOVERED, NOT TRANSCRIBED.
-//
-// Until this existed, a connection's `models` could only come from config. That
-// is workable for a two-model API key and absurd for a router: the user's own
-// bridge advertises thousands of ids, and with none of them written into
-// config.json by hand, `/models` printed "No models", no model could be
-// selected, `provider.resolve` fell through to the env-var branch, and LAIN
-// could not make a single request against a live, reachable, already-
-// authenticated route. Measured, not theorised — that is what the binary did.
-//
-// THE RULES THIS OBEYS
-//
-//   - Discovery is a CATALOG request (`GET /models`), never a model round-trip.
-//     No tokens are spent and no completion is generated.
-//   - It is EXPLICIT. There is no timer, no background poll and no refresh on a
-//     keystroke. It runs when someone needs a model list and the cache cannot
-//     answer, and it says so on screen while it happens.
-//   - The answer is CACHED ON DISK per connection, so relaunching costs nothing
-//     and `fromConfig` stays synchronous and cheap.
-//   - Declared models WIN. A connection that lists its models in config is
-//     stating them deliberately; discovery never overrules that.
-//   - The provider's own metadata (`root`, `parent`, `owned_by`) is preserved
-//     verbatim, because catalog.js uses it as declared equivalence. Discovery
-//     that flattened records to bare id strings would silently destroy model
-//     identity and re-create the duplicate rows catalog.js exists to prevent.
+// discovery
 
 /** A day. A router's catalog moves, but not between two launches. */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -98,14 +45,7 @@ function cacheFile(id) {
   return path.join(cacheDir(), String(id).replace(/[^a-zA-Z0-9._-]/g, '_') + '.json');
 }
 
-/**
- * Memoised cache reads.
- *
- * `fromConfig` is called from render paths, so an uncached read would mean
- * parsing a multi-megabyte JSON file per frame. Keyed on mtime+size, so a
- * refresh written by this process — or by another one — is picked up on the
- * next call without any invalidation protocol.
- */
+/** Memoised cache reads. */
 const _memo = new Map(); // file -> { mtimeMs, size, value }
 
 function readCache(id) {
@@ -130,6 +70,9 @@ function writeCache(id, models, source) {
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify({ fetchedAt: Date.now(), source: source || null, models }), 'utf8');
   fs.renameSync(tmp, file);
+  // WHAT A CONNECTION SERVES JUST CHANGED: the memoised connection list and catalog are rebuilt on the next
+  // read (appcatalog.js). Without this, a key added a moment ago listed no models — no account — for a second.
+  try { require('./appcatalog').invalidate(); } catch { /* not loaded */ }
   return file;
 }
 
@@ -138,23 +81,14 @@ function cacheAgeMs(id) {
   return c ? Date.now() - c.fetchedAt : Infinity;
 }
 
-/**
- * Normalise one `/v1/models` row into the record shape catalog.js consumes.
- *
- * Only fields with catalog meaning are kept. A router's rows also carry
- * context_length, pricing, capabilities and permission arrays — none of which
- * identify a model, and all of which would multiply the cache size by an order
- * of magnitude for nothing.
- */
+/** Normalise one `/v1/models` row into the record shape catalog.js consumes. */
 function normalizeCatalogRow(row) {
   if (typeof row === 'string') return row.trim() ? { id: row.trim() } : null;
   if (!row || typeof row !== 'object') return null;
   const id = String(row.id || row.name || '').trim();
   if (!id) return null;
   const out = { id };
-  // `root: <same as id>` is a router filling the field in rather than declaring
-  // an identity. Keeping it would make every id its own root and defeat the
-  // grouping catalog.js does from routing namespaces.
+  // `root: <same as id>` is a router filling the field in rather than declaring an identity.
   if (row.root && String(row.root) !== id) out.root = String(row.root);
   if (row.parent) out.parent = String(row.parent);
   if (row.owned_by) out.owned_by = String(row.owned_by);
@@ -162,14 +96,7 @@ function normalizeCatalogRow(row) {
   return out;
 }
 
-/**
- * Ask a connection what it serves. Returns a plain result — a route that cannot
- * be reached is an ANSWER ("this is why"), never a thrown error, because the
- * caller is usually a UI that must keep working with a dead provider.
- *
- * @param {object} conn  a connection as produced by fromConfig()
- * @returns {Promise<{ok:boolean, count:number, models?:Array, error?:string, url:string}>}
- */
+/** Ask a connection what it serves. */
 async function discover(conn, { signal, timeoutMs = DISCOVER_TIMEOUT_MS } = {}) {
   const base = String((conn && conn.baseUrl) || '').replace(/\/+$/, '');
   if (!base) return { ok: false, count: 0, error: 'this connection declares no baseUrl', url: '' };
@@ -228,16 +155,7 @@ async function discover(conn, { signal, timeoutMs = DISCOVER_TIMEOUT_MS } = {}) 
   }
 }
 
-/**
- * THE API ROOT, when a base URL was entered as a full endpoint.
- *
- * Seen on a real configuration: `lain:api.b.ai` had `https://api.b.ai/v1/chat/completions`
- * as its base. Everything downstream APPENDS a path — discovery asked
- * `…/chat/completions/models` (the chat endpoint answering 405 "Use POST"), and
- * a chat request would have gone to `…/chat/completions/chat/completions`. One
- * trailing OpenAI/Anthropic endpoint segment is removed when the connection is
- * READ; the user's config is never rewritten.
- */
+/** THE API ROOT, when a base URL was entered as a full endpoint. */
 const ENDPOINT_TAIL = /\/(?:chat\/completions|completions|models|messages|responses)\/*$/i;
 function apiRoot(base) {
   return String(base || '').replace(/\/+$/, '').replace(ENDPOINT_TAIL, '');
@@ -248,25 +166,12 @@ function needsDiscovery(connections = []) {
   return connections.filter((c) => c && c.baseUrl && !c.declaredModels && cacheAgeMs(c.id) > CACHE_TTL_MS);
 }
 
-/**
- * Discover every route that needs it, in one pass.
- *
- * `done` is the caller's set of already-asked ids, mutated here — that is what
- * makes this at-most-once per connection per launch rather than a poll. Routes
- * that DECLARE their models are never contacted: the user already answered.
- *
- * @param {Array}  connections   as produced by fromConfig()
- * @param {object} opts  force, only, done (Set), onProgress(id), signal
- * @returns {Promise<Array<{id, ok, count, error?, url}>>}
- */
+/** Discover every route that needs it, in one pass. */
 async function discoverAll(connections, { force = false, only = null, done = new Set(), onProgress = null, signal } = {}) {
   const wanted = only
     ? connections.filter((c) => c.id === only && c.baseUrl)
     : (force ? connections.filter((c) => c.baseUrl && !c.declaredModels) : needsDiscovery(connections));
-  // A SOURCE WHOSE LAST ANSWER CANNOT CHANGE is not asked again: a rejected
-  // credential or an endpoint that does not enumerate models, with the SAME
-  // URL and key, gives the same answer every launch. `force` (`/model refresh`)
-  // always asks. See catalogstate.js.
+  // A SOURCE WHOSE LAST ANSWER CANNOT CHANGE is not asked again: a rejected credential or an endpoint that does not enumerate models, with the SAME URL…
   const cs = require('./catalogstate');
   const todo = wanted.filter((c) => force || (!done.has(c.id) && !cs.suppressed(c)));
 
@@ -283,18 +188,12 @@ async function discoverAll(connections, { force = false, only = null, done = new
   return results;
 }
 
-/**
- * Read connections out of config. A connection is DECLARED, never guessed, and
- * `models` is whatever that route advertises — from config when the user stated
- * it, from the discovery cache otherwise.
- *
- * @param {object} cfg
- * @param {object} evidence  { [connectionId]: { requestSucceeded, authFailed } }
- */
+/** Read connections out of config. */
 function fromConfig(cfg = {}, evidence = {}) {
   const out = [];
   const declared = cfg.connections && typeof cfg.connections === 'object' ? cfg.connections : {};
 
+  // NO SECRET IS READ TO LIST A CONNECTION (2026-10-01).
   for (const [id, c] of Object.entries(declared)) {
     if (!c || typeof c !== 'object') continue;
     if (require('./retired').connectionSystem(id, c)) continue;
@@ -302,24 +201,16 @@ function fromConfig(cfg = {}, evidence = {}) {
     const via = c.via === VIA.BRIDGE ? VIA.BRIDGE : VIA.NATIVE;
     const auth = c.auth || (via === VIA.BRIDGE ? AUTH.NONE : AUTH.API_KEY);
     // A bridge needs no LAIN credential at all — calling that "api_key" is a lie.
-    const key = auth === AUTH.API_KEY
-      ? (c.apiKey || (c.envKey ? process.env[c.envKey] : '') || '')
-      : '';
-    // ---- HELD BACK FROM EVERY DISPLAY SURFACE, FROM THE MOMENT IT IS READ --
-    //
-    // This is the one function that turns a config entry or an environment
-    // variable into a live credential, so it is the one place that always knows
-    // the exact bytes. Registering here means a key is masked on every screen
-    // from the first listing onwards, whether it arrived from `/api`, from
-    // config.json written by hand, or from the environment. See src/redact.js.
+    const deferred = auth === AUTH.API_KEY && Boolean(c.credentialRef) && !require('./credentials').cached(c.credentialRef);
+    const readKey = () => ((c.credentialRef ? require('./credentials').resolve(c.credentialRef) : '') || c.apiKey || (c.envKey ? process.env[c.envKey] : '') || '');
+    const key = auth === AUTH.API_KEY && !deferred ? readKey() : '';
+    // HELD BACK FROM EVERY DISPLAY SURFACE, FROM THE MOMENT IT IS READ --
     if (key) redact.register(key);
-    const credentialPresent = via === VIA.BRIDGE ? true : Boolean(key) || auth === AUTH.OAUTH;
-    // A declared list is the user stating what this route serves; discovery
-    // never overrules it. Absent one, the disk cache answers — which is what
-    // makes a router with thousands of ids usable without transcribing any.
+    const credentialPresent = via === VIA.BRIDGE ? true : Boolean(key) || (deferred && require('./credentials').present(c.credentialRef)) || auth === AUTH.OAUTH;
+    // A declared list is the user stating what this route serves; discovery never overrules it.
     const declared = Array.isArray(c.models) && c.models.length ? c.models : null;
     const cached = declared ? null : readCache(id);
-    out.push({
+    const conn = {
       id,
       provider: c.provider || id,
       via,
@@ -327,6 +218,7 @@ function fromConfig(cfg = {}, evidence = {}) {
       protocol: c.protocol || 'chat',
       baseUrl: apiRoot(c.baseUrl),
       envKey: c.envKey || null,
+      credentialRef: c.credentialRef || null,
       apiKey: key,
       models: declared || (cached ? cached.models : []),
       declaredModels: Boolean(declared),
@@ -337,15 +229,19 @@ function fromConfig(cfg = {}, evidence = {}) {
         requestSucceeded: Boolean(ev.requestSucceeded),
         authFailed: Boolean(ev.authFailed),
       }),
-    });
+    };
+    // (defined, not spread: a getter spread into a literal would run at once)
+    if (deferred) {
+      Object.defineProperty(conn, 'apiKey', {
+        enumerable: true, configurable: true,
+        get() { const v = readKey(); if (v) redact.register(v); Object.defineProperty(conn, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); return v; },
+        set(v) { Object.defineProperty(conn, 'apiKey', { value: v, writable: true, enumerable: true, configurable: true }); },
+      });
+    }
+    out.push(conn);
   }
 
-  // Environment-declared native routes, so a bare API key still works with no
-  // config file at all.
-  // FROM THE ONE TABLE OF KNOWN ENDPOINTS — see providers.js. This list used to
-  // be written out here and again in provider.js, so "where does an OpenAI key
-  // go" had two answers that were only equal by coincidence, and neither was
-  // reachable from the command that has to ASK the question (`/api`).
+  // Environment-declared native routes, so a bare API key still works with no config file at all.
   const envRoutes = require('./providers').envRoutes();
   for (const r of envRoutes) {
     if (!process.env[r.envKey]) continue;
@@ -366,20 +262,13 @@ function fromConfig(cfg = {}, evidence = {}) {
     });
   }
 
+  // LOCAL AND RUNTIME MODELS (runtimeconnections.js): llama.cpp, Ollama and the runtimes that execute through their own programs — the same catalog, the…
+  try { for (const c of require('./runtimeconnections').connections({ cfg }, { byConfig: true })) if (!out.some((x) => x.id === c.id)) out.push(c); } catch { /* a broken cache never costs the API routes */ }
+
   return out.sort((a, b) => (RANK[a.readiness] ?? 9) - (RANK[b.readiness] ?? 9));
 }
 
-/**
- * Every authentication ROUTE for a provider, as `/oauth` shows it.
- *
- * The point of the shape: choosing "OAuth" can never silently land on the
- * API-key path. They are different rows with different actions, and a provider
- * with no legitimate OAuth says so plainly instead of falling through.
- *
- * LAIN does not implement any provider's OAuth here, does not scrape a login
- * page, and does not bypass a protected flow. A route exists because it is
- * configured, or it does not exist.
- */
+/** Every authentication ROUTE for a provider, as `/oauth` shows it. */
 function authRoutes(provider, connections = []) {
   const mine = connections.filter((c) => c.provider === provider);
   const rows = [];
@@ -432,17 +321,7 @@ function hasKeylessRoute(provider, connections = []) {
     && (c.readiness === READINESS.AUTHENTICATED || c.readiness === READINESS.REQUEST_READY));
 }
 
-/**
- * WHAT A FINISHED TURN PROVED ABOUT ITS ROUTE.
- *
- * Readiness is earned, never assumed: `REQUEST_READY` means a request actually
- * came back, and an auth failure is the one kind of failure that says the
- * CREDENTIAL is wrong rather than that the server is unhappy. Both are facts
- * about a connection, so they are recorded here rather than in the REPL.
- *
- * Tool errors are excluded deliberately — a failed `grep` says nothing about
- * whether the provider answered.
- */
+/** WHAT A FINISHED TURN PROVED ABOUT ITS ROUTE. */
 function noteTurn(evidence, id, record) {
   if (!id || !evidence || !record) return evidence;
   const ev = evidence[id] || (evidence[id] = {});

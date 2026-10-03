@@ -28,7 +28,7 @@ const script = [{ text: 'Understood.' }];
 /** What the model was actually sent, read from the persisted session. */
 function userMessages(configDir) {
   const dir = path.join(configDir, 'sessions');
-  const files = fs.readdirSync(dir).map((f) => path.join(dir, f));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => path.join(dir, f));
   const newest = files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
   const s = JSON.parse(fs.readFileSync(newest, 'utf8'));
   return (s.messages || []).filter((m) => m.role === 'user' && !m._liveness).map((m) => m.content);
@@ -142,7 +142,7 @@ module.exports = async function () {
       stdinSteps: ['do the thing\n', paste('extra context\n/exit\ncontinue')],
       stepDelayMs: 700,
       script: [
-        { text: 'working', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 3' } }] },
+        { text: 'working', tool_calls: [{ name: 'shell', input: { command: 'sleep 3' } }] },
         { text: 'done' }, { text: 'ok' },
       ],
       timeoutMs: 45000,

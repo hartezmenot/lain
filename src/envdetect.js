@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * MACHINE DETECTION — what OS, shell, runtimes and test runner this machine
- * actually has. THE DETECTION HALF OF `src/environment.js`, split out so the
- * file stays one idea per section; `environment.js` re-exports it.
- *
- * WHY THIS EXISTS. The prompt used to tell the model `Platform: win32` and
- * nothing else — not the shell, not which package manager this tree uses, not
- * whether a venv was sitting unactivated. Every one of those was rediscovered
- * by running a command and reading its failure. All of it is knowable for free,
- * before the first command is spent.
- *
- * THE ONE PROPERTY: every answer here is DETERMINISTIC STRING WORK against the
- * filesystem and `process`. No subprocess is spawned to ask a version number —
- * the detection rides on the stable prefix of every request of every turn.
- */
+/** MACHINE DETECTION — what OS, shell, runtimes and test runner this machine actually has. */
 
 const fs = require('fs');
 const path = require('path');
@@ -73,22 +59,14 @@ const LOCKFILES = [
   ['package-lock.json', 'npm'],
 ];
 
-/**
- * THE PACKAGE MANAGER, settled by the lockfile — never by package.json.
- *
- * A manifest says nothing about npm vs pnpm vs yarn; every manager claims it.
- * The lockfile is the artifact one of them wrote, so it settles it exactly, and
- * running the wrong one would write a second competing lockfile.
- */
+/** THE PACKAGE MANAGER, settled by the lockfile — never by package.json. */
 function detectPackageManager(dir) {
   for (const [lock, manager] of LOCKFILES) {
     try {
       if (!fs.existsSync(path.join(dir, lock))) continue;
     } catch { continue; }
     const pm = { manager, from: lock };
-    // Missing vs installed, WITHOUT running anything: `bun pm` exists on PATH
-    // or it does not. Naming a manager that cannot run just moves the failed
-    // call one step later; saying it is absent is the fact that helps.
+    // Missing vs installed, WITHOUT running anything: `bun pm` exists on PATH or it does not.
     const exe = manager + (process.platform === 'win32' ? '.cmd' : '');
     let onPath = false;
     for (const d of (process.env.PATH || '').split(path.delimiter)) {
@@ -108,19 +86,10 @@ function detectPackageManager(dir) {
 
 // -------------------------------------------------------------------- venv ---
 
-/**
- * THE PYTHON VENV, if this project has one, and whether it is ACTIVE.
- *
- * The confusing failure this prevents: a bare `python` cannot see packages
- * installed into .venv, so a dependency that is plainly present reports as
- * missing and the model starts "fixing" the wrong thing.
- */
+/** THE PYTHON VENV, if this project has one, and whether it is ACTIVE. */
 function detectVenv(dir) {
   const binDirs = process.platform === 'win32' ? ['Scripts', 'bin'] : ['bin'];
-  // AN ACTIVE VENV IS A FACT OF THE SHELL, not of the directory: VIRTUAL_ENV is
-  // set means a venv is active, wherever it lives, and that is not a warning.
-  // It is reported even when the directory it points at is not under `dir` —
-  // the shell's state, not the project's layout, is what the model needs.
+  // AN ACTIVE VENV IS A FACT OF THE SHELL, not of the directory: VIRTUAL_ENV is set means a venv is active, wherever it lives, and that is not a warning.
   const active = process.env.VIRTUAL_ENV || null;
   for (const venvName of ['.venv', 'venv']) {
     const venvDir = path.join(dir, venvName);
@@ -144,13 +113,7 @@ function detectVenv(dir) {
 
 // ------------------------------------------------------------ test runner ---
 
-/**
- * THE TEST COMMAND, read from the manifest — never guessed.
- *
- * pytest being installed does not make it THIS project's runner, and `npm test`
- * means nothing without a test script to back it. A package.json with no test
- * script produces null, not a plausible lie.
- */
+/** THE TEST COMMAND, read from the manifest — never guessed. */
 function detectTestRunner(dir) {
   try {
     const pkg = path.join(dir, 'package.json');
@@ -207,16 +170,7 @@ function detectRuntimes(dir) {
 
 // ---------------------------------------------------------------- summary ---
 
-/**
- * THE STABLE ORIENTATION PREFIX, for the system prompt.
- *
- * Memoized per directory: the summary sits in the system block, which carries
- * the request's cache breakpoint, and the provider matches an exact prefix — so
- * a summary that can change between two steps of one turn breaks the cache and
- * re-bills the whole conversation. A turn CAN change what this reads (`npm
- * install` creates a lockfile); the memo makes the summary stable for the
- * running turn, and `reset()` lets a new session see the world as it now is.
- */
+/** THE STABLE ORIENTATION PREFIX, for the system prompt. */
 const _memo = new Map();
 let _memoWarm = false;
 
@@ -226,6 +180,8 @@ function summary(dir) {
   const lines = [`OS: ${osName(process.platform)}`];
   const sh = detectShell();
   if (sh && sh.preferred) lines.push(`Shell: ${sh.preferred}`);
+  // WHICH TOOL SPEAKS WHICH SHELL, said before the first call (2026-09-29: PowerShell was sent through run_bash).
+  if (process.platform === 'win32') lines.push('Shell tools: run_powershell = PowerShell syntax · run_bash = Git Bash (its /tmp is %TEMP%) · run_cmd = cmd.exe. Output a later step needs goes under $LAIN_SCRATCH.');
   const pm = detectPackageManager(key);
   if (pm) {
     lines.push(pm.missing

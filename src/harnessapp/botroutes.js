@@ -1,19 +1,9 @@
 'use strict';
 
-/**
- * THE BOT VIEW'S ROUTES — connection state and the Telegram setup flow.
- *
- * All of it is src/botconnect.js, which is a projection and a flow over the
- * supervisor's credential authority and Astra's gateway. Every route is a POST:
- * reading connection state may start LAIN's runtime (the supervisor holds the
- * Telegram credential), and a poll must never do that.
- *
- * THE TOKEN IS IN ONE REQUEST BODY AND NOWHERE ELSE. It is not echoed, not put
- * in any response, not stored by this file, and `connectTelegram` registers it
- * with redact.js before it goes anywhere.
- */
+/** THE BOT VIEW'S ROUTES — connection state and the Telegram setup flow. */
 
-const bc = require('../botconnect');
+const bcLazy = () => require('../botconnect');   // the Telegram gateway (frozen, S9) loads on its first route
+const bc = new Proxy({}, { get: (_, k) => bcLazy()[k] });
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }
@@ -41,6 +31,11 @@ const ROUTES = {
 
   'POST /api/bot/telegram/check': async (app) => ok({ telegram: await bc.telegram(app, { check: true }) }),
 
+  'POST /api/bot/telegram/test': async (app, body = {}) => {
+    const r = await bc.sendTest(app, { to: body.to });
+    return r.ok ? ok({ receipt: r.receipt }) : bad(r.why, 409, { receipt: r.receipt || null });
+  },
+
   'POST /api/bot/telegram/candidates': async (app) => ok({ candidates: bc.candidates(app, 'telegram') }),
 
   'POST /api/bot/telegram/approve': async (app, body = {}) => {
@@ -55,7 +50,7 @@ const ROUTES = {
 
   'POST /api/bot/telegram/disconnect': async (app) => {
     const r = await bc.disconnectTelegram(app);
-    return r.ok ? ok({ removed: r.removed, telegram: r.telegram }) : bad(r.why, 409);
+    return r.ok ? ok({ removed: r.removed, notRevoked: r.notRevoked, telegram: r.telegram }) : bad(r.why, 409);
   },
 };
 

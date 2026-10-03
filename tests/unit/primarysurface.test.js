@@ -118,9 +118,9 @@ module.exports = async function () {
     const phase = { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'src/router.js' };
     const a = status.liveState({ phase, phaseSince: 1000 }, 5000);
     const b = status.liveState({ phase, phaseSince: 1000 }, 900000);
-    assert.strictEqual(a.word, 'READING');
+    assert.strictEqual(a.word, 'Reading');
     assert.strictEqual(b.word, a.word, 'the word may not change merely because time passed');
-    assert.strictEqual(b.detail, a.detail, 'nor may the subject');
+    assert.strictEqual(b.detail.split(' · ')[0], a.detail.split(' · ')[0], 'nor may the subject (the step time beside it is a reading — S5.1)');
   });
 
   await test('ACTIVITY: with nothing running and nothing done, LAIN says READY — not a fake verb', () => {
@@ -137,12 +137,12 @@ module.exports = async function () {
     // what makes them worth watching: proving, looking, and leaving something
     // alive on the user's machine are three different events.
     const word = (tool, target) => status.liveState({ phase: { phase: 'RUNNING_TOOL', tool, target } }).word;
-    assert.strictEqual(word('verify_task', 'unit tests pass'), 'VERIFYING');
-    assert.strictEqual(word('observe', 'errors'), 'OBSERVING');
-    assert.strictEqual(word('service_start', 'npm run dev'), 'STARTING');
-    assert.strictEqual(word('service_check', 'dev'), 'CHECKING');
+    assert.strictEqual(word('verify_task', 'unit tests pass'), 'Verifying');
+    assert.strictEqual(word('observe', 'errors'), 'Observing');
+    assert.strictEqual(word('service_start', 'npm run dev'), 'Starting');
+    assert.strictEqual(word('service_check', 'dev'), 'Checking');
     // And an ordinary command is still a command.
-    assert.strictEqual(word('run_bash', 'npm test'), 'RUNNING');
+    assert.strictEqual(word('run_bash', 'npm test'), 'Running npm test');
   });
 
   await test('ACTIVITY: a harness call always names its subject — no subject-less rows', () => {
@@ -183,16 +183,6 @@ module.exports = async function () {
     const out = draw();
     assert.ok(!/Task ID|task_[0-9a-f]{6}|events\.jsonl|verification contract/i.test(out), out.slice(0, 400));
   });
-
-  await test('BOUNDARY: there is ONE projection of harness state, and the surfaces share it', () => {
-    // A second reader assembling its own notion of “is it done” is the failure
-    // harnesssurface.js exists to prevent — see its header. The dashboard is
-    // the existing consumer; this pins that it consumes rather than derives.
-    const dash = fsx.readFileSync(path.join(__dirname, '..', '..', 'src', 'dash.js'), 'utf8');
-    assert.match(dash, /harnesssurface/, 'the dashboard must read the shared projection');
-    assert.ok(!/runtime\.snapshot\(\)/.test(dash), 'and must not reach past it into the runtime');
-  });
-
   await test('BOUNDARY: a missing harness degrades to absent, never to a false empty task', () => {
     // `null` means “no task has been opened”. An object of zeroes would render
     // as a task that exists and has proved nothing, which is a different and

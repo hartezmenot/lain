@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * LOCATE ASSIST — "which files is this request about?", answered before the
- * first request instead of by it (2026-09-23).
- *
- * ------------------------------------------------------------------------
- * THE COST IT GOES AFTER. A turn that has to change something first spends
- * requests finding it: list the tree, grep, open three wrong files. Each of
- * those is a full flagship request. A ranked shortlist of candidate files in
- * the first request's tail lets the model open the right file first.
- *
- * ------------------------------------------------------------------------
- * THE CASCADE (the `evidence_narrower` contract, workers.js):
- *
- *   items     one line per project file: path, its first doc line, its
- *             declared symbols (projectindex.js — no new index)
- *   lexical   deterministic term scoring over those lines; always runs
- *   laya      the local Laya worker re-ranks, ONLY when it is installed and
- *             policy allows (workerruntime.js); one bounded request, no retry
- *
- * The result is a SUGGESTION in the volatile tail, never a fence: every tool
- * still reaches every file, and the slice says so. It is not a user message,
- * not a plan step, not evidence that anything is true. Files the turn went on
- * to read or change that were NOT in the slice are counted afterwards as false
- * narrowing (`settle`), so what the slice is worth is measured, not assumed.
- *
- * SILENT WHEN IT HAS NOTHING TO SAY: a chat, a tiny project, a request too
- * short to rank, or a ranking with no clear leader all produce no section.
- */
+/** LOCATE ASSIST — "which files is this request about?", answered before the first request instead of by it (2026-09-23). */
 
 const fs = require('fs');
 const path = require('path');
@@ -36,32 +9,18 @@ const SHOW = 8;
 const MIN_FILES = 12;          // below this, the tree itself is the cheaper answer
 /** How many deterministic candidates Laya may re-rank. Core chooses the universe; Laya refines it. */
 const CANDIDATES = 40;
-// THE MOST A LAYA RANKING MAY ADD TO A TURN — and since 2026-09-24 it measures
-// what it claims to: the QUERY embedding against a project index prepared at
-// attach (layaindex.js), not a cold embedding of the whole project. Measured
-// warm rankings: 151–600 ms (docs/WORKERS.md §G.1, §H.2).
-// `cfg.workers.laya.deadlineMs` overrides it.
+// THE MOST A LAYA RANKING MAY ADD TO A TURN — and since 2026-09-24 it measures what it claims to: the QUERY embedding against a project index prepared…
 const LAYA_DEADLINE_MS = 2000;
 const STOP = new Set('the a an of to in on for and or with is it this that be are was were where what which when how why who does do did not no can should would could please make fix change add remove use using from into by at as so if then there their its my our your we you i me all any some file files code project'.split(' '));
 
 // ---- items ----------------------------------------------------------------
 
-/**
- * One line per candidate file, built from the project index held IN MEMORY
- * (layaindex.items → projectindex `persist:false`): nothing is written to the
- * project, which is what keeps a read-only project byte-identical.
- */
+/** One line per candidate file, built from the project index held IN MEMORY (layaindex.items → projectindex `persist:false`): nothing is written to the… */
 function items(root) {
   try { return require('./layaindex').items(root).items; } catch { return []; }
 }
 
-/**
- * WHAT THE REQUEST IS ABOUT, without what it forbids. "Do not modify any
- * file… Do not: - add tests - change backend" names tests and backends the task
- * is NOT about; ranking on those words ranked tests first (Toralink,
- * 2026-09-24). The negated clauses and lists go (wakeup.stripNegated — one
- * negation rule in the program), and the rest is what gets ranked.
- */
+/** WHAT THE REQUEST IS ABOUT, without what it forbids. */
 function intentText(text) {
   const t = require('./wakeup').stripNegated(String(text || ''));
   return t.replace(/\s+/g, ' ').trim();
@@ -77,13 +36,7 @@ function words(s) {
     .map((w) => w.replace(/(ings?|ed|es|s)$/, '') || w);
 }
 
-/**
- * WHAT KIND OF FILE, AND DOES THE REQUEST ASK ABOUT THAT KIND? A trace of how
- * the application behaves is answered by production source; tests, fixtures
- * and docs mention the same words and come second — unless the request is
- * about tests, docs or configuration, when they are the answer. Generic, never
- * a project's file names.
- */
+/** WHAT KIND OF FILE, AND DOES THE REQUEST ASK ABOUT THAT KIND? */
 const TESTY = /(^|\/)(?:tests?|__tests__|spec|specs|e2e|fixtures?|__fixtures__|__mocks__|mocks?|snapshots?|__snapshots__)\/|\.(?:test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]+\.py$|_test\.(?:go|py)$/i;
 const DOCS = /\.(?:md|mdx|rst|txt)$/i;
 const CONFIGY = /\.(?:json|ya?ml|toml)$/i;
@@ -109,15 +62,7 @@ function priorFor(q) {
 const UI_KIND = /\.(?:tsx|jsx|vue|svelte|html?)$/i;
 const SERVER_LIBS = /^(?:express|fastify|koa|hono|@nestjs\/|next\/server|http|node:http|flask|fastapi|django)(?:\/|$)/i;
 
-/**
- * Term scoring: path hits weigh most, a term the request repeats weighs more
- * (log term frequency), and the kind prior above. Returns every item with a
- * score > 0, best first.
- *
- * THE PROJECT'S OWN NAME IS NOT A CLUE (`root`): "trace the Toralink search
- * flow" says which project, not which file, and scoring it ranked a file that
- * happens to carry the project's name first.
- */
+/** Term scoring: path hits weigh most, a term the request repeats weighs more (log term frequency), and the kind prior above. */
 function lexical(query, list, root = null) {
   const own = new Set(root ? words(path.basename(path.resolve(root))) : []);
   const qAll = words(query).filter((t) => !own.has(t));
@@ -153,13 +98,7 @@ function resolveImport(from, spec, known) {
   return null;
 }
 
-/**
- * THE CANDIDATE UNIVERSE — Core's, deterministic, bounded. Term scoring first;
- * then what the best-scoring files actually IMPORT (one hop, from the project
- * index), because a flow runs through files that do not repeat the request's
- * words — the API module a component calls, the types it passes. Laya refines
- * this set; it never replaces it or searches outside it.
- */
+/** THE CANDIDATE UNIVERSE — Core's, deterministic, bounded. */
 function candidates(query, list, max = CANDIDATES, root = null) {
   const lex = lexical(query, list, root);
   const byId = new Map(list.map((it) => [it.id, it]));
@@ -173,10 +112,7 @@ function candidates(query, list, max = CANDIDATES, root = null) {
     }
   }
   const out = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([id, s]) => ({ id, score: s, textHash: (byId.get(id) || {}).textHash }));
-  // WHEN THE WORDS FIND LITTLE, Laya's job is exactly the part they missed: the
-  // universe is filled to its bound with the files that scored nothing (source
-  // before tests and docs). They carry score 0 and never enter the
-  // deterministic slice — only Laya can promote one.
+  // WHEN THE WORDS FIND LITTLE, Laya's job is exactly the part they missed: the universe is filled to its bound with the files that scored nothing…
   if (out.length < max) {
     const prior = priorFor([]);
     const have = new Set(out.map((c) => c.id));
@@ -188,15 +124,7 @@ function candidates(query, list, max = CANDIDATES, root = null) {
 
 // ---- the cascade --------------------------------------------------------------
 
-/**
- * RANK ONE REQUEST. `{ ranked:[{id}], by, ms, abstain, rawChars, candidates, laya }`.
- * `laya` is `'off'` (deterministic only), or the adapter mode ('cos'|'choice').
- *
- * With the worker HOSTED, Laya re-ranks Core's candidates against the project
- * index the host prepared (`rank_project`) — one query embedding. Not ready
- * (model loading, index building) → bypassed at once, and the answer is the
- * deterministic one. `list` may carry the `generation` it was built at.
- */
+/** RANK ONE REQUEST. `{ ranked:[{id}], by, ms, abstain, rawChars, candidates, laya }`. `laya` is `'off'` (deterministic only), or the adapter mode… */
 async function rank(app, root, query, { laya = 'cos', list = null, generation = null } = {}) {
   const t0 = Date.now();
   const all = list || items(root);
@@ -242,43 +170,27 @@ async function rank(app, root, query, { laya = 'cos', list = null, generation = 
 
 // ---- the turn hook --------------------------------------------------------------
 
-/**
- * WHO ANSWERS THIS TURN. The shortlist is OPT-IN (`cfg.workers.locate = 'on'`,
- * `/workers locate on`, or LAIN_LOCATE=on): the end-to-end A/B measured no
- * saving from it, so it is not on by default (docs/WORKERS.md §G.4). Laya
- * joins it only where its recorded gate for FILE location passed (`auto`), or
- * when the person forced it on for an experiment (`on`). See workerruntime.uses.
- */
+/** WHO ANSWERS THIS TURN. */
 function policy(app, session) {
   const rt = require('./workerruntime');
   const cfg = (app && app.cfg && app.cfg.workers) || {};
   const on = rt.policyOf(app) !== 'off' && String(process.env.LAIN_LOCATE || cfg.locate || 'off').toLowerCase() === 'on';
   const view = (() => { try { return require('./sessionviews').current(session); } catch { return 'coding'; } })();
-  return { on: on && view !== 'chat', laya: rt.uses(app, 'laya', 'file_locate') ? (cfg.layaMode || 'cos') : 'off' };
+  const mode = rt.roleMode(app, 'laya', 'source_file_ranker');
+  const assigned = mode === 'FORCE' || (mode === 'AUTO' && require('./dispatch').allows(session, 'laya:source_file_ranker'));
+  return { on: on && view !== 'chat', laya: assigned && rt.uses(app, 'laya', 'file_locate') ? (cfg.layaMode || 'cos') : 'off', mode };
 }
 
-/**
- * START LOADING LAYA WHEN LAIN OPENS — only when policy will use it — and
- * never wait for it. The load runs in the worker host (workerhost.js); the
- * prompt is usable at once. Nothing is inferred and no token is produced
- * here: a hot, idle model costs memory, not work. Until it is hot, a turn
- * that could use it goes without it (workerruntime's availability deadline).
- *
- * Violetto is NOT loaded in normal work: its gate failed and it is off. It is
- * loaded here only when a person forced it on (an experiment).
- */
+/** THE REJECTED RANKER'S OWN PREPARATION — reached only when a benchmark set `source_file_ranker` explicitly (LAIN_ROLE_SOURCE_FILE_RANKER=FORCE): the… */
 function prewarm(app) {
   try {
     const s = app && app.session;
     if (!s || !s.cwd) return false;
     const rt = require('./workerruntime');
-    if (rt.uses(app, 'violetto', 'geometry')) rt.prewarm(app, 'violetto');
     const pol = policy(app, s);
-    if (!pol.on || pol.laya === 'off') return false;
+    if (!(pol.on && pol.laya !== 'off')) return false;
     rt.prewarm(app, 'laya');
-    // AND THE PROJECT: model hot is not project ready. The host embeds this
-    // project in the background (or restores it from LAIN's machine-local
-    // cache) so the first task finds it READY — layaindex.js.
+    // AND THE PROJECT: model hot is not project ready.
     rt.indexProject(app, 'laya', s.cwd);
     return true;
   } catch { return false; }
@@ -289,20 +201,12 @@ function lastUser(session) {
   return m ? m.content : '';
 }
 
-/**
- * THE TAIL SECTION FOR THIS TURN — computed once at the first step, reused for
- * every later step of the same turn. Returns '' when there is nothing useful.
- */
+/** THE TAIL SECTION FOR THIS TURN — computed once at the first step, reused for every later step of the same turn. */
 async function take(app, session, step = 0) {
   if (!app || !session || !session.cwd) return '';
   const st = session._locateAssist;
   const query = lastUser(session);
-  // THIS TURN'S SHORTLIST is reused by its later steps AND by a replay of its
-  // step 0 (a transport retry re-runs step 0 — live, 2026-09-23, that produced
-  // a second ranking and a second ledger row). A NEW turn re-ranks, even for
-  // the same words: the files may have changed since, and the worker result
-  // cache — keyed by the exact file listing — makes an unchanged state free.
-  // The turn is told apart by the number of user messages, not by the words.
+  // THIS TURN'S SHORTLIST is reused by its later steps AND by a replay of its step 0
   const turnKey = (session.messages || []).filter((m) => m.role === 'user').length;
   if (st && st.query === query && (step > 0 || st.turnKey === turnKey)) return st.text;
   if (step > 0) return '';
@@ -323,7 +227,9 @@ async function take(app, session, step = 0) {
   if (r.abstain || !r.ranked.length) return '';
   hold.slice = r.ranked.map((x) => x.id);
   hold.by = r.by;
-  hold.text = `# Likely relevant files (locate assist · ${r.by === 'laya' ? 'Laya + lexical' : 'lexical'} · ${r.n} files ranked)\n`
+  // ORDINARY EVIDENCE: how it was produced is an orchestration detail the
+  // flagship does not need (the ledger row records the tier).
+  hold.text = `# Likely relevant files (${r.n} ranked)\n`
     + r.ranked.map((x) => `- ${x.id}`).join('\n')
     + '\nA ranked suggestion only — open what the task needs; any file remains reachable. It narrows project EVIDENCE; the request, its constraints and the output it asks for are unchanged.';
   hold.row = require('./workers').note(session, {
@@ -338,17 +244,21 @@ async function take(app, session, step = 0) {
   });
   // DIAGNOSTIC ONLY: one transient note when the worker was FORCED on for an
   // experiment — never in normal work, never a transcript row.
-  if (r.by === 'laya' && require('./workerruntime').enabledOf(app, 'laya') === 'on') {
+  if (r.by === 'laya') {
+    try {
+      require('./dispatch').job(session, { worker: 'LAYA', role: 'source_file_ranker', contract: 'evidence_narrower', mode: pol.mode,
+        why: pol.mode === 'FORCE' ? 'forced on by the person for an experiment' : 'assigned by Core', facts: r.candidates.length,
+        resultChars: hold.text.length, consumed: true, late: Boolean(r.laya && r.laya.timedOut) });
+    } catch { /* telemetry only */ }
+  }
+  if (r.by === 'laya' && pol.mode === 'FORCE') {
     const k = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
     try { require('./ui/operation').say(app, `WORKER · Laya · evidence narrowed · ${k(hold.text.length)} chars from ${k(r.rawChars)}${r.laya && r.laya.cached ? ' · cached' : ''}`); } catch { /* no screen */ }
   }
   return hold.text;
 }
 
-/**
- * FALSE NARROWING, MEASURED: files the finished turn read or changed that the
- * slice did not name. Written onto the ledger row the slice produced.
- */
+/** FALSE NARROWING, MEASURED: files the finished turn read or changed that the slice did not name. */
 function settle(session, touched) {
   const st = session && session._locateAssist;
   if (!st || !st.row || !Array.isArray(touched)) return null;

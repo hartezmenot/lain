@@ -20,12 +20,12 @@ const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
 const F = require('../../src/findings');
-const survey = require('../../src/survey');
+const survey = require('../../tools/dev/survey');
 const rootcause = require('../../src/rootcause');
 const briefing = require('../../src/briefing');
 const briefcommand = require('../../src/briefcommand');
 const langscan = require('../../src/langscan');
-const toolchain = require('../../src/toolchain');
+const toolchain = require('../../tools/dev/toolchain');
 
 const { HEALTH } = survey;
 

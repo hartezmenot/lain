@@ -1,28 +1,16 @@
 'use strict';
 
-/**
- * `/lain` — WHAT THE PROJECT REMEMBERS ABOUT ITSELF.
- *
- * The `.lain/` directory is the layer that survives compaction, clears, model
- * switches and restarts: the intended architecture, the wiring, the
- * vocabulary, the verified facts, the scratches of turns that never finished.
- * Everything in it got there through the `concept`, `architecture`, `wiring`
- * and `scratch` tools — this command is the human's read of all of it at once,
- * and the one place an interrupted turn's leftover findings are surfaced
- * without a model having to look for them.
- *
- * It changes nothing. Reading reconciles the architecture against the disk
- * (that is a read of the disk, not a write of intent), and says plainly when
- * something recorded as IMPLEMENTED is no longer there.
- */
+/** `/lain` — WHAT THE PROJECT REMEMBERS ABOUT ITSELF. */
 
 function register({ define, C }) {
-  define('/lain', {
+  // `/lain`, and `/noema` — its name in the Noema era — as the same command.
+  const spec = {
     surface: true,
     args: '',
     desc: 'What .lain remembers: architecture, wiring, vocabulary, facts, unfinished turns',
     run(app) {
       const root = app.session ? app.session.cwd : process.cwd();
+      const folder = `${require('./projectmeta').name(root)}/`;
       const lainstore = require('./lainstore');
       const dictionary = require('./dictionary');
       const architecture = require('./architecture');
@@ -32,7 +20,7 @@ function register({ define, C }) {
 
       const survey = lainstore.survey(root);
       if (!survey.exists) {
-        app.render.write(C.dim('\n  No .lain/ in this project yet — nothing has been recorded.\n'
+        app.render.write(C.dim(`\n  No ${folder} in this project yet — nothing has been recorded.\n`
           + '  The concept, architecture, wiring and scratch tools write here as the model '
           + 'establishes things worth keeping.\n'));
         return;
@@ -43,7 +31,7 @@ function register({ define, C }) {
         .filter(([, s]) => s.present)
         .map(([name, s]) => `${name} (${Math.max(1, Math.round(s.bytes / 1024))}k, `
           + `${new Date(s.updatedAt).toISOString().slice(0, 10)})`);
-      app.render.write(C.green(`\n  .lain/ — ${slots.length ? slots.join(' · ') : 'empty slots'}`));
+      app.render.write(C.green(`\n  ${folder} — ${slots.length ? slots.join(' · ') : 'empty slots'}`));
 
       // THE VOCABULARY, one line each.
       app.render.write(C.dim('\n  -- vocabulary --'));
@@ -77,7 +65,9 @@ function register({ define, C }) {
         app.render.write(C.dim('\n  No unfinished turns.\n'));
       }
     },
-  });
+  };
+  define('/lain', spec);
+  define('/noema', { ...spec, desc: 'Same as /lain (its Noema-era name)' });
 }
 
 function indent(text, pad) {

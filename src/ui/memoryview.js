@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * THE MEMORY PANE — what has been settled, so it is not settled again.
- *
- * The pane exists because the alternative is a future session reopening a
- * decision that was made deliberately, from a transcript where the reasoning
- * scrolled out of view months ago. "External JSON is the source of truth" is
- * one sentence; rediscovering it costs an afternoon and sometimes gets
- * "tidied up" by whoever looks next.
- *
- * ORDERED BY HOW SETTLED IT IS. Decisions and source-of-truth entries first —
- * those are the ones somebody is about to contradict — then conventions, then
- * limitations, and open notes last. A reader scanning from the top meets the
- * binding things before the loose ones.
- */
+/** THE MEMORY PANE — what has been settled, so it is not settled again. */
 
 const { doc } = require('./doc');
 const { P } = require('./paint');
@@ -49,9 +36,6 @@ function render({ root, width = 80 }) {
     d.section('keep something');
     d.field('note', '/note the context summary still feels compressed', { tone: P.cmd });
     d.field('decision', '/note decision external JSON is the source of truth', { tone: P.cmd });
-    // (Both example strings named lain-probe and the browser check once —
-    // instruments this CLI no longer integrates with. The sentences are
-    // teaching shapes, and a stale example teaches a stale fact.)
     d.field('fact', '/note fact the dashboard binds 127.0.0.1 only', { tone: P.cmd });
     d.field('limitation', '/note limitation mock token figures validate accounting only', { tone: P.cmd });
     return d.render(width);

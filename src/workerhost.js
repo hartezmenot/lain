@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * THE CLIENT FOR THE WORKER HOST (workerhostmain.js) — the only thing in LAIN
- * that talks to it.
- *
- * Same conventions as supervisor.js, on purpose: one connection per request,
- * every function answers with a STATE and never throws, and nothing on a hot
- * path ever waits for the host to boot. `ensure` starts it DETACHED so a LAIN
- * that exits, or crashes, leaves the model hot for the next one.
- *
- * Where it lives: `LAIN_WORKERHOST_DIR`, else `<LAIN home>/workerhost`. The
- * pipe name is derived from that directory, so two homes never share a host
- * and one home never has two.
- */
+/** THE CLIENT FOR THE WORKER HOST (workerhostmain.js) — the only thing in LAIN that talks to it. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -66,12 +54,7 @@ function send(msg, { timeoutMs = TIMEOUT_MS, d = dir() } = {}) {
   });
 }
 
-/**
- * MAKE SURE A HOST IS RUNNING. Returns at once with a promise for readiness —
- * a caller on the hot path never awaits it. Concurrent starts in one process
- * share one promise; concurrent starts across processes are settled by the
- * pipe itself (the second host cannot listen and exits).
- */
+/** MAKE SURE A HOST IS RUNNING. */
 const starting = new Map();
 function ensure({ d = dir(), startTimeoutMs = 8000 } = {}) {
   if (starting.has(d)) return starting.get(d);
@@ -109,11 +92,7 @@ async function load(id, spec, opts = {}) {
 /** Block until a worker is hot. For benchmarks and diagnostics — never from a turn. */
 function wait(id, timeoutMs = 10 * 60 * 1000) { return send({ op: 'wait', id, timeoutMs }, { timeoutMs: timeoutMs + 5000 }); }
 
-/**
- * ONE BOUNDED REQUEST to a worker. The host applies the availability rule
- * (`availableWithinMs`) and the request's own timeout; this adds a little
- * slack for the pipe so the host's answer, not ours, decides.
- */
+/** ONE BOUNDED REQUEST to a worker. */
 function call(id, req, { timeoutMs = 20000, availableWithinMs = 0 } = {}) {
   return send({ op: 'call', id, req, timeoutMs, availableWithinMs }, { timeoutMs: timeoutMs + availableWithinMs + 2000 });
 }

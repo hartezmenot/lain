@@ -1,53 +1,18 @@
 'use strict';
 
-/**
- * THE HARNESS TOOLS — what the model can ask the harness to do.
- *
- * ------------------------------------------------------------------------
- * FOUR TOOLS, AND EACH ONE REPLACES A HABIT.
- *
- *   verify_task    replaces "I've fixed it". The model states what would PROVE
- *                  the work, the harness runs those checks, and the verdict
- *                  comes from exit codes and the DOM rather than from the
- *                  sentence at the end of the turn.
- *
- *   service_start  replaces `run_bash("npm run dev &")`, which on Windows does
- *                  not background, on POSIX detaches from any supervision, and
- *                  in both cases leaves a process nobody owns on a port nobody
- *                  recorded. A managed service has a name, a port, a health
- *                  check and an owner task that takes it down.
- *
- *   service_check  replaces a `sleep 5` followed by hope. It answers whether
- *                  the thing is actually up, and it can WAIT for that, which is
- *                  the single most common reason a frontend task fails for no
- *                  real reason.
- *
- *   observe        replaces "take a screenshot and look at it" for questions
- *                  that structure could answer for nothing. The model states
- *                  what it wants to know; the router picks the cheapest source
- *                  that can answer.
- *
- * ------------------------------------------------------------------------
- * WHY `verify_task` IS NOT A COMPLETION TOOL.
- *
- * It cannot mark anything done. It runs a contract and reports the verdict; the
- * task state that follows is computed from that verdict by the runtime, and
- * PASSED is reachable only when every required piece of evidence passed. A
- * model calling this with an empty contract gets INCONCLUSIVE, which is the
- * honest answer to "I proved nothing".
- */
+/** THE HARNESS TOOLS — what the model can ask the harness to do. */
 
 const { EVENT, busOf } = require('../events');
 
 /** Bounded, because a tool result rides in the context window. */
 const MAX_OUTPUT = 6000;
+/** A receipt page is bounded by rows (observationstore.SHOW), not cut mid-row at 6,000 chars. */
+const RECEIPT_OUTPUT = 20000;
 
 function harnessOf(ctx) {
   const app = ctx && ctx.app;
   if (app) return require('../harnesslink').harnessFor(app);
-  // NO APP IS NOT AN ERROR. A forked job and a unit test both call tools with a
-  // context that has no App, and every tool in this tree works there. The
-  // harness is built for the working directory instead, in memory.
+  // NO APP IS NOT AN ERROR.
   const { Harness } = require('../harness');
   if (!ctx._harness) ctx._harness = new Harness({ workspace: (ctx && ctx.cwd) || process.cwd(), persist: false });
   return ctx._harness;
@@ -59,89 +24,6 @@ function clip(s) {
 }
 
 const tools = {};
-
-tools.verify_task = {
-  // IT RUNS THINGS — test suites, builds, browsers — so it is marked mutating
-  // and goes through the same gate every other executing tool does.
-  mutates: true,
-  schema: {
-    name: 'verify_task',
-    description:
-      'PROVE the work instead of claiming it. Give the requirements and, for each, the evidence that '
-      + 'would establish it: a test suite, a build command, an HTTP endpoint, a file, a managed '
-      + 'process, or a browser flow. Each check returns PASSED, FAILED or INCONCLUSIVE (it could not '
-      + 'run — a missing runner is never a red suite), and the task is settled from the result. '
-      + 'Required evidence that is missing gives INCONCLUSIVE, not success. Call this when you '
-      + 'believe the work is done.',
-    parameters: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'what this contract is about, in a few words' },
-        requirements: {
-          type: 'array',
-          description: 'one entry per thing that must be true; each names its own evidence',
-          items: {
-            type: 'object',
-            properties: {
-              description: { type: 'string', description: 'the requirement, in plain words' },
-              required: { type: 'boolean', description: 'default true; an optional requirement is reported and cannot fail the task' },
-              checks: {
-                type: 'array',
-                description: 'the evidence. kind is one of: tests, build, command, http, file, process, browser, observation',
-                items: {
-                  type: 'object',
-                  properties: {
-                    kind: { type: 'string', description: 'tests | build | command | http | file | process | browser | observation' },
-                    label: { type: 'string', description: 'a short name for this check, shown in the report' },
-                    command: { type: 'string', description: 'for tests/build/command — the command line; omit for tests to use the project suite' },
-                    url: { type: 'string', description: 'for http/browser' },
-                    path: { type: 'string', description: 'for file' },
-                    contains: { type: 'string', description: 'for file — text the file must contain' },
-                    must_exist: { type: 'boolean', description: 'for file — false asserts the path is GONE' },
-                    expect_status: { type: 'number', description: 'for http' },
-                    expect_exit: { type: 'number', description: 'for command — default 0' },
-                    name: { type: 'string', description: 'for process — the managed service name' },
-                    goal: { type: 'string', description: 'for observation — file, code, changes, process, logs, endpoint, element, page, errors, requests, screen, system' },
-                    selector: { type: 'string', description: 'for browser/observation — a CSS selector' },
-                    expect: { type: 'string', description: 'for observation — text the answer must contain' },
-                    actions: { type: 'array', description: 'for browser — [{type:navigate|click|type|wait|evaluate|screenshot, ...}]', items: { type: 'object' } },
-                    assert: { type: 'array', description: 'for browser — [{selector, visible?, disabled?, text?, exists?}]', items: { type: 'object' } },
-                    expect_url: { type: 'string', description: 'for browser — the URL must contain this after the flow' },
-                    no_console_errors: { type: 'boolean', description: 'for browser — fail if the page logged errors' },
-                  },
-                  required: ['kind'],
-                },
-              },
-            },
-            required: ['description'],
-          },
-        },
-      },
-      required: ['requirements'],
-    },
-  },
-  async run(input, ctx) {
-    const h = harnessOf(ctx);
-    const requirements = Array.isArray(input.requirements) ? input.requirements : [];
-    if (!requirements.length) {
-      return {
-        output: 'verify_task needs at least one requirement with its evidence. A contract that '
-          + 'requires nothing proves nothing, and would settle the task INCONCLUSIVE.',
-        isError: true,
-      };
-    }
-    const report = await h.verify({ name: input.name || 'verification', requirements });
-    const rendered = require('../harness/verify').render(report);
-    return {
-      output: clip(rendered),
-      isError: report.verdict === 'FAILED',
-      meta: {
-        verdict: report.verdict, passed: report.passed, failed: report.failed,
-        inconclusive: report.inconclusive, taskId: report.taskId,
-      },
-    };
-  },
-};
 
 tools.service_start = {
   mutates: true,
@@ -256,13 +138,26 @@ tools.observe = {
         path: { type: 'string', description: 'for file/code — which file' },
         name: { type: 'string', description: 'for process/logs — the managed service name' },
         lines: { type: 'number', description: 'for logs — how many lines' },
+        receipt: { type: 'string', description: 'an observation receipt (obs_…): answer page/element/requests/errors/system from that captured live observation instead of looking again' },
+        ref: { type: 'string', description: 'with receipt, for element — one node by its ref (e.g. "n42"): the node, its path and its children' },
+        query: { type: 'string', description: 'with receipt, for element — words to match against node roles, names, text, ids and classes' },
+        offset: { type: 'number', description: 'with receipt, for page — the node to start the page at' },
       },
       required: ['goal'],
     },
   },
   async run(input, ctx) {
-    const h = harnessOf(ctx);
     const goal = String(input.goal || '').toLowerCase();
+    // A CAPTURED OBSERVATION answers from its receipt (observationstore.js):
+    // the same state every time, every node reachable by ref, reads measured.
+    if (input.receipt) {
+      const session = (ctx && ctx.session) || (ctx && ctx.app && ctx.app.session) || null;
+      const r = require('../observationstore').answer(goal, input, session);
+      if (!r.ok) return { output: `nothing could answer "${goal}": ${r.why}`, isError: true, meta: { goal, ok: false } };
+      const v = String(r.value);
+      return { output: `[${r.source}] ${r.summary}\n${v.length > RECEIPT_OUTPUT ? `${v.slice(0, RECEIPT_OUTPUT)}…` : v}`, meta: { goal, source: r.source, receipt: input.receipt } };
+    }
+    const h = harnessOf(ctx);
     const r = await h.observe(goal, input, h.runtime.activeId);
     if (!r.ok) {
       return {

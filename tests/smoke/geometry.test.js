@@ -149,7 +149,7 @@ module.exports = async function () {
     // input that was in fact below it.
     const answerBox = absRow(f, 'ANSWER');
     assert.ok(answerBox > 0, 'the input box must be drawn, wearing its ANSWER label');
-    assert.ok(absRow(f, 'Lain needs your input') > answerBox,
+    assert.ok(absRow(f, 'LAIN needs your input') > answerBox,
       'the question must sit under the line that answers it');
   });
 };

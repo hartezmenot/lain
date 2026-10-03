@@ -86,6 +86,8 @@ module.exports = async function () {
     const structured = new Set([...(mcpTool.OBSERVE || []), ...(mcpTool.ACT || [])].map(String));
     for (const op of bridgeOps) {
       if (covered.has(op)) continue;
+      // control.* (Phase CU) is LAIN's own — computercontrol.js arms the target, the kill switch and its state; no tool sends it.
+      if (/^control./.test(op)) { assert.strictEqual(require('../../src/computercontrol').admit({}, op, {}).ok, false, `${op} is refused to a tool`); continue; }
       assert.ok(structured.size > 0, 'the Computer MCP tool declares the operations it owns');
       assert.ok(/^(uia|wait|window|mouse|keyboard|clipboard|screen|cursor|displays|hello)\b/.test(op),
         `${op} belongs to no surface — either give it one or do not offer it`);

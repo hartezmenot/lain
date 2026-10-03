@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * A FINISHED TURN, AS WHAT IT DID (§4, §15–16, §85).
- *
- *     USER · fix retry ownership
- *     ────
- *     Tracing scheduler → queue ownership.      (narration, condensed)
- *
- *     CHANGE
- *     │ ✓ scheduler.ts   +18 -7   [Diff]
- *     VERIFY
- *     │ ✓ npm test -- retry
- *     RESULT
- *     Retry scheduling now has one owner.
- *
- * Only for a turn that CHANGED or CHECKED something; a conversational turn is
- * drawn exactly as before. Reads are never listed here — the activity box and
- * the timeline showed them while they happened.
- *
- * THE DIFF IS PART OF THE TRANSCRIPT, SHOWN WITHOUT BEING ASKED FOR. A change
- * row carries the file's real hunks directly under it — live, through VERIFY,
- * and after DONE — and scrolls up with everything else. Nobody has to click to
- * find out that something changed. A large diff shows its first AUTO_LINES and
- * a `… N more lines [Show all]` row; the row's own control collapses and
- * reopens it (ui/difftoggle.js). Clicking is for inspection, never discovery.
- *
- * ARRIVAL IS NOT LIFETIME. The newest live edit's diff OPENS as grey space and
- * its rows arrive top-down over ARRIVE_MS — a pure function of the time since
- * the edit landed, computed at draw time, so nothing waits on it — and then it
- * is simply the diff, for good.
- */
+/** A FINISHED TURN, AS WHAT IT DID (§4, §15–16, §85). */
 
 const EDIT = new Set(['write_file', 'edit_file', 'apply_patch', 'append_file', 'insert_at', 'delete_range', 'move_file', 'delete_file',
   'replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol', 'download_file']);
@@ -43,12 +14,7 @@ const OPEN_MS = 120;
 const ARRIVE_MS = 600;
 
 const keyOf = (turn, path) => `${turn}:${path}`;
-/**
- * HOW MANY FILES SHOW THEIR DIFF WITHOUT BEING ASKED — the most recent ones.
- * A turn that touched thirty files must not print thirty diffs: the older rows
- * stay one line each (so a long run still folds to `✓ edited ×N`), and each
- * one's control opens it.
- */
+/** HOW MANY FILES SHOW THEIR DIFF WITHOUT BEING ASKED — the most recent ones. */
 const MAX_AUTO_FILES = 3;
 
 /** Shown or not: the person's own choice first, then whether it is one of the recent files. */
@@ -77,9 +43,7 @@ function pushDiff(said, ctx, turn, path, landedAt = 0, auto = true) {
   if (!isShown(ctx, turn, path, auto)) return;
   const all = diffLines(ctx, path, FULL_LINES);
   const full = Boolean(ctx.openDiff && ctx.openDiff.turn === turn && ctx.openDiff.path === path);
-  // NOTHING CAPTURED TO COMPARE AGAINST (no checkpoint, or the file was put
-  // back): the summary row already says what happened. The explanatory note is
-  // an answer to someone who asked to see more, not something to add unasked.
+  // NOTHING CAPTURED TO COMPARE AGAINST (no checkpoint, or the file was put back): the summary row already says what happened.
   if (!full && all.length === 1 && /^\s*\(no difference/.test(all[0])) return;
   const body = all.slice(0, full ? FULL_LINES : AUTO_LINES);
   const got = arrived(body.length, landedAt, ctx.now);
@@ -131,28 +95,18 @@ function pushChange(out, c, { turn, ctx, auto }) {
   });
 }
 
-/**
- * THE CHANGE SECTION — one row per file with its diff under it, for a finished
- * turn. Keyed by the same turn index as the live row, so a diff collapsed or
- * expanded while the work runs keeps that state when it settles. Its lifetime
- * is the turn's, never an animation's or the counters'.
- */
+/** THE CHANGE SECTION — one row per file with its diff under it, for a finished turn. */
 function pushChanges(said, changes, ti, ctx) {
   if (!changes.length) return;
   said.push({ kind: 'section', text: 'CHANGE' });
   changes.forEach((c, i) => {
-    const auto = i >= changes.length - MAX_AUTO_FILES;
+    const auto = !ctx.history && i >= changes.length - MAX_AUTO_FILES;
     pushChange(said, c, { turn: ti, ctx, auto });
     pushDiff(said, ctx, ti, c.path, 0, auto);
   });
 }
 
-/**
- * A LIVE EDIT ROW, IN PLACE, WITH ITS DIFF UNDER IT. The turn in flight keeps
- * its interleaved account (prose, the call it led to, the next prose); the row
- * carries the same control the settled CHANGE row has, keyed identically
- * ({turn, path}). The diff ARRIVES here, in the place it then stays.
- */
+/** A LIVE EDIT ROW, IN PLACE, WITH ITS DIFF UNDER IT. */
 function pushLiveChange(said, a, turn, ctx, pushAction, auto = true) {
   const key = String(a.path || a.target);
   const at = said.length;
@@ -178,19 +132,13 @@ function diffLines(ctx, rel, max = FULL_LINES) {
   return panes.unified(f.before, f.after, max);
 }
 
-/**
- * Push one finished turn in sectioned form. Returns false when the turn has
- * nothing to section, so the caller draws it the ordinary way.
- */
+/** Push one finished turn in sectioned form. */
 function pushTurn(said, t, ti, { actions, kept, narration, steers, settled, feed, ctx }) {
   const sec = sections(actions, kept);
   if (!sec.changes.length && !sec.checks.length) return false;
   const lastSaid = narration.length ? narration[narration.length - 1] : null;
   const steps = [...new Set([...narration.map((n) => n.step), ...actions.map((a) => a.step), ...steers.map((s) => s.step)])].sort((x, y) => x - y);
-  // A RESTATEMENT IS DRAWN ONCE. Live, 2026-09-18: "The cart line total bug is
-  // fixed…" opened three step narrations and then the RESULT — four copies of
-  // one finding. A narration whose opening sentence was already said in this
-  // turn (or opens the RESULT) is not drawn again; it stays in the record.
+  // A RESTATEMENT IS DRAWN ONCE.
   const seen = new Set();
   const opening = (n) => String(settled(t, n) || '').trim().split(/(?<=[.!?])\s|\s[-—]\s|\n/)[0].toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (lastSaid) seen.add(opening(lastSaid));
@@ -216,10 +164,7 @@ function pushTurn(said, t, ti, { actions, kept, narration, steers, settled, feed
   return true;
 }
 
-/**
- * Draw a `section` label or a run of `diff` rows into the rendered feed.
- * Returns `{ next, kind }` when entry `i` was one of those, else null.
- */
+/** Draw a `section` label or a run of `diff` rows into the rendered feed. */
 function renderSpecial(entries, i, out, width, P) {
   const e = entries[i];
   if (e.kind === 'diffmore') {

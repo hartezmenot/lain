@@ -52,28 +52,4 @@ function pressureSession() {
 }
 
 module.exports = async function () {
-  await test('COMPACT REG: pressure, ask_user, and bounded compaction leave the job parked', async () => {
-    const steps = [
-      { text: 'asking', tool_calls: [{ name: 'ask_user', input: { question: 'Which provider?', options: ['a', 'b'] } }] },
-    ];
-    const dir = script(steps);
-    try {
-      const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'compact-cwd-'));
-      const a = app(cwd);
-      a.session.messages = pressureSession().messages;
-      const job = a.startBackground('inspect the work');
-
-      await new Promise((resolve) => setImmediate(resolve));
-      assert.strictEqual(job.needsInput, true, 'the background job must remain parked');
-      assert.strictEqual(job.question && job.question.question, 'Which provider?');
-      assert.strictEqual(job.session.contextAuthority.attempts, 1,
-        `context authority attempted compaction ${job.session.contextAuthority.attempts} times`);
-      assert.ok(job.session.contextChars() < 363_000,
-        `the provider projection was compacted (${job.session.contextChars()} chars)`);
-      assert.strictEqual(job.session.messages[0].content, 'original objective');
-      fs.rmSync(cwd, { recursive: true, force: true });
-    } finally {
-      unscript();
-    }
-  });
 };

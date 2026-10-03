@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE ANALYSIS THAT NEEDS NO TOOLCHAIN — parse, symbols, names.
- *
- * Everything here runs IN PROCESS against the files as they are on disk right
- * now. No compiler, no install, no configuration, nothing to be missing on the
- * user's machine. That matters because it is the floor: whatever else is or is
- * not available, a briefing can always say whether the source parses and
- * whether it refers to things that exist.
- *
- * It is built entirely on machinery that already exists — `diagnostics.js` for
- * the parse verdict, `codemodel.js` for declarations and references,
- * `typos.js` for names that resolve to nothing. This file adds no analysis of
- * its own. Its whole job is to run those over a project rather than over one
- * file, and to turn what they say into the one finding shape everything
- * downstream reads.
- *
- * BOUNDED IN EVERY DIRECTION THAT CAN GROW. A briefing that takes ninety
- * seconds is a briefing nobody runs, and one that returns four thousand
- * findings is one nobody reads. Files visited, findings emitted and bytes read
- * per file are all capped, and a truncated sweep SAYS it was truncated — a
- * silent cap produces a confident "no problems found" over a project that was
- * never fully looked at.
- */
+/** THE ANALYSIS THAT NEEDS NO TOOLCHAIN — parse, symbols, names. */
 
 const fs = require('fs');
 const path = require('path');
@@ -38,35 +16,14 @@ const MAX_FILES = 2500;
 const MAX_FINDINGS = 300;
 const MAX_FILE_BYTES = 2_000_000;
 
-/**
- * Source this can say anything at all about.
- *
- * PYTHON IS DELIBERATELY ABSENT. `diagnostics.checkFile` answers for a `.py`
- * file by spawning an interpreter, which is right for one file after an edit
- * and catastrophic across a tree — four hundred Python files would be four
- * hundred processes. toolchain.js compiles them all in ONE process instead,
- * which is both faster and the native-tool answer. The census below still
- * counts them, so the briefing knows the project has Python in it.
- */
+/** Source this can say anything at all about. */
 const SOURCE_RE = /\.(?:js|cjs|mjs|jsx|ts|tsx|json)$/i;
 /** The subset the JavaScript symbol model understands. */
 const JS_RE = /\.(?:js|cjs|mjs)$/i;
 /** Paths that are a test, so a finding there can be labelled as one. */
 const TEST_RE = /(?:^|\/)(?:tests?|spec|__tests__)\/|\.(?:test|spec)\.[a-z]+$/i;
 
-/**
- * WHY THIS MESSAGE MEANS WHAT IT MEANS.
- *
- * A parser says `Unexpected token ')'`. That is a symptom, and forwarding it
- * alone leaves the reader to reconstruct what the parser was doing when it
- * gave up. These explain the MECHANISM — what the parser was in the middle of,
- * and therefore where to look — without claiming to know the cause, which the
- * parser did not establish and neither can this.
- *
- * Keyed on the stable part of the message. Anything unmatched gets no
- * explanation rather than a generic one: a sentence that says nothing is worse
- * than a blank, because it looks like an answer.
- */
+/** WHY THIS MESSAGE MEANS WHAT IT MEANS. */
 const EXPLAIN = [
   [/Unexpected token/i,
     'The parser reached a token that cannot continue the expression it was building. The defect is usually at or '
@@ -99,22 +56,10 @@ function explainFor(message) {
   return null;
 }
 
-/**
- * WHERE THE DEFECT IS, said in the words of the symbol model.
- *
- * A line number alone makes the reader open the file to find out what they are
- * looking at. Naming the enclosing definition means they already know.
- */
+/** WHERE THE DEFECT IS, said in the words of the symbol model. */
 function enclosing(model, line) {
   if (!model || !model.supported || !Number.isFinite(line)) return { symbol: null, container: null };
-  // ---- THE CALLABLE THAT CONTAINS IT, NOT THE NEAREST DECLARATION --------
-  //
-  // "Tightest range wins" picked the wrong thing constantly. A defect on
-  // `const rows = getUser(db);` sits inside a one-line `const` declaration,
-  // which is tighter than the function around it — so the report named the
-  // symbol `rows`, which tells a reader nothing they could not see, instead of
-  // `activeUsers`, which is where they have to go. The useful answer to "what
-  // is this inside" is always the enclosing FUNCTION, CLASS or METHOD.
+  // THE CALLABLE THAT CONTAINS IT, NOT THE NEAREST DECLARATION
   const CALLABLE = new Set([codemodel.KIND.FUNCTION, codemodel.KIND.CLASS, codemodel.KIND.METHOD]);
   let best = null;
   let fallback = null;
@@ -129,13 +74,7 @@ function enclosing(model, line) {
   return { symbol: pick.container ? `${pick.container}.${pick.name}` : pick.name, container: pick.container };
 }
 
-/**
- * Every file that imports a given one, by specifier basename.
- *
- * Deliberately cheap and deliberately approximate: it exists to answer "who
- * else should I look at", not to be a dependency graph. It is reported as
- * RELATED, which is a suggestion of where to look, never as a claim.
- */
+/** Every file that imports a given one, by specifier basename. */
 function relatedTo(rel, index) {
   const base = path.posix.basename(rel).replace(/\.[^.]+$/, '');
   const out = [];
@@ -151,14 +90,7 @@ function relatedTo(rel, index) {
   return out;
 }
 
-/**
- * Read a project into findings.
- *
- * @param {string} root
- * @param {object} [o]
- * @param {string[]} [o.only] restrict to these project-relative paths
- * @returns {Promise<{findings, scanned, truncated, sources: Set<string>, byLanguage}>}
- */
+/** Read a project into findings. */
 async function scanProject(root, { only = null } = {}) {
   const findings = [];
   const index = new Map();
@@ -175,11 +107,7 @@ async function scanProject(root, { only = null } = {}) {
     files.push(f);
   }
 
-  // ---- PASS ONE: parse, and build the symbol index ------------------------
-  //
-  // The index is built first because the second pass needs it: naming the
-  // enclosing symbol of a parse error, and listing which other files import
-  // the broken one, both require having read everything.
+  // PASS ONE: parse, and build the symbol index
   for (const f of files) {
     let st;
     try { st = fs.statSync(f.abs); } catch { continue; }
@@ -233,8 +161,6 @@ async function scanProject(root, { only = null } = {}) {
         // ERROR because when the path IS taken it is a certain failure.
         severity: F.SEVERITY.ERROR,
         // Two facts are proven — the name is used, and nothing declares it.
-        // That the SUGGESTION is what was meant is not proven, and the wording
-        // of the finding keeps those apart.
         confidence: F.CONFIDENCE.INFERRED,
         source: F.SOURCE.SYMBOL_GRAPH,
         file: rel,
@@ -268,14 +194,7 @@ async function scanProject(root, { only = null } = {}) {
   };
 }
 
-/**
- * WHAT LANGUAGES ARE ACTUALLY IN THIS TREE, and therefore which toolchains are
- * worth asking about.
- *
- * Counted from the files rather than guessed from a manifest: a repository with
- * a `package.json` and four hundred Python files is a Python project with a
- * build script in it.
- */
+/** WHAT LANGUAGES ARE ACTUALLY IN THIS TREE, and therefore which toolchains are worth asking about. */
 function languages(root) {
   const counts = {};
   let n = 0;

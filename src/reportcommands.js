@@ -1,51 +1,10 @@
 'use strict';
 
-/**
- * THE REPORT COMMANDS — read something and say what is true of it.
- *
- * Split out of commands.js, which had grown past the god-object guard again
- * when `/stop` and `/observing` arrived. The seam is the one the other command
- * files already draw: commands.js owns the REGISTRY, the dispatcher and the
- * during-a-turn rules; a family of commands with one subject owns a file.
- *
- * THE SUBJECT HERE IS A READING. Every command below inspects something —
- * this project, another version of it, LAIN itself, the machine LAIN is running
- * on — and writes what it found. None of them changes anything, which is what
- * lets them all be safe during a turn, and none of them owns its own analysis:
- * the work is in compare.js, audit.js, projecthealth.js, health.js and
- * diagnose.js, and these are the doors.
- *
- * `/audit` IS NO LONGER ONE OF THE DOORS — removed from the command surface in
- * 2026-09 as part of the UX subtraction pass. Not because the reading is not
- * worth having: because the AGENT should gather it when the work calls for it,
- * and a user should not have to choose "audit mode" to get a project read. The
- * engine (audit.js) is untouched and still reachable — by `/compare`'s comparison
- * of two trees, by `/health` (whose graded findings ARE an audit reading), by
- * `/copy audit`, and by the model itself, which reads the project with real
- * tools whenever the task warrants it. `/compare` remains: "read this against
- * that" is a named source argument, not a mode.
- */
+/** THE REPORT COMMANDS — read something and say what is true of it. */
 
-/**
- * @param {object} api  { define, C, config } — the registry's vocabulary,
- *                      passed in rather than imported back. A require of
- *                      commands.js from here would be a second dispatch path.
- */
+/** passed in rather than imported back. */
 function register({ define, C, config }) {
-  /**
-   * WHAT SURVIVED THE REWRITE, AND WHAT QUIETLY DID NOT.
-   *
-   * Not a diff. A diff of two versions of a program that was deliberately
-   * rebuilt is noise — every file differs. This compares CAPABILITIES, detected
-   * from evidence in both trees by one symmetric probe set (see compare.js),
-   * and says which survived, which are done differently, and which went
-   * missing.
-   *
-   * `add` does not copy code. It hands the capability to the ordinary task loop
-   * as a request, with the old implementation named as reading material —
-   * deciding how something should look in THIS architecture is work, and work
-   * belongs to the model with real tools, not to a report generator.
-   */
+  /** WHAT SURVIVED THE REWRITE, AND WHAT QUIETLY DID NOT. */
   define('/compare', {
     // MACHINERY: LAIN talking about itself, not about the work. Goes to the
     // command panel, never into the conversation the model reads.
@@ -54,24 +13,10 @@ function register({ define, C, config }) {
     flashMs: 0,
     args: '[<folder|github-url> | add <capability>]',
     desc: 'Compare this project against another version, capability by capability',
-    run(app, ctx) { return require('./compare').runCommand(app, ctx, { C, config }); },
+    run(app, ctx) { const cmp = require('./devtool').load('compare'); if (!cmp) { app.render.write(`  ${require('./devtool').missing('compare')}\n`); return null; } return cmp.runCommand(app, ctx, { C, config }); },
   });
 
-  /**
-   * TWO HEALTH QUESTIONS, TWO COMMANDS. They were one, and the one answered the
-   * wrong question: running `/health` inside a project reported LAIN's provider,
-   * context window and connections — true, and about the tool rather than the
-   * work. "Is my project healthy?" and "is LAIN ready?" are asked by the same
-   * person for different reasons and must never be collapsed.
-   *
-   *   /health  THE PROJECT — structure, code health, work state, graded findings
-   *   /ready   LAIN ITSELF — RC readiness: stable, wired, missing, excluded
-   *
-   * `/ready` WAS `/rc` BEFORE THAT NAME MEANT REMOTE CONTROL, and the remote-
-   * control command itself was removed from LAIN CLI in 2026-09 — the supervisor
-   * capability wire survived without it. The readiness report is unchanged:
-   * same engine, same output, the name it has now.
-   */
+  /** TWO HEALTH QUESTIONS, TWO COMMANDS. */
   define('/health', {
     surface: true,
     flashMs: 0,
@@ -87,20 +32,7 @@ function register({ define, C, config }) {
     run(app, ctx) { return require('./health').runCommand(app, ctx, { C }); },
   });
 
-  /**
-   * WHY DID THAT COST SEVEN REQUESTS?
-   *
-   * A count answers "how many"; this answers "why", which is the only version
-   * of the question you can act on. Every request that reached the wire is
-   * listed with the turn and step it belongs to and the REASON the caller gave
-   * for making it (see reqtrace.js), so a tool loop of seven model steps reads
-   * as seven model steps — and the same step asked twice reads as a defect
-   * instead of hiding inside the total.
-   *
-   * MEASURED, NOT ESTIMATED. Every row here is one HTTP request that really
-   * happened, timed at the socket. Nothing is inferred and nothing is invented:
-   * a turn with no rows says so rather than showing a plausible zero.
-   */
+  /** WHY DID THAT COST SEVEN REQUESTS? */
   define('/requests', {
     surface: true,
     flashMs: 0,
@@ -137,24 +69,15 @@ function register({ define, C, config }) {
     },
   });
 
-  /**
-   * WHAT NOTHING REACHES — the capability the design names as missing.
-   *
-   * Built on the SAME reference machinery `symbols` and `dependents` use (see
-   * deadcode.js): no parser, no index, no second idea of what a reference is.
-   *
-   * IT NEVER SAYS "DELETE THIS". Every row carries how sure it is and the
-   * evidence behind it, because a name can be reached by a dynamic require, by
-   * a string in a config, or by a consumer outside this tree — and a report
-   * that is confidently wrong about that costs somebody an afternoon.
-   */
+  /** WHAT NOTHING REACHES — the capability the design names as missing. */
   define('/deadcode', {
     surface: true,
     flashMs: 0,
     args: '[all]',
     desc: 'Find code nothing reaches — graded, with the evidence',
     run(app, { args } = {}) {
-      const dead = require('./deadcode');
+      const dead = require('./devtool').load('deadcode');
+      if (!dead) { app.render.write(`  ${require('./devtool').missing('deadcode')}\n`); return null; }
       const w = (s) => app.render.write(s);
       const all = String(args[0] || '').toLowerCase() === 'all';
       w('\n' + C.bold('  Reading every reference in this tree…') + '\n');
@@ -180,6 +103,30 @@ function register({ define, C, config }) {
   });
 
   /** The environment report. The checks themselves live in diagnose.js. */
+  // CACHE AND TEMPORARY FILES (cachecare.js) — the same owner as `lain cache` and Settings › Storage.
+  define('/cache', {
+    surface: true,
+    flashMs: 0,
+    args: '[inspect | clear [ids…] [--yes]]',
+    desc: 'Show or clear LAIN\'s disposable cache and temporary files — sessions, accounts and settings stay',
+    async run(app, { args = [] } = {}) {
+      const verb = args[0] || 'inspect';
+      const out = { write: (s) => app.render.write(s) };
+      await require('./cachecare').cli([verb === 'clear' || verb === 'inspect' ? verb : 'help', ...args.slice(1)], { out, app });
+    },
+  });
+
+  define('/update', {
+    surface: true,
+    flashMs: 0,
+    args: '[now | after-checkpoint | after-task | later | check]',
+    desc: 'Check for a LAIN update, or choose when a downloaded one restarts LAIN — never in the middle of a step',
+    async run(app, { args = [] } = {}) {
+      app.render.write(`  ${await require('./update/cli').command(app, args[0] || '')}
+`);
+    },
+  });
+
   define('/doctor', {
     surface: true,
     flashMs: 0,
@@ -190,11 +137,7 @@ function register({ define, C, config }) {
       for (const c of require('./diagnose').checks(app)) {
         app.render.write((c.ok ? C.green('  ✓ ') : C.yellow('  ⚠ ')) + c.text + '\n');
       }
-      // ARCHITECTURE vs DISK, re-measured now — one of the four places
-      // reconciliation is allowed to run (session start, here, explicit
-      // inspection, handover), and the one a person asks for when something
-      // looks wrong. Silent when no architecture is recorded: a doctor that
-      // lectures every project about a layer it never populated is noise.
+      // ARCHITECTURE vs DISK, re-measured now — one of the four places reconciliation is allowed to run (session start, here, explicit inspection, handover)…
       const root = app.session ? app.session.cwd : process.cwd();
       const lainstore = require('./lainstore');
       if (lainstore.has(root, 'architecture')) {

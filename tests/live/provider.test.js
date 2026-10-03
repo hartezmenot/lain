@@ -136,8 +136,10 @@ module.exports = async function () {
     // `auto/*` routes to whichever upstream the bridge picks, so demanding an
     // exact word tests the model's compliance, not LAIN — and it flaked once for
     // exactly that reason.
-    assert.ok(/↑\d+ ↓\d+/.test(r.stdout), `provider reported real token usage:\n${r.stdout.slice(0, 400)}`);
-    const usage = r.stdout.match(/↑(\d+) ↓(\d+)/);
+    // THE RECEIPT IN WORDS (ui/activityline.receipt, 2026-10-01): `in 18k · reasoning 7.4k · out 1.1k`.
+    const RECEIPT = /\bin ([\d.]+[kM]?) · (?:reasoning [\d.]+[kM]? · )?out ([\d.]+[kM]?)/;
+    assert.ok(RECEIPT.test(r.stdout), `provider reported real token usage:\n${r.stdout.slice(0, 400)}`);
+    const usage = r.stdout.match(RECEIPT).map((v, i) => (i ? String(Number.parseFloat(v) * (/k$/.test(v) ? 1000 : /M$/.test(v) ? 1e6 : 1)) : v));
     assert.ok(Number(usage[1]) > 0, 'real input tokens were counted by the provider');
     assert.ok(!/is not answering|No provider configured/.test(r.stdout), 'the request actually reached the provider');
   });
@@ -159,7 +161,7 @@ module.exports = async function () {
     assertIncludes(fs.readFileSync(proof, 'utf8'), 'SECRET_MARKER_9931');
     // The V1 miscount, checked against a live model: the turn ends with prose,
     // and the tool count must still be the TURN-WIDE total.
-    assert.ok(/[2-9]\d* tool calls/.test(r.stdout), `turn-wide tool count reported: ${r.stdout.match(/\d+ tool calls?/)}`);
+    assert.ok(/\b(?:[2-9]|[1-9]\d+) tool calls/.test(r.stdout), `turn-wide tool count reported: ${r.stdout.match(/\d+ tool calls?/)}`);
   });
 
   await test('LIVE PROVIDER: a real request leaves the connection REQUEST_READY, and exit is clean', async () => {

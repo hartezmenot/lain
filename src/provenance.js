@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * §19/§20 — RUNTIME PROVENANCE, FOR A PERSON TO INSPECT.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS NOT: the model's chain of thought. Nothing here is a token the
- * model produced. Every field is state LAIN's own runtime already owns —
- * which task is active, where the current turn's context came from, what
- * tools are exposed versus what actually ran. `/provenance` reads it; the
- * model is never shown it as such (see contextprovenance.js for what the
- * model IS shown, which is a different, narrower thing).
- *
- * WHY IT EXISTS. §8's defect — Computer MCP ran successfully while LAIN's own
- * governance said "No implementation target was specified" — was invisible
- * because nothing surfaced the classification a turn had actually made. A
- * wrong verdict with no window into it looks identical to a right one until
- * someone happens to hit the wrong case.
- */
+/** §19/§20 — RUNTIME PROVENANCE, FOR A PERSON TO INSPECT. */
 
 const taskclass = require('./taskclass');
 const toolRegistry = require('./tools');
@@ -48,11 +32,7 @@ function planSection(session) {
   };
 }
 
-/**
- * The chain a turn's context was actually assembled from, most-authoritative
- * first — the same ordering contextprovenance.js's AUTHORITY enum encodes,
- * reported here as PRESENT/ABSENT rather than serialized to the wire.
- */
+/** The chain a turn's context was actually assembled from, most-authoritative first — the same ordering contextprovenance.js's AUTHORITY enum encodes… */
 function contextChain(app) {
   const session = app.session;
   const last = lastTurnOf(session);
@@ -68,16 +48,7 @@ function contextChain(app) {
   ];
 }
 
-/**
- * Tool exposure vs. what the last turn actually did with it.
- *
- * EXPOSED/REQUESTED/ADMITTED/REFUSED/BLOCKED is the full ladder §20 asks for;
- * only EXPOSED, EXECUTED and FAILED are things the runtime currently
- * distinguishes on the record it keeps — REQUESTED/ADMITTED/REFUSED/BLOCKED
- * would require a per-call admission log this runtime does not keep yet, so
- * this reports that honestly as a gap rather than inventing the missing
- * states from data that cannot support them.
- */
+/** Tool exposure vs. what the last turn actually did with it. */
 function toolDispatch(app) {
   const exposed = toolRegistry.names(app);
   const last = lastTurnOf(app.session);
@@ -94,10 +65,7 @@ function toolDispatch(app) {
   };
 }
 
-/**
- * The full report. Never thrown — a diagnostic that can crash the thing it is
- * diagnosing is worse than one that says less.
- */
+/** The full report. Never thrown — a diagnostic that can crash the thing it is diagnosing is worse than one that says less. */
 function report(app) {
   try {
     const session = app.session;

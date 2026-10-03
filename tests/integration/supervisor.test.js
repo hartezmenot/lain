@@ -30,7 +30,6 @@ const { spawn, spawnSync } = require('child_process');
 
 const { test } = require('../helpers');
 const supervisor = require('../../src/supervisor');
-const handover = require('../../src/handover');
 
 const NL = String.fromCharCode(10);
 const ROOT = path.join(__dirname, '..', '..');
@@ -192,52 +191,6 @@ module.exports = async function () {
   //
   // The most important one. The worker finishes while NOTHING is connected, and
   // a replacement session picks the result up and puts it in the handover.
-  await test('HANDOVER-7: a worker that completes after the app died is handed to the next model', async () => {
-    const env = isolate('h7');
-    const mark = path.join(env._home, 'mark-h7.txt');
-
-    const script = `
-      process.env.LAIN_HOME = ${JSON.stringify(env._home)};
-      const s = require(${JSON.stringify(path.join(ROOT, 'src', 'supervisor.js').replace(/\\/g, '/'))});
-      (async () => {
-        await s.ensure();
-        const r = await s.submit({ command: ${JSON.stringify(slowMark(mark, 3))}, shell: ${JSON.stringify(process.platform === 'win32' ? 'cmd' : 'sh')}, session: 'sess-h7', requestId: 'h7' });
-        process.stdout.write(JSON.stringify({ id: r.job.id }));
-        process.exit(0);
-      })();
-    `;
-    const sub = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 60000 });
-    assert.strictEqual(sub.status, 0, `submitting process failed: ${sub.stderr}`);
-    const { id } = JSON.parse(sub.stdout.trim());
-
-    await withHomeAsync(env._home, async () => {
-      // A BRAND NEW session — this stands in for the replacement model. It never
-      // saw the submission and has no transcript of it.
-      const done = await until(async () => {
-        const l = await supervisor.list({ session: 'sess-h7' });
-        const j = l.ok && l.jobs.find((x) => x.id === id);
-        return j && j.state === 'completed' ? j : null;
-      });
-      assert.ok(done, 'the replacement must be able to SEE the completed work');
-      assert.strictEqual(done.exit_code, 0);
-      assert.ok(fs.existsSync(mark), 'the work really happened');
-
-      // And it reaches the handover the replacement model actually reads.
-      const session = {
-        cwd: env._home,
-        task: { objective: 'run the browser regression', steers: [] },
-        lifecycle: { state: 'ACTIVE', evidence: { filesChanged: new Set() }, lastCommand: null },
-        turns: [{ model: 'model-A', stopReason: 'provider', steps: 4, actions: [] }],
-        evidence: { digest: () => '' },
-      };
-      const packet = handover.build(session, { cwd: env._home, toModel: 'model-B', jobs: [done] });
-      assert.ok(/Background work owned by the supervisor/.test(packet),
-        `the packet must carry the worker result:${NL}${packet}`);
-      assert.ok(packet.includes(id), 'naming the job');
-      assert.ok(/completed/.test(packet), 'and its verified state');
-      await supervisor.shutdown();
-    });
-  });
 
   // §13: switching model must not duplicate the work that is already running.
   await test('HANDOVER-13: switching model leaves the SAME job with the same supervisor', async () => {

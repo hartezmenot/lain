@@ -206,24 +206,6 @@ module.exports = async function () {
     assert.ok(!live.spin, 'a note is not work in flight');
     assert.strictEqual(termtitle.stateOf(live), termtitle.STATE.IDLE);
   });
-
-  await test('OPERATION: recovery says what it is doing and writes no prose', () => {
-    // The three sentences §5 named are gone from `inputgate.js`; what replaced
-    // them is a sequence of operations. Asserted on the source because the
-    // recovery path needs a Guardian and a supervisor to run.
-    const fs = require('fs');
-    const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'inputgate.js'), 'utf8');
-    assert.ok(!/Recovering with what LAIN observed rather than sending/.test(src),
-      'the glued recovery paragraph is gone');
-    assert.match(src, /op\.say\(app, [^;]*'Recovering interrupted turn'/, 'and is an operation instead');
-    assert.match(src, /Restoring what LAIN observed/);
-    assert.match(src, /Continuing from verified state/);
-    // THE FACT IS STILL RECORDED. `_handover` carries the reason into the packet
-    // the model reads, which is what makes this a presentation change.
-    assert.match(src, /app\._handover = verdict\.reason/, 'the evidence still travels');
-  });
-
   await test('OPERATION: a clipboard copy is acknowledged without entering the record', () => {
     const fs = require('fs');
     const path = require('path');

@@ -1,45 +1,6 @@
 'use strict';
 
-/**
- * NARROW WORKERS — cheapest reliable owner first (2026-09-23).
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS NOT. Not an agent framework, not a planner, not a second
- * orchestrator, not an authority. LAIN already owns orchestration (turn.js),
- * routing (mode.js / taskclass.js), context (promptparts.js / contextfit.js),
- * evidence (evidence.js / readreceipts.js) and permission (capability.js /
- * permissions). A worker performs ONE narrow job on a SMALL packet and
- * returns ONE structured result. It cannot grant, write, spawn, plan, mark
- * done, verify, retry a provider, change a profile or a mode, touch the goal,
- * call another worker or call itself — there is no code path here that could.
- *
- * ------------------------------------------------------------------------
- * THE CASCADE, for a bounded decision:
- *
- *     deterministic ──certain──▶ result
- *          │ uncertain
- *          ▼
- *     recruited model?  no ──▶ deterministic default (flagship decides later)
- *          │ yes
- *          ▼
- *     ONE inference ──label──▶ result
- *          │ ABSTAIN / junk / error
- *          ▼
- *     escalate: the deterministic default, marked escalated
- *
- * No second ask, no request for more context, no debate. A result is cached
- * by (decision type, state fingerprint, candidate hash) so the same question
- * about the same state is never asked twice.
- *
- * ------------------------------------------------------------------------
- * RECRUITMENT IS A GATE, NOT A PREFERENCE. A model binds to a contract only
- * when an evaluation of THAT role (bench/workergate) passed and the person
- * recorded it in cfg.workers (no model has passed yet, so nothing writes it —
- * see docs/WORKERS.md). Until then `binding` is null and the
- * deterministic owner answers alone. HIGH CONFIDENCE ≠ AUTHORITY ≠ VERIFIED ≠
- * DONE: a worker's output is never a user message, a steer, a plan step or a
- * project fact.
- */
+/** NARROW WORKERS — cheapest reliable owner first (2026-09-23). */
 
 const crypto = require('crypto');
 
@@ -55,6 +16,18 @@ const CONTRACTS = Object.freeze({
     escalate_when: ['abstain', 'label outside the candidates', 'model error'],
     deterministic: 'mode.js',
   }),
+  // HOW MUCH MACHINERY A CODE CHANGE GETS (changeclass.js). Escalation only: Core's deterministic class and its safety floor win.
+  change_class: Object.freeze({
+    id: 'change_class', worker: 'JEV', kind: 'decision',
+    question: 'Is this code change DIRECT, NARROW, AGENT or PHASED?',
+    owns: ['execution-class tie-breaking', 'escalation signal'],
+    forbidden: ['lowering the deterministic class', 'crossing the safety floor', 'orchestration', 'permissions', 'plans', 'completion', 'calling another worker'],
+    input: 'decision_packet { decision, facts[], candidates[] }  (≤ 600 chars)',
+    output: 'decision_result { label | ABSTAIN }',
+    labels: ['DIRECT', 'NARROW', 'AGENT', 'PHASED'],
+    escalate_when: ['abstain', 'label outside the candidates', 'model error'],
+    deterministic: 'changeclass.js',
+  }),
   evidence_narrower: Object.freeze({
     id: 'evidence_narrower', worker: 'LAYA', kind: 'evidence',
     question: 'Where exactly is the relevant thing?',
@@ -67,21 +40,24 @@ const CONTRACTS = Object.freeze({
     // would only re-rank when the deterministic score abstains.
     deterministic: 'evidenceslice.js',
   }),
-  geometry_solver: Object.freeze({
-    id: 'geometry_solver', worker: 'VIOLETTO', kind: 'geometry',
-    question: 'What are the numeric consequences of this geometric change?',
-    owns: ['dimensions', 'ratios', 'alignment', 'constraints', 'interpolation'],
-    forbidden: ['UX semantics', 'colour', 'typography', 'accessibility policy', 'component existence', 'architecture', 'source ownership', 'user intent'],
-    input: 'geometry_slice (GUG nodes + constraints)',
-    output: 'geometry_patch',
-    escalate_when: ['conflicting constraints', 'semantic change required', 'low confidence'],
-    // NOT BUILT: no geometry model on this machine and no GUG to feed it — see docs/WORKERS.md.
+  // THE HARNESS CONTEXT ROLES (layacontext.js).
+  context_correlator: Object.freeze({
+    id: 'context_correlator', worker: 'LAYA', kind: 'context',
+    question: 'What is the person looking at, touching or referring to, and what small context should Core have ready?',
+    owns: ['referent correlation', 'cross-surface correlation', 'Harness context compression'],
+    forbidden: ['project truth', 'AST', 'FGM', 'GUG', 'wiring', 'permissions', 'task completion', 'choosing the flagship', 'dispatching', 'calling another worker'],
+    input: 'Core-supplied candidate referents (ids + short texts) and a query',
+    output: 'hypothesis { refs[] } — validated by Core at the current generation before any use',
+    escalate_when: ['no candidates', 'validation fails', 'the context moved on (late)'],
+    deterministic: 'harnesscontext.referent',
   }),
 });
 
 /** A recorded recruitment with a passing gate, or null. */
 function binding(cfg, contractId) {
   const b = cfg && cfg.workers && cfg.workers[contractId];
+  // A WORKER IS NEVER THE CHATGPT CHAT SOURCE (modelroles.js: CHAT ONLY).
+  if (b && b.model && require('./modelroles').isChatOnly({ modelId: b.model, source: b.source })) return null;
   return b && b.model && b.gate && b.gate.pass ? b : null;
 }
 
@@ -94,13 +70,7 @@ function cacheKey(type, fingerprint, candidates) { return `${type}|${fingerprint
 
 // ---- ledger (worker value, §29/§97) ----------------------------------------
 
-/**
- * One row per worker invocation, per session, in memory and on the session
- * (bounded): what went in, what came out, how long, and what it saved the
- * flagship. `rawChars` is the evidence that would have gone to the flagship;
- * `outChars` what went instead; `reread` is set when the flagship later had to
- * expand the raw source (false narrowing).
- */
+/** One row per worker invocation, per session, in memory and on the session (bounded): what went in, what came out, how long, and what it saved the… */
 const LEDGER_MAX = 200;
 function note(session, row) {
   if (!session) return row;
@@ -147,17 +117,7 @@ function parseLabel(text, candidates) {
   return candidates.find((c) => c.toUpperCase() === t) || null;
 }
 
-/**
- * RUN ONE BOUNDED DECISION.
- *
- * @param {object} o
- *   contract       a CONTRACTS id
- *   fingerprint    what the state is (for the cache) — the caller's, never guessed here
- *   packet         { decision, facts, candidates }
- *   deterministic  () => { label, certain }   the cheapest owner, always asked first
- *   infer          async (text) => string      the recruited model's one inference, or null
- * @returns {Promise<{label, by, certain, escalated, cached}>}
- */
+/** RUN ONE BOUNDED DECISION. */
 async function decide({ contract, fingerprint = '', packet: pk, deterministic, infer = null, session = null }) {
   const key = cacheKey(contract, fingerprint, pk.candidates);
   if (cache.has(key)) {

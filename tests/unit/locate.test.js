@@ -158,17 +158,4 @@ module.exports = async function () {
     assert.match(r.text, /more lines — read_symbol huge for the whole definition/);
   });
 
-  await test('LOCATE: the tool is registered and reachable from the live tool list', () => {
-    // §31: a capability that is not advertised is not implemented. This is the
-    // assertion that would fail if the composition existed only as a module.
-    const tools = require('../../src/tools');
-    assert.ok(tools.names().includes('locate'), 'locate must be in the live vocabulary');
-    // It moved to its own family when search.js crossed the god-object guard —
-    // see src/tools/intel.js. The assertion is about the LIVE vocabulary, so it
-    // follows the tool rather than pinning the file it used to live in.
-    const schema = require('../../src/tools/intel').tools.locate.schema;
-    assert.match(schema.description, /START HERE/, 'and it must say when to reach for it');
-    assert.match(schema.description, /LEXICAL/, 'and be honest about what it is not');
-    assert.strictEqual(require('../../src/tools/intel').tools.locate.mutates, false);
-  });
 };

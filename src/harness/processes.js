@@ -1,48 +1,6 @@
 'use strict';
 
-/**
- * THE PROCESS MANAGER — services that stay up, owned by a task.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS NOT jobs.js, AND WHY NEITHER ABSORBS THE OTHER.
- *
- * `src/jobs.js` runs A COMMAND THAT ENDS. Its whole shape says so: QUEUED ->
- * RUNNING -> {SUCCEEDED, FAILED, CANCELLED, TIMED_OUT}, a default 30-minute
- * timeout, a captured result waiting to be read. `run_background` starts a test
- * suite and `job_wait` blocks on its exit. That is exactly right for a suite
- * and exactly wrong for a dev server, where every one of those is a mistake:
- * exit is a CRASH rather than a result, a timeout would kill the thing under
- * test, and "the result" never arrives because there isn't one.
- *
- * A service has questions a job has never had to answer: what PORT is it on, is
- * it HEALTHY, can it be RESTARTED without losing what depends on it, and who
- * cleans it up when the task ends. Bolting those onto the job vocabulary would
- * have made every field optional and every state ambiguous — is `RUNNING` a
- * suite that is executing or a server that is up but refusing connections?
- *
- * So: two vocabularies, one seam, stated here. A JOB ends and yields a RESULT.
- * A PROCESS stays up and has a HEALTH. Nothing in this file may wait for a
- * process to exit as though the exit were the point, and nothing in jobs.js may
- * grow a port.
- *
- * ------------------------------------------------------------------------
- * EVERY PROCESS HAS AN OWNER TASK, AND THAT IS WHAT MAKES CLEANUP POSSIBLE.
- *
- * The failure this prevents is documented in this repository's own status file:
- * roughly ninety orphaned supervisor processes accumulated across days of test
- * runs, because a timed-out harness never reached its teardown and every leaked
- * process kept polling a port forever. Ownership plus `cleanup(taskId)` is the
- * structural answer — a task that ends takes its services with it.
- *
- * ------------------------------------------------------------------------
- * NOTHING HERE POLLS ON ITS OWN.
- *
- * There is no interval anywhere in this file. A crash is learned from the
- * child's own `exit` event, which costs nothing and is instant. A health check
- * happens when somebody ASKS for one. `waitUntilHealthy` is the single place
- * that retries, it does so only while a caller is awaiting it, and it stops at
- * a deadline the caller chose.
- */
+/** THE PROCESS MANAGER — services that stay up, owned by a task. */
 
 const { spawn } = require('child_process');
 const net = require('net');
@@ -61,16 +19,7 @@ const STATUS = Object.freeze({
 /** The process is gone and will not come back without a restart. */
 const GONE = Object.freeze(new Set([STATUS.STOPPED, STATUS.CRASHED, STATUS.FAILED]));
 
-/**
- * HEALTH IS NOT STATUS, and conflating them was the first design mistake here.
- *
- * STATUS is about the OS process: is there a pid, did it exit. HEALTH is about
- * the service: does it answer. A dev server that is RUNNING but returns 500 on
- * every request is a real and common state, and a single field cannot say it.
- *
- * UNKNOWN is a first-class answer and is the default. A process with no health
- * check configured is not "healthy" — nothing looked.
- */
+/** HEALTH IS NOT STATUS, and conflating them was the first design mistake here. */
 const HEALTH = Object.freeze({
   UNKNOWN: 'UNKNOWN',
   HEALTHY: 'HEALTHY',
@@ -87,20 +36,69 @@ const RETRY_MS = 250;
 let seq = 0;
 const ownedChildren = new Set();
 
-/** Shared containment for services and finite verification commands. */
-function spawnOwned({ command, args = null, cwd, env = process.env, shell = null, cleanupPaths = [] }) {
-  // On Windows the guardian must survive its caller's console/OS lifetime.
-  // IPC remains referenced, so ordinary calls still await bounded cleanup.
+/** ONE PRE-WARMED GUARDIAN (2026-10-01). */
+const WARM_IDLE_MS = 120_000;
+let warm = null;
+let warmTimer = null;
+
+function startGuardian(cwd, env) {
   const child = spawn(process.execPath, [require.resolve('./processguardian')], {
     cwd, env, windowsHide: true, detached: true,
     stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
   });
+  child.spawnedAt = Date.now();
   child.on('message', (result) => {
     if (result.startedPid) child.commandPid = result.startedPid;
     else child.commandResult = result;
   });
+  child.on('error', () => {}); // callers report the failure; never an unhandled event
+  return child;
+}
+
+function setRef(child, on) {
+  try { on ? child.ref() : child.unref(); } catch { /* gone */ }
+  try { if (child.channel) on ? child.channel.ref() : child.channel.unref(); } catch { /* gone */ }
+  for (const s of [child.stdin, child.stdout, child.stderr]) {
+    try { if (s && s._handle) on ? s._handle.ref() : s._handle.unref(); } catch { /* gone */ }
+  }
+}
+
+function dropWarm() {
+  if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+  const w = warm; warm = null;
+  if (w && w.exitCode === null) { try { w.disconnect(); } catch { /* gone */ } }
+}
+
+function refillWarm() {
+  if (warm || process.env.LAIN_NO_PREWARM === '1' || process.env.LAIN_NO_PREWARM === '1') return;
+  try {
+    warm = startGuardian(require('os').tmpdir(), process.env);
+    setRef(warm, false);
+    warm.once('exit', () => { if (warm && warm.exitCode !== null) warm = null; });
+    warmTimer = setTimeout(dropWarm, WARM_IDLE_MS);
+    if (warmTimer.unref) warmTimer.unref();
+  } catch { warm = null; }
+}
+
+function takeWarm() {
+  const w = warm;
+  if (!w) return null;
+  warm = null;
+  if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+  if (w.exitCode !== null || w.signalCode !== null || !w.connected || w.commandResult) { try { w.kill(); } catch { /* gone */ } return null; }
+  setRef(w, true);
+  return w;
+}
+
+/** Shared containment for services and finite verification commands. `eof`: see processworker.js. */
+function spawnOwned({ command, args = null, cwd, env = process.env, shell = null, cleanupPaths = [], eof = null }) {
+  // On Windows the guardian must survive its caller's console/OS lifetime.
+  // IPC remains referenced, so ordinary calls still await bounded cleanup.
+  const child = (!cleanupPaths.length && takeWarm()) || startGuardian(cwd, env);
+  setImmediate(refillWarm);
   ownedChildren.add(child);
   child.once('close', () => ownedChildren.delete(child));
+  require('../runtimeregistry').register(child, { purpose: 'service', label: String(command).slice(0, 80), project: cwd || null, command: [command, ...(args || [])].join(' '), policy: { onOwnerExit: 'stop', onTaskEnd: true }, spawnedAt: child.spawnedAt });
   child.on('error', () => {}); // callers report the failure; never an unhandled event
   if (cleanupPaths.length && child.pid) {
     // A sibling, not a descendant of the service tree: it must survive that
@@ -111,7 +109,7 @@ function spawnOwned({ command, args = null, cwd, env = process.env, shell = null
     cleaner.on('error', (e) => child.emit('error', e));
     cleaner.unref();
   }
-  child.send({ command, args, cwd, env, shell, cleanupPaths }, (e) => { if (e) child.emit('error', e); });
+  child.send({ command, args, cwd, env, shell, cleanupPaths, ...(eof ? { eof } : {}) }, (e) => { if (e) child.emit('error', e); });
   return child;
 }
 
@@ -121,12 +119,36 @@ function stopTree(child, opts = {}) {
   return child._treeStop;
 }
 
+/** CLEANUP OFF THE CRITICAL PATH. */
+const pendingStops = new Set();
+const lateErrors = [];
+function deferStop(child) {
+  const p = stopTree(child).catch((e) => { lateErrors.push(String(e && e.message || e)); });
+  pendingStops.add(p);
+  p.finally(() => pendingStops.delete(p));
+  return p;
+}
+async function settle(maxMs = 5000) {
+  if (!pendingStops.size) return;
+  await Promise.race([Promise.allSettled([...pendingStops]), new Promise((r) => { const t = setTimeout(r, maxMs); if (t.unref) t.unref(); })]);
+}
+function lateFailures() { return lateErrors.splice(0); }
+
+/** Resolves when the child has exited, or after `ms`. Event-driven: no polling. */
+function waitExit(child, ms) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const t = setTimeout(done, ms);
+    function done() { clearTimeout(t); child.removeListener('exit', done); resolve(); }
+    child.once('exit', done);
+  });
+}
+
 async function terminateTree(child, { graceMs = 3000 } = {}) {
   if (!child || !child.pid || child.exitCode !== null || child.signalCode !== null) return;
   if (child.connected) {
     child.send({ stop: true }, () => {});
-    const deadline = Date.now() + Math.max(1000, graceMs);
-    while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    await waitExit(child, Math.max(1000, graceMs));
     if (child.exitCode !== null || child.signalCode !== null) return;
   }
   if (process.platform === 'win32') {
@@ -138,12 +160,12 @@ async function terminateTree(child, { graceMs = 3000 } = {}) {
   } else {
     try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { if (e.code !== 'ESRCH') throw e; }
   }
-  const deadline = Date.now() + Math.max(1000, graceMs);
-  while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  await waitExit(child, Math.max(1000, graceMs));
   if (child.exitCode === null && child.signalCode === null) throw new Error(`owned process ${child.pid} did not stop`);
 }
 
 async function cleanupOwned() {
+  dropWarm();
   const results = await Promise.allSettled([...ownedChildren].map((child) => stopTree(child)));
   const failed = results.find((r) => r.status === 'rejected');
   if (failed) throw failed.reason;
@@ -232,11 +254,7 @@ class ManagedProcess {
 }
 
 class ProcessManager {
-  /**
-   * @param {object} opts
-   *   bus     — the shared EventBus. Optional.
-   *   runtime — the TaskRuntime, so a process mirrors onto its owner's record.
-   */
+  /** bus — the shared EventBus. */
   constructor({ bus = null, runtime = null } = {}) {
     this.bus = bus;
     this.runtime = runtime;
@@ -251,18 +269,7 @@ class ProcessManager {
     if (this.runtime && p.taskId) this.runtime.noteProcess(p.taskId, p.toJSON());
   }
 
-  /**
-   * START A SERVICE.
-   *
-   * Returns immediately with the record in STARTING. It does NOT wait for the
-   * thing to be up — that is `waitUntilHealthy`, and keeping them apart matters:
-   * a caller that wants to start three services and then check all of them must
-   * not pay three sequential readiness waits.
-   *
-   * A SPAWN THAT FAILS IS A STATE, NOT A THROW. `command not found` arrives as
-   * an `error` event on the child, becomes FAILED with the reason attached, and
-   * the caller reads it like any other status.
-   */
+  /** START A SERVICE. */
   start({ taskId = null, name, command, args = null, cwd = process.cwd(), env = null, port = null, health = null, shell = null, cleanupPaths = [] }) {
     if (taskId && this.runtime) {
       const owner = this.runtime.get(taskId);
@@ -289,11 +296,7 @@ class ProcessManager {
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     };
     try {
-      // A LIST OF ARGUMENTS MEANS NO SHELL, for the same reason process_run
-      // takes one: a path with spaces needs no quoting and nothing is
-      // re-parsed. A bare command string is run through a shell, because
-      // `npm run dev -- --port 5173` is a shell line and pretending otherwise
-      // would make the common case the awkward one.
+      // A LIST OF ARGUMENTS MEANS NO SHELL, for the same reason process_run takes one: a path with spaces needs no quoting and nothing is re-parsed.
       child = spawnOwned({ command: p.command, args: p.args, cwd: p.cwd, env: opts.env, shell: p.shell, cleanupPaths: p.cleanupPaths });
       child.on('message', (result) => {
         if (result.startedPid) { p.commandPid = result.startedPid; return; }
@@ -328,9 +331,7 @@ class ProcessManager {
       p.exitCode = code == null ? null : Number(code);
       p.stoppedAt = Date.now();
       p._child = null;
-      // A SERVICE THAT EXITS ON ITS OWN HAS CRASHED. That is the whole
-      // difference from a job, where an exit is the result. Nobody asked it to
-      // stop, so its absence is a fact the task needs to know about.
+      // A SERVICE THAT EXITS ON ITS OWN HAS CRASHED.
       if (p._stopRequested) {
         p.status = STATUS.STOPPED;
         p.health = HEALTH.UNKNOWN;
@@ -377,12 +378,7 @@ class ProcessManager {
     return taskId ? all.filter((p) => p.taskId === String(taskId)) : all;
   }
 
-  /**
-   * ASK WHETHER IT IS HEALTHY. One probe, now, no retries.
-   *
-   * With no health spec the answer is UNKNOWN and says why — never HEALTHY.
-   * "Nothing looked" and "it answered" must never render the same.
-   */
+  /** ASK WHETHER IT IS HEALTHY. */
   async check(processId) {
     const p = this.get(processId);
     if (!p) return { health: HEALTH.UNKNOWN, why: 'no such process' };
@@ -413,15 +409,7 @@ class ProcessManager {
     return { health: p.health, why: p.healthWhy, status: p.status };
   }
 
-  /**
-   * WAIT UNTIL IT ANSWERS, OR UNTIL THE DEADLINE.
-   *
-   * The ONLY retry loop in this file, and it exists because starting a dev
-   * server and immediately asking a browser to open it is the single most
-   * common way a frontend task fails for no real reason. It stops early when
-   * the process crashes — waiting eight seconds for something already dead is
-   * time nobody gets back and evidence nobody needed.
-   */
+  /** WAIT UNTIL IT ANSWERS, OR UNTIL THE DEADLINE. */
   async waitUntilHealthy(processId, timeoutMs = 20000, { signal = null } = {}) {
     const p = this.get(processId);
     if (!p) return { health: HEALTH.UNKNOWN, why: 'no such process' };
@@ -439,14 +427,7 @@ class ProcessManager {
     }
   }
 
-  /**
-   * STOP. Asks politely, then insists.
-   *
-   * On Windows a SIGTERM to a shell-spawned tree leaves the children behind, so
-   * the tree is killed by pid where that is what the platform needs. A stop that
-   * leaves the port occupied is not a stop, and the next start fails with a
-   * message about the port that has nothing to do with the real cause.
-   */
+  /** STOP. Asks politely, then insists. */
   async stop(processId, { graceMs = 3000 } = {}) {
     const p = this.get(processId);
     if (!p) return { ok: false, why: 'no such process' };
@@ -482,12 +463,7 @@ class ProcessManager {
     return { ok: true, why: `restarted (${p.restarts})` };
   }
 
-  /**
-   * A TASK THAT ENDS TAKES ITS SERVICES WITH IT.
-   *
-   * This is the answer to the ninety orphaned processes. Called on every
-   * terminal task state and on shutdown, and it is safe to call twice.
-   */
+  /** A TASK THAT ENDS TAKES ITS SERVICES WITH IT. */
   async cleanup(taskId = null) {
     const doomed = this.list(taskId).filter((p) => p.alive);
     const results = await Promise.allSettled(doomed.map(async (p) => {
@@ -507,4 +483,4 @@ class ProcessManager {
   }
 }
 
-module.exports = { ProcessManager, ManagedProcess, STATUS, HEALTH, GONE, portOpen, httpProbe, MAX_LOG, PROBE_MS, spawnOwned, stopTree, cleanupOwned };
+module.exports = { ProcessManager, ManagedProcess, STATUS, HEALTH, GONE, portOpen, httpProbe, MAX_LOG, PROBE_MS, spawnOwned, stopTree, cleanupOwned, deferStop, settle, lateFailures, dropWarm };

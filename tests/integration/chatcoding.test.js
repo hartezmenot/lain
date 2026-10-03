@@ -81,7 +81,7 @@ module.exports = async () => {
       const system = codingCall.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
       const convo = codingCall.messages.filter((m) => m.role !== 'system').map((m) => m.content).join('\n');
       assert.match(system, /# Accepted plan p1/, 'the accepted plan is in the coding context');
-      assert.ok(!/CHAT-INVESTIGATING|Plan how to fix Toradb/.test(convo), 'no chat thread message is on the coding wire');
+      { const leak = /[^\n]{0,120}(?:CHAT-INVESTIGATING|Plan how to fix Toradb)[^\n]{0,80}/.exec(convo); assert.ok(!leak, `no chat thread message is on the coding wire: ${leak && leak[0]}`); }
       assert.match(convo, /Also keep the public API unchanged/, 'the person\'s edited instruction is what was sent');
       st = (await d('GET', '/api/state')).body.state;
       assert.strictEqual(st.plans.handoff.state, 'SUBMITTED');
@@ -130,7 +130,7 @@ module.exports = async () => {
       assert.strictEqual(back.body.running, true, 'returning to A: the same turn is still active');
       assert.strictEqual(require('../../src/sessionstatus').of(app.pool().live(a)).activeTurnId, turnId);
       await d('POST', '/api/session/select', { id: b });
-      assert.ok(await until(() => events.some((e) => e.session === a && e.status.state === 'DONE')), 'A\'s DONE was emitted while B was viewed');
+      assert.ok(await until(() => events.some((e) => e.type === 'session.status' && e.session === a && e.status.state === 'DONE')), 'A\'s DONE was emitted while B was viewed');
       const after = (await d('GET', '/api/state')).body.state.sessions.engineering.find((r) => r.id === a);
       assert.strictEqual(after.status, 'DONE');
     } finally {

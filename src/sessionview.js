@@ -1,105 +1,70 @@
 'use strict';
 
-/**
- * `/session` — EVERY LAIN ON THIS MACHINE, NOT JUST THIS ONE.
- *
- * ------------------------------------------------------------------------
- * THE QUESTION IT ANSWERS, and why no existing screen could answer it.
- *
- * `/status` is this process. `/sessions` is the transcripts on disk. Neither
- * can see the LAIN running in another terminal on another project — and that is
- * the question a person actually has after leaving three of them working:
- * which ones are still going, which finished, which broke.
- *
- * The runtime can see all of them, because every one of them reports to it.
- *
- * ------------------------------------------------------------------------
- * IT DRAWS WHAT THE RUNTIME SAYS AND COMPUTES NOTHING.
- *
- * The text comes from `capability::run("session.list")` in the supervisor — the
- * SAME call, returning the SAME string, that answers `/session` sent to the
- * Telegram bot. There is no formatting here, no status derivation, no second
- * idea of what RUNNING means. §20: one runtime, several windows, and a window
- * that recomputed the view would be a second runtime wearing a hat.
- *
- * ------------------------------------------------------------------------
- * A PERCENTAGE APPEARS ONLY WHERE SOMETHING COUNTED ONE. That rule is enforced
- * where the number is stored, not here — see `Progress` in guardian.rs, which
- * refuses to hold a figure with no stated source.
- */
+/** `/session` — every LAIN session on this machine that has been run, and what it is doing (2026-10-02). */
 
-const rc = require('./remotecontrol');
+const path = require('path');
+
+function rows() { return require('./runtimefeed').sessionRows({ limit: 30 }); }
+
+function titleOf(id) {
+  try {
+    const r = require('./sessionindex').summaries({ limit: 200 }).find((x) => x.id === id);
+    return r ? { title: require('./sessionindex').headline(r), project: r.cwd ? path.basename(r.cwd) : '' } : { title: '', project: '' };
+  } catch { return { title: '', project: '' }; }
+}
+
+function lineOf(r, i) {
+  const t = titleOf(r.session);
+  const who = r.owner_pid ? `${r.surface || 'cli'} pid ${r.owner_pid}` : 'not running';
+  const when = r.at ? new Date(r.at).toLocaleString() : '';
+  return `${String(i + 1).padStart(2)}. ${r.state.padEnd(15)} ${(t.project || '').slice(0, 18).padEnd(18)} ${(t.title || r.session).slice(0, 40).padEnd(40)} ${who}  ${when}`;
+}
 
 function register({ define, C }) {
   define('/session', {
-    // MACHINERY: about the runtime rather than about the work.
     surface: true,
     flashMs: 0,
-    args: '[n|name]',
-    desc: 'Every LAIN session the runtime knows — running, finished, blocked',
+    args: '[n|id]',
+    desc: 'Every LAIN session that has run here — running, finished, interrupted — in any terminal or the Harness',
     async run(app, ctx) {
       const w = (line) => app.render.write(`${line}\n`);
       const want = String((ctx.rest || '').trim());
-
-      // A NUMBER IS A POSITION IN THE LISTING, not an identity. The runtime
-      // holds no display index, so the listing is fetched and counted along —
-      // the same resolution the Telegram side does, for the same reason.
-      let args = {};
-      let name = 'session.list';
-      if (want) {
-        name = 'session.get';
-        const n = Number(want);
-        if (Number.isInteger(n) && n > 0) {
-          const list = await rc.capability('session.list');
-          const rows = (list.result && list.result.sessions) || [];
-          const row = rows[n - 1];
-          if (!row) {
-            w('');
-            w(C.yellow(`  There is no session ${n}.`));
-            w(C.dim('  Run /session for the list.'));
-            w('');
-            return;
-          }
-          args = { session: row.session };
-        } else {
-          args = { session: want };
-        }
-      }
-
-      const r = await rc.capability(name, args);
-      if (!r.available) {
-        // NOT AN ERROR. A machine with no supervisor is a machine where nothing
-        // has needed one yet, and saying so beats an empty table that reads as
-        // "nothing is happening".
+      const list = rows();
+      w('');
+      if (!list.length) { w(C.dim('  No session has run on this machine yet.')); w(''); return; }
+      if (!want) {
+        list.forEach((r, i) => w(`  ${paint(lineOf(r, i), C)}`));
         w('');
-        w(C.dim('  No runtime is answering on this machine.'));
-        w(C.dim('  One starts when a turn begins, and from then on it knows every LAIN'));
-        w(C.dim('  session on this machine — including the ones in other terminals.'));
+        w(C.dim('  /session <n>  one of them in detail'));
         w('');
         return;
       }
-
-      w('');
-      for (const line of String(r.text || '').split('\n')) {
-        // THE RUNTIME'S OWN WORDS, indented and coloured — never rewritten.
-        // Colour is applied to the STATE WORDS only, which is presentation;
-        // changing what any of them says would make this a second opinion.
-        w(`  ${paint(line, C)}`);
-      }
-      if (!want) {
-        w('');
-        w(C.dim('  /session <n>  one of them in detail'));
-      }
+      const n = Number(want);
+      const r = Number.isInteger(n) && n > 0 ? list[n - 1] : list.find((x) => x.session === want || x.session.endsWith(want));
+      if (!r) { w(C.yellow(`  There is no session ${want}.`)); w(C.dim('  Run /session for the list.')); w(''); return; }
+      const t = titleOf(r.session);
+      const j = require('./sessionjournal').state(r.session);
+      w(`  ${paint(r.state, C)}  ${t.title || r.session}`);
+      if (t.project) w(C.dim(`  project   ${t.project}`));
+      w(C.dim(`  session   ${r.session}`));
+      w(C.dim(`  host      ${r.owner_pid ? `${r.surface || 'cli'} (pid ${r.owner_pid})` : 'none — not running anywhere'}`));
+      if (r.model) w(C.dim(`  model     ${r.model}`));
+      if (j.phase) w(C.dim(`  phase     ${j.phase}`));
+      if (j.tool) w(C.dim(`  running   ${j.tool.name}${j.tool.target ? ` ${j.tool.target}` : ''}`));
+      if (r.needs_handover && r.handover_reason) w(C.yellow(`  ${r.handover_reason}`));
+      if (r.usage) w(C.dim(`  last turn ${r.usage.input_tokens || 0} in · ${r.usage.output_tokens || 0} out`));
       w('');
     },
   });
 }
 
-/** The state vocabulary from guardian.rs, coloured. Words only, never meaning. */
+/** The state vocabulary, coloured. Words only, never meaning. */
 const COLOURS = Object.freeze({
   RUNNING: 'cyan',
   COMPLETED: 'green',
   FAILED: 'yellow',
+  PROVIDER: 'yellow',
+  LOST: 'yellow',
   INTERRUPTED: 'yellow',
   RATE_LIMITED: 'yellow',
   BLOCKED: 'yellow',
@@ -110,8 +75,6 @@ const COLOURS = Object.freeze({
 
 function paint(line, C) {
   for (const [word, colour] of Object.entries(COLOURS)) {
-    // Word-boundaried so `RATE_LIMITED` is not painted twice by `LIMITED`, and
-    // so a project called "Running Costs" is left alone.
     const re = new RegExp(`\\b${word}\\b`);
     if (re.test(line)) return line.replace(re, (m) => (C[colour] ? C[colour](m) : m));
   }

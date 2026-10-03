@@ -136,28 +136,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------------------------- guidance ---
-
-  await test('GUIDANCE: each mode carries advice, and it reaches the prompt', () => {
-    const prompt = require('../../src/prompt');
-    for (const k of Object.values(K)) {
-      assert.ok(prompt.MODE_GUIDANCE[k], `no guidance for ${k}`);
-    }
-    const built = prompt.build({ cwd: '/p', mode: K.BUGFIX });
-    assert.match(built, /Trace the path first/, 'the bugfix workflow must reach the model');
-    assert.ok(!/Build it in stages/.test(built), 'and only that mode\'s guidance');
-  });
-
-  await test('GUIDANCE: read-only modes tell the model not to change anything', () => {
-    const prompt = require('../../src/prompt');
-    assert.match(prompt.build({ mode: K.AUDIT }), /Do not change anything/i);
-    assert.match(prompt.build({ mode: K.EXPLAIN }), /Do not modify files/i);
-  });
-
-  await test('GUIDANCE: no mode means no extra prompt at all', () => {
-    const prompt = require('../../src/prompt');
-    const bare = prompt.build({ cwd: '/p' });
-    assert.ok(!/# This request/.test(bare), 'an unclassified turn costs no extra tokens');
-  });
   await test('MODE: a greeting with an address is CHAT, not work', () => {
     // Only a greeting standing completely alone was recognised, so "hi there"
     // fell through every rule to the default — which is IMPLEMENT. Saying hello
@@ -195,9 +173,24 @@ module.exports = async function () {
       ['add a --json flag to the export command', K.IMPLEMENT],
       ['fix the login bug in src/auth.js', K.BUGFIX],
       ['rename the module and move it into core', K.REFACTOR],
+      ['move the helper functions into utils.js', K.REFACTOR],
+      ['move this to lib/', K.REFACTOR],                                     // used to THROW in dispatch.kindOf
+      // A VISUAL NUDGE IS NOT A RESTRUCTURING (2026-10-01): it was given "run the tests first, behaviour is correct".
+      ['Move the Add one button down by 6px. Verify it in the Preview.', K.IMPLEMENT],
     ]) {
       assert.strictEqual(mode.classify(text, { projectEmpty: false }).mode, want, text);
     }
+  });
+
+  await test('MODE: a folder whose source sits at the top level (index.html, app.py) is a project, not EMPTY', () => {
+    const fs = require('fs'); const path = require('path');
+    const dir = require('../helpers').tmpdir('flat-');
+    const isEmpty = (d) => require('../../src/projectcache').isEmpty({ session: { cwd: d } });
+    assert.strictEqual(isEmpty(dir), true, 'nothing at all is EMPTY');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'x');
+    assert.strictEqual(isEmpty(dir), true, 'a note is not a project');
+    fs.writeFileSync(path.join(dir, 'index.html'), '<p>x</p>');
+    assert.strictEqual(isEmpty(dir), false, 'one page is');
   });
 
   await test('MODE: a plain question is EXPLAIN, not the IMPLEMENT default; defects and change requests keep their modes', () => {

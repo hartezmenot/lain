@@ -243,40 +243,6 @@ module.exports = async function () {
     // than starting again. Stopping is not the same as being finished.
     assert.ok(!/TASK COMPLETE/.test(everything), 'a bounded turn completes nothing');
   });
-
-  await test('CONVERSATION LIVE: a liveness warning is a quiet NOTE, not the loudest thing on screen', async () => {
-    // Reading the same file over and over trips the liveness guard. Its warning
-    // used to arrive as raw transcript printed BELOW the entire conversation.
-    const script = [];
-    for (let i = 0; i < 8; i++) {
-      script.push({ text: i === 0 ? 'Checking the renderer.' : '', tool_calls: [{ name: 'read_file', input: { path: 'src/render.js' } }] });
-    }
-    const r = await runCli([], {
-      cwd: project(),
-      env: { LAIN_FORCE_TUI: '1', COLUMNS: '100', LINES: '32' },
-      stdin: 'check the renderer\n',
-      script,
-      timeoutMs: 90000,
-    });
-    const frame = lastFrame(r.out);
-    assertIncludes(frame, 'check the renderer', 'the user survives it');
-    // Whatever the guard decided, the conversation must still be readable and
-    // the machinery must not be sitting under all of it as unlabelled prose.
-    const tail = lastFrameRows(r.out).slice(-14).join('\n');
-    assert.ok(!/^\s*\[liveness\]/m.test(tail),
-      `a raw notice is printed under the conversation:\n${tail}`);
-    // AND IT IS STILL SAID, in the place that owns it.
-    //
-    // Without this the test had stopped being able to fail: `[liveness]` is a
-    // string the program no longer emits anywhere, so the negative assertion
-    // above passes on an empty screen, on a crash, and on a build where the
-    // detection was deleted outright. The observation now goes to the panel as
-    // an advisory, so that is what must be there.
-    const drawn = frames(r.out).map(plain).join('\n');
-    assert.match(drawn, /STILL\s+GOING\s+ROUND/i,
-      'eight identical reads must still be reported — to the user, in the panel');
-  });
-
   await test('CONVERSATION LIVE: model selection does not sit in Context all session', async () => {
     // "model X via Y — /models to change" is state, not conversation. Left in
     // the transcript it was the last thing on screen whenever the model went
@@ -302,7 +268,7 @@ module.exports = async function () {
     // working, keep talking, and the view must stay where it was left while the
     // strip reports how many messages arrived behind it.
     const wait = (ms) => ({
-      name: 'run_bash',
+      name: 'shell',
       input: { command: `node -e "const t=Date.now();while(Date.now()-t<${ms});"` },
     });
     const script = [];

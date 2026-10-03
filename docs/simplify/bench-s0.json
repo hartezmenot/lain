@@ -1,0 +1,119 @@
+{
+  "label": "s0",
+  "at": "2026-10-02T12:10:51.812Z",
+  "model": "glm-5.3",
+  "connection": "lain:zai",
+  "cfg": {},
+  "results": [
+    {
+      "id": 1,
+      "task": "rename a UI label",
+      "exit": 0,
+      "ms": 93986,
+      "requests": 7,
+      "modelRequests": 7,
+      "reasons": [
+        "model-step"
+      ],
+      "inputTokens": 54018,
+      "outputTokens": 3125,
+      "cachedTokens": 42368,
+      "cachePct": 78,
+      "systemChars": 3374,
+      "toolCount": 32,
+      "toolSchemaChars": 22346,
+      "toolSetChanged": false,
+      "correct": true,
+      "why": "",
+      "project": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-bench-proj-1FmrNo"
+    },
+    {
+      "id": 2,
+      "task": "make a button 10% smaller",
+      "exit": 0,
+      "ms": 269776,
+      "requests": 11,
+      "modelRequests": 11,
+      "reasons": [
+        "model-step"
+      ],
+      "inputTokens": 101347,
+      "outputTokens": 12218,
+      "cachedTokens": 88576,
+      "cachePct": 87,
+      "systemChars": 3374,
+      "toolCount": 33,
+      "toolSchemaChars": 25611,
+      "toolSetChanged": false,
+      "correct": true,
+      "why": "font-size 14.4px",
+      "project": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-bench-proj-NuksRk"
+    },
+    {
+      "id": 3,
+      "task": "fix a known small bug",
+      "exit": 0,
+      "ms": 109439,
+      "requests": 6,
+      "modelRequests": 6,
+      "reasons": [
+        "model-step"
+      ],
+      "inputTokens": 53779,
+      "outputTokens": 2969,
+      "cachedTokens": 48576,
+      "cachePct": 90,
+      "systemChars": 3374,
+      "toolCount": 33,
+      "toolSchemaChars": 25611,
+      "toolSetChanged": false,
+      "correct": true,
+      "why": "4 passed",
+      "project": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-bench-proj-nbgfGB"
+    },
+    {
+      "id": 4,
+      "task": "answer a question (read-only)",
+      "exit": 0,
+      "ms": 57109,
+      "requests": 3,
+      "modelRequests": 3,
+      "reasons": [
+        "model-step"
+      ],
+      "inputTokens": 21095,
+      "outputTokens": 1161,
+      "cachedTokens": 12992,
+      "cachePct": 62,
+      "systemChars": 3374,
+      "toolCount": 25,
+      "toolSchemaChars": 21846,
+      "toolSetChanged": false,
+      "correct": true,
+      "why": "",
+      "project": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-bench-proj-yBP0DU"
+    },
+    {
+      "id": 5,
+      "task": "several files and steps",
+      "exit": 0,
+      "ms": 122842,
+      "requests": 5,
+      "modelRequests": 5,
+      "reasons": [
+        "model-step"
+      ],
+      "inputTokens": 46311,
+      "outputTokens": 4959,
+      "cachedTokens": 41536,
+      "cachePct": 90,
+      "systemChars": 3374,
+      "toolCount": 33,
+      "toolSchemaChars": 25611,
+      "toolSetChanged": false,
+      "correct": true,
+      "why": "5 passed",
+      "project": "C:\\Users\\HARTEZ~1\\AppData\\Local\\Temp\\lain-bench-proj-QuwCRl"
+    }
+  ]
+}

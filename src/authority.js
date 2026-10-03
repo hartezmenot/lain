@@ -1,55 +1,6 @@
 'use strict';
 
-/**
- * THE AUTHORITY CHAIN, PROJECTED ONCE — goal → task → plan → work order.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS FILE EXISTS TO END, and it was found by audit rather than by
- * a crash, which is why it had survived so long.
- *
- * Every consumer that needed to know "what is this work FOR" reached into the
- * session and picked its own fields. `jobrunner.forkSession` chose `task` and
- * `mode`. `prompt.js` chose the goal and the task separately. `tools/plan.js`
- * chose `input.objective` OR `session.task.objective`, whichever was present.
- * `handover.js` chose the task and its steers. None of them was wrong on its
- * own, and together they were four different answers to one question — so a
- * background job inherited the task and silently lost the GOAL, and a plan could
- * be written with an objective that contradicted both.
- *
- *     GOAL          stabilise provider continuation
- *     TASK          repair handover
- *     PLAN          redesign frontend        <- nothing noticed
- *
- * ------------------------------------------------------------------------
- * IT IS A PROJECTION. IT IS NOT A STORE. This is the load-bearing rule.
- *
- * Nothing here holds state, nothing here is persisted, and every field is read
- * through the module that owns it — `goal.js` for the goal, `task.js` for the
- * task and the executor, `plan.js` for the plan. Adding a store here would make
- * a fifth answer to the question, which is the disease rather than the cure.
- *
- * So this module may be deleted and rebuilt from the session at any time, and
- * that is the test of whether it has stayed a projection.
- *
- * ------------------------------------------------------------------------
- * THE LADDER, and what each rung is allowed to do.
- *
- *     GOAL        the durable strategic outcome.      Only `/goal` writes it.
- *     TASK        the current bounded unit of work.   The user's latest ask.
- *     PLAN        one strategy for the task.          Revisable, never authority.
- *     WORK ORDER  one executor's exact assignment.    Derived from the three.
- *
- * A rung may narrow the one above it. It may never contradict it, and it may
- * never replace it. `contradictions()` is where that is checked.
- *
- * ------------------------------------------------------------------------
- * LATEST EXPLICIT USER INTENT OUTRANKS THE STORED GOAL. A goal is what somebody
- * decided earlier; a sentence they just typed is what they want now. So the
- * projection reports the RELATION between the two (see goal.relate) and never
- * resolves it silently — a request that supersedes the direction is surfaced,
- * because acting on it under the old goal and rewriting the goal without being
- * asked are both wrong.
- */
+/** THE AUTHORITY CHAIN, PROJECTED ONCE — goal → task → plan → work order. */
 
 const goalMod = require('./goal');
 const taskMod = require('./task');
@@ -64,19 +15,7 @@ function oneLine(value, max) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-/**
- * WHICH REVISION OF THE SCOPE THIS IS.
- *
- * A task's scope changes when the user steers it, and a work order issued before
- * a steer was issued against a different scope than one issued after. Without a
- * revision number the two are indistinguishable, and a worker holding the older
- * one cannot be told that the ground moved.
- *
- * IT IS THE STEER COUNT, which is derived rather than stored on purpose: a
- * counter somebody has to remember to increment is a counter that will disagree
- * with the thing it counts. `plan.steer()` and `task.steer()` are the only ways
- * scope changes, and both append.
- */
+/** WHICH REVISION OF THE SCOPE THIS IS. */
 function scopeRevision(session) {
   const task = session && session.task;
   const steers = task && Array.isArray(task.steers) ? task.steers.length : 0;
@@ -101,9 +40,7 @@ function taskOf(session) {
   return {
     id: t.id || '',
     objective: oneLine(t.objective, MAX_OBJECTIVE),
-    // THE USER'S LATER WORDS, which outrank the objective they replaced. Carried
-    // here rather than left for each consumer to dig out, because every consumer
-    // that missed them acted on a request the user had already corrected.
+    // THE USER'S LATER WORDS, which outrank the objective they replaced.
     steers: (Array.isArray(t.steers) ? t.steers : []).slice(-MAX_STEERS)
       .map((s) => oneLine(s && s.text, 160)).filter(Boolean),
     state: t.state || taskMod.STATE.ACTIVE,
@@ -111,13 +48,7 @@ function taskOf(session) {
   };
 }
 
-/**
- * WHO IS CARRYING IT, AND WHETHER THEY CAN WORK.
- *
- * Projected from the task because that is where it lives — see task.js EXECUTOR
- * on why an executor is a lease and never a deed. `epoch` is what lets a work
- * order survive a model replacement: see `WorkOrder`.
- */
+/** WHO IS CARRYING IT, AND WHETHER THEY CAN WORK. */
 function executorOf(session) {
   const t = session && session.task;
   const e = t && t.executor;
@@ -128,14 +59,7 @@ function executorOf(session) {
     state: e.state || taskMod.EXECUTOR.ACTIVE,
     since: e.since || null,
     why: e.why || '',
-    /**
-     * HOW MANY EXECUTORS THIS TASK HAS HAD. One-based: the first executor is
-     * epoch 1, and a handover to a second makes it 2.
-     *
-     * DERIVED FROM THE HANDOVER LOG rather than counted separately, for the same
-     * reason `scopeRevision` is derived — `assignExecutor` already appends a row
-     * per change, and a second counter could only ever disagree with it.
-     */
+    /** HOW MANY EXECUTORS THIS TASK HAS HAD. */
     epoch: (Array.isArray(t.handovers) ? t.handovers.length : 0) + 1,
     /** Nobody can work this right now, and it is not finished. See task.stranded. */
     stranded: typeof t.stranded === 'boolean' ? t.stranded
@@ -143,14 +67,7 @@ function executorOf(session) {
   };
 }
 
-/**
- * The plan rung — STRATEGY, never authority.
- *
- * `objective` is deliberately absent from this projection even though `Plan`
- * still carries one. See `contradictions()`: a plan's objective is display text
- * derived from the task, and projecting it beside the task's own would put two
- * objective-shaped strings in front of a consumer that has to pick one.
- */
+/** The plan rung — STRATEGY, never authority. */
 function planOf(session) {
   const p = session && session.plan;
   if (!p || !Array.isArray(p.steps) || !p.steps.length) return null;
@@ -170,14 +87,7 @@ function planOf(session) {
   };
 }
 
-/**
- * WHERE THE PROJECTION'S FACTS CAME FROM, and whether they are current.
- *
- * A consumer that cannot tell a MEASURED absence from an UNKNOWN one will treat
- * the second as the first — the mistake `tokenview.js` documents at length and
- * the reason every rung reports its own presence here rather than being inferred
- * from a null.
- */
+/** WHERE THE PROJECTION'S FACTS CAME FROM, and whether they are current. */
 function freshnessOf(session) {
   return {
     goal: goalMod.get(session) ? 'SET' : 'UNSET',
@@ -189,28 +99,7 @@ function freshnessOf(session) {
   };
 }
 
-/**
- * THE RUNGS THAT ARGUE WITH EACH OTHER.
- *
- * Returns a list, empty when the chain is coherent. Each entry names the rung
- * that overstepped, what it said, and what it contradicted — so a caller can
- * REPORT the contradiction rather than having to decide which side wins, which
- * is not a decision code should be making.
- *
- * ------------------------------------------------------------------------
- * WHAT COUNTS AS A CONTRADICTION, because "different words" does not.
- *
- * A task objective almost never repeats the goal's wording, and a plan step
- * repeats neither. Flagging difference would flag everything and be ignored
- * within a day. So the only thing checked is a rung carrying its OWN objective
- * that shares no content words with the rung above it — a plan called "redesign
- * frontend" under a task called "repair handover" is not a narrowing of it in
- * any reading.
- *
- * `objectiveOverlap` is task.js's, reused deliberately: "are these two sentences
- * about the same work" already had one answer in this tree and must not acquire
- * a second.
- */
+/** THE RUNGS THAT ARGUE WITH EACH OTHER. */
 function contradictions(session, { planObjective = null } = {}) {
   const out = [];
   const task = session && session.task;
@@ -223,9 +112,7 @@ function contradictions(session, { planObjective = null } = {}) {
   // AGAINST THE TASK FIRST, because the task is the rung directly above a plan.
   const taskObjective = oneLine(task && task.objective, MAX_OBJECTIVE);
   if (taskObjective && taskMod.objectiveOverlap(taskObjective, statedText) === 0) {
-    // AND AGAINST THE GOAL, because a plan may legitimately restate the
-    // DIRECTION rather than this task — "stabilise handover" over a task of "fix
-    // continuation" shares nothing with the task and is still coherent.
+    // AND AGAINST THE GOAL, because a plan may legitimately restate the DIRECTION rather than this task — "stabilise handover" over a task of "fix…
     const goalText = oneLine(goalMod.text(session), MAX_GOAL_TEXT);
     if (!goalText || taskMod.objectiveOverlap(goalText, statedText) === 0) {
       out.push({
@@ -240,20 +127,7 @@ function contradictions(session, { planObjective = null } = {}) {
   return out;
 }
 
-/**
- * THE CANONICAL PROJECTION. One call, one answer, no field-picking.
- *
- * @param {object} session
- * @param {object} [options]
- *   `request`   the sentence being acted on right now, when there is one. Used
- *               only to report how it stands to the standing goal — never to
- *               change the goal. See goal.relate.
- *   `workOrder` an issued WorkOrder to include, when one exists.
- *
- * TOTAL. A null session projects a chain of nulls rather than throwing: this is
- * consulted from prompt building, from a fork and from a handover, and none of
- * those may fail over an absent rung.
- */
+/** THE CANONICAL PROJECTION. */
 function project(session, options = {}) {
   const { request = '', workOrder = null } = options;
   return {
@@ -264,31 +138,16 @@ function project(session, options = {}) {
     workOrder: workOrder ? workOrder.toJSON() : null,
     executor: executorOf(session),
     scopeRevision: scopeRevision(session),
-    /**
-     * HOW THE REQUEST IN HAND STANDS TO THE STANDING GOAL, when there is one.
-     * Reported, never applied — see this file's header and goal.js `relate`.
-     */
+    /** HOW THE REQUEST IN HAND STANDS TO THE STANDING GOAL, when there is one. */
     relation: request ? goalMod.relate(session, request) : null,
-    /**
-     * WHAT WOULD PROVE THIS DONE: the level selected from the change, and the
-     * separate claims. See verifycontract.js.
-     */
+    /** WHAT WOULD PROVE THIS DONE: the level selected from the change, and the separate claims. */
     verification: verifyContract(session),
     contradictions: contradictions(session),
     freshness: freshnessOf(session),
   };
 }
 
-/**
- * THE VERIFY CONTRACT, projected.
- *
- * The ladder, the selection, the escalation, the failure classes and the
- * evidence states live in verifycontract.js. This projection carries what a
- * consumer of the chain needs: the selected level and why, and the separate
- * claims — task complete, task passed, project clean, release ready — that one
- * number would erase. `foreignFailures` are failures this task did not cause
- * and may not repair.
- */
+/** THE VERIFY CONTRACT, projected. */
 const contract = require('./verifycontract');
 const LEVEL = contract.LEVEL;
 
@@ -318,77 +177,20 @@ function verifyContract(session) {
 
 // --------------------------------------------------------------- work order --
 
-/**
- * ONE EXECUTOR'S EXACT ASSIGNMENT — the contract every worker backend shares.
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS BEFORE THERE ARE PARALLEL WORKERS. Because the alternative is
- * what was already starting to happen: `/bg` had its own way of orienting a
- * worker, and an OpenRouter path and a Codex path would each have invented
- * another. Three orchestrations with three notions of "what is this worker for"
- * cannot be made to agree afterwards — the agreement has to exist first, with
- * one consumer, and then get more.
- *
- *     WORK ORDER
- *          │
- *    executor adapter
- *     ┌────┼────┐
- *     ▼    ▼    ▼
- *    /bg  future  future
- *
- * ------------------------------------------------------------------------
- * WHAT IS ENFORCED, and by whom:
- *
- *   `readScope` / `writeScope`   ENFORCED for a BOUNDED order by
- *       workorderguard.js — at the tool door for reads, and in the mutation
- *       transaction (mutation.js) for writes. `dependencyScope` is declarative.
- *
- *   `baselineFingerprints`   ENFORCED. Measured at `issue`; a write or a
- *       proposal whose target no longer matches is STALE_WORK_ORDER and nothing
- *       is overwritten (mutation.js, proposal.js).
- *
- * A field with no consumer yet is carried ONLY when the contract cannot be
- * truthful without it. Everything else was left out.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT PERSISTED, AND THAT IS A LIMITATION RATHER THAN A DESIGN.
- *
- * `toJSON`/`from` exist and round-trip faithfully, but nothing writes the result
- * to disk: `Session.toJSON` is an allowlist that does not include `workOrder`,
- * and the job registry is in-memory. So an order lives exactly as long as its
- * job — which MATCHES what `/bg` does today (a background job does not survive a
- * restart either), so nothing is inconsistent.
- *
- * IT WILL HAVE TO CHANGE before a worker can be resumed across a crash, and the
- * serialisation is here so that change is a wiring job rather than a redesign.
- * Until then: an order is not durable state, and no caller should assume it is.
- */
+/** ONE EXECUTOR'S EXACT ASSIGNMENT — the contract every worker backend shares. */
 class WorkOrder {
-  /**
-   * @param {object} spec
-   *   `id`         the order's own handle. A caller with a natural one (a job
-   *                number) should pass it, so the row and the order agree.
-   *   `objective`  what THIS worker is to do — not the goal, not the task.
-   */
+  /** `id` the order's own handle. */
   constructor(spec = {}) {
     this.id = String(spec.id || `W${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`);
     /** THE CHAIN THIS ORDER HANGS FROM. Ids, never copies — see the file header. */
     this.goalId = String(spec.goalId || '');
     this.taskId = String(spec.taskId || '');
     this.scopeRevision = Number.isFinite(spec.scopeRevision) ? spec.scopeRevision : 0;
-    /**
-     * THE OBJECTIVE AS THE WORKER SEES IT. A PROJECTION, and named so nobody
-     * reads it as a fourth authority: it is derived from the request that
-     * created the order and is bounded to a briefing's length.
-     */
+    /** THE OBJECTIVE AS THE WORKER SEES IT. */
     this.objectiveProjection = oneLine(spec.objective, MAX_OBJECTIVE);
     this.readScope = Object.freeze(Array.isArray(spec.readScope) ? spec.readScope.slice(0, 50) : []);
     this.writeScope = Object.freeze(Array.isArray(spec.writeScope) ? spec.writeScope.slice(0, 50) : []);
-    /**
-     * A BOUNDED ORDER IS ENFORCED. workorderguard.js refuses a write outside
-     * `writeScope` and a result whose baseline moved. The main executor and a
-     * `/bg` fork carry unbounded orders and keep their freedom.
-     */
+    /** A BOUNDED ORDER IS ENFORCED. */
     this.bounded = spec.bounded === true;
     this.expansionRequests = Array.isArray(spec.expansionRequests) ? spec.expansionRequests.slice(0, 20) : [];
     this.dependencyScope = Array.isArray(spec.dependencyScope) ? spec.dependencyScope.slice(0, 50) : [];
@@ -402,27 +204,13 @@ class WorkOrder {
       : null;
     this.executorEpoch = Number.isFinite(spec.executorEpoch) ? spec.executorEpoch : 1;
     this.state = STATE_OF.includes(spec.state) ? spec.state : WO_STATE.ISSUED;
-    /**
-     * WHAT THE WORKER SAID, AND WHAT LAIN SAW — never the same field.
-     *
-     * `resultClaim` is the worker's own account and is NOT evidence. See
-     * `claim()`; the three-word vocabulary is handover.js's and is reused rather
-     * than re-invented.
-     */
+    /** WHAT THE WORKER SAID, AND WHAT LAIN SAW — never the same field. */
     this.resultClaim = null;
     this.evidenceReceipts = [];
     this.staleReason = '';
   }
 
-  /**
-   * A DIFFERENT MODEL PICKS THIS UP. The order does not change.
-   *
-   * THE IDENTITY IS NOT TOUCHED — not `id`, not `goalId`, not `taskId`, not the
-   * scope, not the baseline, not the evidence. Only the executor and the epoch.
-   * That is the whole point of an epoch, and it is the work-order-level form of
-   * the rule task.js already holds: a model name is not part of a task's
-   * identity, so replacing the model cannot replace the work.
-   */
+  /** A DIFFERENT MODEL PICKS THIS UP. */
   reassign({ provider = '', model = '' } = {}) {
     this.executor = { provider: String(provider), model: String(model) };
     this.executorEpoch += 1;
@@ -438,14 +226,7 @@ class WorkOrder {
     return this;
   }
 
-  /**
-   * THE WORKER'S OWN ACCOUNT OF WHAT IT DID. RECORDED AS A CLAIM.
-   *
-   * `state` becomes CLAIMED and never VERIFIED. A worker saying "implemented and
-   * tested" has produced a sentence, and the whole reason this method is named
-   * `claim` is that there is no code path from a sentence to a verdict. See
-   * `verified()`, which only LAIN-owned verification reaches.
-   */
+  /** THE WORKER'S OWN ACCOUNT OF WHAT IT DID. */
   claim(text, { observed = [] } = {}) {
     this.resultClaim = {
       text: oneLine(text, 600),
@@ -470,13 +251,7 @@ class WorkOrder {
     return this;
   }
 
-  /**
-   * LAIN VERIFIED IT. Requires at least one receipt, and refuses otherwise.
-   *
-   * THE REFUSAL IS THE FEATURE. Without it, `verified()` is a setter a caller
-   * can reach from a worker's claim in one line, and the distinction this class
-   * is built around evaporates at the first convenient call site.
-   */
+  /** LAIN VERIFIED IT. Requires at least one receipt, and refuses otherwise. */
   verified() {
     if (!this.evidenceReceipts.length) return false;
     this.state = WO_STATE.VERIFIED;
@@ -527,10 +302,7 @@ class WorkOrder {
   }
 }
 
-/**
- * A WORK ORDER'S LIFECYCLE. `CLAIMED` and `VERIFIED` are two states and not one,
- * which is the only reason this list is worth having.
- */
+/** A WORK ORDER'S LIFECYCLE. */
 const WO_STATE = Object.freeze({
   ISSUED: 'ISSUED',
   ACTIVE: 'ACTIVE',
@@ -550,19 +322,15 @@ const WO_STATE = Object.freeze({
 
 const STATE_OF = Object.values(WO_STATE);
 
-/**
- * ISSUE AN ORDER FROM THE CHAIN — the only constructor callers should use.
- *
- * It exists so that no caller has to know how to read a goal id off a session,
- * which is how the field-picking this module ends got started in the first place.
- */
+/** ISSUE AN ORDER FROM THE CHAIN — the only constructor callers should use. */
 function issue(session, { id = '', objective = '', readScope = [], writeScope = [], bounded = false, baseline = null } = {}) {
   const chain = project(session);
   // THE BASELINE IS MEASURED AT ISSUE for every concrete path the order may
   // write, so a result computed against older bytes is refused later.
   const cwd = (session && session.cwd) || process.cwd();
   const concrete = writeScope.map((e) => String(e).split('::')[0]).filter((p) => p && !/[*?]/.test(p));
-  const baselineFingerprints = baseline || require('./workorderguard').baseline(cwd, [...new Set(concrete)]);
+  const rr = require('./readreceipts');
+  const baselineFingerprints = baseline || Object.fromEntries([...new Set(concrete)].map((rel) => { const f = rr.contentFingerprint(require('path').resolve(cwd, rel)); return [rel.replace(/\\/g, '/'), f ? f.fp : null]; }));
   return new WorkOrder({
     bounded,
     baselineFingerprints,
@@ -581,25 +349,10 @@ function issue(session, { id = '', objective = '', readScope = [], writeScope = 
   });
 }
 
-/**
- * THE CHAIN AS PROSE, for a model that is about to work.
- *
- * ------------------------------------------------------------------------
- * FOUR LABELLED RUNGS AND NOTHING ELSE. A worker that is handed the parent's
- * whole session learns everything except which part of it is the assignment —
- * that was the shape of the `/bg` defect, where a fork inherited the task and
- * lost the goal and nobody could tell from the worker's output that it had.
- *
- * BOUNDED, because it rides every request the worker makes.
- */
+/** THE CHAIN AS PROSE, for a model that is about to work. */
 function brief(chain, { omit = [] } = {}) {
   if (!chain) return '';
-  // `omit` IS THE ANTI-DUPLICATION RULE, not a convenience. A caller that has
-  // already stated a rung must say so, or the prompt carries one fact twice -
-  // which is how a system prompt grows: not by anybody adding a paragraph, but
-  // by two places each correctly stating the same thing. The first wiring of
-  // this into appprompt.js printed the standing goal directly under a `# Goal`
-  // heading that had just printed it.
+  // `omit` IS THE ANTI-DUPLICATION RULE, not a convenience.
   const skip = new Set(omit);
   const rows = [];
   if (chain.goal && !skip.has('goal')) {
@@ -620,9 +373,7 @@ function brief(chain, { omit = [] } = {}) {
     rows.push(`WORK ORDER ${w.id} (your exact assignment)\n  ${w.objectiveProjection}`);
     if (w.writeScope.length) rows.push(`YOU MAY WRITE\n${w.writeScope.map((p) => `  - ${p}`).join('\n')}`);
   }
-  // WHAT WOULD PROVE IT, when anything is known. Silent otherwise: an empty
-  // heading is worse than no heading, and inventing a level would assert a
-  // verification nobody selected.
+  // WHAT WOULD PROVE IT, when anything is known.
   const v = chain.verification;
   if (v && v.foreignFailures.length) {
     rows.push('FAILURES THAT ARE NOT YOURS (recorded, do not repair them)\n'

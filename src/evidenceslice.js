@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * EVIDENCE SLICE — the flagship gets where the thing is, not the whole world.
- *
- * ------------------------------------------------------------------------
- * THE COST THIS REMOVES (measured 2026-09-23). A Computer `ui_tree` handed the
- * model up to 20,000 characters per observation, and silently stopped at 200
- * rows: the nodes after that were simply gone, with nothing to say so and no
- * way to get them back. Expensive AND a false-narrowing risk.
- *
- * ------------------------------------------------------------------------
- * THE DETERMINISTIC TIER of the `evidence_narrower` contract (workers.js,
- * worker LAYA). No model: native structure first (the UIA tree), programmatic
- * measurements (bounds), then scoring by the model's own stated FOCUS —
- *
- *     name / automationId hits  > control type  > value  > interactivity
- *
- * The slice is the matched controls, their ancestor path (so they can be
- * aimed at), the region they occupy, what was omitted, and a RECEIPT:
- *
- *   EVIDENCE_SLICE { intent(focus), target(window), source_scope(receipt),
- *     visual_scope(region), observations(matched rows), confidence,
- *     unresolved, recommended_next_probe, source_refs }
- *
- * RAW EVIDENCE STAYS RECOVERABLE. The whole tree is written to the LAIN home
- * under the receipt id; `computer {op:"expand", receipt, query?}` returns it
- * (or a re-slice for another focus). An expand of a sliced receipt is counted
- * as a re-read in the worker ledger — false narrowing is measured, not assumed.
- *
- * No match is not guessed at: the slice ABSTAINS and says to expand or refine.
- */
+/** EVIDENCE SLICE — the flagship gets where the thing is, not the whole world. */
 
 const fs = require('fs');
 const path = require('path');
@@ -84,10 +55,7 @@ function union(rects) {
   return { x, y, width: x2 - x, height: y2 - y };
 }
 
-/**
- * Store the raw tree under a receipt id. Returns the id, or '' when storage
- * failed (the slice then says the raw tree could not be kept).
- */
+/** Store the raw tree under a receipt id. */
 function keep(sessionId, tree, rendered, meta = {}) {
   const id = `ev_${crypto.createHash('sha1').update(rendered).digest('hex').slice(0, 10)}`;
   try {
@@ -102,18 +70,12 @@ function load(sessionId, id) {
   try { return JSON.parse(fs.readFileSync(path.join(dir(sessionId), `${id}.json`), 'utf8')); } catch { return null; }
 }
 
-/**
- * THE SLICE. `describe(node, indent)` is the caller's one-row renderer, so a
- * slice row reads exactly like a tree row.
- * @returns {{text, matched, total, confidence, abstain, region}}
- */
+/** THE SLICE. `describe(node, indent)` is the caller's one-row renderer, so a slice row reads exactly like a tree row. @returns {{text, matched, total… */
 function slice(tree, { focus = '', window = '', receipt = '', totalChars = 0, describe }) {
   const flat = flatten(tree);
   const ts = terms(focus);
   const scored = flat.map((f, i) => ({ i, s: score(f.node, ts) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s || a.i - b.i);
-  // A CONTAINER IS PATH, NOT A MATCH, when something inside it matched too:
-  // "Network" pane + "Network mode" combo is one finding, and the region must
-  // be the combo's, not the pane's 2400×1200.
+  // A CONTAINER IS PATH, NOT A MATCH, when something inside it matched too: "Network" pane + "Network mode" combo is one finding, and the region must be…
   const hits = new Set(scored.map((x) => x.i));
   const isAncestorOfHit = (i) => scored.some((x) => { let k = flat[x.i].parent; while (k >= 0) { if (k === i) return true; k = flat[k].parent; } return false; });
   const top = scored.filter((x) => !(hits.has(x.i) && isAncestorOfHit(x.i))).slice(0, MAX_MATCHES);

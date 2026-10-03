@@ -1,38 +1,9 @@
 'use strict';
 
-/**
- * ONE SEARCHABLE MODEL PROJECTION, PER VIEW — so a frontend never has to know
- * what a catalog, a connection or a website model source is.
- *
- *     search(app, { lane: 'chat' | 'coding', query })
- *       → [{ source, provider, modelId, displayName, capabilities, availability,
- *            authState, locality, selected, connectionId }]
- *
- * ------------------------------------------------------------------------
- * EVERY ROW COMES FROM AN INVENTORY THAT ALREADY EXISTS. Nothing is hard-coded.
- *
- *   LAIN's runtime   the configured catalog (appcatalog.js) — both views
- *   ChatGPT.com /    the inventory the logged-in ACCOUNT reported last time it
- *   Gemini           was discovered (webmodel.js). Chat view only: a website is
- *                    consulted, it never codes. A source never discovered
- *                    contributes one row saying so, with its auth state, and
- *                    `POST /api/source/models` is how it gets discovered — a
- *                    search is not allowed to open a browser.
- *
- * The ranking is modelsearch.js's — the same algorithm `/models` uses — so the
- * terminal and the window agree about what "qwen 3.7" means.
- *
- * ------------------------------------------------------------------------
- * SELECTION IS PER VIEW AND PER SESSION.
- *
- *   chat    session.chatSource + session.sourceSelections (modelsource state).
- *           Choosing a runtime model for Chat records it on the session ONLY;
- *           it does not move the Coding model or the process default.
- *   coding  session.views.coding (sessionviews.js), resolved through the same
- *           catalog resolution `/model` uses so a Coding turn can reach it.
- */
+/** ONE SEARCHABLE MODEL PROJECTION, PER VIEW — so a frontend never has to know what a catalog, a connection or a website model source is. */
 
 const net = require('net');
+const roles = require('./modelroles');
 
 const LANE = Object.freeze({ CHAT: 'chat', CODING: 'coding' });
 const MAX_ROWS = 80;
@@ -53,31 +24,43 @@ function connectionIndex(app) {
 }
 
 /** The Coding model this session actually runs with, and where it came from. */
+/** THE FABRIC'S FACTS of a lane (Phase 8.3): family › model › effort, policy, the backing account, a pending question. */
+function fabricOf(l) {
+  return { resolved: l.resolved, display: l.display, family: l.family, familyLabel: l.familyLabel, familyKind: l.familyKind, effort: l.effort, effortLabel: l.effortLabel, efforts: l.efforts, effortLabels: l.effortLabels, defaultEffort: l.defaultEffort, effortKnown: l.effortKnown, policy: l.policy, policyLabel: l.policyLabel, backing: l.backing, accountCount: l.accountCount, pending: l.pending };
+}
+
 function codingSelection(app) {
-  const v = require('./sessionviews').views(app.session);
-  if (v.coding.model) return { modelId: v.coding.model, connectionId: v.coding.connection || null, scope: 'session' };
-  return { modelId: (app.cfg && app.cfg.model) || null, connectionId: (app.cfg && app.cfg.connection) || null, scope: 'default' };
+  const l = require('./sessionintel').lane(app, app.session, 'coding');
+  return { modelId: l.model, connectionId: l.route, account: l.account, accountLabel: l.accountLabel, modelLabel: l.modelLabel, scope: l.modelScope, accountScope: l.accountScope, ok: l.ok, needs: l.needs, why: l.why, ...fabricOf(l) };
 }
 
 /** The Chat model: which source, and which model on it. */
 function chatSelection(app) {
-  const registry = require('./modelsource/registry');
-  const source = registry.selectedId(app);
-  const picks = (app.session && app.session.sourceSelections) || {};
-  const modelId = picks[source] || (source === 'lain' ? ((app.cfg && app.cfg.model) || null) : null);
-  return { source, modelId, scope: picks[source] ? 'session' : 'default' };
+  const l = require('./sessionintel').lane(app, app.session, 'chat');
+  return { source: 'lain', modelId: l.model, connectionId: l.route, account: l.account, accountLabel: l.accountLabel, modelLabel: l.modelLabel, scope: l.modelScope, accountScope: l.accountScope, ok: l.ok, needs: l.needs, why: l.why, ...fabricOf(l) };
 }
 
 function runtimeRows(app, lane) {
   const cat = (() => { try { return app.catalog(); } catch { return null; } })();
   const conns = connectionIndex(app);
+  // THE CONNECTIONS AS THE TRANSPORT SEES THEM (base URLs), for the runtime-bound check below.
+  const live = new Map((() => { try { return require('./appcatalog').connections(app); } catch { return []; } })().map((c) => [c.id, c]));
   const chosen = lane === LANE.CODING ? codingSelection(app) : chatSelection(app);
+  // ONE READ of the runtime/local connections, not one per catalog row.
+  const rtIndex = new Map();
+  try { for (const rc of require('./runtimeconnections').connections(app)) for (const x of rc.models) rtIndex.set(x.id, { ...x, runtime: rc.runtime, locality: rc.locality, connectionId: rc.id }); } catch { /* no runtime rows */ }
   return {
     catalog: cat,
     rows: ((cat && cat.models) || []).map((m) => {
       const c = (m.connections || [])[0] || {};
       const base = conns.get(String(c.baseConnectionId || c.connectionId || '')) || {};
       const efforts = (m.connections || []).flatMap((x) => x.efforts || []);
+      // A LOCAL OR RUNTIME ROUTE carries the roles it may fill (runtimeconnections.js).
+      const rt = rtIndex.get(m.id) || null;
+      // A RUNTIME-BOUND model on an HTTP route (runtimebound.js) is listed, but cannot be chosen there.
+      const bound = !rt && (m.connections || []).length && (m.connections || []).every((x) => require('./runtimebound').check({ conn: live.get(String(x.baseConnectionId || x.connectionId || '')) || {}, connectionId: x.connectionId, model: m.id, upstreamId: x.upstreamId || m.id }));
+      const extra = rt ? { roles: rt.roles, runtime: rt.runtime, displayName: rt.label || m.displayName || m.id, locality: rt.locality, entitlement: rt.entitlement || null, capabilities: { chat: true, coding: rt.roles.includes('AGENT'), tools: rt.locality === 'local' || rt.runtime === 'zcode', efforts: [] } }
+        : bound ? { roles: [], availability: 'RUNTIME_BOUND', why: 'runtime-bound — use it through the OpenCode Runtime' } : {};
       return {
         source: 'lain',
         provider: c.provider || null,
@@ -92,9 +75,23 @@ function runtimeRows(app, lane) {
         selected: lane === LANE.CODING
           ? chosen.modelId === m.id
           : chosen.source === 'lain' && chosen.modelId === m.id,
+        ...extra,
       };
     }),
   };
+}
+
+/** The runtime-bound refusal for a resolved route (runtimebound.js), or null. */
+function runtimeBound(app, r) {
+  if (!r || !r.connection) return null;
+  let conn = {};
+  try { conn = require('./appcatalog').connections(app).find((c) => c.id === (r.connection.baseConnectionId || r.connection.connectionId)) || {}; } catch { conn = {}; }
+  return require('./runtimebound').check({ conn, connectionId: r.connection.connectionId, model: r.model, upstreamId: r.upstreamId });
+}
+
+/** The runtime/local row (roles, runtime, locality) for a catalog model, or null for an API route. */
+function runtimeRowFor(app, modelId, conn) {
+  try { return require('./runtimeconnections').rowFor(app, modelId, conn ? (conn.baseConnectionId || conn.connectionId || null) : null); } catch { return null; }
 }
 
 async function webRows(app) {
@@ -108,9 +105,21 @@ async function webRows(app) {
     // eslint-disable-next-line no-await-in-loop -- two sources, status never launches with open:false
     const st = await src.status({ open: false }).catch((e) => ({ state: 'FAILED', why: (e && e.message) || String(e) }));
     const inv = src._inventory && Array.isArray(src._inventory.models) ? src._inventory.models : null;
-    if (!inv) {
+    // CHATGPT CHAT (modelroles.CHATGPT_CHAT) is ONE row under its own name, with its LAIN alias as metadata and CHAT ONLY as its capability — whether or…
+    const chatOnly = d.id === roles.CHATGPT_CHAT.source;
+    const tag = { capabilityLabel: 'CHAT ONLY', roles: [roles.ROLE.CHAT], alias: chatOnly ? roles.CHATGPT_CHAT.alias : null, origin: chatOnly ? roles.CHATGPT_CHAT.origin : null };
+    if (chatOnly) {
       out.push({
-        source: d.id, provider: src.label, modelId: null, displayName: `${src.label} — models not discovered yet`,
+        source: d.id, provider: src.label, modelId: roles.CHATGPT_CHAT.alias, displayName: roles.CHATGPT_CHAT.label, ...tag,
+        connectionId: null, routes: 1, capabilities: { chat: true, coding: false, tools: false, efforts: [] },
+        availability: inv ? 'AVAILABLE' : 'UNDISCOVERED', authState: st.state || 'DISCONNECTED', locality: 'external',
+        selected: chosen.source === d.id, why: st.why || '',
+      });
+    }
+    if (!inv) {
+      if (chatOnly) continue;
+      out.push({
+        source: d.id, provider: src.label, modelId: null, displayName: `${src.label} — models not discovered yet`, ...tag,
         connectionId: null, routes: 0, capabilities: { chat: true, coding: false, tools: false, efforts: [] },
         availability: 'UNDISCOVERED', authState: st.state || 'DISCONNECTED', locality: 'external',
         selected: false, discover: { route: 'POST /api/source/models', body: { source: d.id } }, why: st.why || '',
@@ -118,8 +127,10 @@ async function webRows(app) {
       continue;
     }
     for (const m of inv) {
+      // THE SITE'S OWN OPTIONS read under the source's name ("ChatGPT Chat ·
+      // <option>"), never as a bare "GPT…" id that looks like API access.
       out.push({
-        source: d.id, provider: src.label, modelId: m.id, displayName: m.label || m.id, connectionId: null, routes: 1,
+        source: d.id, provider: src.label, modelId: m.id, displayName: `${roles.labelFor(d.id, src.label)} · ${m.label || m.id}`, ...tag, connectionId: null, routes: 1,
         capabilities: { chat: true, coding: false, tools: false, efforts: [] },
         availability: m.state || 'UNKNOWN', authState: st.state || 'UNKNOWN', locality: 'external',
         selected: chosen.source === d.id && chosen.modelId === m.id,
@@ -130,9 +141,21 @@ async function webRows(app) {
 }
 
 /** SEARCH. May read the catalog (a POST route); never opens a browser. */
-async function search(app, { lane = LANE.CODING, query = '', limit = MAX_ROWS } = {}) {
+async function search(app, { lane = LANE.CODING, query = '', limit = MAX_ROWS, account = null } = {}) {
   const which = lane === LANE.CHAT ? LANE.CHAT : LANE.CODING;
   try { await app.ensureCatalog({ announce: false }); } catch { /* an unreadable catalog yields no runtime rows */ }
+  if (account) {
+    const A = require('./accountcatalog');
+    const acct = A.accountFor(app, account);
+    const chosen = which === LANE.CODING ? codingSelection(app) : chatSelection(app);
+    const rows = acct ? A.models(app, acct.id, { query, limit: 2000 }).filter((m) => (which === LANE.CODING ? m.coding : m.chat)).map((m) => ({
+      source: 'lain', provider: acct.family, account: acct.id, accountName: acct.name, modelId: m.id, displayName: m.label, connectionId: m.route,
+      routes: 1, capabilities: { chat: m.chat, coding: m.coding, tools: m.coding, efforts: m.efforts || [] }, roles: m.roles,
+      availability: acct.usable ? 'AVAILABLE' : 'UNAVAILABLE', authState: acct.state, locality: acct.kind === 'local' ? 'local' : 'external',
+      selected: chosen.account === acct.id && chosen.modelId === m.id,
+    })) : [];
+    return { lane: which, query: String(query || '').trim(), account: A.view(acct), selected: chosen, rows: rows.slice(0, Math.max(1, Math.min(2000, Number(limit) || MAX_ROWS))), total: rows.length };
+  }
   const rt = runtimeRows(app, which);
   let rows = rt.rows;
   if (which === LANE.CHAT) rows = rows.concat(await webRows(app));
@@ -154,37 +177,23 @@ async function search(app, { lane = LANE.CODING, query = '', limit = MAX_ROWS } 
   };
 }
 
-/** SELECT a model for one view of this session. */
-async function select(app, { lane, source = 'lain', modelId, connectionId = null } = {}) {
+/** SELECT for one view of this session — ACCOUNT FIRST (Phase 8.2). */
+async function select(app, { lane, source = 'lain', modelId, connectionId = null, account } = {}) {
+  const which = lane === LANE.CHAT ? 'chat' : lane === LANE.CODING ? 'coding' : null;
+  if (!which) return { ok: false, why: 'lane must be "chat" or "coding"' };
   const want = String(modelId || '').trim();
-  if (lane === LANE.CODING) {
-    if (source && source !== 'lain') return { ok: false, why: 'the Coding view runs on LAIN\'s runtime; a website model can be used in Chat' };
-    const v = require('./sessionviews').views(app.session);
-    if (!want) { v.coding.model = null; v.coding.connection = null; return { ok: true, selected: codingSelection(app) }; }
-    try { await app.ensureCatalog({ announce: false }); } catch { /* resolved below */ }
-    const cat = app.catalog();
-    const r = require('./catalog').resolve(cat, { model: want, connectionId: connectionId || null, effort: (app.cfg && app.cfg.effort) || null });
-    if (!r.ok) return { ok: false, why: `"${want}" is not served by any configured connection` };
-    v.coding.model = r.model;
-    v.coding.connection = r.connection ? (r.connection.baseConnectionId || r.connection.connectionId) : null;
-    return { ok: true, selected: codingSelection(app) };
-  }
-  if (lane !== LANE.CHAT) return { ok: false, why: 'lane must be "chat" or "coding"' };
-  const registry = require('./modelsource/registry');
-  const chosen = registry.selectSource(app, String(source || 'lain'));
-  if (!chosen.ok) return { ok: false, why: chosen.why };
-  if (!want) return { ok: true, selected: chatSelection(app) };
-  if (chosen.source === 'lain') {
-    try { await app.ensureCatalog({ announce: false }); } catch { /* resolved below */ }
-    const r = require('./catalog').resolve(app.catalog(), { model: want, connectionId: connectionId || null, effort: null });
-    if (!r.ok) return { ok: false, why: `"${want}" is not served by any configured connection` };
-    // THE SESSION'S CHAT PICK ONLY. The process default and Coding are untouched.
-    app.session.sourceSelections = { ...(app.session.sourceSelections || {}), lain: r.model };
-    return { ok: true, selected: chatSelection(app) };
-  }
-  const picked = await registry.selectModel(app, chosen.source, want);
-  if (!picked.ok) return { ok: false, why: picked.why };
-  return { ok: true, selected: chatSelection(app) };
+  // CHAT ONLY (modelroles.js): the website session and its alias never code.
+  if (which === 'coding') { const gate = roles.check({ source, modelId: want }, roles.ROLE.AGENT); if (!gate.ok) return { ok: false, why: gate.why, code: gate.code }; }
+  // THE WEBSITE SOURCES ARE RETIRED (Phase 8.1) — the alias included.
+  if (roles.isChatAlias(want)) return { ok: false, code: 'retired', why: `${want} was ChatGPT Chat, a website source; the website sources are retired — choose an account and a model LAIN runs` };
+  if (source && source !== 'lain') return { ok: false, code: 'retired', why: 'the website sources are retired — choose an account and a model LAIN runs' };
+  const acct = account !== undefined ? (account || null) : (connectionId || undefined);
+  const req = { lane: which };
+  if (acct !== undefined) req.account = acct;
+  if (want || acct === undefined) req.model = want || null;
+  const r = await require('./sessionintel').choose(app, app.session, req);
+  if (!r.ok) return { ok: false, why: r.why, code: r.code, offering: r.offering };
+  return { ok: true, selected: which === 'coding' ? codingSelection(app) : chatSelection(app), lane: r.lane, needsModel: r.needsModel };
 }
 
 /** The two selections, cheaply — for the session header and composer. */

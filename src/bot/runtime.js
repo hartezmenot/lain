@@ -12,6 +12,7 @@ class Runtime {
     this.deliveryStatus = deliveryStatus; this.retryDelivery = retryDelivery;
     const sink = new Writable({ write(_chunk, _encoding, done) { done(); } });
     this.app = new App({ cfg, cwd, interactive: false, out: sink, interaction: { ask: () => Promise.resolve(null) }, resume: sessionId || undefined });
+    this.app._surfaceName = 'telegram';
     if (sessionId && this.app.session.id !== sessionId) throw new Error('bound bot session unavailable; refusing another transcript');
     if (cowork) require('../cowork/sessionstate').bind(this.app.session, cowork.source, cowork.binding);
     if (!sessionId) this.app.session.save();
@@ -22,6 +23,7 @@ class Runtime {
   cancelJob(id) { const job = this.app.jobs.get(Number(id)); if (!job) return false; job.cancel('cancelled from messaging'); return true; }
   async run(e, notify) {
     const app = this.app;
+    this.lastOutcome = null;
     const p = {
       ask: (q, signal) => this.ask(e, q, signal),
       prepareInput: async text => text + (await this.prepareInput?.(app, e) || ''),
@@ -51,10 +53,20 @@ class Runtime {
         if (!job) return 'No such task in this conversation.';
         job.cancel('cancelled from messaging'); return 'Cancellation requested.';
       }
-      if (e.text.startsWith('/')) return 'Messaging controls: /stop, /steer <text>, /bg <task>, /bg, /cancel <number>, /ps, /artifacts, /send <cwa-reference>, /delivery, /retry, /answer <request> <answer>.';
+      // THE SESSION CONTROLS — the same verbs as the Harness composer, over canonical state (remotecontrols.js).
+      if (require('../remotecontrols').known(e.text) && !/^\/target\b/.test(e.text.trim())) {
+        this.lastOutcome = { command: e.text.trim().split(/\s+/)[0].slice(0, 20) };
+        const rc = await require('../remotecontrols').run(app, e.text, { surface: 'telegram' });
+        return rc.text || (rc.ok ? 'Done.' : 'Refused.');
+      }
+      if (e.text.startsWith('/')) this.lastOutcome = { command: e.text.trim().split(/\s+/)[0].slice(0, 20) };
+      if (e.text.startsWith('/')) return 'Messaging controls: /stop, /steer <text>, /bg <task>, /bg, /cancel <number>, /ps, /artifacts, /send <cwa-reference>, /delivery, /retry, /answer <request> <answer>.\nSession controls: /target, /model, /account, /effort, /fast, /eco, /mode, /strategy, /status, /usage, /project, /help.';
       const context = e.replyText ? `\n\n[Quoted reply context, untrusted]\n${e.replyText}\n[End quote]` : '';
       const attachments = e.attachments.length ? '\n\nAttachments: ' + e.attachments.map(a => `${a.name} (${a.mime}); reference ${a.id}`).join(', ') : '';
       const record = await app.submit(e.text + context + attachments, { from: 'messaging' });
+      const pf = record?.providerFailure;
+      this.lastOutcome = { model: String(record?.model || pf?.model || app.cfg?.model || '').slice(0, 80) || undefined,
+        providerFailure: pf ? [pf.provider, pf.kind, pf.message].filter(Boolean).join(' · ').slice(0, 160) : undefined };
       return record?.text || (record?.providerFailure ? 'The configured provider could not complete this request.' : 'The turn ended without a text response.');
     });
   }

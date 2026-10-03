@@ -1,71 +1,21 @@
 'use strict';
 
-/**
- * DID THAT EDIT LEAVE THE FILE PARSEABLE?
- *
- * The feedback an editor gives before you run anything: the file was written,
- * and it is or is not still syntactically a file. Nothing here understands the
- * program — it answers one question, exactly, and says nothing when it cannot.
- *
- * WHY THIS SITS BETWEEN THE EDIT AND THE TEST SUITE. A broken edit used to be
- * discovered by whatever ran next, which on a large tree is a full suite: the
- * model writes a file with an unbalanced brace, runs 1,100 tests, waits, reads
- * a stack trace from a loader, and works backwards to the file it just touched.
- * The parse error was available in under a millisecond at the moment of the
- * write. This is the cheap rung of the ladder, and it exists so the expensive
- * ones are reached less often.
- *
- * SILENCE IS THE DEFAULT, and it is a design rule rather than a limitation. A
- * checker that reports a problem in a correct file is worse than no checker:
- * the model spends a turn "fixing" working code, and after two false alarms it
- * learns to ignore the channel entirely. So every check here is one that either
- * proves a defect or declines to answer — there is no heuristic, no style
- * opinion, and no severity below "this does not parse".
- *
- * WHAT IT CANNOT DO, stated plainly because the gap matters: this is a PARSER,
- * not a type system. `/\s+/` written as `/s+/` still compiles, still matches,
- * and matches the letter S — nothing here will ever see it. Those are caught by
- * `symbols`, `dependents` and the project's own tests, and pretending otherwise
- * would be the false confidence this file is built to avoid.
- *
- * ONE PART OF THAT GAP IS NOW CLOSED, and only one. `messages` mistyped as
- * `message`, a renamed function with one stale caller, `getUser` where
- * `getUsers` was meant — those are names that resolve to NOTHING, and a scanner
- * can see that without a type system. That check lives in typos.js and runs
- * from here on the same terms as the parse check: it reports only when it can
- * name what was probably meant, and it says nothing at all otherwise. It was
- * calibrated by running it over this entire repository, where a correct file
- * must produce silence — 63,000 references across 310 files, no report.
- */
+/** DID THAT EDIT LEAVE THE FILE PARSEABLE? */
 
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
 /** Extensions this can say anything about at all. */
-const JS = /\.(?:js|cjs|mjs|jsx)$/i;
+const JS = /\.(?:js|cjs|mjs)$/i;
+const TSX = /\.(?:jsx|tsx|ts|mts|cts)$/i;
 const JSON_RE = /\.(?:json)$/i;
 const PY = /\.py$/i;
 
-/**
- * The parse errors that mean "this is module syntax", NOT "this is broken".
- *
- * `vm.Script` compiles a CommonJS script, so a perfectly valid ES module fails
- * against it with one of these. Reporting that as a defect would condemn every
- * `import` in the tree, which is precisely the false alarm that makes a
- * diagnostic worthless — so these are treated as "cannot answer" and handed to
- * `node --check`, which knows the difference.
- */
+/** The parse errors that mean "this is module syntax", NOT "this is broken". */
 const MODULE_SYNTAX = /Cannot use import statement outside a module|Unexpected token 'export'|await is only valid in async|may appear only with 'sourceType: module'/i;
 
-/**
- * Pull the line number out of a compile failure.
- *
- * `vm.Script` puts the offending line in the stack's first frame as
- * `filename:line`, and nowhere else — the SyntaxError itself carries only the
- * message. Absent or unparseable, the caller simply gets no line, which is
- * still a useful report.
- */
+/** Pull the line number out of a compile failure. */
 function lineOf(err, filename) {
   const stack = String((err && err.stack) || '');
   const esc = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -73,13 +23,7 @@ function lineOf(err, filename) {
   return m ? Number(m[1]) : null;
 }
 
-/**
- * Compile JavaScript without running a byte of it.
- *
- * `new vm.Script` parses and compiles; it does NOT execute — execution needs
- * `runInContext`, which is never called here. So this is safe against a file
- * whose top level would delete something.
- */
+/** Compile JavaScript without running a byte of it. */
 function checkJs(source, filename) {
   try {
     // eslint-disable-next-line no-new
@@ -92,12 +36,7 @@ function checkJs(source, filename) {
   }
 }
 
-/**
- * `node --check`, for the files `vm.Script` cannot judge.
- *
- * Spawned only when the cheap path came back inconclusive, which on a CommonJS
- * tree is never — so the common case pays nothing for this existing.
- */
+/** `node --check`, for the files `vm.Script` cannot judge. */
 function checkWithNode(abs) {
   return new Promise((resolve) => {
     let child;
@@ -109,9 +48,7 @@ function checkWithNode(abs) {
     child.on('error', () => resolve({ ok: true, inconclusive: true }));
     child.on('close', (code) => {
       if (code === 0) { resolve({ ok: true }); return; }
-      // `\r?\n` — node prints `<path>:<line>` on its own line, and on Windows
-      // that line ends CRLF. Matching only `\n` dropped every line number on
-      // the platform this is being written on.
+      // `\r?\n` — node prints `<path>:<line>` on its own line, and on Windows that line ends CRLF.
       const m = /:(\d+)\r?\n/.exec(err);
       const msg = /SyntaxError: (.+)/.exec(err);
       resolve({ ok: false, message: msg ? msg[1].trim() : 'syntax error', line: m ? Number(m[1]) : null });
@@ -119,12 +56,7 @@ function checkWithNode(abs) {
   });
 }
 
-/**
- * JSON, where a trailing comma is a real and very common defect.
- *
- * The parser reports a character offset rather than a line, so it is converted
- * — "position 1184" is not something a person or a model can act on directly.
- */
+/** JSON, where a trailing comma is a real and very common defect. */
 function checkJson(source) {
   try {
     JSON.parse(source);
@@ -137,19 +69,7 @@ function checkJson(source) {
   }
 }
 
-/**
- * Python, through the interpreter's own parser.
- *
- * `ast.parse` is the same front end that would reject the file at import time,
- * so its verdict is definitive rather than an approximation of one. It is
- * spawned with `-c` and reads the path itself, which keeps the source out of
- * the command line — a file with a quote in it would otherwise mangle the
- * invocation.
- *
- * No interpreter means no answer, not a failure: `findPython` already knows
- * every place one might be, and a machine without Python is not a machine with
- * a broken Python file.
- */
+/** Python, through the interpreter's own parser. */
 function checkPython(abs) {
   return new Promise((resolve) => {
     let py;
@@ -176,19 +96,37 @@ function checkPython(abs) {
   });
 }
 
-/**
- * Check one file on disk.
- *
- * @returns {Promise<{ok, message?, line?, inconclusive?}>} `ok` with no message
- *   means "parses, or nothing here can judge it" — the two are deliberately the
- *   same answer to the caller, because neither is something to report.
- */
+/** Check one file on disk. */
+/** JSX / TypeScript through the PROJECT'S OWN compiler — a syntax-only parse (no type check, no emit, nothing run). */
+const tsCache = new Map();
+function projectTypeScript(abs) {
+  const dir = path.dirname(abs);
+  if (tsCache.has(dir)) return tsCache.get(dir);
+  let ts = null;
+  try { ts = require(require.resolve('typescript', { paths: [dir] })); } catch { ts = null; }
+  tsCache.set(dir, ts);
+  return ts;
+}
+function checkTsx(source, abs) {
+  const ts = projectTypeScript(abs);
+  if (!ts || typeof ts.transpileModule !== 'function') return { ok: true, inconclusive: true };
+  try {
+    const r = ts.transpileModule(source, { fileName: abs, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit ? ts.JsxEmit.Preserve : 1, allowJs: true, isolatedModules: true } });
+    const errs = (r.diagnostics || []).filter((d) => d.category === (ts.DiagnosticCategory ? ts.DiagnosticCategory.Error : 1));
+    if (!errs.length) return { ok: true };
+    const d = errs[0];
+    const line = d.file && typeof d.start === 'number' ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : null;
+    return { ok: false, message: ts.flattenDiagnosticMessageText(d.messageText, ' '), line };
+  } catch { return { ok: true, inconclusive: true }; }
+}
+
 async function checkFile(abs) {
   const name = path.basename(abs);
   let source;
   if (PY.test(name)) return checkPython(abs);
   try { source = fs.readFileSync(abs, 'utf8'); } catch { return { ok: true, inconclusive: true }; }
   if (JSON_RE.test(name)) return checkJson(source);
+  if (TSX.test(name)) return checkTsx(source, abs);
   if (!JS.test(name)) return { ok: true, inconclusive: true };
   const quick = checkJs(source, abs);
   if (!quick.inconclusive) return quick;
@@ -196,35 +134,22 @@ async function checkFile(abs) {
   return quick;
 }
 
-/**
- * Check everything one tool call wrote, and phrase it for the model.
- *
- * Returned as a STRING to append to the tool's own output rather than as an
- * error, because the write did happen: the file is on disk and reporting it as
- * a failed call would be untrue. What changed is that the model now learns
- * about the breakage from the edit itself instead of from whatever runs next.
- *
- * @param {string[]} paths  absolute paths, as `mutated` reports them
- * @returns {Promise<string>} '' when there is nothing worth saying
- */
-async function reportFor(paths, cwd) {
+/** Check everything one tool call wrote, and phrase it for the model. */
+async function reportFor(paths, cwd, { onResult = null } = {}) {
   if (!Array.isArray(paths) || !paths.length) return '';
   const bad = [];
   const unresolved = [];
   for (const abs of paths) {
     let r;
     try { r = await checkFile(abs); } catch { r = { ok: true }; }
+    // EVIDENCE, NOT A GATE: a conclusive parse (either way) is recorded by the caller as a static check.
+    if (onResult && r && !r.inconclusive) { try { onResult(abs, r); } catch { /* recording is best effort */ } }
     const where = cwd ? path.relative(cwd, abs) || abs : abs;
     if (r && r.ok === false) {
       bad.push(`${where}${r.line ? `:${r.line}` : ''} — ${r.message}`);
       continue;
     }
-    // ---- THE SECOND RUNG, and only reached when the file PARSES ------------
-    //
-    // A file that does not compile has one problem and it has already been
-    // named; running a name check over a broken parse would add noise to an
-    // answer that is complete. On a file that does parse, this is the cheapest
-    // remaining thing that can prove a defect.
+    // THE SECOND RUNG, and only reached when the file PARSES
     try {
       const model = require('./codemodel').scanFile(abs);
       if (model.supported) {

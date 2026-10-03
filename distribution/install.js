@@ -77,7 +77,7 @@ function step(out, ok, text) { out.steps.push({ ok, text }); return out; }
  *   skipPath  write launchers, leave PATH alone (CI, or a caller managing PATH)
  *   verify    run `lain --version` afterwards. Default true; only a test that
  *             installed into a directory it never put on PATH turns it off.
- *   desktop   build LAIN.exe and put LAIN in the Start Menu. Default true on
+ *   desktop   build LAIN Harness.exe and put LAIN in the Start Menu. Default true on
  *             Windows; a test that does not want to touch the real Start Menu
  *             passes false.
  */
@@ -214,10 +214,18 @@ function install(opts = {}) {
         const link = shortcut.install({ target: launcher.launcher });
         if (link.ok) {
           out.shortcut = link.link;
-          step(out, true, 'desktop: LAIN.exe installed, and LAIN is in the Start Menu');
+          step(out, true, 'desktop: LAIN Harness.exe installed, and LAIN is in the Start Menu');
         } else {
           out.warnings.push(`no Start Menu entry: ${link.why}`);
-          step(out, true, `desktop: LAIN.exe installed at ${launcher.launcher} — no Start Menu entry (${link.why})`);
+          step(out, true, `desktop: LAIN Harness.exe installed at ${launcher.launcher} — no Start Menu entry (${link.why})`);
+        }
+        // "OPEN WITH LAIN" (src/winassoc.js): offered for development file types and folders — per-user, and never
+        // the default program for anything. Never under a test run: an isolated install touches no registry.
+        if (opts.openWith !== false && process.env.LAIN_ISOLATED !== '1') {
+          const reg = require('../src/winassoc').register({ exe: launcher.launcher });
+          out.openWith = Boolean(reg.ok);
+          step(out, true, reg.ok ? 'desktop: LAIN is offered in "Open with" and on folders — no default program changed'
+            : `desktop: "Open with" was not registered (${reg.why || `${(reg.failed || []).length} write(s) failed`}); lain --register-open-with retries it`);
         }
         // A LAUNCHER THAT CANNOT FIND NODE IS WORTH SAYING OUT LOUD, because it
         // will fail at the moment somebody double-clicks it rather than now.

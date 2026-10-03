@@ -1,29 +1,8 @@
 'use strict';
 
-/**
- * THE LINE EDITOR — what an edit DOES to the buffer.
- *
- * Split out of input.js, which had reached the god-object guard. The seam is a
- * real one and it is the seam that file is built around: input.js turns a byte
- * stream into named edits (paste brackets, escape sequences, partial reports),
- * and this decides what each named edit means to a string and a caret.
- *
- * Nothing here touches the terminal, reads stdin or knows about escape codes.
- * It is a string, an offset and a selection — which is why the whole editor is
- * testable without a TTY.
- *
- * FREE FUNCTIONS OVER THE READER, not methods: the architecture guard requires
- * an extracted helper never to use `this`, and an editor that reached back
- * through `this` could quietly begin depending on call order.
- */
+/** THE LINE EDITOR — what an edit DOES to the buffer. */
 
-/**
- * The keys that belong to the LINE EDITOR, in one place.
- *
- * ←/→ and Home/End move the caret; ↑/↓ walk the lines of a multi-line buffer
- * when there is one and otherwise recall history. Returns true when the key
- * was consumed, so the REPL can route what is left to the workspace.
- */
+/** The keys that belong to the LINE EDITOR, in one place. */
 function editKey(r, key) {
   switch (key) {
     case 'left': r.moveCursor(-1); return true;
@@ -33,18 +12,11 @@ function editKey(r, key) {
     case 'up': if (!r.moveCursorLine(-1)) r.recallPrev(); return true;
     case 'down': if (!r.moveCursorLine(1)) r.recallNext(); return true;
 
-    // ---- WHOLE-BUFFER HOME/END — Ctrl+Home, Ctrl+End -----------------------
-    // Plain Home/End are LINE-aware (see cursorHome/cursorEnd) because a
-    // pasted block is many lines in a one-row box; these reach past that, to
-    // the very start or end of the buffer, which a multi-line prompt has no
-    // other way to jump to.
+    // WHOLE-BUFFER HOME/END — Ctrl+Home, Ctrl+End Plain Home/End are LINE-aware (see cursorHome/cursorEnd) because a pasted block is many lines in a…
     case 'ctrl-home': r.moveCursorTo(0); return true;
     case 'ctrl-end': r.moveCursorTo(r.line.length); return true;
 
-    // ---- FORWARD DELETE ---------------------------------------------------
-    // Backspace already worked; this did nothing at all. `ESC[3~` is a
-    // well-formed CSI sequence, so it was CONSUMED rather than typed — and a
-    // consumed key with no handler is a key that silently does not exist.
+    // FORWARD DELETE Backspace already worked; this did nothing at all.
     case 'delete': r.deleteForward(); return true;
     // Ctrl+Delete: the same, one word at a time — Ctrl+Backspace's mirror.
     case 'ctrl-delete': r.deleteWordForward(); return true;
@@ -56,17 +28,11 @@ function editKey(r, key) {
     // ---- SELECT ALL — Ctrl+A ------------------------------------------------
     case 'ctrl-a': return selectAll(r);
 
-    // ---- UNDO / REDO — Ctrl+Z / Ctrl+Y --------------------------------------
-    // Named here, not in input.js, only because every OTHER named edit is —
-    // the stacks and the mechanics live on the reader; see input.js's own
-    // "UNDO / REDO" section for why.
+    // UNDO / REDO — Ctrl+Z / Ctrl+Y Named here, not in input.js, only because every OTHER named edit is — the stacks and the mechanics live on the reader…
     case 'ctrl-z': return r.undo();
     case 'ctrl-y': return r.redo();
 
-    // ---- SELECTION FROM THE KEYBOARD --------------------------------------
-    // Each of these EXTENDS whatever selection exists rather than starting a
-    // new one, which is what makes Shift+← held down select a growing run
-    // instead of the same single character over and over.
+    // SELECTION FROM THE KEYBOARD Each of these EXTENDS whatever selection exists rather than starting a new one, which is what makes Shift+← held down…
     case 'shift-left': r.extendSelection(r.cursor - 1); return true;
     case 'shift-right': r.extendSelection(r.cursor + 1); return true;
     case 'shift-home': r.extendSelection(r.lineStart()); return true;
@@ -99,14 +65,7 @@ function lineEnd(r) {
   return nl < 0 ? r.line.length : nl;
 }
 
-/**
- * Where the caret lands moving one WORD in `dir` (-1 back, +1 forward).
- *
- * THE SAME RULE `deleteWord` USES, deliberately: skip the whitespace, then
- * take the run — word characters or punctuation, never a mixture. Moving over
- * a word and deleting a word must agree about where the word ends, so there
- * is one definition of it in this file and both callers read it.
- */
+/** Where the caret lands moving one WORD in `dir` (-1 back, +1 forward). */
 function wordBoundary(r, dir) {
   const isWord = (c) => /[A-Za-z0-9_]/.test(c);
   const n = r.line.length;
@@ -132,13 +91,7 @@ function moveCursorTo(r, at) {
   return r.moveCursor(Math.max(0, Math.min(r.line.length, at)) - r.cursor);
 }
 
-/**
- * Grow the selection to `at` and take the caret with it.
- *
- * ANCHORED ONCE. Without the `hasSelection` guard every Shift+arrow would
- * drop a fresh anchor at the caret and then move one place — a selection
- * permanently one character long however long the key is held.
- */
+/** Grow the selection to `at` and take the caret with it. */
 function extendSelection(r, at) {
   const to = Math.max(0, Math.min(r.line.length, at));
   if (!r.hasSelection()) r.selectFrom(r.cursor);
@@ -148,32 +101,8 @@ function extendSelection(r, at) {
   return true;
 }
 
-/**
- * DELETE FORWARD — the selection if there is one, otherwise the character
- * after the caret. A newline goes like any other character, which is what
- * joins two lines of a multi-line prompt.
- */
-/**
- * A COLLAPSED PASTE IS ONE WORD TO WORD DELETION.
- *
- * The composer draws an intact large paste as one `<pasted text>` marker
- * (ui/composer.js), and keeps it collapsed only while the buffer still holds
- * the exact payload. Ctrl+Backspace — how the person who reported this deletes
- * — removed the last word OF the payload, the match broke, and the next frame
- * unfolded the WHOLE raw paste into the composer (3 KB, `[268/268]`), to be
- * deleted word by word through text they had never seen. The drawing says the
- * block is one object, so the word-deleting keys (Ctrl+Backspace, Ctrl+W,
- * Alt+Backspace, Ctrl+Delete) treat it as one word.
- *
- * PLAIN Backspace and Delete are deliberately NOT routed here: they edit the
- * payload a character at a time (tests/smoke/pasteflow.test.js pins that the
- * buffer holds the TEXT and a Backspace trims it), which is the character-level
- * key doing the character-level thing.
- *
- * `dir` −1: the caret is at the end of, or inside, a collapsed block.
- * `dir` +1: the caret is at the start of, or inside, one.
- * One undo step, so Ctrl+Z brings the whole paste back.
- */
+/** DELETE FORWARD — the selection if there is one, otherwise the character after the caret. */
+/** A COLLAPSED PASTE IS ONE WORD TO WORD DELETION. */
 function deletePaste(r, dir) {
   if (r.hasSelection && r.hasSelection()) return false;
   const found = require('./ui/composer').spans(r.line, r.pastesInLine || []);
@@ -200,12 +129,7 @@ function deleteForward(r) {
   return true;
 }
 
-/**
- * DELETE THE NEXT WORD — Ctrl+Delete, the mirror of Ctrl+Backspace
- * (`deleteWord` in input.js). Same rule, run the other direction: eat the
- * whitespace right after the caret, then the run that follows it — word
- * characters or punctuation, never mixed.
- */
+/** DELETE THE NEXT WORD — Ctrl+Delete, the mirror of Ctrl+Backspace (`deleteWord` in input.js). */
 function deleteWordForward(r) {
   if (r.deleteSelection()) return true;
   if (deletePaste(r, 1)) return true;

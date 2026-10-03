@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * WORK THAT OUTLIVES A TOOL CALL — so a long command cannot mute the model.
- *
- * `run_bash` waits. For `ls` that is right and for a 400-second test suite it
- * is the difference between an agent and a frozen screen: the turn is parked
- * inside one tool call, nothing can be said, nothing can be asked, and the
- * person watching has no way to tell a running suite from a hung one.
- *
- * A job is that same command, started and LEFT RUNNING, with an id. The turn
- * continues. OUTPUT shows the stream. When it ends, the result is waiting.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS MUST NOT BECOME. The obvious way to use a job handle is:
- *
- *     start → is it done? → is it done? → is it done? → …
- *
- * which is the same block, paid for one request at a time, and worse, because
- * each poll is a whole model turn. So `wait` BLOCKS ON AN EVENT rather than
- * spinning: the child's own `exit` resolves it, there is no interval anywhere
- * in this file, and a model that asks to wait pays exactly one call. `status`
- * exists for the genuinely asynchronous case — go and do something else, come
- * back once — and the tool description says which is which.
- *
- * ONE STATE MACHINE. `QUEUED → RUNNING → {SUCCEEDED, FAILED, CANCELLED,
- * TIMED_OUT}`. There is no second job vocabulary anywhere in the tree, which is
- * the architecture guard's rule, and this is the one.
- */
+/** WORK THAT OUTLIVES A TOOL CALL — so a long command cannot mute the model. */
 
 const { spawn } = require('child_process');
 
@@ -44,6 +18,7 @@ const FINAL = new Set([STATE.SUCCEEDED, STATE.FAILED, STATE.CANCELLED, STATE.TIM
 
 /** How much of a job's output is kept. Enough to diagnose; never unbounded. */
 const MAX_OUTPUT = 200_000;
+const LOG_MAX = 50 * 1024 * 1024;   // a job's log file stops growing here
 /** Jobs kept after they finish, so a result can still be read. */
 const MAX_KEPT = 20;
 /** Nothing runs forever unattended. */
@@ -52,9 +27,12 @@ const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 let seq = 0;
 
 class Job {
-  constructor({ command, shell, cwd, timeoutMs }) {
+  constructor({ command, shell, cwd, timeoutMs, logDir = null }) {
     seq += 1;
     this.id = `j${seq}`;
+    // THE WHOLE OUTPUT, streamed to a file under the session folder (S7); memory keeps a bounded copy.
+    this.logFile = logDir ? require('path').join(logDir, `${this.id}.log`) : null;
+    this.logBytes = 0;
     this.command = String(command);
     this.shell = shell;
     this.cwd = cwd;
@@ -68,30 +46,11 @@ class Job {
     this.child = null;
     this._waiters = [];
     this._timer = null;
-    /**
-     * PER-JOB OUTPUT SUBSCRIBERS.
-     *
-     * The `Jobs` collection already takes one `onEvent`, and that one belongs
-     * to the UI — it feeds the OUTPUT pane for every job there is. An observer
-     * watching ONE job for rule matches is a second, different interest in the
-     * same bytes, and hanging it off the collection's single callback would
-     * mean either replacing the pane's feed or teaching the collection what an
-     * observation is. Neither is the collection's business.
-     *
-     * Chunk-level, not line-level: splitting into lines is the subscriber's
-     * problem, because a chunk boundary can fall mid-line and only the reader
-     * knows whether it wants to buffer the tail. See observe.attach.
-     */
+    /** PER-JOB OUTPUT SUBSCRIBERS. */
     this._subs = [];
   }
 
-  /**
-   * Subscribe to this job's output. Returns an unsubscribe function.
-   *
-   * A THROWING SUBSCRIBER MUST NOT KILL THE JOB. It is watching the process,
-   * not running it, and an observer with a bad rule would otherwise take down
-   * the thing it was observing.
-   */
+  /** Subscribe to this job's output. */
   on(event, fn) {
     if (event !== 'output' || typeof fn !== 'function') return () => {};
     this._subs.push(fn);
@@ -106,6 +65,10 @@ class Job {
   get done() { return FINAL.has(this.state); }
 
   _append(chunk) {
+    if (this.logFile && this.logBytes < LOG_MAX) {
+      const s = String(chunk);
+      try { require('fs').appendFileSync(this.logFile, s); this.logBytes += Buffer.byteLength(s); } catch { /* memory still has it */ }
+    }
     if (this.output.length >= MAX_OUTPUT) { this.truncated = true; return; }
     this.output += String(chunk);
     if (this.output.length > MAX_OUTPUT) {
@@ -144,9 +107,7 @@ class Job {
       // The OUTPUT pane is fed as the bytes arrive, so a running suite is
       // watchable rather than a blank pane until it ends.
       if (onEvent) onEvent(this);
-      // AND ANYONE WATCHING THIS PARTICULAR JOB. Each subscriber is isolated:
-      // one that throws is not allowed to stop the others, and neither is
-      // allowed to stop the child.
+      // AND ANYONE WATCHING THIS PARTICULAR JOB.
       for (const s of this._subs) {
         try { s(d, this); } catch { /* an observer's bug is not the job's */ }
       }
@@ -172,12 +133,7 @@ class Job {
     return this;
   }
 
-  /**
-   * Resolve when the job ends — ON THE EVENT, never on a timer.
-   *
-   * This is what makes a job handle cheaper than blocking rather than more
-   * expensive: one call, one wake-up, no polling loop.
-   */
+  /** Resolve when the job ends — ON THE EVENT, never on a timer. */
   wait(limitMs = null) {
     if (this.done) return Promise.resolve(this.summary());
     return new Promise((resolve) => {
@@ -201,7 +157,11 @@ class Job {
 
   /** The last `n` lines — what a person actually wants to see. */
   tail(n = 40) {
-    const lines = this.output.split('\n');
+    let text = this.output;
+    if (this.truncated && this.logFile) {   // the true end is in the file
+      try { const fs = require('fs'); const size = fs.statSync(this.logFile).size; const fd = fs.openSync(this.logFile, 'r'); const len = Math.min(size, 64 * 1024); const b = Buffer.alloc(len); fs.readSync(fd, b, 0, len, size - len); fs.closeSync(fd); text = b.toString('utf8'); } catch { text = this.output; }
+    }
+    const lines = text.split('\n');
     return lines.slice(Math.max(0, lines.length - n)).join('\n');
   }
 
@@ -219,21 +179,15 @@ class Job {
   }
 }
 
-/**
- * Every job of this session.
- *
- * Held on the App, not at module scope — module-level session state is exactly
- * what the architecture guard forbids, and for the usual reason: two sessions
- * in one process would share a job list.
- */
+/** Every job of this session. */
 class Jobs {
   constructor({ onEvent = null } = {}) {
     this.list = [];
     this.onEvent = onEvent;
   }
 
-  start({ command, shell, cwd, timeoutMs }) {
-    const job = new Job({ command, shell, cwd, timeoutMs });
+  start({ command, shell, cwd, timeoutMs, logDir = null }) {
+    const job = new Job({ command, shell, cwd, timeoutMs, logDir });
     this.list.push(job);
     // Finished jobs are kept so a result can still be read, but not forever.
     while (this.list.length > MAX_KEPT) {

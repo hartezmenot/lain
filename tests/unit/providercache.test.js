@@ -3,7 +3,7 @@
 /**
  * PROMPT CACHING MUST ACTUALLY COVER THE CONVERSATION, NOT JUST THE SYSTEM PROMPT.
  *
- * Found while tracing a report of LAIN v2 burning tokens 50-80x faster than
+ * Found while tracing a report of LAIN burning tokens 50-80x faster than
  * expected: `anthropicChat` placed its only `cache_control` breakpoint on the
  * system block, gated behind an arbitrary 6000-character threshold, and never
  * marked the messages array at all. The turn loop (turn.js) resends the FULL

@@ -1,0 +1,112 @@
+  ▸ Thought for 0s · ~21 tokens
+  · list_dir .
+    .lain/
+    index.html
+    package.json
+    src/
+    style.css
+    test/
+  · read src/store.js
+        1	'use strict';
+        2	
+        3	function createStore() { return { tasks: [], nextId: 1 }; }
+        4	
+        5	function addTask(store, title) {
+        6	  const t = { id: store.nextId++, title: String(title).trim(), done: false };
+        7	  if (!t.title) throw new Error('a task needs a title');
+        8	  store.tasks.push(t);
+    … 18 more line(s)
+  ▸ Thought for 1s · ~88 tokens
+  · read index.html
+        1	<!doctype html>
+        2	<html>
+        3	<head><link rel="stylesheet" href="style.css"><title>Todo</title></head>
+        4	<body>
+        5	  <h1>Todo</h1>
+        6	  <input id="title" placeholder="What needs doing?">
+        7	  <button id="add" class="primary">Add task</button>
+        8	  <ul id="list"></ul>
+    … 5 more line(s)
+  · read src/app.js
+        1	import { createStore, addTask, toggle, countDone } from './store.js';
+        2	import { formatCount } from './format.js';
+        3	
+        4	const store = createStore();
+        5	
+        6	function render() {
+        7	  const list = document.getElementById('list');
+        8	  list.innerHTML = '';
+    … 19 more line(s)
+  · read test/run.js
+        1	'use strict';
+        2	const assert = require('assert');
+        3	const s = require('../src/store');
+        4	const { formatCount } = require('../src/format');
+        5	let n = 0;
+        6	function t(name, fn) { fn(); n += 1; console.log('ok -', name); }
+        7	t('add', () => { const st = s.createStore(); s.addTask(st, 'a'); assert.strictEqual(st.tasks.length, 1); });
+        8	t('toggle', () => { const st = s.createStore(); const a = s.addTask(st, 'a'); s.toggle(st, a.id); assert.strictEqual(a.done, true); });
+    … 4 more line(s)
+  · read package.json
+        1	{
+        2	  "name": "todo-fixture",
+        3	  "version": "1.0.0",
+        4	  "private": true,
+        5	  "scripts": {
+        6	    "test": "node test/run.js"
+        7	  }
+        8	}
+  ▸ Thought for 6s · ~564 tokens
+I have the full picture. Adding the function, button, wiring, and test now.
+  · apply_patch src/store.js
+    patched src/store.js:18 — 1 line(s) replaced by 8
+  · apply_patch index.html
+    patched index.html:8 — 2 line(s) replaced by 3
+  · apply_patch src/store.js
+    patched src/store.js:28 — 5 line(s) replaced by 5
+  · apply_patch index.html
+    patched index.html:11 — 1 line(s) replaced by 2
+  ▸ Thought for 1s · ~103 tokens
+That second patch to index.html added a stray blank line — reverting it.
+  · read index.html
+        1	<!doctype html>
+        2	<html>
+        3	<head><link rel="stylesheet" href="style.css"><title>Todo</title></head>
+        4	<body>
+        5	  <h1>Todo</h1>
+        6	  <input id="title" placeholder="What needs doing?">
+        7	  <button id="add" class="primary">Add task</button>
+        8	  <ul id="list"></ul>
+    … 7 more line(s)
+  · apply_patch index.html
+    patched index.html:11 — 3 line(s) replaced by 2
+  · apply_patch src/app.js
+    patched src/app.js:1 — 1 line(s) replaced by 1
+  · apply_patch src/app.js
+    patched src/app.js:19 — 6 line(s) replaced by 11
+  · apply_patch test/run.js
+    patched test/run.js:10 — 1 line(s) replaced by 12
+  · bash npm test
+    [via shell: powershell · cwd=C:\Users\HARTEZ~1\AppData\Local\Temp\lain-bench-proj-pJXcPN]
+    
+    > todo-fixture@1.0.0 test
+    > node test/run.js
+    
+    ok - add
+    ok - toggle
+    ok - countDone
+    … 4 more line(s)
+  ▸ Thought for 1s · ~92 tokens
+DONE
+
+**Changes**
+- `src/store.js` — added `clearCompleted(store)`: filters out done tasks and returns how many were removed; exported it. Also fixed a pre-existing bug in `countDone` — it filtered on `t.title` instead of `t.done`, so it counted every non-empty task as done. This mattered because the count line (`tasks.length - countDone`) would have shown "0 tasks left" after clearing.
+- `index.html` — added a `<button id="clear">Clear completed</button>` below the task list.
+- `src/app.js` — imported `clearCompleted` and wired the button to it, followed by a re-render.
+- `test/run.js` — new `clearCompleted` test: three tasks, two toggled done, asserts it returns 2 and only the open task remains.
+
+**Verified:** `npm test` → 5 passed, including the new test. The browser wiring (button click → render) is not covered by the test suite, which only tests the store module.
+  16 tool calls · 4 files changed · in 44k · reasoning 826 · out 2k · cache 41k (93%)
+  Files changed: src/store.js +9 -2 · index.html +2 -1 · src/app.js +6 -1 · test/run.js +11 -0
+  Commands: npm test (exit 0, 1.1s)
+  session 20261003-220346-wva9  ·  resume with: lain --resume wva9

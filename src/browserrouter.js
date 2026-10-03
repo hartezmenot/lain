@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * ONE FRONT DOOR, THREE BROWSERS (§21).
- *
- *   the user's Chrome        → LAIN for Chrome extension (lainchrome.js)
- *   the frontend dev project → Frontend Workshop / its dev server
- *   isolated verification    → Browser Harness (a private Chromium)
- *
- * `/browser` and `request_browser` both come here; LAIN picks the backend from
- * the target, never the model. `inspect` returns EVIDENCE — title, URL, a
- * semantic DOM outline, console and network errors, viewport — in one shape
- * whichever backend answered, and says plainly when none could.
- *
- * Backends are functions so a test can supply them (`app._browserBackends`);
- * in production they are the real bridges.
- */
+/** ONE FRONT DOOR, THREE BROWSERS (§21). */
 
 const BACKEND = Object.freeze({ CHROME: 'chrome', WORKSHOP: 'workshop', ISOLATED: 'isolated' });
 
@@ -103,10 +89,7 @@ async function viaHarness(app, url) {
   };
 }
 
-/**
- * Look, for real, and return evidence.
- * @returns {Promise<{ok, backend, why, url, title, dom, console, network, viewport}>}
- */
+/** Look, for real, and return evidence. */
 async function inspect(app, { target = '', scope = '' } = {}) {
   const pick = choose(app, { target, scope });
   const custom = app && app._browserBackends && app._browserBackends[pick.backend];

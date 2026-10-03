@@ -25,13 +25,13 @@ const { test } = require('../helpers');
 module.exports = async function () {
   // ---- THE COMMAND SURFACE ------------------------------------------------
 
-  await test('RC: /session, /ready and /dash are three things, none an alias', () => {
+  await test('RC: /session and /ready are two things, not an alias', () => {
     const commands = require('../../src/commands');
-    for (const name of ['/session', '/ready', '/dash']) {
+    for (const name of ['/session', '/ready']) {
       assert.ok(commands.REGISTRY.has(name), `${name} must exist`);
     }
-    const runs = ['/session', '/ready', '/dash'].map((n) => commands.REGISTRY.get(n).run);
-    assert.strictEqual(new Set(runs).size, 3, 'two of them share an implementation');
+    const runs = ['/session', '/ready'].map((n) => commands.REGISTRY.get(n).run);
+    assert.strictEqual(new Set(runs).size, 2, 'two of them share an implementation');
   });
 
   await test('RC: typing a complete command name runs THAT command, not a longer one', () => {
@@ -108,11 +108,8 @@ module.exports = async function () {
     assert.strictEqual(rc.ABSENT.available, false);
     assert.strictEqual(rc.ABSENT.configured, false);
     assert.strictEqual(Object.isFrozen(rc.ABSENT), true, 'a shared "nothing" must not be mutable');
-    // The capability door answers with `available: false` rather than throwing,
-    // which is what lets `/session` say "no runtime is answering" instead of
-    // showing an empty table that reads as "nothing is happening".
-    const out = await rc.capability('session.list');
-    assert.strictEqual(typeof out.available, 'boolean');
-    assert.strictEqual(typeof out.ok, 'boolean');
+    // GATEWAY-ONLY (2026-10-02): the supervisor's capability catalog is gone — `/session` reads Node's own records.
+    assert.strictEqual(rc.capability, undefined);
+    assert.ok(Array.isArray(require('../../src/runtimefeed').sessionRows()));
   });
 };

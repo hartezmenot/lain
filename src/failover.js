@@ -1,57 +1,12 @@
 'use strict';
 
-/**
- * A RATE LIMIT IS A FACT ABOUT A ROUTE, NOT ABOUT A MODEL.
- *
- * ------------------------------------------------------------------------
- * THE CONFUSION THIS EXISTS TO END.
- *
- *     provider A + model X  ->  rate limited
- *
- * is routinely read as
- *
- *     model X  ->  unavailable
- *
- * and it is not. The same model is very often reachable through two or three
- * configured connections, and a limit on one of them says nothing whatever
- * about the others. Treating the two as the same thing produces the worst
- * possible offer at the worst possible moment: "this model is rate limited,
- * would you like a DIFFERENT MODEL" — when the model was fine and it was the
- * road to it that was closed.
- *
- * Changing model changes the answers. It changes reasoning quality, tool
- * behaviour, context size and cost, in the middle of a task the user chose
- * that model for. Changing provider changes none of those. So they are
- * different operations, they are offered separately, and the cheap one is
- * offered first.
- * ------------------------------------------------------------------------
- *
- * NOTHING HERE IS A SECOND ROUTER. The eligible routes come from
- * `catalog.build()` — the same structure `/model` and `provider.resolve()`
- * read, in which a model already HAS a list of connections — and their health
- * comes from `availability.js`, which has always been keyed by connection id
- * precisely so that one provider being down says nothing about another. This
- * file adds no state and no routing table. It asks two questions of two
- * existing systems and puts the answers side by side, which is the one thing
- * nothing was doing.
- *
- * AND IT NEVER CHANGES THE MODEL. `pick` returns routes for the model it was
- * given or it returns nothing. A silent downgrade to a different model when
- * every road is closed would be the same category error in the other
- * direction, and it would be invisible: the task would simply start producing
- * different work.
- */
+/** A RATE LIMIT IS A FACT ABOUT A ROUTE, NOT ABOUT A MODEL. */
 
 const catalogMod = require('./catalog');
 const connectionsMod = require('./connections');
 const { STATUS } = require('./availability');
 
-/**
- * WHAT KIND OF CHANGE IS BEING ASKED FOR.
- *
- * The distinction `/steer` needs, and the reason it needs it: only the first
- * of these preserves what the user chose.
- */
+/** WHAT KIND OF CHANGE IS BEING ASKED FOR. */
 const ROUTE = Object.freeze({
   UNCHANGED: 'UNCHANGED',
   PROVIDER_FAILOVER: 'SAME MODEL / DIFFERENT PROVIDER',
@@ -75,13 +30,7 @@ function catalogOf(app) {
   return catalogMod.build(connections);
 }
 
-/**
- * EVERY ROUTE TO ONE MODEL, with what is currently true about each.
- *
- * This is the whole answer to "is the model unavailable, or is one road to it
- * closed" — a question nothing could previously ask, because the two halves
- * lived in two systems that never met.
- */
+/** EVERY ROUTE TO ONE MODEL, with what is currently true about each. */
 function routesFor(app, model, { now = Date.now() } = {}) {
   const modelId = String(model || (app && app.cfg && app.cfg.model) || '');
   if (!modelId) return [];
@@ -94,9 +43,7 @@ function routesFor(app, model, { now = Date.now() } = {}) {
   const current = app && app.cfg ? app.cfg.connection : null;
 
   return m.connections.map((c) => {
-    // Keyed as turn.js records it: the BASE connection plus the model
-    // (availability.noteOutcome). The namespaced id was never recorded, so a
-    // limited route always read UNKNOWN here.
+    // Keyed as turn.js records it: the BASE connection plus the model (availability.noteOutcome).
     const base = c.baseConnectionId || c.connectionId;
     const state = avail ? avail.getFor(base, m.id) : null;
     const gate = avail ? avail.shouldAttemptFor(base, m.id, now) : { allow: true, status: STATUS.UNKNOWN, reason: '' };
@@ -111,8 +58,6 @@ function routesFor(app, model, { now = Date.now() } = {}) {
       rateLimited: limited,
       resumeAt: (state && state.resumeAt) || 0,
       // ELIGIBLE MEANS "a request sent here right now would be attempted".
-      // Both halves matter: the breaker's verdict AND the limit, which are
-      // recorded separately because they clear separately.
       eligible: Boolean(gate.allow) && !limited,
       blocked: blockedWhy(state, gate, limited),
     };
@@ -129,20 +74,7 @@ function blockedWhy(state, gate, limited) {
   return '';
 }
 
-/**
- * The best other route to the SAME model, or an honest account of why not.
- *
- * ------------------------------------------------------------------------
- * "EXHAUSTED" IS A REAL ANSWER AND IT IS NOT THE SAME AS "NONE".
- *
- *   none        this model has one configured route. There was never an
- *               alternative, and a provider failover is not the fix here.
- *   exhausted   it has three, and all three are rate limited. The model is
- *               genuinely unreachable FOR NOW, and the honest thing is to say
- *               when the earliest one clears — not to quietly pick a different
- *               model, which is a decision nobody made.
- * ------------------------------------------------------------------------
- */
+/** The best other route to the SAME model, or an honest account of why not. */
 function pick(app, { model = null, exclude = [], now = Date.now() } = {}) {
   const routes = routesFor(app, model, { now });
   const skip = new Set([...exclude].filter(Boolean));
@@ -162,9 +94,7 @@ function pick(app, { model = null, exclude = [], now = Date.now() } = {}) {
   const usable = others.filter((r) => r.eligible);
   if (!usable.length) {
     const limited = others.filter((r) => r.rateLimited);
-    // ALL RATE LIMITED is the case the brief calls out by name, and it gets its
-    // own flag rather than being folded into "nothing available" — the fix is
-    // to wait, and waiting needs a number.
+    // ALL RATE LIMITED is the case the brief calls out by name, and it gets its own flag rather than being folded into "nothing available" — the fix is to…
     const exhausted = limited.length === others.length;
     const soonest = limited.map((r) => r.resumeAt).filter((t) => t > 0).sort((a, b) => a - b)[0] || 0;
     return {
@@ -185,14 +115,7 @@ function pick(app, { model = null, exclude = [], now = Date.now() } = {}) {
   return { ok: true, route: usable[0], routes, exhausted: false, why: '' };
 }
 
-/**
- * WHAT WOULD CHANGE if this session moved to (model, connection)?
- *
- * `/steer` asks this before doing anything, because the answer decides what
- * the user is told: moving to the same model on another provider is a
- * FAILOVER and preserves the request, and everything else is a change of what
- * is answering.
- */
+/** WHAT WOULD CHANGE if this session moved to (model, connection)? */
 function classify(app, { model = null, connection = null } = {}) {
   const cfg = (app && app.cfg) || {};
   const nextModel = model == null || model === '' ? cfg.model : model;
@@ -206,14 +129,7 @@ function classify(app, { model = null, connection = null } = {}) {
   return { kind: ROUTE.MODEL_AND_PROVIDER, model: nextModel, connection: nextConn, sameModel, sameConn };
 }
 
-/**
- * Point the session at a route.
- *
- * The ONLY writer of `cfg.model` / `cfg.connection` in this file, and it says
- * what it changed so a caller can report a failover as a failover. It does not
- * persist: a failover is a decision about THIS session, and writing it to the
- * config would silently make a temporary detour permanent.
- */
+/** Point the session at a route. */
 function apply(app, route) {
   if (!app || !app.cfg || !route || !route.connectionId) return { changed: false };
   const before = { model: app.cfg.model, connection: app.cfg.connection };
@@ -223,15 +139,7 @@ function apply(app, route) {
   return { changed: verdict.kind !== ROUTE.UNCHANGED, kind: verdict.kind, before, after: { model: app.cfg.model, connection: app.cfg.connection } };
 }
 
-/**
- * Resolve what a person typed into a route, without guessing.
- *
- * A word is a CONNECTION if a configured connection answers to it, and a MODEL
- * if the catalog does. Nothing that matches neither is turned into a route —
- * see steer's use of this: an unrecognised word is an instruction for the
- * model, not a mangled provider name, and inventing a route from it would
- * silently send the task somewhere nobody asked for.
- */
+/** Resolve what a person typed into a route, without guessing. */
 function targetOf(app, text) {
   const q = String(text || '').trim();
   if (!q) return null;
@@ -239,9 +147,7 @@ function targetOf(app, text) {
   try { catalog = catalogOf(app); } catch { return null; }
   const key = q.toLowerCase();
 
-  // CONNECTION FIRST. A connection id is a name the user chose, and it is the
-  // more specific of the two — a router named `openrouter` should not be read
-  // as a fuzzy model match against something with "open" in its id.
+  // CONNECTION FIRST. A connection id is a name the user chose, and it is the more specific of the two — a router named `openrouter` should not be read…
   const model = catalog.byId.get(app && app.cfg ? app.cfg.model : '') || null;
   const conns = new Map();
   for (const m of catalog.models) for (const c of m.connections) conns.set(c.connectionId.toLowerCase(), c);
@@ -283,29 +189,7 @@ const ROUTE_QUERY = /^(?:routes?|providers?|where|status)$/i;
 /** Verbs that COMMIT to being about routing, so an unknown target is an error. */
 const EXPLICIT = new Set(['provider', 'connection', 'route', 'model']);
 
-/**
- * `/steer` AS A ROUTING INSTRUCTION — or not one at all.
- *
- * ------------------------------------------------------------------------
- * THE RULE THAT KEEPS `/steer` FROM BECOMING TWO COMMANDS.
- *
- * `/steer stop editing files and read the logs` must keep working exactly as it
- * did; it is the command's whole reason for existing. So a routing steer has to
- * be recognisable without ever capturing a sentence meant for the model, and
- * the test is the same one commands.js uses to decide what a slash command is:
- * the target must RESOLVE against something real. `/steer to omniroute` is a
- * route because a connection called omniroute exists; `/steer to the logs
- * first` is an instruction because nothing called "the logs first" does.
- *
- * `provider`, `connection`, `route` and `model` COMMIT. Having typed one of
- * those, an unresolvable name is a mistake worth reporting rather than a
- * sentence to forward to the model — nobody steers a task with the words
- * "provider foo".
- * ------------------------------------------------------------------------
- *
- * Returns `{ handled }` and, when handled, everything the caller needs to say
- * what happened. It renders nothing: commands.js owns the screen.
- */
+/** `/steer` AS A ROUTING INSTRUCTION — or not one at all. */
 function steer(app, rest) {
   const t = String(rest || '').trim();
   if (!t) return { handled: false };
@@ -344,9 +228,7 @@ function steer(app, rest) {
   // ---- A CONNECTION NAMED: THE MODEL DOES NOT MOVE ----------------------
   if (target.kind === 'connection') {
     if (!target.servesCurrentModel) {
-      // REFUSED RATHER THAN SILENTLY CHANGING THE MODEL. Pointing the session at
-      // a connection that does not carry the current model is a model change
-      // wearing a provider's name, which is the confusion this file exists for.
+      // REFUSED RATHER THAN SILENTLY CHANGING THE MODEL.
       const routes = routesFor(app, cfg.model);
       return {
         handled: true,

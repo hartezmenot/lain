@@ -44,11 +44,7 @@ function platform() {
  * and an installer that ignored it would put the launcher somewhere the runtime
  * does not consider its own.
  */
-function home() {
-  if (process.env.LAIN_HOME) return process.env.LAIN_HOME;
-  const base = process.env.USERPROFILE || process.env.HOME || os.homedir() || '.';
-  return path.join(base, '.lain-v2');
-}
+function home() { return require('../src/home').resolve(); }
 
 /** Where launchers go. The BIN directory, never a repository root. */
 function binDir() { return platform().defaultBin(home()); }
@@ -107,7 +103,7 @@ function runVersion(exe = 'lain') {
   if (!r || r.error) return { ok: false, why: String((r && r.error && r.error.message) || 'it did not start') };
   if (r.status !== 0) return { ok: false, why: `it exited ${r.status}: ${String(r.stderr || '').trim().slice(0, 200)}` };
   const out = String(r.stdout || '').trim();
-  return { ok: /^lain\s+\S/.test(out), version: out, why: out || 'it printed nothing' };
+  return { ok: /^LAIN CLI\s+\S/.test(out), version: out, why: out || 'it printed nothing' };
 }
 
 /** Which launcher files exist in a bin directory right now. */

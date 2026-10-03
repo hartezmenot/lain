@@ -1,32 +1,12 @@
 'use strict';
 
-/**
- * `/audit` — a plain-language reading of THIS project before anyone changes it.
- *
- * The question it answers is the one a person asks when they open a codebase
- * they do not know: what is this, how is it run, what can it do, what looks
- * unfinished, and where does the work stand right now. It is meant to be read by
- * someone who knows computers but not this project — so it names files and says
- * what they are for, and it never dumps code back at the reader.
- *
- * EVIDENCE, NOT CLAIMS. Every line comes from reading the tree: the manifest,
- * the directory shape, the same capability probe set `/compare` uses (see
- * capabilities.js), and a bounded scan for the markers people leave on work that
- * is not done — TODO, FIXME, "not implemented", an empty catch. Nothing here is
- * asked of a model; it is all local and deterministic, which is what makes it
- * safe to run before deciding anything.
- *
- * It reuses `/compare`'s tree reader and detector rather than growing a second
- * one, and it does NOT replace `/compare`: with a source argument, `/audit`
- * forwards to it, so "read this project" and "read it against that other one"
- * are the same door.
- */
+/** `/audit` — a plain-language reading of THIS project before anyone changes it. */
 
 const fs = require('fs');
 const path = require('path');
 
 const project = require('./project');
-const { scanDir, detect } = require('./compare');
+const { scanDir, detect } = require('./projecttree');
 const { CAPABILITIES } = require('./capabilities');
 
 /** Files worth reading for markers — source, not lockfiles or assets. */
@@ -39,22 +19,11 @@ const FRONTEND = /(?:\.(?:html?|css|scss|vue|svelte|jsx|tsx)$)|(?:^|\/)(?:public
 /** Where a request is served or state is owned — the back end. */
 const BACKEND = /(?:^|\/)(?:server|api|routes?|controllers?|handlers?|services?|backend|core|db|models?|migrations?)(?:\/|$)|(?:^|\/)(?:app|main|server|manage|wsgi|asgi|index)\.(?:py|js|ts|go|rb)$/i;
 
-/**
- * The markers people leave on work that is not finished, each in plain words.
- *
- * These test for work in CODE, not the phrase in prose: the words "not
- * implemented" in a comment are a description, while a function body that only
- * throws a not-implemented error is genuinely unfinished. An earlier version
- * matched the bare phrase and counted its own regex definitions and every
- * comment that mentioned it — noise dressed as a finding.
- */
+/** The markers people leave on work that is not finished, each in plain words. */
 const MARKERS = [
   { id: 'todo', re: /(?:\/\/|#|\*|<!--)\s*(?:TODO|FIXME|XXX|HACK)\b/g, plain: 'left-for-later notes (TODO / FIXME)' },
   { id: 'stub', re: /\braise\s+NotImplementedError|\bthrow\s+new\s+\w*Error\s*\(\s*['"`](?:TODO|not[ _]?implemented|unimplemented|not yet\b)|\bunimplemented!\s*\(|\btodo!\s*\(/gi, plain: 'unfinished stubs (raise/throw "not implemented")' },
-  // BOTH SPELLINGS OF THE SAME MISTAKE. This was JavaScript-shaped only —
-  // `catch {}` — so a Python project full of `except Exception: pass`, which is
-  // the textbook version of an error nobody will ever see, scored zero and the
-  // audit reported it as clean.
+  // BOTH SPELLINGS OF THE SAME MISTAKE.
   {
     id: 'emptycatch',
     re: /catch\s*(?:\([^)]*\))?\s*\{\s*\}|except\b[^\n:]*:\s*(?:#[^\n]*)?\s*\n\s*pass\b|except\b[^\n:]*:\s*pass\b/g,
@@ -93,17 +62,11 @@ function declaredEntries(root) {
   return out;
 }
 
-/**
- * The heart of it: read the tree once and pull every signal out of that one
- * read. Bounded by MAX_MARKER_FILES so a large repo cannot turn this into a
- * full-content scan.
- */
+/** The heart of it: read the tree once and pull every signal out of that one read. */
 async function scanMarkers(tree) {
   const counts = new Map();
   const examples = new Map();
-  // WHERE THE PROBLEM IS CONCENTRATED, not merely one file that has it. "8
-  // silent catches" is a number; "8 silent catches, 5 of them in dashboard.py"
-  // is somewhere to go. Same single read of the tree, one extra comparison.
+  // WHERE THE PROBLEM IS CONCENTRATED, not merely one file that has it.
   const worst = new Map();
   let frontend = 0;
   let backend = 0;
@@ -132,10 +95,7 @@ async function scanMarkers(tree) {
   return { counts, examples, worst, frontend, backend, biggest, readCount };
 }
 
-/**
- * Audit a project directory into a plain data object. Pure — no app, no
- * rendering — so it is testable on its own and reusable.
- */
+/** Audit a project directory into a plain data object. */
 async function audit(root) {
   const abs = path.resolve(root);
   const scan = project.scan(abs);
@@ -187,11 +147,7 @@ async function audit(root) {
 
 // ------------------------------------------------------------------ render ---
 
-/**
- * Live task/verification state, read off the running session. This is the only
- * part that needs the app — the "where does the work stand right now" section —
- * and it is optional, so `audit()` stays pure.
- */
+/** Live task/verification state, read off the running session. */
 function workState(app) {
   const s = app && app.session;
   if (!s) return null;
@@ -279,16 +235,7 @@ function nextStep(a) {
 
 // ------------------------------------------------------------------- view ---
 
-/**
- * The audit as lines for the AUDIT workspace tab.
- *
- * Same evidence as the command — `audit()` above did the reading — laid out as
- * a table a person can scan: what this project is, how it runs, what it can
- * already do, and what looks unfinished. Plain text with symbols, because the
- * workspace clips by character count (see healthLines for the same reason).
- *
- * @returns {string[]}
- */
+/** The audit as lines for the AUDIT workspace tab. */
 function auditLines(a, width = 80, work = null) {
   const T = require('./ui/text');
   const { P } = require('./ui/paint');
@@ -296,11 +243,7 @@ function auditLines(a, width = 80, work = null) {
   const inner = w - 4;                       // what fits between the borders
   if (!a) return T.box(P.head('PROJECT AUDIT'), ['  ' + P.meta('reading the project…')], w);
 
-  // ONE TABLE: AREA / STATUS / EVIDENCE. Every row says what was looked at, how
-  // sure the reading is, and the thing in the tree that says so — because an
-  // audit whose lines cannot be checked is just an opinion with a frame around
-  // it. Every row is fitted to the box, colour included (ui/text.js measures
-  // what the terminal shows, not what is in memory).
+  // ONE TABLE: AREA / STATUS / EVIDENCE.
   const cArea = Math.min(22, Math.max(14, Math.floor(inner * 0.26)));
   const cState = 13;
   const body = [];
@@ -374,17 +317,15 @@ function auditLines(a, width = 80, work = null) {
 
 // ----------------------------------------------------------------- command ---
 
-/**
- * `/audit` end to end.
- *   /audit               → read THIS project and report.
- *   /audit <folder|url>  → forward to /compare, so comparison lives in one place.
- */
+/** `/audit` end to end. */
 async function runCommand(app, ctx = {}, { C, config } = {}) {
   const rest = String(ctx.rest || '').trim();
   if (rest) {
     // A source was given: this is a comparison, and /compare already owns that
     // whole capability. Forwarding keeps one implementation, not two.
-    return require('./compare').runCommand(app, ctx, { C, config });
+    const cmp = require('./devtool').load('compare');
+    if (!cmp) { app.render.write(`  ${require('./devtool').missing('compare')}\n`); return null; }
+    return cmp.runCommand(app, ctx, { C, config });
   }
   app.render.write((C ? C.dim : (s) => s)('  Reading the project…\n'));
   let a;

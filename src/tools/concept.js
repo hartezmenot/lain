@@ -1,45 +1,6 @@
 'use strict';
 
-/**
- * THE DURABLE LAYER — four tools over `<project>/.lain/`, the directory that
- * survives everything a conversation does not.
- *
- * ------------------------------------------------------------------------
- * WHY THESE ARE A FAMILY, and why none of them is a file tool.
- *
- * A conversation is compacted, cleared, resumed and switched between models,
- * and every one of those operations is RIGHT to lose most of what it drops —
- * that material was the transcript of work, not the work. But four kinds of
- * knowledge must cross that boundary or every new context re-derives them:
- *
- *     what the project's WORDS mean          concept   (dictionary.js)
- *     what the project was MEANT to be       architecture (architecture.js)
- *     how the parts are WIRED together       wiring    (wiring.js)
- *     what THIS TURN found, and what is
- *      durably TRUE because something
- *      checked it                           scratch   (scratch.js)
- *
- * Each has a module of its own under src/; what lives here is only the
- * model-facing door. The names are the ones the modules' own empty-state
- * answers advertise (`concept{op:"define"}` and its siblings), so a model
- * told to "define one with concept" by a listing finds a tool of exactly
- * that name.
- *
- * ------------------------------------------------------------------------
- * NOTHING HERE MUTATES THE PROJECT. The writes go to `.lain/` — LAIN's own
- * state about the project, atomically, via lainstore — the same rule the
- * `understand` tool already follows when projectsync persists the index.
- * There is no user source to snapshot or undo, so `mutates` is false for
- * all four and the permission gate is not asked a question it has no
- * answer for.
- *
- * ------------------------------------------------------------------------
- * THE OBSERVED AXIS IS NEVER WRITABLE FROM HERE. `architecture` reads
- * intent and runs the reconciler against the disk, but only reconcile.js
- * may write what the disk said — a model that could write its own
- * observation could report a missing file as present, and the whole value
- * of the two-axis design (architecture.js) is that it cannot.
- */
+/** THE DURABLE LAYER — four tools over `<project>/.lain/`, the directory that survives everything a conversation does not. */
 
 const path = require('path');
 
@@ -59,9 +20,7 @@ function termLines(entries, { max = 12 } = {}) {
 
 const tools = {};
 
-// ---------------------------------------------------------------------------
 // concept — the project's own words
-// ---------------------------------------------------------------------------
 
 tools.concept = {
   mutates: false,
@@ -137,9 +96,7 @@ tools.concept = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // architecture — what was MEANT, reconciled against what is there
-// ---------------------------------------------------------------------------
 
 tools.architecture = {
   mutates: false,
@@ -206,10 +163,7 @@ tools.architecture = {
       const r = reconcile.record(root, model, found.matches[0].id, {
         how: input.how, result: input.result, by: 'model',
       });
-      // SAVED EITHER WAY. A refused verification still produced a real
-      // observation — "nothing at that location" is the disk's word, recorded
-      // by the reconciler, and losing it because the call failed would make
-      // the next reader repeat the whole exchange to learn it again.
+      // SAVED EITHER WAY. A refused verification still produced a real observation — "nothing at that location" is the disk's word, recorded by the…
       architecture.save(root, model);
       if (!r.ok) return { output: r.error, isError: true };
       return { output: `Verified ${r.node.name}: ${r.node.verification.how} — ${r.node.verification.result}` };
@@ -247,9 +201,7 @@ tools.architecture = {
     if (op === 'show') {
       const model = architecture.load(root);
       const q = String(input.node || '').trim();
-      // RECONCILED BEFORE SHOWN, always: `observed` is a fact about the disk
-      // and ages in an hour. The read is the reconciler's caller — the model
-      // never writes what the disk said, it only triggers the looking.
+      // RECONCILED BEFORE SHOWN, always: `observed` is a fact about the disk and ages in an hour.
       const { report } = reconcile.run(root, { model });
       if (q) {
         const found = architecture.find(model, q);
@@ -271,9 +223,7 @@ tools.architecture = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // wiring — how the parts are connected, beyond what imports can say
-// ---------------------------------------------------------------------------
 
 tools.wiring = {
   mutates: false,
@@ -340,9 +290,7 @@ tools.wiring = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // scratch — this turn's findings, and the door into durable memory
-// ---------------------------------------------------------------------------
 
 tools.scratch = {
   mutates: false,

@@ -1,70 +1,10 @@
 'use strict';
 
-/**
- * THE INTENDED ARCHITECTURE — what this project is MEANT to be.
- *
- * ------------------------------------------------------------------------
- * THE ONE PROPERTY EVERYTHING ELSE FOLLOWS FROM:
- *
- *     CODE CAN BE LOST. THE ARCHITECTURE MUST SURVIVE.
- *
- * A 900-line source file in this repository went to zero bytes. Everything that
- * knew what it did was inside it. The tree still built a picture of the project
- * by reading the project, so the moment the file vanished the picture said the
- * component had never existed — which is the most expensive possible answer,
- * because it is indistinguishable from "you never wrote it" and sends the next
- * model off to design it again.
- *
- * What should have happened is that LAIN says:
- *
- *     Rust Guardian
- *       INTENDED   rust/lain-supervisor/src/guardian.rs
- *       PURPOSE    runtime authority between user, model and workers
- *       OWNS       input gate, turn authority, handover
- *       STATUS     IMPLEMENTED, last VERIFIED 2026-09-01
- *       OBSERVED   MISSING — there is no file at that path
- *
- * Every line of that is knowable without the file. That is what this module
- * stores, and it is why it stores intent SEPARATELY from observation.
- *
- * ------------------------------------------------------------------------
- * TWO AXES, NEVER COLLAPSED INTO ONE.
- *
- *     status            WHAT WAS INTENDED, and how far it was taken. Written
- *                       by a person or a model that decided something.
- *                       PLANNED · PARTIAL · IMPLEMENTED · VERIFIED
- *
- *     observed.status   WHAT THE DISK SAYS, right now. Written ONLY by
- *                       reconcile.js, never by an author, never by a model.
- *                       PRESENT · MISSING · DAMAGED · DRIFTED · UNKNOWN
- *
- * Collapsing them is the failure mode with a name: an architecture that lies
- * because a file disappeared. A component whose status is IMPLEMENTED and whose
- * observation is MISSING is not a contradiction to be resolved by picking one —
- * it is the single most useful thing the system can say, and it is a recovery
- * instruction.
- *
- * An architecture may also exist BEFORE any implementation. A tree of PLANNED
- * nodes with no file anywhere is a legitimate, complete state — it is a design.
- * Nothing here requires a node to correspond to anything on disk.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS NOT. Not the file index (projectindex.js — that is OBSERVED
- * state, rebuilt from the disk every time it is read). Not the dependency graph
- * (wiring.js). Not the dictionary (dictionary.js). Those three describe what IS;
- * this describes what was MEANT, and it is the only one of the four that cannot
- * be recomputed from the tree.
- */
+/** THE INTENDED ARCHITECTURE — what this project is MEANT to be. */
 
 const lainstore = require('./lainstore');
 
-/**
- * HOW FAR SOMETHING WAS TAKEN. The author's axis.
- *
- * VERIFIED is deliberately distinct from IMPLEMENTED and is not a synonym for
- * "the tests pass": it means something checked THIS COMPONENT and recorded what
- * it checked. See `verify()` — a verification with no evidence is refused.
- */
+/** HOW FAR SOMETHING WAS TAKEN. */
 const STATUS = Object.freeze({
   /** Decided, not built. A legitimate resting state, not a deficiency. */
   PLANNED: 'PLANNED',
@@ -76,9 +16,7 @@ const STATUS = Object.freeze({
   VERIFIED: 'VERIFIED',
 });
 
-/**
- * WHAT THE DISK SAYS. The reconciler's axis, and no author may write it.
- */
+/** WHAT THE DISK SAYS. The reconciler's axis, and no author may write it. */
 const OBSERVED = Object.freeze({
   /** The location exists and looks like what was described. */
   PRESENT: 'PRESENT',
@@ -154,18 +92,9 @@ function blank(id, name) {
   };
 }
 
-// ---------------------------------------------------------------------------
 // PERSISTENCE
-// ---------------------------------------------------------------------------
 
-/**
- * Load the architecture, or an empty one.
- *
- * NORMALISED ON READ rather than trusted. A document written by an older build,
- * or hand-edited, must not be able to produce a node missing the fields every
- * caller reads — the alternative is a `TypeError` from a getter three modules
- * away, at the moment somebody is trying to recover a lost file.
- */
+/** Load the architecture, or an empty one. */
 function load(root) {
   const body = lainstore.read(root, 'architecture', null);
   if (!body || typeof body !== 'object' || !body.nodes || typeof body.nodes !== 'object') return empty();
@@ -197,21 +126,7 @@ function save(root, model) {
   return lainstore.write(root, 'architecture', { nodes: model.nodes, updatedAt: model.updatedAt });
 }
 
-/**
- * SEED CANDIDATE NODES FROM THE INDEX — observations, never intent.
- *
- * The failure this exists to prevent is the one the convergence brief names:
- * "LLM guesses architecture → write .lain → future LLM trusts guess". A seed
- * takes the DETERMINISTIC half only — every candidate is a file the index has
- * actually seen, location recorded, `observed` left to the reconciler — and
- * marks itself `origin: 'seed'` so no reader can mistake a candidate for
- * declared intent. `status` stays PLANNED, the honest intent axis for a node
- * nobody has declared anything about; `purpose` stays empty rather than
- * guessed, and is the model's to add via `declare`, which merges onto seeded
- * nodes like any others. The value is the recovery floor: a deleted file
- * becomes a named node with a location the reconciler reports MISSING, rather
- * than a silence in a rebuilt index.
- */
+/** SEED CANDIDATE NODES FROM THE INDEX — observations, never intent. */
 function seed(model, files, { cap = 120 } = {}) {
   const known = new Set(Object.values(model.nodes).map((n) => n.location).filter(Boolean));
   let added = 0;
@@ -235,22 +150,9 @@ function seed(model, files, { cap = 120 } = {}) {
   return { added, skipped, capped: added >= cap };
 }
 
-// ---------------------------------------------------------------------------
 // EDITING
-// ---------------------------------------------------------------------------
 
-/**
- * DECLARE A NODE, or update the one that is already there.
- *
- * MERGES RATHER THAN REPLACES, and the reason is the whole design: a model that
- * says "the auth component is now implemented" must not thereby erase the
- * purpose somebody wrote six weeks ago. Only the fields actually supplied move.
- *
- * The one field it will not take is `observed` — that belongs to reconcile.js,
- * and an author who could write it could make the architecture claim a file
- * exists when it does not, which is precisely the lie this module is built to
- * make impossible.
- */
+/** DECLARE A NODE, or update the one that is already there. */
 function declare(model, spec) {
   const name = String((spec && spec.name) || '').trim();
   const parentId = String((spec && spec.parent) || '').trim();
@@ -294,14 +196,7 @@ function declare(model, spec) {
   return { ok: true, node, created: !existing };
 }
 
-/**
- * REMOVE A NODE AND ITS DESCENDANTS.
- *
- * Deliberately blunt and deliberately rare. Deleting a node is deleting the
- * only record that a component was ever intended, so this is for a design that
- * was ABANDONED — never for one whose file went missing, which is what
- * `observed.status = MISSING` is for.
- */
+/** REMOVE A NODE AND ITS DESCENDANTS. */
 function forget(model, id) {
   const node = model.nodes[id];
   if (!node) return { ok: false, error: `no such node "${id}"` };
@@ -319,14 +214,7 @@ function forget(model, id) {
   return { ok: true, removed: doomed };
 }
 
-/**
- * RECORD A VERIFICATION — and refuse one with no evidence.
- *
- * `VERIFIED` is the strongest word in the vocabulary and the easiest to write.
- * A model that can set it by asserting it will, and then the architecture says
- * "verified" about something nothing ever ran. So a verification must name HOW
- * and carry a RESULT; the status moves only when both are present.
- */
+/** RECORD A VERIFICATION — and refuse one with no evidence. */
 function verify(model, id, { how, result, by = 'lain', at = Date.now() } = {}) {
   const node = model.nodes[id];
   if (!node) return { ok: false, error: `no such node "${id}"` };
@@ -341,12 +229,7 @@ function verify(model, id, { how, result, by = 'lain', at = Date.now() } = {}) {
   return { ok: true, node };
 }
 
-/**
- * THE RECONCILER'S DOOR — the only way `observed` is ever written.
- *
- * Not exported to tools and not reachable from the model-facing surface. See
- * reconcile.js, which is the only caller.
- */
+/** THE RECONCILER'S DOOR — the only way `observed` is ever written. */
 function observe(model, id, { status, note = '', fingerprint = '', at = Date.now() }) {
   const node = model.nodes[id];
   if (!node) return false;
@@ -355,9 +238,7 @@ function observe(model, id, { status, note = '', fingerprint = '', at = Date.now
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // READING
-// ---------------------------------------------------------------------------
 
 function roots(model) {
   return Object.values(model.nodes)
@@ -372,13 +253,7 @@ function childrenOf(model, id) {
     .sort((a, b) => (a.name < b.name ? -1 : 1));
 }
 
-/**
- * FIND A NODE by id, by name, or by the tail of a dotted id.
- *
- * A person types "auth", not "backend.authentication". Being strict here would
- * make the whole surface unusable, and being loose costs nothing: an ambiguous
- * match returns the candidates rather than picking one.
- */
+/** FIND A NODE by id, by name, or by the tail of a dotted id. */
 function find(model, query) {
   const q = String(query || '').trim();
   if (!q) return { matches: [] };
@@ -408,12 +283,7 @@ function ancestry(model, id) {
   return out;
 }
 
-/**
- * WHAT TO REPORT, when intent and observation disagree.
- *
- * Returns BOTH, and a sentence about the pair. Nothing here picks a winner:
- * "IMPLEMENTED but MISSING" is the answer, not a problem with the answer.
- */
+/** WHAT TO REPORT, when intent and observation disagree. */
 function effective(node) {
   const o = node.observed || { status: OBSERVED.UNKNOWN };
   if (o.status === OBSERVED.MISSING && node.status !== STATUS.PLANNED) {
@@ -433,14 +303,7 @@ function effective(node) {
 
 const GLYPH = { PLANNED: '·', PARTIAL: '~', IMPLEMENTED: '+', VERIFIED: '*' };
 
-/**
- * THE TREE, as a person reads it.
- *
- * COMPACT BY DEFAULT, because this is the thing that goes to a model. A
- * hundred-node architecture rendered with every field would be the context cost
- * the whole `.lain/` idea exists to remove; one line per node with the alarm
- * spelled out is what a reader actually needs to decide where to look.
- */
+/** THE TREE, as a person reads it. */
 function render(model, { detail = false, from = '' } = {}) {
   const lines = [];
   const walk = (node, depth) => {

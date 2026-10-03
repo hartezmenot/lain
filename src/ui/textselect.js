@@ -1,46 +1,13 @@
 'use strict';
 
-/**
- * SELECTING TEXT IN THE FEED — drag to highlight, release to copy.
- *
- * WHY THE APPLICATION HAS TO DO THIS AT ALL. A terminal's own selection copies
- * out of the SCROLLBACK, and the workspace is not in the scrollback: it is a
- * region that LAIN repaints in place, every frame. Dragging across it with the
- * terminal's selection copies whatever happened to be on the glass at the
- * instant the mouse went down, and a redraw mid-drag ruins it. Worse, the
- * conversation the user actually wants is usually SCROLLED — it was never on
- * the glass at all.
- *
- * So the region that owns the pixels owns the selection over them.
- *
- * ------------------------------------------------------------------------
- * THE DOCUMENT IS THE WHOLE FEED, NOT THE VISIBLE WINDOW.
- *
- * Offsets index into every rendered line joined by newlines — not into the
- * rows currently on screen. That is what makes it possible to press, scroll,
- * and go on extending: the anchor keeps meaning the same piece of text while
- * the window moves under it. Anchoring to a screen row would silently reselect
- * different content the moment anything redrew.
- * ------------------------------------------------------------------------
- *
- * PLAIN TEXT IN, PLAIN TEXT OUT. Every offset is a position in the ANSI-STRIPPED
- * text, because that is what a person sees and what they want on the clipboard.
- * Colour is reapplied only when painting the highlight, and never travels to
- * the clipboard.
- */
+/** SELECTING TEXT IN THE FEED — drag to highlight, release to copy. */
 
 const T = require('./text');
 
 /** Bound on what one drag may copy, so a selection cannot exhaust memory. */
 const MAX_COPY_CHARS = 2_000_000;
 
-/**
- * The plain text of each rendered line, and where each line begins in the
- * flattened document.
- *
- * Computed together because every caller needs both and computing them apart
- * invites the two disagreeing about whether the newline counts.
- */
+/** The plain text of each rendered line, and where each line begins in the flattened document. */
 function measure(lines) {
   const plain = [];
   const starts = [];
@@ -54,13 +21,7 @@ function measure(lines) {
   return { plain, starts, total: Math.max(0, at - 1) };
 }
 
-/**
- * The offset of a column on a line.
- *
- * A column past the end of a line clamps to its end rather than spilling into
- * the next one — dragging through a short line should select that line, not
- * jump the selection forward.
- */
+/** The offset of a column on a line. */
 function offsetAt({ plain, starts }, lineIndex, column) {
   if (!plain.length) return 0;
   const i = Math.max(0, Math.min(plain.length - 1, lineIndex));
@@ -68,13 +29,7 @@ function offsetAt({ plain, starts }, lineIndex, column) {
   return starts[i] + col;
 }
 
-/**
- * Which columns of `lineIndex` fall inside `range`, or null.
- *
- * The end of a selected line that continues onto the next is reported as
- * running to the line's end, which is what makes a multi-line highlight look
- * like one block rather than a ragged set of spans.
- */
+/** Which columns of `lineIndex` fall inside `range`, or null. */
 function spanOnLine({ plain, starts }, range, lineIndex) {
   if (!range || lineIndex < 0 || lineIndex >= plain.length) return null;
   const start = starts[lineIndex];
@@ -102,23 +57,11 @@ function textOf({ plain, starts, total }, range) {
     if (s > to) break;
     out.push(plain[i].slice(Math.max(0, from - s), Math.max(0, Math.min(plain[i].length, to - s))));
   }
-  // TRAILING BLANKS GO. The feed pads with empty rows above short content and
-  // clips every row to the terminal width, so a selection routinely ends in a
-  // run of spaces and blank lines nobody selected on purpose.
+  // TRAILING BLANKS GO. The feed pads with empty rows above short content and clips every row to the terminal width, so a selection routinely ends in a…
   return out.join('\n').replace(/[ \t]+$/gm, '').replace(/\n+$/, '').slice(0, MAX_COPY_CHARS);
 }
 
-/**
- * Paint a highlight over part of an already-rendered line.
- *
- * Walks the rendered string tracking the PLAIN column, so the span lands where
- * the reader sees it regardless of how much colour the line carries.
- *
- * REVERSE VIDEO IS REAPPLIED AFTER EVERY ESCAPE INSIDE THE SPAN. A colour
- * sequence in the middle of the selection frequently contains a full reset,
- * which would switch the highlight off halfway through a word and leave the
- * rest of the selection looking unselected.
- */
+/** Paint a highlight over part of an already-rendered line. */
 function highlight(rendered, from, to, { toEnd = false, width = 0 } = {}) {
   const src = String(rendered == null ? '' : rendered);
   if (to <= from && !toEnd) return src;
@@ -153,17 +96,7 @@ function highlight(rendered, from, to, { toEnd = false, width = 0 } = {}) {
   return out;
 }
 
-/**
- * Which feed line a screen row is showing.
- *
- * The feed pads with blank rows ABOVE its content when there is less of it than
- * there are rows (see layout.js), so the row-to-line map is not simply
- * `scroll + offset`. Getting this wrong selects text a few lines from the one
- * under the pointer, which is the kind of bug that reads as "selection is
- * janky" rather than as an off-by-N.
- *
- * @returns {number|null} the index into the feed's lines, or null for a pad row
- */
+/** Which feed line a screen row is showing. */
 function lineForRow(rowMap, scroll, y) {
   if (!rowMap || !Number.isFinite(rowMap.feedStart)) return null;
   const offset = y - rowMap.feedStart;
@@ -175,19 +108,7 @@ function lineForRow(rowMap, scroll, y) {
 
 // ------------------------------------------------- driving it from a Screen --
 
-/**
- * The four operations a Screen needs, as plain functions over one.
- *
- * They live HERE rather than as methods on the Screen because layout.js is at
- * the god-object guard and because this is where the rest of the selection
- * lives — the Screen contributes only the two things it alone knows: which
- * lines were painted, and where they landed. `screen` is a parameter, never a
- * `this`.
- *
- * EVERY ONE IS A NO-OP WHEN THERE IS NOTHING TO SELECT. A click on a blank pad
- * row, a drag before the first paint, a copy with no selection — all ordinary,
- * none an error.
- */
+/** The four operations a Screen needs, as plain functions over one. */
 
 /** Begin a selection at a screen position. False when it is not over text. */
 /** The screen column the feed's first character sits on. 1 before the frame. */
@@ -203,24 +124,12 @@ function beginAt(screen, x, y) {
   if (lineIndex == null || lineIndex >= lines.length) return false;
   const m = measure(lines);
   screen.selectionLines = lines;
-  // ---- THE FEED NO LONGER STARTS AT COLUMN 1 -------------------------------
-  //
-  // It is drawn inside the content frame (ui/views.js `contentBounds`), so the
-  // origin is `rowMap.feedCol` rather than 1. Read from what the frame RECORDED
-  // as it drew rather than recomputed here: a second copy of that arithmetic is
-  // how a click starts landing a few characters off on a wide terminal and
-  // nowhere else.
+  // THE FEED NO LONGER STARTS AT COLUMN 1
   screen.textSelection.from(offsetAt(m, lineIndex, x - feedCol(screen)), m.total);
   return true;
 }
 
-/**
- * Move the head of a selection in progress.
- *
- * Dragging above or below the feed extends to the start or end of the visible
- * content rather than doing nothing — which is what an editor does, and what
- * makes selecting a whole screenful possible in one gesture.
- */
+/** Move the head of a selection in progress. */
 function extendTo(screen, x, y) {
   const lines = screen.selectionLines || screen.lastFeedLines;
   if (!lines || !lines.length || screen.textSelection.anchor === null) return false;
@@ -241,18 +150,7 @@ function extendTo(screen, x, y) {
   return true;
 }
 
-/**
- * Paint the highlight over the rows about to be drawn.
- *
- * Applied at paint time rather than inside the feed builders because a
- * selection is a property of the VIEW: the same conversation renders
- * identically whether or not somebody is dragging across it.
- *
- * @param {string[]} window   the rows as they will be drawn, padding included
- * @param {object} o          lines (the whole feed), sel (a range or null),
- *                            feedPad, scroll, cols
- * @returns {string[]} the rows, highlighted where the selection covers them
- */
+/** Paint the highlight over the rows about to be drawn. */
 function paintRows(window, { lines, sel, feedPad = 0, scroll = 0, cols = 0 }) {
   if (!sel || !lines || !lines.length) return window;
   const m = measure(lines);

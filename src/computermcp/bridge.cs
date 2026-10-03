@@ -12,7 +12,18 @@
 // guessed text from pixels would report a confidence it does not have.
 //
 // OUT OF SCOPE, and absent from this file: process memory reads or writes,
-// pointer/address discovery, DLL injection, hooks of any kind.
+// pointer/address discovery, DLL injection, hooks of any kind, drivers, and
+// anything that bypasses anti-cheat or reaches the secure desktop (UAC).
+//
+// COMPUTER CONTROL (Phase CU, 2026-10-02) adds, in this same ordinary form:
+//   control.arm      a TARGET window (handle + pid): mouse/keyboard input is refused unless the target (or a window
+//                    of its process) is in front — FOCUS_LOST pauses instead of typing into the wrong window
+//   user input wins  GetLastInputInfo newer than this bridge's own last SendInput = the person is using the machine:
+//                    input is refused (USER_ACTIVE) for USER_QUIET_MS. No hook: the OS clock and our own clock.
+//   kill switch      Ctrl+Alt+Pause (RegisterHotKey — a hotkey, not a hook) stops all input until control.resume
+//   raw input mode   for a target that reads raw input (games): scan codes (KEYEVENTF_SCANCODE) and relative mouse
+//                    motion, through the same SendInput — no injection, no driver, nothing hidden
+//   window.capture   one frame of a window on demand (PrintWindow, full content) — never a stream
 //
 // WHY A COMPILED PROGRAM AND NOT A SCRIPT. The first version of this bridge was
 // PowerShell, and Windows Defender's AMSI refused to run it: a script that
@@ -156,14 +167,35 @@ static class Native {
     SetForegroundWindow(h);
     if (fgThread != me) AttachThreadInput(me, fgThread, false);
     Thread.Sleep(120);
+    if (GetForegroundWindow() == h) return true;
+    // FOREGROUND LOCK (measured: Edge launched behind another app stayed behind). Windows lets the process that sent the
+    // last input move the foreground, so one Alt tap — ours, stamped as ours — then ask again. Nothing else is sent.
+    Key(0x12, false); Key(0x12, true);
+    SetForegroundWindow(h);
+    Thread.Sleep(150);
     return GetForegroundWindow() == h;
   }
+
+  /** When this bridge last synthesized input (Environment.TickCount) — what "the person's input" is measured against. */
+  public static volatile int LastInjected = Environment.TickCount - 600000;
+  static void Sent() { LastInjected = Environment.TickCount; }
 
   public static void Mouse(uint flags, uint data) {
     INPUT[] i = new INPUT[1];
     i[0].type = 0;
     i[0].u.mi.dwFlags = flags;
     i[0].u.mi.mouseData = data;
+    Sent();
+    SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
+  }
+
+  /** RELATIVE motion (MOUSEEVENTF_MOVE without ABSOLUTE) — what a raw-input reader sees as a mouse delta. */
+  public static void MouseRel(int dx, int dy) {
+    INPUT[] i = new INPUT[1];
+    i[0].type = 0;
+    i[0].u.mi.dx = dx; i[0].u.mi.dy = dy;
+    i[0].u.mi.dwFlags = 0x0001;
+    Sent();
     SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
   }
 
@@ -172,16 +204,57 @@ static class Native {
     i[0].type = 1;
     i[0].u.ki.wVk = vk;
     i[0].u.ki.dwFlags = up ? 2u : 0u;
+    Sent();
     SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
   }
 
+  /** A key by SCAN CODE (raw input mode): what a game reading raw keyboard input sees. */
+  public static void KeyScan(ushort vk, bool up) {
+    uint sc = MapVirtualKey(vk, 0);
+    bool extended = vk == 0x25 || vk == 0x26 || vk == 0x27 || vk == 0x28 || vk == 0x2D || vk == 0x2E || vk == 0x24 || vk == 0x23 || vk == 0x21 || vk == 0x22;
+    INPUT[] i = new INPUT[1];
+    i[0].type = 1;
+    i[0].u.ki.wScan = (ushort)sc;
+    i[0].u.ki.dwFlags = 0x0008u | (up ? 2u : 0u) | (extended ? 1u : 0u);
+    Sent();
+    SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
+  }
+
+  [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+  [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+  [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint mapType);
+  [DllImport("user32.dll")] public static extern short VkKeyScan(char ch);
+  [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint mods, uint vk);
+  [StructLayout(LayoutKind.Sequential)] public struct MSG { public IntPtr hwnd; public uint message; public IntPtr wParam, lParam; public uint time; public POINT pt; }
+  [DllImport("user32.dll")] public static extern int GetMessage(out MSG msg, IntPtr hWnd, uint min, uint max);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+
+  /** Milliseconds since the last input the OS saw that this bridge did not send; -1 when the last input was ours. */
+  public static int PersonInputAgo() {
+    LASTINPUTINFO li = new LASTINPUTINFO(); li.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+    if (!GetLastInputInfo(ref li)) return -1;
+    int last = unchecked((int)li.dwTime);
+    if (unchecked(last - LastInjected) <= 80) return -1;   // ours (or within our own burst)
+    return unchecked(Environment.TickCount - last);
+  }
+
+  /**
+   * TEXT AS ATOMIC BATCHES (measured: one character per SendInput, 3 ms apart, lost "accep" and "12" of "LAIN acceptance
+   * 123" in Windows 11 Notepad). One SendInput call is delivered in order with nothing interleaved, so up to 32
+   * characters go in one call, then a short pause for the target to drain its queue.
+   */
   public static void Unicode(string text) {
-    foreach (char c in text) {
-      INPUT[] i = new INPUT[2];
-      i[0].type = 1; i[0].u.ki.wScan = c; i[0].u.ki.dwFlags = 4;
-      i[1].type = 1; i[1].u.ki.wScan = c; i[1].u.ki.dwFlags = 4 | 2;
-      SendInput(2, i, Marshal.SizeOf(typeof(INPUT)));
-      Thread.Sleep(3);
+    for (int at = 0; at < text.Length; at += 32) {
+      int n = Math.Min(32, text.Length - at);
+      INPUT[] i = new INPUT[n * 2];
+      for (int k = 0; k < n; k++) {
+        char c = text[at + k];
+        i[2 * k].type = 1; i[2 * k].u.ki.wScan = c; i[2 * k].u.ki.dwFlags = 4;
+        i[2 * k + 1].type = 1; i[2 * k + 1].u.ki.wScan = c; i[2 * k + 1].u.ki.dwFlags = 4 | 2;
+      }
+      Sent();
+      SendInput((uint)i.Length, i, Marshal.SizeOf(typeof(INPUT)));
+      Thread.Sleep(25);
     }
   }
 }
@@ -248,6 +321,55 @@ static class Bridge {
     IntPtr owner = Native.Owner(h);
     d["owner"] = owner == IntPtr.Zero ? null : (object)owner.ToInt64();
     d["dialog"] = owner != IntPtr.Zero;
+    return d;
+  }
+
+  // ---- COMPUTER CONTROL STATE (Phase CU) --------------------------------------------------------------------------
+  static IntPtr armed = IntPtr.Zero; static int armedPid = 0; static bool raw = false; static bool armedShared = false;
+  static volatile bool killed = false; static bool hotkey = false;
+  const int USER_QUIET_MS = 1500;
+  static readonly HashSet<string> MNK = new HashSet<string>(new string[] {
+    "mouse.move", "mouse.click", "mouse.drag", "mouse.scroll", "mouse.button", "mouse.moveRel",
+    "keyboard.type", "keyboard.key", "keyboard.down", "keyboard.up", "keyboard.hold" });
+
+  /** The kill switch: a hotkey on its own thread (a hotkey, not a hook). */
+  static void StartKillSwitch() {
+    Thread t = new Thread(delegate() {
+      // MOD_ALT 1 | MOD_CONTROL 2 | MOD_NOREPEAT 0x4000 · VK_PAUSE 0x13
+      hotkey = Native.RegisterHotKey(IntPtr.Zero, 0x4C41, 0x0001 | 0x0002 | 0x4000, 0x13);
+      if (!hotkey) return;
+      Native.MSG m;
+      while (Native.GetMessage(out m, IntPtr.Zero, 0, 0) > 0) { if (m.message == 0x0312) killed = true; }
+    });
+    t.IsBackground = true; t.Start();
+  }
+
+  /** Before any synthesized input: stopped? the person busy? the target not in front? Refuse, never guess. */
+  static void Guard(string op) {
+    if (killed) throw new Exception("KILLED: the kill switch (Ctrl+Alt+Pause) stopped computer control — nothing was sent; /computer on resumes");
+    int ago = Native.PersonInputAgo();
+    if (ago >= 0 && ago < USER_QUIET_MS) throw new Exception("USER_ACTIVE: the person is using the computer (input " + ago + "ms ago) — paused, nothing was sent; their input wins");
+    if (armed != IntPtr.Zero && MNK.Contains(op)) {
+      IntPtr fg = Native.GetForegroundWindow();
+      uint pid; Native.GetWindowThreadProcessId(fg, out pid);
+      // THE WINDOW, NOT THE PROCESS: Windows 11 Notepad, Edge and Explorer keep every window in one process, and
+      // ApplicationFrameHost owns every Store app — the same pid is often SOMEONE ELSE'S window (measured: the person's own
+      // unsaved Notepad document shared the target's pid). Only the target, its root, or a window it OWNS (a Save As
+      // dialog) counts as the target.
+      IntPtr fgRoot = Native.RootOf(fg);
+      bool owned = Native.Owner(fg) == armed || (fgRoot != IntPtr.Zero && Native.Owner(fgRoot) == armed);
+      if (fg != armed && fgRoot != armed && !owned) {
+        throw new Exception("FOCUS_LOST: '" + Native.Title(fg) + "' is in front, not the target '" + Native.Title(armed) + "' — paused, nothing was sent");
+      }
+    }
+  }
+
+  static Dictionary<string, object> ControlState() {
+    Dictionary<string, object> d = Map();
+    d["armed"] = armed == IntPtr.Zero ? null : (object)WindowRow(armed);
+    d["raw"] = raw; d["killed"] = killed; d["killSwitch"] = hotkey ? "Ctrl+Alt+Pause" : null;
+    d["personInputMsAgo"] = Native.PersonInputAgo();
+    d["foreground"] = Foreground();
     return d;
   }
 
@@ -366,6 +488,7 @@ static class Bridge {
     d["enabled"] = c.IsEnabled;
     d["offscreen"] = c.IsOffscreen;
     d["focused"] = c.HasKeyboardFocus;
+    try { d["isPassword"] = c.IsPassword; } catch { d["isPassword"] = false; }
     System.Windows.Rect b = c.BoundingRectangle;
     if (!double.IsInfinity(b.X) && b.Width > 0) {
       Dictionary<string, object> r = Map();
@@ -587,9 +710,43 @@ static class Bridge {
   static void PressKeys(List<string> keys) {
     List<ushort> vks = new List<ushort>();
     foreach (string k in keys) vks.Add(VkOf(k));
-    foreach (ushort v in vks) { Native.Key(v, false); Thread.Sleep(15); }
+    foreach (ushort v in vks) { KeyEv(v, false); Thread.Sleep(15); }
     vks.Reverse();
-    foreach (ushort v in vks) { Native.Key(v, true); Thread.Sleep(15); }
+    foreach (ushort v in vks) { KeyEv(v, true); Thread.Sleep(15); }
+  }
+
+  /** One key event: by scan code for a raw-input target, by virtual key otherwise. */
+  static void KeyEv(ushort vk, bool up) { if (raw) Native.KeyScan(vk, up); else Native.Key(vk, up); }
+
+  /**
+   * TEXT AS KEY STROKES (measured, Windows 11 Notepad / Edge omnibox: queued Unicode packets arrived with the wrong
+   * value — "accep" became "ppppp", "123" became "333"). Every character the keyboard layout can type goes as its
+   * virtual key (with Shift when needed), one at a time; only a character no key produces goes as a Unicode packet.
+   */
+  static void TypeKeys(string text) {
+    foreach (char ch in text) {
+      short s = ch == (char)10 || ch == (char)13 ? (short)0x0D : Native.VkKeyScan(ch);
+      int mods = s == -1 ? 0 : (s >> 8) & 0xFF;
+      if (s == -1 || (mods & 0x06) != 0) { Native.Unicode(ch.ToString()); continue; }   // no key, or Ctrl/Alt (AltGr) needed
+      ushort vk = (ushort)(s & 0xFF); bool shift = (mods & 1) != 0;
+      if (shift) Native.Key(0x10, false);
+      Native.Key(vk, false); Thread.Sleep(6); Native.Key(vk, true);
+      if (shift) Native.Key(0x10, true);
+      Thread.Sleep(10);
+    }
+  }
+
+  /** Text into a raw-input target: real key strokes (VkKeyScan), not Unicode packets a game never sees. */
+  static void TypeRaw(string text) {
+    foreach (char ch in text) {
+      short s = Native.VkKeyScan(ch);
+      if (s == -1) throw new Exception("raw input mode cannot type '" + ch + "' as a key stroke");
+      ushort vk = (ushort)(s & 0xFF); bool shift = (s & 0x100) != 0;
+      if (shift) Native.KeyScan(0x10, false);
+      Native.KeyScan(vk, false); Thread.Sleep(8); Native.KeyScan(vk, true);
+      if (shift) Native.KeyScan(0x10, true);
+      Thread.Sleep(8);
+    }
   }
 
   static void Click(string button, int count) {
@@ -618,7 +775,9 @@ static class Bridge {
     "uia.tree", "uia.find", "uia.invoke", "uia.setValue", "uia.getValue", "uia.focus",
     "wait.window", "wait.control", "wait.gone", "cursor.get",
     "mouse.move", "mouse.click", "mouse.drag", "mouse.scroll",
-    "keyboard.type", "keyboard.key", "clipboard.read", "clipboard.write", "screen.capture"
+    "keyboard.type", "keyboard.key", "clipboard.read", "clipboard.write", "screen.capture",
+    "mouse.button", "mouse.moveRel", "keyboard.down", "keyboard.up", "keyboard.hold", "window.capture",
+    "control.arm", "control.disarm", "control.kill", "control.resume", "control.state"
   };
 
   // ---- A UI AUTOMATION CALL IS NOT GUARANTEED TO COME BACK ----------------
@@ -673,11 +832,82 @@ static class Bridge {
   }
 
   static Dictionary<string, object> Handle(string op, Dictionary<string, object> p) {
+    if (MNK.Contains(op) || op == "uia.invoke" || op == "uia.setValue") Guard(op);
     switch (op) {
+      case "control.arm": {
+        IntPtr h = FindWindow(p);
+        if (h == IntPtr.Zero) throw new Exception("no such window to target");
+        uint pid; Native.GetWindowThreadProcessId(h, out pid);
+        armed = h; armedPid = (int)pid; raw = Get(p, "raw") != null && Convert.ToBoolean(Get(p, "raw"));
+        string pn = ""; try { pn = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch { }
+        armedShared = string.Equals(pn, "ApplicationFrameHost", StringComparison.OrdinalIgnoreCase);
+        return Ok(ControlState());
+      }
+      case "control.disarm": { armed = IntPtr.Zero; armedPid = 0; raw = false; return Ok(ControlState()); }
+      case "control.kill": { killed = true; return Ok(ControlState()); }
+      case "control.resume": { killed = false; return Ok(ControlState()); }
+      case "control.state": return Ok(ControlState());
+      case "mouse.button": {
+        string b = Str(p, "button") ?? "left"; bool down = Get(p, "down") != null && Convert.ToBoolean(Get(p, "down"));
+        uint f = b == "right" ? (down ? 0x0008u : 0x0010u) : b == "middle" ? (down ? 0x0020u : 0x0040u) : (down ? 0x0002u : 0x0004u);
+        Native.Mouse(f, 0);
+        Dictionary<string, object> res = Map(); res["button"] = b; res["down"] = down; res["at"] = Cursor();
+        return Ok(res);
+      }
+      case "mouse.moveRel": {
+        int dx = Int(p, "dx", 0), dy = Int(p, "dy", 0), steps = Math.Max(1, Math.Min(60, Int(p, "steps", 1)));
+        int sx = 0, sy = 0;
+        for (int i = 1; i <= steps; i++) {
+          int nx = dx * i / steps, ny = dy * i / steps;
+          Native.MouseRel(nx - sx, ny - sy); sx = nx; sy = ny;
+          if (steps > 1) Thread.Sleep(8);
+        }
+        Dictionary<string, object> res = Map(); res["dx"] = dx; res["dy"] = dy; res["at"] = Cursor();
+        return Ok(res);
+      }
+      case "keyboard.down": case "keyboard.up": {
+        ushort vk = VkOf(Str(p, "key") ?? "");
+        KeyEv(vk, op == "keyboard.up");
+        Dictionary<string, object> res = Map(); res["key"] = Str(p, "key"); res["down"] = op == "keyboard.down";
+        return Ok(res);
+      }
+      case "keyboard.hold": {
+        ushort vk = VkOf(Str(p, "key") ?? "");
+        int ms = Math.Max(10, Math.Min(5000, Int(p, "ms", 200)));
+        KeyEv(vk, false);
+        int until = Environment.TickCount + ms; bool cut = false;
+        while (unchecked(until - Environment.TickCount) > 0) {
+          Thread.Sleep(20);
+          if (killed) { cut = true; break; }
+        }
+        KeyEv(vk, true);
+        Dictionary<string, object> res = Map(); res["key"] = Str(p, "key"); res["ms"] = ms; res["cut"] = cut;
+        return Ok(res);
+      }
+      case "window.capture": {
+        IntPtr h = FindWindow(p);
+        if (h == IntPtr.Zero) throw new Exception("no such window to capture");
+        Dictionary<string, object> r = RectOf(h);
+        int w = Convert.ToInt32(r["width"]), hgt = Convert.ToInt32(r["height"]);
+        if (w <= 0 || hgt <= 0) throw new Exception("the window has no area (minimized?)");
+        using (Bitmap bmp = new Bitmap(w, hgt)) {
+          using (Graphics g = Graphics.FromImage(bmp)) {
+            IntPtr hdc = g.GetHdc();
+            bool ok = Native.PrintWindow(h, hdc, 2);   // PW_RENDERFULLCONTENT — DirectComposition / GPU content too
+            g.ReleaseHdc(hdc);
+            if (!ok) throw new Exception("the window refused PrintWindow");
+          }
+          string file = Str(p, "path");
+          if (string.IsNullOrEmpty(file)) file = Path.Combine(Path.GetTempPath(), "lain-window-" + DateTime.UtcNow.Ticks + ".png");
+          bmp.Save(file, ImageFormat.Png);
+          Dictionary<string, object> res = Map(); res["path"] = file; res["region"] = r; res["method"] = "PrintWindow(PW_RENDERFULLCONTENT)";
+          return Ok(res);
+        }
+      }
       case "hello": {
         Dictionary<string, object> d = Map();
         d["ok"] = true;
-        d["name"] = "LAIN Computer MCP (Windows UI Automation)";
+        d["name"] = "Noema Computer MCP (Windows UI Automation)";
         d["version"] = "1";
         d["capabilities"] = CAPS;
         return d;
@@ -941,7 +1171,11 @@ static class Bridge {
       }
       case "cursor.get": return Ok(Cursor());
       case "mouse.move": {
-        Native.SetCursorPos(Int(p, "x", 0), Int(p, "y", 0));
+        if (raw) {
+          // A RAW-INPUT TARGET reads deltas, not the cursor position: move by the difference, relatively.
+          Native.POINT pt; Native.GetCursorPos(out pt);
+          Native.MouseRel(Int(p, "x", 0) - pt.X, Int(p, "y", 0) - pt.Y);
+        } else Native.SetCursorPos(Int(p, "x", 0), Int(p, "y", 0));
         return Ok(Cursor());
       }
       case "mouse.click": {
@@ -975,7 +1209,7 @@ static class Bridge {
       }
       case "keyboard.type": {
         string text = Str(p, "text") ?? "";
-        Native.Unicode(text);
+        if (raw) TypeRaw(text); else TypeKeys(text);
         Thread.Sleep(60);
         Dictionary<string, object> res = Map();
         res["typed"] = text.Length; res["foreground"] = Foreground();
@@ -1047,6 +1281,7 @@ static class Bridge {
   [STAThread]
   static int Main(string[] args) {
     try { Native.SetProcessDPIAware(); } catch { }
+    StartKillSwitch();
     Console.OutputEncoding = Encoding.UTF8;
     Console.InputEncoding = Encoding.UTF8;
     J.MaxJsonLength = 64 * 1024 * 1024;

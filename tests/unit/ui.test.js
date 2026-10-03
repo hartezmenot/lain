@@ -243,11 +243,12 @@ module.exports = async function () {
     assert.ok(!/\broutes?\b/.test(p.items[1].label), `a lone route should not be counted at the user: ${p.items[1].label}`);
   });
 
-  await test('PANEL: effort adapter always offers auto and marks the current level', () => {
+  await test('PANEL (8.3): the effort adapter offers exactly the levels of the model, and marks the current one', () => {
     const p = new panelMod.InteractionPanel();
-    p.open(panelMod.effortAdapter({ available: ['low', 'medium', 'high', 'xhigh'], current: 'high' }));
+    p.open(panelMod.effortAdapter({ available: ['high', 'xhigh'], current: 'high' }));
     const labels = p.items.map((i) => i.value);
-    assert.deepStrictEqual(labels, ['low', 'medium', 'high', 'xhigh', 'auto']);
+    assert.deepStrictEqual(labels, ['high', 'xhigh'], 'no generic list, no invented auto');
+    assert.deepStrictEqual(p.items.map((i) => i.label.replace(/ +\(current\)/, '')), ['High', 'XHigh']);
     assert.ok(p.items.find((i) => i.value === 'high').label.includes('(current)'));
   });
 
@@ -265,7 +266,7 @@ module.exports = async function () {
     // the panel lost its frame, its rules and its shouting header (ui/panel.js
     // `render`). Matched case-insensitively, because what this test is about is
     // that the question identifies itself, not how loudly.
-    assert.match(body, /Lain needs your input/i, body);
+    assert.match(body, /LAIN needs your input/i, body);
     assert.ok(body.includes('Which frontend?'));
     assert.ok(body.includes('A.  React + Vite'), body);
     assert.ok(body.includes('C.  Svelte'), body);

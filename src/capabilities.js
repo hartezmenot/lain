@@ -1,28 +1,7 @@
 'use strict';
 
-/**
- * THE CAPABILITY PROBE SET — what /compare knows how to look for.
- *
- * Split out of compare.js because it is a TABLE, not an engine: adding a
- * capability should be adding a row, never touching the comparison logic. The
- * engine runs whatever is here, symmetrically, over both trees.
- */
-/**
- * THE PROBE SET.
- *
- * `paths` matches file names; `content` matches inside readable files. A
- * capability needs ONE hit to be present — these are deliberately specific, on
- * the grounds that a false "yes, you already have this" is the expensive error:
- * it hides a real gap.
- *
- * `replacedBy` names the mechanism that satisfies the capability differently.
- * When the left side has the capability and the right side has only the
- * replacement, the row reads REPLACED rather than MISSING — that distinction is
- * the entire value of the report.
- *
- * `plain` is the sentence shown to a person. It says what the capability DOES,
- * with no vocabulary that assumes you have read the source.
- */
+/** THE CAPABILITY PROBE SET — what /compare knows how to look for. */
+/** THE PROBE SET. */
 const CAPABILITIES = [
   {
     id: 'project-scan', name: 'Project scanner', group: 'Understanding',
@@ -58,7 +37,7 @@ const CAPABILITIES = [
     id: 'project-notes', name: 'Project notes / init', group: 'Understanding',
     plain: 'Saves a short written summary of the project so later sessions do not have to work it out again.',
     paths: [/(^|\/)project-context\.js$/],
-    content: [/\.lain\/summary\.md|\.lain\/architecture\.md/],
+    content: [/\.(?:lain|noema)\/summary\.md|\.(?:lain|noema)\/architecture\.md/],
   },
   {
     id: 'dictionary', name: 'Cross-language vocabulary', group: 'Understanding',

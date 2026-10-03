@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * A PLAN MADE IN CHAT, ACCEPTED BY A PERSON, IMPLEMENTED IN CODING.
- *
- * ------------------------------------------------------------------------
- * THE STATES ARE EXPLICIT, AND NOTHING IS INFERRED FROM NAVIGATION.
- *
- *     DRAFT ──accept──► ACCEPTED ──complete──► COMPLETED
- *       │                   │
- *       └──superseded by a newer draft / a newer acceptance──► SUPERSEDED
- *
- * Switching tabs accepts nothing. Pressing "Continue to Coding" accepts the
- * plan, FREEZES its text (a digest is kept, so a later edit is a new DRAFT, not
- * a quiet rewrite of what was agreed), and builds a structured handoff whose
- * instruction is PREFILLED into the Coding composer. It is not submitted: the
- * person reads it, may edit it, and presses Enter. Accepting a plan never
- * mutates a source file.
- *
- * ------------------------------------------------------------------------
- * THE HANDOFF IS FACTS, NOT A TRANSCRIPT.
- *
- * The Coding model may be a different model from a different provider than the
- * Chat model. What it receives is built from durable, public state — the goal,
- * the accepted plan, the person's own requirements and constraints, the
- * project, pins, project-intelligence and evidence references, the changes
- * already made and the verification state. The Chat thread's conversation and
- * any private reasoning are never part of it. The full accepted plan rides in
- * the Coding system context (`promptSection`); the composer carries a bounded
- * instruction that REFERENCES it by id.
- *
- * ------------------------------------------------------------------------
- * DETECTION IS DETERMINISTIC. A Chat reply becomes a DRAFT when it has at least
- * two step lines AND either calls itself a plan or answers a message that asked
- * for one. No model call decides it, and `POST /api/plan/draft` lets a person
- * mark any text as the plan when detection did not.
- */
+/** A PLAN MADE IN CHAT, ACCEPTED BY A PERSON, IMPLEMENTED IN CODING. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -59,14 +25,21 @@ function digest(text) { return crypto.createHash('sha256').update(String(text)).
 
 function attach(session) {
   session.planDocs = [];
-  session.handoff = null;
+  session.transfers = [];
   return session;
+}
+
+/** THE PLAN HANDOFF — the newest transfer of kind 'plan'. */
+function handoff(session) {
+  const list = (session && Array.isArray(session.transfers)) ? session.transfers : [];
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].kind === 'plan') return list[i];
+  return null;
 }
 
 function toJSON(session) {
   return {
     planDocs: (session.planDocs || []).slice(-MAX_PLANS),
-    handoff: session.handoff || null,
+    transfers: (session.transfers || []).slice(-MAX_TRANSFERS),
   };
 }
 
@@ -74,8 +47,69 @@ function restore(session, data = {}) {
   session.planDocs = Array.isArray(data.planDocs)
     ? data.planDocs.filter((p) => p && typeof p.id === 'string' && STATE[p.state] && typeof p.text === 'string').slice(-MAX_PLANS)
     : [];
-  session.handoff = data.handoff && typeof data.handoff === 'object' && typeof data.handoff.planId === 'string' ? data.handoff : null;
+  session.transfers = Array.isArray(data.transfers) ? data.transfers.filter((t) => t && typeof t.id === 'string' && typeof t.kind === 'string').slice(-MAX_TRANSFERS) : [];
+  // A SESSION SAVED BEFORE 2026-09-25 kept its plan handoff in a field of its
+  // own; it joins the transfer list once, so nothing reads that field again.
+  const h = data.handoff && typeof data.handoff === 'object' && typeof data.handoff.planId === 'string' ? data.handoff : null;
+  if (h && !session.transfers.some((t) => t.id === h.id)) session.transfers.push({ ...h, kind: 'plan', id: h.id || `X${h.planId}` });
   return session;
+}
+
+// THE TRANSFER — the one Core representation of work changing hands
+const TRANSFER = Object.freeze({ PROPOSED: 'PROPOSED', PREFILLED: 'PREFILLED', ACCEPTED: 'ACCEPTED', DECLINED: 'DECLINED', SUBMITTED: 'SUBMITTED', DONE: 'DONE' });
+const MAX_TRANSFERS = 40;
+const PROPOSAL_TTL_MS = 30 * 60_000;
+
+function transfersOf(session) {
+  if (!Array.isArray(session.transfers)) session.transfers = [];
+  return session.transfers;
+}
+
+function transfer(app, { kind, from, to, task = '', text = '', context = '', reason = '', via = null, origin = null, state = TRANSFER.PROPOSED, extra = {} } = {}) {
+  const session = app.session;
+  let generation = null;
+  let selection = null;
+  try { const hc = require('./harnesscontext'); generation = require('./projectgen').current(session.cwd).n; const sel = hc.selection(app, session); selection = sel ? sel.id : null; } catch { /* no Harness context */ }
+  const body = `${task || text}\n${context || ''}`;
+  const rec = {
+    id: `X${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}`,
+    kind: String(kind), from: from || null, to: to || null, state,
+    task: String(task || '').slice(0, 4000) || null, text: String(text || '').slice(0, 4000) || null,
+    findings: String(context || '').slice(0, 6000) || null,
+    constraints: body.split('\n').map((l) => l.trim()).filter((l) => l && CONSTRAINT_RE.test(l)).slice(0, MAX_REQUIREMENTS),
+    evidenceRefs: { selection, taskId: session.task ? session.task.id : null },
+    projectGeneration: generation, reason: String(reason || '').slice(0, 200), via, origin,
+    at: Date.now(), ...extra,
+  };
+  const list = transfersOf(session);
+  // One PROPOSED transfer at a time: a newer question replaces the one waiting.
+  for (const t of list) if (t.state === TRANSFER.PROPOSED && rec.state === TRANSFER.PROPOSED) { t.state = TRANSFER.DECLINED; t.why = 'superseded by a newer proposal'; }
+  list.push(rec);
+  if (list.length > MAX_TRANSFERS) list.splice(0, list.length - MAX_TRANSFERS);
+  return rec;
+}
+
+/** The transfer waiting for the person, or null (expired ones are closed here). */
+function pendingTransfer(app) {
+  const list = transfersOf(app.session);
+  const t = list.filter((x) => x.state === TRANSFER.PROPOSED).slice(-1)[0] || null;
+  if (t && Date.now() - t.at > PROPOSAL_TTL_MS) { t.state = TRANSFER.DECLINED; t.why = 'expired'; return null; }
+  return t;
+}
+
+/** Answer a waiting transfer, once. An unknown or stale id takes nothing. */
+function answerTransfer(app, id, accept) {
+  const t = pendingTransfer(app);
+  if (!t || t.id !== String(id || '')) return null;
+  t.state = accept ? TRANSFER.ACCEPTED : TRANSFER.DECLINED;
+  t.answeredAt = Date.now();
+  return t;
+}
+
+function settleTransfer(app, id, state) {
+  const t = transfersOf(app.session).find((x) => x.id === id);
+  if (t && TRANSFER[state]) { t.state = state; t.settledAt = Date.now(); }
+  return t || null;
 }
 
 function docs(session) {
@@ -130,10 +164,7 @@ function draft(session, { text, title = null, origin = null } = {}) {
   return { ok: true, plan };
 }
 
-/**
- * AFTER A CHAT TURN: did it produce a plan? The reply is read, never
- * re-written; the person's own question decides whether "asked for a plan".
- */
+/** AFTER A CHAT TURN: did it produce a plan? */
 function capture(session, { reply, asked, origin = null } = {}) {
   const found = detect(reply, asked);
   if (!found.ok) return { ok: false, why: found.why };
@@ -162,10 +193,7 @@ function goalId(session) {
   try { return require('./goal').id(session) || null; } catch { return null; }
 }
 
-/**
- * ACCEPT: freeze, supersede the previous acceptance, build the handoff and
- * prefill the Coding composer. Executes nothing.
- */
+/** ACCEPT: freeze, supersede the previous acceptance, build the handoff and prefill the Coding composer. */
 function accept(app, id) {
   const session = app.session;
   const p = find(session, id);
@@ -180,23 +208,18 @@ function accept(app, id) {
   p.digest = digest(p.text);
   p.goalId = goalId(session);
   const brief = buildBrief(app, p);
-  session.handoff = {
-    id: `h${now.toString(36)}`,
-    planId: p.id,
-    planDigest: p.digest,
-    state: HANDOFF.PREFILLED,
-    createdAt: now,
-    submittedAt: null,
-    prompt: instruction(brief),
-    brief,
-  };
+  // THE PLAN HANDOFF IS A TRANSFER (kind 'plan', Chat → IDE), the same record.
+  const h = transfer(app, {
+    kind: 'plan', from: 'chat', to: 'ide', task: p.title || '', text: p.text, reason: 'an accepted plan', state: HANDOFF.PREFILLED,
+    extra: { planId: p.id, planDigest: p.digest, createdAt: now, submittedAt: null, prompt: instruction(brief), brief },
+  });
   require('./sessionviews').views(session).active = 'coding';
-  return { ok: true, plan: p, handoff: session.handoff };
+  return { ok: true, plan: p, handoff: h };
 }
 
 /** The Coding turn that carried the handoff was submitted. */
 function noteSubmitted(session) {
-  const h = session.handoff;
+  const h = handoff(session);
   if (!h || h.state !== HANDOFF.PREFILLED) return null;
   h.state = HANDOFF.SUBMITTED;
   h.submittedAt = Date.now();
@@ -212,12 +235,9 @@ function complete(session, id) {
   return { ok: true, plan: p };
 }
 
-/**
- * AFTER A CODING TURN: a submitted handoff whose work the LIFECYCLE declared
- * DONE completes its plan. The lifecycle decides; this only records it.
- */
+/** AFTER A CODING TURN: a submitted handoff whose work the LIFECYCLE declared DONE completes its plan. */
 function afterCoding(session) {
-  const h = session.handoff;
+  const h = handoff(session);
   const life = session.lifecycle;
   if (!h || h.state !== HANDOFF.SUBMITTED || !life || life.state !== 'DONE') return null;
   const r = complete(session, h.planId);
@@ -332,11 +352,7 @@ function instruction(brief) {
   return lines.join('\n');
 }
 
-/**
- * WHAT A TURN'S SYSTEM CONTEXT CARRIES about this, per view.
- *   Coding: the accepted plan in full, and the handoff's facts.
- *   Chat:   that it is the Chat view — discuss and plan, never write.
- */
+/** WHAT A TURN'S SYSTEM CONTEXT CARRIES about this, per view. */
 function promptSection(session) {
   const sv = require('./sessionviews');
   if (sv.current(session) === 'chat') {
@@ -350,7 +366,8 @@ function promptSection(session) {
   }
   const accepted = latest(session, STATE.ACCEPTED);
   if (!accepted) return '';
-  const h = session.handoff && session.handoff.planId === accepted.id ? session.handoff.brief : null;
+  const ho = handoff(session);
+  const h = ho && ho.planId === accepted.id ? ho.brief : null;
   const out = [
     `# Accepted plan ${accepted.id} — ${accepted.title}`,
     'The person accepted this plan in the Chat view. It is the agreed scope; implement it, and say so if the code shows a step is wrong rather than silently diverging.',
@@ -376,7 +393,7 @@ function project(session) {
     origin: p.origin ? { source: p.origin.source || null, model: p.origin.model || null, editedFrom: p.origin.editedFrom || null } : null,
   }));
   const draftDoc = latest(session, STATE.DRAFT);
-  const h = session.handoff;
+  const h = handoff(session);
   return {
     plans,
     draft: draftDoc ? draftDoc.id : null,
@@ -394,4 +411,5 @@ module.exports = {
   STATE, HANDOFF, MAX_PLAN_CHARS,
   attach, toJSON, restore, detect, draft, capture, edit, accept, complete,
   noteSubmitted, afterCoding, buildBrief, instruction, promptSection, project, find, latest,
+  TRANSFER, transfer, handoff, pendingTransfer, answerTransfer, settleTransfer, transfersOf,
 };

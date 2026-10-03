@@ -1,45 +1,6 @@
 'use strict';
 
-/**
- * THE CHROME DEVTOOLS PROTOCOL TRANSPORT — the wire, and nothing above it.
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS AT ALL, GIVEN THAT LAIN JUST DELETED ITS BROWSER.
- *
- * `src/browser.js` and `src/browsercdp.js` were removed in the 2026-09 pass,
- * along with a `browser` tool and a Chromium-driving `web_search`. That removal
- * was right: what went was a BROWSING capability — LAIN driving a real profile
- * around the public web to answer questions, with the cookies, the consent
- * banners and the bot detection that come with it.
- *
- * What is rebuilt here is a different thing with the same underlying protocol:
- * an OBSERVATION and VERIFICATION instrument pointed at the application under
- * test, usually on localhost. It navigates where a contract tells it to,
- * reports what it saw, and closes. It is not a browsing tool and must not
- * become one.
- *
- * ------------------------------------------------------------------------
- * ZERO DEPENDENCIES, AND WHY THAT IS NOW POSSIBLE.
- *
- * This package has no `dependencies` and that is a property worth keeping — it
- * installs and runs from a clone with nothing but Node. CDP needs a WebSocket
- * client, which used to mean `ws` and therefore a dependency. Node ships a
- * standards-compliant `globalThis.WebSocket` from v22, so on a modern runtime
- * the client is already there.
- *
- * ON AN OLDER NODE THERE IS NO FALLBACK AND NO PRETENDING. `available()`
- * reports `false` with the reason, every caller degrades to INCONCLUSIVE, and
- * nothing is silently skipped or silently faked. That is the mission's rule
- * about missing infrastructure applied literally.
- *
- * ------------------------------------------------------------------------
- * THE SHAPE OF CDP, in four lines, because everything below assumes it:
- *
- *     -> {"id":1,"method":"Page.navigate","params":{"url":"..."}}
- *     <- {"id":1,"result":{...}}                        an answer
- *     <- {"method":"Page.loadEventFired","params":{}}   an event, unsolicited
- *     <- {"id":1,"error":{"message":"..."}}             a refusal
- */
+/** THE CHROME DEVTOOLS PROTOCOL TRANSPORT — the wire, and nothing above it. */
 
 const http = require('http');
 
@@ -50,12 +11,7 @@ const CONNECT_TIMEOUT_MS = 5000;
 /** How many protocol events are kept per connection. Bounded, like everything. */
 const MAX_EVENTS = 500;
 
-/**
- * IS A CDP CLIENT POSSIBLE ON THIS RUNTIME AT ALL?
- *
- * Asked before anything is attempted, so the answer to "why did the browser
- * check not run" is a sentence rather than a stack trace.
- */
+/** IS A CDP CLIENT POSSIBLE ON THIS RUNTIME AT ALL? */
 function clientAvailable() {
   if (typeof globalThis.WebSocket !== 'function') {
     return {
@@ -86,13 +42,7 @@ function getJson(url, timeoutMs = CONNECT_TIMEOUT_MS) {
   });
 }
 
-/**
- * WHAT IS LISTENING ON THIS DEBUG PORT?
- *
- * `/json/version` proves something DevTools-shaped is there; `/json/list` names
- * the targets. Both are plain HTTP, so this costs nothing and needs no
- * WebSocket — which is why it is the availability probe.
- */
+/** WHAT IS LISTENING ON THIS DEBUG PORT? */
 async function endpoint(port = 9222, host = '127.0.0.1') {
   const base = `http://${host}:${port}`;
   const version = await getJson(`${base}/json/version`);
@@ -113,9 +63,7 @@ async function endpoint(port = 9222, host = '127.0.0.1') {
 async function newTab(base, url = 'about:blank') {
   const r = await getJson(`${base}/json/new?${encodeURIComponent(url)}`);
   if (r.ok && r.body && r.body.webSocketDebuggerUrl) return { ok: true, target: r.body };
-  // Newer Chrome requires PUT on /json/new. Tried second because the GET form
-  // is what every older build accepts, and a harness that only worked on the
-  // newest Chrome would be useless on most machines.
+  // Newer Chrome requires PUT on /json/new.
   const put = await new Promise((resolve) => {
     const target = new URL(`${base}/json/new?${encodeURIComponent(url)}`);
     const req = http.request(target, { method: 'PUT', timeout: CONNECT_TIMEOUT_MS }, (res) => {
@@ -132,13 +80,7 @@ async function newTab(base, url = 'about:blank') {
   return { ok: false, why: r.why || 'the endpoint refused to open a tab' };
 }
 
-/**
- * ONE CONNECTION TO ONE TARGET.
- *
- * Deliberately thin: `send` and `on`. Every DOM read, screenshot and console
- * capture above this is composed from those two, which is what keeps the
- * browser SEMANTICS in one file and the WIRE in this one.
- */
+/** ONE CONNECTION TO ONE TARGET. */
 class Connection {
   constructor(socketUrl) {
     this.socketUrl = String(socketUrl);
@@ -174,10 +116,7 @@ class Connection {
       ws.addEventListener('close', () => {
         this.open = false;
         this.closedWhy = this.closedWhy || 'the debugger socket closed';
-        // EVERY PENDING CALL IS SETTLED, NOT LEAKED. A browser that dies mid
-        // verification would otherwise hang the whole contract on a promise
-        // nothing will ever resolve — the check would time out with no reason
-        // attached, which is the least useful failure there is.
+        // EVERY PENDING CALL IS SETTLED, NOT LEAKED.
         for (const [, p] of this._pending) p.reject(new Error(this.closedWhy));
         this._pending.clear();
       });
@@ -202,7 +141,7 @@ class Connection {
       for (const fn of [...this._handlers]) {
         // A LISTENER THAT THROWS MUST NOT KILL THE CONNECTION, for the same
         // reason an event-bus subscriber may not kill a turn.
-        try { fn(msg.method, msg.params || {}); } catch { /* dropped */ }
+        try { fn(msg.method, msg.params || {}, msg.sessionId || null); } catch { /* dropped */ }
       }
     }
   }
@@ -219,7 +158,10 @@ class Connection {
   /** Every event of one method since the connection opened. */
   since(method) { return this.events.filter((e) => e.method === method); }
 
-  send(method, params = {}, timeoutMs = CALL_TIMEOUT_MS) {
+  send(method, params = {}, timeoutMs = CALL_TIMEOUT_MS) { return this.sendTo(null, method, params, timeoutMs); }
+
+  /** A CALL TO AN ATTACHED TARGET (flattened sessions: Target.setAutoAttach { flatten: true }) — an out-of-process frame, such as the Preview's page… */
+  sendTo(sessionId, method, params = {}, timeoutMs = CALL_TIMEOUT_MS) {
     if (!this.open) return Promise.reject(new Error(this.closedWhy || 'the debugger socket is not open'));
     this._id += 1;
     const id = this._id;
@@ -229,7 +171,7 @@ class Connection {
         reject(new Error(`${method} did not answer in ${timeoutMs}ms`));
       }, timeoutMs);
       this._pending.set(id, { resolve, reject, timer });
-      try { this.ws.send(JSON.stringify({ id, method, params })); } catch (e) {
+      try { this.ws.send(JSON.stringify(sessionId ? { id, sessionId, method, params } : { id, method, params })); } catch (e) {
         clearTimeout(timer);
         this._pending.delete(id);
         reject(e);

@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * WHAT LAIN WAS NOT ALLOWED TO DO — and how to change your mind.
- *
- * A refusal that exists only in the model's tool result is a decision the
- * person at the keyboard never sees. They find out when the work is wrong, and
- * by then the reason has scrolled away. So every refusal is recorded here, and
- * `/permissions` is where they are reviewed and, if you want, allowed.
- *
- * ------------------------------------------------------------------------
- * THIS IS A LEDGER, NOT A POLICY. It stores what happened; `trust.js` decides
- * what is allowed. Allowing an entry writes a real trust decision through that
- * module rather than keeping a second list of exceptions here — two places
- * that both say what is permitted is exactly how they come to disagree.
- *
- * IN MEMORY, PER SESSION. A refusal is about a moment: the model asked for
- * something now, in this task, and the answer was no. Persisting them would
- * turn a review list into a backlog nobody empties, and the decisions that
- * SHOULD outlive the session — trusting a directory — are already persisted by
- * trust.js.
- */
+/** WHAT LAIN WAS NOT ALLOWED TO DO — and how to change your mind. */
 
 const path = require('path');
 
@@ -32,15 +13,7 @@ function listOf(app) {
   return app._rejected;
 }
 
-/**
- * Record a refusal.
- *
- * COLLAPSED BY TARGET. A model that is refused will very often try the same
- * path again a moment later, and forty identical rows make the one interesting
- * refusal impossible to find. The count is kept instead, which is also the more
- * useful fact: "it tried this eleven times" says something a single row does
- * not.
- */
+/** Record a refusal. */
 function note(app, { tool, target, why, write = false } = {}) {
   if (!app || !target) return null;
   const list = listOf(app);
@@ -76,18 +49,7 @@ function pending(app) {
   return listOf(app).filter((e) => !e.allowed).length;
 }
 
-/**
- * Allow one entry, for real.
- *
- * IT WRITES A TRUST DECISION, through trust.js, for the DIRECTORY the path is
- * in. Allowing one file and refusing its sibling is a distinction nobody wants
- * to maintain by hand, and a second exception list here would be a second
- * source of truth about what is permitted.
- *
- * The entry is marked rather than deleted: "you allowed this" is part of the
- * record of the session, and a list that erases its own history cannot be
- * audited.
- */
+/** Allow one entry, for real. */
 function allow(app, id) {
   const entry = listOf(app).find((e) => e.id === id);
   if (!entry) return { ok: false, error: 'no such refusal' };

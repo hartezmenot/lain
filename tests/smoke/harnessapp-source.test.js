@@ -49,13 +49,17 @@ module.exports = async function () {
   const req = (method, p, body) => routes.dispatch(app, method, p, body);
 
   try {
-    await test('SOURCE LIVE: the tree is the project, and not its dependencies', async () => {
+    await test('SOURCE LIVE: the tree is the project, and its dependencies are one dim row', async () => {
       const r = await req('POST', '/api/files/tree', { path: '' });
       const names = r.body.entries.map((e) => e.name);
       assert.ok(names.includes('ui'), 'the project directories are there');
       assert.ok(names.includes('index.html'));
-      assert.ok(!names.includes('node_modules'),
-        'a tree whose first expansion is 40,000 dependency files is not a tree');
+      // THERE, AS IN ANY EDITOR — a person opens node_modules to read a
+      // dependency — but dim and unexpanded: the tree is lazy, so its 40,000
+      // files are listed only when someone asks for them.
+      const nm = r.body.entries.find((e) => e.name === 'node_modules');
+      assert.ok(nm && nm.dir && nm.dim, 'node_modules is a dim folder row');
+      assert.ok(!r.body.entries.some((e) => e.path.startsWith('node_modules/')), 'and nothing inside it is listed until it is opened');
       // Paths are project-relative, never absolute — an absolute path here
       // would put the person's directory layout in the page.
       for (const e of r.body.entries) assert.ok(!path.isAbsolute(e.path), `${e.path} is absolute`);

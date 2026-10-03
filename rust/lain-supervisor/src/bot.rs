@@ -25,7 +25,9 @@ impl Mailbox {
             _ => VecDeque::new(),
         };
         Self {
-            enabled: file.exists(),
+            // GATEWAY-ONLY (2026-10-02): the legacy remote brain is gone, so every message waits for Noema's own
+            // gateway (src/bot/). With no gateway attached nothing is polled and Telegram keeps the messages.
+            enabled: true,
             file,
             rows,
             owner: String::new(),
@@ -421,8 +423,9 @@ mod tests {
     fn gateway_mode_survives_restart_without_inheriting_a_live_lease() {
         let dir = dir();
         let mut b = Mailbox::open(dir.clone());
-        assert!(b.can_poll());
-        b.enabled = true;
+        // GATEWAY-ONLY: a fresh mailbox is in gateway mode and polls nothing until a gateway holds the lease.
+        assert!(b.enabled);
+        assert!(!b.can_poll());
         b.owner = "a".repeat(48);
         b.until = crate::remote::now() + 30000;
         assert!(b.save());

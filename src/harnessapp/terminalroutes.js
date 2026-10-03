@@ -1,57 +1,6 @@
 'use strict';
 
-/**
- * THE PROJECT TERMINAL, AND THE WAY OUT TO A REAL ONE.
- *
- * ------------------------------------------------------------------------
- * WHAT THE EMBEDDED TERMINAL IS: THE PROJECT'S PROCESSES, INSIDE THE WINDOW.
- *
- * Opening a project must not throw a console window onto the person's desktop.
- * The work runs headlessly under Core; when somebody wants to SEE it, it is a
- * panel in the application — collapsed by default, because a terminal that
- * opens itself is a terminal that takes the screen from the thing you were
- * reading.
- *
- * What it shows is what LAIN already owns for this project: background commands
- * (`run_background`), dev servers and the Workshop's processes, with their
- * output and their state. Every one of those is read from the authority that
- * already has it — `src/jobs.js`, which is what `/ps` reads — so the window and
- * the terminal cannot disagree about what is running.
- *
- * ------------------------------------------------------------------------
- * IT TAKES TYPING, AND THAT IS NOT A SECOND DOOR FOR THE MODEL.
- *
- * `Open shell` starts a real pseudoconsole owned by Core (src/pty.js), and the
- * keystrokes that reach it come from the WINDOW — a person, in a project they
- * already opened, which is the authority they have in any terminal on their own
- * machine.
- *
- * THE MODEL CANNOT REACH IT. No tool writes here; the only way bytes arrive is
- * a keystroke from the renderer. `run_bash` — what the model uses — still goes
- * through `gate.js`, `trust.js`, `permissions.js` and the mutation transaction,
- * unchanged. The value of one door is that there is one door, and this is not
- * one of them.
- *
- * (This panel was read-only when it was first built, and said so here. The
- * interactive shell arrived with the ConPTY bridge; the reasoning above is what
- * replaced the reasoning for keeping it read-only.)
- *
- * STOPPING is offered, because ending something is the direction that is always
- * safe — the same principle bin/lain-control.js is built on.
- *
- * ------------------------------------------------------------------------
- * `OPEN CLI` IS NOT A SECOND COPY OF LAIN INSIDE THE WINDOW.
- *
- * The Desktop conversation IS the LAIN interface. Embedding the LAIN CLI as the
- * project's terminal would give you a window containing a terminal containing
- * LAIN showing the same conversation you are already looking at.
- *
- * So `Open CLI` opens a REAL terminal window, outside the application, running
- * `lain --resume <this session>` in this project. And because two processes must
- * never hold one transcript, Core HANDS THE SESSION OVER first: it refuses while
- * a turn is running here, and otherwise releases it so the terminal is the only
- * writer. See src/sessionpool.js `handover`.
- */
+/** THE PROJECT TERMINAL, AND THE WAY OUT TO A REAL ONE. */
 
 const path = require('path');
 
@@ -61,14 +10,7 @@ function bad(why, code = 400) { return { code, body: { ok: false, why: String(wh
 /** How much of one process's output the panel is handed. It scrolls, not logs. */
 const TAIL_LINES = 200;
 
-/**
- * THE PROCESSES THIS PROJECT HAS, projected.
- *
- * Read from `app._jobs` — the shell jobs LAIN started — and from the Harness's
- * own service list. Nothing is started, nothing is polled and nothing is
- * inspected on the machine: this is cheap enough to sit behind a panel that is
- * open while somebody watches a build.
- */
+/** THE PROCESSES THIS PROJECT HAS, projected. */
 function processes(app) {
   const out = [];
   const jobs = app._jobs;
@@ -110,13 +52,7 @@ function processes(app) {
 }
 
 const ROUTES = {
-  /**
-   * OPEN A REAL SHELL IN THIS PROJECT.
-   *
-   * A pseudoconsole, not a command runner — see src/pty.js for why that
-   * distinction is the whole feature. Core owns the process; the window sends
-   * keystrokes and receives bytes.
-   */
+  /** OPEN A REAL SHELL IN THIS PROJECT. */
   'POST /api/terminal/open': async (app, body = {}) => {
     const r = require('../pty').open(app, {
       cols: Number(body.cols) || 120,
@@ -127,13 +63,7 @@ const ROUTES = {
     return ok({ id: t.id, cwd: t.cwd, shell: t.shell, cols: t.cols, rows: t.rows });
   },
 
-  /**
-   * WHAT THE SHELL HAS WRITTEN SINCE `since`.
-   *
-   * Byte-offset rather than "everything": the panel may have been shut for ten
-   * minutes of build output, and re-sending all of it on every poll would make
-   * the terminal the most expensive thing in the application.
-   */
+  /** WHAT THE SHELL HAS WRITTEN SINCE `since`. */
   'POST /api/terminal/read': async (app, body = {}) => {
     const t = require('../pty').get(app, body.id);
     if (!t) return bad('no such terminal', 404);
@@ -173,11 +103,7 @@ const ROUTES = {
     return r.ok ? ok(r) : bad(r.why, 404);
   },
 
-  /**
-   * WHAT IS RUNNING IN THIS PROJECT. Its own route rather than part of
-   * `/api/state`, because the output is big and the panel is usually shut —
-   * putting it in the poll would ship a build log every 1.5 seconds to nobody.
-   */
+  /** WHAT IS RUNNING IN THIS PROJECT. */
   'POST /api/terminal/processes': async (app) => ok({
     cwd: app.session.cwd,
     project: path.basename(app.session.cwd || ''),
@@ -197,13 +123,7 @@ const ROUTES = {
     return ok({ stopped: id });
   },
 
-  /**
-   * OPEN A REAL LAIN CLI ON THIS SESSION, in a terminal of its own.
-   *
-   * THE HANDOVER IS THE WHOLE CARE HERE. Two processes on one transcript would
-   * be two conversations writing one file, so this refuses while a turn is
-   * running in the session and otherwise releases it before the terminal starts.
-   */
+  /** OPEN A REAL LAIN CLI ON THIS SESSION, in a terminal of its own. */
   'POST /api/desktop/opencli': async (app, body = {}) => {
     if (process.platform !== 'win32') return bad('opening a terminal is Windows-only for now', 501);
     const pool = app.pool();
@@ -221,10 +141,7 @@ const ROUTES = {
 
     const { spawn } = require('child_process');
     const bin = path.join(__dirname, '..', '..', 'bin', 'lain.js');
-    // `start` OWNS OPENING A WINDOW on Windows, and is a cmd builtin rather than
-    // an executable — hence `cmd /c`. The empty string is `start`'s title
-    // argument, which it otherwise takes from the first quoted word and then
-    // fails to find a program to run.
+    // `start` OWNS OPENING A WINDOW on Windows, and is a cmd builtin rather than an executable — hence `cmd /c`.
     const child = spawn('cmd', ['/c', 'start', '', 'cmd', '/k',
       `"${process.execPath}" "${bin}" --resume ${short}`], {
       cwd,

@@ -44,14 +44,17 @@ function project(n = 16) {
 }
 
 module.exports = async function run() {
-  await test('manifest: Laya and Violetto identified, Jev EXCLUDED with a reason, weights outside the repo', () => {
+  await test('manifest: Laya identified, Violetto RETIRED (history only, never a worker), Jev EXCLUDED with a reason, weights outside the repo', () => {
     const m = rt.manifest();
     assert.strictEqual(m.laya.model, 'convaiinnovations/laya');
-    assert.match(m.violetto.sha256, /^[0-9a-f]{64}$/);
+    assert.ok(!m.violetto, 'Violetto is not an active worker');
+    const retired = rt.retired();
+    assert.strictEqual(retired.violetto.status, 'RETIRED');
+    assert.match(retired.violetto.sha256, /^[0-9a-f]{64}$/, 'the identity is kept as history');
     assert.strictEqual(m.jev.status, 'EXCLUDED');
     assert.match(m.jev.reason, /proprietary|hosted/i);
     assert.match(m.jev.reason, /NOT Jev/, 'Laya is never presented as Jev');
-    for (const w of [m.laya, m.violetto]) assert.ok(!String(w.defaultStore).startsWith(path.join(__dirname, '..', '..')), 'model store is outside the repository');
+    for (const w of [m.laya]) assert.ok(!String(w.defaultStore).startsWith(path.join(__dirname, '..', '..')), 'model store is outside the repository');
   });
 
   await test('switches: off beats everything; auto needs a passed gate; on forces', () => {
@@ -62,7 +65,11 @@ module.exports = async function run() {
       const gates = rt.manifest().laya.gates || {};
       assert.strictEqual(rt.uses(app, 'laya', 'file_locate'), Boolean(gates.file_locate && gates.file_locate.pass), 'auto follows the recorded gate');
       env('LAIN_WORKER_LAYA', 'on');
-      assert.strictEqual(rt.uses(app, 'laya', 'file_locate'), true, 'on forces the experiment');
+      assert.strictEqual(rt.uses(app, 'laya', 'file_locate'), false, 'on does NOT revive the rejected file ranker');
+      assert.strictEqual(rt.uses(app, 'laya', 'selection_resolution'), true, 'on forces the live Harness roles');
+      env('LAIN_ROLE_SOURCE_FILE_RANKER', 'FORCE');
+      assert.strictEqual(rt.uses(app, 'laya', 'file_locate'), true, 'an explicit role override replays the experiment');
+      env('LAIN_ROLE_SOURCE_FILE_RANKER', null);
       env('LAIN_WORKERS', 'off');
       assert.strictEqual(rt.uses(app, 'laya', 'file_locate'), false, 'workers off overrides a forced worker');
       env('LAIN_WORKERS', null);
@@ -106,17 +113,19 @@ module.exports = async function run() {
     } finally { restore(); }
   });
 
-  await test('the geometry specialist is offered only when Violetto is forced on — never by auto, never with workers off', () => {
+  await test('Violetto is RETIRED: no role, no dispatch, no prewarm, no flagship tool — even when switched on', () => {
     try {
       const tools = require('../../src/tools');
       const app = { cfg: { workers: {} } };
-      env('LAIN_WORKER_VIOLETTO', null);
-      const installed = rt.info(app, 'violetto').installed;
-      assert.ok(!tools.names(app).includes('geometry_specialist'), 'auto: its gate failed, so it is not offered');
       env('LAIN_WORKER_VIOLETTO', 'on');
-      assert.strictEqual(tools.names(app).includes('geometry_specialist'), installed, 'forced on (where installed)');
-      env('LAIN_WORKERS', 'off');
-      assert.ok(!tools.names(app).includes('geometry_specialist'), 'workers off beats forced');
+      assert.ok(!tools.names(app).includes('geometry_specialist'), 'never a flagship tool');
+      assert.strictEqual(rt.roleMode(app, 'violetto', 'numeric_geometry_solver'), 'OFF', 'no role exists to force');
+      assert.strictEqual(rt.info(app, 'violetto'), null, 'not a worker the runtime knows');
+      assert.strictEqual(rt.wantsResident(app, 'violetto'), false, 'never loaded');
+      const d = require('../../src/dispatch');
+      for (const cls of ['UI_GEOMETRY', 'UI_EVIDENCE', 'SELECTION', 'GENERAL']) assert.ok(!d.owners(cls, {}, null, null).some((o) => /violetto/.test(o)), cls);
+      const src = ['dispatch.js', 'geometryjob.js', 'locateassist.js', 'layacontext.js', 'tools/index.js'].map((p) => fs.readFileSync(path.join(__dirname, '..', '..', 'src', p), 'utf8')).join('\n');
+      assert.ok(!/require\('\.\/violettojob'\)|'violetto'\)/.test(src), 'no production code reaches Violetto');
     } finally { restore(); env('LAIN_WORKER_VIOLETTO', saveEnv.LAIN_WORKER_VIOLETTO); }
   });
 
@@ -213,9 +222,14 @@ module.exports = async function run() {
     try {
       cmd.run(app, [], { C });
       const text = out.join('');
-      assert.match(text, /laya/); assert.match(text, /violetto/); assert.match(text, /locate\s+file shortlist\s+off/);
+      assert.match(text, /laya/); assert.match(text, /violetto\s+RETIRED/); assert.match(text, /locate\s+file shortlist\s+off/);
+      // INSTALLED ≠ LOADED ≠ PARTICIPATING, per role.
+      assert.match(text, /laya\s+runtime installed · not loaded/);
+      assert.match(text, /source_file_ranker\s+OFF\s+invoked 0/);
+      assert.match(text, /selection_resolver\s+SHADOW\s+invoked 0 · background 0 · critical-path 0/);
+      assert.doesNotMatch(text, /Laya ON/i, 'no role-less "on"');
       cmd.run(app, ['locate', 'on'], { C });
-      assert.strictEqual(app.cfg.workers.locate, 'on'); assert.match(text, /jev\s+decision_intent\s+EXCLUDED/);
+      assert.strictEqual(app.cfg.workers.locate, 'on'); assert.match(text, /jev\s+EXCLUDED/);
       cmd.run(app, ['off'], { C });
       assert.strictEqual(app.cfg.workers.policy, 'off');
       cmd.run(app, ['laya', 'on'], { C });

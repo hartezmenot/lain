@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * THE CHROME VIEW'S ROUTES — LAIN for Chrome's connection state, for the
- * Settings -> Connections panel. See src/lainchrome.js for the capability;
- * nothing here decides anything, exactly like botroutes.js for Telegram.
- */
+/** THE CHROME VIEW'S ROUTES — LAIN for Chrome's connection state, for the Settings -> Connections panel. */
 
 const lainChrome = require('../lainchrome');
 

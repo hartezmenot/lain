@@ -41,7 +41,7 @@ const slowScript = (secs = 3) => [
       { name: 'write_file', input: { path: 'gen/audit.md', content: '# audit' } },
     ],
   },
-  { text: 'Now the slow part.', tool_calls: [{ name: 'run_bash', input: { command: `sleep ${secs}` } }] },
+  { text: 'Now the slow part.', tool_calls: [{ name: 'shell', input: { command: `sleep ${secs}` } }] },
   { text: 'Done.' },
 ];
 
@@ -65,9 +65,9 @@ module.exports = async function () {
     const r = await runCli([], { cwd: tmpdir('live-'), env: tui(), stdin: 'audit it\n', script: slowScript(1) });
     const out = plain(r.out);
     // The word follows the wire since 2026-09-23 (streamprogress.js): not every wait is THINKING.
-    assert.match(out, /THINKING|WAITING|STREAMING/i, 'waiting on the provider must be visible');
+    assert.match(out, /Working|THINKING|WAITING|STREAMING|Writing/i, 'waiting on the provider must be visible');
     // Before any data arrives the strip says WAITING, not THINKING (streamprogress.js, 2026-09-23).
-    assert.match(out, /first response from the model|waiting for the model/, 'and said in words on the status strip above the input');
+    assert.match(out, /Waiting for \S+/, 'and said in words on the ONE activity line above the input');
   });
 
   await test('SEE: the screen names the TOOL while the tool is running', async () => {
@@ -98,7 +98,7 @@ module.exports = async function () {
     // column said nothing the verb did not and is drawn only for an actor that is
     // NOT this program — the network, the bridge, a second model, the user. The
     // row is `◐ Running  sleep 3` now. See ui/status.js.
-    const spinners = new Set(running.map((f) => (f.match(/([◐◓◑◒])\s+Running\s+sleep 3/) || [])[1]).filter(Boolean));
+    const spinners = new Set(running.map((f) => (f.match(/([◐◓◑◒])\s+Running\s+(?:·\s+)?sleep 3/) || [])[1]).filter(Boolean));
     assert.ok(spinners.size >= 3, `the indicator did not move: saw ${[...spinners].join('') || 'nothing'}`);
   });
 

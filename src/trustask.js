@@ -1,33 +1,13 @@
 'use strict';
 
-/**
- * ASKING ABOUT A DIRECTORY — the question, and where the answer is written.
- *
- * Split from trust.js on the same seam permissions.js uses: that module holds
- * the RULES and knows nothing about a terminal; this one owns the asking. So
- * the policy stays testable without a TTY, and there is exactly one place that
- * turns an answer into a stored decision.
- *
- * IT USES THE ONE INTERACTION PANEL. No second prompt, no bespoke modal — the
- * same surface as `/model`, `ask_user` and every confirmation, so a question
- * about a directory looks and behaves like every other question LAIN asks.
- */
+/** ASKING ABOUT A DIRECTORY — the question, and where the answer is written. */
 
 const path = require('path');
 
 const config = require('./config');
 const trust = require('./trust');
 
-/**
- * Ask about the working directory, once, and remember the answer.
- *
- * SKIPPED WHEN ALREADY DECIDED, which is the point of persisting it: being
- * asked on every launch is how an answer stops being read. Skipped without a
- * TTY too — there is nobody to ask on a pipe, and a run that cannot ask must
- * not silently assume the permissive answer, so it gets READ_ONLY.
- *
- * @returns {string} the level now in force
- */
+/** Ask about the working directory, once, and remember the answer. */
 async function ensureTrusted(app) {
   const dir = app.session.cwd;
   if (trust.decided(app.cfg, dir)) return trust.levelOf(app.cfg, dir);
@@ -52,11 +32,7 @@ async function ensureTrusted(app) {
       { label: 'Read only — look, but change nothing', value: trust.LEVEL.READ_ONLY },
       { label: 'No — decide later', value: trust.LEVEL.UNTRUSTED },
     ],
-    // OPENS ON "READ ONLY" — index 6, counting the three unselectable rows
-    // above the choices. A question answered by pressing Enter without reading
-    // it should land on the answer that cannot damage anything, and read-only
-    // is that answer while still being useful: LAIN can look at the project and
-    // will ask before changing a single byte.
+    // OPENS ON "READ ONLY" — index 6, counting the three unselectable rows above the choices.
     cursor: 6,
     footer: '↑↓ choose · Enter confirm · Esc = decide later',
   });
@@ -71,17 +47,11 @@ async function ensureTrusted(app) {
   return level;
 }
 
-/**
- * Ask about ONE path outside the project, or a write into a read-only tree.
- *
- * ANSWERED PER PATH, not per session, with one exception: "yes, and this whole
- * directory" records a real trust decision so a project that genuinely spans
- * two folders does not ask forty times. Declining is remembered for nothing —
- * the next attempt asks again, because a no is about this moment.
- *
- * @returns {boolean} whether the operation may proceed
- */
+/** Ask about ONE path outside the project, or a write into a read-only tree. */
 async function askOutside(app, { target, why, write = false } = {}) {
+  // A PermissionRequest HOOK MAY ONLY SAY NO to a path question (userhooks.js) — filesystem trust is never automated.
+  const hk = await require('./userhooks').fire(app, 'PermissionRequest', { kind: 'path', target: String(target), write: Boolean(write), why: why || '' }, { match: 'path' });
+  if (hk.decision === 'deny') return false;
   if (require('./interaction').port(app)) {
     const answer = await require('./interaction').ask(app, {
       title: write ? 'Allow this machine change?' : 'Allow access to this path?',

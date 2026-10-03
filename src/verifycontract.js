@@ -1,52 +1,6 @@
 'use strict';
 
-/**
- * THE VERIFY CONTRACT — what proves a change, how far to escalate, and what a
- * failure at a higher tier is allowed to mean.
- *
- * ------------------------------------------------------------------------
- * THE LADDER.
- *
- *     TARGETED    the exact requested behaviour           tests named for the changed files
- *     IMPACT      the direct dependency surface           tests of what imports them
- *     SUBSYSTEM   the subsystem the change sits in        the directory's tests
- *     PROJECT     broad repository regression             the whole suite
- *     RELEASE     package / distribution / live proof     install + real-app + live tiers
- *
- * SELECTION IS FROM THE CHANGE, NOT FROM HABIT. A one-file fix nothing imports
- * selects TARGETED and stops there; a change to the test runner or the package
- * manifest selects PROJECT; a change under distribution/ or bin/ selects RELEASE.
- * Escalation is evidence-driven: a tier runs only when the tier below it
- * passed and the selected level is above it.
- *
- * ------------------------------------------------------------------------
- * A FAILURE IS EVIDENCE, NOT AUTHORITY. A higher tier that fails is classified
- * before anyone repairs anything:
- *
- *     CAUSED_BY_CURRENT_TASK   touches what this task changed, and was not failing before
- *     RELEVANT_PREEXISTING     was failing before, and touches the changed surface
- *     UNRELATED_PREEXISTING    was failing before, and does not
- *     CONCURRENT_FOREIGN       touches a file another session is writing
- *     ENVIRONMENTAL            a missing tool, a port, a network, a permission
- *     UNKNOWN_CAUSALITY        none of the above can be established
- *
- * Only CAUSED_BY_CURRENT_TASK authorises repair within the task. Everything else
- * is recorded as a foreign failure on the task (task.js `noteForeignFailure`).
- *
- * THREE CLAIMS, NEVER ONE:  TASK PASSED  ≠  PROJECT CLEAN  ≠  RELEASE READY.
- *
- * ------------------------------------------------------------------------
- * EVIDENCE STATES. The Cowork/Bot certification already refused to call a
- * fixture a live proof; the same words apply to every verification:
- *
- *     CLAIMED                     a model said so            not evidence
- *     STATIC_VERIFIED             parse, lint, types
- *     FIXTURE_VERIFIED            unit tests over fakes
- *     LOCAL_INTEGRATION_VERIFIED  real modules wired together
- *     REAL_TTY_VERIFIED           the CLI in a real terminal
- *     REAL_APP_VERIFIED           the real application running
- *     LIVE_VERIFIED               a real external service
- */
+/** THE VERIFY CONTRACT — what proves a change, how far to escalate, and what a failure at a higher tier is allowed to mean. */
 
 const path = require('path');
 
@@ -94,12 +48,7 @@ function norm(rel) { return String(rel || '').replace(/\\/g, '/').replace(/^\.\/
 function rank(level) { const i = LADDER.indexOf(level); return i < 0 ? -1 : i; }
 function max(a, b) { return rank(a) >= rank(b) ? a : b; }
 
-/**
- * THE INDEX AS IT WAS LAST WRITTEN, never refreshed here. Selection runs on
- * every write and must not become a tree walk; dependents from a slightly old
- * index are an input to a LEVEL, and the tests that run at that level are the
- * check. Absent index → no dependents known, which never lowers RELEASE/PROJECT.
- */
+/** THE INDEX AS IT WAS LAST WRITTEN, never refreshed here. */
 function indexOf(cwd) {
   try { return require('./projectindex').load(cwd); } catch { return { files: {} }; }
 }
@@ -114,13 +63,7 @@ function testsNaming(index, changed) {
   });
 }
 
-/**
- * WHICH LEVEL THIS CHANGE CALLS FOR, and why.
- *
- * @param {string}   cwd
- * @param {string[]} changedRels
- * @param {object}   [o]  { objective } — a task that says "release" asks for release proof
- */
+/** WHICH LEVEL THIS CHANGE CALLS FOR, and why. */
 function selectFor(cwd, changedRels, { objective = '' } = {}) {
   const changed = (changedRels || []).map(norm).filter(Boolean);
   const reasons = [];
@@ -159,10 +102,7 @@ function selectFor(cwd, changedRels, { objective = '' } = {}) {
   };
 }
 
-/**
- * THE TIERS TO RUN, in order, up to the selected level. Each carries the
- * evidence state its passing would earn.
- */
+/** THE TIERS TO RUN, in order, up to the selected level. */
 function planFor(selection) {
   const top = rank(selection.level);
   if (top < 0) return [];
@@ -176,13 +116,7 @@ function planFor(selection) {
   }));
 }
 
-/**
- * RUN THE PLAN, ESCALATING ONLY ON EVIDENCE.
- *
- * `runTier(tier)` → { ok, failures:[{id, files, message}], evidence }. A tier
- * that fails stops the ladder: a narrow failure is what to look at, and running
- * the whole suite on top of it would bury it.
- */
+/** RUN THE PLAN, ESCALATING ONLY ON EVIDENCE. */
 async function escalate(plan, runTier) {
   const runs = [];
   for (const tier of plan) {
@@ -195,16 +129,7 @@ async function escalate(plan, runTier) {
 
 const ENV_RE = /\b(ENOENT|EADDRINUSE|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EACCES|EPERM|ENOTFOUND|command not found|is not recognized as|not installed|no such (?:device|host)|network|rate.?limit|429|503|sandbox|permission denied)\b/i;
 
-/**
- * WHOSE FAILURE IS THIS?
- *
- * @param {object} failure  { id, files:[rel], message }
- * @param {object} ctx
- *   `changed`     files this task changed
- *   `dependents`  files that import them (the impact surface)
- *   `baseline`    failure ids already failing before this task (a Set or array)
- *   `concurrent`  files another session has written meanwhile
- */
+/** WHOSE FAILURE IS THIS? */
 function classifyFailure(failure, { changed = [], dependents = [], baseline = [], concurrent = [] } = {}) {
   const f = failure || {};
   const files = (f.files || []).map(norm);
@@ -219,14 +144,7 @@ function classifyFailure(failure, { changed = [], dependents = [], baseline = []
   return CAUSE.UNKNOWN_CAUSALITY;
 }
 
-/**
- * SETTLE A VERIFICATION INTO ITS THREE CLAIMS.
- *
- * @param {object} o
- *   `runs`     escalate()'s output
- *   `selected` the selected level
- *   `classify` (failure) => CAUSE
- */
+/** SETTLE A VERIFICATION INTO ITS THREE CLAIMS. */
 function settle({ runs = [], selected = LEVEL.UNSPECIFIED, classify = () => CAUSE.UNKNOWN_CAUSALITY } = {}) {
   const targeted = runs.find((r) => r.level === LEVEL.TARGETED);
   const failures = [];
@@ -300,13 +218,7 @@ function record(session, { command = '', ok = false, level = '', failures = [], 
   return row;
 }
 
-/**
- * THE CONTRACT FOR A SESSION, as the authority projection reports it.
- *
- * `level` is selected from what the task has changed; UNSPECIFIED only when it
- * has changed nothing. `taskComplete` and `projectClean` stay the two separate
- * claims authority.js always kept.
- */
+/** THE CONTRACT FOR A SESSION, as the authority projection reports it. */
 function contractFor(session) {
   const t = session && session.task;
   const life = session && session.lifecycle;
@@ -329,8 +241,22 @@ function contractFor(session) {
   };
 }
 
+/** WHAT COMPLETION REQUIRES — THE verification authority (Execution Discipline §19–§20). */
+function requirement(cwd, changedRels, { objective = '', discretion = 'STRONG' } = {}) {
+  const sel = selectFor(cwd, changedRels, { objective });
+  const r = rank(sel.level);
+  return {
+    level: sel.level,
+    reasons: sel.reasons,
+    needsSuite: r >= rank(LEVEL.PROJECT),
+    needsPackaging: /\b(release|publish|packag\w*|ship|installer|distribut\w*|production (?:build|package))\b/i.test(objective),
+    // LESS DISCRETION, NOT LOWER STANDARDS: a weaker model must show evidence that exercises the change itself.
+    minDiscrimination: discretion === 'WEAK' ? 'MODERATE' : 'LOW',
+  };
+}
+
 module.exports = {
   LEVEL, LADDER, EVIDENCE, EVIDENCE_RANK, CAUSE,
   selectFor, planFor, escalate, classifyFailure, settle, strongestEvidence, evidenceForCommand,
-  record, contractFor,
+  record, contractFor, requirement,
 };

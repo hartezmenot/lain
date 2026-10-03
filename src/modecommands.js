@@ -1,11 +1,6 @@
 'use strict';
 
-/**
- * `/focus`, `/fast`, `/browser` (with `/chrome` as a hidden alias), and what
- * `/plan accept` does. One module so commands.js stays a registry.
- *
- * FOCUS and FAST are session preferences (execmode.js), not runtimes.
- */
+/** `/focus`, `/fast`, `/browser` (with `/chrome` as a hidden alias), and what `/plan accept` does. */
 
 const execmode = require('./execmode');
 
@@ -18,10 +13,7 @@ function toggle(app, key, arg) {
   return on;
 }
 
-/**
- * THE PLAN IS ACCEPTED: leave PLAN, and execution begins. Durable step progress
- * appears only from here — never while the plan is still being discussed.
- */
+/** THE PLAN IS ACCEPTED: leave PLAN, and execution begins. */
 function acceptPlan(app, { C }) {
   const plan = app.session.plan;
   execmode.set(app.session, 'AUTO');
@@ -63,49 +55,142 @@ function register({ define, C }) {
     desc: 'Focus: stricter quiet — reuse fresh project state, show only changes, blockers, verification',
     run(app, { args }) { const on = toggle(app, 'focus', args[0]); app.render.write(C.dim(`  FOCUS ${on ? 'on' : 'off'} · ${execmode.label(app.session)}\n`)); },
   });
-  // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js). Strategy and
-  // spend, never the correctness bar; orthogonal to AUTO/MANUAL/PLAN and FOCUS.
+  // MEMORY (memdir.js): one fact per file under ~/.lain/projects/<id>/memory/, MEMORY.md the index every session loads.
+  define('/memory', {
+    surface: true, args: '[edit [name] | forget <name>]',
+    desc: 'Project memory: list the facts later sessions see; edit one (or the folder) in $EDITOR; forget one',
+    run(app, { args }) {
+      const w = (s) => app.render.write(s);
+      const m = require('./memdir');
+      const cwd = app.session.cwd;
+      const [sub, name] = [String(args[0] || '').toLowerCase(), args[1]];
+      if (sub === 'forget' && name) { const r = m.forget(cwd, name); w(C.dim(`  ${r.ok ? `forgot ${name}` : r.why}\n`)); return; }
+      if (sub === 'edit') {
+        const file = name ? require('path').join(m.dir(cwd), `${name}.md`) : require('path').join(m.dir(cwd), m.INDEX);
+        require('fs').mkdirSync(m.dir(cwd), { recursive: true });
+        if (!require('fs').existsSync(file)) require('fs').writeFileSync(file, '');
+        require('./planmode').edit(app, file);
+        m.reindex(cwd);
+        return;
+      }
+      const facts = m.list(cwd);
+      w(`  ${C.bold('Memory')} ${C.dim(`· ${m.dir(cwd)}`)}\n`);
+      if (!facts.length) w(C.dim('  Nothing remembered for this project yet. Ask LAIN to remember something.\n'));
+      for (const f of facts) w(`  ${f.name}  ${C.dim(f.line.slice(0, 100))}\n`);
+    },
+  });
+  // THE PERMISSION MODE (execmode.js): Ask · Accept edits · Plan · Auto — Shift+Tab cycles it too.
+  define('/mode', {
+    surface: true, args: '[ask|accept-edits|plan|auto]',
+    desc: 'Permission mode: Ask, Accept edits, Plan (read-only) or Auto; shows the allow/deny rules in force',
+    run(app, { args }) {
+      const w = (s) => app.render.write(s);
+      if (args[0]) {
+        const want = require('./permrules').modeName(args[0]);
+        if (!want) { w(C.dim('  /mode ask | accept-edits | plan | auto\n')); return; }
+        execmode.set(app.session, want);
+        try { app.session.save(); } catch { /* still applies in memory */ }
+        if (app.ui && app.ui.enabled) app.ui.refresh();
+      }
+      const mode = execmode.of(app.session);
+      const eff = execmode.effective(app);
+      w(`  ${C.bold(execmode.WORD[mode])}${eff !== mode ? C.dim(` — ${execmode.WORD[eff]} applies until this folder is trusted (/trust)`) : ''}\n`);
+      const r = require('./permrules').of(app.cfg, app.session.cwd);
+      if (r.allow.length) w(C.dim(`  allow: ${r.allow.join(', ')}\n`));
+      if (r.deny.length) w(C.dim(`  deny:  ${r.deny.join(', ')}\n`));
+      if (r.ignored.length) w(C.dim(`  ignored (a project file cannot widen): ${r.ignored.join(', ')}\n`));
+    },
+  });
+  // THE EXECUTION PROFILE — FAST · NORMAL · ECO (profile.js): spend only, never behaviour.
   // `/fast` and `/eco` TOGGLE their profile (profile.toggle); `/normal` resets.
   const profileCmd = (name, target, desc, hidden = false) => define(name, {
     surface: true, flashMs: 1500, hidden, args: target === 'NORMAL' ? '' : '[on|off]',
     desc,
     run(app, { args }) {
       const prof = require('./profile');
-      const p = prof.set(app.session, prof.toggle(prof.of(app.session, app.cfg), target, args[0]));
+      // WHILE THE AGENT WORKS the change is QUEUED to its next checkpoint (runstrategy.queueProfile).
+      const want = prof.toggle(prof.of(app.session, app.cfg), target, args[0]);
+      const r = require('./runstrategy').queueProfile(app, want);
       try { app.session.save(); } catch { /* still applies in memory */ }
       if (app.ui && app.ui.enabled) app.ui.refresh();
+      const p = r.queued ? `${want} queued — applies at the next checkpoint` : prof.of(app.session, app.cfg);
       app.render.write(C.dim(`  ${p}${p === 'ECO' ? ' (token economy)' : ''} · ${execmode.label(app.session)}\n`));
     },
   });
-  profileCmd('/fast', 'FAST', 'FAST profile (toggle): finish quickly — parallel independent work, disjoint subagents; same verification bar');
-  profileCmd('/normal', 'NORMAL', 'NORMAL profile (default): main agent first, subagents only when clearly useful');
-  profileCmd('/eco', 'ECO', 'ECO profile (toggle) — token economy: one agent, serial, deterministic tools first, smaller context; same verification bar');
-  profileCmd('/slow', 'ECO', 'Alias of /eco', true);
+  profileCmd('/fast', 'FAST', 'FAST (toggle): lowest native effort unless you chose one; up to 4 read-only calls at once');
+  profileCmd('/normal', 'NORMAL', 'NORMAL (default): the model\'s default effort; up to 2 read-only calls at once');
+  profileCmd('/eco', 'ECO', 'ECO (toggle): lowest native effort unless you chose one; 2 read-only calls at once; tighter tool output; compacts earlier');
+  // THE RUN STRATEGY (runstrategy.js) — separate from the profile and from effort.
+  define('/strategy', {
+    surface: true, args: '[normal|phased|long] [confirm]',
+    desc: 'Run strategy: Normal, Phased (review each phase) or Long Context Phasing (continue phase after phase)',
+    run(app, { args }) {
+      const rs = require('./runstrategy');
+      if (!args[0]) { const s = rs.get(app.session); app.render.write(C.dim(`  ${rs.LABEL[s.kind]}${s.kind !== 'NORMAL' ? ` · review ${s.review.toLowerCase().replace(/_/g, ' ')}` : ''}\n`)); return; }
+      const r = rs.request(app, args[0], { review: args[2] || null });
+      if (!r.ok) { app.render.write(C.dim(`  ${r.why}\n`)); return; }
+      if (r.needsConfirm) {
+        if (args[1] !== 'confirm') { app.render.write(`  ${r.offer.text}\n  ${r.offer.estimate.text}\n  Type /strategy long confirm to continue, or /eco first.\n`); return; }
+        rs.confirm(app, r.offer.id, 'continue');
+      }
+      try { app.session.save(); } catch { /* in memory */ }
+      app.render.write(C.dim(`  ${rs.LABEL[rs.get(app.session).kind]}\n`));
+    },
+  });
+  // HAND THE SESSION BACK TO THE HARNESS (surfacehandoff.js): same task, no transcript replay.
+  define('/handback', {
+    surface: true, args: '',
+    desc: 'Hand this session back to the LAIN Harness (it continues the same task there)',
+    run(app) {
+      const r = require('./surfacehandoff').handoff(app, 'harness');
+      app.render.write(r.ok ? '  Handed to the Harness — it picks this session up. This terminal stops writing to it.\n' : `  ${r.why}\n`);
+    },
+  });
+  // TAKE THE SESSION OVER (sessionlease.js): a free or reserved session now; a live host is ASKED and hands it over
+  // at its next idle moment — never displaced mid-turn.
+  define('/takeover', {
+    surface: true, args: '',
+    desc: 'Take this session over from the Harness (it hands over between turns)',
+    run(app) {
+      const sh = require('./surfacehandoff');
+      const r = sh.takeBack(app);
+      if (r.ok) { app.render.write('  This terminal now runs this session — reloaded as the other surface left it.\n'); return; }
+      app.render.write(`  ${r.why}\n`);
+      if (!r.pending) return;
+      const until = Date.now() + 120_000;
+      const t = setInterval(() => {
+        const v = sh.persisted(app.session.id);
+        if (v && v.writer === sh.surfaceOf(app) && !v.pid) {
+          clearInterval(t);
+          const r2 = sh.takeBack(app);
+          try { app.render.notice(r2.ok ? 'info' : 'warn', r2.ok ? 'Took over — this terminal now runs this session.' : r2.why); } catch { /* no renderer */ }
+        } else if (Date.now() > until) {
+          clearInterval(t);
+          try { app.render.notice('warn', 'The other surface did not hand this session over (it is still working). /takeover asks again.'); } catch { /* no renderer */ }
+        }
+      }, 1000);
+      if (t.unref) t.unref();
+    },
+  });
   // SUBAGENTS — one small setting, not a panel: AUTO (recommended) or OFF, and
   // how many may run at once. The counter itself lives in the run state.
-  define('/subagents', {
-    surface: true, flashMs: 1500, args: '[auto|off|max N]',
-    desc: 'Subagents: AUTO (the model delegates when work partitions) or OFF; max concurrent workers',
+  define('/agents', {
+    surface: true, args: '',
+    desc: 'Agents: the types available, the agents of this session, and where each transcript is',
     run(app, { args }) {
-      const sub = require('./subagents');
-      const a = String(args[0] || '').toLowerCase();
-      const cur = { ...((app.cfg && app.cfg.subagents) || {}) };
-      if (a === 'auto' || a === 'on') cur.mode = 'auto';
-      else if (a === 'off') cur.mode = 'off';
-      else if (a === 'max' && Number(args[1]) > 0) cur.maxConcurrent = Math.min(8, Math.floor(Number(args[1])));
-      if (a) { app.cfg.subagents = cur; try { require('./config').save(app.cfg); } catch { /* applies in memory */ } }
-      const s = sub.settings(app);
-      const live = sub.running(app).length;
-      const prof = require('./profile').of(app.session, app.cfg);
-      app.render.write(C.dim(`  SUBAGENTS ${s.mode.toUpperCase()} · max ${s.maxConcurrent} at once · ${live} running · profile ${prof}`
-        + `${prof === 'ECO' && s.mode === 'auto' ? ' (ECO: only when you ask for them)' : ''}\n`));
+      // THE AGENTS OF THIS SESSION (agentrun.js): what runs now, what ran, and where each transcript is.
+      const all = (app.jobs ? app.jobs.all() : []).filter((j) => j.kind === 'subagent').map((j) => j.summary());
+      const types = Object.keys(require('./agenttypes').all(app.session.cwd));
+      app.render.write(C.dim(`  AGENTS · types: ${types.join(', ')} · ${all.filter((j) => j.state === 'RUNNING').length} running\n`));
+      for (const j of all.slice(-12)) app.render.write(C.dim(`  ${j.id} ${j.word.padEnd(9)} ${j.agentType || ''} · ${j.agentLabel || j.request}${j.childSession ? `  · transcript: /resume ${j.childSession}` : ''}\n`));
+      void args;
     },
   });
   // DIAGNOSTIC ONLY (workers.js): the narrow workers, whether any model is
   // recruited, and what they measurably saved. Never shown during normal work.
   define('/workers', {
     surface: true, args: '[status|auto|off|locate on|off|laya [auto|on|off]]',
-    desc: 'Diagnostics: specialist workers (Laya/Violetto/Jev) — installed, switched, gated, what they saved',
+    desc: 'Diagnostics: specialist workers (Laya roles, Jev excluded, Violetto retired) — installed, loaded, per-role mode, invoked',
     run(app, { args }) { return require('./workerscommand').run(app, args || [], { C, gateResults }); },
   });
   define('/workspaces', {
@@ -128,7 +213,7 @@ function register({ define, C }) {
 function gateResults() {
   const fs = require('fs');
   const path = require('path');
-  const dir = path.join(__dirname, '..', 'bench', 'workergate', 'out');
+  const dir = path.join(__dirname, '..', 'tools', 'dev', 'bench', 'workergate', 'out');
   const out = [];
   try {
     for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {

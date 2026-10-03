@@ -71,9 +71,10 @@ module.exports = async function () {
       stdin: '/model claude-opus-5 gateway\n/effort high\n/effort\n/effort banana\n/exit\n',
       script: [{ text: 'ack' }],
     });
-    assertIncludes(r.stdout, 'effort high');
-    assertIncludes(r.stdout, 'available here: low, medium, high');
-    assertIncludes(r.stdout, 'is not offered by gateway', 'an unavailable effort is refused, not silently accepted');
+    // PHASE 8.3: effort is the MODEL'S — its own levels, in its own words.
+    assertIncludes(r.stdout, 'Claude Opus 5 · Provider effort: High');
+    assertIncludes(r.stdout, 'Provider effort: High  ·  Low / Medium / High');
+    assertIncludes(r.stdout, 'effort is one of Low, Medium, High', 'an unavailable effort is refused, not silently accepted');
     // /efforts is not registered, so it is CONTENT and goes to the model.
     const r2 = await runCli([], { cwd, configDir, stdin: '/efforts\n/exit\n', script: [{ text: 'not a command' }] });
     assertIncludes(r2.stdout, 'not a command');

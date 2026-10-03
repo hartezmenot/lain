@@ -224,14 +224,18 @@ module.exports = async function () {
       // things Computer MCP V1 is defined NOT to do stay uncallable, which is
       // what `process.inject` above stands for.
       assert.deepStrictEqual(Object.keys(mcp.OPS).sort(), [
-        'clipboard.read', 'clipboard.write', 'cursor.get', 'displays',
-        'keyboard.key', 'keyboard.type',
-        'mouse.click', 'mouse.drag', 'mouse.move', 'mouse.scroll',
+        'clipboard.read', 'clipboard.write',
+        // PHASE CU: the target lock, the kill switch and their state (LAIN's own — computercontrol.js)
+        'control.arm', 'control.disarm', 'control.kill', 'control.resume', 'control.state',
+        'cursor.get', 'displays',
+        'keyboard.down', 'keyboard.hold', 'keyboard.key', 'keyboard.type', 'keyboard.up',
+        'mouse.button', 'mouse.click', 'mouse.drag', 'mouse.move', 'mouse.moveRel', 'mouse.scroll',
         'screen.capture',
         'uia.find', 'uia.focus', 'uia.getValue', 'uia.invoke', 'uia.setValue', 'uia.tree',
         'wait.control', 'wait.gone', 'wait.window',
-        'window.active', 'window.close', 'window.focus', 'window.list',
+        'window.active', 'window.capture', 'window.close', 'window.focus', 'window.list',
       ]);
+      assert.ok(!Object.keys(mcp.OPS).some((op) => /process|memory|inject|driver|hook|token|elevat/i.test(op)), 'nothing crosses the line');
       // NO MEMORY, NO PROCESS INTERNALS, NO INJECTION. V1 draws this line on
       // purpose; an operation added here that crosses it fails this assertion.
       for (const op of Object.keys(mcp.OPS)) {

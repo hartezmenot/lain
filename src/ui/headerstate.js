@@ -1,23 +1,15 @@
 'use strict';
 
-/**
- * WHAT THE HEADER'S RIGHT HALF SAYS (§4, §11–13).
- *
- *     LAIN · toradb · GLM-5              RUNNING · 04:18 · 3/7     12.4K
- *     LAIN · toradb · GLM-5              PLAN · discussing          0
- *     LAIN · toradb · GLM-5              MANUAL · FOCUS             812
- *
- * REAL PROGRESS ONLY. `3/7` is the live plan's durable step count (the step in
- * hand of the steps not dropped). Nothing is shown while the plan is being
- * discussed — PLAN mode never carries a countdown — and there is no ETA,
- * because nothing here could know one. A plan that grows reads `3/9`.
- */
+/** WHAT THE HEADER'S RIGHT HALF SAYS (§4, §11–13). */
 
 function run(ui) {
   const app = ui.app;
   const session = app.session;
   const execmode = require('../execmode');
   const mode = execmode.of(session);
+  // THE PERMISSION MODE, in words; Auto in an untrusted project says what applies instead.
+  const eff = execmode.effective(app, session);
+  const modeText = eff === mode ? execmode.WORD[mode] : `${execmode.WORD[mode]} → ${execmode.WORD[eff]} until trusted`;
   const prefs = execmode.prefs(session);
   const busy = Boolean(ui.busy || ui.phase);
   const clock = require('./workclock').reading(ui.clock);
@@ -25,7 +17,13 @@ function run(ui) {
   // AGENTS n — only while subagents actually run (the job registry, never narration).
   const agents = app.jobs && typeof app.jobs.running === 'function' ? app.jobs.running().filter((j) => j.kind === 'subagent').length : 0;
   if (agents) tags.push(`AGENTS ${agents}`);
-  if (mode === 'PLAN') return { parts: ['PLAN', 'discussing', ...tags], tone: 'warn' };
+  // COMPUTER CONTROL IS NEVER SILENT (Phase CU): "● Computer · Minecraft" first among the tags while it is on — the
+  // header keeps the first two parts when it is short of room — and the row turns to the warning tone.
+  const cu = require('../computercontrol').label(app);
+  if (cu) tags.unshift(cu);
+  // AN UPDATE, in the words every surface uses (update/ux.js) — cached state, never the network.
+  try { const up = require('../update/ux').view(app); if (up.label) tags.push(up.label); } catch { /* no updater state */ }
+  if (mode === 'PLAN') return { parts: ['Plan', 'read-only', ...tags], tone: 'warn' };
   let step = null;
   const plan = require('./progress').livePlan(session);
   if (plan) {
@@ -34,10 +32,12 @@ function run(ui) {
   }
   if (busy) {
     const clockText = clock.shown ? clock.text.replace(/^00:/, '') : null;
-    return { parts: ['RUNNING', clockText, step, mode !== 'AUTO' ? mode : '', ...tags].filter(Boolean), tone: 'info' };
+    // NOT `RUNNING · 04:18` any more: the live row below already says what is happening and for how long, and a third copy of one state is what made the…
+    void clockText;
+    return { parts: [modeText, step, ...tags].filter(Boolean), tone: cu ? 'warn' : 'info', busy: true };
   }
-  const idle = [mode, ...tags, step ? `step ${step}` : ''].filter(Boolean);
-  return { parts: idle, tone: 'meta' };
+  const idle = [modeText, ...tags, step ? `step ${step}` : ''].filter(Boolean);
+  return { parts: idle, tone: cu ? 'warn' : 'meta' };
 }
 
 module.exports = { run };

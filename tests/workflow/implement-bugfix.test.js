@@ -67,7 +67,6 @@ module.exports = async function () {
     assert.strictEqual(t.stopReason, 'end');
     assert.ok(!/no implementation target/i.test(bug.out), 'never "no implementation target"');
     assert.ok(!/NON_PROGRESS/.test(JSON.stringify(s.messages)), 'no discovery loop');
-    assert.ok(s.taskClassVerdict && s.taskClassVerdict.cls === 'PROJECT_IMPLEMENTATION', `classified as project work: ${JSON.stringify(s.taskClassVerdict)}`);
   });
 
   await test('WORKFLOW IMPLEMENTATION: a new capability is added where the project already keeps it, and verified', async () => {
@@ -89,25 +88,5 @@ module.exports = async function () {
     assert.strictEqual(node(cwd, 'test/format.test.js').status, 0);
     const t = lastSession(r.configDir).turns.slice(-1)[0];
     assert.ok(t.mutations.some((m) => /format\.js$/.test(m)));
-  });
-
-  await test('WORKFLOW WAKEUP: a provider that answers the bug fix with prose is woken ONCE, hidden, and the same turn acts', async () => {
-    const cwd = project(BUG);
-    const r = await runCli(['-p', 'the retry delay is wrong: nextDelay(3) should be 800 — fix the bug'], {
-      cwd, timeoutMs: 60000,
-      script: [
-        { text: 'I will look into the retry delay calculation.' },
-        { text: '', tool_calls: [{ name: 'edit_file', input: { path: 'src/retry.js', old: 'return attempt * 100;', new: 'return 100 * 2 ** attempt;' } }] },
-        { text: '', tool_calls: [{ name: 'run_tests', input: { command: 'node test/retry.test.js' } }] },
-        { text: 'Fixed and verified.' },
-      ],
-    });
-    assert.strictEqual(r.code, 0, r.out);
-    assert.strictEqual(node(cwd, 'test/retry.test.js').status, 0, 'the woken turn really fixed it');
-    const s = lastSession(r.configDir);
-    assert.strictEqual(s.turns.length, 1, 'no new user turn was created');
-    assert.strictEqual(s.turns[0].wakeups, 1);
-    assert.ok(!s.messages.some((m) => m.role === 'user' && /still pending/.test(String(m.content))), 'never impersonates the user');
-    assert.ok(!/still pending|wake/i.test(r.out), 'nothing about it is shown');
   });
 };

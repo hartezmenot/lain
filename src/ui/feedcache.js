@@ -1,60 +1,11 @@
 'use strict';
 
-/**
- * THE CONVERSATION, BUILT ONCE PER CHANGE INSTEAD OF ONCE PER FRAME.
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS, and it was found by MEASURING rather than by suspecting.
- *
- * The activity presentation runs the redraw clock at 60Hz while anything is
- * animating, and `ui/layout.js` composes the whole frame on every tick. Almost
- * all of that frame is the conversation — and the conversation does not change
- * between two animation frames. Measured on this machine:
- *
- *     session            feed rebuild   whole frame
- *     5 turns x 4          0.09 ms        0.32 ms
- *     80 turns x 12        1.91 ms        2.18 ms
- *     400 turns x 20      11.39 ms       13.01 ms
- *
- * So at any realistic size the frame IS the feed rebuild, and at the top end it
- * consumed the entire 16ms budget for a screen on which one card and one diff
- * row had moved. That is the bottleneck the profile named, and this is the
- * optimisation of the current implementation that it asked for — no rewrite,
- * no reduced animation quality, no lowered frame rate.
- *
- * ------------------------------------------------------------------------
- * IT IS KEYED ON THE CONTENT, NOT ON A "SOMETHING CHANGED" FLAG.
- *
- * A flag bumped by every mutator is a correctness bug waiting for the next
- * mutator somebody forgets to bump, and the symptom — a feed that silently
- * stops updating — is the worst failure this interface could have. So the key
- * is derived from the inputs themselves: the length of every text, the size of
- * every list, and the identity of the arrays holding them. Anything that
- * changes what would be drawn changes the key.
- *
- * Building the key over four hundred turns costs about a twentieth of a
- * millisecond, against the eleven it saves.
- *
- * ONE SLOT. The feed is drawn for one pane at one width; a second entry would
- * only ever be the previous width, thrown away on the next frame anyway.
- *
- * THE CALLER GETS A COPY. `ui/panesource.js` appends the live timeline rows to
- * whatever this returns, and handing out the cached array itself would let one
- * frame's live rows accumulate into the next frame's history — a growing tail
- * of stale cards, which is a far worse bug than the cost it was avoiding.
- */
+/** THE CONVERSATION, BUILT ONCE PER CHANGE INSTEAD OF ONCE PER FRAME. */
 
 /** The one remembered render: its key, and the lines it produced. */
 let slot = { key: '', lines: null };
 
-/**
- * A STABLE NAME FOR AN ARRAY, so "a different list of turns" is detectable.
- *
- * `/resume` replaces the session wholesale. Two different conversations of the
- * same shape would otherwise agree on every length in the key and the second
- * would be drawn as the first — the one collision that is actually reachable,
- * and it is closed by identity rather than by hoping the contents differ.
- */
+/** A STABLE NAME FOR AN ARRAY, so "a different list of turns" is detectable. */
 const ids = new WeakMap();
 let nextId = 1;
 function idOf(arr) {
@@ -63,15 +14,7 @@ function idOf(arr) {
   return ids.get(arr);
 }
 
-/**
- * A cheap, complete description of what the feed would be built from.
- *
- * Lengths and counts rather than contents: two different strings of the same
- * length in the same slot is the only collision available, and reaching it
- * requires an edit that replaces text with different text of exactly equal
- * length in an already-recorded turn — which nothing in the program does,
- * because a turn record is written once when the turn ends.
- */
+/** A cheap, complete description of what the feed would be built from. */
 function key(o) {
   const parts = [o.width, idOf(o.turns), (o.turns || []).length];
   for (const t of o.turns || []) {
@@ -85,6 +28,8 @@ function key(o) {
       (t.errors || []).length,
       // Set just AFTER the turn is recorded (app.js), so it must move the key.
       (t.contradiction || '').length,
+      t.facts ? 1 : 0,
+      (t.thinking || []).length,   // the fact footer is set just after the turn is recorded, too
     );
   }
   const extras = o.extras || [];
@@ -95,18 +40,14 @@ function key(o) {
   parts.push('t', o.objective ? String(o.objective).length : 0);
   parts.push('a', (o.liveActions || []).length);
   for (const a of o.liveActions || []) parts.push(a.name, a.ok ? 1 : 0, (a.note || '').length, (a.output || '').length, a.added || 0, a.removed || 0);
-  // THE LIVE PROSE GOES IN WHOLE, not as a length: it is the one input that
-  // changes without changing size, because a paragraph resolving on screen
-  // (ui/reveal.js) swaps unsettled glyphs for real characters one at a time.
+  // THE LIVE PROSE GOES IN WHOLE, not as a length: it is the one input that changes without changing size, because a paragraph resolving on screen…
   parts.push('n', (o.liveTexts || []).length);
   for (const t of o.liveTexts || []) parts.push(t);
-  // AND THE LAST TURN'S PROSE, for exactly the same reason. It keeps resolving
-  // across the moment the turn ends (see ui/conversation.js), so between two
-  // frames it is a different string of the same length — which every other
-  // entry here is described by and this one therefore cannot be.
+  // AND THE LAST TURN'S PROSE, for exactly the same reason.
   parts.push('s', (o.settledTexts || []).length);
   for (const t of o.settledTexts || []) parts.push(t);
   parts.push('o', (o.liveNotes || []).length);
+  parts.push('th', (o.liveThoughts || []).map((t) => `${t.ms}:${t.tokens}`).join('|'), o.thoughtsOpen ? 1 : 0);
   parts.push('u', o.liveUser ? String(o.liveUser).length : 0);
   parts.push('r', (o.transcript || []).length, (o.transcript || []).length ? String(o.transcript[o.transcript.length - 1]).length : 0);
   parts.push('c', ((o.current && o.current.steps) || []).map((s) => `${s.label}${s.done ? 1 : 0}${s.active ? 1 : 0}`).join('|'));
@@ -117,23 +58,14 @@ function key(o) {
   return parts.join(',');
 }
 
-/**
- * A COPY of the cached lines, with the two side-channels the pane needs.
- *
- * `spoken` is what the `↓ N new` indicator counts and `userAt` maps a drawn row
- * back to the message on it (ui/mouse.js). Both ride on the array rather than
- * in it, so both have to be carried across the copy or a cached frame would
- * silently lose click-to-restore and the unread count.
- */
+/** A COPY of the cached lines, with the two side-channels the pane needs. */
 function copyOf(lines) {
   const out = lines.slice();
   out.spoken = lines.spoken;
   if (lines.userAt) {
     Object.defineProperty(out, 'userAt', { value: lines.userAt, enumerable: false, writable: true });
   }
-  // AND `fileAt`, the third channel. Dropped here, every cached frame — which is
-  // every frame of a settled screen — lost click-to-open; only the constant
-  // redraws of the old activity animation kept the cache from being used.
+  // AND `fileAt`, the third channel.
   if (lines.fileAt) {
     Object.defineProperty(out, 'fileAt', { value: lines.fileAt, enumerable: false, writable: true });
   }

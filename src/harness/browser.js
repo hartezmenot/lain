@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * THE BROWSER HARNESS — an instrument, not a browsing tool.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS FOR, STATED NARROWLY ON PURPOSE.
- *
- * Point it at the application under test — nearly always something this machine
- * is serving on localhost — drive the flow a verification contract names, and
- * report what was actually there: the DOM, the accessibility tree, the console,
- * the network, a screenshot. Then close.
- *
- * It is NOT the browsing capability that was removed from this project in
- * 2026-09. It does not answer questions from the public web, does not use the
- * person's profile or cookies, does not follow links it was not given and has
- * no search anything. The difference is not a policy bolted on top; it is the
- * shape of the API — there is no `search`, and every entry point takes a URL
- * the contract supplied.
- *
- * ------------------------------------------------------------------------
- * STRUCTURED AND VISUAL OBSERVATION COEXIST, AND NEITHER IS THE FALLBACK.
- *
- * The DOM answers "is the button disabled" exactly and for nothing. A
- * screenshot answers "does the canvas show the ship" and the DOM cannot. So
- * both are first-class here, and the ROUTER (harness/observation.js) decides
- * which to ask — this file simply provides both honestly.
- *
- * ------------------------------------------------------------------------
- * IT REPORTS UNAVAILABILITY RATHER THAN FAKING CAPABILITY.
- *
- * Three things must hold before a browser observation is possible: a Node with
- * a WebSocket client, a browser binary or an already-open debug port, and
- * permission to spend the seconds it takes. When any of them is missing,
- * `available()` says which one, every check returns INCONCLUSIVE with that
- * sentence, and NOTHING pretends the flow passed. An unavailable capability
- * that reports itself is useful; one that silently succeeds is a liability.
- */
+/** THE BROWSER HARNESS — an instrument, not a browsing tool. */
 
 const fs = require('fs');
 const path = require('path');
@@ -49,14 +14,7 @@ const NAV_TIMEOUT_MS = 20000;
 /** How long to wait for a freshly launched browser to open its debug port. */
 const LAUNCH_TIMEOUT_MS = 15000;
 
-/**
- * WHERE A BROWSER LIVES ON THIS MACHINE.
- *
- * A LIST, NOT A GUESS. Each entry is checked with `existsSync`, so the answer
- * is "this file is here" rather than "this is usually where it is" — and when
- * none of them is present the reason says so with the paths that were tried,
- * which is the difference between a diagnosable failure and a mystery.
- */
+/** WHERE A BROWSER LIVES ON THIS MACHINE. */
 function candidates() {
   const home = os.homedir();
   if (process.platform === 'win32') {
@@ -94,13 +52,7 @@ function findBrowser(explicit = null) {
   return { ok: false, tried };
 }
 
-/**
- * CAN A BROWSER OBSERVATION HAPPEN AT ALL, AND IF NOT, WHY NOT?
- *
- * Cheap and side-effect free: it probes an HTTP port and stats some files. It
- * never launches anything. `/harness doctor` calls it, and so does every check
- * before it decides to be INCONCLUSIVE.
- */
+/** CAN A BROWSER OBSERVATION HAPPEN AT ALL, AND IF NOT, WHY NOT? */
 async function available({ port = DEFAULT_PORT, browserPath = null } = {}) {
   const client = cdp.clientAvailable();
   const found = findBrowser(browserPath);
@@ -126,15 +78,7 @@ async function available({ port = DEFAULT_PORT, browserPath = null } = {}) {
   return out;
 }
 
-/**
- * ONE BROWSER SESSION — a connection, a page, and everything it saw.
- *
- * The console and network logs are ACCUMULATED FROM THE MOMENT THE SESSION
- * OPENS, not fetched on demand, because neither is retrievable after the fact:
- * a console error that fired during navigation is gone by the time anybody
- * thinks to ask. Subscribing first and reading later is the only ordering that
- * can answer "were there console errors during this flow".
- */
+/** ONE BROWSER SESSION — a connection, a page, and everything it saw. */
 class BrowserSession {
   constructor(conn, { taskId = null, processId = null, base = null } = {}) {
     this.conn = conn;
@@ -182,16 +126,14 @@ class BrowserSession {
     this._collect();
     this.enabledDomains = new Set();
     for (const domain of ['Page', 'Runtime', 'Log', 'Network', 'DOM']) {
-      // A DOMAIN THAT WILL NOT ENABLE IS NOT FATAL. Older builds and some
-      // targets refuse one of these; losing network capture is worth far less
-      // than losing the whole session, so the failure is absorbed and shows up
-      // later as an empty log rather than as a dead browser.
+      // A DOMAIN THAT WILL NOT ENABLE IS NOT FATAL.
       try { await this.conn.send(`${domain}.enable`); this.enabledDomains.add(domain); } catch { /* availability remains explicit */ }
     }
   }
 
   async navigate(url, timeoutMs = NAV_TIMEOUT_MS) {
     const target = String(url);
+    this.loadedAt = Date.now();   // a project write after this makes the page stale (writeclock.js)
     let finish;
     const loaded = new Promise((resolve) => {
       const off = this.conn.on((method) => {
@@ -213,14 +155,7 @@ class BrowserSession {
     return { ok: didLoad, loaded: didLoad, why: didLoad ? `loaded ${target}` : `navigated to ${target}, but the load event did not fire within ${timeoutMs}ms` };
   }
 
-  /**
-   * EVALUATE AN EXPRESSION IN THE PAGE.
-   *
-   * The single primitive the DOM reads are built on. `returnByValue` so the
-   * result arrives as JSON rather than as a remote object handle nobody here
-   * would release — a handle leak in a verification run is a browser that grows
-   * until the machine notices.
-   */
+  /** EVALUATE AN EXPRESSION IN THE PAGE. */
   async evaluate(expression, timeoutMs = cdp.CALL_TIMEOUT_MS) {
     let r;
     try {
@@ -236,16 +171,7 @@ class BrowserSession {
     return { ok: true, value: r && r.result ? r.result.value : undefined };
   }
 
-  /**
-   * WHAT IS THIS ELEMENT?
-   *
-   * One evaluate, everything a contract usually asks about: whether it is
-   * there, its text, whether it is disabled, whether it is actually visible
-   * (which `display:none` and a zero-size box both defeat), and its attributes.
-   * Doing it in one round trip rather than five matters because a verification
-   * contract asks about several elements and each round trip is a real
-   * millisecond cost against a real deadline.
-   */
+  /** WHAT IS THIS ELEMENT? */
   async element(selector) {
     const expr = `(() => {
       const el = document.querySelector(${JSON.stringify(String(selector))});
@@ -268,13 +194,7 @@ class BrowserSession {
     return this.evaluate(expr);
   }
 
-  /**
-   * THE ACCESSIBILITY TREE, which answers a different question from the DOM.
-   *
-   * The DOM says what is in the document; this says what a user is told. A
-   * button that is `<div onclick>` exists in one and is invisible to the other,
-   * and for "can a user submit this form" the second answer is the true one.
-   */
+  /** THE ACCESSIBILITY TREE, which answers a different question from the DOM. */
   async axTree(selector = null) {
     try {
       if (selector) {
@@ -304,14 +224,7 @@ class BrowserSession {
       : { ok: false, why: `nothing matches ${selector}` };
   }
 
-  /**
-   * TYPE INTO A FIELD, and dispatch the events a framework listens for.
-   *
-   * Setting `.value` alone is the classic mistake: React, Vue and Svelte all
-   * keep their own state and never see it, so the form submits empty and the
-   * failure looks like a backend bug. The input and change events are what make
-   * this observation of the real application rather than of the DOM's opinion.
-   */
+  /** TYPE INTO A FIELD, and dispatch the events a framework listens for. */
   async type(selector, text) {
     const r = await this.evaluate(`(() => {
       const el = document.querySelector(${JSON.stringify(String(selector))});
@@ -344,9 +257,18 @@ class BrowserSession {
   }
 
   /** A PNG of the page, as a Buffer, or null with the reason. */
-  async screenshot() {
+  async screenshot({ selector = null, pad = 16 } = {}) {
     try {
-      const r = await this.conn.send('Page.captureScreenshot', { format: 'png' }, 20000);
+      let clip = null;
+      if (selector) {
+        const at = await this.conn.send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const e = document.querySelector(${JSON.stringify(String(selector))}); if (!e) return null;
+          e.scrollIntoView({ block: 'nearest', inline: 'nearest' }); const b = e.getBoundingClientRect(); return { x: b.left + scrollX, y: b.top + scrollY, w: b.width, h: b.height }; })()` }, 10000);
+        const b = at && at.result ? at.result.value : null;
+        if (!b || !(b.w > 0 && b.h > 0)) return { ok: false, why: `${selector} is not on the page, or has no area` };
+        const x = Math.max(0, b.x - pad); const y = Math.max(0, b.y - pad);
+        clip = { x, y, width: Math.ceil(b.w + (b.x - x) + pad), height: Math.ceil(b.h + (b.y - y) + pad), scale: 1 };
+      }
+      const r = await this.conn.send('Page.captureScreenshot', clip ? { format: 'png', clip, captureBeyondViewport: true } : { format: 'png' }, 20000);
       if (!r || !r.data) return { ok: false, why: 'the browser returned no image data' };
       return { ok: true, buffer: Buffer.from(r.data, 'base64') };
     } catch (e) {

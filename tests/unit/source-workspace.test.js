@@ -17,7 +17,7 @@ const path = require('path');
 const { test } = require('../helpers');
 
 const source = require('../../src/harnessapp/source');
-const pagesource = require(require('../helpers').harnessPath('page', 'pagesource'));
+const pagesource = require(require('../helpers').harnessPath('page', 'workbench', 'source'));
 
 /** The emitted client script, evaluated the way a browser would. */
 function client() {
@@ -89,12 +89,12 @@ module.exports = async function () {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  await test('SOURCE: a save over a changed file is refused and returns the current bytes', () => {
+  await test('SOURCE: a save over a changed file is refused and returns the current bytes', async () => {
     const { dir, app } = project();
     try {
       const open = source.open(app, 'ui/a.css');
       fs.writeFileSync(path.join(dir, 'ui', 'a.css'), '.row {\n  opacity: 0.9;\n}\n');
-      const r = source.save(app, 'ui/a.css', '.row { MINE }\n', { hash: open.hash });
+      const r = await source.save(app, 'ui/a.css', '.row { MINE }\n', { hash: open.hash });
       assert.strictEqual(r.ok, false);
       assert.strictEqual(r.stale, true);
       assert.match(r.current, /opacity: 0\.9/, 'the caller must be able to show both versions');
@@ -102,17 +102,17 @@ module.exports = async function () {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
-  await test('SOURCE: a person save goes through the same truncation guard a model write does', () => {
+  await test('SOURCE: a person save goes through the same truncation guard a model write does', async () => {
     const { dir, app } = project();
     const big = path.join(dir, 'big.js');
     try {
       fs.writeFileSync(big, 'x'.repeat(5000));
       const open = source.open(app, 'big.js');
-      const r = source.save(app, 'big.js', 'x', { hash: open.hash });
+      const r = await source.save(app, 'big.js', 'x', { hash: open.hash });
       assert.strictEqual(r.ok, false);
       assert.strictEqual(r.truncation, true);
       // AND IT IS OVERRIDABLE, because sometimes a person really does mean it.
-      assert.strictEqual(source.save(app, 'big.js', 'x', { hash: open.hash, force: true }).ok, true);
+      assert.strictEqual((await source.save(app, 'big.js', 'x', { hash: open.hash, force: true })).ok, true);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 

@@ -75,40 +75,6 @@ module.exports = async function () {
     });
     assert.deepStrictEqual(problems, [], problems.join('\n'));
   });
-
-  await test('ALIASING: fitting the provider payload does not touch the transcript', () => {
-    // . `contextfit` compacts `session.messages` so the request
-    // will be accepted; the human transcript is `session.turns` and is a
-    // different thing. If they ever alias, a provider limit becomes a blank
-    // screen — which is the report.
-    const s = new Session({ cwd: process.cwd() });
-    for (let i = 0; i < 500; i++) {
-      s.messages.push({ role: 'user', content: `ask ${i}` });
-      s.messages.push({ role: 'assistant', content: `answer ${i}` });
-      s.turns.push({ turnId: `t${i}`, userInput: `ask ${i}`, text: `answer ${i}`, actions: [], narration: [] });
-    }
-    const pc = { provider: 'someroute', connectionId: 'someroute', ctx: 128000, maxTokens: 4096 };
-    const capped = { providerLimits: { someroute: { messages: 800 } } };
-    assert.strictEqual(providerLimits.limitsFor(pc, capped).messages, 800, 'this route really does cap messages');
-
-    const turnsRef = s.turns;
-    const firstTurn = s.turns[0];
-    const beforeMessages = s.messages.length;
-
-    const out = contextfit.fit(s, pc, { systemPrompt: 'SYS', cfg: capped });
-
-    // THE PAYLOAD SHRANK — that is the point of the operation.
-    assert.ok(s.messages.length < beforeMessages,
-      `the provider payload must be reduced (${beforeMessages} -> ${s.messages.length})`);
-    assert.ok(out.wire.length <= 800, `the wire must fit the cap, got ${out.wire.length}`);
-
-    // AND THE TRANSCRIPT IS UNTOUCHED — same array object, same first entry.
-    assert.strictEqual(s.turns, turnsRef, 'the transcript array must not be replaced');
-    assert.strictEqual(s.turns.length, 500, 'nor emptied');
-    assert.strictEqual(s.turns[0], firstTurn, 'nor rebuilt');
-    assert.strictEqual(s.turns[0].text, 'answer 0', 'and its contents must survive intact');
-  });
-
   await test('ALIASING: the wire array is a COPY, not the session\'s own', () => {
     // If the provider payload were the same array, anything the transport did
     // to it — and any later compaction — would edit the session underneath the

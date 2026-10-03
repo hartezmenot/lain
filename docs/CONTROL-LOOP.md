@@ -3,7 +3,7 @@
 Date: 2026-09-06. Read-only investigation; no LAIN code was changed by this
 document. Evidence comes from three sources, kept separate throughout:
 
-1. **LAIN v2 source** (cited by file) — what the harness does, CONFIRMED.
+1. **LAIN source** (cited by file) — what the harness does, CONFIRMED.
 2. **The benchmark baseline** (docs/BENCHMARK.md, bench/out/run-mock-2026-09-05T20-18-39)
    — reproducible mock measurements. **Its mock scripts choose the tools, so it
    demonstrates harness mechanics and strategy COST, never strategy CHOICE.**
@@ -18,7 +18,7 @@ observation of the same model under the other harness, not wire-side proof.
 
 ---
 
-## 1. The current LAIN v2 agent loop
+## 1. The current LAIN agent loop
 
 ```
 bin/lain.js            exit hygiene only (process.exitCode + unref'd 3s fallback;
@@ -286,7 +286,7 @@ harness's continuity, not the model's strategy.**
 
 ## 5. The smallest experiment (zero code changes)
 
-Run benchmark task A (or the E:\AI task shape) **live** through LAIN v2 on the
+Run benchmark task A (or the E:\AI task shape) **live** through LAIN on the
 real provider, and the same task through Claude Code CLI in the same fixture
 copy, when the bridge returns (~2026-09-12). Compare using only existing
 instrumentation: LAIN's session JSON (requests, toolNames, actions, mutations,

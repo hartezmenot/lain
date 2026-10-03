@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * ENTERING A PROJECT LAIN HAS NEVER SEEN — deterministically, with no model.
- *
- * A project written by Codex, Claude, Cursor, a person or a `git clone` has no
- * `.lain/`. What LAIN needs before it may reason about it, or write to it, is
- * measured here, in order:
- *
- *     enumerate source → detect languages → parse → symbols / index
- *       → imports / dependents → source topology → INITIAL FINGERPRINT BASELINE
- *
- * Nothing here reads a file into a conversation, and nothing asks a model what
- * the project is. The baseline is the content fingerprint of every source file
- * at the moment LAIN arrived, so the first LAIN-controlled write — and every
- * external change after it — is measured against a recorded state rather than
- * against nothing (mutation.js calls `freshness.ensureBaseline` before it
- * applies anything).
- */
+/** ENTERING A PROJECT LAIN HAS NEVER SEEN — deterministically, with no model. */
 
 const fs = require('fs');
 const path = require('path');
@@ -34,7 +18,7 @@ function baseline(root, { budgetMs = BUDGET_MS } = {}) {
   let count = 0;
   let truncated = false;
   for (const f of search.walk(root)) {
-    if (f.rel === '.lain' || f.rel.startsWith('.lain/')) continue;
+    if (require('./projectmeta').isMetaName(f.rel.split('/')[0])) continue;
     if (count >= MAX_BASELINE_FILES || Date.now() - started > budgetMs) { truncated = true; break; }
     let st;
     try { st = fs.statSync(f.abs); } catch { continue; }
@@ -72,16 +56,11 @@ function entriesOf(root, rels) {
   return [...new Set(out)].slice(0, 12);
 }
 
-/**
- * THE WHOLE BOOTSTRAP.
- *
- * @returns {object} what was measured, with `llm: false` stated as a fact about
- *   the run rather than left for a reader to assume.
- */
+/** THE WHOLE BOOTSTRAP. */
 function bootstrap(root, { budgetMs = BUDGET_MS } = {}) {
   const started = Date.now();
   const r = path.resolve(String(root));
-  const priorLain = fs.existsSync(path.join(r, '.lain'));
+  const priorLain = require('./projectmeta').NAMES.some((n) => fs.existsSync(path.join(r, n)));
   try { require('./lainschema').ensure(r); } catch { /* an unwritable project still bootstraps in memory */ }
 
   const languages = require('./langscan').languages(r);

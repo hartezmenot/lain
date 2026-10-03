@@ -129,4 +129,15 @@ module.exports = async function () {
     assert.strictEqual(trust.within(base, base), true, 'the root is inside itself');
     assert.strictEqual(trust.within(`${base}-secrets`, base), false, 'a shared prefix is not containment');
   });
+
+  await test('TRUST: a folder trusted under its 8.3 short name is trusted under its long name (the installed launcher uses the long one)', () => {
+    if (process.platform !== 'win32') return;
+    const long = require('fs').realpathSync.native(os.tmpdir());
+    const r = require('child_process').spawnSync('cmd.exe', ['/c', `for %I in ("${long}") do @echo %~sI`], { encoding: 'utf8' });
+    const short = String(r.stdout || '').trim();
+    if (!short.includes('~')) return;   // 8.3 names are off on this volume: nothing to reconcile
+    const cfg = { trustedPaths: [{ path: short, level: 'TRUSTED', at: new Date().toISOString() }] };
+    assert.strictEqual(trust.levelOf(cfg, long), 'TRUSTED');
+    assert.strictEqual(trust.within(path.join(long, 'x'), short), true);
+  });
 };

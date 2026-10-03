@@ -1,56 +1,11 @@
 'use strict';
 
-/**
- * THE OBSERVATION PLANE — one question shape, many ways of answering it.
- *
- * ------------------------------------------------------------------------
- * THE PROBLEM.
- *
- * "Is the submit button disabled?" has at least five possible answers on this
- * machine: read the DOM, read the accessibility tree, evaluate JavaScript in
- * the page, take a screenshot and look at it, or drive the desktop. They differ
- * by three orders of magnitude in cost and by a lot in reliability, and the
- * cheapest correct one depends on facts the asker does not have — whether a
- * browser is attached, whether the UI is a canvas, whether a bridge is
- * configured.
- *
- * Left to itself a model picks a screenshot, because a screenshot always works.
- * That is the expensive habit this plane exists to remove: the asker states the
- * GOAL and the ROUTER picks the source.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS NOT src/observe.js, AND HOW THE TWO ARE JOINED.
- *
- * `src/observe.js` is a RUN WATCHER. It attaches capture rules to a long
- * program, records what happened while it ran, and refuses to merge evidence
- * from different kinds of witness — its five SOURCE values (LOG, VISUAL,
- * MEMORY, PROCESS, USER) exist so that "the log said it worked" can never be
- * confused with "a screenshot showed it worked". That distinction is older than
- * this file and is right.
- *
- * This is a QUESTION ANSWERER. It is asked one thing, now, and returns one
- * answer. Its sources are finer-grained because the choice between DOM and
- * screenshot is exactly the decision being made.
- *
- * They are joined rather than parallel: `COARSE_OF` maps every source here onto
- * one of observe.js's five, so an observation made through this plane can be
- * filed as evidence in that one without a second opinion about what kind of
- * witness it was. Two vocabularies that disagree is the failure; two
- * vocabularies with a total function between them is a layering.
- *
- * ------------------------------------------------------------------------
- * A SOURCE THAT CANNOT ANSWER SAYS SO. It never guesses, and it never returns
- * a confident-sounding "not found" for a question it had no way to ask. `ok:
- * false` with a reason is how the router knows to try the next one, and it is
- * also what makes a verification INCONCLUSIVE rather than FAILED.
- */
+/** THE OBSERVATION PLANE — one question shape, many ways of answering it. */
 
 const fs = require('fs');
 const path = require('path');
 
-/**
- * WHERE AN ANSWER CAME FROM. Fine-grained on purpose — see the header.
- */
+/** WHERE AN ANSWER CAME FROM. */
 const SOURCE = Object.freeze({
   FILESYSTEM: 'filesystem',
   AST: 'ast',
@@ -68,10 +23,7 @@ const SOURCE = Object.freeze({
   SYSTEM: 'system',
 });
 
-/**
- * THE JOIN WITH observe.js. Total: every source here has a coarse kind there,
- * so nothing observed through this plane is unfileable as evidence.
- */
+/** THE JOIN WITH observe.js. */
 const COARSE_OF = Object.freeze({
   [SOURCE.FILESYSTEM]: 'MEMORY',
   [SOURCE.AST]: 'MEMORY',
@@ -89,12 +41,7 @@ const COARSE_OF = Object.freeze({
   [SOURCE.SYSTEM]: 'PROCESS',
 });
 
-/**
- * WHAT SOMEBODY MIGHT WANT TO KNOW. A closed list, because the router's whole
- * value is that a goal maps to an ORDERED set of sources, and a goal nobody
- * mapped would fall through to "take a screenshot", which is the habit being
- * removed.
- */
+/** WHAT SOMEBODY MIGHT WANT TO KNOW. */
 const GOAL = Object.freeze({
   FILE: 'file',
   CODE: 'code',
@@ -110,25 +57,7 @@ const GOAL = Object.freeze({
   SYSTEM: 'system',
 });
 
-/**
- * THE ROUTING TABLE — the priority order per goal, and the reason the whole
- * plane exists.
- *
- * STRUCTURED BEFORE VISUAL, ALWAYS, with one deliberate exception.
- *
- * `ELEMENT` asks about a thing in a UI. The DOM is exact, cheap and machine
- * readable, so it goes first; the accessibility tree second because it answers
- * "what would a user perceive" where the DOM answers "what is in the tree";
- * then evaluated JavaScript; and only then a picture.
- *
- * `SCREEN` is the exception and it is not an inconsistency. Some UIs are
- * genuinely pixels — a canvas, a game, a video, a native window — and there the
- * DOM is not merely more expensive to consult, it is EMPTY. Insisting on
- * structure there would produce a confident "the element is not present" about
- * something plainly visible on the screen, which is worse than the cost it
- * saved. So a caller that knows the thing is visual asks for SCREEN and gets
- * pixels first, honestly.
- */
+/** THE ROUTING TABLE — the priority order per goal, and the reason the whole plane exists. */
 const ROUTES = Object.freeze({
   [GOAL.FILE]: [SOURCE.FILESYSTEM],
   [GOAL.CODE]: [SOURCE.AST, SOURCE.FILESYSTEM],
@@ -155,13 +84,7 @@ function clip(v, n = MAX_VALUE) {
 function miss(source, why) { return { ok: false, source, why, value: null, summary: why }; }
 function hit(source, value, summary) { return { ok: true, source, value, summary: summary || clip(value, 200) }; }
 
-/**
- * THE PROVIDERS. One per source, each answering only what it can.
- *
- * Every one of them is allowed — required — to return `ok: false` when it is
- * not attached, not configured or not applicable. That is not an error path; it
- * is the router's input.
- */
+/** THE PROVIDERS. One per source, each answering only what it can. */
 const PROVIDERS = {
   async [SOURCE.FILESYSTEM](spec, ctx) {
     const p = spec.path;
@@ -194,10 +117,7 @@ const PROVIDERS = {
   async [SOURCE.GIT](spec, ctx) {
     let git;
     try { git = require('../gitsense'); } catch { return miss(SOURCE.GIT, 'git support is not available'); }
-    // gitsense.status answers {ok, files:[{file, staged, untracked, deleted, renamed}]}
-    // and reports `ok:false` with the real git error when this is not a
-    // repository. That is a MISS, not an empty answer: "no changed files" and
-    // "not a git repository" must never render the same.
+    // gitsense.status answers {ok, files:[{file, staged, untracked, deleted, renamed}]} and reports `ok:false` with the real git error when this is not a…
     const st = await git.status(ctx.cwd || process.cwd());
     if (!st || !st.ok) return miss(SOURCE.GIT, (st && st.error) || 'git could not report on this directory');
     const files = (st.files || []).map((f) => {
@@ -255,9 +175,7 @@ const PROVIDERS = {
   },
 
   async [SOURCE.SCREENSHOT](spec, ctx) {
-    // A BROWSER SCREENSHOT IS PREFERRED TO A DESKTOP ONE when a browser is
-    // attached: it is scoped to the page, needs no permission from the person,
-    // and cannot capture their email client by accident.
+    // A BROWSER SCREENSHOT IS PREFERRED TO A DESKTOP ONE when a browser is attached: it is scoped to the page, needs no permission from the person, and…
     if (ctx.browser) {
       const r = await ctx.browser.observe(SOURCE.SCREENSHOT, spec, ctx);
       if (r.ok) return r;
@@ -280,24 +198,13 @@ const PROVIDERS = {
   },
 };
 
-/**
- * THE DESKTOP, AND THE PERMISSION THAT GUARDS IT.
- *
- * Screen capture and OCR go through `src/computer.js`, which owns the dialects
- * and, crucially, the consent: permissions.js is asked on every call, not once
- * at connect time. This wrapper adds NOTHING to that — it does not cache a
- * grant, does not retry a refusal and does not have its own idea of whether
- * looking at the screen is allowed. A refusal comes back as `ok: false`, which
- * makes the observation INCONCLUSIVE, which is the truth: nobody looked.
- */
+/** THE DESKTOP, AND THE PERMISSION THAT GUARDS IT. */
 async function desktopLook(source, spec, ctx) {
   let computer;
   try { computer = require('../computer'); } catch { return miss(source, 'no desktop bridge module'); }
   const app = ctx.app || null;
   if (!app) return miss(source, 'no session context to ask for desktop permission');
-  // computer.js's own vocabulary: `ocr` reads text, `screenshot` captures. Both
-  // are `reads: true` operations, and both go through the permission check
-  // inside `perform` on every call — this wrapper adds nothing to that.
+  // computer.js's own vocabulary: `ocr` reads text, `screenshot` captures.
   const op = source === SOURCE.OCR ? 'ocr' : 'screenshot';
   let r;
   try {
@@ -305,9 +212,7 @@ async function desktopLook(source, spec, ctx) {
   } catch (e) {
     return miss(source, `the desktop bridge failed: ${(e && e.message) || e}`);
   }
-  // SUCCEEDED IS THE ONLY STAGE THAT MEANS SOMETHING WAS SEEN. Every other one
-  // — BRIDGE_LOST, PERMISSION_REQUIRED, REFUSED, NO_TARGET, FAILED — is a
-  // reason nobody looked, and capability.js already phrases each for a person.
+  // SUCCEEDED IS THE ONLY STAGE THAT MEANS SOMETHING WAS SEEN.
   const stage = r && r.stage;
   if (stage !== 'SUCCEEDED') return miss(source, `${stage || 'no answer'}${r && r.why ? `: ${r.why}` : ''}`);
   const res = r.result || {};
@@ -317,14 +222,7 @@ async function desktopLook(source, spec, ctx) {
     : `captured the screen to ${res.path || 'an image'}`);
 }
 
-/**
- * THE ROUTER.
- *
- * Given a goal, tries the sources in order and returns the FIRST that answers.
- * Every source that declined is carried in `tried`, because "the DOM was not
- * attached so we looked at a screenshot" is exactly the provenance a person
- * needs when the answer turns out to be wrong.
- */
+/** THE ROUTER. */
 class Observatory {
   constructor({ runtime = null } = {}) {
     this.runtime = runtime;
@@ -337,13 +235,7 @@ class Observatory {
     return ROUTES[g] || [];
   }
 
-  /**
-   * ASK.
-   *
-   * @param {string} goal one of GOAL
-   * @param {object} spec what to look at — path, url, selector, name, region…
-   * @param {object} ctx  {cwd, taskId, processes, browser, app}
-   */
+  /** ASK. */
   async observe(goal, spec = {}, ctx = {}) {
     const order = this.route(goal, spec);
     if (!order.length) {

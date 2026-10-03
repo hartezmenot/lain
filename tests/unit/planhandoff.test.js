@@ -85,23 +85,8 @@ module.exports = async function () {
     assert.strictEqual(h.brief.projectRoot, proj);
     assert.ok(h.prompt.length < 2000, 'the composer instruction is bounded');
     assert.ok(plans.noteSubmitted(s), 'sending marks it submitted');
-    assert.strictEqual(s.handoff.state, 'SUBMITTED');
+    assert.strictEqual(plans.handoff(s).state, 'SUBMITTED');
   });
-
-  await test('PROMPT: Coding carries the accepted plan; Chat is told it plans and never writes', () => {
-    const app = appAt(tmpdir('prompt-'));
-    const s = app.session;
-    plans.accept(app, plans.draft(s, { text: PLAN }).plan.id);
-    s.thread = 'coding';
-    const coding = require('../../src/promptparts').of(app, {}).stable;
-    assert.match(coding, /# Accepted plan p1/);
-    assert.match(coding, /Add a stall timer/);
-    s.thread = 'chat';
-    const chat = require('../../src/promptparts').of(app, {}).stable;
-    assert.match(chat, /# View: Chat/);
-    assert.ok(!/# Accepted plan p1 —/.test(chat), 'the chat view is not handed the implementation brief');
-  });
-
   await test('HANDOFF: persisted with the session and restored by resume', () => {
     const app = appAt(tmpdir('persist-'));
     const s = app.session;
@@ -109,7 +94,7 @@ module.exports = async function () {
     s.save();
     const back = require('../../src/session').Session.resume(s.id);
     assert.strictEqual(back.planDocs[0].state, 'ACCEPTED');
-    assert.strictEqual(back.handoff.state, 'PREFILLED');
+    assert.strictEqual(plans.handoff(back).state, 'PREFILLED');
     require('../../src/sessionstore').forget(s.id);
   });
 
@@ -137,23 +122,21 @@ module.exports = async function () {
     const app = appAt(tmpdir('inv-'));
     const r = await inv.select(app, { lane: 'coding', source: 'chatgpt-web', modelId: 'gpt-x' });
     assert.strictEqual(r.ok, false);
-    assert.match(r.why, /Coding view runs on LAIN/);
+    // ChatGPT Chat is CHAT ONLY (modelroles.js) — refused by capability, before any lane rule.
+    assert.match(r.why, /CHAT ONLY/);
     const sel = inv.selections(app);
     assert.strictEqual(sel.coding.source, 'lain');
     assert.strictEqual(sel.chat.source, 'lain');
   });
 
-  await test('MODELS: search never opens a browser — an undiscovered website says so', async () => {
+  await test('MODELS: search never opens a browser — and lists no website source (retired in Phase 8.1)', async () => {
     const inv = require('../../src/modelinventory');
     const app = appAt(tmpdir('inv2-'));
     const chat = await inv.search(app, { lane: 'chat', query: '' });
-    const web = chat.rows.filter((x) => x.source !== 'lain');
-    assert.ok(web.length >= 2, 'both website sources are represented');
-    assert.ok(web.every((x) => x.availability === 'UNDISCOVERED' && x.discover && x.discover.route === 'POST /api/source/models'));
+    assert.ok(chat.rows.every((x) => x.source === 'lain'), 'every chat row is a LAIN route');
     const coding = await inv.search(app, { lane: 'coding', query: '' });
     assert.ok(coding.rows.every((x) => x.source === 'lain'), 'Coding offers runtime models only');
-    const wb = require('../../src/modelsource/registry').get(app, 'chatgpt-web');
-    assert.ok(!wb._inventory, 'nothing was discovered by searching');
+    assert.strictEqual(require('../../src/modelsource/registry').get(app, 'chatgpt-web'), null, 'no website source is constructed');
   });
 
   // ------------------------------------------------------------ settings --
@@ -163,7 +146,7 @@ module.exports = async function () {
     const app = appAt(tmpdir('set-'));
     const s = await settings.schema(app);
     const keys = s.sections.flatMap((x) => x.fields.map((f) => f.key));
-    for (const k of ['general.startAtLogin', 'general.maxSteps', 'models.defaultChat', 'models.defaultCoding', 'paths.defaultProjectRoot', 'paths.nodePath', 'notifications.errors', 'privacy.trustedDirectories']) {
+    for (const k of ['general.startup.harness', 'general.startup.minimized', 'general.startup.restoreWorkspace', 'general.maxSteps', 'models.defaultChat', 'models.defaultCoding', 'paths.defaultProjectRoot', 'paths.nodePath', 'notifications.errors', 'privacy.trustedDirectories']) {
       assert.ok(keys.includes(k), `${k} is in the schema`);
     }
     assert.ok(!keys.some((k) => /theme|accent|update/i.test(k)), 'nothing without a backend');
@@ -180,9 +163,10 @@ module.exports = async function () {
     assert.strictEqual(n.ok, true);
     assert.strictEqual(n.restartRequired, true);
     assert.strictEqual((await settings.update(app, 'models.defaultChat', { source: 'nope' })).ok, false);
-    assert.strictEqual((await settings.update(app, 'models.defaultChat', { source: 'gemini-web', modelId: 'g-1' })).ok, true);
+    assert.strictEqual((await settings.update(app, 'models.defaultChat', { source: 'gemini-web', modelId: 'g-1' })).ok, false, 'a retired website source is refused');
+    assert.strictEqual((await settings.update(app, 'models.defaultChat', { source: 'lain' })).ok, true);
     const saved = JSON.parse(fs.readFileSync(require('../../src/config').configFile(), 'utf8'));
-    assert.deepStrictEqual(saved.defaultChat, { source: 'gemini-web', model: 'g-1' }, 'written through config.save');
+    assert.strictEqual(saved.defaultChat.source, 'lain', 'written through config.save');
   });
 
   await test('SETTINGS: notification preferences are honoured where notifications are sent', async () => {

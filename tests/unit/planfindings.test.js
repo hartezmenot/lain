@@ -101,23 +101,6 @@ module.exports = async function () {
     assert.ok(!/already established/.test(p.digest(900)));
   });
 
-  await test('FINDINGS: the model has a bounded way to write one', () => {
-    const tools = require('../../src/tools');
-    assert.ok(tools.names().includes('plan_findings'), 'the tool is registered');
-    const schema = tools.schemas().find((t) => (t.name || (t.function && t.function.name)) === 'plan_findings');
-    assert.ok(schema, 'and it is offered to the model');
-    const text = JSON.stringify(schema);
-    for (const field of findings.FIELDS) assert.ok(text.includes(field), `${field} is part of the contract`);
-
-    // AND THE MODEL IS TOLD IT EXISTS. A tool that is registered but never
-    // named in guidance is one nothing reaches for — the schema list is long,
-    // and the plan tools beside it are introduced by name for the same reason.
-    const prompt = require('../../src/prompt');
-    const built = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm', separate: true });
-    assert.match(`${built.stable}\n${built.live}`, /plan_findings/,
-      'the prompt introduces it where it introduces plan_write and plan_step_done');
-  });
-
   await test('DERIVED: LAIN knows what landed even if the model never said so', () => {
     // ---- THE LIMITATION THIS CLOSES -------------------------------------
     //
@@ -201,23 +184,5 @@ module.exports = async function () {
     // AND A REAL RECORD STILL GOES THROUGH EVERY BRANCH.
     const rec = { text: 'finished', stopReason: 'end' };
     assert.strictEqual((await close.after(app, rec, 'x')).text, 'finished');
-  });
-
-  await test('POLICY: the prompt says to stop reading once the reading is done', () => {
-    // §23. The policy is the half a mechanism cannot supply: non-progress
-    // detection catches the SAME read repeated, and this catches the endless
-    // sequence of DIFFERENT reads that each look reasonable alone.
-    const prompt = require('../../src/prompt');
-    const built = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm', separate: true });
-    const all = `${built.stable}\n${built.live}`;
-    assert.match(all, /WHEN THE READING IS DONE, PATCH/);
-    // IT NAMES THE SENTENCES A LOOP TELLS ITSELF, because a general instruction
-    // to "be efficient" is one every loop already believes it is following.
-    for (const excuse of ['exact idiom', 'one more look', 'anchors', 'decisive batch']) {
-      assert.ok(all.includes(excuse), `the policy names "${excuse}" as a non-reason`);
-    }
-    // AND IT LEAVES A REAL QUESTION A WAY THROUGH — the rule is "name it", not
-    // "never read again", which would be a worse failure in the other direction.
-    assert.match(all, /CONCRETE UNRESOLVED QUESTION/);
   });
 };

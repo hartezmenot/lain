@@ -44,7 +44,7 @@ module.exports = async function () {
     cols: 110, rows: 32,
     script: [
       { text: 'Writing part one.', tool_calls: [{ name: 'write_file', input: { path: 'part1.txt', content: 'part one\n' } }] },
-      { text: 'Running the long check.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 40' } }] },
+      { text: 'Running the long check.', tool_calls: [{ name: 'shell', input: { command: 'sleep 40' } }] },
       { text: 'Done.' },
     ],
     steps: [
@@ -72,7 +72,7 @@ module.exports = async function () {
     assert.ok(g1.hardkilled && !g1.hardkillError, `the driver killed it: ${g1.hardkillError || ''}`);
     const s = sessions(g1.configDir)[0];
     assert.ok(s.inflight, 'in-flight record present after the kill');
-    assert.strictEqual(s.inflight.tool && s.inflight.tool.name, 'run_bash');
+    assert.strictEqual(s.inflight.tool && s.inflight.tool.name, 'shell');
   });
   const sid = sessions(g1.configDir)[0].id;
   const g2 = await tty.runTty({
@@ -84,14 +84,18 @@ module.exports = async function () {
   });
   await test('CLI G3: --resume after the kill — RECOVERED notice, goal and progress back, the command NOT replayed', () => {
     const resumed = vis(g2.byName.resumed);
-    assert.match(resumed, /recovered · cut off at step 2 · type continue to resume/i, `the recovery is said:\n${resumed}`);
+    // The line names the step and the lost command (inflight.js); a fresh Coding crash now resumes by itself
+    // (autocontinue.scheduleRecovery), so it no longer asks for `continue`.
+    assert.match(resumed, /recovered · cut off at step 2 · shell (unknown, )?not re-run/i, `the recovery is said:\n${resumed}`);
     assert.match(vis(g2.byName.goal), /quarterly report/, 'the goal came back');
     const s = sessions(g1.configDir)[0];
     assert.strictEqual(s.inflight, null, 'repaired and saved');
     const lost = s.messages.find((m) => m.role === 'tool' && /\[RECOVERED · UNKNOWN\]/.test(String(m.content)));
     assert.ok(lost, 'the killed command is answered UNKNOWN');
-    const last = s.turns[s.turns.length - 1];
-    assert.strictEqual(last.stopReason, 'crashed');
+    // The recovered turn is the CRASHED one; a fresh crash may be followed by LAIN's own auto-resume turn.
+    const last = s.turns.filter((t) => t.stopReason === 'crashed').pop();
+    assert.ok(last, 'the cut-off turn is kept as crashed');
+    assert.ok(s.turns.slice(s.turns.indexOf(last) + 1).every((t) => t.from === 'auto-resume'), 'anything after it is LAIN\'s own resume, never a replay the person typed');
     assert.ok(last.actions.some((a) => a.name === 'write_file' && a.ok), 'the completed write is part of the recovered turn');
   });
 
@@ -107,20 +111,20 @@ module.exports = async function () {
     steps: [
       { until: 'Ask LAIN', timeout: 30000 },
       { send: 'generate the table\r' },
-      { until: 'STREAMING', timeout: 20000 }, { snap: 'streaming', settle: 600 },
-      { until: 'PREPARING TOOL', timeout: 30000 }, { snap: 'preparing', settle: 1500 },
+      { until: 'Writing', timeout: 20000 }, { snap: 'streaming', settle: 600 },
+      { until: 'write_file call', timeout: 30000 }, { snap: 'preparing', settle: 1500 },
       { until: 'Wrote the table', timeout: 30000 }, { snap: 'done', settle: 2500 },
     ],
   });
-  await test('CLI L1: while words stream, the box says STREAMING and quotes the model\'s own words', () => {
+  await test('CLI L1: while words stream, the ONE activity line says Writing and the box quotes the model\'s own words', () => {
     const s = vis(l.byName.streaming);
-    assert.match(s, /STREAMING · \d\d:\d\d/);
+    assert.match(s, /Writing · \d+s · /);
+    assert.ok(!/STREAMING · /.test(s), 'the state is not drawn twice');
     assert.match(s, /tracing|recovery state/, `commentary visible:\n${s}`);
   });
-  await test('CLI L2: a large tool call streaming reads PREPARING TOOL · write_file · <size> — never STALLED', () => {
+  await test('CLI L2: a large tool call streaming reads Writing · write_file call · <size> — never STALLED', () => {
     const s = vis(l.byName.preparing);
-    assert.match(s, /PREPARING TOOL/);
-    assert.match(s, /write_file · \d+(\.\d)? (KB|B)/, s);
+    assert.match(s, /Writing · write_file call · \d+(\.\d)? (KB|B)/, s);
     assert.ok(!/STALLED/.test(s));
   });
   await test('CLI D1: the Diff is in the feed unasked, and survives the end of the turn; the activity box is gone', () => {
@@ -128,7 +132,7 @@ module.exports = async function () {
     assert.match(s, /table\.js/);
     assert.match(s, /\+16\d/, 'the + count');
     assert.match(s, /export const row\d+ = \d+;/, 'the changed lines themselves are on screen');
-    assert.ok(!/PREPARING TOOL|STREAMING ·/.test(s), 'the temporary activity is gone');
+    assert.ok(!/Preparing tool|PREPARING TOOL|STREAMING ·/.test(s), 'the temporary activity is gone');
     // Colour: the `+` rows and the +N count are drawn green (pyte fg per row).
     const snap = l.byName.done;
     const y = snap.text.findIndex((t) => /\+ export const row/.test(t));
@@ -154,7 +158,7 @@ module.exports = async function () {
       steps: [
         { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
         { send: 'change v5\r' },
-        { until: 'STREAMING', timeout: 20000 }, { snap: 'stream', settle: 300 },
+        { until: 'Writing', timeout: 20000 }, { snap: 'stream', settle: 300 },
         { until: `Done ${tag}`, timeout: 30000 }, { snap: 'done', settle: 2000 },
       ],
     });
@@ -173,11 +177,11 @@ module.exports = async function () {
   });
   await test('CLI U2: the palette — blue composer edge, violet model activity, teal added row; heads not the old cyan', () => {
     const idle = wide.byName.idle;
-    const y = idle.text.findIndex((t) => /▌\s*Ask LAIN/.test(t));
+    const y = idle.text.findIndex((t) => /▌\s*Ask (?:LAIN|LAIN)/.test(t));
     assert.ok(y >= 0, `the composer carries its edge:\n${vis(idle)}`);
     assert.ok(hexOf(idle, y, /4da3ff/i), `blue edge: ${JSON.stringify(idle.fg[y])}`);
     const st = wide.byName.stream;
-    const sy = st.text.findIndex((t) => /STREAMING/.test(t));
+    const sy = st.text.findIndex((t) => /Writing|Working/.test(t));
     assert.ok(hexOf(st, sy, /9b8cff/i), `violet activity: ${JSON.stringify(st.fg[sy])}`);
     const d = wide.byName.done;
     const ay = d.text.findIndex((t) => /export const v5 = 500;/.test(t));
@@ -191,24 +195,22 @@ module.exports = async function () {
     cols: 120, rows: 36,
     script: [
       { text: 'Running the listing now, streaming slowly so the running footer is visible.', chunkDelayMs: 90,
-        tool_calls: [{ name: 'run_bash', input: { command: 'node -e "for (let i = 1; i <= 7; i++) console.log(\'line \' + i)"' } }] },
-      { text: 'Done footer.' },
+        tool_calls: [{ name: 'shell', input: { command: 'node -e "for (let i = 1; i <= 7; i++) console.log(\'line \' + i)"' } }] },
+      { text: 'Done footer.', delayMs: 2000 },   // the shell now returns in ~20 ms: keep the turn running long enough to see its footer
     ],
     steps: [
       { until: 'Ask LAIN', timeout: 30000 }, { snap: 'idle', settle: 500 },
       { send: 'list them\r' },
-      { until: 'STREAMING', timeout: 20000 }, { snap: 'busy', settle: 300 },
+      { until: 'Writing', timeout: 20000 }, { snap: 'busy', settle: 300 },
       { until: 'Done footer', timeout: 30000 }, { snap: 'done', settle: 1500 },
     ],
   });
   await test('CLI U3: `› cmd`, (N earlier lines), the output tail, the completion; a footer of live key hints', () => {
     const d = vis(sh.byName.done);
-    assert.match(d, /› node -e/, d);
-    assert.match(d, /\(3 earlier lines\)\s*\n[│\s]*line 4\s*\n[│\s]*line 5\s*\n[│\s]*line 6\s*\n[│\s]*line 7/, `the tail under the command:\n${d}`);
-    assert.match(d, /Command completed in \d+(\.\d)?s · exit code 0/);
+    assert.match(d, /Commands: node -e [^\n]*\(exit 0, \d+(\.\d)?s\)/, `the fact footer names the command and its exit:\n${d}`);
     const last = (snap) => snap.text.filter((t) => t.trim()).pop() || '';
     assert.match(last(sh.byName.idle), /\/ commands · @ files · shift\+tab mode\s*$/, `idle footer: ${last(sh.byName.idle)}`);
-    assert.match(last(sh.byName.busy), /ctrl\+c interrupt · ctrl\+o activity · shift\+tab mode\s*$/, `running footer: ${last(sh.byName.busy)}`);
+    assert.match(last(sh.byName.busy), /esc interrupt · ctrl\+o activity · shift\+tab mode\s*$/, `running footer: ${last(sh.byName.busy)}`);
     assert.match(last(sh.byName.done), /\/ commands/, 'idle again once the turn ends');
   });
 

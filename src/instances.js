@@ -45,25 +45,14 @@ const MAX_TASK = 120;
 function dir() { return path.join(config.configDir(), 'instances'); }
 function fileFor(pid) { return path.join(dir(), `${pid}.json`); }
 
-/**
- * Is this process still alive?
- *
- * `kill(pid, 0)` sends no signal and only asks. EPERM means it exists and
- * belongs to somebody else — which is still ALIVE, and reading it as dead is
- * how a live instance gets swept out of its own registry.
- */
+/** Is this process still alive? */
 function alive(pid) {
   const n = Number(pid);
   if (!Number.isInteger(n) || n <= 0) return false;
   try { process.kill(n, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
 
-/**
- * Announce this instance, or update what it says about itself.
- *
- * Best-effort by design: a registry that cannot be written is a dashboard
- * without a switcher, not a LAIN that fails to start.
- */
+/** Announce this instance, or update what it says about itself. */
 function announce({ port, host, project, cwd, session, model, provider, state, task } = {}) {
   const rec = {
     pid: process.pid,
@@ -99,12 +88,7 @@ function withdraw() {
   current = null;
 }
 
-/**
- * Every LIVE instance, newest first, with the dead ones swept as we go.
- *
- * @param {object} opts  `{ includeSelf }` — the dashboard wants itself in the
- *                       list so it can mark which one you are looking at.
- */
+/** Every LIVE instance, newest first, with the dead ones swept as we go. */
 function list({ includeSelf = true } = {}) {
   let names = [];
   try { names = fs.readdirSync(dir()).filter((f) => f.endsWith('.json')); } catch { return []; }
@@ -114,8 +98,6 @@ function list({ includeSelf = true } = {}) {
     let rec = null;
     try { rec = JSON.parse(fs.readFileSync(p, 'utf8')); } catch { rec = null; }
     // A FILE THAT CANNOT BE READ, NAMES A DEAD PROCESS, OR IS ANCIENT IS SWEPT.
-    // The point of the registry is that everything in it can be opened; a row
-    // that cannot is worse than a shorter list.
     const old = rec && rec.at && (Date.now() - rec.at) > MAX_AGE_MS;
     if (!rec || !rec.pid || !alive(rec.pid) || old) {
       try { fs.unlinkSync(p); } catch { /* someone else got there first */ }

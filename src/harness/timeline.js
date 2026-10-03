@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE FLIGHT RECORDER, RENDERED — one ordered story of what happened.
- *
- * ------------------------------------------------------------------------
- * WHY A PROJECTION AND NOT A SECOND LOG.
- *
- * Nothing here records anything. The events already exist — on the bus while
- * the session lives, and in `.lain/tasks/<id>/events.jsonl` forever. This turns
- * them into lines a person reads, and that is the whole of its job.
- *
- * The temptation was a `Timeline` class that subscribed to the bus and built
- * its own list, and it is worth naming why that is wrong: it would be a third
- * copy of the same facts, with its own bounds and its own bugs, and on the day
- * it disagreed with the durable log there would be no way to say which was
- * right. A projection cannot disagree with its source.
- *
- * ------------------------------------------------------------------------
- * EVERY LINE NAMES A FACT, NOT A FEELING.
- *
- * "10:31:42 typecheck passed" is a line. "10:31:42 making good progress" is
- * not, and nothing in this file can produce one, because the input is a typed
- * event with a payload and there is nowhere for an impression to enter.
- */
+/** THE FLIGHT RECORDER, RENDERED — one ordered story of what happened. */
 
 const { EVENT } = require('../events');
 
@@ -35,18 +13,7 @@ function hhmmss(at) {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/**
- * ONE EVENT, ONE SENTENCE.
- *
- * A closed switch rather than a generic formatter, because a generic one
- * produces `task.state {from: RUNNING, to: VERIFYING}` — technically complete
- * and unreadable, which is how a timeline stops being looked at.
- *
- * An event with no case falls through to its type and its most useful field.
- * That is deliberate: a new event name should appear on the timeline
- * immediately, looking slightly raw, rather than being silently invisible until
- * somebody remembers to add a case here.
- */
+/** ONE EVENT, ONE SENTENCE. */
 function line(ev) {
   const t = ev.type;
   switch (t) {
@@ -105,12 +72,7 @@ function line(ev) {
   }
 }
 
-/**
- * BUILD THE TIMELINE for a task.
- *
- * Prefers the durable log, which is complete, and falls back to the bus, which
- * is bounded at 200 and is all there is before anything has been persisted.
- */
+/** BUILD THE TIMELINE for a task. */
 function build(harness, taskId = null, { limit = DEFAULT_LIMIT } = {}) {
   const id = taskId || (harness.runtime && harness.runtime.activeId);
   let events = [];

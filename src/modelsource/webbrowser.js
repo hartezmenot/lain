@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * THE WEB MODEL BROWSER — one authenticated page per source, kept alive.
- *
- * ------------------------------------------------------------------------
- * IT REUSES THE HARNESS'S WIRE AND NONE OF ITS POLICY.
- *
- * `harness/cdp.js` is the DevTools transport and `harness/browser.js` is one
- * page and what can be asked of it. Both are neutral, both are already proven,
- * and re-implementing either here would be a second browser truth in a tree
- * whose whole architecture is built on there being one of each thing.
- *
- * What is NOT reused is `harness/browserharness.js`: that owns headless launch
- * into a throwaway profile, task ownership and verification verdicts, and every
- * one of those is wrong for this. See webprofile.js for the full argument.
- *
- * ------------------------------------------------------------------------
- * HEADFUL, AND THAT IS THE POINT.
- *
- * A person has to be able to see this window: they log in through it, answer
- * the MFA prompt in it, and solve the CAPTCHA the site shows them. A headless
- * browser cannot be logged into by a human, and automating a login is exactly
- * what this design refuses to do.
- *
- * ------------------------------------------------------------------------
- * PERFORMANCE IS A CORRECTNESS PROPERTY HERE.
- *
- * Website access is inherently slower than an API call, so the page is kept
- * open between turns and the browser between sources: reconnecting costs
- * seconds, reloading the site costs more, and re-authenticating costs a person's
- * attention. `page()` returns the live session when there is one, and only
- * launches when there is not.
- */
+/** THE WEB MODEL BROWSER — one authenticated page per source, kept alive. */
 
 const fs = require('fs');
 const path = require('path');
@@ -44,19 +13,11 @@ const LAUNCH_TIMEOUT_MS = 25_000;
 /** A site that has not loaded by now has a problem worth naming. */
 const NAV_TIMEOUT_MS = 45_000;
 
-/**
- * ONE BROWSER, ONE PAGE PER SOURCE.
- *
- * Per-App, never module scope — the same rule every other piece of session-ish
- * state in this tree follows, and for the same reason: two LAINs in one process
- * must not share a logged-in page.
- */
+/** ONE BROWSER, ONE PAGE PER SOURCE. */
 class WebModelBrowser {
   constructor({ bus = null, headless = false } = {}) {
     this.bus = bus;
-    // Overridable ONLY so the conformance suite can prove the launch arguments;
-    // a headless web-model browser cannot be logged into and is never the
-    // production choice. See the header.
+    // Overridable ONLY so the conformance suite can prove the launch arguments; a headless web-model browser cannot be logged into and is never the…
     this.headless = headless === true;
     /** sourceId -> { session, processId, profile, port } */
     this._pages = new Map();
@@ -64,14 +25,7 @@ class WebModelBrowser {
     this.lastWhy = '';
   }
 
-  /**
-   * CAN THIS RUN AT ALL, AND IF NOT, WHY NOT?
-   *
-   * Cheap and side-effect free: it stats some files and checks the runtime.
-   * Deliberately does NOT probe port 9222 the way the harness does — attaching
-   * to whatever browser happens to be listening would attach to the person's
-   * ordinary browsing session, which is the one thing this must not do.
-   */
+  /** CAN THIS RUN AT ALL, AND IF NOT, WHY NOT? */
   availability() {
     const client = cdp.clientAvailable();
     if (!client.ok) return { available: false, why: client.why };
@@ -91,13 +45,7 @@ class WebModelBrowser {
     return held && held.session && held.session.open ? held.session : null;
   }
 
-  /**
-   * GET THE PAGE, launching the authenticated browser if it is not up.
-   *
-   * Concurrent callers share one launch. Two turns racing to open ChatGPT would
-   * otherwise start two browsers on one profile directory, and Chromium's answer
-   * to that is a lock error on the second — which surfaces as a mystery.
-   */
+  /** GET THE PAGE, launching the authenticated browser if it is not up. */
   page(sourceId, { launch = true, signal = null } = {}) {
     const key = String(sourceId);
     const live = this.existing(key);
@@ -123,14 +71,7 @@ class WebModelBrowser {
 
     const started = await this._launch(sourceId, profile, avail.browserPath, signal);
     if (!started.ok) { this.lastWhy = started.why; return started; }
-    // ---- OWNED BEFORE IT CAN BE LOST -------------------------------------
-    //
-    // Recorded the instant the process exists, and BEFORE the first thing that
-    // can fail after it. Registering only on full success left a real leak: a
-    // browser that launched and then would not hand over a page was never in
-    // `_pages`, so `close()` had nothing to kill and a headful window stayed on
-    // screen with no owner. This is the same ownership rule the process manager
-    // enforces for every other spawned thing in the tree.
+    // OWNED BEFORE IT CAN BE LOST
     this._pages.set(sourceId, { session: null, processId: started.processId, profile, port: started.port, child: started.child });
 
     const tab = await cdp.newTab(started.base, 'about:blank');
@@ -146,45 +87,16 @@ class WebModelBrowser {
 
     const session = new browser.BrowserSession(conn, { base: started.base });
     session.targetId = tab.target.id || null;
-    // Page + Runtime only. Network and Log capture would accumulate the site's
-    // own traffic — headers, cookies, request bodies — in memory belonging to a
-    // process that writes transcripts, and none of it is needed to read a reply
-    // off a page. Not collecting it is cheaper than redacting it.
+    // Page + Runtime only.
     try { await conn.send('Page.enable'); } catch { /* navigation still works */ }
     try { await conn.send('Runtime.enable'); } catch { /* evaluate still works */ }
     this._pages.set(sourceId, { session, processId: started.processId, profile, port: started.port, child: started.child });
     return { ok: true, session };
   }
 
-  /**
-   * LAUNCH IT, HEADFUL, ON THE PERSISTENT PROFILE.
-   *
-   * NOT THROUGH THE HARNESS PROCESS MANAGER, and that is a deliberate
-   * difference rather than an omission. A managed process is owned by a TASK and
-   * dies with it; this browser holds a person's login and must outlive every
-   * task in the session — taking it down when a verification finishes would log
-   * them out of ChatGPT for the crime of running the tests. It is closed by
-   * `close()`, by `/source disconnect`, and by process exit.
-   */
+  /** LAUNCH IT, HEADFUL, ON THE PERSISTENT PROFILE. */
   async _launch(sourceId, profile, browserPath, signal) {
-    // ---- SHARED LAUNCHER, UNCHANGED PROFILE DESIGN -----------------------
-    //
-    // §17 is explicit that the authenticated ChatGPT/Gemini profile design does
-    // not change, and it does not: `modelsource/webprofile.js` still owns the
-    // directory, it is still persistent, and it is still keyed by source. What
-    // moved is only HOW the process is started.
-    //
-    // The two properties this purpose depends on are traits in env/purpose.js
-    // rather than flags repeated here:
-    //   · lifetime 'session' — spawned detached, NOT through the
-    //     ProcessManager, because a managed process dies with a task and that
-    //     would log the person out of ChatGPT for the crime of running tests.
-    //   · extensions ON — a person's password manager is genuinely part of
-    //     their login flow, and this is THEIR browser window.
-    //
-    // The runtime also asserts, at launch, that this profile does not overlap
-    // the Workshop or verification roots — so the leak this file was written to
-    // prevent is now checked rather than only described.
+    // SHARED LAUNCHER, UNCHANGED PROFILE DESIGN
     const rt = require('../env/chromium');
     const runtime = new rt.ChromiumRuntime({ processes: null, events: this.events || null });
     const got = await runtime.launch(rt.PURPOSE.WEBMODEL, {
@@ -199,13 +111,7 @@ class WebModelBrowser {
     try { if (child && child.pid) child.kill(); } catch { /* already gone */ }
   }
 
-  /**
-   * GO SOMEWHERE, and say plainly when the page did not arrive.
-   *
-   * Only ever called with a URL the ADAPTER declared — never with one read off
-   * the page. A source that followed a link the site handed it would be a
-   * browsing capability, which is precisely what this project removed.
-   */
+  /** GO SOMEWHERE, and say plainly when the page did not arrive. */
   async navigate(sourceId, url, timeoutMs = NAV_TIMEOUT_MS) {
     const got = await this.page(sourceId);
     if (!got.ok) return got;
@@ -240,10 +146,7 @@ class WebModelBrowser {
   }
 }
 
-/**
- * THE ONE PER APP. Held on the App because a browser holding a login is
- * session-scoped state, and module scope is where two Apps start sharing it.
- */
+/** THE ONE PER APP. Held on the App because a browser holding a login is session-scoped state, and module scope is where two Apps start sharing it. */
 function forApp(app) {
   if (!app) return new WebModelBrowser();
   if (!app._webModelBrowser) {

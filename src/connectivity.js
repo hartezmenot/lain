@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * WHERE A PHONE CAN REACH THIS PC (§43–45) — one resolver.
- *
- * The machine exposes up to three kinds of endpoint, discovered from its own
- * interfaces (no external service is asked):
- *
- *   LAN        a private address on a physical interface (same Wi-Fi)
- *   Tailscale  100.64.0.0/10, or an interface Tailscale names
- *   ZeroTier   an interface ZeroTier names (zt*, "ZeroTier One")
- *
- * RESOLUTION probes every candidate AT ONCE with a short timeout (never a long
- * blocking one), then chooses by preference: LAN if it answered (so a phone
- * back on the home Wi-Fi returns to LAN on its next reconnect), else the
- * last route that worked, else Tailscale, else ZeroTier, else offline — in
- * which case the Bot chat remains the surface.
- */
+/** WHERE A PHONE CAN REACH THIS PC (§43–45) — one resolver. */
 
 const os = require('os');
 const crypto = require('crypto');
@@ -56,10 +41,7 @@ function routeOf(eps, url) {
   return null;
 }
 
-/**
- * Probe all candidates in parallel and pick by preference.
- * `probe(url, signal)` resolves truthy when the endpoint answers as this machine.
- */
+/** Probe all candidates in parallel and pick by preference. */
 async function resolve(eps, { probe, lastWorking = null, timeoutMs = 900 } = {}) {
   const all = [...new Set([...(lastWorking ? [lastWorking] : []), ...eps.lan, ...eps.tailscale, ...eps.zerotier])];
   if (!all.length) return { route: ROUTE.OFFLINE, url: null, tried: [] };

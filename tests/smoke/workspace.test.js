@@ -193,7 +193,7 @@ module.exports = async function () {
     // because two writers shared the terminal.
     // What a border is ALLOWED to say: the region it labels, the view selector,
     // or the transient exit hint. Anything else in a border is the defect.
-    const KNOWN = /^(?:L A I N|CONTEXT|ACTIVITY|PLAN|DIFF|FILES|OUTPUT|INPUT|COMMANDS|Press Ctrl\+C.*)$/;
+    const KNOWN = /^(?:N O E M A|L A I N|CONTEXT|ACTIVITY|PLAN|DIFF|FILES|OUTPUT|INPUT|COMMANDS|Press Ctrl\+C.*)$/;
     const isViewStrip = (t) => /^\[\d \w+\]/.test(t);
     const labelOf = (l) => l.replace(/^[┌└]─/, '').replace(/─+[┐┘]?$/, '').trim();
     const bad = frames(r.out)

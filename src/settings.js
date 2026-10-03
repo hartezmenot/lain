@@ -1,39 +1,7 @@
 'use strict';
 
-/**
- * SETTINGS — A SCHEMA, CURRENT VALUES, AND VALIDATED UPDATES.
- *
- * ------------------------------------------------------------------------
- * ONLY SETTINGS WITH A BACKEND. Each field names the authority that honours it:
- *
- *   general.startAtLogin     src/startup.js — a per-user Startup-folder
- *                            shortcut to LAIN.exe (only when LAIN.exe exists)
- *   general.closeToTray      native/host.cs OnClosing — FIXED behaviour, shown
- *   general.background       Core outlives the window — FIXED behaviour, shown
- *   general.maxSteps         cfg.maxSteps, honoured by turn.js
- *   models.defaultCoding     cfg.model — the process default for Coding
- *   models.defaultChat       cfg.defaultChat — applied to NEW engineering
- *                            sessions (sessionroutes `POST /api/session/new`)
- *   paths.defaultProjectRoot cfg.defaultProjectRoot — offered by
- *                            `POST /api/project/recent` and "Add project"
- *   paths.nodePath           cfg.nodePath — noderesolve.js; the launcher reads
- *                            it at build time, so a change needs a restart
- *   notifications.*          cfg.notifications — src/notify.js
- *   privacy.trustedDirectories  cfg.trustedPaths — trust.js; `forget` removes one
- *
- * Read-only facts (detected Node, config and session directories, model
- * sources, messaging connections) are fields with `editable: false`.
- *
- * Settings with no backend are NOT listed — no theme, no accent, no update
- * channel — because a switch that does nothing is worse than no switch.
- *
- * ------------------------------------------------------------------------
- * A FRONTEND NEVER WRITES A CONFIG PATH. It sends `{key, value}` for a key in
- * the schema; this file validates, applies through the owner, saves, and says
- * whether a restart is needed. An unknown key is refused.
- */
+/** SETTINGS — A SCHEMA, CURRENT VALUES, AND VALIDATED UPDATES. */
 
-const fs = require('fs');
 const path = require('path');
 
 function root(app) { return (app && app._sibling) || app; }
@@ -41,22 +9,12 @@ function cfgOf(app) { return root(app).cfg; }
 
 function save(app) { require('./config').save(cfgOf(app)); }
 
-function launcher() {
-  try { const p = require('./desktop').launcherPath(); return fs.existsSync(p) ? p : null; } catch { return null; }
-}
-
 function notif(cfg, k) {
   const n = cfg.notifications || {};
   return n[k] !== false;
 }
 
-/**
- * §55 — functional state only: DISCONNECTED / WAITING (bridge up, extension
- * has not registered yet) / CONNECTED, plus the count Settings actually
- * needs. "Installed" is not reported — Node has no way to ask Chrome's own
- * extension list, and a guess dressed as a fact is worse than the honest
- * three states this bridge can actually observe. See src/lainchrome.js.
- */
+/** §55 — functional state only: DISCONNECTED / WAITING (bridge up, extension has not registered yet) / CONNECTED, plus the count Settings actually needs. */
 function chromeField(app) {
   const c = require('./lainchrome').existing(app);
   const s = c ? c.status() : { connected: false, extensionSeen: false, authorizedTabs: [] };
@@ -67,7 +25,6 @@ function chromeField(app) {
 /** The whole schema, with current values. Cheap: no browser, no network. */
 async function schema(app) {
   const cfg = cfgOf(app);
-  const exe = launcher();
   const node = (() => { try { return require('./noderesolve').find({ cfg }); } catch (e) { return { ok: false, why: e.message }; } })();
   const sources = await (async () => {
     try {
@@ -81,10 +38,18 @@ async function schema(app) {
     sections: [
       {
         id: 'GENERAL', label: 'General', fields: [
-          f('general.startAtLogin', 'Start LAIN when I sign in to Windows', 'boolean',
-            require('./startup').enabled(),
-            process.platform !== 'win32' ? { supported: false, editable: false, why: 'Windows only' }
-              : !exe ? { supported: false, editable: false, why: 'LAIN.exe is not installed yet — run the installer or `lain --desktop` once' } : {}),
+          // STARTUP (startup.js): one canonical setting; Windows is made to match it. Defaults OFF / OFF / ON —
+          // nobody is opted into starting with Windows without choosing it.
+          ...(() => {
+            const st = require('./startup').setting(cfg);
+            const win = process.platform !== 'win32' ? { supported: false, editable: false, why: 'Windows only' } : {};
+            const noHarness = !require('./startup').launcher() ? { why: 'LAIN Harness is not installed — the setting is kept and applied when it is' } : {};
+            return [
+              f('general.startup.harness', 'Start LAIN Harness when I sign in to Windows', 'boolean', st.harness, { group: 'Startup', ...win, ...noHarness }),
+              f('general.startup.minimized', 'Start minimized', 'boolean', st.minimized, { group: 'Startup', ...win }),
+              f('general.startup.restoreWorkspace', 'Restore previous workspace', 'boolean', st.restoreWorkspace, { group: 'Startup', ...win }),
+            ];
+          })(),
           f('general.closeToTray', 'Closing the window keeps LAIN running in the tray', 'boolean', true,
             { editable: false, why: 'Quit from the tray icon ends LAIN.' }),
           f('general.background', 'Work, background tasks and messaging continue while the window is hidden', 'boolean', true,
@@ -157,10 +122,15 @@ async function update(app, key, value) {
   const cfg = cfgOf(app);
 
   switch (key) {
-    case 'general.startAtLogin': {
+    case 'general.startup.harness':
+    case 'general.startup.minimized':
+    case 'general.startup.restoreWorkspace': {
       if (typeof value !== 'boolean') return refuse(key, 'on or off');
-      const r = value ? require('./startup').enable(launcher()) : require('./startup').disable();
-      if (!r.ok) return refuse(key, r.why);
+      const startup = require('./startup');
+      cfg.startup = { ...startup.setting(cfg), [key.split('.').pop()]: value };
+      save(app);
+      const r = startup.sync(cfg);
+      if (!r.ok) return refuse(key, `saved, but Windows was not updated: ${r.why}`);
       break;
     }
     case 'general.maxSteps': {

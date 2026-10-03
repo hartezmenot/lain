@@ -1,4 +1,4 @@
-# LAIN v2 — benchmark & evidence baseline (established, not optimized)
+# LAIN — benchmark & evidence baseline (established, not optimized)
 
 This pass established the measurement baseline the optimization work will be
 judged against. **No optimization was implemented.** Everything here is

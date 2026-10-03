@@ -1,16 +1,7 @@
 'use strict';
 
-/**
- * `/mcp computer` — connect Computer MCP, and authorize it for this session.
- *
- * Its own file because commands.js is a REGISTRY, and this is a subsystem's
- * surface: what it says, what it offers, and the one question it asks. The
- * capability itself is src/computermcp.js; nothing here decides anything.
- */
+/** `/mcp computer` — connect Computer MCP, and authorize it for this session. */
 
-/**
- * @param {string[]} args  everything after `/mcp computer`
- */
 async function run(app, args, { C }) {
   const computer = require('./computermcp').forApp(app);
   const w = (s) => app.render.write(s);
@@ -41,6 +32,8 @@ async function run(app, args, { C }) {
     w('  ' + C.yellow('⚠ NOT AUTHORIZED') + C.dim(` — ${r.why || 'the computer was not authorized'}\n`));
     return;
   }
+  // COMPUTER CONTROL ON (computercontrol.js) — `/mcp computer` is the older door to the same switch.
+  try { await require('./computercontrol').enable(app, { tier: 'INTERACT', by: 'cli', ask: false }); } catch { /* reported by /computer status */ }
   w('  ' + C.green('✓ COMPUTER MCP')
     + C.dim(`  ${r.reused ? 'already authorized' : 'authorized for this session'} · ${(r.capabilities || []).length} operations\n`));
   w(C.dim('    It sees windows and their controls, and can press and type into them.\n'));

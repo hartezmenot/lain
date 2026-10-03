@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * THE INTERACTIVE SESSION LOOP — read, route, run, drain, shut down.
- *
- * Split out of app.js, which had grown past the god-object guard. The seam is
- * the one that file's own header draws: the App decides what ONE MESSAGE MEANS
- * and runs it — task identity, the system prompt, the turn, the completion
- * check. This owns the TERMINAL SESSION around that: opening the UI, wiring
- * every keystroke to an owner, holding the queue, and tearing down cleanly.
- *
- * They change for entirely different reasons. A new key binding is a change
- * here and nowhere else; a change to what a turn means is a change there and
- * nowhere else. Keeping both in one class is exactly how V1's repl.js reached
- * 17,511 lines.
- *
- * NOTHING HERE DECIDES ANYTHING ABOUT THE WORK. It routes input to the App and
- * draws what the App reports. There is no second task state, no second
- * classifier, and no model call.
- */
+/** THE INTERACTIVE SESSION LOOP — read, route, run, drain, shut down. */
 
 const { C } = require('./render');
 const { Session } = require('./session');
@@ -26,93 +9,25 @@ const commands = require('./commands');
 const { onInterrupt } = require('./interrupt');
 
 async function start(app) {
-  // TTY: the four-region UI. Pipe: the banner and linear output, unchanged.
-  // A short splash on the NORMAL screen before the alternate buffer opens, so
-  // launching from a shell shows what LAIN is and where it is pointed rather
-  // than a terminal that abruptly becomes a full-screen app. It stays in the
-  // scrollback after exit, which is where it belongs.
+  // TTY: the four-region UI.
   if (process.env.LAIN_NO_TUI !== '1' && app.render.out.isTTY) app.splash();
-  // BEFORE the alternate screen: discovery prints, and those lines belong in
-  // the scrollback with the splash rather than flashing behind a UI that is
-  // about to repaint over them.
+  // BEFORE the alternate screen: discovery prints, and those lines belong in the scrollback with the splash rather than flashing behind a UI that is…
   await app.prepare();
 
-  // ---- THIS TERMINAL IS THE LAIN THIS ACCOUNT IS RUNNING -------------------
-  //
-  // So that double-clicking LAIN Desktop opens a window onto THIS session — the
-  // project you are in, the turn that is running, the bots that are connected —
-  // rather than starting a second LAIN beside it. The CLI and the window are two
-  // surfaces on one Core; this is how the second one finds the first.
-  //
-  // NOT FATAL, and quiet. A LAIN that cannot claim the lock works completely; it
-  // is simply not the one a later launch will find, and saying so at startup
-  // would be noise about a file nobody asked about. See src/corelock.js.
+  // THIS TERMINAL IS THE LAIN THIS ACCOUNT IS RUNNING
+  try { require('./credentials').prefetchAsync(Object.values((app.cfg && app.cfg.connections) || {}).map((c) => c && c.credentialRef).filter(Boolean)); } catch { /* read when needed */ }
   try { await require('./corelock').announce(app, { surface: 'cli' }); } catch { /* a lock is a convenience */ }
+  // `lain --resume <id>` IS AN EXPLICIT ACT: a session another surface holds is asked for (it hands over when idle).
+  if (app.resumedFrom) { try { const held = require('./surfacehandoff').askOnResume(app); if (held) app.render.write(C.dim(`  Asked the ${held.writer === 'harness' ? 'Harness' : held.writer} to hand this session over — it does when it is idle.\n`)); } catch { /* the first sentence says so */ } }
+  // The Telegram gateway is frozen (S9): it no longer starts with LAIN; /bot starts it on demand.
+  try { require('./assistant/scheduler').start(app); } catch { /* the assistant's clock is not fatal */ }
+  // MODELS, LIGHTLY (modelcatalog.js): a provider listing older than a day is re-read once, a minute after start — never blocking.
+  try { require('./modelcatalog').scheduleBackground(app); } catch { /* the next start tries again */ }
 
-  // ---- THE DASHBOARD, BEFORE THE ALTERNATE SCREEN OPENS --------------------
-  //
-  // ON BY DEFAULT — `dashAutostart: false` in config.json is the way out. It was
-  // opt-in first, on the reasoning that a CLI should not open a listening socket
-  // for somebody who never asked; that holds up poorly against what it actually
-  // binds — an OS-chosen port on 127.0.0.1, unreachable from the network,
-  // serving a page that is a locked gate until a credential is proved.
-  //
-  // ANNOUNCED HERE AND NOWHERE ELSE, and the placement is the whole point. Two
-  // wrong places were tried first:
-  //
-  //   IN CONTEXT, via render.notice — which put an address and a credential into the
-  //     conversation on every single session, permanently, above the first thing
-  // the user ever said. the design names those two as the examples of what must
-  //     never be there.
-  //   IN THE PANEL — which is the right home for `/dash` OUTPUT, but a panel
-  //     that is already open at startup owns the keyboard, so Tab and Alt+N
-  //     went to it instead of the workspace and the next command's output was
-  //     refused because the band was occupied.
-  //
-  // Printed here it lands in the SCROLLBACK beside the splash, before the UI
-  // exists: startup chrome, where a port number belongs. It is not in Context,
-  // it is not a panel, it steals nothing, and it survives the session.
-  //
-  // FAILING TO START IS NOT FATAL. The REPL is the program; the dashboard is a
-  // window onto it.
-  if (!app.cfg || app.cfg.dashAutostart !== false) {
-    try {
-      const r = await require('./dash').start(app, { lan: Boolean(app.cfg.dashLan) });
-      if (r.ok) {
-        // THE STARTUP PASSWORD IS NOT PRINTED ONCE A CHOSEN ONE EXISTS: a
-        // second, equally valid credential on every startup would make the
-        // chosen password decorative.
-        //
-        // THE VALUE GETS ITS OWN ROW. This is ordinary scrollback written before
-        // the UI exists, so nothing clips or wraps it for us and it has to fit a
-        // 40-column terminal on its own. `  password <32 hex>` is 43 and wraps;
-        // the label alone is 12 and the value alone is 34, so both fit. It used
-        // to say `key` purely because that word is short — which is how the one
-        // thing a person actually has to type ended up with a name nothing else
-        // in the program used.
-        const locked = require('./dashauth').configured(app.cfg);
-        app.render.write(C.dim(`  dashboard ${r.urls[0]}\n`));
-        if (locked) {
-          app.render.write(C.dim('  password required\n'));
-        } else {
-          app.render.write(C.dim('  password\n'));
-          app.render.write(C.dim(`  ${r.startupPassword}\n`));
-        }
-      } else {
-        app.render.write(C.dim(`  dashboard  did not start: ${r.error} — /dash on to retry\n`));
-      }
-    } catch (e) {
-      app.render.write(C.dim(`  dashboard  did not start: ${e.message} — /dash on to retry\n`));
-    }
-  }
 
   const tui = process.env.LAIN_NO_TUI === '1' ? false : app.ui.enable();
 
-  // WHAT SURVIVED SINCE LAST TIME — one line each, only when there is
-  // something to say. Session start is the first of the four places
-  // reconciliation may run (doctor, explicit inspection, handover are the
-  // others); here it is a COUNT, not a report — the runtime knows what
-  // survived before the model reasons, and `/lain` has the detail.
+  // WHAT SURVIVED SINCE LAST TIME — one line each, only when there is something to say.
   try {
     const root = app.session ? app.session.cwd : process.cwd();
     const lainstore = require('./lainstore');
@@ -122,20 +37,15 @@ async function start(app) {
       if (bad) app.render.write(C.yellow(`  architecture: ${bad} recorded component(s) missing/damaged/drifted — /doctor\n`));
     }
     const orphans = require('./scratch').orphans(root, { exclude: app.session ? app.session.id : '' });
-    // MARKED AS AN OPERATION, not as prose. This is startup scrollback — it is
-    // written before `app.ui.enable()` and the alternate screen covers it a
-    // moment later — but it is still LAIN talking about its own housekeeping,
-    // and §5 named it as one of the three lines that read as something the
-    // model had said. The `›` is the same mark every transient operational line
-    // in LAIN wears. See ui/operation.js.
-    // IN THE TUI IT IS AN OPERATION NOTE, not a transcript line: this runs
-    // AFTER `app.ui.enable()`, so a write here landed in the trailing
-    // transcript and was redrawn under every later turn (live, 2026-09-18).
+    // MARKED AS AN OPERATION, not as prose.
     if (orphans.length) require('./ui/operation').say(app, `${orphans.length} unfinished turn(s) left findings behind · /lain`);
     // A TURN RECOVERED FROM A FORCE-CLOSE (inflight.js) says so once.
     const rec = app.session && app.session.recovered;
     if (rec && !rec.shown) { rec.shown = true; require('./ui/operation').say(app, rec.line); }
   } catch { /* startup chrome never blocks the session */ }
+  // PLAINTEXT CREDENTIALS LEFT BY AN OLDER VERSION (legacysecrets.js): counted, never shown, never deleted for you.
+  // ONCE: on the status row in the TUI (a transcript write is redrawn under every turn), a line on a pipe; /doctor lists it.
+  try { const s = require('./legacysecrets').summary(); if (s) { if (tui) require('./ui/operation').say(app, s.text, 'warn'); else app.render.notice('warn', s.text); } } catch { /* a scan never blocks the session */ }
 
   if (!tui) app.banner();
   const input = new Input({ stdin: process.stdin, stdout: process.stdout });
@@ -144,28 +54,19 @@ async function start(app) {
   // would draw every character twice.
   input.echo = !tui;
   const promptStr = tui ? '' : C.green('› ');
-  // Keys, in priority order. An open completion menu gets first refusal, then
-  // the UI (modal panels, scrolling); ↑/↓ mean HISTORY only when
-  // nothing is open, which is why the two can never be confused.
+  // Keys, in priority order.
+  for (const ev of ['key', 'edit', 'input', 'mouse', 'clipboard']) input.on(ev, () => { app._lastInputAt = Date.now(); });
   input.on('key', (k) => {
     app.disarmExit();              // any deliberate key clears the exit confirmation
     if (!tui) return;
     if (app.ui.completionKey(k)) return;
     if (app.ui.handleKey(k)) return;
+    // ESC INTERRUPTS A RUNNING TURN when nothing on screen claimed it — the live row says `esc to interrupt`.
+    if (k === 'escape' && app.abort && !app.abort.signal.aborted) { input.emit('interrupt'); return; }
     // Caret movement and history recall, once no menu has claimed the key.
     // The editor owns both, because both are about where the caret is.
     if (input.editKey(k)) { /* consumed by the line editor */ }
     // Enter on an empty line opens what the view offers; with text it SENDS.
-    // ---- ENTER AGAIN MEANS "STEER NOW" ------------------------------------
-    //
-    // With something waiting and nothing typed, a second Enter promotes it: the
-    // first press said "when you get a moment", the second says "as soon as you
-    // safely can". Two presses of one key rather than a modifier nobody finds.
-    //
-    // IT HAS TO BE HERE. It was written on the `input` event first, which an
-    // EMPTY line never reaches — an empty Enter is a KEY, handled below, and it
-    // went to `workspaceSelect` instead. Verified against the real binary: the
-    // steer queued correctly and the second Enter did nothing at all.
     else if (k === 'enter' && !input.line.trim()
              && Boolean(app.abort && !app.abort.signal.aborted)
              && !app.pendingAsk && app.steerQueue.length) {
@@ -173,34 +74,13 @@ async function start(app) {
       if (n) app.transient('info', `steering now — ${n} message(s) at the next step`);
     }
     else if (k === 'enter' && !input.line.trim()) app.ui.workspaceSelect();
-    // ---- TAB NO LONGER MOVES ANYTHING ------------------------------------
-    //
-    // It cycled the nine workspace panes. There is one surface now, so Tab
-    // here would be a key that visibly does nothing — and a key that does
-    // nothing is indistinguishable from a key that is broken.
-    //
-    // The COMPLETION MENU still owns Tab (it means "accept", and it had first
-    // refusal above), which is now the only thing Tab does in LAIN.
+    // TAB NO LONGER MOVES ANYTHING
   });
-  // THE MOUSE. Only ever asked for on a real terminal, and only in TUI mode:
-  // a linear `lain -p` run has nothing to click, and enabling tracking there
-  // would take text SELECTION away from the terminal for no gain.
-  //
-  // AND ONLY WHEN THE PERSON HAS ASKED FOR IT. This used to be unconditional,
-  // which had two consequences: the terminal's own selection was taken from
-  // everybody by default, and `/mouse off` was undone by the next launch
-  // because this line re-asserted it. The preference is now durable and its
-  // default is OFF — see config.js `mouse` for why that trade went this way.
+  // THE MOUSE. Only ever asked for on a real terminal, and only in TUI mode: a linear `lain -p` run has nothing to click, and enabling tracking there…
   if (tui && require('./config').load().mouse === true) input.enableMouse();
   input.on('mouse', (ev) => { app.disarmExit(); if (tui) app.ui.handleMouse(ev); });
 
-  // ---- THE CLIPBOARD -----------------------------------------------------
-  //
-  // The reader emits an INTENTION — copy this, cut this, give me the
-  // clipboard — because a byte-stream decoder has no business spawning
-  // `clip.exe`. The app owns the system clipboard already (copy.js), so it
-  // answers, and there is one implementation of "put text on the clipboard"
-  // in the program rather than two.
+  // THE CLIPBOARD
   input.on('clipboard', (ev) => {
     app.disarmExit();
     const clip = require('./copy');
@@ -235,36 +115,6 @@ async function start(app) {
     app.ui.updateMenus(text, meta || {});
   });
   // Enter is the menu's while a menu is open, and the line's otherwise.
-  // Enter belongs to ANY open panel, not only a completion menu.
-  //
-  // The model browser filters as you type, so the filter text lives on the
-  // input line — and with the old rule Enter submitted that text as a prompt
-  // instead of choosing the highlighted model. Typing `sonnet` then Enter
-  // narrowed 934 models to 50 and then sent the word "sonnet" to the model.
-  //
-  // A modal panel owns the keyboard while it is open; that is what modal
-  // means. Completion menus are handled first by `completionKey`, so their
-  // behaviour is unchanged.
-  //
-  // WITH ONE EXCEPTION, and it is the one that proves the rule: an ADVISORY is
-  // not modal and was not opened by the user — LAIN raised it mid-turn. Nothing
-  // is waiting on it, so Enter still sends the line.
-  //
-  // ---- A SECOND EXCEPTION: A PASSIVE PANEL IS NOT A QUESTION EITHER ---------
-  //
-  // OUTPUT is the other PASSIVE kind — `/status`, `/dash`, a finished `/model`
-  // receipt, an error or rate-limit notice opened through `openSurface`. It has
-  // no selectable row and nothing awaiting an answer (see outputAdapter: "Esc
-  // close" is the whole contract), so routing Enter to it went through
-  // `panel.select()`, found nothing to select, and did NOTHING — Escape was
-  // the only way out, and typing a command then pressing Enter was silently
-  // swallowed by a box that could not hear it. That is the "Enter closes, a
-  // second Enter submits" complaint: the first Enter did not even close it.
-  //
-  // Closed HERE, before the keystroke is routed anywhere, so the SAME Enter
-  // that dismisses it also falls through to the ordinary submit path below —
-  // one action, not two. An empty line then reads as a plain Enter with no
-  // panel open, which is exactly "just close it" for that case.
   input.enterGoesToUI = () => {
     if (tui && app.ui.panel.visible) require('./admissiontrace').note(app, 'enter:panel-open');
     if (!tui || !app.ui.panel.visible) return false;
@@ -280,39 +130,15 @@ async function start(app) {
 
   input.on('input', (ev) => {
     app.disarmExit();
-    // A COMMAND TYPED DURING A TURN runs now, for the same reason a command
-    // chosen from the palette does: the REPL loop is parked inside the turn,
-    // so anything queued here waits for work the user is explicitly trying to
-    // look away from. When nothing is running the ordinary queue is used and
-    // behaviour is unchanged — this is a bypass for one situation, not a
-    // second input path.
-    // A TURN IS ACTIVE, OR ONE IS ON ITS WAY.
-    //
-    // `app.abort` alone was the test, and it has a hole in it: a line taken off
-    // the queue now passes through the input gateway before `submit` mints the
-    // controller, and everything typed inside that window read as "nothing is
-    // running". With piped input the entire script lands in that window — the
-    // lines that should have steered were queued instead, and the loop that
-    // drains the queue was by then waiting for a turn that was waiting for an
-    // answer sitting in the queue. See App.dispatching.
+    // A COMMAND TYPED DURING A TURN runs now, for the same reason a command chosen from the palette does: the REPL loop is parked inside the turn, so…
     const turnActive = Boolean(app.abort && !app.abort.signal.aborted) || app.dispatching > 0;
     const trace = require('./admissiontrace');
     trace.note(app, 'input', { chars: String(ev.text || '').length, turnActive });
-    // AN ANSWER NEVER QUEUES. Something inside the turn is awaiting this
-    // line — ask_user's "Other…", or a review pasted back for the external
-    // human relay — and the REPL loop that drains the queue is parked inside
-    // that very turn. Queued, the answer would wait for the work that is
-    // waiting for it, which is a deadlock the user experiences as "I pasted
-    // it and nothing happened".
+    // AN ANSWER NEVER QUEUES.
     if (app.pendingAsk && app.answerPending(ev.text)) { trace.note(app, 'input:answer'); return; }
     if (turnActive && !ev.isPaste && !app.pendingAsk
         && commands.looksLikeCommand(ev.text)
-        // ONLY the safe ones jump the queue. A blocked command stays in the
-        // queue and runs when the turn finishes, which is the plain reading
-        // of "wait for it to finish" — and is what keeps `/exit` from racing
-        // a turn it is meant to outlive. Running one here instead let `/exit`
-        // set wantExit while the model was mid-question, and the session tore
-        // down around an open panel.
+        // ONLY the safe ones jump the queue.
         && !commands.blockedDuringTurn(commands.parse(ev.text).name)) {
       trace.note(app, 'input:command-during-turn');
       Promise.resolve(commands.run(app, ev.text)).catch((e) => {
@@ -320,24 +146,7 @@ async function start(app) {
       });
       return;
     }
-    // ---- ANYTHING ELSE TYPED AT A WORKING LAIN IS A STEER — ----------
-    //
-    // It used to go in the queue, which meant it waited for the turn to end
-    // and then started A WHOLE NEW TASK. "also check the backend" is almost
-    // never a new task; it is a correction to the one you are watching, and
-    // treating it as a task is how a correction arrives too late to correct
-    // anything.
-    //
-    // QUEUED, NOT INJECTED. It goes to the pending region and reaches the
-    // model at a safe point — never in the middle of a tool call. See
-    // ui/pending.js for why it is a region rather than a line in the
-    // conversation.
-    //
-    // (The second Enter that promotes a waiting steer is handled on the KEY
-    // event — an empty line never reaches this one. See the `enter` branch in
-    // the key handler above.)
-    // AN OPEN COMPOSER (`/goal`, `/plan` capture) OWNS THE NEXT LINE, even
-    // mid-turn: it queues and `handle` gives it to the composer — never a steer.
+    // ANYTHING ELSE TYPED AT A WORKING LAIN IS A STEER —
     if (turnActive && !app.pendingAsk && !app.composing && app.queueSteer(ev.text)) { trace.note(app, 'input:steer'); return; }
     trace.note(app, 'input:queued');
     queue.push(ev);
@@ -345,28 +154,19 @@ async function start(app) {
   });
   input.on('close', () => {
     closed = true;
-    // AND THE APP IS TOLD, because a question asked AFTER this point can never
-    // be answered either. See UI.askUser: cancelling only what is already open
-    // leaves a later ask parked forever on a stream nobody can type into.
+    // AND THE APP IS TOLD, because a question asked AFTER this point can never be answered either.
     app.inputClosed = true;
-    // An open panel awaits a selection. On EOF nothing will ever resolve it,
-    // so the loop would never drain and the session would never be saved.
-    // Cancel it — end of input is an answer of "no answer".
+    // An open panel awaits a selection.
     if (app.ui.panel.visible) app.ui.panel.close(null);
     if (app.pendingAsk) { const r = app.pendingAsk; app.pendingAsk = null; r(null); }
     wake();
   });
   input.on('interrupt', () => {
-    // WORKING means a request or tool is genuinely in flight — an already
-    // aborted controller that is still unwinding does not count, so a second
-    // Ctrl+C during teardown can reach the exit confirmation rather than
-    // firing another cancel.
+    // WORKING means a request or tool is genuinely in flight — an already aborted controller that is still unwinding does not count, so a second Ctrl+C…
     const working = Boolean(app.abort && !app.abort.signal.aborted);
     const d = onInterrupt({ working, armedAt: app._exitArmedAt }, Date.now());
     if (d.action === 'cancel') {
-      // SHOWN BEFORE THE UNWIND, not after it. Aborting a request in flight
-      // takes as long as it takes; without this the screen sat unchanged and
-      // the user could not tell whether Ctrl+C had registered at all.
+      // SHOWN BEFORE THE UNWIND, not after it.
       if (app.ui.enabled) {
         // A panel open over the work must not survive the cancellation — it
         // would keep reporting NEEDS USER for a turn that is being torn down.
@@ -375,24 +175,14 @@ async function start(app) {
         app.ui.setInterrupting(true);
       }
       app.abort.abort();
-      // ---- THE LIVE ROW ALREADY SAYS THIS, AND KEEPS SAYING IT -----------
-      //
-      // `Ⅱ Interrupted · you stopped the turn; nothing was lost` is a RESTING state
-      // above the caret (ui/status.js), held until the next thing the user does. A
-      // durable `WARN interrupted` row underneath it was the same fact a second
-      // time, in the conversation, where it outlives the moment by a session.
+      // THE LIVE ROW ALREADY SAYS THIS, AND KEEPS SAYING IT
       require('./ui/operation').say(app, 'Interrupted', 'warn');
       app.disarmExit();
       return;
     }
     if (d.action === 'exit') {
       app.disarmExit();
-      // AN OPEN PANEL IS AWAITING AN ANSWER, and `wantExit` is only read by
-      // the REPL loop — which is currently parked inside `await ui.ask(...)`.
-      // Without releasing it, two Ctrl+C presses set a flag nobody was in a
-      // position to notice, and the only way out of the model picker was
-      // Escape first. Ctrl+C is global; a panel does not get to hold it.
-      // (EOF already did exactly this; the exit path had been missed.)
+      // AN OPEN PANEL IS AWAITING AN ANSWER, and `wantExit` is only read by the REPL loop — which is currently parked inside `await ui.ask(...)`.
       if (app.ui.enabled && app.ui.panel.visible) app.ui.panel.close(null);
       if (app.pendingAsk) { const r = app.pendingAsk; app.pendingAsk = null; r(null); }
       app.wantExit = true; closed = true; wake();
@@ -403,38 +193,12 @@ async function start(app) {
 
   input.start();
 
-  // ---- IS THIS DIRECTORY MINE TO WORK ON? ---------------------------------
-  //
-  // AFTER `input.start()`, AND THAT ORDERING IS THE WHOLE THING.
-  //
-  // It sat in `app.prepare()` first, which runs before `ui.enable()` — no UI,
-  // nobody to ask, and the question silently never appeared. Moving it to just
-  // after `enable()` made it appear and then HANG: the panel opened and waited
-  // for an answer while the keyboard reader did not yet exist, so nothing could
-  // possibly answer it. LAIN started, drew a question, and froze.
-  //
-  // Both were found by driving the real binary; neither is visible from a unit
-  // test, because a test calls `ensureTrusted` with a reader that is already
-  // listening. The question needs a panel to be asked in AND a keyboard to be
-  // answered with, and this is the first line where both exist.
-  //
-  // Asked once per directory and remembered — see trust.js for why this
-  // persists where the desktop permissions deliberately do not.
+  // IS THIS DIRECTORY MINE TO WORK ON?
   if (tui) {
     try { await require('./trustask').ensureTrusted(app); } catch { /* an unreadable config still runs */ }
   }
 
-  // ---- A REJECTION MUST NOT END THE SESSION ------------------------------
-  //
-  // The REPL used to await every turn, so anything a turn threw was caught by
-  // the loop. It no longer awaits, and a job's own handlers settle its record
-  // rather than rethrowing — but "rather than" is a property of the code as it
-  // stands today, and the cost of being wrong about it is the process dying
-  // under a person who was typing. Node's default for an unhandled rejection
-  // is to terminate.
-  //
-  // REPORTED, NOT SWALLOWED. It is shown as an error and, with LAIN_DEBUG, with
-  // its stack — a quiet catch-all would hide the very bug it exists to survive.
+  // A REJECTION MUST NOT END THE SESSION
   const onRejection = (reason) => {
     const msg = (reason && reason.message) || String(reason);
     try {
@@ -450,22 +214,7 @@ async function start(app) {
     if (app.wantExit) break;
     if (!queue.length) {
       if (closed) {
-        // ---- EOF DOES NOT MEAN THE WORK IS OVER ---------------------------
-        //
-        // THE REGRESSION THIS FIXES, and it was invisible to the unit tier.
-        // The loop no longer awaits a turn, so on PIPED input — which closes
-        // the moment the last line is written, and is how every smoke test and
-        // every `lain < file` runs — the queue drained, `closed` was true, and
-        // the session tore itself down WHILE THE TURN WAS STILL RUNNING. The
-        // work was genuinely started and genuinely abandoned a millisecond
-        // later; 55 smoke tests reported it as the model never having answered.
-        //
-        // An interactive terminal hid it completely: a person's stdin does not
-        // close, so the loop simply parked on the waiter as it always had.
-        //
-        // So end of input ends the INPUT, not the session. Anything running is
-        // waited for — no polling: each job resolves its own promise — and the
-        // loop comes back round in case that work queued more.
+        // EOF DOES NOT MEAN THE WORK IS OVER
         const running = app.jobs.running();
         if (running.length) { await Promise.all(running.map((j) => j.wait())); continue; }
         break;                                 // drained, closed, and idle = real EOF
@@ -473,23 +222,7 @@ async function start(app) {
       await new Promise((r) => { waiter = r; });
       continue;
     }
-    // ---- QUEUED WORK STILL RUNS IN ORDER -----------------------------------
-    //
-    // THE SECOND HALF OF NOT AWAITING, and it is the half that bit. Interactively
-    // this queue is EMPTY while a job runs: text typed during one becomes a
-    // steer and a safe command runs on the spot, so nothing reaches here. But
-    // PIPED input arrives all at once — `lain < script`, and every smoke test —
-    // and the loop, no longer waiting for anything, drained the whole file into
-    // a turn that had only just started. `/plan step` then ran DURING the turn,
-    // was refused as blocked-during-a-turn, and the plan it was supposed to
-    // build never existed. 55 smoke tests reported it as the model misbehaving.
-    //
-    // So the ORDER a person wrote things in is honoured: while the conversation
-    // is working, the next queued line waits for it. This is not the defect
-    // coming back — the defect was the PROMPT waiting, and the prompt does not
-    // pass through here. `handle` returns the moment work begins and
-    // `input.prompt()` is called immediately after; the reader was never
-    // blocked at any point, before or after this change.
+    // QUEUED WORK STILL RUNS IN ORDER
     if (queue.length) {
       const primary = app.jobs.primary();
       if (primary) { require('./admissiontrace').note(app, 'queue:wait-primary'); await primary.wait(); continue; }
@@ -498,24 +231,7 @@ async function start(app) {
     require('./admissiontrace').note(app, 'queue:dequeue', { chars: String(ev.text || '').length });
     try {
       if (tui) app.ui.setInput('');
-      // ---- THE LINE THAT USED TO BLOCK THE WHOLE INTERFACE ----------------
-      //
-      // This was an await on the whole turn. The keyboard reader is
-      // event-driven and never stopped, so the input LINE stayed editable -
-      // which is what made the defect so hard to see. What stopped was the
-      // DRAIN: nothing came off this queue until the turn resolved, so work
-      // submitted during a six-second tool call did not START until that call
-      // was over.
-      //
-      // `handle` now returns as soon as the work has BEGUN. A COMMAND still
-      // runs to completion here - commands are fast, they are about LAIN
-      // rather than about the work, and several depend on running in the order
-      // they were typed. A TASK returns a job.
-      //
-      // NOTHING ELSE ABOUT A TURN CHANGED. `submit` is untouched and still
-      // awaits; it is awaited by the job now instead of by this loop, and the
-      // busy flag is set by the job rather than bracketed here. See
-      // src/jobrunner.js.
+      // THE LINE THAT USED TO BLOCK THE WHOLE INTERFACE
       await app.handle(ev.text, { isPaste: ev.isPaste, from: ev.from, background: true });
     } catch (e) {
       // A bug in LAIN must not end the session.
@@ -526,23 +242,26 @@ async function start(app) {
   }
 
   input.stop();
-  // ---- NOTHING KEEPS WORKING AFTER THE SESSION ENDS ----------------------
-  //
-  // The whole list — the gateway, the agent jobs, the shell children, the other
-  // open conversations, the browser surface, the harness services, the computer
-  // bridge, the native window — moved to src/teardown.js when the terminal
-  // stopped being the only way to end LAIN. There are three ways now (this, the
-  // tray's Quit, and a `quit` on the control pipe) and exactly one sequence, so
-  // none of them can forget an entry. Every entry on that list is something this
-  // repository has already paid for by leaving it running.
+  // NOTHING KEEPS WORKING AFTER THE SESSION ENDS
+  let continueIn = null;
+  try { if (require('./desktopwindow').alive() && app.session && require('./surfacehandoff').unfinished(app.session)) continueIn = app.session.id; } catch { continueIn = null; }
   await require('./teardown').shutdown(app, { why: 'the session ended' });
   process.removeListener('unhandledRejection', onRejection);
   app.ui.disable();                       // restore the user's terminal
+  // CLOSING THE CLI PAUSES THE TASK, never ends it: the Harness shows Paused · CLI closed and ▶ Continue.
+  try { require('./surfacehandoff').release(app); } catch { /* best effort */ }
   try { app.session.save(); } catch { /* best effort on the way out */ }
   app.render.nl();
   // The REAL persisted session id — never a fresh one generated at exit.
-  // The SHORT token, not the filename. It resolves to this exact session (see
-  // Session.match) — a shorter thing to type, not a different thing.
+  if (continueIn) {
+    try {
+      const { spawn } = require('child_process');
+      const entry = require('path').join(__dirname, '..', 'bin', 'lain.js');
+      const child = spawn(process.execPath, [entry, '--desktop', '--resume', continueIn, '--continue-session'], { cwd: app.session.cwd || process.cwd(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LAIN_NO_TUI: '1' } });
+      child.unref();
+      app.render.write(C.dim('  The Harness continues this session.') + '\n');
+    } catch { /* ▶ Continue in the Harness picks it up */ }
+  }
   app.render.write(C.dim('  Session saved.') + '\n\n');
   app.render.write(C.dim('  Resume with:') + '\n');
   app.render.write(`    lain --resume ${Session.shortId(app.session.id)}` + '\n');

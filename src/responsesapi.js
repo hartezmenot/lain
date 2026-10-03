@@ -1,35 +1,12 @@
 'use strict';
 
-/**
- * THE OPENAI RESPONSES API ADAPTER — provider.js's third wire protocol, kept in
- * its own file (provider.js is at the size guard). It shares provider.js's
- * transport (postSSE, sseLines) and yields the same normalized events.
- */
+/** THE OPENAI RESPONSES API ADAPTER — provider.js's third wire protocol, kept in its own file (provider.js is at the size guard). */
 
 const finishMod = require('./finish');
 const progress = require('./streamprogress');
 const { routeHeaders } = require('./routeheaders');
 
-/**
- * THE OPENAI RESPONSES API — the same events as `openaiChat`, so nothing above
- * this line knows which wire a turn used (no task orchestration is specific to
- * a vendor). Selected per connection: `protocol: 'responses'`.
- *
- * WHY IT EXISTS (2026-09-24). A reasoning model's EFFORT is a request field
- * here (`reasoning.effort`), and tool calling with reasoning is this API's
- * native shape. Chat Completions carries effort only as a catalog model-id
- * variant, and a route with no variants (gpt-6-luna) could not be given one.
- *
- *   system messages            → `instructions`
- *   user / assistant text      → input messages
- *   assistant tool_calls       → `function_call` items (call_id, name, arguments)
- *   tool results               → `function_call_output` items
- *
- * `store: false`: nothing is kept upstream; every request carries its whole
- * conversation, like the other two protocols. Usage is read from
- * `response.completed`; a cache figure the provider did not report stays
- * unreported (`cacheReported: false`), never 0.
- */
+/** THE OPENAI RESPONSES API — the same events as `openaiChat`, so nothing above this line knows which wire a turn used */
 async function* responsesChat(pc, messages, opts) {
   const instructions = [];
   const input = [];
@@ -51,6 +28,7 @@ async function* responsesChat(pc, messages, opts) {
   if (instructions.length) payload.instructions = instructions.join('\n\n');
   const effort = pc.effort || pc.reasoningEffort || null;
   if (effort) payload.reasoning = { effort };
+  if (opts && opts.wireOut) opts.wireOut.effort = effort || null;
   if (opts.tools && opts.tools.length) {
     payload.tools = opts.tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.parameters, strict: false }));
   }

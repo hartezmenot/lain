@@ -1,50 +1,6 @@
 'use strict';
 
-/**
- * THE TASK RUNTIME — the one thing that knows what a task is doing and why.
- *
- * ------------------------------------------------------------------------
- * WHAT CHANGES BECAUSE THIS EXISTS.
- *
- * Before: the CLI knew the task from `session.task` and `session.lifecycle`, the
- * dashboard rebuilt an idea of it from a state payload, and a remote client
- * would have had to invent a third. Three readers, three notions of "is it
- * done", and no way to say which was wrong on the day they disagreed.
- *
- * After: there is a record with a state, a legal set of moves between states,
- * and a durable log of everything that happened. Every surface READS it. None
- * of them computes it.
- *
- * ------------------------------------------------------------------------
- * THE ONE RULE THAT MAKES IT AN EVIDENCE HARNESS RATHER THAN A STATUS BOARD.
- *
- *     NOTHING IN THIS FILE CAN REACH `PASSED` EXCEPT `settle()`, AND
- *     `settle()` ONLY TAKES A VERIFICATION RESULT.
- *
- * There is no `complete()`, no `markDone()`, no `succeed()`. A model that says
- * "fixed" moves the task to VERIFYING — "stop executing and go and prove it" —
- * and nothing else. That single missing method is the difference between this
- * design and the one it replaces.
- *
- * ------------------------------------------------------------------------
- * WHY IT SUBSCRIBES TO THE BUS RATHER THAN BEING WRITTEN TO.
- *
- * The timeline has to contain the things the runtime never hears about: a tool
- * starting, a question being asked, a job finishing. Those are emitted by
- * turn.js and turnevents.js today, correctly, and rewriting every emitter to
- * also call the runtime would be a second call site per fact — the exact
- * duplication that produces a timeline with holes in it.
- *
- * So the runtime SUBSCRIBES. One handler, one append per event, attributed to
- * whichever task is active. Nothing upstream changes, and a fact emitted by a
- * module written next year lands in the flight recorder without its author
- * knowing the recorder exists.
- *
- * ------------------------------------------------------------------------
- * IT DEGRADES TO NOTHING. A read-only checkout gets a runtime that keeps the
- * record in memory and reports that persistence is off. The work is never
- * failed because the receipts could not be filed.
- */
+/** THE TASK RUNTIME — the one thing that knows what a task is doing and why. */
 
 const { EVENT } = require('../events');
 const state = require('./state');
@@ -55,35 +11,10 @@ const { Hooks, POINT } = require('./hooks');
 /** How many finished task records stay in memory. Disk keeps the rest. */
 const MAX_KEPT = 50;
 
-/**
- * Events that are NOT worth a line in a task's durable log.
- *
- * `model.thinking` fires per reasoning chunk and would be most of the file. The
- * flight recorder is for facts about the work; a stream of partial sentences is
- * the transcript's job, and the transcript already has it.
- */
+/** Events that are NOT worth a line in a task's durable log. */
 const NOT_LOGGED = new Set([EVENT.MODEL_THINKING]);
 
-/**
- * A TASK THAT NEVER DID ANYTHING LEAVES NO TRACE.
- *
- * ------------------------------------------------------------------------
- * THE REGRESSION THIS EXISTS TO FIX, found by a smoke test that has been
- * guarding the property for months: "a failure BEFORE any tool leaves the
- * working tree untouched". A turn that died at the transport — a 502, before a
- * single tool call — was creating `<project>/.lain/tasks/<id>/` and leaving it
- * there. A directory in somebody's project for a request that never reached the
- * model is litter, and litter is how a state directory earns a bad reputation.
- *
- * So persistence is ARMED, not automatic. The record lives in memory until
- * something MATERIAL happens: a tool ran, a service started, a browser looked, a
- * contract was checked, an artifact was kept. Creating and starting a task are
- * not material — they are LAIN's own bookkeeping about an intention.
- *
- * WHAT THIS COSTS, stated honestly: a turn that fails before any tool leaves no
- * task record on disk. That is the right trade — the session transcript still
- * has the attempt, and the flight recorder is for what the WORK did.
- */
+/** A TASK THAT NEVER DID ANYTHING LEAVES NO TRACE. */
 const MATERIAL = new Set([
   EVENT.TOOL_STARTED, EVENT.TOOL_COMPLETED, EVENT.TOOL_FAILED,
   EVENT.JOB_STARTED, EVENT.JOB_COMPLETED,
@@ -98,14 +29,7 @@ const MATERIAL = new Set([
 ]);
 
 class TaskRuntime {
-  /**
-   * @param {object} opts
-   *   bus       — the shared EventBus (src/events.js). Optional; without one the
-   *               runtime still works and simply says nothing.
-   *   workspace — the project directory this runtime's tasks belong to.
-   *   store     — an ArtifactStore, or null to build one for `workspace`.
-   *   persist   — false to keep everything in memory (tests, read-only trees).
-   */
+  /** bus — the shared EventBus (src/events.js). */
   constructor({ bus = null, workspace = process.cwd(), store = null, persist = true } = {}) {
     this.bus = bus;
     this.workspace = String(workspace);
@@ -126,10 +50,7 @@ class TaskRuntime {
 
   // ------------------------------------------------------------------ wiring --
 
-  /**
-   * Follow a bus. Idempotent: attaching twice does not double-log, because the
-   * previous subscription is dropped first.
-   */
+  /** Follow a bus. Idempotent: attaching twice does not double-log, because the previous subscription is dropped first. */
   attach(bus) {
     if (this._unsubscribe) { this._unsubscribe(); this._unsubscribe = null; }
     this.bus = bus;
@@ -140,9 +61,7 @@ class TaskRuntime {
       if (NOT_LOGGED.has(ev.type)) return;
       const task = this._tasks.get(id);
       if (task) task.eventCount += 1;
-      // ARMING IS THE FIRST MATERIAL FACT. Everything that happened before it —
-      // the creation, the state change, the start — is flushed at that moment,
-      // so the durable log is complete rather than starting mid-story.
+      // ARMING IS THE FIRST MATERIAL FACT.
       if (!task) return;
       if (this.persist && !this._armed.has(id) && MATERIAL.has(ev.type)) this._arm(id);
       if (this.persist && this._armed.has(id)) this.store.appendEvent(id, ev);
@@ -170,23 +89,13 @@ class TaskRuntime {
     this.store.saveTask(task);
   }
 
-  /**
-   * SOMETHING REAL HAPPENED — start writing.
-   *
-   * Flushes the events that preceded this moment, then the record itself, so a
-   * reader of `events.jsonl` sees the task from its creation and not from the
-   * first tool call.
-   */
+  /** SOMETHING REAL HAPPENED — start writing. */
   _arm(id = this.activeId) {
     if (!this.persist || this._armed.has(id) || !this.get(id)) return;
     this._armed.add(id);
     const queued = this._pending.get(id) || [];
     this._pending.delete(id);
-    // AND THE DRAWER IS BOUNDED — here, at the one moment this task is about to
-    // take a directory of its own. Doing it at `create()` meant scanning
-    // `.lain/tasks/` for a task that might never write anything, which is a
-    // directory listing bought for nothing on every greeting. See store.prune:
-    // only tasks that reached a verdict are ever removed.
+    // AND THE DRAWER IS BOUNDED — here, at the one moment this task is about to take a directory of its own.
     try { this.store.prune(); } catch { /* a full drawer is not a failure */ }
     for (const ev of queued) this.store.appendEvent(id, ev);
     const task = this.get(id);
@@ -203,21 +112,13 @@ class TaskRuntime {
 
   // ------------------------------------------------------------------ tasks --
 
-  /**
-   * Create a task. It is PLANNED — created is not started, and the difference
-   * is real: a task can exist, be scoped and be shown on a dashboard before
-   * anything has executed.
-   */
+  /** Create a task. It is PLANNED — created is not started, and the difference is real: a task can exist, be scoped and be shown on a dashboard before… */
   create({ title = '', objective = '', sessionId = null, causedBy = null } = {}) {
     const task = new TaskRecord({ title, objective, workspace: this.workspace, sessionId });
     task.causedBy = causedBy || null;
     this._tasks.set(task.id, task);
     this._trim();
-    // EACH TASK EARNS ITS OWN DIRECTORY. Arming is per-task, so a second task
-    // in a session that already did real work still starts unarmed.
-    // ACTIVE FROM CREATION, so the events of the work that scopes the task —
-    // the repository reads, the first tool calls — land in ITS log rather than
-    // in the previous task's or nowhere at all.
+    // EACH TASK EARNS ITS OWN DIRECTORY.
     this.activeId = task.id;
     this._save(task);
     this._emit(EVENT.TASK_CREATED, { taskId: task.id, title: task.title, state: task.state, causedBy: task.causedBy });
@@ -230,16 +131,7 @@ class TaskRuntime {
   /** The active task record, or null. Strictly the one events are attributed to. */
   active() { return this.activeId ? this.get(this.activeId) : null; }
 
-  /**
-   * THE ONE A SURFACE SHOULD DRAW — the active task, or the most recent one.
-   *
-   * A TASK THAT ENDED IS STILL THE NEWS. `activeId` is cleared the moment a
-   * task reaches a verdict, which is right for ATTRIBUTION (a later event
-   * belongs to no task) and wrong for DISPLAY: the CLI and the dashboard went
-   * blank the instant a verification came back, which reads as "nothing
-   * happened" over the one moment somebody most wants to look at. Kept apart so
-   * neither meaning has to compromise for the other.
-   */
+  /** THE ONE A SURFACE SHOULD DRAW — the active task, or the most recent one. */
   latest() {
     if (this.activeId && this.get(this.activeId)) return this.get(this.activeId);
     const all = this.list();
@@ -264,15 +156,7 @@ class TaskRuntime {
 
   // ------------------------------------------------------------ transitions --
 
-  /**
-   * The one place a state is written.
-   *
-   * Every public verb below funnels through here, so there is exactly one
-   * emitter of `task.state`, one persistence point and one refusal path. A
-   * refused move is REPORTED and changes nothing — it never throws, because the
-   * callers are a turn loop and a CLI command, and neither should die because a
-   * task was already cancelled.
-   */
+  /** The one place a state is written. */
   _move(id, next, why, eventName = null, extra = {}, verification = null) {
     const task = this.get(id);
     if (!task) return { ok: false, why: `no such task ${id}` };
@@ -300,17 +184,7 @@ class TaskRuntime {
     return r;
   }
 
-  /**
-   * BLOCKED — it cannot proceed without something outside itself.
-   *
-   * `pause` is the same transition with a different word for the person, and
-   * that is on purpose: a paused task and a task waiting for an approval are
-   * the same fact about the work (nothing is executing, and something outside
-   * has to happen next). Two states would have to be kept in step for no
-   * behavioural difference. The EVENT tells them apart, which is where the
-   * difference actually matters — a remote client shows "waiting for you" for
-   * one and "paused" for the other.
-   */
+  /** BLOCKED — it cannot proceed without something outside itself. */
   block(id, why = 'blocked') {
     return this._move(id, state.STATE.BLOCKED, why, EVENT.TASK_PAUSED, { kind: 'blocked' });
   }
@@ -325,11 +199,7 @@ class TaskRuntime {
     return r;
   }
 
-  /**
-   * STOP EXECUTING AND GO AND PROVE IT.
-   *
-   * This is what a model saying "done" is worth, and it is worth exactly this.
-   */
+  /** STOP EXECUTING AND GO AND PROVE IT. */
   verifying(id, why = 'execution finished — gathering evidence') {
     const r = this._move(id, state.STATE.VERIFYING, why, EVENT.VERIFICATION_STARTED);
     if (r.ok) {
@@ -339,11 +209,7 @@ class TaskRuntime {
     return r;
   }
 
-  /**
-   * SETTLE THE TASK FROM A VERIFICATION RESULT. The only route to PASSED.
-   *
-   * @param {object} result from verify.js: {verdict, passed, failed, inconclusive, why, contract}
-   */
+  /** SETTLE THE TASK FROM A VERIFICATION RESULT. */
   settle(id, result) {
     const task = this.get(id);
     if (!task) return { ok: false, why: `no such task ${id}` };
@@ -378,27 +244,14 @@ class TaskRuntime {
     return this._move(id, state.STATE.CANCELLED, why, EVENT.TASK_CANCELLED);
   }
 
-  /**
-   * RE-EXECUTE AFTER A RED CONTRACT. VERIFYING -> RUNNING, with the failed
-   * verification kept.
-   *
-   * This is the recovery seam and it is deliberately not a rewind: nothing is
-   * removed from `verifications`, so a task that passed on the second attempt
-   * says so forever.
-   */
+  /** RE-EXECUTE AFTER A RED CONTRACT. */
   reopen(id, why = 'recovering from a failed check') {
     const r = this._move(id, state.STATE.RUNNING, why, EVENT.RECOVERY_STARTED);
     if (r.ok) { this.activeId = id; this._hook(POINT.BEFORE_EXECUTION, r.task); }
     return r;
   }
 
-  /**
-   * A REPAIR TASK for one that ended FAILED.
-   *
-   * A terminal state is never rewritten (state.js), so a failure that gets
-   * fixed produces a NEW task naming the old one. Both stay in the record,
-   * which is the only way "it took two attempts" survives.
-   */
+  /** A REPAIR TASK for one that ended FAILED. */
   repairFor(id, { title = '' } = {}) {
     const failed = this.get(id);
     if (!failed) return null;
@@ -412,14 +265,7 @@ class TaskRuntime {
 
   // ----------------------------------------------------------- consumption --
 
-  /**
-   * CONSUME lifecycle.js's verdict. One bridge, and it is a read.
-   *
-   * The turn loop already decides whether the model is done, blocked, needs the
-   * person or failed. Re-deriving any of that here would be the second
-   * classifier the architecture guard forbids, so this maps and moves. A
-   * lifecycle state with no task consequence (ACTIVE) does nothing at all.
-   */
+  /** CONSUME lifecycle.js's verdict. */
   syncLifecycle(id, lifecycleState, why = '') {
     const next = state.fromLifecycle(lifecycleState);
     if (!next) return { ok: true, why: 'the lifecycle says nothing about the task state' };
@@ -473,10 +319,7 @@ class TaskRuntime {
     if (!task) return null;
     task.noteAgent(a);
     this._save(task);
-    // THREE NAMES BECAUSE THERE ARE THREE FACTS. A worker that started, one
-    // that finished, and one that FAILED are different things to a person
-    // reading the timeline, and collapsing the last two would make "did the
-    // background job work?" unanswerable without opening the job.
+    // THREE NAMES BECAUSE THERE ARE THREE FACTS.
     const failed = /FAIL|ERROR|CANCEL/i.test(String(a.outcome || ''));
     const name = !a.outcome ? EVENT.AGENT_STARTED : (failed ? EVENT.AGENT_FAILED : EVENT.AGENT_COMPLETED);
     this._emit(name, {
@@ -488,10 +331,7 @@ class TaskRuntime {
 
   // -------------------------------------------------------------- snapshot --
 
-  /**
-   * WHAT EVERY SURFACE READS. One shape, so the CLI, the dashboard and a remote
-   * client cannot disagree about what a task is.
-   */
+  /** WHAT EVERY SURFACE READS. */
   snapshot(id = null) {
     const task = id ? this.get(id) : this.latest();
     if (!task) return null;

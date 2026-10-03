@@ -48,18 +48,7 @@ const MIN_FIELD_WIDTH = 34;
 const MAX_LABEL = 22;
 const INDENT = '  ';
 
-/**
- * THE SPACING SCALE — the fix for "tiny gaps that are not separation".
- *
- * One blank row between everything reads as one dense block with holes in it.
- * The eye groups by PROXIMITY, so a gap only separates when it is bigger than
- * the gaps inside the thing it is separating. Two rows before a major section
- * and one before a subsection is the smallest scale where that is true in a
- * terminal.
- *
- * Applied at the CONTAINER level. Nothing here pads individual text nodes,
- * which is what produces noise instead of hierarchy.
- */
+/** THE SPACING SCALE — the fix for "tiny gaps that are not separation". */
 const GAP = Object.freeze({ SECTION: 2, SUBSECTION: 1, TITLE: 1 });
 
 /** Below this a two-column layout is worse than a stacked one. */
@@ -67,47 +56,14 @@ const COLUMN_BREAKPOINT = 76;
 
 // ------------------------------------------------------------- wrapping ----
 
-/**
- * Break text to a width, on word boundaries, ANSI-aware.
- *
- * Measured with `T.width` rather than `.length` so a coloured value does not
- * wrap early by the length of its escape sequences. A single word longer than
- * the width is broken rather than allowed to overflow — a 90-character path in
- * a 40-column pane has to go somewhere.
- */
-/**
- * Take exactly `width` display columns off the front of `s`, LOSSLESSLY.
- *
- * NOT `T.clip`, which is a TRUNCATOR: it appends an ellipsis and is meant for
- * text that is being cut short on purpose. Using it to break a long word did
- * two things wrong at once — it wrote `…` into the middle of a path, and the
- * returned string was then longer than the text it represented, so advancing by
- * its length skipped real characters. `C:\Users\...\src\ui` came back as
- * `C:\Users\Hartezmeno…\Documents\lain-v2\…rc\ui`: an ellipsis in the middle
- * and a missing `s`. A path a reader cannot copy is a path that is not there.
- *
- * THE IMPLEMENTATION MOVED TO ui/text.js. The copy that stood here counted ONE
- * CELL PER JS CHARACTER, so it took twice the requested width of CJK and could
- * cut a surrogate pair in half — and it was a second answer to a question
- * `T.width` was already the authority on. Bound rather than inlined at the call
- * site so `wrap` below reads unchanged.
- */
+/** Break text to a width, on word boundaries, ANSI-aware. */
+/** Take exactly `width` display columns off the front of `s`, LOSSLESSLY. */
 const hardSlice = T.hardSlice;
 
 /** Where a long token can be broken so the pieces still read as one thing. */
 const BREAK_AFTER = /[\\/\-_.,:;]/;
 
-/**
- * Break text to a width, on word boundaries, ANSI-aware.
- *
- * Measured with `T.width` rather than `.length` so a coloured value does not
- * wrap early by the length of its escape sequences.
- *
- * A single word longer than the width is broken rather than allowed to
- * overflow, and the break prefers a path or identifier separator near the end
- * of the line so `src/ui/doc.js` splits between segments instead of mid-word.
- * Every character survives: joining the pieces reproduces the input exactly.
- */
+/** Break text to a width, on word boundaries, ANSI-aware. */
 function wrap(text, width) {
   const s = String(text == null ? '' : text);
   if (width <= 0) return [s];
@@ -137,66 +93,16 @@ function wrap(text, width) {
   return out.length ? out : [''];
 }
 
-/**
- * HOW MANY WRAPPED ROWS ONE SOURCE LINE MAY OCCUPY.
- *
- * Generous enough that a real log line, a stack frame or a deep path is drawn
- * whole, and bounded so a minified bundle printed to stdout - one line of forty
- * thousand characters - cannot turn a scrollable pane into a wall. What is past
- * the bound is COUNTED and said by the caller, never silently cut.
- *
- * ONE OWNER, because the OUTPUT pane and the transcript tail were about to
- * declare this separately with the same value and the same reasoning, which is
- * exactly how two bounds come to disagree.
- */
+/** HOW MANY WRAPPED ROWS ONE SOURCE LINE MAY OCCUPY. */
 const MAX_WRAPPED_ROWS = 12;
 
-/**
- * WRAP A LINE WITHOUT DESTROYING WHAT ITS INDENTATION MEANT.
- *
- * ------------------------------------------------------------------------
- * WHY `wrap` ALONE IS THE WRONG TOOL FOR OUTPUT, and this was caught before it
- * shipped rather than after.
- *
- * `wrap` splits on whitespace and rejoins with single spaces, which is exactly
- * right for PROSE and quietly wrong for anything whose layout is information:
- *
- *     '    ok 12 - parses the header'   ->  'ok 12 - parses the header'
- *
- * A short line escapes it (there is nothing to rejoin) and a long one does not,
- * so the damage appears only on the lines that most need reading - a nested
- * test result, a stack frame, a tree listing. Replacing a truncation defect
- * with an indentation defect is not a fix.
- *
- * So the leading whitespace is taken off, held, and put back: the first row
- * keeps the line's own indent, and every continuation gets that indent plus
- * `cont` so it is visibly more of the same line rather than a new one.
- *
- * @param {string} text   one source line
- * @param {number} width  columns available for the whole row, indent included
- * @param {string} cont   what marks a continuation. Two spaces by default.
- * @returns {string[]} at least one row; never fewer characters than it was given
- */
+/** WRAP A LINE WITHOUT DESTROYING WHAT ITS INDENTATION MEANT. */
 function wrapIndented(text, width, cont = '  ') {
   const line = String(text == null ? '' : text);
   const lead = (/^[ 	]*/.exec(line) || [''])[0].replace(/	/g, '  ');
   const body = line.slice((/^[ 	]*/.exec(line) || [''])[0].length);
   if (!body) return [''];
-  // ---- A LINE THAT ALREADY FITS IS NOT WRAPPED ---------------------------
-  //
-  // Room has to be reserved for the continuation marker — a continuation
-  // wrapped to the full width overflows once it is indented, and an
-  // overflowing row tears open whatever frame it sits in. But reserving it
-  // UNCONDITIONALLY splits a line that fitted perfectly well, which is a
-  // truncation defect wearing different clothes: it cost
-  //
-  //     Plan finished, but the task is not complete - 1 file(s) changed but
-  //     nothing has been run to        <- broken here, for no reason at all
-  //       check
-  //
-  // two extra rows and a sentence a person has to reassemble. So the fit is
-  // tried at the FULL width first; the reservation applies only once the text
-  // has actually earned a second row.
+  // A LINE THAT ALREADY FITS IS NOT WRAPPED
   const full = wrap(body, Math.max(8, width - lead.length));
   if (full.length <= 1) return [lead + full[0]];
   const parts = wrap(body, Math.max(8, width - lead.length - cont.length));
@@ -205,10 +111,7 @@ function wrapIndented(text, width, cont = '  ') {
 
 // ------------------------------------------------------------- the model ---
 
-/**
- * The block kinds. Deliberately few: every one earns its place by rendering
- * differently, and a kind that renders like another is that other one.
- */
+/** The block kinds. Deliberately few: every one earns its place by rendering differently, and a kind that renders like another is that other one. */
 const K = Object.freeze({
   TITLE: 'title',
   SUBTITLE: 'subtitle',
@@ -240,36 +143,19 @@ class Doc {
   /** A heading inside a section. One blank row above, so it reads as nested. */
   subsection(text) { this.blocks.push({ k: K.SUBSECTION, text }); return this; }
 
-  /**
-   * A NUMBERED item — for things where the ORDER is the information.
-   *
-   * Separate from bullet() on purpose: flattening an ordered procedure into
-   * bullets loses the one thing it was trying to say.
-   */
+  /** A NUMBERED item — for things where the ORDER is the information. */
   number(n, text, { tone = null } = {}) {
     this.blocks.push({ k: K.NUMBER, n, text: String(text), tone });
     return this;
   }
 
-  /**
-   * Two columns side by side, STACKED when the terminal is too narrow.
-   *
-   * Squeezing two columns into sixty characters is harder to read than putting
-   * one under the other, so below the breakpoint they stack. Each side is
-   * `{ heading, rows }`.
-   */
+  /** Two columns side by side, STACKED when the terminal is too narrow. */
   columns(left, right, { breakpoint = COLUMN_BREAKPOINT } = {}) {
     this.blocks.push({ k: K.COLUMNS, left, right, breakpoint });
     return this;
   }
 
-  /**
-   * An aligned label/value row — the workhorse.
-   *
-   * `tone` colours only the VALUE, because the label is structure and the value
-   * is the fact. `note` is a quiet second line under it, for a counter-example
-   * or an explanation.
-   */
+  /** An aligned label/value row — the workhorse. */
   field(label, value, { tone = null, note = null } = {}) {
     this.blocks.push({ k: K.FIELD, label: String(label), value: value == null ? '' : String(value), tone, note });
     return this;
@@ -307,14 +193,7 @@ function doc() { return new Doc(); }
 
 // ------------------------------------------------------------- rendering ---
 
-/**
- * How wide the label column should be for one run of fields.
- *
- * The widest label in the group, capped — and abandoned entirely when the pane
- * is too narrow to give a value useful room after it, in which case fields
- * stack instead. A two-column layout in thirty columns is one column with a gap
- * down the middle.
- */
+/** How wide the label column should be for one run of fields. */
 function labelWidth(group, width) {
   if (width < MIN_FIELD_WIDTH) return 0;
   let w = 0;
@@ -338,13 +217,7 @@ function fieldGroups(blocks) {
   return groups;
 }
 
-/**
- * TWO COLUMNS, OR ONE — decided by the width actually available.
- *
- * Squeezing two columns into a narrow terminal makes both harder to read than
- * either would be alone, so below the breakpoint they STACK. That is the whole
- * responsive rule: the layout changes, the content does not shrink.
- */
+/** TWO COLUMNS, OR ONE — decided by the width actually available. */
 function renderColumns(b, cols) {
   const out = [];
   const left = b.left || { heading: '', rows: [] };
@@ -383,13 +256,7 @@ function render(d, width) {
   const cols = Math.max(20, Number(width) || 80);
   const out = [];
   const groups = fieldGroups(d.blocks);
-  // ---- THE SPACING ENGINE ------------------------------------------------
-  //
-  // `gap(n)` asks for AT LEAST n blank rows before the next content. It is
-  // the whole fix for "the gaps are there but they do not separate": a
-  // section asks for two, a subsection for one, and the engine tops up
-  // whatever is already there rather than blindly appending. Nothing is
-  // emitted at the very top, and a run never grows past what was asked for.
+  // THE SPACING ENGINE
   let blanks = 99;                         // suppress any leading blank rows
   let wrote = false;
 

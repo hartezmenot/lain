@@ -8,7 +8,7 @@
  * WHY THIS IS PART OF INSTALLING.
  *
  * `lain` on PATH is the CLI's story and it is complete. The DESKTOP had none:
- * `LAIN.exe` was written into LAIN's own directory, where nothing points at it.
+ * `LAIN Harness.exe` was written into LAIN's own directory, where nothing points at it.
  * A Windows application you can only start by typing a path into a terminal is
  * a Windows application that is started by opening the terminal first — which
  * is the exact thing the native Harness exists to stop being necessary.
@@ -16,7 +16,7 @@
  * ------------------------------------------------------------------------
  * IT IS A SHORTCUT, NOT AN INSTALL.
  *
- * The .lnk points at the `LAIN.exe` in LAIN's home directory, which itself
+ * The .lnk points at the `LAIN Harness.exe` in LAIN's home directory, which itself
  * points at THIS checkout — the same single-canonical-runtime rule install.js
  * is built on. Nothing is copied, so nothing can drift, and uninstalling is
  * deleting one file.
@@ -37,7 +37,8 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const NAME = 'LAIN.lnk';
+// NOT 'LAIN.lnk': that file is the obsolete pre-cleanup LAIN's, and legacy cleanup removes it.
+const NAME = 'LAIN Harness.lnk';
 
 /**
  * Where a per-user Start Menu entry belongs.
@@ -54,14 +55,14 @@ function menuDir() {
 function shortcutPath() { return path.join(menuDir(), NAME); }
 
 /**
- * CREATE (or refresh) THE ENTRY, pointing at an existing LAIN.exe.
+ * CREATE (or refresh) THE ENTRY, pointing at an existing LAIN Harness.exe.
  * The caller supplies the target because building it is desktop.js's job, and
  * this file should not be able to decide there is one when there is not.
  */
 function install({ target, description = 'LAIN — the native Harness' } = {}) {
   if (process.platform !== 'win32') return { ok: false, why: 'a Start Menu entry is a Windows thing' };
-  if (!target) return { ok: false, why: 'no LAIN.exe to point at' };
-  if (!fs.existsSync(target)) return { ok: false, why: `LAIN.exe is not at ${target}` };
+  if (!target) return { ok: false, why: 'no LAIN Harness.exe to point at' };
+  if (!fs.existsSync(target)) return { ok: false, why: `LAIN Harness.exe is not at ${target}` };
 
   const link = shortcutPath();
   try { fs.mkdirSync(path.dirname(link), { recursive: true }); } catch (e) {

@@ -1,38 +1,6 @@
 'use strict';
 
-/**
- * WHAT A MODEL SOURCE'S CATALOG DISCOVERY LAST SAID — as STATE on the source,
- * not as a warning printed every time `/model` opens.
- *
- * ------------------------------------------------------------------------
- * REPORTED: every `/model` printed a WARN block with the provider's raw JSON:
- *
- *   lain:custom: could not read a model list — 401 Authorization Required —
- *     {"error":"UNAUTHORIZED","message":"Invalid TokenFaucet API key."}
- *   lain:api.b.ai: could not read a model list — 405 Not Allowed —
- *     {"error":{"message":"Method not allowed for this endpoint. Use POST."}}
- *
- * Two different failures, and neither was remembered: a failure wrote no cache,
- * so each launch asked again, and `ensureCatalog` printed the whole response.
- *
- *   401/403  AUTH_REQUIRED         the credential is rejected; asking again with
- *                                  the SAME credential cannot succeed
- *   404/405  CATALOG_UNAVAILABLE   this endpoint does not enumerate models the
- *   /501                           OpenAI way — inference compatibility is not
- *                                  catalog compatibility; asking again with the
- *                                  same URL cannot succeed either
- *   429      RATE_LIMITED          quota semantics, never an auth or catalog
- *                                  verdict; retried after a short wait
- *   other    UNREACHABLE           network, timeout, 5xx; retried after a wait
- *
- * A record is keyed by a FINGERPRINT of the base URL and the credential, so
- * fixing either one (a new key through `/api`, a corrected URL) is a different
- * source and is asked again at once. Nothing here deletes a connection or
- * touches a credential. `/model refresh` always asks, whatever is recorded.
- *
- * The raw response is KEPT on the record (diagnostics, `/model refresh`) and
- * never printed on its own into the transcript.
- */
+/** WHAT A MODEL SOURCE'S CATALOG DISCOVERY LAST SAID — as STATE on the source, not as a warning printed every time `/model` opens. */
 
 const fs = require('fs');
 const path = require('path');
@@ -96,11 +64,7 @@ function suppressed(conn, now = Date.now()) {
   return now - (Number(r.at) || 0) < RETRY_MS;
 }
 
-/**
- * Record what discovery said. Returns true when this is a CHANGE — a source
- * that was healthy (or configured differently) is now in this state — which is
- * the only moment worth one line on screen.
- */
+/** Record what discovery said. */
 function record(conn, result) {
   const prev = of(conn);
   const next = result.ok

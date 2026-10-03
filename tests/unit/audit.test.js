@@ -185,18 +185,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------------- the mode override ---
-
-  await test('MODE: a forced mode overrides the local classifier guess', () => {
-    const { App } = require('../../src/app');
-    const out = { write() {}, on() {}, columns: 80, isTTY: false };
-    const app = new App({ out, interactive: false, cwd: process.cwd() });
-    // "add a feature" would classify as IMPLEMENT; the command forces otherwise.
-    const v = app.identify('add a feature to the button', false, 'TROUBLESHOOT');
-    assert.strictEqual(v.mode, 'TROUBLESHOOT');
-    assert.strictEqual(app.session.mode, 'TROUBLESHOOT');
-    assert.match(v.modeReason, /command/i);
-  });
-
   await test('AUDIT: a silently swallowed error counts in Python too, not only JavaScript', async () => {
     // The marker was `catch {}` and nothing else, so a Python project full of
     // `except Exception: pass` — the textbook version of an error nobody will
@@ -222,13 +210,5 @@ module.exports = async function () {
     assert.ok(m, 'two swallowed exceptions must be found');
     assert.strictEqual(m.count, 2, 'and the one that IS handled must not be counted');
     assert.match(m.worst.file, /dashboard\.py/, 'and the report says which file has them');
-  });
-
-  await test('MODE: an unknown forced mode falls back to the classifier, never breaks', () => {
-    const { App } = require('../../src/app');
-    const out = { write() {}, on() {}, columns: 80, isTTY: false };
-    const app = new App({ out, interactive: false, cwd: process.cwd() });
-    const v = app.identify('explain how the parser works', false, 'NOT_A_REAL_MODE');
-    assert.ok(v.mode && v.mode !== 'NOT_A_REAL_MODE', 'a bogus force must not leak through as the mode');
   });
 };

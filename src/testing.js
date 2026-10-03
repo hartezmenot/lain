@@ -1,55 +1,11 @@
 'use strict';
 
-/**
- * WHAT TESTS DOES THIS PROJECT HAVE, AND WHAT ACTUALLY HAPPENED TO THEM?
- *
- * THE TWO FALSE REPORTS THIS FILE EXISTS TO END. Both were observed, both are
- * the same defect wearing different clothes, and neither is a prompting problem
- * — the model had no way to be right:
- *
- *   "There are no tests."   said about a tree with 185 test files in it,
- *                           because nothing had LOOKED and "I did not find any"
- *                           and "there are none" were the same sentence.
- *
- *   "All tests pass."       said without a runner ever having been spawned,
- *                           because "the suite exists" and "the suite is green"
- *                           were the same fact.
- *
- * The fix is not a better adjective. It is that DISCOVERY and EXECUTION are two
- * different questions with two different answers, and the vocabulary below
- * makes them impossible to say with one word. `discover()` costs nothing, spawns
- * nothing and can only ever produce NO_TESTS_FOUND or TESTS_FOUND_NOT_RUN. The
- * states that mean something ran are reachable only from a real result.
- *
- * ------------------------------------------------------------------------
- * A BLOCKED SUITE IS NOT A FAILING SUITE, and this is the distinction that
- * costs the most when it is missing. A run that stopped because a provider
- * returned 429, because a module is not installed, or because the runner is not
- * on PATH says NOTHING about the code — but it exits non-zero exactly like a
- * genuine failure, and a model that reads exit codes will go and "fix" working
- * code until the quota comes back. TESTS_BLOCKED names the layer that stopped
- * it and points the work somewhere else.
- *
- * ------------------------------------------------------------------------
- * SMOKE AND PROJECT ARE DIFFERENT CLAIMS. "The CLI starts" and "the suite is
- * green" are both worth having and neither substitutes for the other, so a
- * suite carries which KIND it is and a report never merges the two counts.
- *
- * ------------------------------------------------------------------------
- * NOTHING HERE GUESSES FROM WHAT IS INSTALLED. `pytest` being on PATH does not
- * make it this project's runner; a `test` script in package.json does. Every
- * suite carries `from` — the file that says so — because a discovery nobody can
- * trace is a guess with better manners. And `searched` records where it LOOKED,
- * so NO_TESTS_FOUND is an answer with evidence rather than an absence.
- */
+/** WHAT TESTS DOES THIS PROJECT HAVE, AND WHAT ACTUALLY HAPPENED TO THEM? */
 
 const fs = require('fs');
 const path = require('path');
 
-/**
- * THE SEVEN STATES. Deliberately seven and not "pass/fail": each of these has a
- * different next move, and collapsing any two of them loses the move.
- */
+/** THE SEVEN STATES. Deliberately seven and not "pass/fail": each of these has a different next move, and collapsing any two of them loses the move. */
 const STATE = Object.freeze({
   /** Looked, found no test infrastructure at all. Carries where it looked. */
   NO_TESTS_FOUND: 'NO_TESTS_FOUND',
@@ -106,11 +62,7 @@ const SMOKE_HINT = /smoke/i;
 
 function isTestFile(name) { return TEST_FILE.some((re) => re.test(name)); }
 
-/**
- * Walk for test files. BOUNDED — depth and count — because this runs on a real
- * tree that may be enormous, and a discovery that takes ten seconds is one
- * nobody will wait for and everybody will work around.
- */
+/** Walk for test files. */
 function walkTests(root, { maxDepth = 6, maxFiles = 4000 } = {}) {
   const files = [];
   const dirs = new Set();
@@ -229,12 +181,7 @@ function ciCommands(cwd, searched) {
   return out;
 }
 
-/**
- * WHAT THIS PROJECT HAS. Reads files. Spawns nothing. Costs nothing.
- *
- * The state it returns can only ever be NO_TESTS_FOUND or TESTS_FOUND_NOT_RUN,
- * because nothing has run — see the header.
- */
+/** WHAT THIS PROJECT HAS. */
 function discover(cwd = process.cwd()) {
   const root = path.resolve(cwd);
   const searched = [];
@@ -242,10 +189,7 @@ function discover(cwd = process.cwd()) {
   const { files, dirs } = walkTests(root);
   const ci = ciCommands(root, searched);
 
-  // A tree with test FILES but no declared runner is still a tree with tests in
-  // it. Saying NO_TESTS_FOUND there is the exact false report this file exists
-  // to prevent — so the files count, and the missing runner is stated as the
-  // missing thing it is.
+  // A tree with test FILES but no declared runner is still a tree with tests in it.
   const smokeFiles = files.filter((f) => SMOKE_HINT.test(path.basename(f))
     || SMOKE_HINT.test(path.basename(path.dirname(f))));
   const found = Boolean(suites.length || files.length);
@@ -279,14 +223,7 @@ function primary(report) {
 
 // ------------------------------------------------------------ classifying ---
 
-/**
- * WHAT STOPPED IT, WHEN THE ANSWER IS NOT "THE CODE".
- *
- * Ordered, and read against the runner's own output. Each entry names the LAYER
- * that failed, because that is the whole value: "the provider is rate limiting
- * you" and "your assertion is wrong" both exit non-zero and have nothing else
- * in common.
- */
+/** WHAT STOPPED IT, WHEN THE ANSWER IS NOT "THE CODE". */
 const BLOCKED_SIGNS = [
   [/\b429\b|rate[ _-]?limit(ed|ing)?|too many requests/i, 'provider rate limit'],
   [/quota|insufficient (credit|balance|funds)|billing|payment required|\b402\b/i, 'provider quota or billing'],
@@ -315,20 +252,11 @@ function counts(output) {
   return out;
 }
 
-/**
- * WHAT ACTUALLY HAPPENED to a run that really was spawned.
- *
- * @param {object} r  `{ code, output, timedOut, interrupted, classification }`
- *                    — the shape tools/shell and tools/exec already return.
- * @returns {{state:string, why:string, counts:object, layer:string|null}}
- */
+/** WHAT ACTUALLY HAPPENED to a run that really was spawned. */
 function classifyRun(r = {}) {
   const output = String(r.output == null ? `${r.stdout || ''}${r.stderr || ''}` : r.output);
   const c = counts(output);
-  // `code` and `exitCode` are the two names the two runners in this tree use
-  // for one number. Reading both here is what stops a caller passing the wrong
-  // one and silently getting NaN, which compares false against 0 and would turn
-  // every passing run into a failure.
+  // `code` and `exitCode` are the two names the two runners in this tree use for one number.
   const code = Number(r.code != null ? r.code : r.exitCode);
 
   if (r.interrupted) {
@@ -337,10 +265,7 @@ function classifyRun(r = {}) {
   if (r.timedOut) {
     return { state: STATE.TESTS_BLOCKED, why: 'the run timed out before it finished', counts: c, layer: 'timeout' };
   }
-  // THE EXECUTION LAYER'S OWN VERDICT OUTRANKS THE TEXT. A runner that is not
-  // installed and a dependency that is missing are already named upstream by
-  // execution.js, and re-deriving them from a regex here would be a second
-  // opinion that can disagree with the first.
+  // THE EXECUTION LAYER'S OWN VERDICT OUTRANKS THE TEXT.
   if (r.classification === 'COMMAND_NOT_FOUND') {
     return { state: STATE.TESTS_BLOCKED, why: 'the test runner is not installed on this machine', counts: c, layer: 'the runner is not installed' };
   }
@@ -350,9 +275,7 @@ function classifyRun(r = {}) {
 
   for (const [re, layer] of BLOCKED_SIGNS) {
     if (!re.test(output)) continue;
-    // A BLOCKER BESIDE REAL RESULTS IS PARTIAL, NOT BLOCKED. "1745 passed, 3
-    // blocked by quota" is the honest report, and calling the whole run blocked
-    // throws away 1745 real results.
+    // A BLOCKER BESIDE REAL RESULTS IS PARTIAL, NOT BLOCKED.
     if (c.passed > 0 && code !== 0) {
       return { state: STATE.TESTS_PARTIAL, why: `some tests were blocked by ${layer}`, counts: c, layer };
     }
@@ -364,9 +287,7 @@ function classifyRun(r = {}) {
     if (c.skipped > 0) {
       return { state: STATE.TESTS_PARTIAL, why: `${c.passed} passed, ${c.skipped} skipped`, counts: c, layer: null };
     }
-    // EXIT ZERO WITH NOTHING RUN IS NOT A PASS. A runner that collected no
-    // tests exits 0 in several ecosystems, and calling that green is the
-    // "all tests pass" false report by another route.
+    // EXIT ZERO WITH NOTHING RUN IS NOT A PASS.
     if (c.seen && c.passed === 0 && c.failed === 0) {
       return { state: STATE.TESTS_BLOCKED, why: 'the runner ran but executed no tests', counts: c, layer: 'the runner matched no tests' };
     }
@@ -394,10 +315,7 @@ function lines(report) {
     return out;
   }
   out.push(report.state);
-  // SECOND LINE, NOT LAST. A tool result is CLIPPED for the feed — the CLI
-  // shows the first handful of lines and "… N more". With this at the bottom it
-  // was the first thing to disappear, which is precisely backwards: of
-  // everything here, "nothing has been run" is the line that must survive.
+  // SECOND LINE, NOT LAST.
   out.push('  NOTHING HAS BEEN RUN — this is what EXISTS, not what passes.');
   const proj = report.suites.filter((s) => s.kind === KIND.PROJECT);
   const smoke = report.suites.filter((s) => s.kind === KIND.SMOKE);
@@ -424,12 +342,7 @@ function lines(report) {
   return out;
 }
 
-/**
- * The compact form for the system prompt.
- *
- * Rides on the stable prefix of every request, so it is two lines at most and
- * says only what stops the model being wrong: that tests exist, and the command.
- */
+/** The compact form for the system prompt. */
 function promptLine(cwd = process.cwd()) {
   let r;
   try { r = discover(cwd); } catch { return ''; }

@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE HARNESS APPLICATION IS TOLD — a read model, and nothing else.
- *
- * ------------------------------------------------------------------------
- * THE RULE THAT SHAPES THIS FILE, AND IT IS THE WHOLE ARCHITECTURE.
- *
- * The frontend owns UI STATE ONLY. Which lane is showing, which panel is open,
- * what is scrolled where — those are the browser's. Everything else is read
- * from the authority that already owns it, projected, and handed over:
- *
- *   tasks / activity / verification / artifacts   harnesssurface.js  (the Harness)
- *   processes                                     the same projection
- *   sessions                                      sessionindex.js
- *   the conversation                              session.turns / session.messages
- *   changes on disk                               ui/panes.changedFiles (checkpoints)
- *   model sources and their models                modelsource/registry.js
- *   the Workshop's browser and dev server         workshop/index.js
- *   goal and plan                                 goal.js / session.plan
- *
- * NOT ONE of those is recomputed here. This file reshapes; it never decides. A
- * second opinion about whether a task passed would be a second answer to the
- * question the whole program exists to answer honestly.
- *
- * ------------------------------------------------------------------------
- * IT IS CHEAP, BECAUSE IT IS POLLED.
- *
- * The application asks for this on a timer. So nothing here opens a browser,
- * launches a dev server, refreshes a catalog or contacts a website. Model
- * DISCOVERY is a paid operation and is a separate, explicit route — see
- * routes.js. `overview` is the cheap read that only reports what is already
- * known.
- *
- * ------------------------------------------------------------------------
- * NO SECRETS CROSS THIS BOUNDARY. Same rule as dash.js: no credential, no
- * cookie, no profile contents, no raw provider payload. The redaction filter
- * still sits on the writers, and this deliberately carries nothing that would
- * need it.
- */
+/** WHAT THE HARNESS APPLICATION IS TOLD — a read model, and nothing else. */
 
 const path = require('path');
 
@@ -47,53 +10,26 @@ const SESSION_LIMIT = 40;
 const TURN_LIMIT = 200;
 /** How much of one message body travels. The app renders prose, not a log. */
 const MESSAGE_CHARS = 20_000;
+/** The product line the window draws beside its name. Read once; it cannot change while Core runs. */
+const PRODUCT = Object.freeze({ name: 'LAIN', version: (() => { try { return String(require('../../package.json').version); } catch { return ''; } })() });
 
-/**
- * WHICH LANE A SESSION BELONGS TO.
- *
- * ONE MARKER DECIDES IT, and it is Astra's: `session.cowork` is the binding
- * their runtime writes (src/cowork/sessionstate.js). Everything without one is
- * an ENGINEERING session — which is the right default, because that is what a
- * session in this program has always been.
- *
- * NOTHING HERE INFERS A LANE FROM THE WORK. A session that happens to have
- * edited a spreadsheet is not a Cowork session; a session Astra bound to
- * Telegram is. Guessing would put a person's engineering history in the wrong
- * list, and the marker exists precisely so nobody has to guess.
- */
+/** WHICH LANE A SESSION BELONGS TO. */
 function laneOf(data) {
   const c = data && data.cowork;
   return c && c.lane === 'cowork' ? 'cowork' : 'engineering';
 }
 
-/**
- * THE SESSION LISTS, one per lane.
- *
- * Read through sessionindex.js — the same summaries `/resume` shows — so the
- * application and the terminal cannot disagree about what a session was.
- */
+/** THE SESSION LISTS, one per lane. */
 function sessions(app, { limit = SESSION_LIMIT } = {}) {
   let rows = [];
   try {
     rows = require('../sessionindex').summaries({ limit: Math.min(limit, 200) }) || [];
   } catch { rows = []; }
   const current = app && app.session ? app.session.id : null;
-  // WHAT EACH LIVE CONVERSATION IS DOING — the reason a person can leave a
-  // session and still know when it finished. Sessions that are not live carry
-  // no status: "nothing is happening in it here" is the honest answer, and
-  // inventing one from a transcript on disk would be a guess.
+  // WHAT EACH LIVE CONVERSATION IS DOING — the reason a person can leave a session and still know when it finished.
   let live = {};
   try { live = app.pool().statuses(); } catch { live = {}; }
-  // ---- A CONVERSATION YOU ARE IN IS ALWAYS IN THE LIST -------------------
-  //
-  // The index reads the sessions DIRECTORY, and a session is written when it
-  // first has something to write. So a brand-new one — the session LAIN starts
-  // with, or one just made from New — was missing from its own rail until the
-  // first turn landed, which reads as "creating a session did nothing". Found by
-  // the real-window test asserting that the session it was looking at was there.
-  //
-  // The summary comes from the same `describe` the index uses, so the row is
-  // built the one way rather than a second way for the unsaved case.
+  // A CONVERSATION YOU ARE IN IS ALWAYS IN THE LIST
   const known = new Set(rows.map((r) => r.id));
   for (const id of Object.keys(live)) {
     if (known.has(id)) continue;
@@ -108,6 +44,9 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
     } catch { /* a session that cannot describe itself is left to the next poll */ }
   }
   const out = { engineering: [], cowork: [] };
+  // LAIN'S OWN FOLDERS AND THE NO-PROJECT PLACEHOLDER are not projects: a session there is Unassigned.
+  let own = [];
+  try { const sv = require('../sessionviews'); own = [...sv.lainOwnDirs(), path.resolve(sv.unattachedDir()).toLowerCase()]; } catch { own = []; }
   for (const s of rows) {
     const lane = laneOf(s.data || s);
     const entry = {
@@ -115,6 +54,7 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
       short: s.short || (s.id || '').split('-').pop(),
       title: require('../sessionindex').headline(s),
       project: s.cwd ? path.basename(s.cwd) : '',
+      assigned: Boolean(s.cwd) && !own.includes(path.resolve(s.cwd).toLowerCase()),
       cwd: s.cwd || '',
       when: s.when && s.when.text ? s.when.text : '',
       // WHEN IT WAS LAST TOUCHED, as a time — the Session view groups by day,
@@ -125,9 +65,7 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
       // LIVE IN THIS PROCESS, and what it is doing. `null` means it is a
       // transcript on disk and nothing more.
       live: Boolean(live[s.id]),
-      // THE AUTHORITATIVE STATUS — one of the eight sessionstatus.js words, with
-      // its summary and clock. `status` stays the word, for readers of the old
-      // shape; `state` is the whole projection.
+      // THE AUTHORITATIVE STATUS — one of the eight sessionstatus.js words, with its summary and clock.
       status: live[s.id] ? live[s.id].state : null,
       detail: live[s.id] ? live[s.id].detail : '',
       state: live[s.id] ? (live[s.id].status || null) : null,
@@ -140,13 +78,7 @@ function sessions(app, { limit = SESSION_LIMIT } = {}) {
   return out;
 }
 
-/**
- * COMPUTER MCP, or null when the desktop has never been connected.
- *
- * WHAT IT IS DOING, not how it works: the application shows the target and the
- * steps with their verdicts, and offers exactly two things a person may want —
- * see it, and stop it.
- */
+/** COMPUTER MCP, or null when the desktop has never been connected. */
 function computer(app) {
   const c = require('../computermcp').existing(app);
   if (!c) return null;
@@ -165,11 +97,13 @@ function conversation(session) {
   if (!session) return [];
   const msgs = Array.isArray(session.messages) ? session.messages : [];
   const out = [];
-  for (const m of msgs.slice(-TURN_LIMIT)) {
+  const first = Math.max(0, msgs.length - TURN_LIMIT);
+  const role = session._role || null;
+  const roleFrom = Number(session._roleFrom) || 0;
+  for (let i = first; i < msgs.length; i++) {
+    const m = msgs[i];
     if (!m || m.role === 'system') continue;
-    // TOOL RESULTS ARE NOT CONVERSATION. They are the bulk, they are already
-    // summarised by the activity projection, and shipping them here would make
-    // every poll carry a file body.
+    // TOOL RESULTS ARE NOT CONVERSATION.
     if (m.role === 'tool') continue;
     const body = String(m.content || '');
     if (!body.trim()) continue;
@@ -183,6 +117,16 @@ function conversation(session) {
       // WHO ANSWERED, when it was not LAIN's own runtime. Stamped at execution
       // time by chatdispatch.js and carried on the message ever since.
       provenance: m.provenance ? { label: m.provenance.label, source: m.provenance.sourceId } : null,
+      // WHICH ROLE, in the IDE: the BOT or the Coding Agent (botroute.js).
+      by: m.by === 'bot' || m.by === 'agent' || m.by === 'handoff' ? m.by
+        : (role && m.role === 'assistant' && i >= roleFrom ? role : null),
+      // WHICH SUB-TAB (BOT | AGENT) a person's message went to, and from which
+      // surface — Chat's agentic coding is shown in Chat and in the AGENT tab.
+      to: m.to === 'agent' || m.to === 'bot' ? m.to : null,
+      // THE FACT FOOTER (factfooter.js): what LAIN recorded during the turn, under its report.
+      facts: m.role === 'assistant' && m.facts ? require('../factfooter').lines(m.facts) : null,
+      via: m.via === 'chat' || m.via === 'ide' ? m.via
+        : (role && m.role === 'assistant' && i >= roleFrom && (session._roleVia === 'chat' || session._roleVia === 'ide') ? session._roleVia : null),
     });
   }
   return out;
@@ -197,13 +141,7 @@ function changes(app) {
   } catch { return []; }
 }
 
-/**
- * THE CHAT SOURCES, cheaply.
- *
- * `registry.overview` launches nothing and refreshes nothing — see its header.
- * The MODEL LISTS are absent here on purpose: discovering what a logged-in
- * account offers is a paid operation behind an explicit route.
- */
+/** THE CHAT SOURCES, cheaply. */
 async function sources(app) {
   try {
     const view = await require('../modelsource/registry').overview(app);
@@ -240,6 +178,8 @@ function workshop(app) {
       viewport: live ? (live.viewport || 'desktop') : null,
       observations: live ? ws.observations(cwd) : null,
       before: Boolean(ws.before(cwd, live ? live.viewport || 'desktop' : 'desktop')),
+      // THE FRAME PREVIEW (the real frontend in the window): URL, shared viewport, page, capabilities — or null.
+      frame: typeof ws.frameState === 'function' ? ws.frameState(cwd) : null,
       // THE DEV SERVER AS ITS OWN OBJECT — status from the process authority,
       // never inferred from whether a preview happens to be showing.
       devServer: require('./stateviews').devServer(app),
@@ -249,42 +189,12 @@ function workshop(app) {
   }
 }
 
-/**
- * THE ONE LIVE OPERATIONAL ROW, PROJECTED FOR THE FRONTEND.
- *
- * ------------------------------------------------------------------------
- * THE SAME FUNCTIONS THE TERMINAL DRAWS FROM, NOT A SECOND OPINION.
- *
- * `ui/status.js liveState` is the authority on what is happening right now and
- * on the precedence between six things that could all be true at once; the
- * window title already derives from it (src/termtitle.js `stateOf`) precisely
- * so the title and the row cannot disagree. This is a THIRD reader of the same
- * value, for the same reason.
- *
- * Deriving it here instead — checking `app.abort` for "is it running", say —
- * would produce a Harness that says RUNNING while the terminal says RATE
- * LIMITED, and the two would drift apart one special case at a time. There is
- * no separate CLI-vs-Harness alert semantics to build.
- *
- * `alert` is carried ALONGSIDE the row rather than folded into it, because the
- * frontend needs to know whether a resting alert is resumable to decide what a
- * button offers — continue, or retry.
- */
+/** THE ONE LIVE OPERATIONAL ROW, PROJECTED FOR THE FRONTEND. */
 function execution(app) {
   const idle = { word: 'READY', detail: '', level: 'idle', spin: false, clock: null, alert: null };
   try {
     const ui = app.ui;
-    // ---- A CONVERSATION WITH NO TERMINAL --------------------------------
-    //
-    // A session the window opened beside the terminal's has no status strip to
-    // read, because it has no screen. It still has the feed the strip is built
-    // from: `notePhase` records into the primary job before every provider
-    // request and every tool, with or without a UI.
-    //
-    // So this is the SAME source at a coarser grain, not a second opinion —
-    // and the alternative, reporting READY over a session that is visibly
-    // working, is the exact lie the strip exists to prevent. See
-    // sessionpool.statusOf.
+    // A CONVERSATION WITH NO TERMINAL
     if (!ui || !ui.enabled) {
       const st = require('../sessionpool').statusOf(app, Boolean(app.abort && !app.abort.signal.aborted));
       if (!st.notable) return idle;
@@ -309,26 +219,7 @@ function execution(app) {
   }
 }
 
-/**
- * WHERE THIS SESSION'S WORK RUNS, AND WHICH BROWSER RUNS IT.
- *
- * ------------------------------------------------------------------------
- * DELIBERATELY SMALL. §12: expose the environment SUBTLY, not as a VMware
- * dashboard. Three facts fit beside a model name —
- *
- *     toradb
- *     glm-5.3-flash
- *     VM · READY
- *
- * — and everything else belongs in `/env`, which already exists and is already
- * the diagnostic surface. A second, richer environment panel in the frontend
- * would be a second projection of the same truth, drifting.
- *
- * CHEAP, because this is polled: it stats files and reads the runtime's own
- * instance list. It never starts a VM, never launches a browser and never
- * calls `vmrun` — asking a hypervisor for its state on a 1.5s timer would be a
- * subprocess per poll.
- */
+/** WHERE THIS SESSION'S WORK RUNS, AND WHICH BROWSER RUNS IT. */
 function environment(app) {
   try {
     const chromium = require('../env/chromium').forApp(app);
@@ -358,13 +249,10 @@ function environment(app) {
   }
 }
 
-/**
- * EVERYTHING THE APPLICATION POLLS FOR.
- *
- * One shape, so the frontend has one thing to hold and one place to look. The
- * halves that are expensive are absent by construction rather than by a flag.
- */
+/** EVERYTHING THE APPLICATION POLLS FOR. */
 async function read(app) {
+  // A SESSION HANDED BACK FROM THE CLI is reloaded before it is drawn (surfacehandoff.js).
+  try { require('../surfacehandoff').sync(app); } catch { /* drawn as it is */ }
   const s = app.session;
   const harness = (() => {
     try { return require('../harnesssurface').project(app); } catch { return null; }
@@ -374,9 +262,9 @@ async function read(app) {
   })();
   const out = {
     at: Date.now(),
-    // WHICH SESSION IS OPEN IN THE TERMINAL. The application does not get to
-    // change this: `/resume` is how a session becomes current, and a second way
-    // in would be a second answer to "which session am I in".
+    // WHAT IS RUNNING — the product and its version, for the window's brand line.
+    product: PRODUCT,
+    // WHICH SESSION IS OPEN IN THE TERMINAL.
     current: {
       id: s.id,
       lane: laneOf(s),
@@ -385,19 +273,19 @@ async function read(app) {
       goal: goalText,
       turns: (s.turns || []).length,
       cowork: s.cowork ? { source: s.cowork.source } : null,
-      // WHETHER THE PROJECT IS STILL THERE. Checked when the session was opened
-      // (sessionpool.reattachProject), not on every poll — a directory that has
-      // been moved or deleted must be SAID, or the next turn fails on every read
-      // for a reason nothing on screen explains.
+      // WHETHER THE PROJECT IS STILL THERE.
       projectMissing: Boolean(app._projectMissing),
     },
     sessions: sessions(app),
     conversation: conversation(s),
     changes: changes(app),
-    // A PICTURE THE PERSON ASKED TO SEE. The bytes are NOT here — this says
-    // which image is open and what is known about it, and the viewer fetches it
-    // once by reference. Putting a screenshot in a poll payload would ship it
-    // again every poll, to a window that already has it.
+    // THE USAGE TRACKER'S RINGS (usagetracker.js): per lane, what remains of the route's tightest REPORTED window —
+    // Core's figure; the window's top-right tracker draws it and computes nothing of its own.
+    tracker: (() => { try { return s.cowork ? null : require('../usagetracker').lanes(app); } catch { return null; } })(),
+    // THE QUICK CHANGES (changeclass.js): each DIRECT or NARROW turn's request, the files it changed, and whether
+    // it landed — what the IDE's Changes panel lists, so a small edit's result never needs a conversation.
+    quickChanges: (Array.isArray(s.quickChanges) ? s.quickChanges : []).slice(-10),
+    // A PICTURE THE PERSON ASKED TO SEE.
     viewing: (() => { try { return require('../imageviewer').current(app); } catch { return null; } })(),
     sources: await sources(app),
     workshop: workshop(app),
@@ -414,7 +302,9 @@ async function read(app) {
         live: s.plan.isLive,
         done: s.plan.completed.length,
         total: s.plan.steps.length,
-        steps: s.plan.steps.slice(0, 40).map((x) => ({ text: x.text, status: x.status, origin: x.origin || 'llm' })),
+        steps: s.plan.steps.slice(0, 40).map((x) => ({ id: x.id || null, n: x.n, text: x.text, status: x.status, origin: x.origin || 'llm' })),
+        // THE COMMITTED CHECKPOINT (taskcheckpoint.js) — the one position every surface shows.
+        checkpoint: require('../taskcheckpoint').view(s),
       }
       : null,
     // The neutral Cowork projection reads the same Session, Harness, approval,
@@ -425,14 +315,29 @@ async function read(app) {
     // THE DESKTOP, only when there is one. `existing` never creates it, so
     // polling the application does not connect anything. See computermcp.js.
     computer: computer(app),
-    // WHERE THE BOT ASKED THE WINDOW TO GO — "open the MCP settings". Set by
-    // the lain_workspace tool on the shared root App; the window applies each
-    // `seq` once. UI navigation only: it opens a view, it changes nothing.
+    // WHERE THE BOT ASKED THE WINDOW TO GO — "open the MCP settings".
     navigate: ((app && app._sibling) || app)._uiNavigate || null,
+    // THE SESSION JOURNEY — surface, the Agent's task pointer, the waiting
+    // transfer, the project generation, the canonical Selection; see journey.js.
+    journey: (() => { try { return require('../journey').project(app); } catch { return null; } })(),
+    // CHAT'S SUPERVISION OF THE CODING AGENT — phase, strategy, profile, pending
+    // steers, findings, phase summaries, plan deltas, LAIN's open offers, quota pause.
+    workbench: (() => { try { return s.cowork ? null : require('../supervision').state(app); } catch { return null; } })(),
+    // THE SESSION'S FACTS, ACCOUNT FIRST — the same projection the terminal's /status and Telegram's print (sessionfacts.js).
+    facts: (() => { try { return s.cowork ? null : require('../sessionfacts').facts(app); } catch { return null; } })(),
+    // UPDATES (update/updater.js, cached state — never the network) and WHAT THIS WINDOW IS: the full Harness, the
+    // CLI's Model Dashboard, or the CLI's standalone Preview (desktopwindow.js `mode`), plus the installed components.
+    update: (() => { try { return require('./updateroutes').view((app && app._sibling) || app); } catch { return null; } })(),
+    // COMPUTER CONTROL (Phase CU): the same state /computer reads — the chip, Enable, target and Stop draw from it.
+    computer: (() => { try { return require('../computercontrol').view(app); } catch { return null; } })(),
+    surface: {
+      mode: ((app && app._sibling) || app)._surfaceMode || 'harness',
+      // `lain preview` while this LAIN runs (corelock.js): when it was asked, so the window opens the Preview once.
+      previewWanted: (((app && app._sibling) || app)._previewWanted || {}).at || null,
+      components: (() => { try { return require('../components').read(); } catch { return null; } })(),
+    },
   };
-  // THE ENGINEERING SESSION CONTRACT — header, Chat/Coding views, plans and
-  // handoff, composer prefill, workspace panels, per-view models. Reshaped by
-  // stateviews.js from the owners; see docs/HARNESS_UI_CONTRACT.md.
+  // THE ENGINEERING SESSION CONTRACT — header, Chat/Coding views, plans and handoff, composer prefill, workspace panels, per-view models.
   Object.assign(out, require('./stateviews').project(app, out));
   // `environment` is DIAGNOSTICS (host, browser build, running instruments) —
   // kept for the diagnostics surface, not primary UX.

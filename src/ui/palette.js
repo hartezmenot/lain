@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE LAIN PALETTE (2026-09-23) — one place that says what each colour is.
- *
- * Identity is a cool electric BLUE. VIOLET is the secondary emphasis for the
- * model working (thinking, streaming, an edit being made). CYAN is a command or
- * a tool. Green and red stay semantic and restrained. Everything else is dark
- * neutral: most of the screen should carry no hue at all.
- *
- * Colours are 24-bit where the terminal takes them (Windows Terminal, conhost
- * since Windows 10, and anything declaring COLORTERM=truecolor), else the
- * nearest xterm-256 cell. `LAIN_TRUECOLOR=0|1` overrides the guess.
- */
+/** THE LAIN PALETTE (2026-09-23) — one place that says what each colour is. */
 
 const TOKENS = Object.freeze({
   base: '#090B0D',

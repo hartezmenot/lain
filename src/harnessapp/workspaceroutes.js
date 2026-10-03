@@ -1,28 +1,14 @@
 'use strict';
 
-/**
- * THE WORKSPACE SHELL'S ROUTES — accounts, tools, and opening a project.
- *
- * The LAIN window is one workspace with a Model view, Settings › MCP and
- * Skills, and an IDE that opens a folder. Each route here reads or calls the
- * owner that already exists; none of them keeps state of its own.
- *
- *   POST /api/accounts            providers, routes, usage, roles  (accounts.js)
- *   POST /api/accounts/refresh    re-discover every route's catalog, bounded
- *   POST /api/mcp/servers         Computer MCP and the configured servers (mcp.js)
- *   POST /api/skills              what the skill loader reports — none exists yet
- *   POST /api/project/open        attach here, or a new session on that folder
- *   POST /api/project/create      make the folder, then open it
- *
- * NOT POLLED. Every one of these is reached because a person opened a view or
- * pressed something; `/api/state` stays the only thing on a timer.
- */
+/** THE WORKSPACE SHELL'S ROUTES — accounts, tools, and opening a project. */
 
 const fs = require('fs');
 const path = require('path');
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }
+/** An owner's `{ok, why, ...}` answer, as a response. */
+function reply(r) { return r && r.ok ? ok(r) : bad(r && r.why, 400, r || {}); }
 
 function cfgOf(app) { return ((app && app._sibling) || app).cfg || {}; }
 
@@ -35,16 +21,7 @@ function untouched(app) {
   return !said && !(s.turns || []).length && !edits;
 }
 
-/**
- * OPEN A FOLDER AS THE IDE'S PROJECT.
- *
- * The existing verbs decide everything: the SAME project already attached is
- * a no-op; an untouched engineering session attaches it in place
- * (`/api/project/attach`); anything else — a conversation with history, a
- * Cowork session, a different project — gets a NEW engineering session on
- * that folder (`/api/session/new`), because mixing two projects into one
- * conversation is exactly what attach refuses.
- */
+/** OPEN A FOLDER AS THE IDE'S PROJECT. */
 async function openProject(app, dir) {
   const sv = require('../sessionviews');
   const chk = sv.checkRoot(dir);
@@ -90,9 +67,7 @@ function mcpServers(app) {
     why: st ? st.why : (process.platform === 'win32' ? 'starts when LAIN is asked to use the computer' : 'Windows only'),
     authorized: st ? Boolean(st.authorized) : false,
     tools: st ? (st.capabilities || []) : [],
-    // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's
-    // and the Coding Agent's alike — while this transport is live. See
-    // tools/index.js `active`.
+    // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's and the Coding Agent's alike — while this transport is live.
     usedBy: st && st.connected ? ['BOT', 'Coding Agent'] : [],
   });
   const cfg = cfgOf(app);
@@ -120,11 +95,18 @@ const ROUTES = {
 
   'POST /api/accounts/refresh': async (app, body = {}) => ok(await require('./accounts').refresh(app, { force: Boolean(body.force) })),
 
+  // ADD / TEST / REMOVE a provider route (accountops.js). The key travels in
+  // once, is proven, and only its shape ever comes back.
+  'POST /api/accounts/choices': async (app) => ok({ providers: require('./accountops').choices(app) }),
+  'POST /api/accounts/addkey': async (app, body = {}) => reply(await require('./accountops').addKey(app, body)),
+  'POST /api/accounts/test': async (app, body = {}) => reply(await require('./accountops').test(app, body)),
+  'POST /api/accounts/remove': async (app, body = {}) => reply(require('./accountops').remove(app, body)),
+
   'POST /api/mcp/servers': async (app) => ok({ servers: mcpServers(app) }),
 
   // THERE IS NO SKILL LOADER IN THIS BUILD, and the answer says so rather than
   // the window drawing an empty list that reads as "you have none installed".
-  'POST /api/skills': async () => ok({ supported: false, skills: [], why: 'this build of LAIN Core has no skill loader; nothing is installed or loaded' }),
+  'POST /api/skills': async (app) => ok({ supported: true, skills: require('../integrations').listSkills(app), why: '' }),
 
   'POST /api/project/open': async (app, body = {}) => openProject(app, body.path),
 
@@ -143,6 +125,9 @@ const ROUTES = {
     } else {
       try { fs.mkdirSync(dir, { recursive: false }); } catch (e) { return bad(`could not create ${dir}: ${(e && e.message) || e}`); }
     }
+    // FROM CHAT (`attach: true`): the SAME session is bound to the new folder — the
+    // conversation is not duplicated into a new session (Phase 8 project attachment).
+    if (body.attach === true) return require('./viewroutes').ROUTES['POST /api/project/attach'](app, { path: dir });
     return openProject(app, dir);
   },
 };

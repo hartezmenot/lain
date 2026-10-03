@@ -1,53 +1,13 @@
 'use strict';
 
-/**
- * HOW A TOOL CALL IS SAID — the vocabulary layer, and nothing else.
- *
- * Split out of views.js when that file reached the architecture guard. The seam
- * is real rather than convenient: everything else in views.js LAYS OUT a region
- * of the screen, and this decides the WORDS — the mark that starts a row, the
- * sentence a call becomes, and the single verb a run of calls is counted under.
- * They change for different reasons: a new tool adds a line here and touches
- * nothing there; a new pane does the reverse.
- *
- * views.js re-exports all three, so every existing caller — feed.js,
- * troubleshoot.js, the panes — is unaffected by the move.
- */
+/** HOW A TOOL CALL IS SAID — the vocabulary layer, and nothing else. */
 
 /** The glyph that starts a row: outcome first, before any word. */
 const MARK = { done: '✓', active: '●', todo: '○', dropped: '✗', error: '✗' };
 
-/**
- * A tool call, said the way a person would say it.
- *
- * The activity feed used to read `✓ read  src/x.js  11ms` — a column of verbs,
- * subjects and timings, which is a table of internal events rather than an
- * account of what happened. Durations and token counts are diagnostics; they
- * belong to `/status`, not to the thing you watch while LAIN works.
- */
-/**
- * THE SUBJECT OF A SHELL COMMAND is the command, and its VERB is the program.
- *
- * `Ran python -c "import ast"` spends its first word on a fact every row on the
- * screen shares — that something ran — and buries the only interesting one. The
- * program IS the verb: `python`, `sed`, `git`, `node`. So the first token becomes
- * the verb and the rest becomes the subject.
- *
- * MECHANICAL, NOT SUMMARISED. `python · -m py_compile a.py` rather than
- * `python · compile a.py`: inventing a précis of somebody else's command means
- * deciding which flags did not matter, and a row that quietly drops `--force` is
- * a row that lies about what happened. The full command is still there, clipped
- * by the width like everything else.
- *
- * A BARE PROGRAM has no subject and says so by having none.
- */
-/**
- * WHAT SEPARATES A TOOL ROW'S VERB FROM ITS SUBJECT.
- *
- * Named rather than typed twice: ui/feed.js `paintMark` splits on it to paint the
- * two halves differently, and a literal in both places is a literal that can
- * drift into a row nobody can colour.
- */
+/** A tool call, said the way a person would say it. */
+/** THE SUBJECT OF A SHELL COMMAND is the command, and its VERB is the program. */
+/** WHAT SEPARATES A TOOL ROW'S VERB FROM ITS SUBJECT. */
 const SUBJECT_SEP = '·';
 
 function shellParts(command) {
@@ -61,28 +21,7 @@ function shellParts(command) {
   return { verb: prog, subject: rest };
 }
 
-/**
- * A TOOL CALL, AS `verb · subject`.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS REPLACED. Every row was a little sentence — `Ran python -c "import
- * ast"`, `Searched for "SessionStrategist"`, `Found files matching *.ts` — and
- * read together, twenty of them are prose competing with the prose they are
- * evidence for. A tool row is not a sentence; it is a fact with two parts.
- *
- *     Ran python -m py_compile a.py      ->    python · -m py_compile a.py
- *     Read src/router.js                 ->    read · src/router.js
- *     Searched for "dispatch"            ->    search · dispatch
- *
- * The verb is lower case and dim, the subject wears the accent every path in
- * LAIN wears, and the mark before them carries the outcome. Three weights on a
- * row that used to have one.
- *
- * THE RUNNING FORM IS THE SAME SHAPE. It used to be a different sentence in a
- * different tense (`Reading x` / `Read x`), so a row visibly rewrote itself at
- * the moment the call finished. Now only the MARK changes, which is the one thing
- * that actually changed.
- */
+/** A TOOL CALL, AS `verb · subject`. */
 function phrase(name, target, running = false) {
   const t = String(target || '');
   // A search's subject is its PATTERN, and `describeTarget` hands it over
@@ -110,9 +49,7 @@ function phrase(name, target, running = false) {
     service_start: () => two('service', t),
     service_check: () => two('service', t),
     observe: () => two('observe', t),
-    // THE SURGICAL EDITS KEEP THEIR OWN VERBS. `wrote src/routes.js` reads the
-    // same whether eight lines were added or the file was replaced wholesale, and
-    // those are very different things to have done.
+    // THE SURGICAL EDITS KEEP THEIR OWN VERBS.
     apply_patch: () => two('patched', t),
     append_file: () => two('appended', t),
     insert_at: () => two('inserted', t),
@@ -125,19 +62,20 @@ function phrase(name, target, running = false) {
     // THE BRIDGE, NAMED AS THE BRIDGE — an action carried out by something other
     // than LAIN, which is worth a word of its own.
     computer: () => two('computer', t),
+    // BACKGROUND WORK IN THE PERSON'S WORDS (2026-10-01): never `job wait` / `run background` on screen.
+    run_background: () => two('shell (background)', t),
+    job_wait: () => two('waited for shell', t),
+    job_status: () => two('checked shell', t),
+    job_stop: () => two('stopped shell', t),
+    observe_start: () => two('monitor', t),
+    observe_stop: () => two('monitor stopped', t),
+    delegate: () => two('agent', t),
   }[name];
   if (!say) return two(String(name || '').replace(/_/g, ' '), t);
   return say();
 }
 
-/**
- * The one-word verb a call is COUNTED under when a run of them is compacted.
- *
- * Separate from `phrase` on purpose: that says what happened to a particular
- * file, and this says what KIND of thing happened, so seven of them can be one
- * row. Anything unrecognised counts as itself rather than being folded into a
- * bucket named "other" — an honest `file_info ×3` beats a tidy lie.
- */
+/** The one-word verb a call is COUNTED under when a run of them is compacted. */
 const VERB_OF = {
   read_file: 'Read', list_dir: 'Read', file_info: 'Read',
   computer: 'Computer',
@@ -147,49 +85,12 @@ const VERB_OF = {
   move_file: 'Moved', delete_file: 'Deleted',
   run_bash: 'Ran', run_powershell: 'Ran', run_cmd: 'Ran',
   plan_write: 'Planned', plan_step_done: 'Planned',
-  // A LOOKUP IS A READ, and saying so keeps it in the same column as every
-  // other read — but `Looked up` is what distinguishes a page somebody else
-  // published from a file in this project, which is a distinction worth one
-  // word on screen. (A `web_search` row lived here too, until the browser it
-  // drove was removed in 2026-09; a retired name falls back to itself, which
-  // is the honest spelling for a name that no longer names anything.)
+  // A LOOKUP IS A READ, and saying so keeps it in the same column as every other read — but `Looked up` is what distinguishes a page somebody else…
   web_fetch: 'Looked up',
 };
 function verbOf(name) { return VERB_OF[name] || String(name || 'Ran'); }
 
-/**
- * THE RESTATEMENT AT THE TOP OF AN ANSWER — dropped, because it is not one.
- *
- * A model asked to do something often opens by saying what it was asked:
- *
- *     The user wants a reply containing exactly "PROVIDER OK". PROVIDER OK
- *
- * The first clause carries nothing. The person reading it wrote the request a
- * second ago and is looking at it on the same screen, so it is the request
- * echoed back at the cost of the answer's first line.
- *
- * WHY THIS IS NOT PURELY A PROMPT PROBLEM. The system prompt says not to, in
- * its opening paragraph. Measured against a live model, the model did it
- * anyway — small fast models follow style instructions unreliably, and a UI
- * that only looks right with a cooperative model is not fixed. The prompt
- * asks; this makes it true.
- *
- * DELIBERATELY NARROW, because editing a model's words is a serious thing:
- *
- *   ONLY THE OPENING.    A restatement mid-paragraph is being used to make a
- *                        point, and is left alone.
- *   ONLY A CLOSED SET.   Four stock openers, not a guess at intent.
- *   ONLY WITH CONTENT AFTER IT. If the restatement is the whole message there
- *                        is nothing to promote in its place, and removing it
- *                        would leave a blank answer — worse than a redundant
- *                        one.
- *   ONLY UP TO A SENTENCE END. A clause that merely STARTS this way — "The
- *                        user wants X but the code does Y" — is untouched,
- *                        because that one is analysis.
- *
- * PRESENTATION ONLY. This shapes what is DRAWN. The model's text is unchanged
- * in the session, on the wire, and in what /copy copies.
- */
+/** THE RESTATEMENT AT THE TOP OF AN ANSWER — dropped, because it is not one. */
 const RESTATEMENT = new RegExp(
   '^\\s*(?:so\\s+)?(?:'
   + 'the\\s+user\\s+(?:wants|is\\s+asking|asked|would\\s+like)'
@@ -209,25 +110,12 @@ function trimRestatement(text) {
   return rest.replace(/^[ \t]+/, '');
 }
 
-/**
- * WHAT A TURN LAIN ASKED ITSELF FOR IS CALLED.
- *
- * `app.submit(..., { from })` is how LAIN continues its own work — the turn an
- * external consultation hands back, a rate-limit resume. Those turns are real
- * turns with real input, and the input is framing NOBODY TYPED, so drawing them
- * as `USER REQUEST` claims a person said something they did not.
- *
- * Here rather than in either feed because BOTH feeds draw them — the terminal
- * conversation and the dashboard — and two copies of this sentence is two
- * places for the story to drift. Words live in this file; layout does not.
- */
+/** WHAT A TURN LAIN ASKED ITSELF FOR IS CALLED. */
 const SELF_ASKED = Object.freeze({
   'external-advice': 'continuing the investigation with the external advice',
   'rate-limit-resume': 'continuing after the rate limit reset',
-  // EVERY KEY ANY CALLER ACTUALLY USES. Two were missing, so their captions
-  // fell through to the generic fallback and named an internal identifier at
-  // the user - `carrying on (provider-failover)`. A test now walks the tree and
-  // requires every `from:` a submission uses to be here.
+  'phase-continue': 'continuing with the next phase of the approved plan',
+  // EVERY KEY ANY CALLER ACTUALLY USES.
   'provider-failover': 'continuing on another provider',
   handover: 'continuing from what LAIN observed',
   steer: 'continuing with what you added',
@@ -237,70 +125,21 @@ const SELF_ASKED = Object.freeze({
   // a shelf's Continue — deliberately shows the instruction it sent: the person pressed it.)
   'rate-limit-switch': 'retrying your message on the model you switched to',
   'smoke-failed': 'continuing: the final smoke failed — repairing the step it names',
+  // THE TASK CARRYING ON BY ITSELF (autocontinue.js) — a crash recovered, a provider failure waited out,
+  // an account switched by the family's policy. Each is LAIN's own continuation, never a person's message.
+  'auto-resume': 'resuming after the execution host stopped mid-turn',
+  'provider-restart': 'continuing after the provider failure cleared',
+  'account-fallback': 'continuing on another account of the same provider',
 });
 
-/**
- * What to draw instead of a user block, or null when a person really did type it.
- *
- * ------------------------------------------------------------------------
- * AN UNKNOWN `from` MEANS A PERSON, NOT AN IDENTIFIER.
- *
- * It used to fall through to `carrying on (${from})`, which printed an internal
- * key at the user — `carrying on (provider-failover)` — and, worse, SWALLOWED THE
- * TEXT. That is the right trade for a continuation LAIN composed for itself: the
- * prompt is control, not speech, and the caption says why there is a gap.
- *
- * It is the wrong trade for anything that might be a real message. A message
- * relayed from a phone carries `from: 'messaging'`; captioning it would replace
- * what somebody actually said with the name of the transport it arrived on.
- *
- * So the table is a CLOSED LIST of runtime continuations, and anything not on it
- * is drawn as what it is — the user's own words. A new transport is then visible
- * by default and a new synthetic prompt has to be declared here to be hidden,
- * which is the safer direction for both to fail in.
- */
+/** What to draw instead of a user block, or null when a person really did type it. */
 function selfAskedCaption(from, typed = false) {
-  // TEXT A PERSON TYPED IS NEVER CAPTIONED. A `continue` held by the runtime gate
-  // and resubmitted through a recovery, or a steer delivered once the turn ended,
-  // is still the user's own words — captioning it replaced them on screen.
+  // TEXT A PERSON TYPED IS NEVER CAPTIONED.
   if (!from || typed) return null;
   return SELF_ASKED[from] || null;
 }
 
-/**
- * WHICH MODEL, THROUGH WHICH ROUTE — and the routing was hiding in plain sight.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT. The header drew the model id verbatim beside the connection
- * name, so a session through a gateway read:
- *
- *     cc/claude-sonnet-5      omniroute      effort auto
- *
- * Two things are wrong with that. `omniroute` is the name the USER gave their
- * connection — it says nothing about where the request actually goes. And the
- * thing that DOES say so, the `cc/` prefix, was rendered as though it were part
- * of the model's name, where it reads as noise rather than as routing.
- *
- * A gateway serves many downstream providers and the prefix is which one: the
- * same connection carries `cc/claude-sonnet-5`, `ag/claude-sonnet-4-6` and
- * `openrouter/z-ai/glm-5.2:free`, and those are three different places. Asking
- * "which provider am I actually on" is exactly the question a header exists to
- * answer without being asked.
- *
- * So the prefix is lifted out of the name and shown as what it is:
- *
- *     claude-sonnet-5         omniroute/cc   effort auto
- *
- * ------------------------------------------------------------------------
- * THE FIRST SEGMENT ONLY, because that is what a gateway prefix is. Model ids
- * legitimately contain slashes of their own — `openrouter/z-ai/glm-5.2:free` is
- * the `z-ai/glm-5.2:free` model behind the `openrouter` router — so splitting on
- * every slash would eat the vendor out of the model's own name.
- *
- * A model id with NO slash has no gateway prefix and is left exactly alone: a
- * direct route to `claude-opus-5` is not routed through anything, and inventing
- * a router for it would be the fake identity this exists to prevent.
- */
+/** WHICH MODEL, THROUGH WHICH ROUTE — and the routing was hiding in plain sight. */
 function routeOf(model, provider, connection) {
   const raw = String(model || '');
   const cut = raw.indexOf('/');

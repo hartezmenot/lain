@@ -1,12 +1,6 @@
 'use strict';
 
-/**
- * `/chrome` — connect, inspect and disconnect LAIN for Chrome.
- *
- * Its own file for the same reason computercommand.js is: commands.js is a
- * REGISTRY, and this is a subsystem's surface. The capability itself is
- * src/lainchrome.js; nothing here decides anything.
- */
+/** `/chrome` — connect, inspect and disconnect LAIN for Chrome. */
 
 async function run(app, args, { C }) {
   const bridge = require('./lainchrome').forApp(app);

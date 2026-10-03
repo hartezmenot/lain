@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.89"
 
+# THE PROCESS IS LAIN'S: the package and binary are lain-supervisor (noema-supervisor in the Noema era, 2026-09/10).
+[[bin]]
+name = "lain-supervisor"
+path = "src/main.rs"
+
 [dependencies]
 
 [profile.release]

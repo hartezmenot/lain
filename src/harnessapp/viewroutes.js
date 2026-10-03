@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE ENGINEERING SESSION'S CONTRACT ROUTES — views, plan handoff, models,
- * workspace panel, project attachment and pins.
- *
- * Every route here delegates: sessionviews.js owns views, threads, panel, pins
- * and attachment; planhandoff.js owns plan states and the handoff;
- * modelinventory.js owns search and per-view selection. This file adds an
- * envelope and the one sequencing rule a turn from a view needs (`submit`).
- */
+/** THE ENGINEERING SESSION'S CONTRACT ROUTES — views, plan handoff, models, workspace panel, project attachment and pins. */
 
 const sv = require('../sessionviews');
 const plans = require('../planhandoff');
@@ -18,21 +10,7 @@ function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, wh
 
 function save(app) { try { app.session.save(); } catch { /* the state still holds for this run */ } }
 
-/**
- * A TURN FROM A VIEW.
- *
- *   · into a session already working IN THE SAME VIEW, it is a steer — the
- *     long-standing contract (routes.js `POST /api/turn`);
- *   · into a session working in the OTHER view it is refused with `busy`,
- *     because a Chat sentence steering a Coding turn would put discussion into
- *     implementation. One writer per session is unchanged;
- *   · Coding needs an attached project — a Coding turn in LAIN's own folder or
- *     the empty placeholder is refused with `projectRequired`;
- *   · Chat runs read-only (EXPLAIN on LAIN's runtime; mutating tools are refused
- *     in tools/index.js) and, when it ends, a plan in its reply becomes a DRAFT.
- *
- * NOT AWAITED: the reply arrives through /api/state and `session.status`.
- */
+/** A TURN FROM A VIEW. */
 function submit(app, body = {}) {
   const text = String(body.text || '').trim();
   if (!text) return bad('nothing was asked');
@@ -42,6 +20,12 @@ function submit(app, body = {}) {
   const running = Boolean(app.abort && !app.abort.signal.aborted);
   if (running) {
     const busy = sv.current(s);
+    // CHAT WHILE THE CODING AGENT WORKS: supervised, never raced (supervision.js).
+    if (busy === 'coding' && view === 'chat') {
+      const r = require('../supervision').chatWhileRunning(app, text);
+      save(app);
+      return ok({ accepted: true, supervised: r, view });
+    }
     if (busy !== view) {
       return bad(`the ${busy === 'chat' ? 'Chat' : 'Coding'} view is working in this session — wait for it or stop it first`, 409, { busy });
     }
@@ -50,15 +34,44 @@ function submit(app, body = {}) {
   }
   if (view === 'coding') {
     const p = sv.project(s);
-    if (!p.attached) return bad('attach a project before coding — Project Files → Add project', 409, { projectRequired: true });
+    if (!p.attached) return bad('Coding requires a project folder. Add an existing project or create a project to continue.', 409, { projectRequired: true });
     if (p.missing) return bad(`this session's project is no longer at ${s.cwd}`, 409, { projectMissing: true });
+    // A BROAD REQUEST is offered planning first — LAIN's workflow decision, no model call.
+    const cc = require('../changeclass').classify(String(body.classText || text), { selection: require('../changeclass').selectionOf(app), fromPreview: Boolean(body.fromPreview) });
+    if (!body.direct && body.from !== 'ide' && (require('../supervision').isBroad(text) || cc.class === 'PHASED')) {
+      const o = require('../supervision').planFirstOffer(s, text);
+      save(app);
+      return ok({ accepted: false, offer: o, view });
+    }
+    // THE IDE'S BOT DECIDES WHO ANSWERS: itself, or the Coding Agent.
+    if (body.from === 'ide') {
+      // WHAT THE PERSON TOOK OUT of the BOT's view for this turn — a context
+      // chip they removed. idecontext.js leaves those parts out of the prompt.
+      const cx = body.context && typeof body.context === 'object' ? body.context : {};
+      s._ideExclude = { file: cx.file === false, selection: cx.selection === false, problems: cx.problems === false, terminal: cx.terminal === false };
+      const br = require('./botroute');
+      const route = br.decide(app, text, body);
+      if (body.focus === false) route.focus = false;
+      return br.start(app, text, route);
+    }
+  }
+  // CHAT PLANS; THE CODING AGENT IMPLEMENTS (Phase 8).
+  if (view === 'chat' && body.agent === true) {
+    const p = sv.project(s);
+    const br = require('./botroute');
+    const route = p.attached && !p.missing ? br.decide(app, text, { ...body, from: 'chat', via: 'chat', route: body.route === 'agent' ? 'agent' : undefined }) : null;
+    if (route && route.role === 'agent') return br.start(app, text, { ...route, via: 'chat' });
   }
   sv.settle(s, 'coding');              // anything untagged so far is engineering history
   sv.views(s).active = view;
   s.thread = view;
+  // A CHAT QUESTION IS AN ASIDE to a task the Agent carries (identify.js).
+  s._asideTurn = view === 'chat';
   if (view === 'coding') plans.noteSubmitted(s);
+  // THE EXECUTION CLASS of a Coding turn (changeclass.js) rides this turn only: DIRECT and NARROW are told to stay small.
+  if (view === 'coding') require('../changeclass').begin(app, String(body.classText || text), { fromPreview: Boolean(body.fromPreview), via: body.from || 'harness' });
   const turnsBefore = (s.turns || []).length;
-  const run = () => app.handle(text, { from: 'harness-app', forceMode: view === 'chat' ? 'EXPLAIN' : null });
+  const run = () => app.handle(text, { from: 'harness-app', forceMode: view === 'chat' ? 'EXPLAIN' : null, sameTask: Boolean(body.sameTask) });
   Promise.resolve(require('./sessionroutes').withPort(app, run))
     .catch(() => {})
     .finally(() => {
@@ -71,8 +84,10 @@ function submit(app, body = {}) {
         }
       } else {
         plans.afterCoding(s);
+        try { require('../changeclass').end(app); } catch { /* the result list is a courtesy */ }
       }
       if (s.thread === view) s.thread = null;
+      s._asideTurn = false;
       save(app);
       require('../sessionstatus').touch(app, { ended: true });
     });
@@ -80,6 +95,25 @@ function submit(app, body = {}) {
 }
 
 const ROUTES = {
+  /** EDIT & RESEND / RETRY THE LATEST MESSAGE (turnedit.js): the old wording and its replies become a kept branch, the new wording is an ordinary turn. */
+  'POST /api/turn/edit': async (app, body = {}) => {
+    const view = body.view === 'coding' ? 'coding' : 'chat';
+    const text = String(body.text == null ? '' : body.text).trim();
+    if (!text) return bad('the edited message is empty');
+    const r = require('../turnedit').branch(app, { view, files: body.files === 'undo' || body.files === 'keep' ? body.files : null });
+    if (!r.ok) return r.needsChoice ? ok({ needsChoice: true, files: r.files, why: r.why }) : bad(r.why, 409);
+    const sent = submit(app, { view, text });
+    return { code: sent.code, body: { ...(sent.body || {}), edited: true, replaced: r.replaced, undone: r.undone, kept: r.kept } };
+  },
+  'POST /api/turn/retry': async (app, body = {}) => {
+    const view = body.view === 'coding' ? 'coding' : 'chat';
+    const p = require('../turnedit').plan(app, view);
+    if (!p.ok) return bad(p.why, 404);
+    const r = require('../turnedit').branch(app, { view, files: body.files === 'undo' || body.files === 'keep' ? body.files : null });
+    if (!r.ok) return r.needsChoice ? ok({ needsChoice: true, files: r.files, why: r.why }) : bad(r.why, 409);
+    const sent = submit(app, { view, text: p.text });
+    return { code: sent.code, body: { ...(sent.body || {}), retried: true, undone: r.undone, kept: r.kept } };
+  },
   /** Which view the session is shown in. Navigation only — nothing runs. */
   'POST /api/view/select': async (app, body = {}) => {
     if (app.session.cowork) return bad('a Cowork session has no Chat/Coding views', 409);
@@ -142,7 +176,7 @@ const ROUTES = {
   },
   /** The person decided not to send the prefilled instruction. The plan stays ACCEPTED. */
   'POST /api/handoff/discard': async (app) => {
-    const h = app.session.handoff;
+    const h = plans.handoff(app.session);
     if (!h || h.state !== plans.HANDOFF.PREFILLED) return bad('there is no prefilled handoff', 409);
     h.state = 'DISCARDED';
     save(app);
@@ -170,14 +204,14 @@ const ROUTES = {
     const chk = sv.checkRoot(body.path);
     if (!chk.ok) return bad(chk.why);
     const current = sv.project(s);
+    // MOVE TO PROJECT is allowed while the session has made no code change there: a
+    // conversation is not tied to a folder until the Coding Agent edited it.
     if (current.attached && current.root && require('path').resolve(current.root).toLowerCase() !== chk.root.toLowerCase()
-        && ((s.turns || []).length || (app.checkpoints && app.checkpoints.entries && app.checkpoints.entries.length))) {
-      return bad(`this session already works on ${current.root}; start a new session for ${chk.root}`, 409);
+        && ((app.checkpoints && app.checkpoints.entries && app.checkpoints.entries.length) || (s.mutationReceipts || []).length)) {
+      return bad(`this session already changed files in ${current.root}; start a new session for ${chk.root}`, 409);
     }
     if (app.abort && !app.abort.signal.aborted) return bad('a turn is running in this session', 409);
-    // EVERYTHING BOUND TO THE OLD DIRECTORY IS REBUILT FOR THE NEW ONE: the
-    // checkpoint store (refused above if it held edits), the project brief, and
-    // a Harness whose workspace was the placeholder.
+    // EVERYTHING BOUND TO THE OLD DIRECTORY IS REBUILT FOR THE NEW ONE: the checkpoint store (refused above if it held edits), the project brief, and a…
     if (app._harness) {
       try { await require('../harnesslink').shutdown(app); } catch { /* nothing it owned was project work */ }
       app._harness = null;
@@ -195,14 +229,34 @@ const ROUTES = {
     return ok({ project: projectState(app) });
   },
 
+  /** REMOVE PROJECT — the Chat session becomes Unassigned again (Coding Agent disabled). */
+  'POST /api/project/detach': async (app) => {
+    const s = app.session;
+    if (s.cowork) return bad('a Cowork session has no project', 409);
+    if (app.abort && !app.abort.signal.aborted) return bad('a turn is running in this session', 409);
+    const cur = sv.project(s);
+    if (!cur.attached) return ok({ project: projectState(app), already: true });
+    if ((app.checkpoints && app.checkpoints.entries && app.checkpoints.entries.length) || (s.mutationReceipts || []).length) {
+      return bad(`this session changed files in ${cur.root}; its record stays with that project`, 409);
+    }
+    if (app._harness) { try { await require('../harnesslink').shutdown(app); } catch { /* nothing project-bound */ } app._harness = null; }
+    const dir = sv.unattachedDir();
+    s.cwd = dir; app.cwd = dir;
+    app.checkpoints = new (require('../checkpoint').Checkpoints)(s.id, dir, { load: false });
+    app._projectBrief = undefined;
+    const v = sv.views(s);
+    v.project.attached = false; v.project.attachedAt = null; v.panel.file = null;
+    require('../sessionpool').reattach(app);
+    save(app);
+    return ok({ project: projectState(app) });
+  },
+
   /** Project roots this person has worked in, from the one session index. */
   'POST /api/project/recent': async () => {
     let rows = [];
     try { rows = require('../sessionindex').summaries({ limit: 200 }) || []; } catch { rows = []; }
     const seen = new Map();
-    // NOT A PROJECT: LAIN's own folders, and the empty placeholder a session
-    // with no project sits in — offering that as a "recent project" would
-    // attach nothing to nothing.
+    // NOT A PROJECT: LAIN's own folders, and the empty placeholder a session with no project sits in — offering that as a "recent project" would attach…
     const own = [...sv.lainOwnDirs(), require('path').resolve(sv.unattachedDir()).toLowerCase()];
     for (const r of rows) {
       if (!r.cwd || seen.has(r.cwd.toLowerCase())) continue;

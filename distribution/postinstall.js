@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * THE LAST STEP OF INSTALLING — build LAIN.exe, in the place it was installed.
+ * THE LAST STEP OF INSTALLING — build LAIN Harness.exe, in the place it was installed.
  *
  * ------------------------------------------------------------------------
- * WHY THE INSTALLER DOES NOT SHIP LAIN.exe READY-MADE.
+ * WHY THE INSTALLER DOES NOT SHIP LAIN Harness.exe READY-MADE.
  *
  * The native host is compiled from `native/host.cs` by the `csc.exe` that is
  * part of Windows, and the launcher records WHICH NODE and WHICH ENTRYPOINT to
@@ -34,12 +34,12 @@ function main(argv) {
   // THE LAUNCHER LANDS BESIDE THE PROGRAM, not in LAIN's data directory: it is
   // part of the installation, and the uninstaller removes it with everything
   // else it put there.
-  const installed = desktop.installLauncher(built, { at: path.join(dir, 'LAIN.exe') });
+  const installed = desktop.installLauncher(built, { at: path.join(dir, 'LAIN Harness.exe') });
   if (!installed.ok) {
     process.stderr.write(`the launcher was not written: ${installed.why}\n`);
     return 1;
   }
-  process.stdout.write(`LAIN.exe ready${installed.node ? ` (node: ${installed.node})` : ''}\n`);
+  process.stdout.write(`LAIN Harness.exe ready${installed.node ? ` (node: ${installed.node})` : ''}\n`);
   if (!installed.node) process.stderr.write(`no Node was recorded: ${installed.why}\n`);
   return 0;
 }

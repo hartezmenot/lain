@@ -22,13 +22,13 @@ function tool(name) {
 }
 
 module.exports = async function () {
-  await test('BG: job_wait finds a /bg-detached process by the id the notice gave, and returns its result', async () => {
+  await test('BG: a /bg-detached process is found by the id the notice gave, and its result is readable', async () => {
     const app = { jobs: new AgentJobs() };
     const job = app.jobs.create({ request: 'npm run smoke', kind: 'process' });
     job.pid = 4242;
     job.state = 'RUNNING';
     setTimeout(() => { job.resultSummary = 'npm run smoke · exit 0 · smoke PASSED'; job._finish('SUCCEEDED', { result: { exitCode: 0 } }); }, 50);
-    const r = await tool('job_wait').run({ id: job.id }, { app });
+    const r = await require('../../src/tools/jobs').collect.run({ id: job.id }, { app });
     assert.ok(!r.isError, r.output);
     assert.match(r.output, /SUCCEEDED/);
     assert.match(r.output, /smoke PASSED/, 'the result the model needs, so it does not re-run');

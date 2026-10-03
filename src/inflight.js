@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * A TURN IN FLIGHT IS DURABLE — force-closing LAIN no longer loses it.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT (reported 2026-09-23). The session file was written when a turn
- * ENDED (app.submit) and at command boundaries — never during one. Closing the
- * window, a crash, or `taskkill` halfway through a forty-step turn therefore
- * brought the person back to the previous completed prompt: the user message,
- * every tool call and result, the mutation receipts and the evidence of that
- * turn were gone, although the files it had written were still on disk.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS KEEPS, and when it is written:
- *
- *   session.inflight = { turnId, pid, userInput, startedAt, step,
- *                        tool: { id, name, target, kind, state, pre },
- *                        ledger: [ { id, name, target, kind, state } … ] }
- *
- *   - the whole session is saved (atomic tmp+rename, session.save) BEFORE any
- *     side-effecting call runs, and after it returns;
- *   - reads are saved on a throttle (they can be repeated safely).
- *
- * THE INVOCATION LEDGER is what makes recovery honest. Every call is
- * STARTED → COMPLETED | FAILED. After a crash a call left STARTED is UNKNOWN,
- * and it is never blindly replayed:
- *
- *   FILE     the target's pre-call hash was recorded; reality is inspected —
- *            changed → the write LANDED, unchanged → it did NOT;
- *   COMMAND  a process may have run partly — reported UNKNOWN, not re-run;
- *   READ     safe to repeat — reported as not completed.
- *
- * Recovery writes the missing tool results (an unanswered tool_call is a 400
- * on every provider), keeps the turn as a record that ended `crashed`, and
- * leaves the next step to the person (`continue`) — the guardian's handover
- * then works from a session that actually contains the turn.
- */
+/** A TURN IN FLIGHT IS DURABLE — force-closing LAIN no longer loses it. */
 
 const fs = require('fs');
 const path = require('path');
@@ -101,20 +66,18 @@ function begin(session, record, { from = null } = {}) {
 function step(session, n) {
   if (!session || !session.inflight) return;
   session.inflight.step = n;
+  session.inflight.touchedAt = Date.now();   // how recently the turn was alive — recovery resumes only a fresh crash
   persist(session);
 }
 
-/**
- * BEFORE a call runs. A FILE call records each target's hash first, so a crash
- * mid-write can be told apart from a crash before it; anything with an effect
- * is on disk before the effect happens.
- */
+/** BEFORE a call runs. A FILE call records each target's hash first, so a crash mid-write can be told apart from a crash before it; anything with an… */
 function beforeTool(session, call, target = '') {
   const f = session && session.inflight;
   if (!f) return null;
   const kind = kindOf(call.name, call.input);
   const pre = kind === 'FILE' ? Object.fromEntries(targets(session, call.input).map((t) => [t, hashOf(t)])) : null;
   f.tool = { id: call.id, name: call.name, target: String(target || '').slice(0, 200), kind, state: 'STARTED', at: Date.now(), pre };
+  f.touchedAt = Date.now();
   persist(session, { force: kind !== 'READ' });
   return f.tool;
 }
@@ -127,6 +90,7 @@ function afterTool(session, call, result = {}) {
   f.ledger.push(done);
   if (f.ledger.length > LEDGER_MAX) f.ledger.splice(0, f.ledger.length - LEDGER_MAX);
   f.tool = null;
+  f.touchedAt = Date.now();
   persist(session, { force: done.kind !== 'READ' || Boolean(result.mutated && result.mutated.length) });
   return done;
 }
@@ -154,11 +118,7 @@ function classify(session, t) {
   return { state: 'NOT_COMPLETED', text: 'LAIN was force-closed before this read returned. Nothing changed; repeat it if still needed.' };
 }
 
-/**
- * AFTER A CRASH — called when a session is loaded. Pure data repair plus one
- * inspection of the files a lost write targeted. Returns a summary, or null.
- * A session whose owner is still ALIVE is left alone: it is not a crash.
- */
+/** AFTER A CRASH — called when a session is loaded. */
 function recover(session) {
   const f = session && session.inflight;
   if (!f) return null;
@@ -190,12 +150,12 @@ function recover(session) {
   if (!session.turns.some((t) => t && t.turnId === record.turnId)) session.turns.push(record);
   const inTool = f.tool ? `${f.tool.name.replace(/_/g, ' ')}${f.tool.target ? ' ' + f.tool.target : ''}` : '';
   const lostState = f.tool ? (verdicts.find((v) => v.id === f.tool.id) || {}).state || 'UNKNOWN' : '';
-  // ONE ROW, the actionable part first — it is drawn as an operation note and
-  // clipped at the terminal's width (seen in a real ConPTY, 2026-09-23).
+  // ONE ROW, the actionable part first — it is drawn as an operation note and clipped at the terminal's width (seen in a real ConPTY, 2026-09-23).
   const summary = {
     turnId: record.turnId, step: f.step + 1, calls: f.ledger.length, lost: verdicts,
-    during: inTool, userInput: f.userInput,
-    line: `RECOVERED · cut off at step ${f.step + 1} · type continue to resume`
+    during: inTool, userInput: f.userInput, from: f.from || null,
+    lastActiveAt: f.touchedAt || Date.parse(f.startedAt || '') || null,
+    line: `RECOVERED · cut off at step ${f.step + 1}`
       + (f.tool ? ` · ${f.tool.name} ${lostState === 'UNKNOWN' ? 'UNKNOWN, not re-run' : lostState}` : ''),
   };
   session.inflight = null;
@@ -203,17 +163,7 @@ function recover(session) {
   return summary;
 }
 
-// ---- BACKGROUND JOBS THAT OUTLIVE THEIR LAIN ---------------------------
-//
-// A `run_background` job without `survive_restart` is a child of THIS process.
-// When LAIN is force-closed the child is not killed on Windows — a dev server
-// or a smoke run keeps going, and nothing remembered it: the next model started
-// a second server on the same port. So each in-process job is recorded on the
-// session (id, pid, command, cwd, turn) and settled when it ends; after a crash
-// a RUNNING record whose owner is dead is re-classified from reality:
-//   pid alive → ORPHANED (still running, not adopted; its output is not captured)
-//   pid gone  → LOST (ended while LAIN was down; its result is unknown).
-// Supervised jobs (`survive_restart`) are the supervisor's and are reattached there.
+// BACKGROUND JOBS THAT OUTLIVE THEIR LAIN
 
 const JOBS_MAX = 20;
 

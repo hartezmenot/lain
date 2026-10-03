@@ -527,28 +527,6 @@ module.exports = async function () {
     const r = await T.check_symbols.run({ path: 'app.py' }, { cwd: dir });
     assert.ok(r.isError, 'the unresolved-name check cannot run there and must not pretend otherwise');
   });
-
-  await test('ORIENTATION: the cheap way to see inside a file is actually ADVERTISED', () => {
-    const schema = T.check_symbols.schema;
-    assert.ok(/outline/i.test(schema.description), 'check_symbols must advertise the outline, not only the typo check');
-    assert.ok(/outline/i.test(schema.parameters.properties.list_symbols.description));
-
-    const readFile = require('../../src/tools/fs').tools.read_file.schema;
-    assert.ok(/check_symbols/.test(readFile.description),
-      'read_file must route "what does this file contain" to the outline instead of a whole read');
-
-    assert.ok(/list_symbols/.test(require('../../src/prompt').BASE),
-      "the prompt's cheapest-first list must carry the outline, or nothing teaches the ladder");
-  });
-
-  await test('TOOLS: every semantic tool is advertised AND dispatchable', () => {
-    const registry = require('../../src/tools');
-    for (const name of Object.keys(semantic.tools)) {
-      assert.ok(registry.has(name), `${name} is not dispatchable`);
-      assert.ok(registry.schemas().some((s) => s.name === name), `${name} has no schema`);
-    }
-  });
-
   await test('TOOLS: the ones that write are declared mutating, so /undo can capture them', () => {
     for (const name of ['replace_symbol', 'insert_near_symbol', 'remove_symbol', 'rename_symbol']) {
       assert.strictEqual(semantic.tools[name].mutates, true, `${name} must be declared mutating`);

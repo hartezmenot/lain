@@ -1,58 +1,13 @@
 'use strict';
 
-/**
- * `/ps` — THE PROCESSES LAIN OWNS.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT A `tasklist` CLONE, AND IT MAINTAINS NO REGISTRY OF ITS OWN.
- *
- * Everything below is PROJECTED from state two existing systems already hold:
- *
- *   SERVICES   harness/processes.js `ProcessManager.list()` — things started to
- *              stay up. Each carries a pid, a port, a STATUS (STARTING,
- *              RUNNING, STOPPED, CRASHED, FAILED), a HEALTH, and the id of the
- *              task that owns it. That ownership is what makes `cleanup(taskId)`
- *              possible, and it is why roughly ninety orphaned supervisor
- *              processes are a documented incident in this repository rather
- *              than a recurring one.
- *
- *   JOBS       jobs.js `Jobs.all()` — commands started and left running, held
- *              on the App as `app._jobs` by tools/jobs.js. Each is one child
- *              process with a state machine that ends: QUEUED -> RUNNING ->
- *              {SUCCEEDED, FAILED, CANCELLED, TIMED_OUT}.
- *
- * This file adds no third vocabulary and stores nothing. Ask it twice in a row
- * and the second answer comes from the same two objects the first did; kill a
- * service behind LAIN's back and the row changes because the ProcessManager's
- * own `exit` handler changed it, not because this polled anything.
- *
- * ------------------------------------------------------------------------
- * ONLY WHAT LAIN OWNS IS LISTED, AND THAT IS THE POINT.
- *
- * A row here is a claim of ownership: it says LAIN started this, LAIN knows
- * which task it belongs to, and LAIN will take it down. Listing an arbitrary
- * host process beside those would make the claim meaningless — and the whole
- * reason to want this command is to answer "what has LAIN left running on my
- * machine", which a host-wide process list cannot answer at all.
- *
- * There is deliberately NO `/ps all`. Host-wide scanning does not exist in this
- * tree and adding it for a display would be a new capability wearing a
- * formatting change.
- *
- * ------------------------------------------------------------------------
- * `/ps` NEVER STARTS ANYTHING. `/bg` is the door work comes in through; this is
- * the window you look at it through. See src/jobcommands.js.
- */
+/** `/ps` — THE PROCESSES LAIN OWNS. */
 
 /** Full table above this width; two columns below it. */
 const WIDE = 64;
 /** Beyond this, a service's health and a job's exit code earn their column. */
 const VERY_WIDE = 92;
 
-/**
- * The managed services, as plain rows. Straight from `toJSON()` so a field
- * cannot mean something different here than it does in `/env` or the dashboard.
- */
+/** The managed services, as plain rows. */
 function serviceRows(app) {
   const h = require('./harnesslink').existing(app);
   if (!h || !h.processes) return [];
@@ -81,9 +36,7 @@ function jobRows(app) {
   const jobs = app && app._jobs;
   if (!jobs || typeof jobs.all !== 'function') return [];
   return jobs.all().map((j) => ({
-    // A JOB'S PID IS ITS CHILD'S, and it is gone once the child has exited —
-    // printing the pid of a process that no longer exists would invite somebody
-    // to kill a number the OS has since reused.
+    // A JOB'S PID IS ITS CHILD'S, and it is gone once the child has exited — printing the pid of a process that no longer exists would invite somebody to…
     pid: j.child && !j.done ? j.child.pid : null,
     type: 'job',
     state: String(j.state || '').toLowerCase(),
@@ -109,10 +62,7 @@ function since(ms) {
   return `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
 }
 
-/**
- * Colour by state, using the vocabulary the rest of LAIN already uses: running
- * is live, a clean end is quiet, a crash is a failure.
- */
+/** Colour by state, using the vocabulary the rest of LAIN already uses: running is live, a clean end is quiet, a crash is a failure. */
 function tone(C, state) {
   if (state === 'running') return C.cyan(state);
   if (state === 'succeeded') return C.green(state);
@@ -120,20 +70,7 @@ function tone(C, state) {
   return C.dim(state);
 }
 
-/**
- * The table, as lines, at `width`.
- *
- * ------------------------------------------------------------------------
- * THE TERMINAL DECIDES HOW MUCH DETAIL, NOT A FIXED COLUMN LIST.
- *
- *   narrow    18240  running  vite
- *   normal    PROCESS  TYPE     STATE    NAME
- *   wide      … plus PORT, OWNER, UP and the health/exit column
- *
- * Every column beyond the first three is dropped rather than squeezed: a table
- * whose values are clipped to four characters each is a table nobody can read,
- * and the previous UI's width problems were all of this shape.
- */
+/** The table, as lines, at `width`. */
 function render(app, C, width = 80) {
   const list = rows(app);
   const out = [];
@@ -157,38 +94,24 @@ function render(app, C, width = 80) {
     out.push(C.dim(head));
   }
   for (const r of list) {
-    // A PROCESS WITH NO PID IS SAID TO HAVE NONE. A job that has finished and a
-    // service that never got as far as spawning are both real states, and a
-    // blank is the honest rendering of both — inventing a `0` or reusing the
-    // last pid seen would be a number somebody could act on.
+    // A PROCESS WITH NO PID IS SAID TO HAVE NONE.
     const pid = r.pid ? String(r.pid) : '—';
     if (!wide) {
       out.push(`  ${cell(pid, 8)}${tone(C, r.state)} ${C.dim(String(r.name).slice(0, Math.max(8, w - 20)))}`);
       continue;
     }
-    // COMPOSED WITH ITS PLAIN WIDTH ALONGSIDE IT. Colour codes carry no
-    // columns, so a row measured by `.length` would report itself far wider
-    // than it is — and the trailing field would be dropped on a terminal that
-    // had room for it, or kept on one that did not.
+    // COMPOSED WITH ITS PLAIN WIDTH ALONGSIDE IT.
     let line = `  ${cell(pid, 8)}${C.dim(cell(r.type, 9))}${tone(C, r.state)}${' '.repeat(Math.max(1, 10 - r.state.length))}${cell(r.name, nameRoom)}`;
     let used = 2 + 8 + 9 + Math.max(r.state.length + 1, 10) + nameRoom;
     if (veryWide) {
       line += `${C.dim(cell(r.port ? `:${r.port}` : '', 7))}${C.dim(cell(r.owner || '', 18))}${C.dim(since(r.since))}`;
       used += 7 + 18 + since(r.since).length;
     }
-    // THE TRAILING FIELD IS A LUXURY AND IS DROPPED FIRST. A service's health
-    // and a job's exit code are worth saying; they are not worth pushing the
-    // row past the edge of the terminal to say.
+    // THE TRAILING FIELD IS A LUXURY AND IS DROPPED FIRST.
     if (r.extra && used + 2 + r.extra.length <= w) line += C.dim(`  ${r.extra}`);
     out.push(line);
   }
-  // WHAT THIS LIST IS AND IS NOT, once, at the foot. Somebody running `/ps` for
-  // the first time is asking a question about their machine, and the honest
-  // answer includes the boundary of what was looked at.
-  //
-  // SHORTENED RATHER THAN WRAPPED on a narrow terminal: the boundary is the
-  // part that must survive, and a footnote folded onto three rows under a
-  // two-row table is the table's own proportions inverted.
+  // WHAT THIS LIST IS AND IS NOT, once, at the foot.
   out.push('');
   const T = require('./ui/text');
   const note = w >= 74

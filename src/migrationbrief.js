@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE EXPENSIVE MODEL IS ACTUALLY GIVEN.
- *
- * Not "migrate the agents to Vue" and forty thousand tokens of repository.
- * A CONTRACT: the intent as confirmed by the user, the exact scope, the file-
- * by-file replacement map, the structure to preserve, what must not be touched,
- * what must not survive, and what will be checked afterwards.
- *
- * ------------------------------------------------------------------------
- * THE DIFFERENCE THIS MAKES IS NOT POLITENESS, IT IS ARITHMETIC.
- *
- *   WITHOUT   the model rediscovers the project, guesses the scope, and holds
- *             every file it read in context while it writes — and its guess
- *             about scope is unrecoverable, because the answer was never in
- *             the repository in the first place
- *
- *   WITH      the model reads a page, and every fact in it was established for
- *             free by a directory walk or settled for four words by a question
- * ------------------------------------------------------------------------
- *
- * IT IS WRITTEN TO BE EXECUTED, NOT INTERPRETED. Every line is either a fact
- * or an instruction with a named subject. There is no "consider whether", no
- * "you may wish to" — an ambiguity in this document is an ambiguity that was
- * supposed to have been resolved before it was written.
- *
- * AND IT NEVER PRESCRIBES A TOOL OR AN ORDER (see prompt.js). It states the
- * required FINAL STATE. How to get there is the model's decision, exactly as
- * it is for every other kind of work in this program.
- */
+/** WHAT THE EXPENSIVE MODEL IS ACTUALLY GIVEN. */
 
 const M = require('./migration');
 
@@ -47,15 +19,7 @@ function cap(rows, n = MAX_ROWS) {
   return [...rows.slice(0, n), `  [${rows.length - n} more — the manifest has the full list]`];
 }
 
-/**
- * Render the contract.
- *
- * @param {object} contract
- * @param {object} o
- *   verification  a migrationcheck.verify result, when one has been run — so
- *                 the brief can say what is ALREADY true rather than restating
- *                 the plan at a model that has half-finished it.
- */
+/** Render the contract. */
 function render(contract, { verification = null } = {}) {
   const c = contract || {};
   const final = M.finalState(c);

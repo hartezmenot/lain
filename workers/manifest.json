@@ -2,8 +2,8 @@
   "note": "Specialist capabilities. The repository holds adapters, identities and evaluation contracts only; weights and runtimes live in the local model store (outside every git repository). Machine paths are per user: cfg.workers.<id>.python / .hfHome / .baseUrl.",
   "workers": {
     "laya": {
-      "contract": "evidence_narrower",
-      "role": "evidence narrowing: rank candidates (files, UI nodes, DOM elements) against the request",
+      "contract": "context_correlator",
+      "role": "Harness Context & Perception: correlate what the person is looking at, touching or referring to across surfaces, over bounded facts Core supplies. Never a source of project truth.",
       "model": "convaiinnovations/laya",
       "package": "laya==0.3.6",
       "license": "Apache-2.0",
@@ -23,40 +23,96 @@
           "pass": false,
           "bench": "bench/specialist-workers/locate/ui-gate.js",
           "detail": "41 real controls, 20 queries: lexical hit@5 0.35 · fused 0.45 (+2/20, hit@1 unchanged) · choice head 11/20 confidently wrong — inconclusive, not recruited"
-        }
-      },
-      "verdict": "REJECT for automatic use: both gates failed; end-to-end A/B v2 (n=1, EXPLORATORY) cannot promote it — its run also skipped verification and its shortlist named 3/10 of the files used. Installed, auto uses it nowhere; /workers laya on forces it for experiments."
-    },
-    "violetto": {
-      "contract": "geometry_solver",
-      "role": "numeric consequences of a geometric UI change",
-      "model": "paradigma-inc/limite-1b-violetto (community GGUF Tdamre/limite-1b-violetto-GGUF-LiteRT, Q4_K_M)",
-      "sha256": "e306eafbaa49e03b05adb1fa21211296833f8aa6cf2f7b717ca340a5cebd5fe7",
-      "license": "Apache-2.0",
-      "runtime": "llama-server",
-      "runtimeBuild": "llama-server built from ggml-org/llama.cpp@58367713 + limite.patch (CPU, MSVC)",
-      "server": "E:\\AI\\runtime\\llama.cpp-limite\\build\\bin\\Release\\llama-server.exe",
-      "gguf": "E:\\AI\\models\\violetto\\limite-1b-violetto-Q4_K_M.gguf",
-      "port": 8093,
-      "ctx": 16384,
-      "threads": 8,
-      "maxTokens": 6000,
-      "defaultStore": "E:\\AI\\models\\violetto",
-      "enabled": "off",
-      "gates": {
-        "geometry": {
+        },
+        "live_evidence": {
           "pass": false,
-          "bench": "bench/specialist-workers/geometry/run.js",
-          "detail": "6 UI geometry changes vs the deterministic GUG solver (6/6, <0.2 ms): Violetto 3/6 within ±0.5 px, median 228 s and 6,000 tokens per answer (every answer hit the length cap)"
+          "bench": "bench/live-evidence/gate.js",
+          "detail": "Toralink live search UI, 151 DOM nodes, 8 ground-truth targets: shipped slice (Core fused with Laya, 16 nodes) recall 1/8 — missed search input, submission, download action; Laya alone 1/8; Core alone 3/8; per-item diagnostic Laya 5/8 = Core 5/8 with a larger slice. Laya cosines 0.892–0.946. LOCAL GATE FAILED (2026-09-24): no cloud A/B was spent."
+        },
+        "harness_context": {
+          "pass": false,
+          "bench": "tests/unit/layacontext.test.js (shadow metrics only)",
+          "detail": "NOT EVALUATED. Measured in SHADOW: raw changing Harness context vs the validated slice, referent recall, false correlation, late results, reread debt."
+        },
+        "selection_resolution": {
+          "pass": false,
+          "bench": "tests/unit/layacontext.test.js (shadow metrics only)",
+          "detail": "NOT EVALUATED. Core resolves an explicit selection deterministically; Laya is compared against it in SHADOW only for deictic references."
+        },
+        "cross_surface": {
+          "pass": false,
+          "bench": "none yet",
+          "detail": "NOT EVALUATED."
+        },
+        "session_enrichment": {
+          "pass": false,
+          "bench": "none yet",
+          "detail": "NOT EVALUATED."
         }
       },
-      "verdict": "REJECT: 3/6 offline within ±0.5 px at ~228 s and 6,000 tokens per answer; final lines unusable in the cache bench; offered end to end (A/B v2) and never called by the flagship. A deterministic solver answers exactly. The geometry_specialist tool exists only when forced on."
+      "verdict": "Repositioned 2026-09-24 as the Harness Context & Perception engine. REJECT as a source-file locator (both gates failed; A/B WORSE) — that role is OFF and a worker switch cannot revive it. Every Harness role starts in SHADOW: recorded, validated by Core, never consumed.",
+      "roles": {
+        "harness_context_compiler": {
+          "contract": "context_correlator",
+          "mode": "SHADOW",
+          "gate": "harness_context",
+          "verdict": "SHADOW (candidate AUTO)",
+          "why": "compress the changing Harness context (surface, selection, recent actions) into a small slice; Core validates every reference and owns the final packet"
+        },
+        "selection_resolver": {
+          "contract": "context_correlator",
+          "mode": "SHADOW",
+          "gate": "selection_resolution",
+          "verdict": "SHADOW (candidate AUTO)",
+          "why": "correlate a deictic reference (\"this\", \"that dropdown\") with the candidate referents Core supplies; an explicit selection is resolved by Core alone"
+        },
+        "cross_surface_correlator": {
+          "contract": "context_correlator",
+          "mode": "SHADOW",
+          "gate": "cross_surface",
+          "verdict": "SHADOW",
+          "why": "relate a referent on one surface (Workshop node) to one on another (IDE symbol) from Core-bound candidates"
+        },
+        "session_semantic_enrichment": {
+          "contract": "context_correlator",
+          "mode": "SHADOW",
+          "gate": "session_enrichment",
+          "verdict": "SHADOW (background)",
+          "why": "background labelling of recent user actions for a later task; never on the critical path"
+        },
+        "ui_evidence_narrower": {
+          "contract": "evidence_narrower",
+          "mode": "SHADOW",
+          "gate": "live_evidence",
+          "verdict": "SHADOW",
+          "why": "a large DOM/UIA observation compiled into a compact evidence slice; live gate FAILED 2026-09-24 (recall 1/8): recorded, never consumed"
+        },
+        "source_file_ranker": {
+          "contract": "evidence_narrower",
+          "mode": "OFF",
+          "gate": "file_locate",
+          "verdict": "REJECT",
+          "rejected": true,
+          "why": "file gate failed (Laya makes the shortlist worse); A/B 2026-09-24 WORSE; deterministic project intelligence owns file location. A worker switch never re-enables it; only an explicit role override for a benchmark."
+        }
+      }
     },
     "jev": {
       "contract": "decision_intent",
       "status": "EXCLUDED",
       "reason": "Official Jev (TypeSafe jev-1.13) is a hosted, proprietary API with no local weights. On this machine its free tier refuses non-OpenCode clients (403 FreeTierError) and the paid route had no funds (402). Laya is described by its authors as an open reproduction of Jev, but it is NOT Jev and is not presented as Jev.",
       "enabled": "off"
+    }
+  },
+  "retired": {
+    "violetto": {
+      "status": "RETIRED",
+      "retiredAt": "2026-09-24",
+      "model": "paradigma-inc/limite-1b-violetto (community GGUF Tdamre/limite-1b-violetto-GGUF-LiteRT, Q4_K_M)",
+      "sha256": "e306eafbaa49e03b05adb1fa21211296833f8aa6cf2f7b717ca340a5cebd5fe7",
+      "runtime": "llama-server",
+      "gate": "bench/specialist-workers/geometry/run.js — 6 UI geometry changes vs the deterministic GUG solver (6/6, <0.2 ms): Violetto 3/6 within ±0.5 px, median 228 s and 6,000 tokens per answer",
+      "why": "Retired from the active architecture (2026-09-24). Core's deterministic geometry (geometryjob.js) and the Core-owned GUG (gug.js) own UI geometry. No dispatch, no prewarm, no flagship schema. The generic llama-server runtime in workerruntime/workerhostmain stays for any future worker."
     }
   }
 }

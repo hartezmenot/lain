@@ -53,13 +53,7 @@ const BUDGET_MS = 8000;
 /** Beyond this many changed files, checking them all stops being the cheap step. */
 const MAX_FILES = 25;
 
-/**
- * The files this session has changed, as absolute paths.
- *
- * Read from the checkpoint ledger rather than from git: the question is "what
- * has LAIN touched in this session", which is not the same as "what differs
- * from HEAD", and only the first one is this gate's business.
- */
+/** The files this session has changed, as absolute paths. */
 function changedPaths(app, cwd) {
   const checkpoints = app && app.checkpoints;
   if (!checkpoints) return [];
@@ -76,44 +70,24 @@ function changedPaths(app, cwd) {
   return out;
 }
 
-/**
- * SHOULD THIS SUITE RUN?
- *
- * @returns {Promise<{stop:boolean, result?:object, checked:number}>}
- *   `stop` is true only when a real checker reported a real error in a file
- *   this session changed. Everything else — no checker, nothing changed, a
- *   checker that could not read its own output — lets the suite run.
- */
+/** SHOULD THIS SUITE RUN? */
 async function guard(ctx, cwd, input = {}) {
   if (input && input.force) return { stop: false, checked: 0, forced: true };
   const app = ctx && ctx.app;
   const paths = changedPaths(app, cwd);
   if (!paths.length) return { stop: false, checked: 0 };
 
-  // ---- THE SAME LADDER THE EDIT PATH USES, IN THE SAME ORDER -------------
-  //
-  // `diagnostics` is rung one: does the file parse at all. It needs no external
-  // tool, so it works on every machine — which matters, because rung three
-  // needs the project to actually have a linter installed and this repository's
-  // own machine has no `ruff` and no `pyflakes`. A gate that only used rung
-  // three would be silently inert exactly where it was most needed.
-  //
-  // `filecheck` is rung three: the project's own linter on the changed file.
-  // It is what catches `pirnt("hello")`, which parses perfectly.
+  // THE SAME LADDER THE EDIT PATH USES, IN THE SAME ORDER
   let report = '';
   try {
     report = await Promise.race([
       (async () => {
         const parse = await require('./diagnostics').reportFor(paths, cwd);
-        // A FILE THAT DOES NOT PARSE ENDS IT HERE. Running a linter over
-        // something the parser already rejected produces noise about a file
-        // whose one real problem is already known.
+        // A FILE THAT DOES NOT PARSE ENDS IT HERE.
         if (parse) return parse;
         return require('./filecheck').reportFor(paths, cwd);
       })(),
-      // A CHECKER THAT HANGS MUST NOT HOLD THE SUITE. The budget expiring is
-      // indistinguishable from "nothing found" on purpose: the failure mode of
-      // this gate must always be to let the tests run.
+      // A CHECKER THAT HANGS MUST NOT HOLD THE SUITE.
       new Promise((r) => setTimeout(() => r(''), BUDGET_MS)),
     ]);
   } catch {
@@ -121,31 +95,13 @@ async function guard(ctx, cwd, input = {}) {
   }
   if (!report) return { stop: false, checked: paths.length };
 
+  // ADVISORY ONLY (2026-10-02).
   const rel = paths.map((p) => path.relative(cwd, p).replace(/\\/g, '/'));
-  const output = [
-    'TESTS NOT RUN — the checker found an error in what you just changed.',
-    '',
-    report,
-    '',
-    `Checked ${paths.length} file(s) changed in this session:`,
-    ...rel.slice(0, 10).map((r) => `  ${r}`),
-    rel.length > 10 ? `  [${rel.length - 10} more]` : null,
-    '',
-    'A suite run takes minutes and this took milliseconds. Fix the error and run',
-    'the tests again. If this is pre-existing or you want the suite anyway, call',
-    'run_tests again with force: true.',
-  ].filter((l) => l !== null).join('\n');
-
-  return {
-    stop: true,
-    checked: paths.length,
-    result: {
-      output,
-      // NOT `isError`. Nothing failed — a cheap check found a problem before an
-      // expensive one could, which is the gate working rather than breaking.
-      meta: { testState: null, pretest: 'blocked', checked: paths.length },
-    },
-  };
+  const advisory = [
+    `Diagnostics currently report a problem in ${rel.length === 1 ? rel[0] : `${rel.length} changed file(s)`} (checked before this run):`,
+    report.trim(),
+  ].join('\n');
+  return { stop: false, checked: paths.length, advisory };
 }
 
 module.exports = { guard, changedPaths, BUDGET_MS, MAX_FILES };

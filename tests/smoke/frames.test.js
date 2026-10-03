@@ -95,6 +95,7 @@ function capture({ files, script, stdin, cols = 118, rows = 44, gap = 1800, time
   const keep = ['LAIN_CONFIG_DIR', 'LAIN_FORCE_TUI', 'LAIN_FORCE_COLOR', 'LAIN_PROVIDER', 'LAIN_MOCK_SCRIPT', 'LAIN_SUPERVISOR_BIN', 'LAIN_SUPERVISOR_LEASE_PORT'];
   for (const k of Object.keys(env)) if (k.startsWith('LAIN_') && !keep.includes(k)) delete env[k];
   env.LAIN_HOME = path.join(cfg, 'supervisor-home');
+  env.LAIN_NO_DESKTOP = '1';   // never a real Model Dashboard window mid-suite (fabric/dashlaunch.js)
   return new Promise((done) => {
     const child = spawn(process.execPath, [BIN], { cwd, env, windowsHide: true });
     let out = '';
@@ -338,16 +339,25 @@ module.exports = async function () {
     assert.ok(sawNormalRun, 'and the current run is not faded with it');
   });
 
-  // ---- /api: A CREDENTIAL, A PROVIDER PICKER, AND A VISIBLE SELECTION ------
+  // ---- /api: A KEY TYPED AT THE PROMPT, THEN A VISIBLE SELECTION ----------
+  //
+  // PHASE 8.3: the terminal never takes a key. A credential typed after `/api`
+  // is refused and scrubbed, and the person is pointed at the Model Dashboard;
+  // there is no provider picker to drive any more. The selection is exercised
+  // on the command palette instead — a panel menu (ui/adapters.js
+  // `commandPaletteAdapter`) drawn by the same ui/panel.js `render`.
 
   const api = await capture({
     files: FILES,
     script: [{ text: 'Nothing to do.' }],
     stdin: [
-      '/api sk-test-credential-value' + CR,   // the credential
+      '/api sk-test-credential-value' + CR,   // a key where no key belongs
+      ESC,                                    // close the refusal's panel (it owns the keys while open)
+      '/',                                    // the command palette
       ESC + '[B',                             // ↓ once — move the selection
       ESC + '[B',                             // ↓ again
-      ESC,                                    // Esc — cancel, store nothing
+      ESC,                                    // Esc — close it, nothing run
+      '\x7f',                                 // and take the `/` back out of the input
       '/exit' + CR,
     ],
     gap: 2200,
@@ -355,20 +365,11 @@ module.exports = async function () {
   });
   const apiFrames = framesOf(api.out);
 
-  await test('FRAMES: /api <credential> asks which provider it belongs to', () => {
-    const asked = apiFrames.some((rows) => rows.map(plain)
-      .some((r) => /which provider is this credential for/i.test(r)));
-    assert.ok(asked, 'the provider question is drawn');
-    // AND IT OFFERS THE KNOWN ENDPOINTS, from the one table.
-    const providers = require('../../src/providers');
+  await test('FRAMES: /api <credential> is refused — the terminal never takes a key', () => {
     const all = apiFrames.flatMap((rows) => rows.map(plain)).join(NL);
-    for (const p of providers.KNOWN) {
-      assert.ok(all.includes(p.label), `${p.label} is offered`);
-    }
-    // RENAMED 2026-09-15: one custom category, called `Customs…`. The picker
-    // used to carry an `Other…` escape AND a row named `custom` from the user's
-    // V1 configuration — two spellings of one idea.
-    assert.ok(/Customs…/.test(all), 'and so is the row that asks rather than guesses');
+    assert.ok(/never takes a key in the terminal/.test(all), 'the refusal is drawn');
+    assert.ok(/Model Dashboard/.test(all), 'and it says where keys go');
+    assert.ok(!/which provider is this credential for/i.test(all), 'no terminal provider picker for a key');
   });
 
   await test('FRAMES: the credential never leaves the line it was typed on', () => {
@@ -437,7 +438,7 @@ module.exports = async function () {
       `the arrow keys really moved the selection: ${marked.join(' -> ')}`);
   });
 
-  await test('FRAMES: Esc leaves the picker with nothing stored', () => {
+  await test('FRAMES: a refused key and a closed palette leave nothing stored', () => {
     const cfgFile = path.join(api.cwd, 'cfg', 'config.json');
     const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
     const conns = cfg.connections || {};

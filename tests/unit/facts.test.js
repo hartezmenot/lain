@@ -25,9 +25,9 @@ const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
 const F = require('../../src/facts');
-const contracts = require('../../src/contracts');
-const clifacts = require('../../src/clifacts');
-const datafacts = require('../../src/datafacts');
+const contracts = require('../../tools/dev/contracts');
+const clifacts = require('../../tools/dev/clifacts');
+const datafacts = require('../../tools/dev/datafacts');
 const F2 = require('../../src/findings');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -131,14 +131,6 @@ module.exports = async function () {
     assert.match(sep.value, /;/);
     assert.match(sep.counterExample, /&&/);
     assert.match(sep.counterExample, /PowerShell 7|pwsh/, 'it must say where && does exist');
-  });
-
-  await test('CONTRACT: changing directory is a parameter, proved from the advertised schema', () => {
-    const cwd = byName(contracts.pathFacts(ROOT, ROOT), 'Changing directory');
-    assert.ok(cwd);
-    assert.strictEqual(cwd.value, 'pass cwd as a tool parameter');
-    assert.match(cwd.counterExample, /cd /, 'the thing not to do must be named');
-    assert.strictEqual(cwd.via, F.VIA.SCHEMA);
   });
 
   await test('CONTRACT: findings report forward-slashed relative paths on every platform', () => {

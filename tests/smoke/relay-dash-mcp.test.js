@@ -16,7 +16,6 @@
 
 const assert = require('assert');
 const fs = require('fs');
-const http = require('http');
 const path = require('path');
 const { test, runCli, tmpdir, assertIncludes, assertNotIncludes } = require('../helpers');
 
@@ -40,16 +39,6 @@ function probot(cfg = {}) {
 // (Two scripted FACT / EVIDENCE / HYPOTHESIS / RECOMMENDATION reviews stood
 // here — the reviewer's half of the bounded relay these tests used to drive.
 // They went with it; nothing scripts a second model any more.)
-
-function get(port, p, headers = {}) {
-  return new Promise((resolve) => {
-    http.get({ host: '127.0.0.1', port, path: p, headers }, (res) => {
-      let b = '';
-      res.on('data', (d) => { b += d; });
-      res.on('end', () => resolve({ code: res.statusCode, body: b }));
-    }).on('error', (e) => resolve({ code: 0, body: e.message }));
-  });
-}
 
 module.exports = async function () {
   // --------------------------------------------------------- chat sources ---
@@ -102,182 +91,29 @@ module.exports = async function () {
     assert.strictEqual(r.code, 0);
     assertIncludes(out, 'Chat source');
     assertIncludes(out, 'LAIN');
-    assertIncludes(out, 'ChatGPT.com');
-    assertIncludes(out, 'Gemini.google.com');
+    // THE WEBSITE SOURCES WERE RETIRED (Phase 8.1): not listed, and nothing on screen points at them.
+    assert.ok(!/ChatGPT\.com|Gemini\.google\.com|\/source chatgpt/.test(out), 'a retired website source is neither listed nor suggested');
     assertIncludes(out, "coding request always runs on LAIN's runtime");
   });
 
-  await test('SOURCE: selecting a website source changes chat and NOT coding', async () => {
-    // Selected without connecting: choosing a source is a local decision and
-    // must not launch a browser, so this stays a smoke test and not a live one.
+  await test('SOURCE: a retired website source is refused, says what to use instead, and chat stays LAIN', async () => {
+    // Selecting one is a local decision that must not launch a browser — and since
+    // Phase 8.1 the answer is a refusal with the way forward, never a half-selection.
     const { cwd, configDir } = probot({});
     const r = await runCli([], {
       cwd, configDir,
-      stdin: '/source chatgpt\n/source\n/source lain\n/exit\n',
+      stdin: '/source chatgpt\n/source\n/exit\n',
       script: [],
       timeoutMs: 40000,
     });
     const out = plain(r.out);
-    assertIncludes(out, 'chat source: ChatGPT.com');
-    assertIncludes(out, 'no model chosen yet');
-    assertIncludes(out, 'chat source: LAIN');
+    assertIncludes(out, 'website sources were retired');
+    assertIncludes(out, '/account');
+    assert.ok(!/chat source: ChatGPT\.com/.test(out), 'nothing was selected');
+    assert.match(out, /●\s+LAIN/, 'chat is still LAIN');
   });
 
   // ----------------------------------------------------------------- dash ---
-
-  await test('DASH: the real binary serves a credential-protected dashboard, read-only', async () => {
-    const { cwd, configDir } = probot({});
-    // Driven with staged input so the server is up before it is polled.
-    const r = await runCli([], {
-      cwd, configDir,
-      stdinSteps: ['/dash\n', '/dash status\n', '/exit\n'],
-      stepDelayMs: 1200,
-      script: [],
-      timeoutMs: 40000,
-    });
-    const out = plain(r.out);
-    assertIncludes(out, 'Remote Control');
-    // THE URL AND THE CREDENTIAL ARE NOW TWO THINGS. This asserted a URL ending
-    // `/?t=<token>` — which is to say it asserted that the link WAS the secret.
-    // That is the shape being removed: a URL leaks through browser history, the
-    // address bar, proxy logs and `Referer`, and sending yourself "the dashboard
-    // link" sent the credential with it for good. The page asks for the token
-    // instead, so the link is safe to pass around and the token is printed on
-    // its own line for the person who can see this terminal.
-    assert.match(out, /http:\/\/127\.0\.0\.1:\d+\//, 'a localhost URL');
-    assert.ok(!/\?t=/.test(out), 'no credential may be in the URL');
-    // THE STARTUP PASSWORD, ON ITS OWN ROW under a `password` label. It used to
-    // read `key <32 hex>` on one line — the last place the old token vocabulary
-    // survived. See repl.js on why the value gets a row of its own.
-    assert.match(out, /\bpassword[ \t]*\r?\n?[ \t]*[a-f0-9]{32}/,
-      'and the startup password is printed separately');
-    assertIncludes(out, 'read-only');
-    assert.ok(!/0\.0\.0\.0/.test(out), 'the default must not bind every interface');
-    assert.strictEqual(r.code, 0);
-  });
-
-  await test('DASH: it really answers over HTTP, and really stops with the session', async () => {
-    const { cwd, configDir } = probot({});
-    const { spawn } = require('child_process');
-    const env = { ...process.env };
-    for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
-    Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
-    let out = '';
-    child.stdout.on('data', (d) => { out += d; });
-    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-    try {
-      await wait(1200);
-      child.stdin.write('/dash\n');
-      await wait(1500);
-      // THE URL AND THE PASSWORD ARE PRINTED SEPARATELY NOW — see the test
-      // above for why the link stopped being the credential.
-      //
-      // ONE PATTERN FOR BOTH SURFACES. `/dash` prints the label and the value
-      // on one row; the autostart line in repl.js splits them across two,
-      // because that runs before the UI exists and has to fit 40 columns. What
-      // is asserted is the LABEL followed by the value — not the layout.
-      const m = /http:\/\/127\.0\.0\.1:(\d+)\//.exec(out);
-      assert.ok(m, `no dashboard URL was printed:\n${out.slice(-400)}`);
-      const tm = /\bpassword[ \t]*\r?\n?[ \t]*([a-f0-9]{32})/.exec(out);
-      assert.ok(tm, `no startup password was printed:\n${out.slice(-400)}`);
-      const port = Number(m[1]);
-      const t = tm[1];
-      assert.strictEqual((await get(port, '/api/state')).code, 401, 'no password, no answer');
-      // THE HEADER FORM, which is how the page actually asks — this is the path
-      // that has to work, and testing only the query form would leave it unproven.
-      const state = await get(port, '/api/state', { 'x-lain-session': t });
-      assert.strictEqual(state.code, 200);
-      const s = JSON.parse(state.body);
-      assert.ok(s.project.name, 'the state names the project');
-      assert.strictEqual(s.control.actions, false, 'read-only until told otherwise');
-      // THE SHELL LOADS FOR ANYONE — it must, in order to ask — and carries no
-      // token and no project. Fetched with NO credential at all, deliberately.
-      const page = await get(port, '/');
-      assert.strictEqual(page.code, 200, 'the shell must load so it can ask for the password');
-      assert.match(page.body, /LAIN/);
-      assert.match(page.body, /id="gate"/, 'and it must be the gate that loads');
-      assert.ok(!page.body.includes(t), 'THE TOKEN MUST NOT BE IN THE PAGE');
-      assert.ok(!page.body.includes(s.project.name),
-        'nor may an unauthenticated stranger learn which project this is');
-      child.stdin.write('/exit\n');
-      await wait(2500);
-      const after = await get(port, '/api/state', { 'x-lain-session': t });
-      assert.strictEqual(after.code, 0, 'the socket must not outlive the session');
-    } finally {
-      try { child.kill(); } catch { /* gone */ }
-    }
-  });
-
-  // ------------------------------------------------------------------ mcp ---
-
-  await test('DASH: autostart is ON by default, and OFF is respected', async () => {
-    // THE DEFAULT CHANGED, DELIBERATELY. This asserted the opposite — that a
-    // plain session starts no dashboard — on the reasoning that a CLI should
-    // not open a listening socket for somebody who never asked.
-    //
-    // That reasoning holds up poorly against what is actually bound: an
-    // OS-chosen port on 127.0.0.1, unreachable from the network, serving a page
-    // that is a locked gate until a credential is proved. Weighed against
-    // retyping `/dash` every session, the design is right that it should simply
-    // be there. So the test now pins the new contract AND the way out of it,
-    // because a default with no escape is not a default.
-    const on = probot({});
-    const a = await runCli([], { cwd: on.cwd, configDir: on.configDir, stdin: '/exit\n', script: [], timeoutMs: 30000 });
-    assert.match(plain(a.out), /dashboard\s+http/, 'a plain session should bring the dashboard up');
-
-    const off = probot({ dashAutostart: false });
-    const b = await runCli([], { cwd: off.cwd, configDir: off.configDir, stdin: '/exit\n', script: [], timeoutMs: 30000 });
-    assert.ok(!/dashboard\s+http/.test(plain(b.out)), 'and dashAutostart:false must still turn it off');
-  });
-
-  await test('DASH: with autostart ON, it is already serving before /dash is typed', async () => {
-    // WHAT THIS PROVES, and it is the point of the feature: the URL is printed
-    // and the port ANSWERS, without `/dash` ever being run. Asserting only the
-    // printed line would prove a message, not a server.
-    const { cwd, configDir } = probot({ dashAutostart: true });
-    const { spawn } = require('child_process');
-    const env = { ...process.env };
-    for (const k of Object.keys(env)) if (k.startsWith('LAIN_')) delete env[k];
-    Object.assign(env, { LAIN_CONFIG_DIR: configDir, LAIN_HOME: path.join(configDir, 'supervisor-home'), LAIN_NO_COLOR: '1', NO_COLOR: '1', LAIN_PROVIDER: 'mock', LAIN_SUPERVISOR_BIN: process.env.LAIN_SUPERVISOR_BIN || '', LAIN_SUPERVISOR_LEASE_PORT: process.env.LAIN_SUPERVISOR_LEASE_PORT || '' });
-    const child = spawn(process.execPath, [path.join(__dirname, '..', '..', 'bin', 'lain.js')], { cwd, env, windowsHide: true });
-    let out = '';
-    child.stdout.on('data', (d) => { out += d; });
-    const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-    // ---- WAIT FOR THE LINE, NOT FOR A NUMBER OF MILLISECONDS -------------
-    //
-    // This slept 2000ms and then asserted, which is a race against process
-    // startup — and it loses whenever the machine is busy, which inside a file
-    // that has already spawned thirteen other binaries is often. A loss was
-    // indistinguishable from the banner never being printed at all.
-    const until = async (re, ms = 15000) => {
-      const deadline = Date.now() + ms;
-      for (;;) {
-        const hit = re.exec(plain(out));
-        if (hit) return hit;
-        if (Date.now() > deadline) return null;
-        await wait(50);
-      }
-    };
-    try {
-      const m = await until(/dashboard\s+http:\/\/127\.0\.0\.1:(\d+)\//);
-      assert.ok(m, `no dashboard was started by itself:\n${plain(out).slice(-400)}`);
-      const tm = await until(/\bpassword[ \t]*\r?\n?[ \t]*([a-f0-9]{32})/);
-      assert.ok(tm, `the startup password must be printed, since the URL no longer carries it:
-${plain(out).slice(0, 400)}`);
-      const port = Number(m[1]);
-      // IT REALLY ANSWERS — and still refuses without the token.
-      assert.strictEqual((await get(port, '/api/state')).code, 401, 'autostart must not mean unlocked');
-      const ok = await get(port, '/api/state', { 'x-lain-session': tm[1] });
-      assert.strictEqual(ok.code, 200, 'the autostarted server must actually serve');
-      assert.strictEqual(JSON.parse(ok.body).control.actions, false, 'and be read-only, like any other');
-    } finally {
-      try { child.stdin.write('/exit\n'); } catch { /* already gone */ }
-      await wait(800);
-      try { child.kill(); } catch { /* gone */ }
-    }
-  });
-
   await test('MCP: unconfigured, /mcp says NOT CONFIGURED and starts nothing', async () => {
     const { cwd, configDir } = probot({});
     const r = await runCli([], { cwd, configDir, stdin: '/mcp\n/mcp connect\n/exit\n', script: [], timeoutMs: 30000 });

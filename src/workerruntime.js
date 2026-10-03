@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * SPECIALIST PROCESSES — installed, enabled, warm, bounded (2026-09-23).
- *
- * A specialist (workers/manifest.json) is an OPTIONAL CAPABILITY: installed or
- * not, enabled `auto` or `off`. Normal work never names one; policy decides.
- * This module owns the process of each one per App: spawned lazily (or warmed
- * at start), one request at a time over JSON lines, a hard timeout per call,
- * killed at teardown. It holds no authority and makes no decision: callers
- * (locateassist.js, evidenceslice.js) ask one bounded question and get one
- * result or `null` — unavailable, timed out, failed — and carry on without it.
- *
- * WHERE THE MODEL LIVES (2026-09-23, later): in the WORKER HOST
- * (workerhost.js / workerhostmain.js), a detached process that keeps a loaded
- * model HOT between LAIN processes. This module decides and asks; the host
- * loads and answers. A worker that is not hot when a decision needs it gets
- * the availability deadline (AVAILABLE_WITHIN_MS) and is otherwise BYPASSED
- * for that decision — a local worker may shorten a turn, never lengthen it
- * because it is loading. `LAIN_WORKERHOST=off` (or cfg.workers.host = 'off')
- * keeps the old in-process lifetime, with the same bypass rule.
- *
- * Config (per user, never in the repo):
- *   cfg.workers.policy          'auto' (default) | 'off'
- *   cfg.workers.host            'on' (default) | 'off'
- *   cfg.workers.availableWithinMs   the availability deadline (default 100)
- *   cfg.workers.<id>.idleUnloadMs   unload a hot, idle worker after this (default: never)
- *   cfg.workers.laya.enabled    'auto' | 'off'
- *   cfg.workers.laya.python     the specialist runtime's python
- *   cfg.workers.laya.hfHome     the local model store for its weights
- */
+/** SPECIALIST PROCESSES — installed, enabled, warm, bounded (2026-09-23). */
 
 const fs = require('fs');
 const path = require('path');
@@ -37,11 +9,7 @@ const { spawn } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const MANIFEST = path.join(ROOT, 'workers', 'manifest.json');
 
-// ---- CHEAP ON THE HOT PATH ------------------------------------------------------
-// `uses` is asked on every tool lookup (tools/index.js offers the geometry tool
-// through it). Re-reading the manifest and stat-ing a model store on another
-// drive each time put disk latency into every call — measured as a key-timing
-// test failing under full-tier load. Both are cached briefly.
+// CHEAP ON THE HOT PATH `uses` / `roleMode` are asked on hot paths (dispatch, the turn hooks).
 let manifestCache = null;
 let manifestAt = 0;
 function manifest() {
@@ -49,6 +17,10 @@ function manifest() {
   try { manifestCache = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).workers || {}; } catch { manifestCache = {}; }
   manifestAt = Date.now();
   return manifestCache;
+}
+/** Workers retired from the active architecture (manifest `retired`): history, never dispatched. */
+function retired() {
+  try { return JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).retired || {}; } catch { return {}; }
 }
 const existsCache = new Map();
 function exists(p) {
@@ -71,21 +43,67 @@ function enabledOf(app, id) {
   return String(env || (cfgOf(app)[id] || {}).enabled || m.enabled || 'off').toLowerCase();
 }
 
-/**
- * MAY THIS WORKER SERVE THIS USE? Installed, not switched off, and either its
- * recorded gate for THAT use passed or the person forced it on. A gate that
- * failed keeps an installed worker out of normal work — installed ≠ recruited.
- */
-function uses(app, id, use) {
-  // THE CHEAP ANSWERS FIRST: switches and the recorded gate, before any disk.
-  if (policyOf(app) === 'off') return false;
-  const en = enabledOf(app, id);
-  if (en === 'off') return false;
+/** RECRUITMENT IS PER ROLE, NOT PER MODEL (2026-09-24). */
+const MODE = Object.freeze({ OFF: 'OFF', SHADOW: 'SHADOW', AUTO: 'AUTO', FORCE: 'FORCE' });
+
+function explicitRole(app, role) {
+  const v = process.env[`LAIN_ROLE_${String(role).toUpperCase()}`] || ((cfgOf(app).roles || {})[role]);
+  return v ? String(v).toUpperCase() : '';
+}
+
+function roleMode(app, id, role) {
+  if (policyOf(app) === 'off') return MODE.OFF;
   const m = manifest()[id] || {};
-  const g = (m.gates || {})[use];
-  if (en !== 'on' && !(en === 'auto' && g && g.pass)) return false;
+  const r = (m.roles || {})[role];
+  if (!r) return MODE.OFF;
+  let mode = explicitRole(app, role);
+  if (!mode) {
+    const en = enabledOf(app, id);
+    if (en === 'off' || r.rejected) return MODE.OFF;
+    mode = en === 'on' ? MODE.FORCE : String(r.mode || 'OFF').toUpperCase();
+  }
+  if (!MODE[mode]) return MODE.OFF;
+  if (mode === MODE.AUTO && !((m.gates || {})[r.gate] || {}).pass) return MODE.SHADOW;
+  return mode;
+}
+
+/** Every role a worker has, with its mode now. */
+function roles(app, id) {
+  const m = manifest()[id] || {};
+  return Object.entries(m.roles || {}).map(([role, r]) => ({ role, ...r, mode: roleMode(app, id, role), explicit: Boolean(explicitRole(app, role)) }));
+}
+
+/** The role a recorded gate evaluates (manifest roles[*].gate). */
+function roleForUse(id, use) {
+  const m = manifest()[id] || {};
+  const hit = Object.entries(m.roles || {}).find(([, r]) => r.gate === use);
+  return hit ? hit[0] : null;
+}
+
+/** MAY THIS WORKER'S RESULT BE CONSUMED FOR THIS USE? */
+function uses(app, id, use, { shadow = false } = {}) {
+  // THE CHEAP ANSWERS FIRST: switches and the recorded gate, before any disk.
+  const role = roleForUse(id, use);
+  if (!role) return false;
+  const mode = roleMode(app, id, role);
+  if (!(mode === MODE.AUTO || mode === MODE.FORCE || (shadow && mode === MODE.SHADOW))) return false;
   const w = info(app, id);
   return Boolean(w && w.usable);
+}
+
+/** SHOULD THIS WORKER BE RESIDENT? */
+function wantsResident(app, id) {
+  const w = info(app, id);
+  if (!w || !w.usable) return false;
+  return roles(app, id).some((r) => r.mode === MODE.AUTO || r.mode === MODE.FORCE || (r.mode === MODE.SHADOW && r.explicit));
+}
+
+/** Is it loaded and idle or working right now? Never loads it. */
+function isHot(app, id) {
+  const h = ((app && app._hostView) || {})[id];
+  if (h) return ['HOT_IDLE', 'INFERENCING'].includes(h.state);
+  const p = procs(app).get(id);
+  return Boolean(p && ready(p));
 }
 
 /** Everything known about one worker on this machine. */
@@ -110,23 +128,14 @@ function procs(app) { if (!app._workerProcs) app._workerProcs = new Map(); retur
 
 // ---- the worker host: models that outlive this process (workerhostmain.js) -------
 
-/**
- * THE AVAILABILITY DEADLINE. A worker that is still LOADING when a decision
- * needs it gets this long to become hot, and is otherwise BYPASSED for that
- * decision. Small on purpose: it is the most an optional worker may add to a
- * turn because it is loading. `cfg.workers.availableWithinMs` overrides it.
- */
+/** THE AVAILABILITY DEADLINE. */
 const AVAILABLE_WITHIN_MS = 100;
 function availableWithin(app) {
   const v = Number(cfgOf(app).availableWithinMs);
   return Number.isFinite(v) && v >= 0 ? v : AVAILABLE_WITHIN_MS;
 }
 
-/**
- * HOSTED unless switched off (`LAIN_WORKERHOST=off`, `cfg.workers.host = 'off'`),
- * in which case the worker lives and dies with this process, as it did before
- * the host existed.
- */
+/** HOSTED unless switched off (`LAIN_WORKERHOST=off`, `cfg.workers.host = 'off'`), in which case the worker lives and dies with this process, as it did… */
 function hosted(app) {
   const v = String(process.env.LAIN_WORKERHOST || cfgOf(app).host || 'on').toLowerCase();
   return v !== 'off';
@@ -144,11 +153,7 @@ function spec(app, id, w = info(app, id)) {
     env: { HF_HOME: fs.existsSync(hf) ? hf : w.store, USE_TF: '0', PYTHONIOENCODING: 'utf-8' } };
 }
 
-/**
- * START LOADING, DO NOT WAIT. Called when LAIN opens (for a worker policy will
- * use) and after a bypass. The load happens in the host; this process keeps
- * going. Answers nothing a turn could wait on.
- */
+/** START LOADING, DO NOT WAIT. */
 function prewarm(app, id) {
   const w = info(app, id);
   if (!w || !w.usable) return false;
@@ -163,13 +168,7 @@ function prewarm(app, id) {
 
 // ---- the project index (layaindex.js): prepared off the hot path ------------------
 
-/**
- * PREPARE THIS PROJECT FOR THE WORKER — at attach, never inside a task. Starts
- * the model if it is not loading yet, then asks the host to index the project;
- * the host builds after the model is hot, restores a persisted index instead of
- * rebuilding, and never restarts a build already running. Nothing here waits.
- * Hosted workers only: the index lives in the host, shared by every LAIN.
- */
+/** PREPARE THIS PROJECT FOR THE WORKER — at attach, never inside a task. */
 function indexProject(app, id, root) {
   const w = info(app, id);
   if (!w || !w.usable || !root || !hosted(app)) return false;
@@ -194,11 +193,7 @@ async function waitProjectIndex(app, id, root, timeoutMs = 20 * 60 * 1000) {
 
 // ---- measurements (benchmark / diagnostics only) -------------------------------
 
-/**
- * PER WORKER, KEPT APART FROM THE FLAGSHIP'S USAGE: calls, real inferences,
- * result-cache hits and misses, cold load, warm inference times, tokens in and
- * out (the worker's own tokenizer where it has one), resident memory.
- */
+/** PER WORKER, KEPT APART FROM THE FLAGSHIP'S USAGE: calls, real inferences, result-cache hits and misses, cold load, warm inference times, tokens in… */
 function stats(app, id) {
   if (!app._workerStats) app._workerStats = {};
   if (!app._workerStats[id]) {
@@ -283,11 +278,7 @@ function startPython(app, id, w) {
   return p;
 }
 
-/**
- * A LLAMA-SERVER WORKER (Violetto): the patched server on a loopback port,
- * started with its model and polled until /health answers — that wait IS the
- * cold load, and it is measured as such.
- */
+/** A LLAMA-SERVER WORKER (generic runtime; no manifest entry uses it since Violetto was retired on 2026-09-24): the server on a loopback port, started… */
 function startLlama(app, id, w) {
   const port = Number((cfgOf(app)[id] || {}).port || w.port || 8093);
   const args = ['-m', w.gguf, '-c', String(w.ctx || 16384), '--host', '127.0.0.1', '--port', String(port), '-t', String(w.threads || 8), '--no-webui'];
@@ -355,15 +346,7 @@ function callLlama(p, req, timeoutMs) {
   return run;
 }
 
-/**
- * ONE BOUNDED REQUEST. Resolves with the worker's result, or null when the
- * worker is unusable, dead, or late — never throws, never retries.
- *
- * `cacheKey` — the caller's fingerprint of the STATE the question is about (a
- * file listing's stamps, a DOM snapshot, the geometry's numbers). The same key
- * returns the stored result with ZERO inference; a changed state is a new key,
- * so a stale answer cannot be served. The hit is marked `cached: true`.
- */
+/** ONE BOUNDED REQUEST. */
 async function call(app, id, req, { timeoutMs = 20000, cacheKey = null, availableWithinMs = availableWithin(app) } = {}) {
   const st = stats(app, id);
   st.calls += 1;
@@ -400,9 +383,7 @@ async function call(app, id, req, { timeoutMs = 20000, cacheKey = null, availabl
   } else {
     const p = start(app, id);
     if (!p || p.dead) { st.failures += 1; return null; }
-    // THE SAME FAST RULE IN-PROCESS: a worker still loading gets the
-    // availability deadline, then this decision goes without it. The load is
-    // started (once) and carries on for the next decision.
+    // THE SAME FAST RULE IN-PROCESS: a worker still loading gets the availability deadline, then this decision goes without it.
     if (req.op !== 'ping' && !ready(p)) {
       if (!p.warming) p.warming = (p.kind === 'llama' ? callLlama(p, { op: 'ping' }, 10 * 60 * 1000) : callPython(p, { op: 'ping' }, 10 * 60 * 1000)).catch(() => null);
       const until = Date.now() + availableWithinMs;
@@ -435,19 +416,13 @@ async function call(app, id, req, { timeoutMs = 20000, cacheKey = null, availabl
   return { ...msg, ms };
 }
 
-/**
- * LOAD THE MODEL so the first real request is warm. The first load's time is
- * recorded as the COLD LOAD (never folded into a per-call inference time), and
- * the process's resident memory right after it.
- */
+/** LOAD THE MODEL so the first real request is warm. */
 async function warm(app, id) {
   const w = info(app, id);
   if (!w || !w.usable) return false;
   const st = stats(app, id);
   if (hosted(app)) {
-    // A BENCHMARK OR DIAGNOSTIC WAIT — never called from a turn. The host
-    // measured the load itself; an already-hot worker reports the load that
-    // made it hot, and says it was already hot.
+    // A BENCHMARK OR DIAGNOSTIC WAIT — never called from a turn.
     const host = require('./workerhost');
     const before = await host.status();
     const was = before.ok && before.workers && before.workers[id] ? before.workers[id].state : 'UNLOADED';
@@ -472,11 +447,7 @@ async function warm(app, id) {
   return Boolean(r);
 }
 
-/**
- * STOP THIS PROCESS'S WORKERS. In-process workers die here. HOSTED workers
- * outlive the process by design and are only UNLOADED when the person asks
- * (`/workers off`, `/workers laya off` → `{ unload: true }`).
- */
+/** STOP THIS PROCESS'S WORKERS. */
 function stop(app, { unload = false, ids = null } = {}) {
   for (const p of procs(app).values()) { try { p.child.kill(); } catch { /* gone */ } }
   procs(app).clear();
@@ -485,12 +456,7 @@ function stop(app, { unload = false, ids = null } = {}) {
   }
 }
 
-/**
- * At the end of a process: the measurements onto the session (saved with it),
- * then stop what this process owns. A hosted worker is NOT unloaded — the next
- * LAIN finds it hot. Its host-side state (load, residency, idle) is recorded
- * alongside, kept apart from this process's per-call numbers.
- */
+/** At the end of a process: the measurements onto the session (saved with it), then stop what this process owns. */
 function settle(app) {
   try {
     if (app && app.session && app._workerStats) {
@@ -520,12 +486,12 @@ function status(app) {
     return {
       id, contract: w.contract, status: w.status || (w.installed ? 'INSTALLED' : 'NOT INSTALLED'), state, hosted: hosted(app), host: h,
       switch: enabledOf(app, id), enabled: w.enabled, running: ['LOADING', 'HOT_IDLE', 'INFERENCING'].includes(state), warm: ['HOT_IDLE', 'INFERENCING'].includes(state),
-      gates: w.gates || {}, verdict: w.verdict || '', reason: w.reason || '',
+      gates: w.gates || {}, verdict: w.verdict || '', reason: w.reason || '', roles: roles(app, id),
     };
   });
 }
 
 module.exports = {
-  manifest, info, uses, policyOf, enabledOf, call, warm, prewarm, stop, settle, status, stats, memoryMB, memoryMBAsync,
+  manifest, retired, info, uses, roleMode, roles, roleForUse, wantsResident, isHot, MODE, policyOf, enabledOf, call, warm, prewarm, stop, settle, status, stats, memoryMB, memoryMBAsync,
   hosted, spec, hostView, AVAILABLE_WITHIN_MS, indexProject, projectIndex, waitProjectIndex,
 };

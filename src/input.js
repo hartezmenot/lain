@@ -1,24 +1,7 @@
 'use strict';
 
 
-/**
- * INPUT. Emits complete user inputs, where a PASTE IS ONE INPUT.
- *
- * `readline` splits on newlines before anyone can see that forty of them
- * arrived inside one paste, so a 40-line paste became 40 prompts judged one
- * line at a time. Terminals announce a paste with bracketed markers
- * (ESC[200~ … ESC[201~) once mode 2004 is enabled; this reader consumes them
- * wherever they appear, TTY or pipe — real terminal behaviour, not a test
- * affordance, so a piped test is faithful to the real path. Pasted text is
- * preserved byte-for-byte and carries `isPaste`, so classification never has
- * to guess from content what the terminal already stated structurally.
- *
- * ONE EDITING STATE MACHINE, not a per-character TTY reader plus a newline
- * splitter for pipes — the splitter never emitted `edit`, so a half-typed
- * line over a pipe was invisible and no as-you-type behaviour (history,
- * `/`, `@`) could exist or be tested through the real binary. Only ECHO
- * differs between the two, because only a terminal has a cursor to echo to.
- */
+/** INPUT. Emits complete user inputs, where a PASTE IS ONE INPUT. */
 
 const EventEmitter = require('events');
 const { decodeEscape, mouseEvent } = require('./keydecode');
@@ -35,11 +18,7 @@ const paste = require('./pastebuffer');
 const { PASTE_START, PASTE_END } = paste;
 
 const MAX_HISTORY = 200;
-/**
- * How many pasted blocks one line remembers, for the COMPOSER's drawing only.
- * Forgetting the oldest makes that block render in full — a cosmetic
- * regression; the content is in the buffer regardless. See ui/composer.js.
- */
+/** How many pasted blocks one line remembers, for the COMPOSER's drawing only. */
 const MAX_PASTE_RECORDS = 16;
 /** How long a lone ESC waits to see whether it is really an arrow key. */
 const ESC_WAIT_MS = 40;
@@ -59,13 +38,7 @@ class Input extends EventEmitter {
     this.pasteBuf = '';
     /** Did any part of the line being edited arrive as a paste? */
     this.pastedInLine = false;
-    /**
-     * WHAT arrived as a paste in the line being edited, oldest first — never
-     * WHERE it is. PRESENTATION ONLY: the composer finds each block by
-     * searching the buffer, so nothing here moves when the line is edited and
-     * nothing here can point at the wrong bytes. `this.line` is the whole of
-     * what is sent, and `_emitInput` never looks at this. See ui/composer.js.
-     */
+    /** WHAT arrived as a paste in the line being edited, oldest first — never WHERE it is. */
     this.pastesInLine = [];
     this.closed = false;
     this.promptStr = '';
@@ -77,19 +50,9 @@ class Input extends EventEmitter {
     this.histIndex = 0;
     /** What was being typed before recall started, so ↓ can return to it. */
     this.draft = '';
-    /**
-     * UNDO / REDO — scoped to the line currently being edited, not to the
-     * session. See undo.js for the stack and the coalescing rule; reset
-     * whenever the line is replaced wholesale from outside the edit path —
-     * history recall, a completion accepted, or a submit — because undoing
-     * "back through" a different prompt entirely is not what Ctrl+Z means here.
-     */
+    /** UNDO / REDO — scoped to the line currently being edited, not to the session. */
     this._undoStack = new UndoStack();
-    /**
-     * Ask the terminal for mouse reports. Off until the TUI turns it on, because
-     * a linear `lain -p` session has nothing to click and enabling tracking
-     * would take text selection away from the terminal for no gain.
-     */
+    /** Ask the terminal for mouse reports. */
     this.mouse = false;
     this._onData = this._onData.bind(this);
   }
@@ -120,13 +83,7 @@ class Input extends EventEmitter {
     try { this.stdin.pause(); } catch { /* already paused */ }
   }
 
-  // -------------------------------------------------------------- mouse ----
-  // SGR encoding (`ESC[<b;x;yM`) is the only one whose coordinates survive past
-  // column 95. `?1002h` is BUTTON-EVENT tracking — motion only while a button
-  // is HELD, i.e. a drag; `?1003h` reports every cell crossed regardless, which
-  // is the redraw storm the two are routinely confused over. This DOES take
-  // native selection, which Shift still bypasses in every terminal worth
-  // naming (`/help` says so) — in exchange the input box gets one that EDITS.
+  // mouse SGR encoding (`ESC[<b;x;yM`) is the only one whose coordinates survive past column 95.
 
   /** Turn reporting on, if it is wanted and there is a terminal to ask. */
   _mouseOn() {
@@ -147,23 +104,7 @@ class Input extends EventEmitter {
     if (!this.closed) this._mouseOn();
   }
 
-  /**
-   * GIVE THE TERMINAL ITS SELECTION BACK.
-   *
-   * ---- WHY AN OFF SWITCH EXISTS AT ALL -----------------------------------
-   *
-   * `?1002h` takes native drag-selection; the comment above says Shift bypasses
-   * it "in every terminal worth naming", and that is true of Windows Terminal,
-   * iTerm2 and GNOME Terminal — and false of the legacy Windows console, of
-   * several multiplexer configurations, and of anyone whose Shift+drag is bound
-   * to something else. For those people the sentence in `/help` is not advice,
-   * it is a dead end: there was no way to turn this off and no way to copy.
-   *
-   * So the capture is now a preference rather than a fact. Off, LAIN loses the
-   * click-to-position caret and the feed's click targets, and the terminal
-   * behaves exactly as it did before LAIN started — which is a trade only the
-   * person looking at the screen can make.
-   */
+  /** GIVE THE TERMINAL ITS SELECTION BACK. */
   disableMouse() {
     this.mouse = false;
     this._mouseOff();
@@ -176,14 +117,7 @@ class Input extends EventEmitter {
 
   _close() {
     if (this.closed) return;
-    // Flush a trailing line that arrived without a newline — this is what makes
-    // `echo "fix the parser" | lain` work, where there is no Enter to press.
-    //
-    // A PASTE IS NOT FLUSHED. End of input is not confirmation: the rule
-    // everywhere else is that pasted content sits in the buffer until Enter, and
-    // EOF was the one path that broke it — a 1,200-line paste that was never
-    // confirmed became a request the moment the pipe closed. Dropping it spends
-    // nothing; submitting it spends a request on something nobody agreed to.
+    // Flush a trailing line that arrived without a newline — this is what makes `echo "fix the parser" | lain` work, where there is no Enter to press.
     const pending = (this.line + this.buf).trim();
     const wasPasted = this.pastedInLine;
     if (pending && !wasPasted) { this.line = ''; this.cursor = 0; this.buf = ''; this.pastedInLine = false; this.pastesInLine.length = 0; this._emitInput(pending, false); }
@@ -191,16 +125,9 @@ class Input extends EventEmitter {
     this.emit('close');
   }
 
-  // ------------------------------------------------------------- history ----
-  // Bounded, in-memory, owned HERE where a submitted line is already known.
-  // Recall assigns a string; strings are immutable, so editing a recalled
-  // prompt cannot write back into the stored entry.
+  // history Bounded, in-memory, owned HERE where a submitted line is already known.
 
-  /**
-   * Put a line into history without submitting it — an MCQ answer typed on this
-   * same line resolves inside the panel and never reaches `_emitInput`, so
-   * without this the user could not arrow back to something they had written.
-   */
+  /** Put a line into history without submitting it — an MCQ answer typed on this same line resolves inside the panel and never reaches `_emitInput`, so… */
   remember(value) { this._remember(value); this.histIndex = this.history.length; }
 
   _remember(value) {
@@ -211,13 +138,7 @@ class Input extends EventEmitter {
     if (this.history.length > MAX_HISTORY) this.history.shift();
   }
 
-  /**
-   * Replace the line outright — history recall, a completion being accepted.
-   *
-   * The paste flag is cleared with it: leaving it set marked the REPLACEMENT
-   * as pasted, and pasted input is never a command — so recalling `/exit` with
-   * ↑ and pressing Enter sent the word "/exit" to the model instead of leaving.
-   */
+  /** Replace the line outright — history recall, a completion being accepted. */
   setLine(text) {
     this.line = String(text == null ? '' : text);
     this.cursor = this.line.length;
@@ -228,20 +149,9 @@ class Input extends EventEmitter {
     return this.line;
   }
 
-  // ------------------------------------------------------------- caret ------
-  // The line used to be append-only — ←/→/Home/End were decoded and fell
-  // through to nothing, so a typo could only be fixed by deleting everything
-  // after it. These keep `cursor` inside the line by construction.
+  // caret The line used to be append-only — ←/→/Home/End were decoded and fell through to nothing, so a typo could only be fixed by deleting everything…
 
-  /**
-   * Insert text at the caret and leave the caret after it. TYPING REPLACES THE
-   * SELECTION, via the RAW delete (below) rather than `deleteSelection()`,
-   * whose own undo snapshot would split "replace selection" into two steps
-   * instead of the one this already took.
-   *
-   * `kind` decides how this joins the undo stack (`_pushUndo`): plain typing
-   * coalesces into one step; a paste passes `'paste'` so it is always its own.
-   */
+  /** Insert text at the caret and leave the caret after it. */
   _insert(text, kind = 'insert') {
     this._pushUndo(kind);
     if (this.hasSelection()) this._deleteSelectionRaw();
@@ -251,11 +161,7 @@ class Input extends EventEmitter {
     this.emit('edit', this.line);
   }
 
-  // ---- THE SELECTION -----------------------------------------------------
-  //
-  // The model lives in selection.js — see its header. These stay as methods
-  // because every caller already asks the reader, and because the reader is
-  // the only thing that knows how long the line currently is.
+  // THE SELECTION
 
   /** Where a drag began, or null. Read by the mouse layer. */
   get selAnchor() { return this.sel.anchor; }
@@ -285,12 +191,7 @@ class Input extends EventEmitter {
     return r ? this.line.slice(r.start, r.end) : '';
   }
 
-  /**
-   * Remove the current selection with NO undo snapshot — for `_insert`, which
-   * takes ONE snapshot covering the whole "replace selection with typed text".
-   * `deleteSelection()` below is for every OTHER caller, where the deletion IS
-   * the whole operation and takes its own.
-   */
+  /** Remove the current selection with NO undo snapshot — for `_insert`, which takes ONE snapshot covering the whole "replace selection with typed text". */
   _deleteSelectionRaw() {
     const r = this.range();
     if (!r) return false;
@@ -301,11 +202,7 @@ class Input extends EventEmitter {
     return true;
   }
 
-  /**
-   * Delete the selection, leaving the caret where it began. One undo step.
-   *
-   * @returns {boolean} true when something was deleted.
-   */
+  /** Delete the selection, leaving the caret where it began. */
   deleteSelection() {
     if (!this.hasSelection()) return false;
     this._pushUndo('delete-selection');
@@ -314,16 +211,7 @@ class Input extends EventEmitter {
     return did;
   }
 
-  /**
-   * Insert text at the caret, as though it had been typed or pasted.
-   *
-   * The ONE way anything outside this file adds text: it replaces a selection,
-   * emits one `edit`, and can carry the paste flag — so a Ctrl+V that arrives
-   * as a key is indistinguishable downstream from a bracketed paste, which is
-   * what stops a pasted `/exit` from being read as a command. The paste flag
-   * ALSO decides the undo kind: pasted text is always its own step, however
-   * long, rather than merging into whatever typing came before or after it.
-   */
+  /** Insert text at the caret, as though it had been typed or pasted. */
   insertText(text, { pasted = false } = {}) {
     // LF ONLY, the same as a bracketed paste — see pastebuffer.js `lf`.
     const s = paste.lf(text == null ? '' : text);
@@ -340,9 +228,7 @@ class Input extends EventEmitter {
 
   /** Move the caret by `delta` characters. Returns true if it moved. */
   moveCursor(delta) {
-    // A DELIBERATE CARET MOVE ENDS THE SELECTION (what an arrow key means
-    // everywhere else) AND BREAKS AN UNDO RUN — typing, moving away, and
-    // typing again must not read back as one continuous insert.
+    // A DELIBERATE CARET MOVE ENDS THE SELECTION (what an arrow key means everywhere else) AND BREAKS AN UNDO RUN — typing, moving away, and typing again…
     this.clearSelection();
     this._undoBreak();
     const next = Math.max(0, Math.min(this.line.length, this.cursor + delta));
@@ -352,14 +238,7 @@ class Input extends EventEmitter {
     return true;
   }
 
-  /**
-   * ↑/↓ INSIDE A MULTI-LINE BUFFER — move between its lines, keeping the column.
-   *
-   * A pasted block is many lines in a one-row box, and the row follows the
-   * caret; without this the caret was stuck on whichever line the paste ended
-   * on and the rest could never be brought back into view. Returns false for a
-   * single-line buffer, where ↑/↓ still mean history recall.
-   */
+  /** ↑/↓ INSIDE A MULTI-LINE BUFFER — move between its lines, keeping the column. */
   moveCursorLine(delta) {
     if (!this.line.includes('\n')) return false;
     const before = this.line.slice(0, this.cursor);
@@ -376,13 +255,7 @@ class Input extends EventEmitter {
     return true;
   }
 
-  /**
-   * DELETE THE PREVIOUS WORD — Ctrl+Backspace, Ctrl+W, Alt+Backspace. Eat the
-   * whitespace right before the caret, then the run that precedes it — word
-   * characters or punctuation, never mixed, so `dashboard.py|` loses `py`,
-   * then `.`, then `dashboard`. A newline counts as whitespace, so this walks
-   * back over a line break in a pasted buffer exactly as it walks over a space.
-   */
+  /** DELETE THE PREVIOUS WORD — Ctrl+Backspace, Ctrl+W, Alt+Backspace. */
   deleteWord() {
     if (require('./lineedit').deletePaste(this, -1)) return true;   // a collapsed paste goes whole
     if (this.cursor <= 0) return false;
@@ -403,10 +276,7 @@ class Input extends EventEmitter {
     return true;
   }
 
-  // ---- UNDO / REDO — the stack and its coalescing rule live in undo.js -----
-  // Every EDIT calls `_pushUndo(kind)` before it mutates `line`; every CARET-
-  // or SELECTION-only move calls `_undoBreak()` so it is never misread as a
-  // continuation of the edit before it. Thin wrappers, so no call site changed.
+  // UNDO / REDO — the stack and its coalescing rule live in undo.js Every EDIT calls `_pushUndo(kind)` before it mutates `line`; every CARET- or…
   _pushUndo(kind) { this._undoStack.push(this._snapshot(), kind); }
   _undoBreak() { this._undoStack.break(); }
   _resetUndo() { this._undoStack.reset(); }
@@ -445,26 +315,15 @@ class Input extends EventEmitter {
     this.emit('mouse', mouseEvent({ button, x, y, final }));
   }
 
-  /**
-   * INSERT A NEWLINE AT THE CARET — a new line of prompt, not a submission.
-   * Before this, `\r` and `\n` both submitted, so a multi-line prompt could
-   * only arrive by PASTE. Goes through `_insert`, the same path a printable
-   * character takes: no second buffer, no "composing" mode — the line simply
-   * contains a newline, which is what a multi-line prompt is.
-   */
+  /** INSERT A NEWLINE AT THE CARET — a new line of prompt, not a submission. */
   newline() {
     this._insert('\n');
     // In TUI mode the screen owns the input region and redraws it from `edit`.
-    // On a plain TTY the reader echoes, and a real line break is what a person
-    // needs to see — otherwise the caret appears to jump backwards.
     if (this._echoing) this.stdout.write('\n');
     return true;
   }
 
-  // ---- THE LINE EDITOR lives in src/lineedit.js ---------------------------
-  //
-  // This file decodes BYTES into named edits; that one decides what each edit
-  // means to the buffer. These delegate so no caller had to move.
+  // THE LINE EDITOR lives in src/lineedit.js
   editKey(key) { return require('./lineedit').editKey(this, key); }
   lineStart() { return require('./lineedit').lineStart(this); }
   lineEnd() { return require('./lineedit').lineEnd(this); }
@@ -527,9 +386,7 @@ class Input extends EventEmitter {
     this.buf += chunk;
 
     for (;;) {
-      // BRACKETED PASTE IS A PROTOCOL ON THE BYTE STREAM, and it is framed in
-      // src/pastebuffer.js - see the note there for why it is not editing, and
-      // for the read-boundary defect that made the seam obvious.
+      // BRACKETED PASTE IS A PROTOCOL ON THE BYTE STREAM, and it is framed in src/pastebuffer.js - see the note there for why it is not editing, and for the…
       if (this.pasting) { if (paste.absorb(this)) continue; return; }
       if (paste.open(this)) continue;
 
@@ -540,20 +397,12 @@ class Input extends EventEmitter {
   /** True while the reader may write to the terminal: only a TTY has a cursor. */
   get _echoing() { return this.echo && this.isTTY; }
 
-  /**
-   * Minimal editing over the raw byte stream — the ONE consumer, used for a TTY
-   * and a pipe alike. Returns true if more of the buffer may remain.
-   */
+  /** Minimal editing over the raw byte stream — the ONE consumer, used for a TTY and a pipe alike. */
   _consume() {
     if (!this.buf.length) return false;
     const ch = this.buf[0];
 
-    // ---- A NEW LINE, WITHOUT SENDING --------------------------------------
-    // A bare LINE FEED is Ctrl+J, the one newline request every terminal can
-    // send — Shift+Enter is handled below where terminals report it, and this
-    // is the fallback that always works. ON A TTY ONLY: piped input is a
-    // stream of lines separated by exactly this byte, so treating it as
-    // "insert a newline" there would hang every test that pipes a prompt.
+    // A NEW LINE, WITHOUT SENDING A bare LINE FEED is Ctrl+J, the one newline request every terminal can send — Shift+Enter is handled below where…
     if (ch === '\n' && this.isTTY) {
       this.buf = this.buf.slice(1);
       this.newline();
@@ -563,10 +412,7 @@ class Input extends EventEmitter {
     if (ch === '\r' || ch === '\n') {
       // CRLF is one Enter, not two.
       this.buf = this.buf.slice(ch === '\r' && this.buf[1] === '\n' ? 2 : 1);
-      // Enter belongs to an open completion menu even when the line is not
-      // empty — "/stat<Enter>" means run the highlighted command, not send the
-      // fragment to a model. The predicate is asked, not mirrored, so the panel
-      // stays the single source of truth about whether a menu is open.
+      // Enter belongs to an open completion menu even when the line is not empty — "/stat<Enter>" means run the highlighted command, not send the fragment to…
       if (typeof this.enterGoesToUI === 'function' && this.enterGoesToUI()) {
         this.emit('key', 'enter');
         return true;
@@ -583,9 +429,7 @@ class Input extends EventEmitter {
       this.emit('edit', '');
       // An empty Enter is a UI action (confirm a panel selection), not input.
       if (!text.trim()) { this.emit('key', 'enter'); return true; }
-      // ONE input, however it was assembled: typed, pasted, or typed around a
-      // paste. `isPaste` travels with it so command classification never has to
-      // infer from the text what the terminal already stated.
+      // ONE input, however it was assembled: typed, pasted, or typed around a paste.
       this._emitInput(text, wasPasted);
       return true;
     }
@@ -594,11 +438,7 @@ class Input extends EventEmitter {
       this.emit('key', 'tab');
       return true;
     }
-    // CTRL+BACKSPACE — delete the previous WORD. Terminals disagree which byte
-    // is which: most send \x7f for plain Backspace and \x08 (^H) for Ctrl+
-    // Backspace — backwards from what the names suggest, and treating them as
-    // one key meant Ctrl+Backspace deleted one character. Ctrl+W is the
-    // readline convention; Alt+Backspace (\x1b\x7f) is in the ESC branch below.
+    // CTRL+BACKSPACE — delete the previous WORD.
     if (ch === '\b') {                            // ctrl-backspace
       this.buf = this.buf.slice(1);
       this.deleteWord();
@@ -613,9 +453,7 @@ class Input extends EventEmitter {
       this.buf = this.buf.slice(1);
       // WITH A SELECTION, BACKSPACE DELETES ALL OF IT — one keystroke.
       if (this.deleteSelection()) return true;
-      // Backspace only ever edits text. Going back a level is `←`, which is
-      // where a person reaches for it and which leaves this key doing one job.
-      // Delete the character BEFORE the caret, wherever the caret is.
+      // Backspace only ever edits text.
       if (this.cursor > 0) {
         this._pushUndo('delete-back');
         this.line = this.line.slice(0, this.cursor - 1) + this.line.slice(this.cursor);
@@ -626,9 +464,7 @@ class Input extends EventEmitter {
       }
       return true;
     }
-    // THE CLIPBOARD KEYS — Ctrl+C, Ctrl+X, Ctrl+V. What each of them means
-    // depends on whether anything is selected, and that question belongs to
-    // selection.js. See there for why conditioning Ctrl+C is safe.
+    // THE CLIPBOARD KEYS — Ctrl+C, Ctrl+X, Ctrl+V.
     if (clipboardKey(this, ch)) { this.buf = this.buf.slice(1); return true; }
     if (ch === CTRL_C) {                          // ctrl-c, with nothing selected
       this.buf = this.buf.slice(1);
@@ -641,9 +477,7 @@ class Input extends EventEmitter {
       return true;
     }
     if (ch === ESC) {
-      // WHAT THE SEQUENCE MEANS lives in keydecode.js — a pure function of the
-      // buffer, so every terminal disagreement it navigates is assertable
-      // without a TTY, a screen or a session. This does what the answer says.
+      // WHAT THE SEQUENCE MEANS lives in keydecode.js — a pure function of the buffer, so every terminal disagreement it navigates is assertable without a…
       const d = decodeEscape(this.buf);
       if (!d) { this.buf = this.buf.slice(1); return true; }
       // Incomplete but still possible: reading the lone ESC now would turn a
@@ -663,14 +497,10 @@ class Input extends EventEmitter {
       this.emit('key', 'ctrl-' + String.fromCharCode(ch.charCodeAt(0) + 96));
       return true;
     }
-    // Printable run. TAB (\x09) is excluded deliberately: it falls outside the
-    // control ranges either side of it, so leaving it in swallowed the keystroke
-    // into the line as literal whitespace and completion never fired.
+    // Printable run. TAB (\x09) is excluded deliberately: it falls outside the control ranges either side of it, so leaving it in swallowed the keystroke…
     const m = /^[^\r\n\t\x00-\x08\x0b-\x1f\x7f]+/.exec(this.buf);
     if (!m) { this.buf = this.buf.slice(1); return true; }
-    // INSERT AT THE CURSOR, not at the end. Appending was correct only while
-    // the cursor could not move; now that ←/→/Home/End exist, typing into the
-    // middle of a line has to land where the caret is.
+    // INSERT AT THE CURSOR, not at the end.
     this._insert(m[0]);
     // In TUI mode the screen owns the input row, so echoing here would draw the
     // characters twice; `edit` lets the screen redraw the row it owns.

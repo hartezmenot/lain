@@ -137,7 +137,7 @@ module.exports = async function () {
       cwd: tmpdir('cmd-'), env: { LAIN_FORCE_TUI: '1', COLUMNS: '96', LINES: '28' },
       stdinSteps: ['audit it\n', '/new\n'], stepDelayMs: 900,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 4' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 4' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,
@@ -152,7 +152,7 @@ module.exports = async function () {
       cwd: tmpdir('cmd-'), env: { LAIN_FORCE_TUI: '1', COLUMNS: '96', LINES: '28' },
       stdinSteps: ['audit it\n', '/status\n'], stepDelayMs: 900,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 4' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 4' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,
@@ -172,14 +172,11 @@ module.exports = async function () {
     assert.match(out, /\/model \[name\|refresh\]/, 'the refresh form must be discoverable from /help');
     // ---- AND THE FORMS THAT TAKE AN ARGUMENT ----------------------------
     //
-    // `/api` had `refresh` and `status` and no way to GIVE LAIN a key at all —
-    // it had to be written into config.json by hand. The credential form is the
-    // one a person actually needs first, so it is the one that must be visible
-    // in `/help`; pinning only the old two would let it be added and remain
-    // undiscoverable. The connection form (`/api lain:custom`) is the repair
-    // for a key that stopped working — it must be discoverable for the same
-    // reason.
-    assert.match(out, /\/api \[<credential>\|<connection>\|refresh \[id\]\|status\]/, 'so must /api');
-    assert.match(out, /bare \/api asks for a key/, 'and the way in with no argument at all');
+    // PHASE 8.3: the terminal never takes a key. `/api add` (and a provider or a
+    // connection name) opens the Model Dashboard, where the key is entered — so
+    // /help must say WHERE keys go, not offer a `<credential>` form.
+    assert.match(out, /\/api \[add\|<provider>\|<connection>\|refresh \[id\]\|status\]/, 'so must /api');
+    assert.match(out, /keys are entered in the Model Dashboard/, 'and where a key goes');
+    assert.ok(!/<credential>|bare \/api asks for a key/.test(out), 'never a terminal key prompt');
   });
 };

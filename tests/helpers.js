@@ -254,6 +254,10 @@ function prepareCli(o = {}) {
     //
     // A test that wants the real schedule can override it through `o.env`.
     LAIN_BACKOFF_MS: '1,1,1,1,1,1,1,1,1,1',
+    // NO WINDOW: `/model manage`, `/api add` and `/account add` open the Model
+    // Dashboard (fabric/dashlaunch.js). A spawned test binary reports that it
+    // did not, rather than a real desktop window appearing mid-suite.
+    LAIN_NO_DESKTOP: '1',
     ...(o.env || {}),
   };
   if (o.script !== undefined && o.script !== null) {

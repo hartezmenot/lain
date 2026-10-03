@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * THE IMAGE VIEWER'S ROUTES.
- *
- * Three verbs, and deliberately no fourth:
- *
- *   read      the bytes of an image THIS SESSION OFFERED, by reference
- *   external  hand that same image to the machine's own viewer, on request
- *   close     put the viewer away
- *
- * THERE IS NO "read this path". The renderer names `img_<hex>`, never a file,
- * and the only references that resolve are ones LAIN itself put on the shelf —
- * a screenshot a tool just took, a file the person named to `/image`. A route
- * that accepted a path would read any file on the machine for anything that
- * could reach it. See src/imageviewer.js.
- *
- * `external` is the SECONDARY action. The native viewer is where a picture is
- * looked at; opening it elsewhere is a thing a person may ask for, not the
- * default, and never something LAIN does on its own.
- */
+/** THE IMAGE VIEWER'S ROUTES. */
 
 const viewer = require('../imageviewer');
 
@@ -26,13 +8,7 @@ const ok = (body = {}) => ({ code: 200, body: { ok: true, ...body } });
 const bad = (why, code = 400) => ({ code, body: { ok: false, why } });
 
 const ROUTES = {
-  /**
-   * THE BYTES, BASE64, WITH WHAT IS KNOWN ABOUT THEM.
-   *
-   * Base64 in a JSON reply rather than a file:// URL or a static file server:
-   * the renderer has no file access and LAIN is not serving a directory. It is
-   * the same arrangement `/api/cowork/artifact` uses for Cowork's own files.
-   */
+  /** THE BYTES, BASE64, WITH WHAT IS KNOWN ABOUT THEM. */
   'POST /api/image/read': async (app, body = {}) => {
     const rec = viewer.find(app, body.ref);
     if (!rec) return bad('that image is not on this session\'s shelf', 404);
@@ -63,15 +39,7 @@ const ROUTES = {
 
   'POST /api/image/close': async (app) => { viewer.close(app); return ok(); },
 
-  // ---- THE CLIPBOARD, AND THERE IS ONLY ONE OF THEM --------------------
-  //
-  // The window's context menu needs Copy and Paste (see pagemenu.js for why the
-  // release build has no menu of its own). It does NOT get them from the
-  // renderer: `execCommand('paste')` is blocked in Chromium, and
-  // `navigator.clipboard` depends on a permission prompt this window should
-  // never show. Both would also be a second clipboard authority beside
-  // `src/copy.js`, which is the one place text is sanitised on the way out —
-  // the invisible characters that make a pasted command fail to run.
+  // THE CLIPBOARD, AND THERE IS ONLY ONE OF THEM
   'POST /api/clipboard/read': async () => {
     const r = require('../copy').fromClipboard();
     return r.ok ? ok({ text: r.text }) : bad(r.error || 'the clipboard could not be read');

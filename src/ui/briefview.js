@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * `/brief`, FOR A PERSON — the same survey, laid out to be scanned.
- *
- * ------------------------------------------------------------------------
- * TWO AUDIENCES, ONE SET OF FACTS.
- *
- * The `engineering_brief` TOOL produces a long, dense document on purpose: a
- * model reads it once, in full, and every finding it omits is a tool call the
- * model has to spend rediscovering it. That is the right shape for a reader
- * with no eyes and infinite patience.
- *
- * A PERSON is the opposite reader. They glance. They want to know what this
- * project is, whether anything is broken, what changed, and what to run — in a
- * few seconds, without reading a page of evidence to find out.
- *
- * So this is a second RENDERING, not a second survey. Both come from
- * `survey.run()`; neither recomputes anything the other established. The long
- * form is still there behind `--full`, because the evidence has not gone
- * anywhere — it has stopped being the first thing a human is shown.
- * ------------------------------------------------------------------------
- *
- * NOTHING IS INVENTED. A run command that the repository does not establish is
- * reported as not detected rather than guessed at, for the same reason the
- * operational contract reports UNKNOWN: a wrong `npm run dev` is worse than no
- * answer, because somebody runs it.
- */
+/** `/brief`, FOR A PERSON — the same survey, laid out to be scanned. */
 
 const fs = require('fs');
 const path = require('path');
@@ -52,21 +27,12 @@ function toneFor(v) {
   return null;
 }
 
-/**
- * HOW TO RUN THIS, read from the repository.
- *
- * package.json scripts are the only place a JavaScript project actually
- * declares this, so they are read directly rather than inferred. A project
- * without them gets an honest "not detected" instead of a plausible guess.
- */
+/** HOW TO RUN THIS, read from the repository. */
 function runCommands(root, survey) {
   const out = [];
   const seenCmd = new Set();
   const seenLabel = new Set();
-  // DEDUPED BY LABEL AS WELL AS BY COMMAND. `npm run test` and `npm test` are
-  // two spellings of one thing, and listing both under "test" makes a reader
-  // wonder which is correct — which is the opposite of the point of this
-  // section. First one wins, and the order below is deliberate.
+  // DEDUPED BY LABEL AS WELL AS BY COMMAND.
   const add = (label, cmd) => {
     if (!cmd || seenCmd.has(cmd) || seenLabel.has(label)) return;
     seenCmd.add(cmd);
@@ -83,14 +49,7 @@ function runCommands(root, survey) {
     if (scripts.test) add('test', 'npm test');
   } catch { /* no manifest, or an unreadable one — say so below */ }
 
-  // ---- HOW TO RUN IT, FOR A PROJECT THAT IS NOT NODE ---------------------
-  //
-  // Everything above reads package.json, so a Python, Rust or Go project got an
-  // EMPTY "How to run" block — on the screen whose whole job is to answer that
-  // question. Each of these is read from a manifest that is actually present,
-  // never from what happens to be installed: `cargo` on PATH does not make this
-  // a Rust project, and a wrong run command is worse than an absent one because
-  // it gets typed.
+  // HOW TO RUN IT, FOR A PROJECT THAT IS NOT NODE
   const has = (f) => { try { return fs.existsSync(path.join(root, f)); } catch { return false; } };
   if (has('Cargo.toml')) add('run', 'cargo run');
   if (has('go.mod')) add('run', 'go run .');
@@ -104,15 +63,7 @@ function runCommands(root, survey) {
     if (t) add(t[1] === 'run' ? 'run' : t[1], `make ${t[1]}`);
   } catch { /* no Makefile */ }
 
-  // ---- AND HOW TO TEST IT, FROM THE ONE MODULE THAT DECIDES THAT ----------
-  //
-  // testing.js is the single place that answers "how are this project's tests
-  // run", and `discover_tests` returns the same answer to the model. Deriving a
-  // second one here would be a second thing that can be wrong, and the one that
-  // is wrong is always the copy nobody remembers exists.
-  //
-  // It also covers what this function could not: pytest, cargo, go, a Makefile
-  // target — so a Python project stops showing an empty "How to test".
+  // AND HOW TO TEST IT, FROM THE ONE MODULE THAT DECIDES THAT
   try {
     const testing = require('../testing');
     const report = testing.discover(root);
@@ -124,13 +75,7 @@ function runCommands(root, survey) {
   return out.slice(0, MAX_RUN);
 }
 
-/**
- * WHAT DESERVES ATTENTION, and it is not everything.
- *
- * A report where every non-green state looks like a catastrophe teaches its
- * reader to ignore the colour. So a blocked-by-quota test and a file that does
- * not parse are separated: one is expected and one is not.
- */
+/** WHAT DESERVES ATTENTION, and it is not everything. */
 function attention(survey) {
   const rows = [];
   const findings = survey.findings || [];
@@ -149,12 +94,7 @@ function attention(survey) {
   return rows;
 }
 
-/**
- * The whole view.
- *
- * @param {object} survey  a survey.run() result
- * @param {object} o       width, and the session for objective/progress
- */
+/** The whole view. */
 function render(survey, { width = 80, session = null, cwd = '' } = {}) {
   const d = doc();
   const root = survey.root || cwd || process.cwd();
@@ -242,9 +182,7 @@ function render(survey, { width = 80, session = null, cwd = '' } = {}) {
     }
   }
 
-  // ---- HOW DO I RUN IT ---------------------------------------------------
-  //
-  // Mandatory, and derived — never invented.
+  // HOW DO I RUN IT
   d.section('run');
   const cmds = runCommands(root, survey);
   if (cmds.length) {
@@ -261,13 +199,7 @@ function render(survey, { width = 80, session = null, cwd = '' } = {}) {
   return d.render(width);
 }
 
-/**
- * ONE recommended action, chosen from what the survey established.
- *
- * Ordered by what actually blocks progress: a file that will not parse stops
- * everything, and an unmeasured axis is only worth naming once the measured
- * ones are clean.
- */
+/** ONE recommended action, chosen from what the survey established. */
 function nextAction(survey, H) {
   const findings = survey.findings || [];
   const broken = findings.find((f) => f.severity === 'CRITICAL');
@@ -280,11 +212,6 @@ function nextAction(survey, H) {
   return 'Nothing is blocking. Continue the current task.';
 }
 
-// THE `pending` PLACEHOLDER MOVED to ui/contextview.js, which now owns both
-// pane renderings and therefore owns what they say before the survey lands.
-// Keeping a second copy here would have been a second answer to "what does
-// CONTEXT show while it is reading" — and the old one was on screen a great
-// deal longer than it should have been, because the pass that was supposed to
-// replace it threw before it started (see ui/reports.js).
+// THE `pending` PLACEHOLDER MOVED to ui/contextview.js, which now owns both pane renderings and therefore owns what they say before the survey lands.
 
 module.exports = { render, runCommands, attention, nextAction, bar };

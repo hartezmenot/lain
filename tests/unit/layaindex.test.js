@@ -33,7 +33,7 @@ const rt = require('../../src/workerruntime');
 const layaindex = require('../../src/layaindex');
 
 const saved = {};
-const KEYS = ['LAIN_WORKERHOST_DIR', 'LAIN_WORKERHOST', 'LAIN_WORKER_LAYA', 'LAIN_WORKERS', 'LAIN_LOCATE', 'LAIN_WORKERHOST_GRACE_MS', 'FAKE_LOAD_MS', 'FAKE_EMBED_MS', 'FAKE_SCHEMA'];
+const KEYS = ['LAIN_ROLE_SOURCE_FILE_RANKER', 'LAIN_WORKERHOST_DIR', 'LAIN_WORKERHOST', 'LAIN_WORKER_LAYA', 'LAIN_WORKERS', 'LAIN_LOCATE', 'LAIN_WORKERHOST_GRACE_MS', 'FAKE_LOAD_MS', 'FAKE_EMBED_MS', 'FAKE_SCHEMA'];
 function env(k, v) { if (!(k in saved)) saved[k] = process.env[k]; if (v == null) delete process.env[k]; else process.env[k] = v; }
 function restore() { for (const k of Object.keys(saved)) { if (saved[k] == null) delete process.env[k]; else process.env[k] = saved[k]; delete saved[k]; } }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -93,6 +93,8 @@ async function fresh({ loadMs = 0, embedMs = 0, schema = null } = {}) {
   env('LAIN_WORKERS', null);
   env('LAIN_WORKER_LAYA', 'on');
   env('LAIN_LOCATE', 'on');
+  // THE REJECTED RANKER, replayed: only an explicit role override reaches it now.
+  env('LAIN_ROLE_SOURCE_FILE_RANKER', 'FORCE');
   env('LAIN_WORKERHOST_GRACE_MS', null);
   env('FAKE_LOAD_MS', String(loadMs));
   env('FAKE_EMBED_MS', String(embedMs));
@@ -135,7 +137,7 @@ module.exports = async function run() {
     // (the walk itself already skips `dist/`; the lockfile and the minified bundle are this filter's)
     assert.ok(b.excluded.generated >= 2, JSON.stringify(b.excluded));
     assert.strictEqual(treeHash(root), before, 'building items wrote nothing into the project (no .lain/)');
-    assert.strictEqual(fs.existsSync(path.join(root, '.lain')), false);
+    assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.lain'))), false);
   });
 
   await test('LAYA INDEX: keyed by CONTENT — an edit, even behind an unchanged mtime, changes the key; a rename is a re-embed', () => {
@@ -274,7 +276,9 @@ module.exports = async function run() {
       assert.ok(await until(async () => { const p = await statusOf(root); return p && p.state === 'READY'; }), 'prewarm prepared the project');
       app.session.messages = [{ role: 'user', content: 'READ-ONLY. Trace how the search query goes from the API client to the search handler.\nDo not:\n\n- add tests\n- change widgets\n' }];
       const text = await la.take(app, app.session, 0);
-      assert.match(text, /locate assist · Laya \+ lexical/);
+      // ORDINARY EVIDENCE: the flagship is not told which worker produced it (dispatch.js); the ledger row is.
+      assert.match(text, /^# Likely relevant files \(\d+ ranked\)/);
+      assert.doesNotMatch(text, /laya|locate assist/i);
       assert.match(text, /narrows project EVIDENCE; the request, its constraints and the output it asks for are unchanged/);
       const row = app.session.workerLedger.slice(-1)[0];
       assert.strictEqual(row.tier, 'laya');
@@ -284,7 +288,7 @@ module.exports = async function run() {
       assert.ok(row.slice.slice(0, 3).some((id) => /src\/(api|search)\.js/.test(id)), JSON.stringify(row.slice));
       assert.ok(!row.slice.slice(0, 2).includes('tests/search.test.js'), 'the test file is not the lead for a behaviour trace');
       assert.strictEqual(treeHash(root), before, 'project byte-identical');
-      assert.strictEqual(fs.existsSync(path.join(root, '.lain')), false);
+      assert.strictEqual((fs.existsSync(path.join(root, '.lain')) || fs.existsSync(path.join(root, '.lain'))), false);
     } finally { await kill(); restore(); }
   });
 
@@ -304,7 +308,8 @@ module.exports = async function run() {
       const t0 = Date.now();
       const text = await la.take(app, app.session, 0);
       assert.ok(Date.now() - t0 < 1500, 'no wait');
-      assert.match(text, /locate assist · lexical/);
+      assert.match(text, /^# Likely relevant files/);
+      assert.notStrictEqual(app.session.workerLedger.slice(-1)[0].tier, 'laya', 'answered without Laya');
       assert.strictEqual(rt.stats(app, 'laya').calls - callsBefore, 1, 'one attempt, no retry');
     } finally { await kill(); restore(); }
   });

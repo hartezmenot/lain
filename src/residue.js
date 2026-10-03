@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * DID THE OLD IMPLEMENTATION ACTUALLY GO?
- *
- * The failure this exists to catch is specific, extremely common, and invisible
- * to every test in the project:
- *
- *     "Move the enemy table out of the code and into enemies.json."
- *
- *     ENEMIES = load_json('enemies.json')        ← added, works, tests pass
- *     ENEMIES = { slime: …, wolf: … }            ← still there, in another file
- *
- * The new implementation exists. Every test is green, because the new path
- * works. And the migration is not done: the old table is still in the tree,
- * still imported somewhere, and the next person to edit the data will edit the
- * wrong one. A model looks at the new code, sees it is correct, and reports
- * success — truthfully about what it added and falsely about what the request
- * actually asked for.
- *
- * "Replace X with Y" is TWO claims. Y exists, and X is gone. Nothing in a test
- * suite checks the second one, because a leftover definition breaks nothing —
- * that is exactly why it survives. So it is checked here, mechanically.
- *
- * WHAT MAKES THE ANSWER TRUSTWORTHY is that occurrences are classified on
- * TOKENS, not counted as text. "Still mentioned 4 times" is useless: a name in
- * a changelog is finished business and the same name in a `require` is a live
- * dependency. These are different findings and they get different words.
- *
- * IT NEVER DELETES ANYTHING. It reports. Some leftovers are deliberate — a
- * compatibility shim, a documented deprecation — and the difference is a
- * judgement about intent that belongs to whoever made the change.
- */
+/** DID THE OLD IMPLEMENTATION ACTUALLY GO? */
 
 const fs = require('fs');
 const path = require('path');
@@ -53,11 +23,7 @@ const STATE = Object.freeze({
 /** A path that looks like a test, so a leftover there can be named as one. */
 const TEST_RE = /(?:^|\/)(?:tests?|spec|__tests__)\/|\.(?:test|spec)\.[a-z]+$/i;
 
-/**
- * Sweep the tree for one identifier.
- *
- * @returns {{name, state, definitions, references, text, files}}
- */
+/** Sweep the tree for one identifier. */
 function forName(root, name, { includeRe = null } = {}) {
   const definitions = [];
   const references = [];
@@ -110,13 +76,7 @@ function lineOfFirst(source, needle) {
   return i < 0 ? 1 : source.slice(0, i).split('\n').length;
 }
 
-/**
- * Sweep for a FILE that was supposed to go away.
- *
- * Two separate questions — is the file still there, and does anything still
- * point at it — because the answers come apart: a deleted file with three live
- * imports is a broken build, and a surviving file nobody imports is dead weight.
- */
+/** Sweep for a FILE that was supposed to go away. */
 function forPath(root, rel, { includeRe = null } = {}) {
   const abs = path.resolve(root, rel);
   const target = path.relative(root, abs).replace(/\\/g, '/');
@@ -145,16 +105,7 @@ function forPath(root, rel, { includeRe = null } = {}) {
   return { path: target, stillThere, importers: importers.slice(0, MAX_HITS_PER_NAME), scanned };
 }
 
-/**
- * The whole check: what should be gone, and what should have replaced it.
- *
- * @param {string} root
- * @param {object} q
- * @param {string[]} q.gone     identifiers that should no longer exist
- * @param {string[]} q.removed  file paths that should no longer exist
- * @param {string[]} q.present  identifiers the replacement should have introduced
- * @param {string} [q.include]  glob limiting the sweep
- */
+/** The whole check: what should be gone, and what should have replaced it. */
 function check(root, { gone = [], removed = [], present = [], include = '' } = {}) {
   const includeRe = include ? globToRegExp(include) : null;
   return {

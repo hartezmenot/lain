@@ -194,7 +194,7 @@ module.exports = async function () {
       assert.ok(!open.includes(glyph), `the live row must not carry ${glyph}`);
     }
     // AND THE ROW STILL PROVES LAIN IS ALIVE, which is its actual job.
-    assert.match(open, /Thinking|Waiting|◐/, 'the live row still says what is happening');
+    assert.match(open, /Working|Thinking|Waiting/, 'the live row still says what is happening');
   });
 
   await test('PHASE B: the detailed accounting is still available, behind /token', () => {
@@ -336,7 +336,7 @@ module.exports = async function () {
       options: ['Minimal — only the essential controls', 'Chat-style — reads like a conversation'],
     }));
     const body = strip(p.render(64, 12));
-    assert.match(body, /Lain needs your input/i);
+    assert.match(body, /LAIN needs your input/i);
     // WAS `[A] Minimal`. The label is now `A.  Minimal` — see ui/answer.js: it
     // is a thing you can TYPE, so it has to read the same for a letter and for
     // a number, and the brackets were noise around it.
@@ -388,34 +388,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------------------------ L — dash --
-
-  await test('PHASE L: the dashboard is served a CONVERSATION, in order', () => {
-    const { conversation } = require('../../src/dashconversation');
-    const session = {
-      turns: [
-        { userInput: 'fix the dashboard', text: 'I found the writer.', actions: [{ name: 'read_file', target: 'dashboard.py', ok: true }] },
-        { userInput: 'go on', text: 'Editing now.', actions: [] },
-      ],
-      actors: [{ kind: 'external', text: 'FACT: status.json is stale.', afterTurns: 1 }],
-    };
-    const who = conversation(session, {}).map((m) => m.who);
-    assert.deepStrictEqual(who, ['USER', 'LAIN', 'ACTION', 'EXTERNAL', 'USER', 'LAIN'],
-      'the review sits between the turn that produced it and the turn that followed');
-  });
-
-  await test('PHASE L: the page is a chat, and stays read-only until actions are enabled', () => {
-    const html = require('../../src/dashpage').page('tok');
-    assert.match(html, /id="thread"/, 'a conversation thread');
-    assert.match(html, /Type a message/, 'and a composer');
-    assert.match(html, /viewport/, 'sized for a phone');
-    // THE SAFETY PROPERTIES, unchanged by making it pretty.
-    assert.match(html, /\$\('steer'\)\.disabled=!on/, 'the composer is disabled without actions');
-    assert.ok(!/\bexec\b|child_process|\/api\/shell/.test(html), 'no arbitrary execution is offered');
-    assert.match(html, /esc\(/, 'and everything reaching the DOM is escaped');
-  });
-
-  // ------------------------------------------------- M — visual inspection --
-
   await test('PHASE M: visual readiness answers for the transport, and for refusals', () => {
     // MOVED OUT OF inspection.js, where it asked `app.desktop()` and nothing
     // else — so a machine with a Probe running and no MCP bridge was told "no

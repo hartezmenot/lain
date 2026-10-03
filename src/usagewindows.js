@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * HOW MUCH OF AN ACCOUNT'S ALLOWANCE IS USED — as the PROVIDER stated it.
- *
- * ------------------------------------------------------------------------
- * ONLY WHAT A RESPONSE SAID. NOTHING ESTIMATED.
- *
- * The window's quota bar asks "what percentage is this account at". LAIN does
- * not bill anything and does not count anybody's tokens against a plan it has
- * never seen, so the only honest source is the provider itself — and most of
- * them say it on every response, in rate-limit headers:
- *
- *   anthropic-ratelimit-unified-<w>-utilization   a subscription window (5h, 7d)
- *   anthropic-ratelimit-<kind>-limit|remaining|reset
- *   x-ratelimit-limit|remaining|reset-<kind>       OpenAI and compatible routers
- *   x-ratelimit-limit|remaining|reset              OpenRouter and friends
- *
- * provider.js hands every response's headers here (`observe`); nothing else
- * writes. A route whose responses carry none of these has NO usage reading,
- * and that absence is reported as `null` — never as 0%, which would be a claim.
- *
- * ------------------------------------------------------------------------
- * IN MEMORY, PER PROCESS. A reading is true at the moment the response
- * arrived; it is stamped with that moment so a reader can say how old it is.
- * Persisting it would show last week's percentage as though it were today's.
- *
- * ------------------------------------------------------------------------
- * NEVER AN AVERAGE. Several windows can be reported at once (a 5-hour and a
- * weekly one, or requests and tokens). The HEADLINE is the most-used window —
- * the one that will refuse the next request first — and it says which window
- * it is. Averaging unrelated windows would produce a number no provider stated.
- */
+/** HOW MUCH OF AN ACCOUNT'S ALLOWANCE IS USED — as the PROVIDER stated it. */
 
 /** readings by connection id: { connectionId, provider, model, at, windows[] } */
 const readings = new Map();
@@ -60,10 +30,7 @@ function durationMs(text) {
   return matched ? total : null;
 }
 
-/**
- * A reset as an absolute time, from any of the shapes providers use: an
- * RFC 3339 date, epoch seconds, epoch milliseconds, or a duration from now.
- */
+/** A reset as an absolute time, from any of the shapes providers use: an RFC 3339 date, epoch seconds, epoch milliseconds, or a duration from now. */
 function resetAt(text, now) {
   const s = String(text || '').trim();
   if (!s) return null;
@@ -98,17 +65,23 @@ function flatten(headers) {
   return out;
 }
 
-/**
- * THE WINDOWS A SET OF HEADERS DESCRIBES.
- *
- * @returns {Array<{name, label, percent, limit, remaining, resetAt, subscription}>}
- *          percent is 0..100 (used), or null when only a reset was stated.
- */
+/** WHAT KIND OF LIMIT A WINDOW IS — so a percentage is never read as the wrong thing. */
+const KIND = Object.freeze({ SUBSCRIPTION: 'SUBSCRIPTION', REQUEST_WINDOW: 'REQUEST_WINDOW', TOKEN_WINDOW: 'TOKEN_WINDOW', RATE_LIMIT: 'RATE_LIMIT' });
+
+function kindOf(name, subscription, named) {
+  if (subscription) return KIND.SUBSCRIPTION;
+  if (!named) return KIND.RATE_LIMIT;
+  if (/token/.test(name)) return KIND.TOKEN_WINDOW;
+  if (/request/.test(name)) return KIND.REQUEST_WINDOW;
+  return KIND.RATE_LIMIT;
+}
+
+/** THE WINDOWS A SET OF HEADERS DESCRIBES. */
 function parse(headers, now = Date.now()) {
   const h = flatten(headers);
   const acc = new Map();
-  const slot = (name, subscription) => {
-    if (!acc.has(name)) acc.set(name, { name, label: windowLabel(name), percent: null, limit: null, remaining: null, resetAt: null, subscription });
+  const slot = (name, subscription, named = true) => {
+    if (!acc.has(name)) acc.set(name, { name, label: windowLabel(name), kind: kindOf(name, subscription, named), percent: null, limit: null, remaining: null, resetAt: null, subscription });
     return acc.get(name);
   };
   for (const [k, v] of Object.entries(h)) {
@@ -132,7 +105,9 @@ function parse(headers, now = Date.now()) {
     }
     m = /^x-ratelimit-(limit|remaining|reset)(?:-([a-z-]+))?$/.exec(k);
     if (m) {
-      const w = slot(m[2] || 'requests', false);
+      // An unsuffixed x-ratelimit-* names no unit, so it is its own window
+      // ("rate limit") and never merges into, or claims to be, "requests".
+      const w = slot(m[2] || 'rate', false, Boolean(m[2]));
       if (m[1] === 'reset') w.resetAt = resetAt(v, now); else w[m[1]] = num(v);
     }
   }
@@ -156,11 +131,7 @@ function headline(windows) {
   return pool.reduce((a, b) => (b.percent > a.percent ? b : a));
 }
 
-/**
- * A RESPONSE ARRIVED. Called by provider.js for every model request, success
- * or refusal. Never throws: usage is a reading, and a turn must not fail over
- * a header it could not parse.
- */
+/** A RESPONSE ARRIVED. Called by provider.js for every model request, success or refusal. Never throws: usage is a reading, and a turn must not fail… */
 function observe(route, headers, now = Date.now()) {
   try {
     const id = String((route && (route.connectionId || route.provider)) || '');
@@ -182,11 +153,7 @@ function observe(route, headers, now = Date.now()) {
   } catch { return null; }
 }
 
-/**
- * THE READING FOR A ROLE'S SELECTION: by route first — a catalog route id
- * (`lain:host:Label`) belongs to its base connection (`lain:host`) — then by
- * model, in either of its two names.
- */
+/** THE READING FOR A ROLE'S SELECTION: by route first — a catalog route id (`lain:host:Label`) belongs to its base connection (`lain:host`) — then by… */
 function forSelection(connectionId, modelId) {
   const cid = String(connectionId || '');
   const mid = String(modelId || '');
@@ -210,4 +177,4 @@ function all() { return [...readings.keys()].map(forConnection); }
 function last() { return lastRoute ? { ...lastRoute } : null; }
 function _reset() { readings.clear(); lastRoute = null; }
 
-module.exports = { observe, parse, headline, forConnection, forSelection, all, last, durationMs, _reset };
+module.exports = { observe, parse, headline, forConnection, forSelection, all, last, durationMs, _reset, KIND };

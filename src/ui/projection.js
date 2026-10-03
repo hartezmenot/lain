@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE SCREEN IS TOLD — the projection of app state into a frame.
- *
- * Split out of ui/index.js, which had reached the god-object guard. The seam is
- * a real one and it is the one that matters most in this file: everything here
- * READS the application and returns a plain object. It mutates nothing, decides
- * nothing, and starts nothing.
- *
- * That is the rule the views depend on — "no derivation by model" — and keeping
- * it in its own module makes it checkable at a glance instead of being a
- * convention buried among the UI methods that DO change state (turn tracking,
- * interrupt handling, the ticker).
- *
- * NAMED `frameState`, NOT `snapshot`. There is already exactly one snapshot in
- * this program — checkpoint.js, which copies BYTES so `/undo` can put them back
- * — and an architecture guard enforces that there is only one. A second thing
- * wearing the word would not have broken anything on the day, and would have
- * made "restore the snapshot" ambiguous forever after.
- *
- * FREE FUNCTIONS OVER `ui`, not methods. The architecture guard requires an
- * extracted helper never to use `this`, and it is right to: a projection that
- * reaches back through `this` can quietly start depending on call order.
- */
+/** WHAT THE SCREEN IS TOLD — the projection of app state into a frame. */
 
 const views = require('./views');
 const termtitle = require('../termtitle');
@@ -33,12 +11,7 @@ function selectionKey(app) {
   return `${cfg.model || ''}|${cfg.connection || ''}`;
 }
 
-/**
- * A PROVIDER WARNING IS LIVE ONLY WHILE ITS SELECTION IS (§48). A new model or
- * route ends it; so does a restart or a resume — the resting state is read only
- * from turns that ended in THIS process (`app._turnsAtAdopt`), never from a
- * persisted record, which is how a resumed session re-showed an old red limit.
- */
+/** A PROVIDER WARNING IS LIVE ONLY WHILE ITS SELECTION IS (§48). */
 function activeFailure(ui) {
   if (!ui.failed) return false;
   return ui.failedFor && ui.failedFor !== selectionKey(ui.app) ? false : ui.failed;
@@ -62,25 +35,16 @@ function statusState(ui) {
     activityExpanded: Boolean(ui.activityExpanded),
     phase: ui.phase,
     phaseSince: ui.phaseSince,
-    // ---- HOW LONG THIS TASK HAS BEEN WORKING ----------------------------
-    //
-    // A SNAPSHOT, not the clock. One elapsed-work figure for the whole
-    // foreground task — it does not restart between a read and a write, and it
-    // does not count time the provider spent rate limiting us. See
-    // ui/workclock.js, and `clock` below for the one thing that advances it.
+    // HOW LONG THIS TASK HAS BEEN WORKING
     clock: require('./workclock').reading(ui.clock),
-    // THE TRANSIENT OPERATION NOTE, if one is standing. It takes the live row
-    // only where that row would otherwise say READY - a turn's own phase always
-    // outranks it. See ui/operation.js for what is and is not an operation.
+    // THE TRANSIENT OPERATION NOTE, if one is standing.
     op: require('./operation').current(ui),
     interrupting: ui.interrupting,
     interrupted: ui.interrupted,
     failed: activeFailure(ui),
     retryCancelled: ui.retryCancelled,
     pendingCompletion: ui.app.pendingCompletion || null,
-    // A DELIBERATE WAIT, so the strip can name it and count it down. Without
-    // this a LAIN waiting four hours for a rate limit to clear is
-    // indistinguishable from one that has died. See UI.waitForReset.
+    // A DELIBERATE WAIT, so the strip can name it and count it down.
     waitingUntil: ui.waitingUntil || 0,
     waitingLabel: ui.waitingLabel || '',
     // WAITING ON A PERSON is a resting state the strip must carry, or it
@@ -89,14 +53,6 @@ function statusState(ui) {
       && ui.app.session.lifecycle.state === 'NEEDS_USER')
       ? ui.app.session.lifecycle.reason : null,
     // A FAILING LAST CHECK, carried to the strip.
-    //
-    // Observed by driving the real CLI: the model said "All good, everything
-    // works correctly now", the suite had just exited 1, LAIN printed the
-    // contradiction into the conversation — and the strip still read
-    // `✓ LAIN DONE`. Two surfaces disagreeing about one fact, and the one a
-    // person reads at a glance was the wrong one. The strip is where "did
-    // that work?" gets answered without reading anything.
-    // THE FINAL SMOKE'S STATE for this task — ✓ DONE waits on it (finalsmoke.js).
     finalSmoke: (() => {
       const sess = ui.app.session;
       if (!sess || !sess.lifecycle) return null;
@@ -108,67 +64,36 @@ function statusState(ui) {
       && ui.app.session.lifecycle.lastCommand
       && ui.app.session.lifecycle.lastCommand.ok === false)
       ? ui.app.session.lifecycle.lastCommand : null,
-    // THE PLAN IN HAND, not the last plan the session had. A retired plan is
-    // still readable in the PLAN pane; it is no longer this turn's progress.
-    //
-    // STILL CARRIED, AND NO LONGER DRAWN BY THE STRIP. The bottom region used
-    // to repeat the task banner's bar — the same three facts, twice on one
-    // screen, competing for the same corner. `/copy` and the banner still read
-    // this; see ui/status.js for what took its place above the caret.
+    // THE PLAN IN HAND, not the last plan the session had.
     progress: views.progressOf(views.livePlan(ui.app.session)),
-    // ---- WHAT THIS SESSION HAS COST -------------------------------------
-    //
-    // THE TOTALS ARE THE SESSION'S, not the turn's, because the question a
-    // person asks of a status row is "what have I spent", not "what did that
-    // one request cost". turnclose.js has already accumulated them.
+    // WHAT THIS SESSION HAS COST
     usage: (ui.app.session && ui.app.session.usage) || null,
     // AND THE REQUEST THAT IS OPEN RIGHT NOW, if its input side is known.
-    //
-    // Kept SEPARATE from the totals rather than added into them. It is not in
-    // `session.usage` yet — the receipt has not arrived — so folding it in
-    // would produce a number that goes DOWN when the request completes and the
-    // real figure replaces the reading. Drawn as a `+`, which is what it is.
     liveUsage: ui.liveUsage || null,
-    // Is a request open at all? Distinguishes "nothing is happening" from "a
-    // request is in flight and this provider does not state its cost until it
-    // finishes" — two very different things behind the same blank space.
+    // Is a request open at all?
     requestOpen: Boolean(ui.phase && (ui.phase.phase === 'WAITING_MODEL' || ui.phase.phase === 'RECEIVING')),
     steerQueued: Boolean(ui.app.steerQueue && ui.app.steerQueue.length),
-    // THE PENDING TEXT ITSELF, not merely that some exists —. The region
-    // shows what you typed, in the order you typed it, so you can see that
-    // the sentence was caught and is waiting rather than lost.
+    // THE PENDING TEXT ITSELF, not merely that some exists —.
     pending: (ui.app.steerQueue || []).slice(),
-    // ---- WORK RUNNING BESIDE THE CONVERSATION ---------------------------
-    //
-    // SUMMARIES, not the live jobs. A projection hands the drawing layer a
-    // snapshot of facts; handing it the objects themselves would let a redraw
-    // read a job mid-transition and, worse, let a view reach back and change
-    // one. See src/agentjob.js `summary`.
+    // WORK RUNNING BESIDE THE CONVERSATION
     jobs: ui.app.jobs ? ui.app.jobs.all().map((j) => j.summary()) : [],
+    background: require('./activityline').backgroundOf(ui.app),   // `1 shell · 1 monitor` on the live row
     // THIS turn's calls while it runs, the last turn's once it has ended —
     // the trail is always about work that really happened.
     recent: ui.liveActions.length ? ui.liveActions : (last && last.actions) || [],
-    // WHY IT STOPPED TRAVELS WITH THE COUNTS. Without it the strip said
-    // `✓ DONE · 10 tool calls` about a turn that had been blocked for
-    // producing no new evidence — the header said BLOCKED one region above
-    // it, and the two disagreed about the same turn.
+    // WHY IT STOPPED TRAVELS WITH THE COUNTS.
     lastTurn: last ? {
       toolCalls: last.toolCalls || 0,
       filesChanged: (last.mutations || []).length,
       stopReason: last.stopReason || null,
+      usage: last.usage || null,   // the receipt on the DONE line (ui/activityline.receipt)
       blocker: last.blocker != null ? Boolean(last.blocker) : require('../wakeup').statesBlocker(last.text),
     } : null,
   };
 }
 
 /** Snapshot the app's EXISTING state for the views. No derivation by model. */
-/**
- * THE MOST RECENT REQUEST'S COMPOSITION, or null.
- *
- * A turn keeps only its last few audits (turn.js MAX_AUDITS): this is a
- * diagnostic, not a log. The newest audit of the newest turn that has one is
- * what "the last request" means to somebody looking at a pane.
- */
+/** THE MOST RECENT REQUEST'S COMPOSITION, or null. */
 function lastAuditOf(session) {
   const turns = (session && session.turns) || [];
   for (let i = turns.length - 1; i >= 0; i--) {
@@ -178,14 +103,7 @@ function lastAuditOf(session) {
   return null;
 }
 
-/**
- * `{used, window}` in TOKENS, or null when no window is known.
- *
- * NULL IS AN ANSWER. A provider that states no context length, or a model that
- * did not resolve, gives a figure with no denominator — and `42k/?` is worse
- * than saying nothing, because the number without its bound cannot be acted on.
- * ui/views.js `contextLabel` draws nothing for null.
- */
+/** `{used, window}` in TOKENS, or null when no window is known. */
 function contextUsage(app, pc) {
   const window = Number(pc && pc.ctx) || 0;
   if (!window) return null;
@@ -198,7 +116,14 @@ function contextUsage(app, pc) {
 function frameState(ui) {
   const app = ui.app;
   let pc = {};
-  try { pc = require('../provider').resolve({ ...app.cfg, _evidence: app.connectionEvidence }); } catch { pc = {}; }
+  // THE SESSION'S LANE, NOT THE PROCESS DEFAULT (Phase 8.2): the header names the
+  // account and model the NEXT turn goes through — the same pair the window shows.
+  let lane = null;
+  try {
+    const which = require('../sessionviews').current(app.session) === 'chat' ? 'chat' : 'coding';
+    lane = require('../sessionintel').lane(app, app.session, which);
+  } catch { lane = null; }
+  try { pc = require('../provider').resolve(require('../sessionviews').turnCfg(app, app.session)); } catch { pc = {}; }
   let providerStatus = null;
   try { providerStatus = app.availability.getFor(pc.connectionId || pc.provider || '', pc.canonicalModel || pc.model || '').status; } catch { /* none */ }
   const life = app.session.lifecycle;
@@ -210,45 +135,22 @@ function frameState(ui) {
     lifecycle: life,
     checkpoints: app.checkpoints,
     outputs: ui.outputs,
-    model: pc.canonicalModel || pc.model || app.cfg.model,
+    // THE MOCK MODEL (LAIN_PROVIDER=mock: tests, demos) answers every turn whatever the lane says —
+    // no account to ask for, and its own name is what the next turn uses.
+    model: pc.provider === 'mock' ? pc.model : ((lane && lane.modelLabel) || pc.canonicalModel || pc.model || app.cfg.model),
+    // THE PROVIDER FAMILY (Phase 8.3) — "Codex › GPT-6 Sol (XHigh)": never the backing account's name.
+    account: pc.provider === 'mock' ? '' : (lane ? (lane.familyLabel || lane.accountLabel || (lane.needs === 'family' || lane.needs === 'account' ? 'choose a provider' : '')) : ''),
     provider: pc.provider,
     connection: pc.connectionId,
-    effort: app.cfg.effort,
-    /**
-     * THE OUTPUT TOKENS OF THE RESPONSE IN FLIGHT — the header's one number.
-     *
-     * `{tokens, measured}`: an ESTIMATE from the characters that have arrived
-     * while the model is writing, and the provider's own MEASURED count once
-     * the receipt lands. ui/views.js `outputLabel` draws the difference. See
-     * ui/index.js `noteOutputChars`.
-     */
+    // THE LANE'S EFFORT as its model declares it (a level it does not take is never shown as in force).
+    effort: (() => { if (lane && lane.effortKnown) return lane.effortLabel && lane.effort ? lane.effortLabel : null; try { const r = require('../sessionintel').resolve(app, app.session).reasoning; return r && r.value !== 'auto' ? r.value : null; } catch { return app.cfg.effort; } })(),
+    /** THE OUTPUT TOKENS OF THE RESPONSE IN FLIGHT — the header's one number. */
     output: ui.liveOutput || null,
     // THE HEADER'S RUN STATE — mode, RUNNING, elapsed, real step progress. See ui/headerstate.js.
     run: require('./headerstate').run(ui),
     // TURNS THAT ENDED IN AN EARLIER PROCESS — drawn as history, never as alarms.
     historyTurns: Number(app._turnsAtAdopt) || 0,
-    /**
-     * HOW MUCH OF THE MODEL'S WINDOW THIS CONVERSATION OCCUPIES.
-     *
-     * NOT ON THE HEADER ANY MORE — `/token` reads it. It stays on the snapshot
-     * because it is the one figure that has to be computed from live session
-     * state rather than from a stored total, and the command must not grow a
-     * second way of computing it.
-     *
-     * OCCUPANCY, NOT THE BILL. `usage` below is cumulative and only grows;
-     * this is what is in the window right now, which is the number that decides
-     * whether the next long paste forces a compaction. Neither can stand in for
-     * the other, and neither is the header's live output count.
-     *
-     * MEASURED THE WAY THE COMPACTOR MEASURES IT. `contextChars()` over the
-     * pessimistic `CHARS_PER_TOKEN` src/session.js already compacts against —
-     * so the figure a person reads and the figure that acts cannot disagree.
-     * It is an ESTIMATE and it is deliberately the same estimate.
-     *
-     * `pc` is resolved for this frame anyway (three lines above), so the window
-     * costs nothing extra; `contextChars` is one pass over the message list
-     * reading `.length`, which is O(1) per message.
-     */
+    /** HOW MUCH OF THE MODEL'S WINDOW THIS CONVERSATION OCCUPIES. */
     context: contextUsage(app, pc),
     providerStatus,
     readiness: ui.readiness(pc),
@@ -260,61 +162,31 @@ function frameState(ui) {
     running: ui.running,
     /** Everything the LLM status strip above the INPUT draws. See ui/status.js. */
     llm: ui.statusState(),
-    // ---- WHAT THE TOKEN PANE READS ---------------------------------------
-    //
-    // The same two fields the status strip uses, and the last request's
-    // composition. `lastAudit` is measured in contextfit.js at the one place the
-    // transmitted array exists — a breakdown produced anywhere else would be a
-    // reconstruction, which is exactly what nobody could trust when the reported
-    // figure was 330,000 tokens and no part of the system could say of what.
+    // WHAT THE TOKEN PANE READS
     liveUsage: ui.liveUsage || null,
     requestOpen: Boolean(ui.phase && (ui.phase.phase === 'WAITING_MODEL' || ui.phase.phase === 'RECEIVING')),
     lastAudit: lastAuditOf(app.session),
     liveActions: ui.liveActions,
     liveNarration: ui.liveNarration,
     liveNotes: ui.liveNotes,
+    liveThoughts: ui.liveThoughts || [],
+    activityExpanded: Boolean(ui.activityExpanded),   // Ctrl+O also opens folded thinking
     liveUser: ui.liveUser || null,
     // WHAT THE COMPOSER IS CAPTURING, or '' — see ui/inputbox.js promptFor.
     compose: require('../composemode').label(ui.app),
     liveFrom: ui.liveFrom || null,
     liveTyped: Boolean(ui.liveTyped),
-    /**
-     * THE ACTIVITY TIMELINE — the live operation and the diff window, if any.
-     *
-     * Passed as the SURFACE rather than as rows, because the rows depend on the
-     * width the pane is drawn at and that is not known here. Reading it is a
-     * pure call (ui/activity.js `rows`), so asking twice in one frame is free
-     * and cannot advance the animation.
-     */
+    /** THE ACTIVITY TIMELINE — the live operation and the diff window, if any. */
     activity: ui.activity || null,
     extras: ui.extras,
     resumeToken: ui.lastSessionToken(),
     transcript: app.render.transcript,
     changedCount: ui.changedCount(),
-    // ---- A `stats` BLOCK STOOD HERE, AND IT CARRIED A SECOND CLOCK -------
-    //
-    // `{ toolCalls, filesChanged, elapsedMs: Date.now() - ui.startedAt }`. NO
-    // RENDERER HAS EVER READ IT — asserted before removing it — so its two
-    // counters were dead weight. Its third field was worse than dead: a SECOND
-    // derivation of elapsed time, off a different start stamp from the real
-    // clock, with nothing on screen or in the code to say which of the two was
-    // true. `ui.startedAt` is set in app.js on task identity and never pauses,
-    // so it would have disagreed with ui/workclock.js by exactly the minutes a
-    // rate limit spent refusing us.
-    //
-    // One authority for elapsed work: ui/workclock.js, projected as `clock`
-    // above. An architecture guard now fails if a second subtraction off a
-    // start stamp reappears anywhere in ui/ — see
-    // tests/unit/workclock-lifecycle.test.js.
+    // A `stats` BLOCK STOOD HERE, AND IT CARRIED A SECOND CLOCK
   };
 }
 
-/**
- * The most recent OTHER session, as its short token — an offer on the start
- * screen, never an action. Showing the current session's own id there would
- * be telling you how to resume the thing you are already in. Read once: the
- * set of saved sessions cannot change while this one is running.
- */
+/** The most recent OTHER session, as its short token — an offer on the start screen, never an action. */
 function lastSessionToken(ui) {
   if (ui._lastToken === undefined) {
     try {
@@ -336,16 +208,9 @@ function readiness(ui, pc) {
   } catch { return null; }
 }
 
-/**
- * How many files this session changed. Counted from checkpoint bytes, which is
- * the same source the diff and files views read — never a separate tally that
- * could disagree with them.
- */
+/** How many files this session changed. */
 function changedCount(ui) {
-  // Memoised on the number of checkpoints, because this runs on EVERY redraw
-  // — including every keystroke — and computing it re-reads each changed file
-  // from disk. Files only change through a mutating call, and a mutating call
-  // always adds a checkpoint, so the entry count is a sound cache key.
+  // Memoised on the number of checkpoints, because this runs on EVERY redraw — including every keystroke — and computing it re-reads each changed file…
   const n = (ui.app.checkpoints && ui.app.checkpoints.entries.length) || 0;
   if (ui._countKey === n) return ui._count;
   try {
@@ -355,68 +220,9 @@ function changedCount(ui) {
   return ui._count;
 }
 
-/**
- * Name the terminal tab after the project and the work.
- *
- * Driven from the same snapshot the screen draws, so it cannot describe a
- * different session than the one on screen, and it follows `/cwd` and
- * `/resume` for free. `termtitle.set` drops identical repeats, so calling
- * this on every redraw costs one string comparison.
- */
-/**
- * THE OS WINDOW TITLE — `Verifying · lain-v2`, or just `lain-v2`.
- *
- * ------------------------------------------------------------------------
- * THE SAME CHAIN AS THE LIVE ROW, AND DELIBERATELY THE SAME FUNCTION.
- *
- *     real operation → phase → liveState → the status row
- *                                       → this title
- *
- * `ui.statusState()` is the snapshot the status row is drawn from; `liveState`
- * turns it into the one true sentence about what is happening; `stateOf`
- * classifies that into one of five glyphs. The title cannot say "working" while
- * the screen says RATE LIMITED, because both read the same answer — which is
- * the whole reason this does not compute a state of its own.
- *
- * THE SPINNER TURNS BECAUSE THIS IS CALLED, and this is called from `refresh`,
- * which the ticker drives only while `ui.phase` is set. So the animation is a
- * consequence of real work being in flight rather than a cause of it: when the
- * turn loop stops announcing phases the redraws stop, and the next title
- * written has no glyph on it.
- *
- * A BACKGROUND JOB DOES NOT HOLD THE SPINNER. `statusState` is the FOREGROUND
- * turn's state — a `/bg` task has its own row in the background region and its
- * own account in `/bg`, and it deliberately does not set `ui.phase`. A dev
- * server that has been up for an hour must not leave a glyph rotating in the
- * taskbar for an hour.
- *
- * A FAILURE HERE IS NOT A SESSION-ENDING EVENT. `termtitle.set` already
- * swallows a rejected write; these catches cover the composition too, because a
- * malformed state must not be able to take down a redraw over a decoration on
- * somebody else's window.
- */
-/**
- * ADVANCE THE WORK CLOCK — the one caller of ui/workclock.js `apply`.
- *
- * ------------------------------------------------------------------------
- * THE SAME CLASSIFICATION AS THE WINDOW TITLE, AND THAT IS THE POINT.
- *
- *     real operation → phase → liveState → stateOf → the title's glyph
- *                                                  → this clock's run/pause
- *
- * `title` below reads exactly this chain for its glyph. So the clock cannot be
- * counting while the screen says RATE LIMITED, and it cannot be frozen while
- * the screen says RECEIVING — both answers come from one function, and there is
- * no second derivation of "is LAIN working" to disagree with it.
- *
- * `liveState` is pure and is already called several times a frame (the strip
- * calls it, the title calls it). Calling it again is not a second authority; it
- * is the same answer asked for again.
- *
- * WHAT IS NOT HERE: starting and stopping. Only the turn lifecycle knows that a
- * person pressed Enter, so ui/turnstate.js owns `start` and `settle`. This only
- * decides whether an already-started clock is counting.
- */
+/** Name the terminal tab after the project and the work. */
+/** THE OS WINDOW TITLE — `Verifying · lain-v2`, or just `lain-v2`. */
+/** ADVANCE THE WORK CLOCK — the one caller of ui/workclock.js `apply`. */
 function clock(ui) {
   if (!ui || !ui.clock) return;
   try {

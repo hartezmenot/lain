@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * WHY A GENERATION ENDED — and why that is not why a TASK ended.
- *
- *   RESPONSE_ENDED   the provider stopped streaming (this module)
- *   TURN_ENDED       the loop stopped asking the model (turn.js)
- *   TASK_COMPLETE    the evidence says the work is done (lifecycle.complete)
- *   TASK_VERIFIED    the final smoke passed after the last change (finalsmoke.js)
- *
- * The parsers used to read only text and tool calls, so every ending looked
- * alike: a reply cut at the output-token limit, a safety refusal and a natural
- * stop all arrived as "text, no tool calls" and the turn ended `end` — and a
- * tool call whose JSON arguments were cut or mangled in translation silently
- * ran with `{}`. Here each ending is named, and only a natural `stop` may end a
- * turn as a turn; the task is still decided elsewhere.
- */
+/** WHY A GENERATION ENDED — and why that is not why a TASK ended. */
 
 /** Normalized finish: 'stop' | 'length' | 'refused' | null (not stated). */
 function normalize(raw) {
@@ -25,11 +11,7 @@ function normalize(raw) {
   return 'stop';
 }
 
-/**
- * Tool-call arguments as they arrived. `malformed` carries the raw text when it
- * is not valid JSON — truncated by the output limit, or broken in translation
- * by a router — so the call is REPORTED, never run with an empty input.
- */
+/** Tool-call arguments as they arrived. */
 function parseArgs(raw) {
   const t = String(raw == null ? '' : raw);
   if (!t.trim()) return { input: {}, malformed: null };
@@ -62,15 +44,7 @@ const STALL_NOTE = '# Runtime state\nThe stream of your previous reply STALLED (
   + 'any tool call you were composing never arrived and nothing was run. Continue from there without repeating what was said; '
   + 'if you were writing a large file, issue the call again (smaller pieces are safer).';
 
-/**
- * A NETWORK FAILURE AFTER THE REPLY HAD STARTED is not the end of the turn.
- *
- * The transport retry only covers "nothing streamed yet", because re-sending
- * would duplicate what was already said. So a stall after one sentence ended a
- * forty-action turn (real session 2026-09-19). Here the streamed text is KEPT as
- * the step's reply and the step is resumed with a note — bounded, and only when
- * no tool call had completed (a half-received call was never run).
- */
+/** A NETWORK FAILURE AFTER THE REPLY HAD STARTED is not the end of the turn. */
 function resumable(failure, text, calls, record) {
   if (!failure || !failure.retriable || !String(text || '').trim() || (calls && calls.length)) return false;
   if (failure.kind !== 'TIMEOUT' && failure.kind !== 'UNAVAILABLE') return false;
@@ -83,11 +57,7 @@ function resumable(failure, text, calls, record) {
 /** The hidden note that resumes a cut ('length') or stalled reply. */
 function continueNote(finish) { return finish === 'stalled' ? STALL_NOTE : CONTINUE_NOTE; }
 
-/**
- * A step ended with no tool calls. Returns 'continue' (one bounded continuation
- * of a length cut, or a resumed stall), the stopReason to end on ('length' |
- * 'refused'), or null when the ending was a natural stop and the ordinary rules apply.
- */
+/** A step ended with no tool calls. */
 function onCut(record, finish) {
   if (finish === 'stalled') return 'continue';   // bounded by `resumable`
   if (finish === 'length') {

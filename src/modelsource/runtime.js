@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * LAIN'S OWN MODELS, AS A CHAT SOURCE.
- *
- * ------------------------------------------------------------------------
- * IT IS A VIEW OF THE ROUTING THAT ALREADY EXISTS, NOT A SECOND ONE.
- *
- * Discovery is `app.catalog()`. Selection writes the same `cfg.model` and
- * `cfg.connection` that `/model` writes. A request goes through
- * `provider.resolve` and `provider.chat` exactly as a turn's does. Nothing here
- * resolves an endpoint, and if that ever stops being true there will be two
- * routing implementations that can disagree about where a request went — which
- * is the class of bug the single catalog exists to prevent.
- *
- * What this adds is a UNIFORM SHAPE. A frontend asking "what sources are there,
- * what models does each have, which is selected, what happened to the last
- * request" gets one answer for LAIN, for ChatGPT.com and for Gemini.google.com,
- * and does not have to know that one of them is a catalog and two of them are
- * logged-in web pages.
- *
- * ------------------------------------------------------------------------
- * CODING IS NOT AFFECTED BY ANY OF THIS.
- *
- * `send` here is the CHAT path — one request, no tools, used when a chat turn
- * is answered by the runtime. A CODING turn does not come through this file at
- * all: it runs `turn.js`, with the tool registry, the gate, the checkpoints and
- * the verification contract, exactly as it always has. See chatdispatch.js for
- * where the two part company.
- */
+/** LAIN'S OWN MODELS, AS A CHAT SOURCE. */
 
 const { ModelSource, KIND, SOURCE, LABEL, CONNECTION, MODEL_STATE, STATUS, capabilities, result } = require('./contract');
 const providerMod = require('../provider');
@@ -90,12 +63,7 @@ class RuntimeModelSource extends ModelSource {
   /** Nothing to disconnect either. Declared so the contract is total. */
   async disconnect() { return this.status(); }
 
-  /**
-   * WHAT THIS MACHINE'S ROUTES SERVE.
-   *
-   * Straight off the catalog, mapped into the same `{id,label,state}` shape a
-   * web source returns — so a picker renders one list widget, not two.
-   */
+  /** WHAT THIS MACHINE'S ROUTES SERVE. */
   async discoverModels({ refresh = false } = {}) {
     if (!this.app) return { ok: false, models: [], cached: false, at: 0, why: 'no app' };
     try {
@@ -107,9 +75,7 @@ class RuntimeModelSource extends ModelSource {
     const rows = (cat && cat.models ? cat.models : []).slice(0, MAX_MODELS).map((m) => ({
       id: m.id,
       label: m.displayName || m.id,
-      // A CONFIGURED, REACHABLE ROUTE SERVES IT. The availability of the route
-      // itself is the breaker's business and is reported by `/provider`; a
-      // catalog entry means the route advertises the model.
+      // A CONFIGURED, REACHABLE ROUTE SERVES IT.
       state: MODEL_STATE.AVAILABLE,
       connection: m.connectionId || null,
     }));
@@ -124,14 +90,7 @@ class RuntimeModelSource extends ModelSource {
     return picks[this.id] || ((this.app && this.app.cfg && this.app.cfg.model) || null);
   }
 
-  /**
-   * CHOOSE A MODEL — through the SAME catalog resolution `/model` uses.
-   *
-   * It writes `cfg.model` and `cfg.connection`, so a chat selection and a coding
-   * selection are the same setting for this source. That is deliberate: LAIN's
-   * runtime model is one thing, and pretending a session could chat on one
-   * catalog model while coding on another would require a second resolution path.
-   */
+  /** CHOOSE A MODEL — through the SAME catalog resolution `/model` uses. */
   async selectModel(modelId) {
     const want = String(modelId || '').trim();
     if (!want) return { ok: false, modelId: null, why: 'no model was named' };
@@ -160,12 +119,7 @@ class RuntimeModelSource extends ModelSource {
     return { ok: true, modelId: r.model, label: r.model, why: '' };
   }
 
-  /**
-   * ONE CHAT REQUEST, NO TOOLS.
-   *
-   * The normalized result carries a REAL usage receipt, which is the one place
-   * `usage` is not null — see `capabilities().authoritativeUsage`.
-   */
+  /** ONE CHAT REQUEST, NO TOOLS. */
   async send({ prompt, modelId = null, signal = null, system = null } = {}) {
     const wanted = modelId || this.selectedModel();
     const cfg = { ...((this.app && this.app.cfg) || {}), _evidence: (this.app && this.app.connectionEvidence) || {} };

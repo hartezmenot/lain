@@ -29,16 +29,15 @@ module.exports = async function () {
     assert.deepStrictEqual(feed.normalise({}), { runtime: 0, jobs: 0 });
   });
 
-  await test('FEED: with no runtime it answers empty, and says that it is empty', async () => {
-    // THE STATE EVERY CLIENT MEETS FIRST. "Nothing has happened" and "I could
-    // not ask" are different facts, and a surface that renders them the same
-    // way reports a healthy quiet machine when it has simply been disconnected.
+  await test('FEED: with no supervisor, sessions still come from Node; durable jobs are empty and the job stream says so', async () => {
+    // Sessions are read from the session lease and journal (Node, 2026-10-02), so the feed always answers about them.
+    // Durable jobs live in the supervisor: "I could not ask" stays distinct from "nothing happened" for THAT stream.
     const prev = process.env.LAIN_HOME;
     process.env.LAIN_HOME = require('path').join(require('os').tmpdir(), `lain-feed-${Date.now()}`);
     try {
       const s = await feed.state();
-      assert.strictEqual(s.available, false);
-      assert.deepStrictEqual(s.sessions, []);
+      assert.strictEqual(s.available, true);
+      assert.ok(Array.isArray(s.sessions));
       assert.deepStrictEqual(s.jobs, []);
       const b = await feed.since(0);
       assert.strictEqual(b.available, false);

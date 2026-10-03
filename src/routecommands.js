@@ -1,84 +1,18 @@
 'use strict';
 
-/**
- * THE ROUTE COMMANDS — which model, through which connection, at what effort,
- * and which model reviews an investigation.
- *
- * Split out of commands.js, which had grown past the god-object guard. The seam
- * is not arbitrary: every command here is a question about the CATALOG — what is
- * served, by whom, how to reach it, and which of them plays reviewer — while
- * commands.js keeps the session, the workspace and the reports.
- *
- * There is still exactly ONE registry. This file does not own a second one: it
- * is handed `define` and registers into the same map, at load time, from the
- * bottom of commands.js. That is also why it requires nothing back from
- * commands.js — a cycle here would be a second dispatch path waiting to happen.
- */
+/** THE ROUTE COMMANDS — which model, through which connection, at what effort, and which model reviews an investigation. */
 
 const config = require('./config');
 const catalogMod = require('./catalog');
 const connectionsMod = require('./connections');
 
-/**
- * @param {object} api  { define, REGISTRY, C } — the registry's own vocabulary,
- *                      passed in rather than imported back.
- */
+/** passed in rather than imported back. */
 function register({ define, REGISTRY, C, FLASH_MS }) {
   /** Re-read what the routes serve. The implementation lives in catalog.js. */
   const refreshCatalog = (app, opts) => catalogMod.refreshAndReport(app, opts, { C });
-  /**
-   * ---- `/external` IS RETIRED, AND IT IS NOT COMING BACK ------------------
-   *
-   * It lived here and was a DRAFT-AND-DISPATCH verb: compose a packet, preview
-   * it, confirm it, send it once, print the reply, hand it back as advice. Four
-   * files of machinery — external.js, actors.js, externalrequest.js and
-   * investigation.js's relay — and a person who wanted a second opinion had to
-   * remember a command to get one.
-   *
-   * THE USEFUL HALF OF IT WAS NEVER THE COMMAND. It was "a model other than
-   * LAIN's own looks at this", and that is a PROPERTY OF THE SESSION, not a verb:
-   * once ChatGPT.com is the selected chat source, the next ordinary sentence goes
-   * to it and the answer lands in the same session history as everything else.
-   * See src/modelsource and `/source`.
-   *
-   * WHAT WAS REUSED rather than rewritten:
-   *   · the bounded, redacted session-facts packet   -> modelsource/context.js
-   *   · the call ledger (dispatched / responded /    -> externalstate.js, kept
-   *     failed / timed out, and RESPONDED REQUIRES      whole and now written by
-   *     A RESPONSE)                                     the web sources
-   *   · the overclaim check — a consulted model that -> modelsource/contract.js
-   *     claims to have ACTED is flagged
-   *   · "advisory input, not a result, and not from  -> chatdispatch.js
-   *     the user"
-   *
-   * WHAT WAS RETIRED: the actor taxonomy (API / HUMAN / REVERSE), the clipboard
-   * relay, the draft/confirm/send state machine, and the bounded LAIN → EXTERNAL
-   * → LAIN investigation relay — which had been unreachable since `/troubleshoot`
-   * was removed and was recorded as orphaned in docs/STATUS.md.
-   *
-   * TWO CONSULTATION SYSTEMS WOULD BE WORSE THAN EITHER. That is the whole
-   * argument for removing rather than keeping this beside the new one.
-   */
+  /** `/external` IS RETIRED, AND IT IS NOT COMING BACK */
 
-  /**
-   * ONE MODEL COMMAND, AND IT IS THE SINGULAR ONE.
-   *
-   * ------------------------------------------------------------------------
-   * THE HISTORY, because the end state only makes sense against it.
-   *
-   * There were two commands with two BEHAVIOURS: `/models` browsed, and `/model`
-   * selected the first fuzzy match without showing what else matched. A previous
-   * pass fixed the dangerous half of that by making `/model` forward to the one
-   * picker — but it left both names advertised, so a person still had to know
-   * two words for one thing and still had to choose between them every time.
-   *
-   * `/model` is now THE command. `/models` survives as a hidden compatibility
-   * alias: it still runs when typed, for anyone with it in their fingers or in a
-   * script, and it appears in neither `/help` nor the palette. See commands.js
-   * `define` for what `hidden` means and what it must never be used for.
-   *
-   * The graphical picker is the Harness application's; this is the terminal's.
-   */
+  /** ONE MODEL COMMAND, AND IT IS THE SINGULAR ONE. */
   define('/model', {
     flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
@@ -104,118 +38,85 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
     surface: true,
     args: '[level]',
-    desc: 'Show or set reasoning effort (orthogonal to model identity)',
+    desc: 'Show or set the reasoning effort — the levels the lane\'s model declares',
+    /** EFFORT BELONGS TO THE MODEL (Phase 8.3). */
     async run(app, { args }) {
-      const cat = app.catalog();
-      const m = app.cfg.model ? cat.byId.get(app.cfg.model) : null;
-      const conn = m && (app.cfg.connection ? m.connections.find((c) => c.connectionId === app.cfg.connection) : m.connections[0]);
-      const available = conn ? conn.efforts : [];
-      // Bare /effort on a TTY opens the ONE interaction panel. Same owner, same
-      // parser, same validation — the panel only supplies the value.
-      if (!args[0] && app.ui && app.ui.enabled) {
+      const si = require('./sessionintel');
+      const laneName = si.currentLane(app.session);
+      const lane = si.lane(app, app.session, laneName);
+      const levels = lane.efforts || [];
+      const labels = lane.effortLabels || [];
+      const current = lane.effort || null;
+      const choose = async (value) => {
+        const r = await si.choose(app, app.session, { lane: laneName, effort: value });
+        try { app.session.save(); } catch { /* in memory */ }
+        return r;
+      };
+      // Bare /effort on a TTY opens the ONE interaction panel with the model's own levels.
+      if (!args[0] && app.ui && app.ui.enabled && levels.length) {
         const { effortAdapter } = require('./ui/panel');
-        const picked = await app.ui.ask(effortAdapter({ available, current: app.cfg.effort }));
+        const picked = await app.ui.ask(effortAdapter({ available: levels, current }));
         if (picked) args = [picked];
       }
       if (!args[0]) {
-        app.render.write('  effort: ' + (app.cfg.effort || C.dim('auto'))
-          + (available.length
-            ? C.dim(`  ·  available here: ${available.join(', ')}, auto`)
-            : C.dim('  ·  this route exposes no effort levels')) + '\n');
+        if (!lane.effortKnown) { app.render.write(`  effort: ${current || C.dim('default')}` + C.dim('  ·  choose a model first (/model)\n')); return; }
+        // ONE CONTROL, TWO HONEST MEANINGS (2026-10-02): a model with native effort gets the provider's own levels;
+        // one without gets LAIN's execution depth — never presented as hidden model reasoning.
+        const kind = lane.effortSource === 'lain' ? 'LAIN effort' : 'Provider effort';
+        const what = lane.effortSource === 'lain' ? C.dim('  ·  this model has no native effort; LAIN sets how much context, exploration and delegation it uses') : '';
+        app.render.write(`  ${lane.modelLabel}\n  ${kind}: ${lane.effortLabel && lane.effortLabel !== 'Default' ? lane.effortLabel : C.dim(`Default (${(require('./profile').of(app.session, app.cfg) || 'NORMAL')})`)}`
+          + (levels.length ? C.dim(`  ·  ${labels.join(' / ')}`) : '') + what + '\n');
         return;
       }
       const want = String(args[0]).toLowerCase();
-      // `auto` is the absence of a pin, not a level: the route picks. It is
-      // handled by this same command and parser — there is no second owner and no
-      // alias, which is why /efforts does not exist.
+      // `auto` / `default` is the absence of a pin: the model's own default level.
       if (want === 'auto' || want === 'default' || want === 'none') {
-        app.cfg.effort = null;
-        config.save(app.cfg);
-        app.render.write(C.green('  effort auto') + C.dim(' — no level pinned; the route decides\n'));
+        const r = await choose('auto');
+        if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
+        app.render.write(C.green(`  effort: ${r.lane.effortLabel || 'default'}`) + C.dim(' — the model\'s default\n'));
         return;
       }
-      if (available.length && !available.includes(want)) {
-        app.render.write(C.yellow(`  "${want}" is not offered by ${conn.connectionId}.`) + C.dim(` Available: ${available.join(', ')}, auto\n`));
-        return;
-      }
-      app.cfg.effort = want;
-      config.save(app.cfg);
-      app.render.write(C.green(`  effort ${want}`) + '\n');
+      const r = await choose(want);
+      if (!r.ok) { app.render.write(C.yellow(`  ${r.why}`) + '\n'); return; }
+      app.render.write(C.green(`  ${r.lane.modelLabel} · ${r.lane.effortSource === 'lain' ? 'LAIN' : 'Provider'} effort: ${r.lane.effortLabel}`) + '\n');
     },
   });
 
-
   define('/api', {
-    // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve,
-    // which is the last thing that should vanish on a timer. STAY is the default
-    // and this comment is here so it is not "tidied" into a receipt later.
-    // MACHINERY: about LAIN, not about the work. Goes to the command panel.
+    // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve, which is the last thing that should vanish on a timer.
     surface: true,
-    args: '[<credential>|<connection>|refresh [id]|status]  — bare /api asks for a key',
-    desc: 'Give LAIN a credential, re-key a configured route, or re-read what the APIs serve',
-    /**
-     * FOUR THINGS, ONE OWNER EACH.
-     *
-     * `refresh` and `status` are unchanged and still route to their existing
-     * owners. Handing LAIN a key had no way in from the CLI at all until
-     * `credentialFlow`. The fourth is the repair for a key that STOPPED
-     * working: name a configured route — `/api lain:custom` — and its
-     * credential is replaced under the SAME connection id, so a 401 fixes the
-     * one route rather than adding a second for the same endpoint. See
-     * rekeyFlow in apicommand.js.
-     *
-     * A CREDENTIAL IS ANYTHING THAT IS NEITHER A SUBCOMMAND NOR A ROUTE NAME,
-     * which is the only test LAIN can honestly make: every provider spells
-     * its keys differently, and a shape pattern written today refuses the
-     * provider that appears tomorrow. See apicommand.js.
-     */
+    args: '[add|<provider>|<connection>|refresh [id]|status]  — keys are entered in the Model Dashboard',
+    desc: 'Add or replace an API source in the Model Dashboard, or re-read what the APIs serve',
+    /** THE TERMINAL NEVER TAKES A KEY (Phase 8.3). */
     async run(app, { args }) {
       const apiMod = require('./apicommand');
       const first = args[0] || '';
-      // ---- BARE `/api` ASKS FOR THE CREDENTIAL, MASKED --------------------
-      //
-      // It used to mean `refresh`, which is the least likely thing somebody
-      // types `/api` for and gave no way in at all. Asking through the panel is
-      // also strictly safer than `/api <key>`: on the command line the shell
-      // has already echoed the key before anything of LAIN's could mask it.
-      // `refresh` is still one word away and still does exactly what it did.
-      if (!first) return apiMod.credentialFlow(app, '', { C, config, refreshCatalog });
       const sub = String(first).toLowerCase();
       if (sub === 'refresh') { await refreshCatalog(app, { only: args[1] || null }); return; }
-      // ---- A CONFIGURED ROUTE'S NAME RE-KEYS IT ---------------------------
-      //
-      // THE ORDER IS THE WHOLE POINT. `lain:custom` is eleven characters with
-      // no spaces, so under the credential rule alone it WAS a credential —
-      // stored as an API key against a provider the user never chose, and the
-      // route then failed to authenticate for a reason nothing on screen
-      // explained. A word that names a route must repair that route, never
-      // become its credential. `connectionByName` is what decides.
-      if (apiMod.connectionByName(app, first)) {
-        return apiMod.rekeyFlow(app, first, { C, config, refreshCatalog });
+      if (sub === 'status') return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      const named = first && (['add', 'manage'].includes(sub) || apiMod.connectionByName(app, first) || apiMod.providerNamed(app, first));
+      if (first && !named && apiMod.looksLikeCredential(first, app.cfg)) {
+        const redact = require('./redact');
+        redact.register(String(first).trim());
+        redact.scrubHistory(app.input);
+        // WHERE KEYS GO comes first: a narrow command surface shows the first row or two.
+        app.render.write(C.yellow('  LAIN never takes a key in the terminal.') + ' /api add opens the Model Dashboard, where keys go.\n');
+        app.render.write(C.dim('  It was not stored, and it is gone from the input history. The dashboard keeps keys in the Windows secret store.\n'));
+        return;
       }
-      if (apiMod.looksLikeCredential(first, app.cfg)) {
-        return apiMod.credentialFlow(app, String(first).trim(), { C, config, refreshCatalog });
-      }
-      // ---- A PROVIDER'S NAME WITH NO ROUTE YET IS AN ADD ------------------
-      //
-      // `/api custom` fell through to the status view: somebody adding that
-      // route was shown the routes they already had. The name is an answer to
-      // the provider question, so it is passed as one — see credentialFlow's
-      // `preselect`. Re-keying still wins above, because a route that EXISTS
-      // must be repaired rather than duplicated.
-      if (apiMod.providerNamed(app, first)) {
-        return apiMod.credentialFlow(app, '', { C, config, refreshCatalog, preselect: first });
-      }
-      // Anything else is the connection view, which already exists. One owner.
-      return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      if (first && !named) return REGISTRY.get('/provider').run(app, { args: ['status'], rest: '' });
+      const dl = require('./fabric/dashlaunch');
+      const since = Date.now();
+      const r = await dl.open(app, 'api');
+      if (!r.ok) { app.render.write(C.yellow(`  The Model Dashboard did not open: ${r.why}\n`)); return; }
+      app.render.write(`  ${dl.said(r, 'API')} Add or replace the key there.\n`);
+      app.render.write(C.dim('  The key is never shown here, and never enters a conversation.\n'));
+      dl.watch(since, (e) => { const t = dl.describe(e); if (app.ui && app.ui.enabled) app.ui.noteActor('note', t); else app.render.write(`  ${t}\n`); });
     },
   });
 
   define('/provider', {
-    // AN INSPECTOR, despite also performing actions: `/provider` defaults to a status listing, read exactly when a route is dead,
-    // which is the last thing that should vanish on a timer. STAY is the default
-    // and this comment is here so it is not "tidied" into a receipt later.
-    // MACHINERY: about LAIN, not about the work. Goes to the command panel.
+    // AN INSPECTOR, despite also performing actions: `/provider` defaults to a status listing, read exactly when a route is dead, which is the last thing…
     surface: true,
     args: '[status|refresh [id]|disable <id>|enable <id>|maintenance <id>|retry <id>]',
     desc: 'Connection availability and catalog. Works while a provider is dead.',
@@ -224,9 +125,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       const id = args[1];
       const w = (s) => app.render.write(s);
 
-      // The one command that DOES contact a route — and only its catalog
-      // endpoint, never a completion. Without an id it refreshes every route that
-      // does not declare its own models.
+      // The one command that DOES contact a route — and only its catalog endpoint, never a completion.
       if (sub === 'refresh') {
         const results = await app.ensureCatalog({ force: true, only: id || null, announce: false });
         if (!results.length) {
@@ -272,14 +171,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         w('  ' + c.id.padEnd(22)
           + C.dim(`${c.provider} · ${c.via} · auth=${c.auth}`) + '\n');
         w('    ' + C.dim(`readiness ${c.readiness}  ·  availability ${a.status}${a.reason ? ' — ' + a.reason : ''}`) + '\n');
-        // ---- A LIMIT IS A CLOSED DOOR WITH A CLOCK ON IT, AND IT SAYS SO ----
-        //
-        // Not folded into the availability line above: `DEGRADED — rate
-        // limited` is the status of a route somebody might reasonably try, and
-        // the one thing that decides whether trying is pointless is the time.
-        // A limit hydrated from an earlier session is marked, because "LAIN
-        // learned this before you started it" is the answer to "why does it
-        // think that when I have not called anything yet".
+        // A LIMIT IS A CLOSED DOOR WITH A CLOCK ON IT, AND IT SAYS SO
         if (a.rateLimited) {
           const left = a.resumeAt ? a.resumeAt - Date.now() : 0;
           const rl = require('./ratelimit');
@@ -294,9 +186,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         } else if (a.historicalLimit && a.historicalLimit.resumeAt > Date.now()) {
           w('    ' + C.dim(`earlier session: rate limited until ${require('./ratelimit').at(a.historicalLimit.resumeAt)} · not assumed now`) + '\n');
         }
-        // WHERE the model list came from. "declared" and "discovered" fail in
-        // different ways and are fixed in different places, so they are never
-        // collapsed into one number.
+        // WHERE the model list came from.
         const origin = c.declaredModels ? 'declared in config'
           : c.discoveredAt ? `discovered ${new Date(c.discoveredAt).toISOString().slice(0, 16).replace('T', ' ')}`
             : 'not yet discovered';

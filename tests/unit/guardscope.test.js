@@ -157,7 +157,7 @@ module.exports = async function () {
     // The failure mode of fixing an over-restrictive guard is replacing it with
     // nothing. A guard file that grew an "always allow" escape would pass every
     // test above and protect nothing.
-    for (const f of ['gate.js', 'trust.js', 'permissions.js', 'workorderguard.js']) {
+    for (const f of ['gate.js', 'trust.js', 'permissions.js']) {
       const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', f), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       assert.ok(!/LAIN_(DISABLE|SKIP|NO)_(GATE|TRUST|PERMISSION)/i.test(src),

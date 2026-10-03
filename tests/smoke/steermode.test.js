@@ -35,7 +35,7 @@ function project() {
 
 /** A turn slow enough to type into. */
 const SLOW = [
-  { text: 'Working on it.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 8' } }] },
+  { text: 'Working on it.', tool_calls: [{ name: 'shell', input: { command: 'sleep 8' } }] },
   { text: 'Noted. FINISHED.' },
 ];
 

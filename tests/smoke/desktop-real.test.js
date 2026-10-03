@@ -71,7 +71,7 @@ async function desktop({ script = [] } = {}) {
 /** Our own host windows on the real desktop — never anything else's. */
 async function ourWindows(c) {
   const w = await c.windows();
-  return ((w.ok && w.result && w.result.windows) || []).filter((x) => /^lain-desktop-/i.test(x.process || ''));
+  return ((w.ok && w.result && w.result.windows) || []).filter((x) => /^lain-harness-/i.test(x.process || ''));
 }
 
 /** A connected, authorized desktop observer, or null when unavailable. */
@@ -171,10 +171,13 @@ module.exports = async function () {
       assert.ok(state.body.state.current, 'and a current session exists');
 
       const html = fs.readFileSync(d.win.status().assets, 'utf8');
-      // THE SEVEN PRIMARY SURFACES, each a tab that never goes away.
-      for (const t of ['Home', 'Ide', 'Chat', 'Bot', 'Model', 'Session', 'Settings']) {
+      // THE SEVEN PRIMARY SURFACES (Phase 8.1), each reachable from any surface;
+      // BOT and SESSION are sub-surfaces (Settings › Assistant, Chat), not tabs.
+      for (const t of ['Home', 'Ide', 'Chat', 'Model', 'Usage', 'Mcp', 'Settings']) {
         assert.match(html, new RegExp(`id="tab${t}"`), `the ${t} tab`);
       }
+      for (const t of ['Bot', 'Session']) assert.doesNotMatch(html, new RegExp(`id="tab${t}"`), `${t} is not a top-level tab`);
+      assert.match(html, /id="vBot"/, 'the BOT view still exists, reached from Settings');
       assert.match(html, /id="workshop"/, 'the Frontend Workshop surface');
       assert.match(html, /computerCard/, 'the Computer surface');
     } finally { await d.close(); }
@@ -281,7 +284,7 @@ module.exports = async function () {
 
       // THE WORKSPACE TABS ARE THERE, and LAIN opens on Home.
       const tabs = await js("Array.from(document.querySelectorAll('#tabs .gtab')).map(function(n){return n.textContent.trim();}).join('|')");
-      assert.strictEqual(String(tabs), 'Home|IDE|Chat|Bot|Model|Session|Settings', `the primary tabs: ${tabs}`);
+      assert.strictEqual(String(tabs), 'Home|IDE|Chat|Model|Usage|Capabilities|Settings', `the primary tabs: ${tabs}`);
       assert.strictEqual(await js("LAIN.nav.tab()"), 'home', 'LAIN opens on Home');
 
       // A TURN, SENT FROM THE WINDOW — from Chat, one tab away.
@@ -614,7 +617,7 @@ module.exports = async function () {
       const names = rows.map((r) => String(r.Name || '').toLowerCase());
       assert.ok(!names.some((n) => /chrome|msedge|chromium|brave|helium/.test(n)),
         `the launch opened no browser: ${names.join(', ')}`);
-      hostPid = (rows.find((r) => /^lain-desktop/i.test(String(r.Name || ''))) || {}).ProcessId || 0;
+      hostPid = (rows.find((r) => /^lain-harness/i.test(String(r.Name || ''))) || {}).ProcessId || 0;
       assert.ok(hostPid, `the native host is running under it: ${names.join(', ')}`);
 
       // ---- AND A SECOND LAUNCH FINDS THE FIRST (§28) -------------------
@@ -634,8 +637,14 @@ module.exports = async function () {
       }
       let coreAlive = false;
       try { if (found.pid) { process.kill(found.pid, 0); coreAlive = true; } } catch { coreAlive = false; }
+      // THE HOST GOES A MOMENT AFTER CORE (Core closes it on the way out) — watched by condition, bounded.
       let hostAlive = false;
-      try { if (hostPid) { process.kill(hostPid, 0); hostAlive = true; } } catch { hostAlive = false; }
+      const hostGone = Date.now() + 15000;
+      do {
+        try { if (hostPid) { process.kill(hostPid, 0); hostAlive = true; } else hostAlive = false; } catch { hostAlive = false; }
+        // eslint-disable-next-line no-await-in-loop -- watching a real process exit.
+        if (hostAlive) await new Promise((r) => setTimeout(r, 400));
+      } while (hostAlive && Date.now() < hostGone);
       process.env.LAIN_CONFIG_DIR = saved;
       if (saved === undefined) delete process.env.LAIN_CONFIG_DIR;
       try { fs.rmSync(home, { recursive: true, force: true }); } catch { /* windows holds it briefly */ }

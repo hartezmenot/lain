@@ -1,80 +1,25 @@
 'use strict';
 
-/**
- * LIGHTWEIGHT PROJECT CONTEXT.
- *
- * Deliberately NOT a feature graph, a symbol index or a dependency database.
- *
- * V1 built four overlapping project-intelligence subsystems (a Python AST index,
- * a discovery cache, a 730-line feature graph, a dictionary), assembled fourteen
- * overlapping digest producers, and pinned up to 6,000 tokens of the result into
- * every single request. The feature graph was consulted only if the model chose
- * to call it, was never updated after an edit, and its AST path was unreachable.
- * A large amount of machinery bought orientation the model could have obtained
- * by listing a directory.
- *
- * So this is a shallow scan with a hard budget: what kind of project is this,
- * how is it run, and what is at the top level. It is built ONCE per session,
- * lazily, and capped. If the model wants more it has `list_dir`, `read_file` and
- * a shell — which is faster than any index for the questions it actually asks.
- *
- * If a real index is ever needed, it earns its place by being measured against
- * this, not by being assumed.
- */
+/** LIGHTWEIGHT PROJECT CONTEXT. */
 
 const fs = require('fs');
 const path = require('path');
 
-const SKIP = /^(?:node_modules|\.git|dist|build|out|target|vendor|__pycache__|\.venv|venv|coverage|\.next|\.cache|\.idea|\.vscode)$/i;
+// `.lain` is LAIN's own record of the project (tasks, scratch, index): not the
+// project's source, and never a place a rename or a search should report hits.
+const SKIP = /^(?:node_modules|\.git|\.lain|\.noema|dist|build|out|target|vendor|__pycache__|\.venv|venv|coverage|\.next|\.cache|\.idea|\.vscode)$/i;
 const MAX_ENTRIES = 40;
-/**
- * HOW MUCH OF THE PROJECT THE MODEL IS SHOWN BEFORE IT TOUCHES ANYTHING.
- *
- * ------------------------------------------------------------------------
- * THE MEASUREMENT THAT MOVED THESE. On this repository the brief read:
- *
- *     src/: tools/ ui/ actors.js agentjob.js … briefcommand.js (+142 more)
- *
- * TWELVE of a hundred and fifty-six modules. Everything after `b` was
- * invisible — so a model asked for "a helper that formats byte sizes" had no
- * way to see that such a module was already sitting there, and the cheapest
- * answer to "does this already exist" was a search it had no reason to run.
- *
- * That is the failure this brief exists to prevent: the model rebuilding
- * something the project already has, because nothing told it.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS AFFORDABLE, and it is the reason the number could move at all.
- *
- * The brief lives in the SYSTEM PROMPT, which is the stable prefix of every
- * request in a session — the part prompt caching serves back. Measured on the
- * live route, 64% of a request's input was already served from cache. The
- * inventory is written once and read from cache thereafter.
- *
- * A NAME IS NOT AN INDEX. This lists what EXISTS, not what anything does. The
- * model still has `symbols`, `grep` and `read_file` for anything deeper.
- *
- * MAX_CHARS IS THE REAL BOUND, and it protects a repository far larger than
- * this one: a huge tree fills the budget, is cut at a line boundary, and is
- * TOLD it was cut.
- */
-const MAX_CHARS = 6000;
+/** HOW MUCH OF THE PROJECT THE MODEL IS SHOWN BEFORE IT TOUCHES ANYTHING. */
+const MAX_CHARS = 6800;   // 6000 → 6800 with MAX_DIR_LINE (2026-09-27); the brief is the cached prefix
 const MAX_COMPLETIONS = 200;
 /** Source directories summarised in the brief, and how many files each shows. */
 const MAX_SOURCE_DIRS = 6;
 const MAX_FILES_PER_DIR = 400;
 /** How wide one directory line may get. See the loop in `brief`. */
-// 2600 → 3200 (2026-09-16): LAIN's own src/ outgrew one line, and names past
-// the cut (steerqueue.js, promptcache.js) stopped being listed. Still well
-// inside MAX_CHARS for the whole brief.
-const MAX_DIR_LINE = 3200;
+// 2600 → 3200 (2026-09-16): LAIN's own src/ outgrew one line, and names past the cut (steerqueue.js, promptcache.js) stopped being listed.
+const MAX_DIR_LINE = 4800;
 
-/**
- * Directories worth naming. A project's own code lives in a small, boringly
- * predictable set of places, and listing them costs one readdir each.
- *
- * NOT an index and not a heuristic about importance — just "these exist here".
- */
+/** Directories worth naming. */
 const SOURCE_DIRS = /^(?:src|lib|app|source|pkg|internal|cmd|test|tests|spec|__tests__|bin|scripts|server|client|api|core)$/i;
 const CODE_EXT = /\.(?:js|mjs|cjs|ts|tsx|jsx|py|go|rs|java|rb|cs|php|swift|kt|c|h|cc|cpp|hpp|sh|ps1)$/i;
 
@@ -89,14 +34,7 @@ const MANIFESTS = [
   { file: 'Makefile', lang: null, run: () => ['make'] },
 ];
 
-/**
- * One level inside a source directory: which code files are in it.
- *
- * Deliberately NOT recursive. One readdir per named directory has a fixed cost
- * and answers the question the model actually asks first — "where is the code"
- * — while a recursive walk is how a project brief turns into the 6,000-token
- * digest V1 pinned into every request.
- */
+/** One level inside a source directory: which code files are in it. */
 function sourceFiles(dir) {
   let names = [];
   try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return null; }
@@ -148,12 +86,6 @@ function scan(cwd) {
   }
 
   // ONE LEVEL INSIDE THE OBVIOUS SOURCE DIRECTORIES.
-  //
-  // Measured on a real task: the model's first three calls were `list_dir src`,
-  // `list_dir test` and `read_file package.json` — rediscovering, at the cost of
-  // three round-trips, a shape that is three readdirs of deterministic local
-  // work. That is exactly the "deterministic discovery first" trade, and it is
-  // the cheap direction: this costs no request and a few dozen tokens.
   for (const e of names) {
     if (!e.isDirectory() || SKIP.test(e.name)) continue;
     if (!SOURCE_DIRS.test(e.name)) continue;
@@ -171,37 +103,7 @@ function scan(cwd) {
 }
 
 /** A bounded brief for the system prompt. Built once per session. */
-/**
- * WHAT THIS PROJECT IS — and it was already written down.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS EXISTS TO STOP, observed live: request contexts climbing
- * 109k → 193k tokens while the model read one file after another to find out
- * what an unfamiliar project was. The brief handed it a hundred and fifty-six
- * FILENAMES and no meaning, so the only way to attach meaning to a name was to
- * open it. That is the model performing reconnaissance by hand.
- *
- * Meanwhile this repository — like most maintained ones — carries a README
- * whose Architecture section maps almost every module to a one-line purpose,
- * written by the people who wrote the code. Orientation read none of it. The
- * most accurate description of the project available anywhere was on disk, free
- * to read, and thrown away in favour of a directory listing.
- *
- * ------------------------------------------------------------------------
- * WHAT IS TAKEN, AND WHY SO LITTLE.
- *
- * NOT the README. A 47,000-character document pinned to every request would be
- * the same mistake in the other direction. What goes in is:
- *
- *   THE OPENING PROSE   the project's own answer to "what is this", which is
- *                       almost always the first real paragraph.
- *   THE SECTION MAP     `##` headings WITH THEIR LINE NUMBERS, so a model that
- *                       wants the architecture reads that range and nothing
- *                       else — a pointer costs a line and saves a whole file.
- *
- * A POINTER IS NOT A SUMMARY, and this never claims to be one. It says where
- * the answer is written; the model decides whether it needs it.
- */
+/** WHAT THIS PROJECT IS — and it was already written down. */
 const DOC_NAMES = /^(?:readme|contributing|architecture)\.(?:md|markdown|rst|txt)$/i;
 /** How much of the opening prose is worth carrying. */
 const MAX_DOC_INTRO = 420;
@@ -219,11 +121,7 @@ function isProse(line) {
   return t.length > 30;
 }
 
-/**
- * The project's own documentation, as an orientation block.
- * Returns '' when the project documents nothing — most do not, and silence is
- * the honest answer rather than an invented description.
- */
+/** The project's own documentation, as an orientation block. */
 function docBrief(root) {
   let names = [];
   try { names = fs.readdirSync(root, { withFileTypes: true }); } catch { return ''; }
@@ -276,11 +174,7 @@ function docBrief(root) {
   return parts.join('\n');
 }
 
-/**
- * WHERE EXECUTION STARTS. A manifest usually states this outright, and a model
- * that has to infer an entry point from a directory listing is guessing at
- * something the project already declared.
- */
+/** WHERE EXECUTION STARTS. */
 function entryPoints(root) {
   const out = [];
   try {
@@ -296,11 +190,7 @@ function brief(cwd) {
   const s = scan(cwd);
   const root = path.resolve(cwd || process.cwd());
   const parts = [];
-  // ---- MEANING BEFORE NAMES ----------------------------------------------
-  //
-  // Ordered deliberately: the listing is what gets cut when a huge repository
-  // exceeds MAX_CHARS, and losing the tail of a file list costs far less than
-  // losing the sentence that says what the project is.
+  // MEANING BEFORE NAMES
   const docs = docBrief(root);
   if (docs) parts.push(docs);
   if (s.languages.length) parts.push(`Languages: ${s.languages.join(', ')}`);
@@ -312,18 +202,7 @@ function brief(cwd) {
   for (const t of s.tree) {
     const items = [...t.subdirs, ...t.files];
     if (!items.length) continue;
-    // ---- AS MANY NAMES AS FIT ON THE LINE, AND THE COUNT OF THE REST ----
-    //
-    // The file-count cap alone is the wrong bound and got this wrong in both
-    // directions. At twelve it hid a hundred and forty-two modules of an
-    // ordinary project; raised to two hundred, a three-thousand-file directory
-    // became one seven-thousand-character line that then exceeded MAX_CHARS and
-    // was dropped WHOLE — the large repository lost the listing entirely, which
-    // is worse than the truncation it replaced.
-    //
-    // Characters are the bound that behaves correctly at both sizes: a normal
-    // project is listed completely, and a huge one shows as many names as fit
-    // and says how many it could not.
+    // AS MANY NAMES AS FIT ON THE LINE, AND THE COUNT OF THE REST
     let room = MAX_DIR_LINE - t.dir.length - 3;
     const shown = [];
     let hidden = t.more || 0;
@@ -337,31 +216,14 @@ function brief(cwd) {
   }
   const out = parts.join('\n');
   if (out.length <= MAX_CHARS) return out;
-  // ---- CUT AT A LINE, AND SAY SO ----------------------------------------
-  //
-  // A mid-word cut through an inventory is worse than a shorter one: it leaves
-  // half a filename that looks like a whole one, and nothing says the list
-  // stopped. This ends on the last complete line and states that it was cut, so
-  // "not in the brief" cannot be mistaken for "not in the project".
+  // CUT AT A LINE, AND SAY SO
   const cut = out.slice(0, MAX_CHARS);
   const at = cut.lastIndexOf(String.fromCharCode(10));
   return (at > 0 ? cut.slice(0, at) : cut) + String.fromCharCode(10)
     + '[listing cut to fit — not the whole project; use glob or list_dir for the rest]';
 }
 
-/**
- * Path completion for the `@` menu.
- *
- * Deliberately ONE directory deep per keystroke: it lists the directory the
- * prefix names and filters by the last segment. There is no recursive walk, no
- * cached index and nothing is read into the prompt — only names, capped at
- * MAX_COMPLETIONS. The same SKIP set that keeps node_modules out of the project
- * brief keeps it out of the menu, so a generated tree can never flood it.
- *
- * @param {string} cwd     the session's working directory — the boundary
- * @param {string} prefix  what the user typed after `@`, e.g. "src/in"
- * @returns {Array<{path:string, isDir:boolean}>} project-relative, dirs first
- */
+/** Path completion for the `@` menu. */
 function completePath(cwd, prefix = '') {
   const raw = String(prefix || '').replace(/\\/g, '/');
   const slash = raw.lastIndexOf('/');

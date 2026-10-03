@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * READ COVERAGE — a read that came back elided is not a read that succeeded
- * (2026-09-18, reported live on a ~5,000-line `server.ts`).
- *
- * THE LOOP. A whole-file read larger than the usable context is stubbed or
- * truncated by compaction the moment it lands ("[elided to fit the context
- * window] … Re-run the call if you need it"). The model re-runs it, it is
- * elided again, and the task stalls on evidence it can never obtain.
- *
- * WHAT THIS DOES, in the one tool door every read uses (toolstep.js):
- *
- *   READ_REQUESTED → READ_RETURNED_PARTIAL_OR_ELIDED is recorded per file
- *     (fingerprinted by size+mtime), distinct from a complete read.
- *   A whole-file read of that same unchanged file — or of a file that cannot
- *     fit at all — is NARROWED instead of repeated: the file's outline (line
- *     numbers of its declarations) plus a bounded first window of real lines,
- *     with how to ask for the rest (offset/limit, read_symbol).
- *   The blockage is reported ONCE per file, then the work simply continues:
- *     BLOCKAGE · … ADAPTED · targeted ranges. Never a stop.
- *
- * Ranged reads are never touched — they are the fallback.
- */
+/** READ COVERAGE — a read that came back elided is not a read that succeeded (2026-09-18, reported live on a ~5,000-line `server.ts`). */
 
 const fs = require('fs');
 const path = require('path');
@@ -65,13 +44,7 @@ function budgetChars(ctx) {
   } catch { return 0; }
 }
 
-/**
- * WHERE THE DECLARATIONS ARE, across the WHOLE file. structure.js caps its
- * units (at 400, mostly variables in a big file), which hid every function
- * past the first few — exactly the ones a narrowed read must point at. This is
- * a line scan for callable/type declarations; when there are more than fit,
- * they are sampled evenly so the outline spans the file.
- */
+/** WHERE THE DECLARATIONS ARE, across the WHOLE file. */
 const DECL_RE = /^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][\w$]*)|class\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)|(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)|def\s+([A-Za-z_]\w*)|(?:pub\s+)?fn\s+([A-Za-z_]\w*)|func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*))/;
 
 function outline(text) {
@@ -89,10 +62,7 @@ function outline(text) {
   return Array.from({ length: OUTLINE_MAX }, (_, k) => found[Math.floor(k * step)]);
 }
 
-/**
- * Before a read runs. Returns a substitute (the narrowed read) or null.
- * @param {object} ctx  the tool context (cwd, app)
- */
+/** Before a read runs. Returns a substitute (the narrowed read) or null. @param {object} ctx the tool context (cwd, app) */
 function guard(session, call, ctx = {}) {
   if (!session || !call || call.name !== 'read_file') return null;
   const input = call.input || {};

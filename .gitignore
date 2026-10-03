@@ -3,6 +3,7 @@ rust/lain-supervisor/target/
 # Project intelligence: fingerprints and symbol indexes, rebuilt from the
 # tree on demand. Machine state, never source. See src/projectindex.js.
 .lain/
+.noema/
 # (.lain-probe/ was ignored here while Lain Probe was an integrated client —
 # it is an external instrument as of the 2026-09 phase, and its directory is
 # no longer this repository's to hide.)
@@ -12,6 +13,7 @@ rust/lain-supervisor/target/
 
 # benchmark working copies and baselines (the pristine fixture is version-controlled; these are per-run outputs)
 bench/out/
+tools/dev/bench/out/
 
 # Python workers are source; interpreter caches are machine output.
 __pycache__/
@@ -25,3 +27,6 @@ native/vendor/
 
 # The built installer artifact. Rebuilt by `npm run dist`; never source.
 dist/
+.noema-test-cache.json
+
+rust/lain-supervisor/target-next/

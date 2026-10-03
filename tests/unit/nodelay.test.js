@@ -87,18 +87,24 @@ module.exports = async function () {
       'and every write route — creating a session, selecting one, starting a turn');
 
     // THE RENDERER ACTS ON IT IMMEDIATELY, with no timer in between.
-    const script = require(require('../helpers').harnessPath('page', 'pagescript')).js();
+    const script = require(require('../helpers').harnessPath('page', 'core', 'client')).js();
     assert.match(script, /if \(m\.wake\) \{ poll\(\); return; \}/,
       'a wake polls at once — a debounce here would be the delay this removes');
   });
 
-  await test('NODELAY: a wake is not batched, debounced or rate-limited', () => {
-    // A timer added to "smooth out" wakes would reintroduce exactly what this
-    // removes. A wake is a few bytes on a pipe; there is nothing to smooth.
+  await test('NODELAY: the FIRST wake is never delayed; a burst is one trailing wake, never a lost one', () => {
+    // 2026-10-01: a wake per streamed chunk made the window rebuild /api/state dozens of times a second, on the event
+    // loop running the turn. The leading wake still goes at once — no timer stands in front of it — and the wakes of a
+    // burst become ONE trailing wake, so the state after the last change is always announced.
     const ipc = read('src', 'harnessapp', 'ipc.js');
     const fn = ipc.slice(ipc.indexOf('function wake()'), ipc.indexOf('function toHost('));
-    assert.ok(!/setTimeout|setInterval|debounce|throttle/.test(fn),
-      'wake() must not schedule anything');
+    const firstTimer = fn.search(/setTimeout/);
+    const coalesced = fn.indexOf('if (now - wakeAt < WAKE_COALESCE_MS)');
+    assert.ok(coalesced > 0 && firstTimer > coalesced, 'a timer exists only inside the burst branch');
+    assert.ok(/wakeTimer = setTimeout\(\(\) => \{ wakeTimer = null; wake\(\); \}/.test(fn), 'the trailing wake re-enters wake(): nothing is dropped');
+    const leading = fn.slice(fn.indexOf('wakeAt = now;'));
+    assert.ok(!/setTimeout|setInterval/.test(leading), 'the leading write is synchronous');
+    assert.ok(/const WAKE_COALESCE_MS = (\d+);/.test(ipc) && Number(/const WAKE_COALESCE_MS = (\d+);/.exec(ipc)[1]) <= 150, 'the window is short');
   });
 
   await test('NODELAY: the write routes wake, and reads do not', () => {
@@ -139,8 +145,8 @@ module.exports = async function () {
     // A sweep for the SHAPE rather than for a name: a timer whose callback
     // reveals state is a delayed reveal however it is spelled.
     const suspects = [
-      [require('../helpers').harnessPath('page', 'pagescript.js'), /setTimeout\([^)]*render\(\)/],
-      [require('../helpers').harnessPath('page', 'pagecowork.js'), /setTimeout\([^)]*render\(\)/],
+      [require('../helpers').harnessPath('page', 'core', 'client.js'), /setTimeout\([^)]*render\(\)/],
+      [require('../helpers').harnessPath('page', 'chat', 'cowork.js'), /setTimeout\([^)]*render\(\)/],
       ['src/ui/index.js', /setTimeout\([^)]*refresh\(\)/],
     ];
     for (const [file, re] of suspects) {

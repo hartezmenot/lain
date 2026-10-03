@@ -22,7 +22,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const { test, tmpdir } = require('../helpers');
-const dead = require('../../src/deadcode');
+const dead = require('../../tools/dev/deadcode');
 const { defineRe } = require('../../src/tools/search');
 
 /** A tiny tree with one of each case in it. */

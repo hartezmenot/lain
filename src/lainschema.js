@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * `.lain/` SCHEMA — version, backup, migrate, validate, and put it back if not.
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS NOW. `.lain/` started as a cache (index.json, rebuilt freely)
- * and became authority: architecture intent, the dictionary, wiring, promoted
- * facts, the fingerprint baseline. A cache can be thrown away when its shape
- * changes; authority cannot. So a shape change is a migration, and a migration
- * is deterministic code in this file — never a model rewriting JSON.
- *
- *     detect version
- *        │ older
- *        ▼
- *     backup  (.lain/backups/schema-<from>-<time>/)
- *        ▼
- *     migrate (one step at a time, each a pure function of the documents)
- *        ▼
- *     validate (every slot parses, has its envelope and its body shape)
- *      ┌─┴──┐
- *    PASS   FAIL
- *     │      │
- *    keep   restore the backup, leave the version where it was
- *
- * A FAILED MIGRATION DOES NOT BRICK THE PROJECT: the documents are exactly what
- * they were, lainstore reads them as before, and the failure is reported.
- *
- * ------------------------------------------------------------------------
- * THE VERSIONS.
- *
- *   1   every `.lain/` written before this file: no schema-version.json.
- *   2   semantic records carry `proof` (fingerprint evidence, see freshness.js).
- *       Records that predate it get `proof: []` and `proofOrigin: 'pre-schema-2'`
- *       — UNKNOWN, honestly, because the fingerprints they were established
- *       against were never recorded and must not be invented from today's disk.
- */
+/** `.lain/` SCHEMA — version, backup, migrate, validate, and put it back if not. */
 
 const fs = require('fs');
 const path = require('path');
@@ -45,7 +11,7 @@ const BACKUPS = 'backups';
 /** Directories that are not documents and are never backed up or migrated. */
 const SKIP_DIRS = new Set(['scratch', 'tasks', BACKUPS]);
 
-function dirOf(root) { return path.join(String(root), '.lain'); }
+function dirOf(root) { return require('./projectmeta').dir(String(root)); }
 function schemaPath(root) { return path.join(dirOf(root), SCHEMA_FILE); }
 
 /** The version on disk: 0 when there is no `.lain/`, 1 when it predates schema-version.json. */
@@ -100,10 +66,7 @@ function backup(root, from) {
   return name;
 }
 
-/**
- * PUT A BACKUP BACK. Documents created since it was taken are removed; every
- * document it holds is restored byte for byte.
- */
+/** PUT A BACKUP BACK. Documents created since it was taken are removed; every document it holds is restored byte for byte. */
 function rollback(root, name) {
   const src = path.join(dirOf(root), BACKUPS, String(name));
   let manifest;
@@ -133,11 +96,7 @@ function writeDoc(root, rel, doc) {
   fs.renameSync(`${file}.tmp`, file);
 }
 
-/**
- * THE MIGRATIONS. `from → from + 1`, each a function of the documents on disk.
- * A step may not read the source tree: a migration describes `.lain/`, and
- * today's disk is not evidence about when a record was made.
- */
+/** THE MIGRATIONS. `from → from + 1`, each a function of the documents on disk. A step may not read the source tree: a migration describes `.lain/`, and… */
 const MIGRATIONS = {
   1: function toTwo(root) {
     const SLOTS = require('./lainstore').SLOTS;
@@ -198,13 +157,7 @@ function validate(root, version) {
 
 const ensured = new Set();
 
-/**
- * BRING `.lain/` TO THE CURRENT SCHEMA, once per process per project.
- *
- * @param {object} [o]  `migrations` replaces the table (tests inject a failing
- *                       step to prove the restore); `force` re-runs the check.
- * @returns {{ok, from, to, backup?, restored?, problems?}}
- */
+/** BRING `.lain/` TO THE CURRENT SCHEMA, once per process per project. */
 function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT } = {}) {
   const r = path.resolve(String(root));
   const key = process.platform === 'win32' ? r.toLowerCase() : r;
@@ -245,10 +198,18 @@ function ensure(root, { migrations = MIGRATIONS, force = false, target = CURRENT
 }
 
 /** A `.lain/` created fresh is created at the current schema. */
+/** A `.lain/` LAIN JUST CREATED KEEPS ITSELF OUT OF THE PERSON'S COMMITS (Phase 8.2): opening a project must not put files the person never made into… */
+const SELF_IGNORE = '# Written by LAIN when it first opened this project: its index, fingerprints and notes\n# stay out of your commits. Delete this file to commit .lain/ with the project.\n*\n';
+function ignoreNew(root) {
+  const f = path.join(dirOf(root), '.gitignore');
+  try { if (!fs.existsSync(f)) fs.writeFileSync(f, SELF_IGNORE, { flag: 'wx' }); return true; } catch { return false; }
+}
+
 function stampNew(root) {
   if (require('./lainstore').held(root)) return false;
   if (detect(root) === 0 || fs.existsSync(schemaPath(root))) return false;
+  ignoreNew(root);
   try { writeSchema(root, CURRENT, []); return true; } catch { return false; }
 }
 
-module.exports = { CURRENT, detect, backup, rollback, validate, ensure, stampNew, MIGRATIONS, documents, _ensured: ensured };
+module.exports = { CURRENT, detect, backup, rollback, validate, ensure, stampNew, ignoreNew, SELF_IGNORE, MIGRATIONS, documents, _ensured: ensured };

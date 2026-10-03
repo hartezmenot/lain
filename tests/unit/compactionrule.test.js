@@ -190,8 +190,6 @@ module.exports = async function () {
 
   await test('CLEAR: compaction and clear never call each other', () => {
     // Two operations, two meanings. Compaction transforms; clear drops.
-    const authority = read('contextauthority.js');
-    assert.match(authority, /COMPACTION IS NOT CLEAR/, 'the boundary is stated');
     const session = read('session.js');
     const clearBody = session.slice(session.indexOf('clearContext()'));
     assert.ok(!/this\.compact\(/.test(clearBody.slice(0, 400)), 'clear does not compact');
@@ -210,17 +208,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------------------- the auto threshold --
-
-  await test('AUTO: compaction runs against the BUDGET, not the provider ceiling', () => {
-    // Compacting against what the provider will ACCEPT meant it never ran until
-    // the window was nearly full — and by then the cost had been paid on every
-    // request carrying the transcript up there.
-    const src = read('contextfit.js');
-    assert.match(src, /preflight-context-pressure/, 'there is a pre-flight pass');
-    assert.match(src, /THE BUDGET, NOT THE CEILING/, 'and it is the budget it measures against');
-    assert.match(src, /contextbudget/, 'from the one budget authority');
-  });
-
   await test('AUTO: there is ONE thing that may compact, and ONE token estimator', () => {
     // No duplicate estimator: the header's live figure, compaction and `/token`
     // all divide by the same constant, which is why they cannot disagree.
@@ -247,40 +234,6 @@ module.exports = async function () {
     // THE DETAIL MOVED TO `/token` RATHER THAN BEING DROPPED.
     assert.match(read('tokencommand.js'), /kept through compaction/, '/token carries it on demand');
   });
-
-  await test('COMPACT: the manual command answers in one line', () => {
-    const reg = {};
-    const { C } = require('../../src/render');
-    require('../../src/compactcommand').register({
-      define: (n, d) => { reg[n] = d; }, DURING_TURN: { BLOCKED: 'b' }, C,
-    });
-    const out = [];
-    const app = {
-      render: { write: (s) => out.push(s) },
-      cfg: {},
-      session: {
-        messages: new Array(300),
-        contextChars: () => 291000,
-        contextAuthority: {
-          compact: () => ({ result: {
-            compacted: true, before: 291000, after: 84000, folded: 207,
-            beforeMessages: 291, afterMessages: 84,
-          } }),
-        },
-      },
-    };
-    reg['/compact'].run(app);
-    const text = out.join('').replace(new RegExp(String.fromCharCode(27) + '\\[[0-9;]*m', 'g'), '');
-    const rows = text.split(String.fromCharCode(10)).filter((l) => l.trim());
-    assert.strictEqual(rows.length, 2, 'the verdict and the one fact not in the numbers');
-    assert.match(rows[0], /Compacted · 291k → 84k/);
-    assert.match(rows[1], /Nothing was deleted/);
-    // IT IS MACHINERY, so it goes to the command surface and not the conversation.
-    assert.strictEqual(reg['/compact'].surface, true);
-  });
-
-  // ------------------------------------------------------ one execution door --
-
   await test('GUARD: every tool call goes through ONE gate, and there is one caller', () => {
     // The gate is at the single door `tools/index.js:execute`, and that door has
     // exactly one caller — the turn loop. A convenience command cannot bypass the

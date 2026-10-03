@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * UI WIRING — the single place the App talks to the terminal UI.
- *
- * It exists so `app.js` stays the REPL shell and gains no drawing code, and so
- * commands never learn about regions or cursors: a command asks for a PANEL with
- * an adapter, or asks the UI to refresh, and that is all.
- *
- * Every value shown is read from state that already exists. Nothing here calls a
- * model, and there is no timer or polling loop — the UI redraws when the app
- * says something changed.
- */
+/** UI WIRING — the single place the App talks to the terminal UI. */
 
 const { Screen } = require('./layout');
 const views = require('./views');
@@ -27,45 +17,20 @@ class UI {
     this.app = app;
     this.panel = new panelMod.InteractionPanel();
     this.screen = new Screen({ out: app.render.out, panel: this.panel });
-    /**
-     * THE STORY OF THE CURRENT TASK — what was said, by whom, and what was
-     * done. This object owns the SCREEN; that one owns the CONTENT. See
-     * ui/story.js, which also explains the two lifetimes involved.
-     */
+    /** THE STORY OF THE CURRENT TASK — what was said, by whom, and what was done. */
     this.story = new (require('./story').Story)();
     this.busy = false;
     this.enabled = false;
     this.running = null;      // the tool call in flight, for the ACTIVITY view
     this.startedAt = 0;       // when the current turn began, for elapsed time
-    /**
-     * THE LIVE EXECUTION PHASE, straight from the turn loop — the single source
-     * of truth for "what is LAIN doing right now". Never inferred, never
-     * guessed; `null` means nothing is running and the live row disappears.
-     */
+    /** THE LIVE EXECUTION PHASE, straight from the turn loop — the single source of truth for "what is LAIN doing right now". */
     this.phase = null;
     this.phaseSince = 0;
     this.interrupting = false;
-    /**
-     * ONE ELAPSED-WORK CLOCK FOR THE WHOLE FOREGROUND TASK — see
-     * ui/workclock.js. It is started by the turn lifecycle, paused and resumed
-     * from the same `liveState` the window title reads, and it is the only
-     * duration this surface shows: the per-phase `12s` it replaced restarted at
-     * every read, every write and every retry.
-     */
+    /** ONE ELAPSED-WORK CLOCK FOR THE WHOLE FOREGROUND TASK — see ui/workclock.js. */
     this.clock = require('./workclock').create();
     this._tick = null;
-    // ---- THE ACTIVITY TIMELINE — see ui/activity.js ----------------------
-    //
-    // PRESENTATION ONLY. It is a pure function of (events, clock), nothing in
-    // the turn loop awaits it, and `instant` collapses it to its final state
-    // without changing a single fact it reports.
-    //
-    // INSTANT EVERYWHERE. It used to animate on a terminal: prose resolved
-    // through a scramble band for up to 1.5 s, every tool card held for at
-    // least 560 ms, and the timeline was allowed to run up to 12 s BEHIND the
-    // work it described. That is presentation time a person waits through, and
-    // on a finished turn it read as LAIN still being busy. The screen shows the
-    // real state the frame it becomes true; the call in flight keeps its card.
+    // THE ACTIVITY TIMELINE — see ui/activity.js
     this.activity = new (require('./activity').ActivitySurface)({ instant: true });
   }
 
@@ -74,17 +39,13 @@ class UI {
   get liveActions() { return this.story.actions; }
   get liveNarration() { return this.story.narration; }
   get liveNotes() { return this.story.notes; }
+  get liveThoughts() { return this.story.thoughts; }
   get liveUser() { return this.story.user; }
   get liveFrom() { return this.story.userFrom || null; }
   get liveTyped() { return Boolean(this.story.userTyped); }
   get outputs() { return this.story.outputs; }
 
-  /**
-   * WHAT THE OTHER ACTORS SAID, read from the SESSION — see session.js.
-   *
-   * It was held on this object and was therefore lost on `/resume`. The name
-   * is unchanged so no caller had to move with it.
-   */
+  /** WHAT THE OTHER ACTORS SAID, read from the SESSION — see session.js. */
   get extras() { return this.app.session.actors || []; }
 
   setLiveUser(text, from = null, typed = false) { this.story.setUser(text, from, typed); this.refresh(); }
@@ -99,57 +60,26 @@ class UI {
     this.refresh();
   }
 
-  // AN EDIT ARRIVES IN THE FEED, WHERE IT STAYS (ui/turnsections.js) — it no
-  // longer opens a second, temporary window that closed itself. A READ still
-  // looks through its file in the reel (ui/diffreel.js). Neither is waited on.
+  // AN EDIT ARRIVES IN THE FEED, WHERE IT STAYS (ui/turnsections.js) — it no longer opens a second, temporary window that closed itself.
   showDiff() { this._syncTicker(); this.refresh(); }
 
   showRead(file, text) { this.activity.showRead(file, text); this._syncTicker(); this.refresh(); }
 
-  /**
-   * The real +/- for the edit that just finished, read from the checkpoint.
-   * They arrive a moment after the tool result — see turnevents.js noteEdit.
-   */
+  /** The real +/- for the edit that just finished, read from the checkpoint. */
   noteEditCounts(added, removed) {
     this.activity.counts(added, removed);
-    // ONLY THE CARD. The durable counts come from the CHECKPOINT, onto the turn
-    // record, at the moment the call finishes — see describe.js `editSize`.
-    // Patching the live copy here as well put the same numbers on screen twice
-    // from two sources, and the live one lost them the instant the turn ended.
+    // ONLY THE CARD. The durable counts come from the CHECKPOINT, onto the turn record, at the moment the call finishes — see describe.js `editSize`.…
     this._syncTicker();
   }
-  /**
-   * PROSE THE MODEL PRODUCED, ON SCREEN AS SOON AS IT IS A COMPLETE THOUGHT.
-   *
-   * This did NOT redraw, and prose was only flushed at the next tool result —
-   * which is why a working session could show nothing but search/read/search.
-   * The ticker call puts the clock on 60Hz while the paragraph RESOLVES
-   * (ui/reveal.js); on the slow tick a sentence arrives in four visible steps.
-   */
+  /** PROSE THE MODEL PRODUCED, ON SCREEN AS SOON AS IT IS A COMPLETE THOUGHT. */
   noteNarration(text) { this.story.noteNarration(text); this._syncTicker(); this.refresh(); }
+  noteThought(t) { this.story.noteThought(t); this.refresh(); }
 
   /** A liveness warning, a block, a notice — the program speaking, quietly. */
   noteSystem(text, level = 'info') { this.story.noteSystem(text, level); this.refresh(); }
 
-  /**
-   * One line from an actor that is not LAIN's own turn — the external reviewer,
-   * or the desktop bridge.
-   *
-   * `afterTurns` is stamped here, from the turn count as it stands right now.
-   * That is what lets Context replay the story IN ORDER: without it every
-   * review was appended after ALL turns, so round 1 of a relay drew BELOW the
-   * LAIN turn that acted on it and the conversation read backwards.
-   */
-  /**
-   * @param {string[]} [o.detail]  the FULL text this line summarises.
-   *
-   * WHY A SUMMARY AND A DETAIL, rather than one line per line. `extras` is what
-   * ui/conversation.js draws, one row per entry — so pushing an external
-   * reply through here line by line put the whole of somebody else's prose into
-   * the conversation. The entry now says what happened; `detail` carries what
-   * was said, for the dashboard and for the saved session, and the feed draws
-   * only `text`. See externalrequest.dispatch.
-   */
+  /** One line from an actor that is not LAIN's own turn — the external reviewer, or the desktop bridge. */
+  /** WHY A SUMMARY AND A DETAIL, rather than one line per line. */
   noteActor(kind, text, { detail = null } = {}) {
     const t = String(text || '').trim();
     if (!t) return;
@@ -163,45 +93,12 @@ class UI {
 
   noteOutput(command, output, exitCode) { this.story.noteOutput(command, output, exitCode); this.refresh(); }
 
-  /**
-   * OUTPUT ARRIVING, COUNTED — the one number on the header.
-   *
-   * ------------------------------------------------------------------------
-   * WHY THIS IS AN ESTIMATE, AND WHY IT SAYS SO.
-   *
-   * No provider LAIN speaks to states output tokens while a response is being
-   * produced. Anthropic states them once, in `message_delta`, at the end; the
-   * OpenAI shape states them in the final chunk. That is not a limitation of
-   * this code — it is what is on the wire, and ui/tokenview.js has a whole
-   * vocabulary for the difference (MEASURED, ESTIMATED, PENDING, UNKNOWN).
-   *
-   * So the finest TRUTHFUL granularity available during a response is the one
-   * thing that genuinely arrives continuously: the characters. Divided by the
-   * same pessimistic `CHARS_PER_TOKEN` src/session.js compacts against, so the
-   * figure a person watches and the figure that acts on the conversation cannot
-   * drift apart.
-   *
-   * IT IS DRAWN WITH A `~` IN FRONT OF IT until the receipt lands. That is the
-   * whole of the honesty requirement: an estimate that looks like a measurement
-   * is worse than no number, and `/token` says which is which in words.
-   *
-   * NOTHING IS FABRICATED AND NOTHING IS INTERPOLATED. Every increment here is
-   * caused by bytes that actually arrived from the model. There is no timer
-   * behind it: if the model goes quiet for ten seconds the number does not move
-   * for ten seconds, which is exactly the signal a person watching wants.
-   *
-   * NO REDRAW PER CHUNK. A repaint on every token is the redraw storm
-   * ui/turnevents.js already avoids by buffering prose; the ticker is running
-   * throughout a turn anyway (ui/activity.js `syncTicker`), so the count is
-   * picked up by the next frame either way.
-   */
+  /** OUTPUT ARRIVING, COUNTED — the one number on the header. */
   noteOutputChars(n) {
     const chars = Math.max(0, Number(n) || 0);
     if (!chars) return;
     if (!this.liveOutput) this.liveOutput = { chars: 0, tokens: 0, measured: false };
-    // A MEASURED FIGURE IS NEVER OVERWRITTEN BY AN ESTIMATE. Text can still
-    // arrive after a receipt on a multi-step turn; the receipt is the better
-    // number for what it covers, and the estimate resumes on the next turn.
+    // A MEASURED FIGURE IS NEVER OVERWRITTEN BY AN ESTIMATE.
     if (this.liveOutput.measured) return;
     this.liveOutput.chars += chars;
     const { CHARS_PER_TOKEN } = require('../session');
@@ -209,11 +106,7 @@ class UI {
   }
 
   /** A genuinely new task: the previous task's story is no longer the news. */
-  // ---- THE TURN'S STATE MACHINE lives in ui/turnstate.js -----------------
-  //
-  // Five ways for a turn to end and none of them allowed to be silent. Moved
-  // out when this file reached the architecture guard; see that file's header
-  // for why it is a real seam rather than a place to put lines.
+  // THE TURN'S STATE MACHINE lives in ui/turnstate.js
   clearExtras() { return require('./turnstate').clearExtras(this); }
   beginTurn(verdict = null) { return require('./turnstate').beginTurn(this, verdict); }
   endTurn() { return require('./turnstate').endTurn(this); }
@@ -223,71 +116,15 @@ class UI {
   setInterrupted(on) { return require('./turnstate').setInterrupted(this, on); }
   setFailed(on) { return require('./turnstate').setFailed(this, on); }
 
-  /**
-   * THE REDRAW TICKER — the one timer in the program, and it fabricates nothing.
-   *
-   * It exists because a genuinely slow provider produces no events for minutes:
-   * without a redraw the elapsed count freezes and the screen becomes
-   * indistinguishable from a dead one, which is precisely the failure this work
-   * is here to fix.
-   *
-   * What keeps it honest:
-   *   - It runs ONLY while a real phase is in flight, and stops the instant the
-   *     turn ends. It cannot animate when nothing is happening.
-   *   - It redraws EXISTING state. It never advances progress, never invents a
-   *     step, never contacts a provider and costs zero tokens.
-   *   - It is unref'd, so it can never hold the process open.
-   */
-  /**
-   * WAIT OUT A RATE LIMIT, VISIBLY, AND CARRY ON BY ITSELF.
-   *
-   * The strip shows `WAITING FOR LIMIT RESET  3h 59m` where THINKING and
-   * RUNNING appear, counting down — because a LAIN that is deliberately waiting
-   * and a LAIN that has died look identical otherwise, and here the difference
-   * lasts hours rather than seconds.
-   *
-   * NOT A BUSY LOOP. One timer that resolves at the deadline; the redraw ticker
-   * that already exists paints the clock. Nothing is polled and no request is
-   * made while it waits.
-   *
-   * ESCAPE OR CTRL+C ENDS IT, through the same abort signal everything else is
-   * cancelled by rather than a second mechanism. A four-hour wait is a decision
-   * somebody may reverse ten minutes later, and a wait you cannot leave is a
-   * hang with a countdown on it.
-   *
-   * @returns {Promise<boolean>} true if it waited to the end, false if abandoned
-   */
+  /** THE REDRAW TICKER — the one timer in the program, and it fabricates nothing. */
+  /** WAIT OUT A RATE LIMIT, VISIBLY, AND CARRY ON BY ITSELF. */
   waitForReset(resumeAt, o = {}) { return require('./waiting').waitForReset(this, resumeAt, o); }
 
-  /**
-   * THE REDRAW CLOCK, and it has two speeds.
-   *
-   * A spinner and an elapsed count need four frames a second; a timeline being
-   * played back needs more than that to move smoothly. So the ticker runs at
-   * FRAME_MS while anything is animating and drops back to TICK_MS when the
-   * only thing changing is a number.
-   *
-   * IT ALSO RUNS AFTER THE TURN. Playback is deliberately behind reality, so
-   * when the work finishes there is usually still a timeline to finish showing
-   * and a diff window to close. Stopping the clock the moment the phase cleared
-   * would freeze the last few operations mid-animation — which is exactly the
-   * "everything appeared at once and then stopped" behaviour this replaces.
-   *
-   * COSTS NOTHING WHEN NOTHING MOVES: an identical frame is not written
-   * (ui/layout.js), so a faster clock over a still screen is a string compare.
-   */
+  /** THE REDRAW CLOCK, and it has two speeds. */
   _syncTicker() { return require('./activity').syncTicker(this); }
 
-  /**
-   * THE STATE THE STATUS STRIP DRAWS — collected in one place, derived nowhere
-   * else. Everything in it already exists on this object or in the session; the
-   * strip is a rendering of facts, not a second record of them.
-   */
-  // ---- WHAT THE SCREEN IS TOLD lives in ui/projection.js ----------------------
-  //
-  // Pure projection: it reads the app and returns a plain object. Kept out of
-  // this file so the methods that CHANGE state and the functions that merely
-  // describe it are not interleaved. These four are the whole surface.
+  /** THE STATE THE STATUS STRIP DRAWS — collected in one place, derived nowhere else. */
+  // WHAT THE SCREEN IS TOLD lives in ui/projection.js
   statusState() { return require('./projection').statusState(this); }
   snapshot() { return require('./projection').frameState(this); }
   lastSessionToken() { return require('./projection').lastSessionToken(this); }
@@ -296,44 +133,13 @@ class UI {
   _title(s) { return require('./projection').title(this, s); }
 
 
-  /**
-   * ESCAPE DURING A RETRY WAIT — stop waiting, keep everything else.
-   *
-   * A rate-limit wait is the one state where the user is being asked to sit
-   * still with no way out short of Ctrl+C, and Ctrl+C is a bigger hammer than
-   * "I don't want to wait for this". The turn is aborted the same way, but the
-   * resting state says RETRY CANCELLED rather than INTERRUPTED, because those
-   * are two different things that happened.
-   */
+  /** ESCAPE DURING A RETRY WAIT — stop waiting, keep everything else. */
   cancelRetry() { return require('./waiting').cancelRetry(this); }
 
-  /**
-   * ESCAPE OUT OF A LONG RATE-LIMIT WAIT — `waitForReset`'s sibling to
-   * `cancelRetry` above, and the same mechanism: the abort signal
-   * `app.js`'s `handleRateLimit` keeps alive for exactly the duration of the
-   * wait. `waitForReset` itself reports "stopped waiting" once this resolves
-   * its promise with `false` — this only needs to fire the signal.
-   */
+  /** ESCAPE OUT OF A LONG RATE-LIMIT WAIT — `waitForReset`'s sibling to `cancelRetry` above, and the same mechanism: the abort signal `app.js`'s… */
   cancelWait() { return require('./waiting').cancelWait(this); }
 
-  /**
-   * Enter the full-screen UI. Returns false when stdout is not a TTY.
-   *
-   * ------------------------------------------------------------------------
-   * NOTHING IS WARMED HERE ANY MORE, AND NOTHING NEEDS TO BE.
-   *
-   * This used to start the project SURVEY on startup — twice, in fact: once for
-   * whichever pane was open and once for CONTEXT, because CONTEXT was the pane
-   * whose survey never began and which therefore sat on "reading the tree…" for
-   * whole sessions. That was a real defect and the fix was right for the design
-   * it was in.
-   *
-   * With no CONTEXT pane there is no pane to warm. `/brief` runs the same
-   * survey when a person asks for it, which is the only moment anybody wants a
-   * tree read — and it means opening LAIN no longer spawns compilers to fill in
-   * a pane nobody has looked at.
-   * ------------------------------------------------------------------------
-   */
+  /** Enter the full-screen UI. */
   enable() {
     if (!this.screen.enter()) return false;
     this.enabled = true;
@@ -344,10 +150,7 @@ class UI {
 
   disable() {
     if (!this.enabled) return;
-    // THE LAST FRAME IS THE SETTLED ACCOUNT. Playback is deliberately behind
-    // reality, which is right while there is a screen to watch it on; at
-    // teardown there is not, and a session must not end on a half-entered card
-    // for an operation that finished seconds ago. See ui/activity.js `drain`.
+    // THE LAST FRAME IS THE SETTLED ACCOUNT.
     this.activity.drain();
     this.refresh();
     this.enabled = false;
@@ -358,35 +161,17 @@ class UI {
 
   refresh() {
     if (!this.enabled) return;
-    // ---- THE WORK CLOCK, BEFORE ANYTHING READS IT ------------------------
-    //
-    // `snapshot()` copies the clock's value into the frame state, so it has to
-    // be advanced first or the strip draws the previous frame's figure. It is
-    // an accumulator over wall time (ui/workclock.js), so calling this twice in
-    // one millisecond reads the same number twice — the redraw rate cannot
-    // affect what it says.
+    // THE WORK CLOCK, BEFORE ANYTHING READS IT
     require('./projection').clock(this);
     const s = this.snapshot();
     this._title(s);
     this.screen.status = views.statusOf({
       lifecycle: s.lifecycle,
       busy: this.busy,
-      // ANY modal panel is LAIN waiting on a person, not LAIN working — it was
-      // matched on the ask_user title alone, so browsing models or config
-      // reported WORKING while nothing was running.
-      //
-      // A PASSIVE PANEL IS NOT A WAIT. `visible` was the whole test, so a box
-      // with no caller behind it — command output, an auto-compaction notice,
-      // the loop advisory — put WAITING FOR YOU in the header while the turn
-      // was still running. Claiming LAIN is waiting on you when it is not is
-      // the same class of untruth as DONE over unfinished work, and this is the
-      // header word a person actually acts on.
+      // ANY modal panel is LAIN waiting on a person, not LAIN working — it was matched on the ask_user title alone, so browsing models or config reported…
       awaitingUser: this.panel.visible && !this.panel.isCompletion && !this.panel.isPassive && !this.panel.isInspector && this.panel.kind !== 'SHELF',
       providerStatus: s.providerStatus,
-      // The live phase is the most specific true thing available, so it decides
-      // the header word: THINKING and RUNNING are both "working", and telling
-      // them apart is the difference between waiting on a server and waiting on
-      // this machine.
+      // The live phase is the most specific true thing available, so it decides the header word: THINKING and RUNNING are both "working", and telling them…
       phase: this.phase,
       interrupting: this.interrupting,
       interrupted: this.interrupted,
@@ -398,13 +183,7 @@ class UI {
   }
 
   setBusy(on) { this.busy = Boolean(on); this.refresh(); }
-  /**
-   * The input row's content AND where the caret is in it.
-   *
-   * The caret travels with the text because the viewport is computed from both:
-   * showing the start of a line the user is typing off the end of is exactly
-   * the bug this exists to prevent.
-   */
+  /** The input row's content AND where the caret is in it. */
   setInput(text, cursor = null) {
     const s = String(text || '');
     this.screen.inputText = s;
@@ -415,19 +194,12 @@ class UI {
     // draws it, and reading it here means there is one place it is copied.
     const reader = this.app.input;
     this.screen.inputSelection = reader && typeof reader.range === 'function' ? reader.range() : null;
-    // WHAT ARRIVED AS A PASTE, for the composer's DRAWING only — the reader
-    // owns the record, the screen only projects it, and `s` above is the whole
-    // of what will be sent. See ui/composer.js on why this is payloads rather
-    // than offsets, and on the invariant it must never break.
+    // WHAT ARRIVED AS A PASTE, for the composer's DRAWING only — the reader owns the record, the screen only projects it, and `s` above is the whole of…
     this.screen.inputPastes = (reader && Array.isArray(reader.pastesInLine)) ? reader.pastesInLine : [];
     this.refresh();
   }
 
-  /**
-   * The transient "press Ctrl+C again to exit" hint, drawn on the input frame.
-   * A no-op when nothing changed, so the ordinary keystroke path never pays for
-   * a redraw it does not need.
-   */
+  /** The transient "press Ctrl+C again to exit" hint, drawn on the input frame. */
   setExitHint(text) {
     const t = String(text || '');
     if (this.screen.exitHint === t) return;
@@ -444,10 +216,7 @@ class UI {
 
   dismissCompletion() { return require('./completionview').dismiss(this); }
 
-  /**
-   * Open the interaction panel with an adapter and await the user's answer.
-   * THE single entry point for every interactive surface.
-   */
+  /** Open the interaction panel with an adapter and await the user's answer. */
   async ask(adapter) {
     if (!this.enabled) return null;      // non-TTY callers print text instead
     const p = this.panel.open(adapter);
@@ -460,43 +229,16 @@ class UI {
   /** What the panel is currently for — IDLE when nothing is open. */
   get mode() { return this.panel.kind; }
 
-  /**
-   * The `ask_user` back end. Renders the choices through THIS panel and returns
-   * the chosen string — which is why it lives here rather than in the REPL.
-   *
-   * "Other…" is a ROW that leads to a text-entry state of this same panel — it
-   * used to close the panel and print a dim line into the transcript, which is
-   * exactly the "is that editable or is it just text?" confusion this fixes.
-   * Either way the answer comes back through the ONE `ask()` promise, so a
-   * reply can never start a task, mutate the plan or reset a step.
-   */
+  /** The `ask_user` back end. */
   async askUser({ question, options = [], input = null }) {
     if (!this.enabled) return null;            // non-interactive: the tool says so
-    // ---- END OF INPUT IS A STATE, NOT AN EVENT ---------------------------
-    //
-    // repl.js cancels an OPEN question when stdin closes, because nothing will
-    // ever answer it. That covers the question that already exists and misses
-    // the one asked a moment later — and "a moment later" is every piped run,
-    // where the whole script is written and closed before the first turn has
-    // reached its first tool.
-    //
-    // It surfaced when an await was added in front of `submit` (the input
-    // gateway): the ask began arriving AFTER the close, and LAIN sat on an open
-    // panel until the harness killed it — a hang whose cause was three files
-    // away from where it appeared. A closed stdin has no answers left in it at
-    // any later moment either, so the state is checked rather than the moment.
+    // END OF INPUT IS A STATE, NOT AN EVENT
     if (this.app && this.app.inputClosed) return null;
     const A = require('./answer');
-    // "Other…" BELONGS ONLY TO A LIST OF CHOICES. On a number question it is
-    // an option that cannot be typed; on a yes/no it is a third answer to a
-    // two-answer question; on free text it is the thing you are already doing.
-    // Appending it everywhere is how a surface comes to offer what it cannot
-    // take — see ui/answer.js.
+    // "Other…" BELONGS ONLY TO A LIST OF CHOICES.
     const kind = A.kindOf(input, options);
     const choices = kind === A.KIND.CHOICE && options.length ? [...options, A.OTHER] : options;
-    // A COMPANION HAS TO KNOW A QUESTION IS OPEN. It is the one state where
-    // nothing will happen until a person acts, and a window that cannot show it
-    // leaves the user waiting on a LAIN that is waiting on them. See events.js.
+    // A COMPANION HAS TO KNOW A QUESTION IS OPEN.
     const { EVENT, busOf } = require('../events');
     busOf(this.app).emit(EVENT.QUESTION_PRESENTED, { question, kind, options: choices });
     const answer = await this.ask(panelMod.askAdapter({ question, options: choices, input }));
@@ -509,27 +251,7 @@ class UI {
     return answer;
   }
 
-  /**
-   * ENTER WITH TEXT ON THE LINE, WHILE A QUESTION IS OPEN.
-   *
-   * THERE IS STILL ONE EDITOR. The text comes from the same InputReader that
-   * every prompt comes from, with its caret, its paste handling and its
-   * history — this only decides that THIS line is an answer rather than a new
-   * task, hands it to the frame, and clears the box. Nothing here re-implements
-   * typing, which is the second input architecture the design forbids.
-   *
-   * Remembered in history on the way past: an answer is a line the user wrote,
-   * and having to retype it after a mistake is the same insult as losing it.
-   *
-   * A SLASH COMMAND IS NOT AN ANSWER. Once a typed line resolves the question,
-   * every line does — including `/copy`, which is how you get the question out
-   * of the box and into somewhere else, and which you most want at exactly this
-   * moment. So a registered command runs and the question stays open behind it.
-   * `looksLikeCommand` requires a name that is actually in the registry, so an
-   * answer that begins with a slash (`/usr/local/bin`) is still an answer.
-   *
-   * @returns {boolean} true when the line was consumed as an answer.
-   */
+  /** ENTER WITH TEXT ON THE LINE, WHILE A QUESTION IS OPEN. */
   submitTypedAnswer() {
     if (!this.enabled || !this.panel.visible || !this.panel.acceptsTyped) return false;
     const input = this.app.input;
@@ -545,10 +267,7 @@ class UI {
       });
       return true;
     }
-    // A SECRET IS NOT REMEMBERED. `remember` makes the line recallable with ↑,
-    // which for an API key means one keypress from plain text after it was
-    // carefully masked while typed. Same flag the box masks on — see
-    // ui/inputbox.js and apicommand.js `credentialAdapter`.
+    // A SECRET IS NOT REMEMBERED.
     const secret = Boolean(this.panel.frame && this.panel.frame.secret);
     if (!this.panel.submitTyped(text)) return false;
     if (input) { if (!secret) input.remember(text); input.setLine(''); }
@@ -557,20 +276,10 @@ class UI {
     return true;
   }
 
-  /**
-   * Install (or clear) the model browser's live filter.
-   *
-   * The COMMAND owns what filtering means — it has the catalog and the adapter;
-   * the UI only knows that keystrokes should reach it while that panel is open.
-   */
+  /** Install (or clear) the model browser's live filter. */
   setModelFilter(fn) { this._modelFilter = typeof fn === 'function' ? fn : null; }
 
-  // ------------------------------------------------- as-you-type menus ------
-  //
-  // The `/` and `@` menus live in ui/menus.js — a menu is a view of the INPUT
-  // LINE, which is a different concern from the panel, the screen and the
-  // keyboard this object owns, and keeping both here pushed the file past the
-  // god-object guard. These are the seams, not wrappers with logic in them.
+  // as-you-type menus
 
   static atToken(text) { return require('./menus').atToken(text); }
   updateMenus(text, meta) { return require('./menus').updateMenus(this, text, meta); }
@@ -578,46 +287,13 @@ class UI {
   showMenu(adapter) { return require('./menus').showMenu(this, adapter); }
   closeMenu() { return require('./menus').closeMenu(this); }
 
-  /**
-   * Enter on an empty input line, with the workspace showing a list.
-   *
-   * This is how a view becomes navigable without giving the workspace its own
-   * cursor and its own key handling: the selection runs through the ONE panel,
-   * and the view simply renders whatever was chosen.
-   */
+  /** Enter on an empty input line, with the workspace showing a list. */
   async workspaceSelect() {
-    // ------------------------------------------------------------------------
-    // ENTER ON AN EMPTY LINE USED TO OPEN WHAT THE PANE OFFERED — a file
-    // picker on DIFF and FILES, a step picker on PLAN. Those panes are gone,
-    // and with them the only thing this could open.
-    //
-    // It is KEPT as a seam rather than deleted: src/repl.js routes an empty
-    // Enter here, and a method that answers "no, nothing to open" is a better
-    // seam than a call site that has to know there is nothing. Returning false
-    // lets the keystroke fall through exactly as it did on the six panes that
-    // never offered anything.
-    // ------------------------------------------------------------------------
+    // ENTER ON AN EMPTY LINE USED TO OPEN WHAT THE PANE OFFERED — a file picker on DIFF and FILES, a step picker on PLAN.
     return false;
   }
 
-  /**
-   * A SINGLE LETTER TYPED WHILE THE COMPLETION OVERLAY IS UP.
-   *
-   * The overlay used to advertise "[D] diff" and "[R] keep working" as
-   * printable letters, and NEITHER worked: a printable character is inserted
-   * into the input line and emits an `edit`, never a `key`, so they could
-   * never reach handleKey at all — the screen was offering shortcuts the
-   * input reader is structurally incapable of delivering. Both are gone now,
-   * replaced by Up/Down/Enter (see ui/keys.js), which arrive as real `key`
-   * events and need no bridge like this one.
-   *
-   * What is left here is general, not specific to those two letters: only
-   * while the overlay is showing, only for a line that is exactly one
-   * character, and only for a letter the overlay's `handleKey` actually
-   * claims. Anything else falls through and is typed, which also dismisses
-   * the report because you have started composing. Nothing about ordinary
-   * typing changes.
-   */
+  /** A SINGLE LETTER TYPED WHILE THE COMPLETION OVERLAY IS UP. */
   completionShortcut(text) {
     if (!this.enabled || !this.screen.completion) return false;
     const k = String(text || '');
@@ -625,30 +301,12 @@ class UI {
     return this.handleKey(k.toLowerCase());
   }
 
-  /**
-   * The same problem, one layer down: a letter an OPEN PANEL advertises.
-   *
-   * The session browser's footer says "D details", and D is a printable
-   * character — so without this it is typed into the input line and the footer
-   * is a promise the input reader cannot keep. The PANEL decides whether the
-   * letter is claimed (see InteractionPanel.shortcut); a completion menu never
-   * claims one, so typing to filter the model browser is untouched.
-   */
+  /** The same problem, one layer down: a letter an OPEN PANEL advertises. */
   panelShortcut(text) {
     if (!this.enabled || !this.panel.visible) return false;
     const k = String(text || '');
     if (k.length !== 1) return false;
-    // ---- AN ADVISORY NEVER TAKES A LETTER OUT OF A SENTENCE ---------------
-    //
-    // Every other panel is modal: there is nothing else the keyboard could be
-    // for, so claiming a letter costs nothing. The loop advisory is raised by
-    // LAIN, unasked, over a live input line — and one of the things it SUGGESTS
-    // is that you type a correction. If it claimed letters unconditionally,
-    // "look at the other file" would lose its `l` to [L] the moment it appeared,
-    // which is the footer-that-lies bug this method exists to prevent, inverted.
-    //
-    // So its letters are live only while the line is EMPTY. Start typing and
-    // they are yours again, no mode to leave and nothing to undo.
+    // AN ADVISORY NEVER TAKES A LETTER OUT OF A SENTENCE
     if (this.panel.isAdvisory) {
       const line = this.app.input ? String(this.app.input.line || '') : '';
       if (line.length) return false;
@@ -658,31 +316,12 @@ class UI {
     return true;
   }
 
-  // ------------------------------------------------------------------------
   // `nextView` AND `ensureReport` STOOD HERE.
-  //
-  // `nextView` cycled the nine panes on Tab; `ensureReport` started the
-  // asynchronous project read a pane needed when it was OPENED. Both existed
-  // only because there was somewhere to navigate to. There is not, so a Tab
-  // that changed the surface would be a Tab that changed nothing.
-  //
-  // The survey itself is untouched — ui/reports.js still owns it, and `/brief`
-  // still runs it. What is gone is navigation as the trigger.
-  // ------------------------------------------------------------------------
 
-  /**
-   * WHICH KEY DOES WHAT lives in ui/keys.js — the routing of a keystroke is
-   * a different job from owning the panel, the screen and the redraw, and
-   * keeping both here pushed this file past the god-object guard. This is
-   * the seam, not a wrapper with logic in it.
-   */
+  /** WHICH KEY DOES WHAT lives in ui/keys.js — the routing of a keystroke is a different job from owning the panel, the screen and the redraw, and keeping… */
   handleKey(key) { return require('./keys').handleKey(this, key); }
 
-  /**
-   * WHERE A CLICK LANDED lives in ui/mouse.js, for the same reason keys live in
-   * ui/keys.js: it is hit-testing against what was DRAWN, not state this object
-   * owns.
-   */
+  /** WHERE A CLICK LANDED lives in ui/mouse.js, for the same reason keys live in ui/keys.js: it is hit-testing against what was DRAWN, not state this… */
   handleMouse(ev) { return require('./mouse').handleMouse(this, ev); }
 
 }

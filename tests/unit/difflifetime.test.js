@@ -102,26 +102,28 @@ module.exports = async function () {
     } finally { w.clean(); }
   });
 
-  await test('DIFF L: the activity rectangle minimizes to one line when a Diff (or any action) is primary', () => {
+  await test('DIFF L: the box carries only the model\'s visible words, and yields them when a Diff (or any action) is primary', () => {
     const now = Date.now();
-    const thinking = { busy: true, phaseSince: now - 5000, phase: { phase: 'WAITING_MODEL' }, recent: [{ name: 'read_file', target: 'a.js', ok: true }] };
-    assert.strictEqual(box.rows(thinking, 20, now), 2, 'the rectangle while only thinking is happening');
-    assert.strictEqual(box.rows(thinking, 20, now, { minimal: true }), 1, 'one line when a Diff is primary');
+    // ONE ACTIVITY LINE (2026-10-01): state and clock are the status strip's; the box is the model's own visible words.
+    const live = require('../../src/streamprogress').begin(now - 5000);
+    require('../../src/streamprogress').text(live, 'Checking where the diff lands before editing the second file', now - 100);
+    const thinking = { busy: true, phaseSince: now - 5000, phase: { phase: 'RECEIVING', live }, recent: [{ name: 'read_file', target: 'a.js', ok: true }] };
+    assert.strictEqual(box.rows(thinking, 20, now), 2, 'the model\'s words while it writes');
+    assert.strictEqual(box.rows(thinking, 20, now, { minimal: true }), 0, 'nothing when a Diff is primary — the line still says what is happening');
     const acting = { busy: true, phase: { phase: 'RUNNING_TOOL', tool: 'read_file', target: 'src/a.js' }, recent: [] };
-    assert.strictEqual(box.rows(acting, 20), 1, 'a tool acting is primary too');
-    const one = box.draw(acting, 60, 1).map(strip);
-    assert.strictEqual(one.length, 1);
-    assert.match(one[0], /READING · src\/a\.js/);
-    assert.doesNotMatch(one[0], /┌|└/, 'no box chrome');
+    assert.strictEqual(box.rows(acting, 20), 0, 'a tool acting is said once, on the activity line');
+    const one = box.draw(thinking, 60, 2).map(strip).join(' ');
+    assert.match(one, /diff lands/);
+    assert.doesNotMatch(one, /┌|└|WRITING|READING/, 'no box chrome, no repeated state word');
     const geo = require('../../src/ui/geometry');
     const screen = (over) => ({ rows: 40, cols: 100, panel: null, state: { llm: thinking, liveActions: [] }, _wrapped: () => [{ text: '' }], _pasteSummary: () => '', ...over });
     const quiet = geo.regions(screen({}));
     const expanded = geo.regions(screen({ openDiff: { turn: 0, path: 'a.js' } }));
     const arriving = geo.regions(screen({ state: { llm: thinking, liveActions: [{ name: 'edit_file', path: 'a.js', ok: true, landedAt: Date.now() }] } }));
     assert.strictEqual(quiet.activityRows, 2);
-    assert.strictEqual(expanded.activityRows, 1, 'an expanded diff is primary');
-    assert.strictEqual(arriving.activityRows, 1, 'a diff arriving in the feed is primary');
-    assert.strictEqual(arriving.workspace - quiet.workspace, 1, 'the row went to the feed the diff is in');
+    assert.strictEqual(expanded.activityRows, 0, 'an expanded diff is primary');
+    assert.strictEqual(arriving.activityRows, 0, 'a diff arriving in the feed is primary');
+    assert.strictEqual(arriving.workspace - quiet.workspace, 2, 'the rows went to the feed the diff is in');
   });
 
   await test('DIFF M: the completed turn keeps a reopenable Diff at the SAME index — an open Diff stays open across settlement', () => {

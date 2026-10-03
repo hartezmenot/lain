@@ -45,8 +45,8 @@ module.exports = async function () {
     assert.ok(Array.isArray(s.sources.sources), 'the chat sources are listed');
     assert.deepStrictEqual(
       s.sources.sources.map((x) => x.id).sort(),
-      ['chatgpt-web', 'gemini-web', 'lain'],
-      'all three chat sources reach the application',
+      ['lain'],
+      'LAIN is the chat source (the website sources were retired in Phase 8.1)',
     );
   });
 

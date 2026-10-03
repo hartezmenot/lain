@@ -162,7 +162,7 @@ module.exports = async function () {
     for (const s of resize.snaps) {
       assert.ok(count(s, /UNIQUE-ANSWER-ONE/g) <= 1, `${s.name} shows the answer twice`);
       assert.ok(count(s, /UNIQUE-DONE-ONE/g) <= 1, `${s.name} shows the reply twice`);
-      assert.ok(count(s, /Ask LAIN/g) === 1, `${s.name} has ${count(s, /Ask LAIN/g)} composers`);
+      assert.ok(count(s, /Ask (?:LAIN|LAIN)/g) === 1, `${s.name} has ${count(s, /Ask (?:LAIN|LAIN)/g)} composers`);
     }
   });
 

@@ -1,0 +1,21 @@
+{
+  "name": "lain-sample",
+  "displayName": "LAIN Sample Extension",
+  "publisher": "lain-test",
+  "version": "1.0.0",
+  "description": "A test extension for LAIN's extension host: commands, diagnostics, completion, permissions, crash and hang.",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "sample.hello", "title": "Sample: Say Hello" },
+      { "command": "sample.countTodos", "title": "Sample: Write TODO Count" },
+      { "command": "sample.readOutside", "title": "Sample: Read Outside the Workspace" },
+      { "command": "sample.unsupported", "title": "Sample: Use an Unsupported API" },
+      { "command": "sample.crash", "title": "Sample: Crash" },
+      { "command": "sample.hang", "title": "Sample: Hang" }
+    ],
+    "configuration": { "properties": { "sample.marker": { "type": "string", "default": "TODO" } } }
+  }
+}

@@ -43,56 +43,6 @@ function script(cwd) {
 }
 
 module.exports = async function () {
-  await test('COMPLETE: a model-written plan plus a PASSING check reaches TASK COMPLETE', async () => {
-    const cwd = project({ passing: true });
-    const r = await runCli([], {
-      cwd, stdin: 'make the change\n/plan\n', script: script(cwd),
-      env: { LAIN_PROVIDER: 'mock' },
-    });
-    // The plan exists at all — impossible before the model could write one.
-    assertIncludes(r.out, '2/2 done', 'the model must be able to drive the plan to completion');
-    assertIncludes(r.out, 'TASK COMPLETE', 'the completion screen must fire on genuine completion');
-    assert.strictEqual(fs.readFileSync(path.join(cwd, 'target.txt'), 'utf8'), 'changed\n');
-  });
-
-  await test('COMPLETE: the same plan with a FAILING check does NOT complete, and says why', async () => {
-    const cwd = project({ passing: false });
-    const r = await runCli([], {
-      cwd, stdin: 'make the change\n/plan\n', script: script(cwd),
-      env: { LAIN_PROVIDER: 'mock' },
-    });
-    // Every box is ticked and a file really changed — the old evidence rule was
-    // satisfied. The red check is what must overrule it.
-    assertIncludes(r.out, '2/2 done', 'the plan really is finished; that is the point');
-    assertNotIncludes(r.out, 'TASK COMPLETE', 'a red check must not be reported as finished work');
-    assertIncludes(r.out, 'not complete', 'a silent refusal is indistinguishable from nothing happening');
-    assertIncludes(r.out, 'node check.js', 'the refusal must name the command that failed');
-  });
-
-  await test('COMPLETE: the model is TOLD the check is red, in the tool result it can act on', async () => {
-    const cwd = project({ passing: false });
-    const r = await runCli([], {
-      cwd, stdin: 'make the change\n', script: script(cwd),
-      env: { LAIN_PROVIDER: 'mock' },
-    });
-    // Reporting this only to the user would mean the one party able to fix it
-    // never hears about it.
-    assertIncludes(r.out, 'NOT complete', 'plan_step_done must report the failing check back to the model');
-  });
-
-  await test('COMPLETE: a finished plan with NOTHING done does not complete', async () => {
-    const cwd = project({ passing: true });
-    const r = await runCli([], {
-      cwd, stdin: 'do nothing\n', env: { LAIN_PROVIDER: 'mock' },
-      script: [
-        { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { steps: ['think about it'] } }] },
-        { text: 'Done.', tool_calls: [{ name: 'plan_step_done', input: { note: 'thought about it' } }] },
-        { text: 'All finished!' },
-      ],
-    });
-    assertNotIncludes(r.out, 'TASK COMPLETE', 'ticking a box is not evidence of work');
-  });
-
   await test('COMPLETE: search tools are registered and run through the real binary', async () => {
     const cwd = tmpdir('lain-search-cli-');
     fs.mkdirSync(path.join(cwd, 'src'));

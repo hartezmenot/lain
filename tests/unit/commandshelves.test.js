@@ -75,22 +75,6 @@ module.exports = async function () {
     assert.deepStrictEqual(f.items.filter((i) => i.choice).map((i) => i.value), ['lain', 'chatgpt-web', 'gemini-web']);
   });
 
-  await test('MODEL SHELF: a website source lists THIS account\'s models and selects one', async () => {
-    const { pickSource } = require('../../src/modelcommand');
-    const fixture = require('../../src/modelsource/fixture');
-    const { WebModelSource } = require('../../src/modelsource/webmodel');
-    const app = appWith([{ action: 'choose', choice: 'chatgpt-web' }, { action: 'use', choice: 'fx-small' }]);
-    app.cfg = {};
-    const surface = fixture.create({ id: 'chatgpt-web', label: 'ChatGPT.com' });
-    app._modelSources = new Map([['chatgpt-web', new WebModelSource({ surface, app, id: 'chatgpt-web', label: 'ChatGPT.com' })]]);
-    const go = await pickSource(app);
-    assert.strictEqual(go, 'web');
-    const list = app.frames[1];
-    assert.deepStrictEqual(list.items.filter((i) => i.choice).map((i) => i.value), ['fx-large', 'fx-small'], 'discovered, not hardcoded');
-    assert.strictEqual(require('../../src/modelsource/registry').selectedId(app), 'chatgpt-web');
-    assert.strictEqual(app._modelSources.get('chatgpt-web').selectedModel(), 'fx-small');
-  });
-
   await test('/models stays a HIDDEN alias of /model', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'routecommands.js'), 'utf8');
     const block = src.slice(src.indexOf("define('/models'"), src.indexOf("define('/models'") + 400);
