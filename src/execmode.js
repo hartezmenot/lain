@@ -110,7 +110,8 @@ async function gate(ctx, name, tool, input) {
     const denied = require('./permrules').first(rules.deny, name, input, cwd);
     if (denied) return { ok: false, output: `Denied by your permission rules: ${denied}` };
   }
-  if (k === 'read') return { ok: true };
+  // In AUTO the first computer call turns Computer Control on, a look as much as a click (the desktop still asks).
+  if (k === 'read') return /^computer/.test(name) && effective(app, session) === 'AUTO' ? autoComputer(app) : { ok: true };
   const mode = effective(app, session);
   if (mode === 'PLAN') return { ok: false, output: PLAN_REFUSAL };
   if (mode === 'AUTO') return k === 'computer' ? autoComputer(app) : { ok: true };

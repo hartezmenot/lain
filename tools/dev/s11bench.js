@@ -31,7 +31,7 @@ function home(patch = {}) {
 }
 function envFor(h, trace, extra = {}) {
   return { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('LAIN_') && !k.startsWith('NOEMA_'))),
-    LAIN_CONFIG_DIR: h, LAIN_HOME: path.join(h, 'sup'), LAIN_REQTRACE: trace, LAIN_NO_DESKTOP: '1', LAIN_NO_UPDATE_CHECK: '1', LAIN_TEMP_ROOT: path.join(h, 'tmp'), ...extra };
+    LAIN_CONFIG_DIR: h, LAIN_HOME: path.join(h, 'sup'), LAIN_REQTRACE: trace, LAIN_NO_DESKTOP: '1', LAIN_NO_UPDATE_CHECK: '1', LAIN_TEMP_ROOT: path.join(h, 'tmp'), ...extra, ...JSON.parse(process.env.S11_EXTRA || '{}') };   // S11_EXTRA: a dry run's mock provider
 }
 const SLOW = "'use strict';\nsetTimeout(() => { console.log('slow suite: 3 passed'); }, 25000);\n";
 function fixture() { const d = sb.fixture(); fs.writeFileSync(path.join(d, 'test', 'slow.js'), SLOW); return d; }
@@ -106,7 +106,7 @@ const TASKS = {
   5: { name: 'several files and steps', ...P(sb.TASKS[5].prompt, (d, text) => sb.TASKS[5].check(d, text)) },
   6: { name: 'a long background test while continuing',
     ...P('Start the slow suite `node test/slow.js` (it takes about 25 seconds) in the background. While it runs, rename the "Add task" button label to "New task". Then wait for the slow suite and tell me its result.',
-      (d, text, h) => { const bg = actions(h).some((a) => a.name === 'shell' && /slow\.js/.test(a.target || '') && (a.job || /background|job/i.test(a.note || ''))); const lbl = />New task</.test(sb.read(d, 'index.html')); const res = /3 passed/.test(text); return { ok: bg && lbl && res, why: `background:${bg} label:${lbl} result-reported:${res}` }; }) },
+      (d, text, h) => { const bg = actions(h).some((a) => /^(shell|bash|Bash)$/.test(a.name) && /slow\.js/.test(a.target || '') && (a.job || /background|job/i.test(a.note || ''))); const lbl = />New task</.test(sb.read(d, 'index.html')); const res = /3 passed/.test(text); return { ok: bg && lbl && res, why: `background:${bg} label:${lbl} result-reported:${res}` }; }) },
   7: { name: 'two explore agents in parallel',
     ...P('Use two explore agents in parallel: one finds where completed tasks are counted, the other finds how the "Add task" button is wired to the store. Then give me both answers. Do not change any files.',
       (d, text, h) => { const ag = actions(h).filter((a) => a.name === 'Agent'); const steps = new Set(ag.map((a) => a.step)); const ch = sb.unchanged(d); const ok = ag.length >= 2 && steps.size < ag.length && !ch.length && /countDone/.test(text) && /addTask|onclick|app\.js/.test(text); return { ok, why: `agents:${ag.length} sameStep:${steps.size < ag.length} changed:${ch.join(',') || 'none'}` }; }) },
@@ -124,7 +124,7 @@ async function taskP(id, t) {
 
 // 8: Plan mode in a real terminal: Shift+Tab into Plan, the plan is proposed, the person EDITS it ($EDITOR adds a step), approves, and it is built.
 async function taskPlan(id) {
-  const h = home({ permissions: { defaultMode: 'acceptEdits', allow: ['shell(node:*)'] } }); const d = fixture(); trust(h, d);
+  const h = home({ permissions: { defaultMode: 'acceptEdits', allow: ['shell(node:*)', 'shell(npm:*)'] } }); const d = fixture(); trust(h, d);
   const trace = path.join(h, `req-${id}.jsonl`);
   const editor = path.join(h, 'editplan.js');
   fs.writeFileSync(editor, "const fs=require('fs');const f=process.argv[2];fs.appendFileSync(f,'\\n- [ ] Name the new test exactly: clearCompleted removes done tasks\\n');\n");
@@ -140,12 +140,16 @@ async function taskPlan(id) {
     { send: '/exit\r' }, { wait: 1500 },
   ];
   const r = runTty({ argv: [process.execPath, path.join(ROOT, 'bin', 'lain.js')], cwd: d, env: envFor(h, trace, { EDITOR: `"${process.execPath}" "${editor}"`, VISUAL: `"${process.execPath}" "${editor}"` }), cols: 120, rows: 40, steps });
-  const t = sb.testsPass(d);
+  // FUNCTIONAL, not the suite's exit code: the fixture's own countDone bug stops test/run.js before an appended test runs.
+  const probe = "const s=require('./src/store');const st=s.createStore();const a=s.addTask(st,'a');s.addTask(st,'b');s.toggle(st,a.id);"
+    + "const r=s.clearCompleted(st);const t=Array.isArray(r)?r:(r&&r.tasks)||st.tasks;console.log(t.length===1&&t[0].title==='b'?'OK':'BAD '+JSON.stringify(t))";
+  const fn = spawnSync(process.execPath, ['-e', probe], { cwd: d, encoding: 'utf8' });
+  const t = { ok: /^OK/.test((fn.stdout || '').trim()), out: ((fn.stdout || '') + (fn.stderr || '')).trim().split(/\r?\n/).pop() };
   const named = /clearCompleted removes done tasks/.test(sb.read(d, 'test/run.js'));
   const plans = fs.existsSync(path.join(d, '.lain', 'plans')) ? fs.readdirSync(path.join(d, '.lain', 'plans')) : [];
   const ok = t.ok && /clearCompleted/.test(sb.read(d, 'src/store.js')) && named && plans.length > 0 && !(r.timeouts || []).length;
   return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, snaps: (r.snaps || []).map((s) => ({ name: s.name, text: s.text })) }, null, 1), wallMs: r.ms, exit: r.exit == null ? null : r.exit,
-    correct: ok, why: `tests:${t.out} editHonoured:${named} planFile:${plans.length} timeouts:${(r.timeouts || []).join('|') || 'none'}${r.error ? ` error:${String(r.error).slice(0, 200)}` : ''}`, ...measure(trace, h) };
+    correct: ok, why: `clearCompleted:${t.out} editHonoured:${named} planFile:${plans.length} timeouts:${(r.timeouts || []).join('|') || 'none'}${r.error ? ` error:${String(r.error).slice(0, 200)}` : ''}`, ...measure(trace, h) };
 }
 
 // 9: the multi-step task, LAIN killed (TerminateProcess) right after its first edit lands, then `--resume <id> -p continue`.
@@ -175,12 +179,14 @@ async function taskComputer(id) {
   const steps = [
     { until: 'Ask LAIN', timeout: 60000 },
     { send: `Use Computer Control on the Calculator window (title "Calculator", window handle ${hwnd}) — only that window: compute 123 * 4 by clicking or typing in it, then read the result from its display and tell me the number.\r` },
-    { until: 'Allow LAIN to observe and control this computer', timeout: 300000 }, { snap: 'authorize', settle: 600 }, { send: '\r' },
+    { until: '(?i)allow lain to observe and control this computer', timeout: 300000 }, { snap: 'authorize', settle: 600 }, { send: '\r' },
     { until: 'DONE|CUT OFF|STOPPED|FAILED', timeout: 600000 }, { snap: 'done', settle: 1500 },
     { send: '/exit\r' }, { wait: 1500 },
   ];
   const r = runTty({ argv: [process.execPath, path.join(ROOT, 'bin', 'lain.js')], cwd: d, env: envFor(h, trace), cols: 120, rows: 40, steps });
-  const display = ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${hwnd}); $r=$w.FindFirst([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::AutomationIdProperty,'CalculatorResults'))); if($r){$r.Current.Name}`);
+  const readDisplay = () => ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${hwnd}); $r=$w.FindFirst([Windows.Automation.TreeScope]::Descendants,(New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::AutomationIdProperty,'CalculatorResults'))); if($r){$r.Current.Name}`);
+  let display = readDisplay();
+  if (!display) { await new Promise((res) => setTimeout(res, 1500)); display = readDisplay(); }
   // CLOSE WHAT THIS SCRIPT OPENED, by its window (WindowPattern.Close) — never by process id.
   ps(`Add-Type -AssemblyName UIAutomationClient; $w=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]${hwnd}); $p=$w.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern); $p.Close()`);
   const after = userNotepad();

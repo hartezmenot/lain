@@ -1,0 +1,51 @@
+  ▸ Thought for 0s · ~70 tokens
+  · search .
+    index.html:7:  <button id="add" class="primary">Add task</button>
+    test/run.js:7:t('add', () => { const st = s.createStore(); s.addTask(st, 'a'); assert.strictEqual(st.tasks.length, 1); });
+    test/run.js:10:t('formatCount', () => { assert.strictEqual(formatCount(1), '1 task left'); assert.strictEqual(formatCount(2), '2 tasks left'); });
+    src/app.js:9:  for (const t of store.tasks) {
+    src/app.js:16:  document.getElementById('count').textContent = formatCount(store.tasks.length - countDone(store));
+    src/format.js:3:/** "1 task left" / "3 tasks left" — the counter under the list. */
+    src/format.js:5:  return `${n} ${n === 1 ? 'task' : 'tasks'} left`;
+    src/store.js:3:function createStore() { return { tasks: [], nextId: 1 }; }
+    … 6 more line(s)
+  · list_dir .
+    .lain/
+    index.html
+    package.json
+    src/
+    style.css
+    test/
+  ▸ Thought for 0s · ~66 tokens
+  · read src/format.js
+        1	'use strict';
+        2	
+        3	/** "1 task left" / "3 tasks left" — the counter under the list. */
+        4	function formatCount(n) {
+        5	  return `${n} ${n === 1 ? 'task' : 'tasks'} left`;
+        6	}
+        7	
+        8	module.exports = { formatCount };
+    … 1 more line(s)
+  · read src/app.js
+        1	import { createStore, addTask, toggle, countDone } from './store.js';
+        2	import { formatCount } from './format.js';
+        3	
+        4	const store = createStore();
+        5	
+        6	function render() {
+        7	  const list = document.getElementById('list');
+        8	  list.innerHTML = '';
+    … 19 more line(s)
+  ▸ Thought for 0s · ~70 tokens
+No files changed.
+
+**The function:** `formatCount(n)` in `src/format.js` (lines 4–6). The decision itself is the ternary on line 5: `n === 1 ? 'task' : 'tasks'`, producing `"1 task left"` vs `"N tasks left"`.
+
+**Where it's called from:**
+- `src/app.js` line 16 — inside `render()`, which sets the `#count` element's text to `formatCount(store.tasks.length - countDone(store))` (tasks remaining, not total).
+- `test/run.js` line 10 — a test asserting both the singular and plural forms.
+
+`render()` itself is triggered three ways in `app.js`: once on load (line 26), on the "Add task" button click (line 23), and on a task's click-to-toggle handler (line 13) — so the counter wording updates on every state change.
+  4 tool calls · in 12k · reasoning 203 · out 454 · cache 11k (92%)
+  session 20261003-220327-74y4  ·  resume with: lain --resume 74y4

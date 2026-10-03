@@ -1,0 +1,31 @@
+  ▸ Thought for 0s · ~12 tokens
+  · read src/store.js
+        1	'use strict';
+        2	
+        3	function createStore() { return { tasks: [], nextId: 1 }; }
+        4	
+        5	function addTask(store, title) {
+        6	  const t = { id: store.nextId++, title: String(title).trim(), done: false };
+        7	  if (!t.title) throw new Error('a task needs a title');
+        8	  store.tasks.push(t);
+    … 18 more line(s)
+  ▸ Thought for 0s · ~18 tokens
+The bug is on line 22: it counts tasks that have a title instead of tasks where `done` is true.
+  · apply_patch src/store.js
+    patched src/store.js:22 — 1 line(s) replaced by 1
+  ▸ Thought for 0s · ~11 tokens
+  · glob {pattern}
+    no file matches **/*.test.js
+  ▸ Thought for 0s · ~16 tokens
+No tests exist, so I'll verify with a quick script:
+  · bash node -e "const s = require('./src/store.js'); const st = s.createStore(); s.addTask(st, 'a'); s.addTask(st, 'b'); s.addT
+    [via shell: powershell · cwd=C:\Users\HARTEZ~1\AppData\Local\Temp\lain-bench-proj-gP6jWG]
+    countDone: 2
+    
+DONE — `countDone()` in `src/store.js:22` was filtering on `t.title` (which every task has, since `addTask` trims but always requires a title) instead of the `done` flag, so it always returned the total task count. Changed it to filter on `t.done`.
+
+Verified with a quick script: 3 tasks, 2 toggled done → `countDone` returns 2. No tests exist in the project to run.
+  4 tool calls · 1 file changed · in 19k · reasoning 58 · out 372 · cache 18k (96%)
+  Files changed: src/store.js +1 -1
+  Commands: node -e "const s = require('./src/store.js'); const st = s.c (exit 0, 0.7s)
+  session 20261003-220249-oc6z  ·  resume with: lain --resume oc6z
