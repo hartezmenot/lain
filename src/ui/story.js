@@ -73,6 +73,12 @@ class Story {
     if (t && this.notes.length < MAX) this.notes.push({ text: t, level, after: this.actions.length });
   }
 
+  /** A steer delivered into the running turn: the person's words, placed where the model received them. */
+  noteSteer(text) {
+    const t = String(text || '').trim();
+    if (t && this.notes.length < MAX) this.notes.push({ text: t, level: 'info', steer: true, after: this.actions.length });
+  }
+
   /** Command output, for the OUTPUT surface. Bounded — never unbounded growth. */
   noteOutput(command, output, exitCode) {
     this.outputs.push({ command, output: String(output || '').slice(0, 20000), exitCode });

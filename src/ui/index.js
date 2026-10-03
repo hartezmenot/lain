@@ -77,6 +77,8 @@ class UI {
 
   /** A liveness warning, a block, a notice — the program speaking, quietly. */
   noteSystem(text, level = 'info') { this.story.noteSystem(text, level); this.refresh(); }
+  /** What the person said into the running turn — drawn as their message (USER STEER), not as a note. */
+  noteSteer(text) { this.story.noteSteer(text); this.refresh(); }
 
   /** One line from an actor that is not LAIN's own turn — the external reviewer, or the desktop bridge. */
   /** WHY A SUMMARY AND A DETAIL, rather than one line per line. */

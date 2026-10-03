@@ -4,10 +4,10 @@
 
 const T = require('./text');
 
-function userAnchor(out, text, width, P) {
+function userAnchor(out, text, width, P, { steer = false } = {}) {
   const anchors = require('./anchors');
   const w = Math.max(8, width);
-  const head = `${anchors.label(text)} · `;
+  const head = `${anchors.label(text, { steer })} · `;
   const room = Math.max(4, w - T.width(head) - 1);
   const body = anchors.preview(text, room);
   out.userAt[out.length] = text;

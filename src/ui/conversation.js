@@ -155,7 +155,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
       for (const st of steps) {
         // BEFORE the step's own output, because that is the order it happened
         // in: the model was handed the correction, and then did what follows.
-        for (const s of steers.filter((x) => x.step === st)) pushUser(said, s.text);
+        for (const s of steers.filter((x) => x.step === st)) pushUser(said, s.text, { steer: true });
         for (const n of narration.filter((x) => x.step === st)) {
           pushModel(said, settled(t, n), { last: n === lastSaid });
         }
@@ -164,7 +164,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
       // Calls from a turn recorded before steps were tracked.
       for (const a of actions.filter((x) => x.step === undefined && kept.has(x))) pushAction(said, a);
     } else {
-      for (const s of steers) pushUser(said, s.text);
+      for (const s of steers) pushUser(said, s.text, { steer: true });
       // ONE CALL, so a turn recorded before narration existed is laid out by the same rule as every other message.
       pushModel(said, t.text);
       if (actions.length) for (const a of actions.filter((x) => kept.has(x))) pushAction(said, a);
@@ -210,7 +210,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
   for (let i = 0; i < liveActions.length; i++) {
     for (const x of liveThoughts.filter((y) => y.after === i)) thoughtRow.push(said, x, thoughtsOpen);
     for (const n of liveNarration.filter((x) => x.after === i)) say(said, n);
-    for (const n of liveNotes.filter((x) => x.after === i)) pushNote(said, n.text, n.level);
+    for (const n of liveNotes.filter((x) => x.after === i)) { if (n.steer) pushUser(said, n.text, { steer: true }); else pushNote(said, n.text, n.level); }
     // THE SAME RULE WHILE IT IS STILL HAPPENING
     const a = liveActions[i];
     if (!liveKept.has(a)) continue;
@@ -219,7 +219,7 @@ function activity({ session, current = null, width = 80, transcript = null, live
   }
   for (const x of liveThoughts.filter((y) => y.after >= liveActions.length)) thoughtRow.push(said, x, thoughtsOpen);
   for (const n of liveNarration.filter((x) => x.after >= liveActions.length)) say(said, n);
-  for (const n of liveNotes.filter((x) => x.after >= liveActions.length)) pushNote(said, n.text, n.level);
+  for (const n of liveNotes.filter((x) => x.after >= liveActions.length)) { if (n.steer) pushUser(said, n.text, { steer: true }); else pushNote(said, n.text, n.level); }
 
   if (said.length) {
     // NO `CONTEXT` HEADING HERE.

@@ -88,12 +88,12 @@ function pushLines(out, text, kind) {
 }
 
 /** WHAT THE USER SAID. The entry that was missing entirely. */
-function pushUser(out, text) {
+function pushUser(out, text, { steer = false } = {}) {
   // THE USER'S LINE BREAKS ARE THE USER'S.
   const before = out.length;
   const source = String(text == null ? '' : text);
   pushLines(out, source, 'user');
-  for (let i = before; i < out.length; i++) out[i].source = source;
+  for (let i = before; i < out.length; i++) { out[i].source = source; if (steer) out[i].steer = true; }
   // WHERE ONE MESSAGE BEGINS.
   if (out.length > before) out[before].head = true;
 }
@@ -245,7 +245,7 @@ function renderFeed(entries, width) {
         run.push(entries[j].text || '');
         j += 1;
       }
-      userAnchor(out, source || run.join(String.fromCharCode(10)), width, P);
+      userAnchor(out, source || run.join(String.fromCharCode(10)), width, P, { steer: Boolean(e.steer) });
       // A QUIET RULE BETWEEN WHAT WAS ASKED AND WHAT CAME BACK — the one other
       // major boundary in an exchange. Only when something follows it.
       if (j < entries.length && entries[j].kind !== 'user') out.push(P.meta('─'.repeat(Math.max(8, Math.min(width, DIVIDER_MAX) >> 1))));

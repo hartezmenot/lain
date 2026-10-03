@@ -163,6 +163,8 @@ function apply(app, ev, ctx) {
     }
 
     case 'notice':
+      // A STEER IS THE PERSON SPEAKING — drawn as their message, where it landed in the turn.
+      if (ev.steer && app.ui.enabled) { app.ui.noteSteer(ev.text); break; }
       // A NOTICE ADDRESSED TO A SURFACE goes to the bottom of the screen, never into the conversation.
       if (ev.transient) {
         require('./ui/operation').say(app, ev.message, ev.level || 'info');

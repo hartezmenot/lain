@@ -31,10 +31,10 @@ function kindOf(text) {
   return DECISION.test(t) ? 'DECISION' : 'MESSAGE';
 }
 
-/** The label drawn above the block. */
-function label(text) {
+/** The label drawn above the block: USER · USER DECISION · USER REQUEST — and USER STEER for words sent into a running turn. */
+function label(text, { steer = false } = {}) {
   const k = kindOf(text);
-  return k === 'DECISION' ? 'USER DECISION' : k === 'REQUEST' ? 'USER REQUEST' : 'USER';
+  return k === 'DECISION' ? 'USER DECISION' : k === 'REQUEST' ? 'USER REQUEST' : steer ? 'USER STEER' : 'USER';
 }
 
 /** WHERE THE ANCHORS ARE in a rendered feed, as row indices. */

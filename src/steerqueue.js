@@ -71,7 +71,8 @@ function deliver(session, record, opts, step) {
     record.steers = (record.steers || 0) + 1;
     // THE WORDS, AND WHERE THEY LANDED — not merely how many there were.
     (record.steerTexts = record.steerTexts || []).push({ step, text });
-    out.push({ type: 'notice', level: 'info', message: `⚑ USER STEER delivered to the model: ${text}` });
+    // DRAWN AS THE PERSON'S OWN MESSAGE (USER STEER), never as a NOTE: `steer` tells the CLI (turnevents.js); `message` is for any other reader.
+    out.push({ type: 'notice', level: 'info', steer: true, text, message: `USER STEER: ${text}` });
   }
   if (out.length) require('./inflight').persist(session, { force: true });
   return out;
