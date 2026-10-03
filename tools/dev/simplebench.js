@@ -5,7 +5,8 @@
  * holds only the chosen connection (its credential copied as the encrypted DPAPI blob — never plaintext), then records
  * per task: model requests, tokens in/out/cached, cache %, wall time, correctness, the final text, and the request
  * sizes. Usage: node tools/dev/simplebench.js <label> [taskIds=1,2,3,4,5] [--model glm-5.3] [--connection lain:zai]
- * Output: docs/simplify/bench-<label>.json plus one stdout log per task beside it.
+ * Output: tools/dev/bench/out/simplify/bench-<label>.json plus one stdout log per task beside it — gitignored (S12):
+ * a bench never writes window titles, screen text or screenshots into the repository.
  */
 
 const fs = require('fs');
@@ -14,6 +15,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
+/** WHERE A BENCH WRITES — inside the gitignored bench output folder, never a tracked path (S12). */
+const OUT = path.join(ROOT, 'tools', 'dev', 'bench', 'out', 'simplify');
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const label = argv[0] || 'run';
@@ -117,13 +120,13 @@ if (require.main === module) (async () => {
   for (const id of ids) {
     process.stdout.write(`task ${id} (${TASKS[id].name}) … `);
     const r = await runTask(id, home);
-    fs.writeFileSync(path.join(ROOT, 'docs', 'simplify', `bench-${label}-task${id}.log`), r.log);
+    fs.mkdirSync(OUT, { recursive: true });
+    fs.writeFileSync(path.join(OUT, `bench-${label}-task${id}.log`), r.log);
     delete r.log;
     results.push(r);
     console.log(`${r.correct ? 'correct' : 'WRONG'} · ${r.modelRequests} model requests · in ${r.inputTokens} out ${r.outputTokens} cached ${r.cachedTokens} (${r.cachePct}%) · ${(r.ms / 1000).toFixed(1)}s${r.why ? ` · ${r.why}` : ''}`);
   }
-  fs.mkdirSync(path.join(ROOT, 'docs', 'simplify'), { recursive: true });
-  fs.writeFileSync(path.join(ROOT, 'docs', 'simplify', `bench-${label}.json`), JSON.stringify({ label, at: new Date().toISOString(), model: MODEL, connection: CONN, cfg: EXTRA, results }, null, 2));
+  fs.writeFileSync(path.join(OUT, `bench-${label}.json`), JSON.stringify({ label, at: new Date().toISOString(), model: MODEL, connection: CONN, cfg: EXTRA, results }, null, 2));
 })().catch((e) => { console.error(e.stack || e.message); process.exit(1); });
 
-module.exports = { benchHome, FIXTURE, fixture, read, testsPass, unchanged, TASKS, runTask, MODEL, CONN };
+module.exports = { OUT, benchHome, FIXTURE, fixture, read, testsPass, unchanged, TASKS, runTask, MODEL, CONN };

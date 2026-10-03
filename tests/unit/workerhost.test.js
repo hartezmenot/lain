@@ -115,30 +115,6 @@ module.exports = async function run() {
     } finally { await kill(d); restore(); }
   });
 
-  await test('the locate shortlist is not held up by a loading Laya — the lexical tier answers and the row says why', async () => {
-    const d = await fresh({ loadMs: 3000 });
-    env('LAIN_LOCATE', 'on');
-    try {
-      const f = fakeWorker();
-      const root = tmpdir('lain-host-proj-');
-      fs.mkdirSync(path.join(root, 'server'));
-      fs.writeFileSync(path.join(root, 'server', 'store.js'), '// Workspace settings persisted to a JSON file.\nfunction putSettings() {}\n');
-      for (let i = 0; i < 14; i++) fs.writeFileSync(path.join(root, `w${i}.js`), `// Widget ${i}.\nfunction w${i}() {}\n`);
-      const app = appFor(f);
-      const session = { cwd: root, messages: [{ role: 'user', content: 'saving settings does not persist, check the store' }] };
-      app.session = session;
-      require('../../src/locateassist').prewarm(app);
-      const t0 = Date.now();
-      const text = await require('../../src/locateassist').take(app, session, 0);
-      assert.ok(Date.now() - t0 < 1500, `no wait for the 3 s load (${Date.now() - t0} ms)`);
-      assert.match(text, /server\/store\.js/);
-      const row = session.workerLedger[0];
-      assert.notStrictEqual(row.tier, 'laya', 'the lexical tier answered (the ledger says so; the text names no worker)');
-      assert.strictEqual(row.warmWaitMs, 0);
-      assert.ok(['LOADING', 'UNLOADED', 'UNAVAILABLE'].includes(row.layaBypass), `bypass recorded: ${row.layaBypass}`);
-    } finally { await kill(d); env('LAIN_LOCATE', null); restore(); }
-  });
-
   await test('HOT_IDLE answers; INFERENCING while it works; the result cache hit costs zero inference in the host', async () => {
     const d = await fresh({ loadMs: 100 });
     try {

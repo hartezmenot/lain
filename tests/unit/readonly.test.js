@@ -14,7 +14,6 @@ const fs = require('fs');
 const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
-const mode = require('../../src/mode');
 const wakeup = require('../../src/wakeup');
 const readonly = require('../../src/readonly');
 const toolalias = require('../../src/toolalias');
@@ -29,41 +28,6 @@ const TORALINK_BRIEF = [
 ].join('\n');
 
 module.exports = async () => {
-  // ---- mode.js ------------------------------------------------------------------
-
-  await test('READ-ONLY: a DECLARATION is recognised; the same words as an object of work are not', () => {
-    for (const yes of ['READ-ONLY PROJECT INSPECTION.\n\nTrace the search flow.', 'read only please', 'Read-only: how does auth work',
-      'Explain the router. Do not modify any file.', "Walk me through it without changing anything.", "Don't make any changes.",
-      'This is a read-only review of the payment code', 'Keep this read-only and tell me what calls save()']) {
-      assert.ok(mode.declaresReadOnly(yes), `declared: ${yes}`);
-    }
-    for (const no of ['Make the config file read-only', 'Fix the read-only flag on the settings form', 'Read-only mode for the settings page: add a toggle',
-      "Implement the retry, but don't change anything else.", 'Add the endpoint. Do not modify any file in src/legacy.',
-      "Refactor the parser without changing any code behaviour", "Don't make any changes to the public API; add the helper internally.",
-      'Do not create any new files — put it in utils.js']) {
-      assert.ok(!mode.declaresReadOnly(no), `not declared: ${no}`);
-    }
-  });
-
-  await test('READ-ONLY: a paste that STARTS a task is classified by its words; one that joins work is content', () => {
-    const fresh = mode.classify(TORALINK_BRIEF, { isPaste: true, joinsActiveTask: false });
-    // AUDIT or EXPLAIN — both read-only; which one depends on words the brief
-    // negates ("- create architecture records" still reads as a build verb to
-    // the word rules, and the declaration overrides that answer).
-    assert.ok(['AUDIT', 'EXPLAIN'].includes(fresh.mode), `the Toralink brief, pasted into a fresh session: ${fresh.mode}`);
-    assert.strictEqual(fresh.declaredReadOnly, true);
-    assert.strictEqual(fresh.readOnly, true);
-    // Unchanged: a stack trace pasted INTO running work stays that work's evidence.
-    const trace = 'TypeError: x is undefined\n    at run (src/a.js:3:1)\nError: failed';
-    assert.strictEqual(mode.classify(trace, { isPaste: true, joinsActiveTask: true, activeMode: 'IMPLEMENT' }).mode, 'IMPLEMENT');
-    assert.strictEqual(mode.classify(trace, { isPaste: true, activeMode: 'IMPLEMENT' }).mode, 'IMPLEMENT', 'a caller that does not say keeps the old rule');
-    // A declared read-only task whose words look like work is still read-only.
-    const v = mode.classify('read only please — add up what the tests cover and fix nothing', {});
-    assert.ok(mode.READ_ONLY.has(v.mode) && v.mode !== 'CHAT' && v.declaredReadOnly, JSON.stringify(v));
-  });
-
-  // ---- wakeup.js ----------------------------------------------------------------
-
   await test('READ-ONLY: a "Do not:" LIST negates its items — the Toralink brief asks for no change', () => {
     assert.strictEqual(wakeup.asksForChange(TORALINK_BRIEF), false);
     // Unchanged for a real request with a negated clause beside it.

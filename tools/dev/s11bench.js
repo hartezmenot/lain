@@ -4,7 +4,8 @@
  * S11: the ten real tasks on one model (GLM 5.3 via lain:zai by default), one run each, a fresh fixture per task.
  * Records per task: requests, tokens in/out/cached, cache %, effort sent, first-byte and thinking time, wall time,
  * correctness, and every guard that fired. Usage: node tools/dev/s11bench.js <label> [ids=1..10]
- * Output: docs/simplify/bench-<label>.json, plus one log per task beside it.
+ * Output: tools/dev/bench/out/simplify/bench-<label>.json, plus one log per task beside it (gitignored). A terminal's
+ * SCREEN TEXT (the TTY snaps) goes to that run's own LAIN session folder only, never the repository (S12).
  */
 
 const fs = require('fs');
@@ -14,7 +15,7 @@ const { spawn, spawnSync } = require('child_process');
 const sb = require('./simplebench');
 
 const ROOT = path.join(__dirname, '..', '..');
-const OUT = path.join(ROOT, 'docs', 'simplify');
+const OUT = sb.OUT;
 const label = process.argv[2] || 's11';
 const ids = String(process.argv[3] || '1,2,3,4,5,6,7,8,9,10').split(',').map(Number);
 const TTY_PY = process.env.LAIN_TTY_PYTHON || path.join(os.homedir(), '.lain-ttyenv', 'Scripts', 'python.exe');
@@ -69,6 +70,13 @@ function sessions(h) {
   if (!fs.existsSync(d)) return [];
   return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => { try { return JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')); } catch { return null; } })
     .filter(Boolean).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+/** SCREEN TEXT STAYS IN THE SESSION FOLDER (S12): the snaps are written beside the run's sessions; the log names the file. */
+function keepScreens(h, id, r) {
+  const f = path.join(h, 'sessions', `bench-screens-task${id}.json`);
+  try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify((r.snaps || []).map((s) => ({ name: s.name, text: s.text })), null, 1)); } catch { return null; }
+  return f;
 }
 
 // ---- measuring -------------------------------------------------------------------------------------------------------
@@ -148,7 +156,7 @@ async function taskPlan(id) {
   const named = /clearCompleted removes done tasks/.test(sb.read(d, 'test/run.js'));
   const plans = fs.existsSync(path.join(d, '.lain', 'plans')) ? fs.readdirSync(path.join(d, '.lain', 'plans')) : [];
   const ok = t.ok && /clearCompleted/.test(sb.read(d, 'src/store.js')) && named && plans.length > 0 && !(r.timeouts || []).length;
-  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, snaps: (r.snaps || []).map((s) => ({ name: s.name, text: s.text })) }, null, 1), wallMs: r.ms, exit: r.exit == null ? null : r.exit,
+  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, screens: keepScreens(h, id, r) }, null, 1), wallMs: r.ms, exit: r.exit == null ? null : r.exit,
     correct: ok, why: `clearCompleted:${t.out} editHonoured:${named} planFile:${plans.length} timeouts:${(r.timeouts || []).join('|') || 'none'}${r.error ? ` error:${String(r.error).slice(0, 200)}` : ''}`, ...measure(trace, h) };
 }
 
@@ -192,8 +200,8 @@ async function taskComputer(id) {
   const after = userNotepad();
   const text = lastText(h);
   const ok = /492/.test(display) && /492/.test(text);
-  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, display, notepadBefore: before, notepadAfter: after, snaps: (r.snaps || []).map((s) => ({ name: s.name, text: s.text })) }, null, 1), wallMs: r.ms,
-    correct: ok, why: `display:"${display}" answer492:${/492/.test(text)} userNotepadUnchanged:${before === after} timeouts:${(r.timeouts || []).join('|') || 'none'}`, ...measure(trace, h) };
+  return { log: JSON.stringify({ timeouts: r.timeouts, error: r.error, display492: /492/.test(display), foreignWindowUnchanged: before === after, screens: keepScreens(h, id, r) }, null, 1), wallMs: r.ms,
+    correct: ok, why: `display492:${/492/.test(display)} answer492:${/492/.test(text)} userNotepadUnchanged:${before === after} timeouts:${(r.timeouts || []).join('|') || 'none'}`, ...measure(trace, h) };
 }
 
 (async () => {

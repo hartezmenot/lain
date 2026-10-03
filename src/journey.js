@@ -71,10 +71,31 @@ function surface(app, { surface: name, pane = null } = {}) {
   const root = app._sibling || app;
   const prev = root._surface || null;
   root._surface = { surface: want, pane: p, at: Date.now() };
+  if (want === 'ide' && p) setIdePane(app, p);
   if (!prev || prev.surface !== want || (want === 'ide' && prev.pane !== p)) {
     note(app.session, EVENT.SURFACE, { surface: want, pane: p || undefined });
   }
   return { ok: true, surface: root._surface };
+}
+
+/**
+ * THE IDE PANE'S TOGGLE (S12): Chat ('bot') or Agent — the person's choice, never the sentence's. Default Agent,
+ * remembered per project in the config (cfg.projects[<projectId>].idePane), like the project's other defaults.
+ */
+function idePane(app) {
+  const root = app && (app._sibling || app);
+  const id = app && app.session && app.session.cwd ? projectId(app.session.cwd) : null;
+  const p = id && root && root.cfg && root.cfg.projects && root.cfg.projects[id];
+  return p && PANES.includes(p.idePane) ? p.idePane : 'agent';
+}
+function setIdePane(app, pane) {
+  if (!PANES.includes(pane) || idePane(app) === pane) return;
+  const root = app._sibling || app;
+  const id = app.session && app.session.cwd ? projectId(app.session.cwd) : null;
+  if (!id || !root.cfg) return;
+  root.cfg.projects = root.cfg.projects || {};
+  root.cfg.projects[id] = { ...(root.cfg.projects[id] || {}), idePane: pane };
+  try { require('./config').save(root.cfg); } catch { /* kept for this run */ }
 }
 
 // ---- the task the Coding Agent carries ----------------------------------------
@@ -123,32 +144,6 @@ function reseat(app) {
   return true;
 }
 
-// ---- "move to Agent?" -----------------------------------------------------------
-
-// "MOVE TO AGENT?" IS A TRANSFER (planhandoff.js — the one Core handoff record):
-// these are the journey's names for it, and they keep no state of their own.
-function asProposal(t) {
-  return t ? { id: t.id, text: t.text || '', task: t.task || null, context: t.findings || null, origin: t.origin || (t.kind === 'delegation' ? 'bot' : 'fast'), via: t.via || 'ide', reason: t.reason || '', at: t.at } : null;
-}
-
-function propose(app, { text, task = null, context = null, origin = 'fast', via = 'ide', reason = '' } = {}) {
-  const t = require('./planhandoff').transfer(app, {
-    kind: origin === 'bot' ? 'delegation' : 'proposal', from: 'bot', to: 'agent', text, task, context, reason, via, origin,
-  });
-  note(app.session, EVENT.PROPOSED, { origin, reason: t.reason || undefined });
-  return asProposal(t);
-}
-
-function proposal(app) {
-  if (!app.session) return null;
-  return asProposal(require('./planhandoff').pendingTransfer(app));
-}
-
-/** Take the waiting proposal, once (accept or decline is recorded on the transfer). */
-function takeProposal(app, id, accept = true) {
-  return asProposal(require('./planhandoff').answerTransfer(app, id, accept));
-}
-
 // ---- the projection ---------------------------------------------------------------
 
 function taskView(t) {
@@ -186,7 +181,6 @@ function project(app) {
     ...taskView(saved.task), files: (saved.files || []).slice(0, 20), at: saved.at,
     current: Boolean(s.task && s.task.id === saved.task.id),
   } : null;
-  const p = proposal(app);
   return {
     ids: {
       session: s.id,
@@ -204,10 +198,10 @@ function project(app) {
     })(),
     project: attached ? { name: path.basename(s.cwd || ''), root: s.cwd } : null,
     surface: root._surface || null,
+    idePane: idePane(app),   // the IDE pane's Chat | Agent toggle, remembered per project (S12)
     task: taskView(s.task),
     agentTask,
     agent: { running: s._role === 'agent', bot: s._role === 'bot' },
-    proposal: p ? { id: p.id, text: p.text, task: p.task, origin: p.origin, via: p.via, reason: p.reason, at: p.at } : null,
     path: v.path.slice(-40),
     route: surfacesOf(v.path, (agentTask && agentTask.id) || (s.task && s.task.id)),
   };
@@ -215,7 +209,7 @@ function project(app) {
 
 module.exports = {
   SURFACES, PANES, EVENT, MAX_PATH,
-  attach, toJSON, restore, note, surface, projectId,
+  attach, toJSON, restore, note, surface, projectId, idePane, setIdePane,
   agentStarted, agentEnded, reseat, taskFiles,
-  propose, proposal, takeProposal, project, surfacesOf,
+  project, surfacesOf,
 };

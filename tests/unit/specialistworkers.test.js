@@ -6,7 +6,7 @@
  * Pins: the manifest's identities and the Jev exclusion; the switch semantics
  * (off beats everything, `auto` serves only a use whose gate PASSED, `on`
  * forces for experiments); an unusable worker answers null and never throws;
- * the locate shortlist (deterministic tier, silence rules, one ranking per
+ * the locate ranker (deterministic tier, silence rules, one ranking per
  * turn, false narrowing measured at settle); `/workers` switching; and that no
  * specialist module can reach another specialist, the network, or authority.
  */
@@ -156,62 +156,6 @@ module.exports = async function run() {
     assert.deepStrictEqual(la.lexical('the of and to', list), []);
   });
 
-  await test('the turn shortlist: opt-in, once per turn, silent when off, in tiny projects or chat', async () => {
-    try {
-      env('LAIN_WORKERS', null); env('LAIN_WORKER_LAYA', 'off'); env('LAIN_LOCATE', null);
-      const root = project();
-      const app = { cfg: { workers: {} } };
-      const off = { cwd: root, messages: [{ role: 'user', content: 'saving settings does not persist, check the store' }] };
-      assert.strictEqual(await la.take(app, off, 0), '', 'OFF BY DEFAULT: the A/B measured no saving');
-      env('LAIN_LOCATE', 'on');
-      const session = { cwd: root, messages: [{ role: 'user', content: 'saving settings does not persist, check the store' }] };
-      const first = await la.take(app, session, 0);
-      assert.match(first, /Likely relevant files/);
-      assert.match(first, /server\/store\.js/);
-      assert.match(first, /any file remains reachable/, 'a suggestion, never a fence');
-      assert.strictEqual(await la.take(app, session, 3), first, 'later steps of the turn repeat it, no second ranking');
-      assert.strictEqual(session.workerLedger.length, 1, 'one ledger row per turn');
-      env('LAIN_WORKERS', 'off');
-      const s2 = { cwd: root, messages: [{ role: 'user', content: 'another request about the store settings' }] };
-      assert.strictEqual(await la.take(app, s2, 0), '');
-      env('LAIN_WORKERS', null);
-      const tiny = { cwd: project(2), messages: [{ role: 'user', content: 'saving settings does not persist' }] };
-      assert.strictEqual(await la.take(app, tiny, 0), '', 'below MIN_FILES the tree is cheaper');
-    } finally { restore(); }
-  });
-
-  await test('the shortlist: a replayed step 0 reuses the turn\'s slice (one row); a NEW turn with the same words re-ranks', async () => {
-    try {
-      env('LAIN_WORKERS', null); env('LAIN_WORKER_LAYA', 'off'); env('LAIN_LOCATE', 'on');
-      const root = project();
-      const app = { cfg: { workers: {} } };
-      const q = 'saving settings does not persist, check the store';
-      const session = { cwd: root, messages: [{ role: 'user', content: q }] };
-      const a = await la.take(app, session, 0);
-      assert.strictEqual(await la.take(app, session, 0), a, 'a transport retry replays step 0');
-      assert.strictEqual(session.workerLedger.length, 1, 'no second ranking, no second row');
-      session.messages.push({ role: 'assistant', content: 'done' }, { role: 'user', content: q });
-      await la.take(app, session, 0);
-      assert.strictEqual(session.workerLedger.length, 2, 'the same words in a new turn are ranked again (the files may have changed)');
-    } finally { restore(); }
-  });
-
-  await test('false narrowing is measured at turn close from the record', async () => {
-    try {
-      env('LAIN_WORKER_LAYA', 'off'); env('LAIN_LOCATE', 'on');
-      const root = project();
-      const session = { cwd: root, messages: [{ role: 'user', content: 'saving settings does not persist, check the store' }] };
-      await la.take({ cfg: { workers: {} } }, session, 0);
-      const row = la.settleRecord(session, { actions: [{ name: 'read_file', target: 'server/store.js' }, { name: 'read_file', target: 'src/widget3.js' }], mutations: [path.join(root, 'server', 'auth.js')] });
-      assert.strictEqual(row.touched, 3);
-      assert.ok(row.hits >= 1);
-      assert.ok(row.missed.includes('server/auth.js') || row.missed.includes('src/widget3.js'));
-      const sum = require('../../src/workers').summary(session).evidence_narrower;
-      assert.strictEqual(sum.touched, 3);
-      assert.strictEqual(sum.missed, row.missed.length);
-    } finally { restore(); }
-  });
-
   await test('/workers: status, auto/off and per-worker switches go to the person\'s config', () => {
     const out = [];
     const app = { cfg: { workers: {} }, render: { write: (s) => out.push(s) }, session: {} };
@@ -222,14 +166,13 @@ module.exports = async function run() {
     try {
       cmd.run(app, [], { C });
       const text = out.join('');
-      assert.match(text, /laya/); assert.match(text, /violetto\s+RETIRED/); assert.match(text, /locate\s+file shortlist\s+off/);
+      assert.match(text, /laya/); assert.match(text, /violetto\s+RETIRED/);
       // INSTALLED ≠ LOADED ≠ PARTICIPATING, per role.
       assert.match(text, /laya\s+runtime installed · not loaded/);
       assert.match(text, /source_file_ranker\s+OFF\s+invoked 0/);
       assert.match(text, /selection_resolver\s+SHADOW\s+invoked 0 · background 0 · critical-path 0/);
       assert.doesNotMatch(text, /Laya ON/i, 'no role-less "on"');
-      cmd.run(app, ['locate', 'on'], { C });
-      assert.strictEqual(app.cfg.workers.locate, 'on'); assert.match(text, /jev\s+EXCLUDED/);
+      assert.match(text, /jev\s+EXCLUDED/);
       cmd.run(app, ['off'], { C });
       assert.strictEqual(app.cfg.workers.policy, 'off');
       cmd.run(app, ['laya', 'on'], { C });

@@ -222,7 +222,8 @@ logs or plans.
 
 ```bash
 lain                          # interactive; ALWAYS a new, empty session
-lain -p "add a --json flag"   # one shot
+lain -p "add a --json flag"   # one shot; waits for the background jobs it started and prints their results
+lain -p "start the dev server in the background" --no-wait   # exit when the turn ends
 lain --resume 7f4c            # explicitly restore a session (short token)
 lain --sessions               # list saved sessions
 ```

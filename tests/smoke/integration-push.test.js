@@ -163,10 +163,9 @@ module.exports = async function () {
     });
     const out = plain(r.out);
     assert.strictEqual(r.code, 0);
-    // The turn ran and answered. The mode itself is asserted deterministically
-    // in the unit tier (mode.classify); what the binary proves is that the
-    // plain sentence is accepted as work rather than refused as an unknown
-    // command — which is exactly what removing the command had to preserve.
+    // The turn ran and answered: the plain sentence is accepted as work rather
+    // than refused as an unknown command — which is exactly what removing the
+    // command had to preserve.
     assertIncludes(out, 'swallows every exception');
     assert.ok(!/unknown command/i.test(out), 'a described problem is work, not a bad command');
   });

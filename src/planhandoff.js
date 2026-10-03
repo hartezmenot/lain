@@ -58,7 +58,6 @@ function restore(session, data = {}) {
 // THE TRANSFER — the one Core representation of work changing hands
 const TRANSFER = Object.freeze({ PROPOSED: 'PROPOSED', PREFILLED: 'PREFILLED', ACCEPTED: 'ACCEPTED', DECLINED: 'DECLINED', SUBMITTED: 'SUBMITTED', DONE: 'DONE' });
 const MAX_TRANSFERS = 40;
-const PROPOSAL_TTL_MS = 30 * 60_000;
 
 function transfersOf(session) {
   if (!Array.isArray(session.transfers)) session.transfers = [];
@@ -87,23 +86,6 @@ function transfer(app, { kind, from, to, task = '', text = '', context = '', rea
   list.push(rec);
   if (list.length > MAX_TRANSFERS) list.splice(0, list.length - MAX_TRANSFERS);
   return rec;
-}
-
-/** The transfer waiting for the person, or null (expired ones are closed here). */
-function pendingTransfer(app) {
-  const list = transfersOf(app.session);
-  const t = list.filter((x) => x.state === TRANSFER.PROPOSED).slice(-1)[0] || null;
-  if (t && Date.now() - t.at > PROPOSAL_TTL_MS) { t.state = TRANSFER.DECLINED; t.why = 'expired'; return null; }
-  return t;
-}
-
-/** Answer a waiting transfer, once. An unknown or stale id takes nothing. */
-function answerTransfer(app, id, accept) {
-  const t = pendingTransfer(app);
-  if (!t || t.id !== String(id || '')) return null;
-  t.state = accept ? TRANSFER.ACCEPTED : TRANSFER.DECLINED;
-  t.answeredAt = Date.now();
-  return t;
 }
 
 function settleTransfer(app, id, state) {
@@ -411,5 +393,5 @@ module.exports = {
   STATE, HANDOFF, MAX_PLAN_CHARS,
   attach, toJSON, restore, detect, draft, capture, edit, accept, complete,
   noteSubmitted, afterCoding, buildBrief, instruction, promptSection, project, find, latest,
-  TRANSFER, transfer, handoff, pendingTransfer, answerTransfer, settleTransfer, transfersOf,
+  TRANSFER, transfer, handoff, settleTransfer, transfersOf,
 };

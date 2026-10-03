@@ -14,6 +14,8 @@ rust/lain-supervisor/target/
 # benchmark working copies and baselines (the pristine fixture is version-controlled; these are per-run outputs)
 bench/out/
 tools/dev/bench/out/
+# S12: every bench writes here (tools/dev/bench/out/simplify); screen text and window titles go to the run's session folder only
+docs/simplify/bench-*.log
 
 # Python workers are source; interpreter caches are machine output.
 __pycache__/

@@ -191,7 +191,7 @@ function register({ define, C }) {
   define('/workers', {
     surface: true, args: '[status|auto|off|locate on|off|laya [auto|on|off]]',
     desc: 'Diagnostics: specialist workers (Laya roles, Jev excluded, Violetto retired) — installed, loaded, per-role mode, invoked',
-    run(app, { args }) { return require('./workerscommand').run(app, args || [], { C, gateResults }); },
+    run(app, { args }) { return require('./workerscommand').run(app, args || [], { C }); },
   });
   define('/workspaces', {
     surface: true, args: '[clean <id>|reconcile]',
@@ -209,22 +209,4 @@ function register({ define, C }) {
   });
 }
 
-/** The recorded recruitment-gate runs (bench/workergate/out), newest facts only. */
-function gateResults() {
-  const fs = require('fs');
-  const path = require('path');
-  const dir = path.join(__dirname, '..', 'tools', 'dev', 'bench', 'workergate', 'out');
-  const out = [];
-  try {
-    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json'))) {
-      const r = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-      if (!r.baseUrl) continue;   // the deterministic-only baseline is not a candidate
-      const m = r.metrics || {};
-      out.push({ contract: 'decision_intent', model: r.model, pass: Boolean(r.gate && r.gate.pass),
-        detail: `uncertain ${Math.round((m.detAccuracyUncertain || 0) * 100)}%→${Math.round((m.cascadeAccuracyUncertain || 0) * 100)}% · wrong-when-answering ${Math.round((m.answeredWrongRate || 0) * 100)}% · ${m.medianMs} ms` });
-    }
-  } catch { /* no runs recorded */ }
-  return out;
-}
-
-module.exports = { register, acceptPlan, toggle, browser, gateResults };
+module.exports = { register, acceptPlan, toggle, browser };

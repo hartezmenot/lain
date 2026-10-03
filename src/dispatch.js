@@ -255,35 +255,4 @@ function summary(session) {
   return out;
 }
 
-/** WHO TAKES THIS REQUEST — the conversation (BOT / Chat), the Coding Agent, or "ask first" — decided ONCE, in Core, from mode.js's verdict */
-function route(app, text, { surface = 'ide', pane = null, preferred = null, explicitAgent = false } = {}) {
-  const session = app && app.session;
-  const done = (executor, reason, verdict = null) => ({ executor, reason, verdict });
-  if (explicitAgent || pane === 'agent' || preferred === 'agent') return done('agent', pane === 'agent' ? 'the AGENT tab' : 'chosen');
-  if (preferred === 'bot') return done('conversation', 'chosen');
-  const ho = session ? require('./planhandoff').handoff(session) : null;
-  const pre = Boolean(ho && ho.state === 'PREFILLED');
-  if (pre && surface !== 'chat') return done('agent', 'the handoff from Chat is implementation work');
-  const taskV = require('./task').classify(text, { activeTask: session && session.task });
-  let projectEmpty = false;
-  try { projectEmpty = typeof app.projectIsEmpty === 'function' ? app.projectIsEmpty() : false; } catch { projectEmpty = false; }
-  const v = require('./mode').classify(text, { taskKind: taskV.kind, activeMode: session && session.mode, projectEmpty, joinsActiveTask: Boolean(taskV.sameTask) });
-  if (session) session._routedVerdict = { text: String(text || ''), verdict: v, at: Date.now() };
-  const i = v.intent || {};
-  if (i.navigate || i.setting) return done('conversation', 'LAIN navigation or a setting', v);
-  if (i.plan) return done('conversation', 'planning or investigation — answered, not implemented', v);
-  if (i.question) return done('conversation', 'a question', v);
-  if (v.readOnly) return done('conversation', `read-only (${String(v.mode).toLowerCase()})`, v);
-  if (v.mode) return done(surface === 'chat' ? 'agent' : 'propose', `changes code (${String(v.mode).toLowerCase()})`, v);
-  return done('conversation', 'unclassified — the conversation decides', v);
-}
-
-/** identify.js: the verdict route() already made for exactly this input, once. */
-function takeRouted(session, text) {
-  const r = session && session._routedVerdict;
-  if (!r || r.text !== String(text || '') || Date.now() - r.at > 120000) return null;
-  session._routedVerdict = null;
-  return r.verdict;
-}
-
-module.exports = { route, takeRouted, migrationTransition, kindOf, assign, owners, allows, offersMigration, job, settle, summary, classOf, DEICTIC };
+module.exports = { migrationTransition, kindOf, assign, owners, allows, offersMigration, job, settle, summary, classOf, DEICTIC };

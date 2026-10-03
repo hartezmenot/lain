@@ -1,21 +1,19 @@
 'use strict';
 
-/** THE BOT, THEN THE CODING AGENT — how a sentence typed in the IDE is routed. */
+/** THE IDE PANE'S CHAT | AGENT TOGGLE — which role a message typed in the IDE goes to, and running it. */
 
 const sv = require('../sessionviews');
 const plans = require('../planhandoff');
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 
-/** Which role takes this sentence: 'bot', 'agent' or 'propose', and why. */
+/** WHICH ROLE TAKES THIS MESSAGE: the pane's Chat | Agent toggle (S12) — never the words. The message names its pane; else the project's remembered toggle (default Agent). */
 function decide(app, text, body = {}) {
-  const surface = body.via === 'chat' || body.from === 'chat' ? 'chat' : 'ide';
-  const r = require('../dispatch').route(app, text, {
-    surface,
-    pane: body.pane === 'agent' || body.pane === 'bot' ? body.pane : null,
-    preferred: body.route === 'agent' || body.route === 'bot' ? body.route : null,
-  });
-  return { role: r.executor === 'conversation' ? 'bot' : r.executor, reason: r.reason };
+  const journey = require('../journey');
+  const asked = body.pane === 'agent' || body.pane === 'bot' ? body.pane : body.route === 'agent' || body.route === 'bot' ? body.route : null;
+  if (asked) journey.setIdePane(app, asked);
+  const role = asked || journey.idePane(app);
+  return { role, reason: role === 'agent' ? 'the Agent toggle' : 'the Chat toggle' };
 }
 
 /** Does the BOT run on its own model here, or fall back to the Coding model? */
@@ -51,11 +49,6 @@ function stampUser(s, from, text, fields) {
 function start(app, text, route) {
   const s = app.session;
   const journey = require('../journey');
-  if (route.role === 'propose') {
-    // NOTHING RUNS: the person is asked first (see the header).
-    const p = journey.propose(app, { text, origin: 'fast', via: route.via || 'ide', reason: route.reason });
-    return ok({ accepted: true, view: 'coding', route: 'propose', reason: route.reason, proposal: { id: p.id } });
-  }
   const via = route.via || 'ide';
   sv.settle(s, 'coding');
   sv.views(s).active = 'coding';
@@ -116,23 +109,4 @@ function start(app, text, route) {
   return ok({ accepted: true, view: 'coding', route: route.role, reason: route.reason, botModel: bot ? (s._botOwnModel ? 'bot' : 'coding-fallback') : null });
 }
 
-/** THE PERSON ANSWERED "MOVE TO AGENT?". */
-function answer(app, { id, accept } = {}) {
-  const journey = require('../journey');
-  const s = app.session;
-  const running = Boolean(app.abort && !app.abort.signal.aborted);
-  const waiting = journey.proposal(app);
-  if (!waiting || waiting.id !== String(id || '')) return { code: 409, body: { ok: false, why: 'that proposal is no longer waiting — ask again' } };
-  if (running) return { code: 409, body: { ok: false, why: 'LAIN is still working — wait for it or stop it first', busy: true } };
-  const p = journey.takeProposal(app, id, Boolean(accept));
-  if (accept) {
-    journey.note(s, journey.EVENT.MOVED, { origin: p.origin });
-    const task = p.task ? `${p.task}${p.context ? `\n\n${p.context}` : ''}` : p.text;
-    return start(app, task, { role: 'agent', reason: 'moved to the Agent', via: p.via, handed: Boolean(p.task), transferId: p.id });
-  }
-  journey.note(s, journey.EVENT.STAYED, { origin: p.origin });
-  if (p.origin === 'fast') return start(app, p.text, { role: 'bot', reason: 'kept with the BOT', via: p.via });
-  return ok({ accepted: true, stayed: true });
-}
-
-module.exports = { decide, start, stamp, answer };
+module.exports = { decide, start, stamp };

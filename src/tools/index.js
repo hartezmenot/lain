@@ -182,14 +182,6 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   // A PLUGIN COMMAND'S TURN CARRIES ITS GRANT (plugins.js): a tool outside the permissions the person granted that plugin is refused here, whatever the…
   const pluginDenied = require('../plugins').denies(ctx && ctx.app && ctx.app.session, name, tool);
   if (pluginDenied) return { output: pluginDenied, isError: true, denied: true };
-  const roSession = (ctx && ctx.app && ctx.app.session) || (ctx && ctx.session) || null;
-  // ---- EXECUTION DISCIPLINE, MECHANICALLY (discipline/) — contextual, only when it applies ------------------------
-  const lifeNow = roSession && roSession.lifecycle;
-  if (lifeNow && lifeNow.discipline) {
-    // NO BLIND RETRIES: the same failing command with nothing changed since would observe the same thing again.
-    const blind = require('../discipline/retry').check(lifeNow, name, input);
-    if (blind) return { output: blind, isError: true, denied: true, blindRetry: true };
-  }
   // THE SESSION'S PERMISSION MODE (execmode.js).
   const modeVerdict = await require('../execmode').gate(ctx, name, tool, input);
   if (!modeVerdict.ok) return { output: modeVerdict.output, isError: true, denied: true };

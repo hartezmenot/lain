@@ -270,7 +270,6 @@ function taskStatus(app) {
     if (t.files.length) out.push(`  files it changed: ${t.files.join(', ')}`);
   } else out.push('The Coding Agent has not carried a task in this session.');
   if (sp.task && (!sp.agentTask || sp.task.id !== sp.agentTask.id)) out.push(`Current task ${sp.task.id}: ${sp.task.objective} — ${sp.task.state}`);
-  if (sp.proposal) out.push(`Waiting for the person: move to Agent? — ${sp.proposal.task || sp.proposal.text}`);
   const ide = app.session._ide;
   if (ide && ide.tabs && ide.tabs.length) out.push(`IDE /focus: ${ide.tabs.length} file(s) open${ide.file ? `, ${ide.file} in front` : ''} (reported ${Math.round((Date.now() - ide.at) / 60000)} min ago)`);
   if (sp.route.length) out.push(`Path: ${sp.route.join(' → ')}`);

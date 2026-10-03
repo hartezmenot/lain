@@ -293,9 +293,8 @@ function prewarm(app) {
     const rt = require('./workerruntime');
     if (!rt.wantsResident(app, 'laya')) return false;
     const any = rt.roles(app, 'laya').some((r) => r.role !== 'source_file_ranker' && (r.mode === 'AUTO' || r.mode === 'FORCE' || (r.mode === 'SHADOW' && r.explicit)));
-    const ranks = require('./locateassist').prewarm(app);
     if (any) rt.prewarm(app, 'laya');
-    return any || ranks;
+    return any;
   } catch { return false; }
 }
 
