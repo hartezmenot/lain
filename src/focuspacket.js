@@ -1,50 +1,6 @@
 'use strict';
 
-/**
- * THE FOCUSED CONTEXT PACKET — the neighbourhood of a change, not the repository.
- *
- *     point → resolve → narrow → change → reconcile
- *
- * ------------------------------------------------------------------------
- * A CONSUMER, NOT A RESOLVER. Everything this packet says comes from an owner
- * that already resolved it, once:
- *
- *   "this"                          harnesscontext.selection — the canonical
- *                                   Selection (id, generation, symbol, binding)
- *   definition · references ·       langfacts.js — the LANGUAGE SERVER first,
- *   implementations · type ·        the project index only where no server
- *   diagnostics · rename support    covers the language (and it says so)
- *   the picked element's owner      gug.sourceBinding, through the Selection
- *   its parent, its geometry        the GUG graph and the owning rule
- *   what the request asks for       selectionjob.parse
- *   who edited which lines          editledger.recentUserEdits
- *   what changed in the tree        gitsense.numstat
- *
- * ------------------------------------------------------------------------
- * DETERMINISTIC RESEARCH, IN PARALLEL, BEFORE THE MODEL (2026-09-25). The
- * independent lookups — language server, GUG neighbourhood, git — run at once
- * (Promise.all), each against a deadline; none of them is a model. Each result
- * is recorded as ADDRESSABLE EVIDENCE (evidencerefs.js: `evidence:e14`) so the
- * packet names it and a later turn recalls it instead of re-running it.
- *
- * THE PACKET ITSELF IS AN ARTIFACT: `focus:<Selection id>:<kind>` in the same
- * store, stamped with the project generation and the files it read. The next
- * turn on the same Selection reuses it exactly — or carried forward, when the
- * generation moved but nothing it read changed — and rebuilds only when a file
- * it depends on did.
- *
- * ------------------------------------------------------------------------
- * AND IT DECIDES WHAT THE TURN IS SHOWN (toolfunnel.js): the task's shape —
- * explain, rename, geometry, symbol-edit — picks the tool families the request
- * describes. Anything without a structural shape gets the whole registry.
- *
- * MEASURED (never prompt text): project files, candidate files after narrowing,
- * files and symbols sent, Selection hit / carried / resolved, language-server
- * requests vs cached answers, GUG hit or miss, index reuse, artifact reuse,
- * characters and an approximate token count (characters / 4, said so), and —
- * after the turn — the model requests, their sizes, the tools shown and called,
- * and how many whole-file reads the model still made.
- */
+/** THE FOCUSED CONTEXT PACKET — the neighbourhood of a change, not the repository. */
 
 const fs = require('fs');
 const path = require('path');
@@ -99,14 +55,7 @@ function kindOf(task, sel, op, { role = 'agent' } = {}) {
   return 'task';
 }
 
-/**
- * IS THE SELECTION STILL "THIS"? A selection the person just made is. One an
- * earlier turn already acted on, and that the person has not made again, is
- * "this" only when the request points at it — "this", "that", "it", "here",
- * "the selection" or the symbol's own name. So "add a note next to the health
- * route" after a rename is not narrowed to the renamed symbol still highlighted;
- * the Harness context packet still names the Selection, it just does not steer.
- */
+/** IS THE SELECTION STILL "THIS"? */
 const DEICTIC = /\b(this|that|these|those|it|its|here|selected|selection|highlighted)\b/i;
 function pointsAt(task, sel, session = null) {
   if (!sel) return null;
@@ -159,10 +108,7 @@ async function gitChanged(root, files) {
   } catch { return []; }
 }
 
-/**
- * DO THE RESEARCH (or reuse the artifact). Returns the structured neighbourhood
- * and the evidence ids; `render` turns it into the packet text.
- */
+/** DO THE RESEARCH (or reuse the artifact). */
 async function research(app, session, { task = '', useSelection = true, role = 'agent', deadlineMs = RESEARCH_DEADLINE_MS } = {}) {
   const root = session.cwd;
   const hc = require('./harnesscontext');
@@ -299,11 +245,7 @@ function renderNeighbourhood(r, root) {
 function header() { return '# Focused context (assembled by LAIN from the language server, the UI graph, the project index and the provenance ledger — not the person\'s words)'; }
 function footer() { return 'This is a starting map, not a limit: read what you need (ranged reads, the evidence ids above via recall_evidence), but do not re-survey the whole project.'; }
 
-/**
- * BUILD ONE PACKET: the artifact for this Selection and kind if it is still
- * valid, otherwise research and render (and keep the artifact). Returns
- * { text, metrics, relevant, intent, kind } or null without a project.
- */
+/** BUILD ONE PACKET: the artifact for this Selection and kind if it is still valid, otherwise research and render (and keep the artifact). */
 async function build(app, session, { task = '', useSelection = true, role = 'agent' } = {}) {
   const root = session && session.cwd;
   if (!root) return null;
@@ -362,12 +304,7 @@ function logMetrics(m) {
   } catch { /* metrics never cost a turn */ }
 }
 
-/**
- * FOR A TURN IN THE IDE: build once, keep it on the session for the turn's
- * prompt, open the turn's tool funnel, record the counts. Silent (null) without
- * an attached project. A request typed in Chat is not about whatever happens to
- * be selected in the IDE, so it is built without the Selection.
- */
+/** FOR A TURN IN THE IDE: build once, keep it on the session for the turn's prompt, open the turn's tool funnel, record the counts. */
 async function prepare(app, task, { useSelection = true, role = 'agent', funnel = true } = {}) {
   const s = app.session;
   s._focusPacket = null;
@@ -390,13 +327,7 @@ async function prepare(app, task, { useSelection = true, role = 'agent', funnel 
   return pk;
 }
 
-/**
- * A LIVE EXECUTION PLAN, NOT A GATE. For work with a known structure (a rename,
- * a visual change) Core seeds the plan with what it already did —
- * deterministically, before the model — ticked, with its evidence, and the
- * steps that remain. The Agent keeps working; plan_step_done moves it along.
- * Nothing waits for approval. A live plan already in hand is left alone.
- */
+/** A LIVE EXECUTION PLAN, NOT A GATE. */
 function seedPlan(session, pk) {
   if (!['rename', 'geometry'].includes(pk.kind)) return null;
   // A PLAN SOMEBODY WROTE (the model, the person, a steer) is the work in hand
@@ -418,11 +349,7 @@ function seedPlan(session, pk) {
   return { seeded: true, done: done.length, remaining: steps.length };
 }
 
-/**
- * AFTER THE TURN: what the model actually did with the packet — its requests
- * (reqtrace, by session, sizes only), the tools it was shown and called, and
- * how many whole files it still read. Joined onto the turn's metrics and logged.
- */
+/** AFTER THE TURN: what the model actually did with the packet — its requests (reqtrace, by session, sizes only), the tools it was shown and called, and… */
 function afterTurn(app) {
   const s = app && app.session;
   const ft = s && s._focusTurn;

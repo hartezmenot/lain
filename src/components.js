@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * WHAT IS INSTALLED (packaging pass §D). LAIN CLI (Core, CLI, Model Dashboard, Preview window) is the base and is
- * always present; LAIN Harness is an optional component recorded by the installer in <install>/components.json.
- * A development checkout (no launcher, no install root) has everything.
- */
+/** WHAT IS INSTALLED (packaging pass §D). */
 
 const fs = require('fs');
 const path = require('path');

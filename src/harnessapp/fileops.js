@@ -1,35 +1,11 @@
 'use strict';
 
-/**
- * THE IDE'S FILE OPERATIONS — new, rename, move, delete, Save As, and project
- * search/replace.
- *
- * ------------------------------------------------------------------------
- * THE SAME BOUNDARY AS source.js. Every path goes through `locate`, which
- * resolves through tools/fs.js and refuses anything outside the project. A
- * rename cannot move a file out of the project and a delete cannot reach one.
- *
- * NOTHING IS OVERWRITTEN BY SURPRISE. Create and rename refuse an existing
- * target; Save As refuses one unless the caller says `overwrite` after the
- * person confirmed; replace-in-files skips a file whose bytes moved since the
- * search that found it.
- *
- * DELETE GOES TO THE RECYCLE BIN. The person can take it back, the way every
- * editor on Windows behaves. Where the bin cannot be reached the delete is
- * REFUSED with the reason rather than silently becoming permanent.
- *
- * SEARCH REUSES tools/search.js — its walker, its binary sniff, its glob
- * translation — so the IDE's search panel and the model's search tool agree
- * about which files a project has.
- */
+/** THE IDE'S FILE OPERATIONS — new, rename, move, delete, Save As, and project search/replace. */
 
 const fs = require('fs');
 const path = require('path');
 const source = require('./source');
-// EVERY WRITE BELOW IS THE PERSON'S, THROUGH THE ONE MUTATION TRANSACTION
-// (mutation.js `change`, actor USER): provenance, the project generation, the
-// GUG, freshness and PROJECT_DELTA follow each one exactly as they follow a
-// model's write. No file operation here writes around it.
+// EVERY WRITE BELOW IS THE PERSON'S, THROUGH THE ONE MUTATION TRANSACTION (mutation.js `change`, actor USER): provenance, the project generation, the…
 const mutation = require('../mutation');
 
 const MAX_RESULTS = 2000;
@@ -98,11 +74,7 @@ async function rename(app, from, to) {
   });
 }
 
-/**
- * TO THE RECYCLE BIN. PowerShell's VisualBasic FileSystem is the documented
- * .NET route to it, and it is present on every Windows. The path is passed as
- * an argument — never spliced into a command string.
- */
+/** TO THE RECYCLE BIN. PowerShell's VisualBasic FileSystem is the documented .NET route to it, and it is present on every Windows. The path is passed as… */
 function recycle(abs, isDir) {
   // A TEST PROFILE HAS ITS OWN BIN (tests/harness/isolation.js sets it), so an
   // automated run never puts anything in the person's real Recycle Bin.
@@ -186,10 +158,7 @@ function matchesAny(res, rel) {
   return res.some((re) => re.test(rel) || re.test(`${rel}/`) || rel.split('/').some((_, i, parts) => re.test(parts.slice(0, i + 1).join('/'))));
 }
 
-/**
- * PROJECT SEARCH — every match, by file, with the line text around it.
- * `include` / `exclude` are comma-separated globs, as in VS Code.
- */
+/** PROJECT SEARCH — every match, by file, with the line text around it. */
 function search(app, opts = {}) {
   const p = pattern(opts);
   if (!p.ok) return p;
@@ -227,11 +196,7 @@ function search(app, opts = {}) {
   return { ok: true, files, total, truncated };
 }
 
-/**
- * REPLACE IN FILES — only in the files the person saw in the results, and only
- * where each is still the file that was searched (its hash). A file that moved
- * underneath is skipped and named, never rewritten blind.
- */
+/** REPLACE IN FILES — only in the files the person saw in the results, and only where each is still the file that was searched (its hash). */
 async function replace(app, opts = {}) {
   const p = pattern(opts);
   if (!p.ok) return p;

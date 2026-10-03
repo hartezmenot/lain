@@ -132,7 +132,7 @@ module.exports = async function () {
         {
           text: 'Writing in src.',
           tool_calls: [{
-            name: process.platform === 'win32' ? 'run_powershell' : 'run_bash',
+            name: 'shell',
             input: {
               command: process.platform === 'win32'
                 ? `Set-Content -Path ${marker} -Value ok`
@@ -161,7 +161,7 @@ module.exports = async function () {
         {
           text: 'Running it.',
           tool_calls: [{
-            name: process.platform === 'win32' ? 'run_powershell' : 'run_bash',
+            name: 'shell',
             input: { command: 'lain_no_such_program_9271 --help' },
           }],
         },

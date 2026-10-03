@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * LEGACY TEST SUPERVISORS — a one-time diagnostic for the processes that leaked
- * before the runtime registry existed (2026-09-25).
- *
- * Test runs before runtimeregistry.js started `lain-supervisor serve --home
- * <temp home>` and some never stopped them. Nothing recorded who owned them, so
- * nothing may clean them up by rule: a process is never stopped because of its
- * name, its title, a temp-looking path or "it looks like LAIN's".
- *
- * THIS ONLY LOOKS, AND REPORTS EVIDENCE. For each candidate:
- *
- *   pid · start time · command line · temp home · port (from the home's own
- *   endpoint file) · parent (and whether it is alive) · whether current LAIN
- *   state references it (the runtime registry by pid AND start time, the
- *   supervisor endpoint of this LAIN's own home)
- *
- * and a classification:
- *
- *   VERIFIED_ORPHAN  every one of: its home is inside the OS temp folder and is
- *                    not this LAIN's home; nothing in the runtime registry owns
- *                    it; its parent is gone; and its home is gone, or the home's
- *                    endpoint names a different process (another run reused it)
- *   POSSIBLY_ACTIVE  referenced by current state, or its parent is alive, or its
- *                    home is live and still names it
- *   UNKNOWN          anything the evidence does not settle (a home outside temp,
- *                    an unreadable command line)
- *
- * STOPPING IS A SEPARATE, EXPLICIT ACT (`stop`): the person selects ids from a
- * scan; each is re-checked at that moment — same pid, same start time, still
- * VERIFIED_ORPHAN — and only then is that one process tree stopped. Anything
- * else is refused and said why. Future cleanup is the registry's alone.
- */
+/** LEGACY TEST SUPERVISORS — a one-time diagnostic for the processes that leaked before the runtime registry existed (2026-09-25). */
 
 const fs = require('fs');
 const os = require('os');
@@ -86,10 +55,7 @@ function endpointOf(home) {
   try { return JSON.parse(fs.readFileSync(path.join(home, 'endpoint.json'), 'utf8')); } catch { return null; }
 }
 
-/**
- * Scan: every candidate with its evidence and classification. Changes nothing.
- * `facts` replaces what is read from the OS (tests: rows, alive, registered, ownHome, tmp).
- */
+/** Scan: every candidate with its evidence and classification. */
 function scan(facts = {}) {
   // BOTH SPELLINGS of the temp folder: Windows hands out 8.3 short names
   // (C:\Users\ABCDEF~1\…) that a vanished home can no longer be resolved from.
@@ -137,11 +103,7 @@ function scan(facts = {}) {
   return { at: Date.now(), image: IMAGE, candidates: out, counts };
 }
 
-/**
- * STOP THE SELECTED VERIFIED ORPHANS — ids from a scan (`pid@start`). Each is
- * re-scanned now; one that is no longer the same process or no longer a verified
- * orphan is refused. Only that pid's tree is stopped.
- */
+/** STOP THE SELECTED VERIFIED ORPHANS — ids from a scan (`pid@start`). */
 function stop(ids = []) {
   const want = new Set((Array.isArray(ids) ? ids : []).map(String));
   if (!want.size) return { ok: false, why: 'select the processes to stop' };

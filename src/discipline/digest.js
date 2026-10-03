@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * THE CONTINUITY DIGEST (Execution Discipline §40–§41) — what a model needs to continue a task after compaction, a
- * handover or a model switch without re-deriving it, in the order that survives scarcity:
- *
- *   OUTCOME · EXPLICIT ASKS · ESTABLISHED FACTS (+provenance, freshness) · CHANGES · CHECKS (baseline → latest) ·
- *   OPEN QUESTIONS · HYPOTHESES · BLOCKERS · TEST-INTEGRITY FLAGS
- *
- * Conclusions and references only — never the evidence itself. Stale facts are marked stale rather than dropped, so
- * a model re-validates "the server is running" instead of trusting it.
- */
+/** THE CONTINUITY DIGEST (Execution Discipline §40–§41) — what a model needs to continue a task after compaction, a handover or a model switch without… */
 
 const MAX_LINES = 40;
 

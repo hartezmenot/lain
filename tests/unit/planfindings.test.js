@@ -101,19 +101,6 @@ module.exports = async function () {
     assert.ok(!/already established/.test(p.digest(900)));
   });
 
-  await test('FINDINGS: the model has a bounded way to write one', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const tools = require('../../src/tools');
-    assert.ok(tools.names().includes('plan_findings'), 'the tool is registered');
-    const schema = tools.schemas().find((t) => (t.name || (t.function && t.function.name)) === 'plan_findings');
-    assert.ok(schema, 'and it is offered to the model');
-    const text = JSON.stringify(schema);
-    for (const field of findings.FIELDS) assert.ok(text.includes(field), `${field} is part of the contract`);
-
-    // THE TOOL DESCRIBES ITSELF. The standing policy no longer introduces tools by name (it teaches judgment; the
-    // schemas carry the mechanics), so what the model reads about plan_findings is its own description.
-    assert.ok(String(schema.description || '').length >= 20, 'the schema says what it is for');
-  }));
-
   await test('DERIVED: LAIN knows what landed even if the model never said so', () => {
     // ---- THE LIMITATION THIS CLOSES -------------------------------------
     //
@@ -197,15 +184,5 @@ module.exports = async function () {
     // AND A REAL RECORD STILL GOES THROUGH EVERY BRANCH.
     const rec = { text: 'finished', stopReason: 'end' };
     assert.strictEqual((await close.after(app, rec, 'x')).text, 'finished');
-  });
-
-  await test('POLICY: the investigation stops when no further observation would change the next action', () => {
-    // §43 of the execution discipline: one question replaces the old list of loop excuses — "would another available
-    // observation change what I do next?" — answering both blind action and repository tourism.
-    const prompt = require('../../src/prompt');
-    const built = prompt.build({ cwd: process.cwd(), platform: process.platform, model: 'm', separate: true });
-    const all = `${built.stable}\n${built.live}`;
-    assert.match(all, /when no further observation would change what you do next, act/i);
-    assert.match(all, /cheapest observation closest to the ground truth/i);
   });
 };

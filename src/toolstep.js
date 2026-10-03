@@ -1,36 +1,11 @@
 'use strict';
 
-/**
- * ONE TOOL CALL, FROM THE TURN'S SIDE.
- *
- * Split out of turn.js, which had reached the god-object guard. The seam is the
- * one the loop already had: turn.js decides WHICH calls run and what the model
- * is told; this runs one of them against LAIN's evidence.
- *
- *     read gate      progress.js — an unchanged read already in context, or kept
- *                    on its receipt, is not re-run; a repeated one under
- *                    unchanged state is NON_PROGRESS
- *     ledger check   evidence.js — the whole-file substitution
- *     execute        tools/index.js — the gate, and for a source write the
- *                    mutation transaction (mutation.js), which owns the checkpoint
- *     observe        the ledger, then the receipt and the state movement
- */
+/** ONE TOOL CALL, FROM THE TURN'S SIDE. */
 
 const toolRegistry = require('./tools');
 const progress = require('./progress');
 
-/**
- * IS THE WHOLE-FILE BODY ACTUALLY IN FRONT OF THE MODEL? (2026-09-18)
- *
- * The ledger's "unchanged since you read it — continue from what you have"
- * stub is only true if a read of that file is on the wire this request carries.
- * It was trusted on the ledger's `bodyPresent` flag alone, and two paths leave
- * that flag true after the body is gone: `/clear` (the messages are emptied,
- * the ledger is kept) and a read done in the other view's thread. Reported
- * live: a long session re-reading a large file got the stub every time, never
- * got the code, and re-read in a loop. So the stub is served only when the body
- * is verifiably present; otherwise the read runs.
- */
+/** IS THE WHOLE-FILE BODY ACTUALLY IN FRONT OF THE MODEL? */
 function bodyOnWire(session, relPath) {
   if (!session || !Array.isArray(session.messages)) return false;
   let wire = session.messages;
@@ -87,12 +62,7 @@ async function run(call, { session, evidence = null, toolCtx }) {
   return { result, substitute, checkpoint: (result && result.checkpoint) || null, gate };
 }
 
-/**
- * THE FINAL-SMOKE SIDE OF A CALL (finalsmoke.js). A change is owned by the plan
- * step it was made in; a run of the final suite is flagged for the lifecycle;
- * a FAILED foreground final smoke reopens the owning step and says so on the
- * result the model reads; a PASSED one completes the smoke step.
- */
+/** THE FINAL-SMOKE SIDE OF A CALL (finalsmoke.js). */
 function finalStep(session, call, result, toolCtx) {
   const fsm = require('./finalsmoke');
   const plan = session && session.plan;
@@ -114,12 +84,7 @@ function finalStep(session, call, result, toolCtx) {
   }
 }
 
-/**
- * THE FACTS A TEMPORARY WORKSPACE'S LIFECYCLE WAITS FOR (tempworkspaces.js): a
- * canonical change, a passing test run (the targeted verification) and a
- * passing final smoke. When one lands, the session's resolved workspaces are
- * swept — removed only if every condition now holds. Silent otherwise.
- */
+/** THE FACTS A TEMPORARY WORKSPACE'S LIFECYCLE WAITS FOR (tempworkspaces.js): a canonical change, a passing test run (the targeted verification) and a… */
 const TEST_RUN = /\b(?:test|tests|jest|pytest|vitest|mocha|cargo test|go test|node --test|npm (?:run )?test)\b/i;
 function tempFacts(session, call, result, toolCtx, fsm, cwd) {
   try {
@@ -134,14 +99,7 @@ function tempFacts(session, call, result, toolCtx, fsm, cwd) {
   } catch { /* a lifecycle fact is never a failure of the call */ }
 }
 
-/**
- * INDEPENDENT READS OF ONE STEP, STARTED TOGETHER (profile.js concurrency).
- *
- * Only pure reads, only distinct targets, at most `limit` at once; results are
- * still consumed in the model's order by the turn loop, so the transcript and
- * the tool-result order are unchanged. ECO's limit is 1: nothing is started
- * early and the flow stays serial. Returns id → promise of `run`'s answer.
- */
+/** INDEPENDENT READS OF ONE STEP, STARTED TOGETHER (profile.js concurrency). */
 const PARALLEL_READS = new Set(['read_file', 'read_symbol', 'grep', 'glob', 'list_dir', 'locate', 'file_info', 'symbols', 'outline', 'dependents']);
 
 function prefetch(calls, opts, limit) {

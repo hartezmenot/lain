@@ -137,7 +137,7 @@ module.exports = async function () {
       cwd: tmpdir('cmd-'), env: { LAIN_FORCE_TUI: '1', COLUMNS: '96', LINES: '28' },
       stdinSteps: ['audit it\n', '/new\n'], stepDelayMs: 900,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 4' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 4' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,
@@ -152,7 +152,7 @@ module.exports = async function () {
       cwd: tmpdir('cmd-'), env: { LAIN_FORCE_TUI: '1', COLUMNS: '96', LINES: '28' },
       stdinSteps: ['audit it\n', '/status\n'], stepDelayMs: 900,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 4' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 4' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,

@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * PRODUCT ROUTES (Phase 8) — appearance, Agent Instructions (AGENTS.md),
- * feedback, the session controls, surface handoff and reset-window usage.
- *
- *   /api/appearance               get / set (appearance.js)
- *   /api/agents/read|save|preview-reset|reset|effective
- *   /api/feedback/preview|submit  (feedback.js — explicit attachments only)
- *   /api/controls/list|run        slash controls over canonical state (remotecontrols.js)
- *   /api/surface/handoff|takeback Continue in CLI / take it back (surfacehandoff.js)
- *   /api/usage/windows            provider reset windows with LAIN-observed usage (resetwindows.js)
- *   /api/themes/list|read         installed extensions' colour themes, as data (exttheme.js)
- */
+/** PRODUCT ROUTES (Phase 8) — appearance, Agent Instructions (AGENTS.md), feedback, the session controls, surface handoff and reset-window usage. */
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }

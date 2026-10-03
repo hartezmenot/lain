@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * A CONVERSATION, HANDED TO A RUNTIME AS ONE PROMPT.
- *
- * A runtime's non-interactive mode takes a prompt, not a message array. When
- * LAIN's BOT uses a runtime model, the conversation is written out plainly —
- * the system text separately (where the runtime accepts one), then the recent
- * exchange, newest last — bounded so a long session never exceeds what a
- * command line or a stdin read should carry. Tool traffic is summarised in a
- * line; LAIN's tool schemas are NOT passed: a runtime model answers in text,
- * and a runtime that acts uses its own tools only in Agent mode.
- */
+/** A CONVERSATION, HANDED TO A RUNTIME AS ONE PROMPT. */
 
 const MAX_PROMPT = 60000;
 

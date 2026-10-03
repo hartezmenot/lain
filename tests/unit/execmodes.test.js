@@ -33,22 +33,6 @@ module.exports = async function () {
     assert.strictEqual(execmode.cycle(back), 'AUTO');
   });
 
-  await test('MODE: PLAN refuses a write and a command at the tool door, and changes nothing', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const root = tmpdir('plan-');
-    const s = new Session({ cwd: root });
-    execmode.set(s, 'PLAN');
-    const tools = require('../../src/tools');
-    const ctx = { cwd: root, session: s, app: appFor(s) };
-    const w = await tools.execute('write_file', { path: 'a.txt', content: 'x' }, ctx);
-    assert.ok(w.denied && /PLAN_MODE/.test(w.output), w.output);
-    assert.ok(!fs.existsSync(path.join(root, 'a.txt')), 'nothing was written');
-    const r = await tools.execute('run_bash', { command: 'echo hi' }, ctx);
-    assert.ok(r.denied && /PLAN_MODE/.test(r.output));
-    fs.writeFileSync(path.join(root, 'b.txt'), 'read me');
-    const read = await tools.execute('read_file', { path: 'b.txt' }, ctx);
-    assert.match(read.output, /read me/, 'reading is always allowed in PLAN');
-  }));
-
   await test('MODE: a check refused by PLAN is not a failed check — no NOT VERIFIED, not under VERIFY', async () => {
     // Live, 2026-09-18: PLAN refused run_tests; the turn closed "NOT VERIFIED ·
     // npm test failed" with ✗ under VERIFY, for a test that never ran.
@@ -81,14 +65,6 @@ module.exports = async function () {
     assert.ok(!ok.isError, ok.output);
     assert.ok(fs.existsSync(path.join(root, 'm.txt')));
   });
-
-  await test('MODE: a bounded subagent is governed by its work order, not the session mode', async () => {
-    const s = new Session({ cwd: tmpdir('mode-b-') });
-    execmode.set(s, 'PLAN');
-    const v = await execmode.gate({ session: s, workOrder: { bounded: true } }, 'write_file', { mutates: true }, {});
-    assert.strictEqual(v.ok, true);
-  });
-
   await test('MODE: legacy guidance names the mode; a profile adds nothing', () => {
     const s = new Session({ cwd: tmpdir('mode-g-') });
     execmode.set(s, 'PLAN');

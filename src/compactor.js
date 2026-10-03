@@ -1,11 +1,6 @@
 'use strict';
 
-/**
- * COMPACTION (Simplify S8): when the conversation reaches the profile's share of the model's window (80%, earlier for
- * ECO — profile.compactAt), a cheap model writes a structured summary — goal, decisions, files changed, open items,
- * next step — and the history becomes that summary plus the last few exchanges. `/compact` does it on demand. The
- * cheap model is `compactModel` in the config; without one, the session's own model at low effort.
- */
+/** COMPACTION (Simplify S8): when the conversation reaches the profile's share of the model's window (80%, earlier for ECO — profile.compactAt), a cheap… */
 
 const KEEP_EXCHANGES = 2;
 const RESULT_CAP = 1500;
@@ -53,10 +48,7 @@ function due(session, pc, cfg) {
   return tokensOf(session.contextChars()) >= window * at;
 }
 
-/**
- * Compact now (force) or when due. Returns { before, after, model } or null; never throws — a failed summary leaves
- * the conversation as it was.
- */
+/** Compact now (force) or when due. */
 async function maybe(session, cfg, { force = false, signal = null } = {}) {
   const provider = require('./provider');
   const pc = provider.resolve(cfg || {});

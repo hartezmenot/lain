@@ -1,84 +1,18 @@
 'use strict';
 
-/**
- * THE ROUTE COMMANDS — which model, through which connection, at what effort,
- * and which model reviews an investigation.
- *
- * Split out of commands.js, which had grown past the god-object guard. The seam
- * is not arbitrary: every command here is a question about the CATALOG — what is
- * served, by whom, how to reach it, and which of them plays reviewer — while
- * commands.js keeps the session, the workspace and the reports.
- *
- * There is still exactly ONE registry. This file does not own a second one: it
- * is handed `define` and registers into the same map, at load time, from the
- * bottom of commands.js. That is also why it requires nothing back from
- * commands.js — a cycle here would be a second dispatch path waiting to happen.
- */
+/** THE ROUTE COMMANDS — which model, through which connection, at what effort, and which model reviews an investigation. */
 
 const config = require('./config');
 const catalogMod = require('./catalog');
 const connectionsMod = require('./connections');
 
-/**
- * @param {object} api  { define, REGISTRY, C } — the registry's own vocabulary,
- *                      passed in rather than imported back.
- */
+/** passed in rather than imported back. */
 function register({ define, REGISTRY, C, FLASH_MS }) {
   /** Re-read what the routes serve. The implementation lives in catalog.js. */
   const refreshCatalog = (app, opts) => catalogMod.refreshAndReport(app, opts, { C });
-  /**
-   * ---- `/external` IS RETIRED, AND IT IS NOT COMING BACK ------------------
-   *
-   * It lived here and was a DRAFT-AND-DISPATCH verb: compose a packet, preview
-   * it, confirm it, send it once, print the reply, hand it back as advice. Four
-   * files of machinery — external.js, actors.js, externalrequest.js and
-   * investigation.js's relay — and a person who wanted a second opinion had to
-   * remember a command to get one.
-   *
-   * THE USEFUL HALF OF IT WAS NEVER THE COMMAND. It was "a model other than
-   * LAIN's own looks at this", and that is a PROPERTY OF THE SESSION, not a verb:
-   * once ChatGPT.com is the selected chat source, the next ordinary sentence goes
-   * to it and the answer lands in the same session history as everything else.
-   * See src/modelsource and `/source`.
-   *
-   * WHAT WAS REUSED rather than rewritten:
-   *   · the bounded, redacted session-facts packet   -> modelsource/context.js
-   *   · the call ledger (dispatched / responded /    -> externalstate.js, kept
-   *     failed / timed out, and RESPONDED REQUIRES      whole and now written by
-   *     A RESPONSE)                                     the web sources
-   *   · the overclaim check — a consulted model that -> modelsource/contract.js
-   *     claims to have ACTED is flagged
-   *   · "advisory input, not a result, and not from  -> chatdispatch.js
-   *     the user"
-   *
-   * WHAT WAS RETIRED: the actor taxonomy (API / HUMAN / REVERSE), the clipboard
-   * relay, the draft/confirm/send state machine, and the bounded LAIN → EXTERNAL
-   * → LAIN investigation relay — which had been unreachable since `/troubleshoot`
-   * was removed and was recorded as orphaned in docs/STATUS.md.
-   *
-   * TWO CONSULTATION SYSTEMS WOULD BE WORSE THAN EITHER. That is the whole
-   * argument for removing rather than keeping this beside the new one.
-   */
+  /** `/external` IS RETIRED, AND IT IS NOT COMING BACK */
 
-  /**
-   * ONE MODEL COMMAND, AND IT IS THE SINGULAR ONE.
-   *
-   * ------------------------------------------------------------------------
-   * THE HISTORY, because the end state only makes sense against it.
-   *
-   * There were two commands with two BEHAVIOURS: `/models` browsed, and `/model`
-   * selected the first fuzzy match without showing what else matched. A previous
-   * pass fixed the dangerous half of that by making `/model` forward to the one
-   * picker — but it left both names advertised, so a person still had to know
-   * two words for one thing and still had to choose between them every time.
-   *
-   * `/model` is now THE command. `/models` survives as a hidden compatibility
-   * alias: it still runs when typed, for anyone with it in their fingers or in a
-   * script, and it appears in neither `/help` nor the palette. See commands.js
-   * `define` for what `hidden` means and what it must never be used for.
-   *
-   * The graphical picker is the Harness application's; this is the terminal's.
-   */
+  /** ONE MODEL COMMAND, AND IT IS THE SINGULAR ONE. */
   define('/model', {
     flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
     // MACHINERY: about LAIN, not about the work. Goes to the command panel.
@@ -105,13 +39,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
     surface: true,
     args: '[level]',
     desc: 'Show or set the reasoning effort — the levels the lane\'s model declares',
-    /**
-     * EFFORT BELONGS TO THE MODEL (Phase 8.3). The levels offered are exactly the
-     * ones the lane's model declares (fabric/effortcaps.js) — Opus might offer
-     * High and XHigh, another model Low/Medium/High, another none at all — and
-     * the choice is the same Core write the window's effort control and
-     * Telegram's /effort make: this session's lane (sessionintel.choose).
-     */
+    /** EFFORT BELONGS TO THE MODEL (Phase 8.3). */
     async run(app, { args }) {
       const si = require('./sessionintel');
       const laneName = si.currentLane(app.session);
@@ -155,26 +83,11 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
   });
 
   define('/api', {
-    // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve,
-    // which is the last thing that should vanish on a timer. STAY is the default
-    // and this comment is here so it is not "tidied" into a receipt later.
-    // MACHINERY: about LAIN, not about the work. Goes to the command panel.
+    // AN INSPECTOR, despite also performing actions: `/api status` lists what the routes serve, which is the last thing that should vanish on a timer.
     surface: true,
     args: '[add|<provider>|<connection>|refresh [id]|status]  — keys are entered in the Model Dashboard',
     desc: 'Add or replace an API source in the Model Dashboard, or re-read what the APIs serve',
-    /**
-     * THE TERMINAL NEVER TAKES A KEY (Phase 8.3).
-     *
-     * `/api`, `/api add`, `/api <provider>` and `/api <route>` (re-key) open the
-     * Model Dashboard at API — the one secure place a credential is entered. It
-     * never appears in the terminal, its input history, a conversation, a log
-     * or a model's context. The terminal hears back only the safe completion
-     * event: "API added: DeepSeek API (lain:deepseek) · 12 models".
-     *
-     * A KEY PASTED HERE ANYWAY is not stored: it is registered with the
-     * redactor, taken back out of the input history, and the person is told
-     * where keys go. `refresh` and `status` are unchanged.
-     */
+    /** THE TERMINAL NEVER TAKES A KEY (Phase 8.3). */
     async run(app, { args }) {
       const apiMod = require('./apicommand');
       const first = args[0] || '';
@@ -203,10 +116,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
   });
 
   define('/provider', {
-    // AN INSPECTOR, despite also performing actions: `/provider` defaults to a status listing, read exactly when a route is dead,
-    // which is the last thing that should vanish on a timer. STAY is the default
-    // and this comment is here so it is not "tidied" into a receipt later.
-    // MACHINERY: about LAIN, not about the work. Goes to the command panel.
+    // AN INSPECTOR, despite also performing actions: `/provider` defaults to a status listing, read exactly when a route is dead, which is the last thing…
     surface: true,
     args: '[status|refresh [id]|disable <id>|enable <id>|maintenance <id>|retry <id>]',
     desc: 'Connection availability and catalog. Works while a provider is dead.',
@@ -215,9 +125,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
       const id = args[1];
       const w = (s) => app.render.write(s);
 
-      // The one command that DOES contact a route — and only its catalog
-      // endpoint, never a completion. Without an id it refreshes every route that
-      // does not declare its own models.
+      // The one command that DOES contact a route — and only its catalog endpoint, never a completion.
       if (sub === 'refresh') {
         const results = await app.ensureCatalog({ force: true, only: id || null, announce: false });
         if (!results.length) {
@@ -263,14 +171,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         w('  ' + c.id.padEnd(22)
           + C.dim(`${c.provider} · ${c.via} · auth=${c.auth}`) + '\n');
         w('    ' + C.dim(`readiness ${c.readiness}  ·  availability ${a.status}${a.reason ? ' — ' + a.reason : ''}`) + '\n');
-        // ---- A LIMIT IS A CLOSED DOOR WITH A CLOCK ON IT, AND IT SAYS SO ----
-        //
-        // Not folded into the availability line above: `DEGRADED — rate
-        // limited` is the status of a route somebody might reasonably try, and
-        // the one thing that decides whether trying is pointless is the time.
-        // A limit hydrated from an earlier session is marked, because "LAIN
-        // learned this before you started it" is the answer to "why does it
-        // think that when I have not called anything yet".
+        // A LIMIT IS A CLOSED DOOR WITH A CLOCK ON IT, AND IT SAYS SO
         if (a.rateLimited) {
           const left = a.resumeAt ? a.resumeAt - Date.now() : 0;
           const rl = require('./ratelimit');
@@ -285,9 +186,7 @@ function register({ define, REGISTRY, C, FLASH_MS }) {
         } else if (a.historicalLimit && a.historicalLimit.resumeAt > Date.now()) {
           w('    ' + C.dim(`earlier session: rate limited until ${require('./ratelimit').at(a.historicalLimit.resumeAt)} · not assumed now`) + '\n');
         }
-        // WHERE the model list came from. "declared" and "discovered" fail in
-        // different ways and are fixed in different places, so they are never
-        // collapsed into one number.
+        // WHERE the model list came from.
         const origin = c.declaredModels ? 'declared in config'
           : c.discoveredAt ? `discovered ${new Date(c.discoveredAt).toISOString().slice(0, 16).replace('T', ' ')}`
             : 'not yet discovered';

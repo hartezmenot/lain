@@ -1,50 +1,6 @@
 'use strict';
 
-/**
- * TEMPORARY WORKSPACES — WHO MAY DELETE ONE, AND WHEN (2026-09-23).
- *
- * ------------------------------------------------------------------------
- * THE OWNER. This module, and nothing else. A subagent's worktree, an A/B
- * candidate's worktree, a snapshot copy: each is REGISTERED here when it is
- * made, and each is removed only by `attempt()` after every condition below is
- * proven from recorded facts. Laya, any other worker, the flagship and the subagent
- * itself hold no path to deletion: no tool calls `attempt` with a directory,
- * no model input names one, and the directory removed is always the exact one
- * this registry recorded at creation — never one built from text.
- *
- * ------------------------------------------------------------------------
- * THE LIFECYCLE (durable, one JSON record per workspace under the LAIN home):
- *
- *   ACTIVE ─▶ CANDIDATE_READY ─▶ INTEGRATING ─▶ INTEGRATED ─▶ TARGETED_VERIFIED
- *        │           │                 │                            │
- *        │           │                 └▶ CONFLICTED / FAILED       ▼
- *        │           └▶ REJECTED (archived)                FINAL_SMOKE_PASSED
- *        ├▶ FAILED / BLOCKED (retained: the failure is the evidence)  │
- *        ├▶ NOTHING_PROPOSED ─────────────────────────┐              ▼
- *        └▶ ORPHANED (owner died; retained)            └─▶ CLEANUP_ELIGIBLE ─▶ DELETING ─▶ DELETED
- *
- * A SUCCESSFUL workspace is deleted only when ALL hold: the child is no longer
- * active; no process uses the directory; the candidate is resolved; accepted
- * changes were integrated with a receipt of the canonical hashes; a targeted
- * verification passed AFTER the integration; the final smoke passed after the
- * last canonical change (where the project has one); no conflict references
- * it; the candidate record is on disk. Then a compact RECEIPT is written, and
- * only then the directory goes. A REJECTED candidate is archived first, then
- * eligible. FAILED / BLOCKED / CONFLICTED / ORPHANED are RETAINED — kept for
- * inspection, removed later only by the person (`/workspaces clean <id>`) or
- * after the retention period, never at once.
- *
- * ------------------------------------------------------------------------
- * CRASH-SAFE BY ORDER: the state is written before each step (receipt, then
- * DELETING, then the removal, then DELETED). A restart finds DELETING or
- * CLEANUP_ELIGIBLE and finishes it once (`reconcile`). Integration is never
- * repeated: the candidate record says INTEGRATED and `integrate` refuses it.
- *
- * PATH SAFETY is a hard guard, not a convention (`guard`): the target must be
- * the registered directory, a direct child of the LAIN temp root, and must not
- * be, contain or sit inside the canonical project, this repository, the
- * Harness, the user's home, the model store or the LAIN home.
- */
+/** TEMPORARY WORKSPACES — WHO MAY DELETE ONE, AND WHEN (2026-09-23). */
 
 const fs = require('fs');
 const os = require('os');
@@ -95,11 +51,7 @@ function note(rec, state, detail = '') {
   return write(rec);
 }
 
-/**
- * REGISTER a workspace the moment it exists. `ws` is candidates.isolate's
- * result (or an A/B worktree); the directory recorded here is the ONLY one
- * `attempt` will ever remove for this record.
- */
+/** REGISTER a workspace the moment it exists. */
 function register(ws, { sessionId = null, holder = '', label = '', kind = null } = {}) {
   const id = `tw${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const rec = {
@@ -131,10 +83,7 @@ function candidateReady(id, cand, { failed = false, why = '' } = {}) {
   return note(rec, STATE.CANDIDATE_READY, `${files.length} file(s) proposed`);
 }
 
-/**
- * ARCHIVE A PATCH that exists nowhere else (an A/B candidate is not a stored
- * candidates.js record): written before the workspace may become eligible.
- */
+/** ARCHIVE A PATCH that exists nowhere else (an A/B candidate is not a stored candidates.js record): written before the workspace may become eligible. */
 function archive(id, patchText) {
   const rec = read(id);
   if (!rec) return null;
@@ -178,12 +127,7 @@ function rejected(candidateId, reason = '') {
   return note(rec, STATE.REJECTED, rec.rejection.reason);
 }
 
-/**
- * A RUN IN A SESSION (toolstep.finalStep): a canonical change resets the
- * verification a record has; a passing test run after its integration is the
- * TARGETED verification; a passing final smoke after the last change is the
- * FINAL SMOKE. Only records integrated into this session's tree are touched.
- */
+/** A RUN IN A SESSION (toolstep.finalStep): a canonical change resets the verification a record has; a passing test run after its integration is the… */
 function noteRun(session, { mutated = false, test = false, final = false, ok = false, command = '' } = {}) {
   if (!session) return [];
   const touched = [];
@@ -269,10 +213,7 @@ function inside(child, parent) {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
-/**
- * THE HARD GUARD. Returns { ok } only for the registered directory, as a
- * DIRECT child of the temp root, disjoint from every protected root.
- */
+/** THE HARD GUARD. Returns { ok } only for the registered directory, as a DIRECT child of the temp root, disjoint from every protected root. */
 function guard(rec, target) {
   const t = real(target);
   const root = real(tempRoot());
@@ -285,9 +226,7 @@ function guard(rec, target) {
   const protectedRoots = [rec.root, path.join(__dirname, '..'), os.homedir(), require('./config').configDir(), path.dirname(rec.root || t)];
   try { protectedRoots.push(require('./harnesslocation').root && require('./harnesslocation').root()); } catch { /* no harness */ }
   try { for (const w of Object.values(require('./workerruntime').manifest())) if (w.defaultStore) protectedRoots.push(w.defaultStore); } catch { /* no manifest */ }
-  // The target may not BE a protected root, CONTAIN one, or sit inside one —
-  // except a root that also contains the temp root itself (the home folder that
-  // holds %TEMP%), since everything under the temp root sits inside that.
+  // The target may not BE a protected root, CONTAIN one, or sit inside one — except a root that also contains the temp root itself
   for (const p of protectedRoots.filter(Boolean).map(real)) {
     if (t === p || inside(p, t) || (inside(t, p) && !inside(root, p))) return { ok: false, why: `DENIED: ${t} overlaps the protected ${p}` };
   }
@@ -333,11 +272,7 @@ function receipt(rec) {
   };
 }
 
-/**
- * TRY TO REMOVE ONE WORKSPACE. Deterministic: eligibility from recorded facts,
- * the receipt first, DELETING before the removal, DELETED after. Returns
- * { ok, state, why[] }. Never throws into a turn.
- */
+/** TRY TO REMOVE ONE WORKSPACE. */
 function attempt(id, app = null) {
   const rec = read(id);
   if (!rec) return { ok: false, why: ['no such workspace'] };
@@ -376,11 +311,7 @@ function sweep(app, sessionId = null) {
 
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return Boolean(e && e.code === 'EPERM'); } }
 
-/**
- * AT STARTUP / RECOVERY: classify every registered workspace and every
- * directory under the temp root, finish interrupted cleanups once, expire old
- * retained ones, and NEVER touch what is not registered.
- */
+/** AT STARTUP / RECOVERY: classify every registered workspace and every directory under the temp root, finish interrupted cleanups once, expire old… */
 function reconcile(app = null, { retentionDays = RETENTION_DAYS } = {}) {
   const report = { ACTIVE: [], RECOVERABLE: [], COMPLETED: [], STALE: [], ORPHANED: [], UNKNOWN: [], cleaned: [] };
   for (const rec of all()) {
@@ -425,11 +356,7 @@ function reconcile(app = null, { retentionDays = RETENTION_DAYS } = {}) {
   return report;
 }
 
-/**
- * THE PERSON'S EXPLICIT REMOVAL of a RETAINED workspace (or retention expiry).
- * Still guarded: the receipt is written, the path guard applies, a busy
- * directory is refused. It never applies to an unresolved success path.
- */
+/** THE PERSON'S EXPLICIT REMOVAL of a RETAINED workspace (or retention expiry). */
 function purge(id, app = null, { reason = 'removed by the person' } = {}) {
   const rec = read(id);
   if (!rec) return { ok: false, why: ['no such workspace'] };

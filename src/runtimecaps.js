@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * THE RUNTIME CAPABILITY MATRIX — per runtime, per capability, what LAIN can
- * actually do through the runtime's own program, right now. Never one
- * "connected": each cell is its own answer.
- *
- *   discovery · telemetry · execution · sessions · usage · limits ·
- *   streaming · cancel · bot · chat · agent
- *
- * A CELL is { level, why }:
- *   OPERATIONAL   proven by a run through LAIN (the last one succeeded / verified)
- *   AVAILABLE     the path exists and is wired; not yet proven by a run
- *   TELEMETRY     readable, not executable
- *   DETECTED      the runtime is installed; this was not read
- *   NOT_REPORTED  the runtime does not expose it (said, never invented)
- *   UNSUPPORTED   no legitimate path exists (the reason says which boundary)
- *   UNAVAILABLE   the path exists but is down now (not installed, not signed in, failed)
- *
- * WHAT EACH RUNTIME SUPPORTS AT ALL is declared here, once, with its reason;
- * what is TRUE NOW comes from the adapter's discovery, telemetry and execution.
- */
+/** THE RUNTIME CAPABILITY MATRIX — per runtime, per capability, what LAIN can actually do through the runtime's own program, right now. */
 
 const L = Object.freeze({ OPERATIONAL: 'Operational', AVAILABLE: 'Available', TELEMETRY: 'Telemetry', DETECTED: 'Detected', NOT_REPORTED: 'Not reported', UNSUPPORTED: 'Unsupported', UNAVAILABLE: 'Unavailable' });
 const KEYS = Object.freeze(['discovery', 'telemetry', 'execution', 'sessions', 'usage', 'limits', 'streaming', 'cancel', 'bot', 'chat', 'agent']);

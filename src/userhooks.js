@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * LAIN HOOKS — the person's own commands at fixed points of a session, run OUTSIDE the model's context (Phase CAP).
- *
- *   SessionStart       a session begins (or is resumed)              may add context (bounded)
- *   UserPromptSubmit   before a prompt reaches a model               may BLOCK it, or add context (bounded)
- *   PreToolUse         before a tool runs                            may DENY it, or make it ASK
- *   PostToolUse        after a tool ran                              observes
- *   PermissionRequest  before LAIN asks the person to approve        may DENY; may APPROVE an external-action ask
- *   Checkpoint         a checkpoint was taken                        observes
- *   Compact            the conversation was compacted                observes
- *   Stop               a turn ended                                  observes
- *
- * WHERE THEY COME FROM
- *   user     <home>/hooks.json                                        the person's own; always active
- *   project  <project>/.lain/hooks.json                               ACTIVE ONLY WITH CONSENT, recorded OUTSIDE the
- *            repository (cfg.hookConsent[<project>] = sha256 of the file). An edited file needs consent again: a
- *            repository cannot make LAIN run a command by changing a file.
- *   Shape: { "hooks": [ { "event": "PreToolUse", "match": "run_bash|edit_file", "command": "…", "timeout": 10 } ] }
- *
- * A HOOK IS A PROCESS: the event as JSON on stdin (tool inputs redacted), LAIN_HOOK_EVENT in its environment, the
- * project as its working directory. It answers with exit code 2 (= deny, stderr is the reason) or JSON on stdout:
- * { "decision": "allow" | "deny" | "ask" | "block", "reason": "…", "context": "…" }. Silence is "no opinion".
- *
- * WHAT A HOOK CAN NEVER DO — LAIN's mandatory invariants are not configuration:
- *   - "allow" never overrides a refusal. It only answers a question LAIN would otherwise put to the person (an
- *     external action's approval); a gate refusal, read-only mode, PLAN mode, a credential or system path, a
- *     sensitive LAIN path or an update-trust check stand whatever a hook says.
- *   - a filesystem trust question (a path outside the project) can be DENIED by a hook, never approved.
- *   - a failing, slow or crashing hook is reported and IGNORED (fail-open for observation, never fail-to-allow):
- *     it cannot turn a deny into an allow by crashing, and it cannot stall a session past its timeout.
- */
+/** LAIN HOOKS — the person's own commands at fixed points of a session, run OUTSIDE the model's context (Phase CAP). */
 
 const fs = require('fs');
 const path = require('path');
@@ -133,10 +103,7 @@ function runOne(h, payload, cwd) {
   });
 }
 
-/**
- * FIRE AN EVENT. Returns the combined verdict: { decision: null|'deny'|'ask'|'allow'|'block', reason, context, ran }.
- * Deny/block beats ask beats allow — the most restrictive hook wins. Context only for SessionStart/UserPromptSubmit.
- */
+/** FIRE AN EVENT. Returns the combined verdict: { decision: null|'deny'|'ask'|'allow'|'block', reason, context, ran }. Deny/block beats ask beats allow… */
 async function fire(app, event, data = {}, { match = '' } = {}) {
   if (!EVENTS.includes(event) || process.env.LAIN_NO_HOOKS === '1') return { decision: null, reason: '', context: '', ran: 0 };
   let set;

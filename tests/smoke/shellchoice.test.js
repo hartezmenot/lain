@@ -52,7 +52,7 @@ module.exports = async function () {
       script: [
         {
           text: 'Chaining them.',
-          tool_calls: [{ name: 'run_powershell', input: { command: 'echo one && echo two' } }],
+          tool_calls: [{ name: 'shell', input: { command: 'echo one && echo two' } }],
         },
         { text: 'Both ran.' },
       ],
@@ -93,7 +93,7 @@ module.exports = async function () {
         {
           text: 'Building.',
           tool_calls: [{
-            name: 'run_powershell',
+            name: 'shell',
             input: { command: 'node ./definitely-not-here.js && node ./also-not-here.js' },
           }],
         },

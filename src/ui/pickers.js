@@ -1,41 +1,11 @@
 'use strict';
 
-/**
- * ADAPTERS FOR THE SESSION PICKERS.
- *
- * Split from ui/panel.js, which owns the panel STATE MACHINE and was already
- * close to the god-object guard. The seam is the one that file already draws:
- * an adapter is DATA — it reads state that already exists and never draws — and
- * the panel renders whatever it is handed. These are two more of them.
- *
- * Neither picker knows anything about the catalog or the session store. WHAT to
- * offer is decided by the caller; this arranges it.
- */
+/** ADAPTERS FOR THE SESSION PICKERS. */
 
 const { KIND, MODE, pad, clip } = require('./panel');
 
-/**
- * (An EXTERNAL ACTOR picker lived here — three rows saying who gives LAIN a
- * second opinion on an investigation, and what each one costs you. It went with
- * the `/external` command in this pass: WHO answers a chat turn is now a SOURCE
- * selection on the session rather than a reviewer configured for one command,
- * and the picker for it belongs to the Harness application. See
- * src/modelsource/registry.js `overview`, which exposes the three facts a picker
- * needs — source, state, selected model — and nothing about browsers, cookies or
- * site structure.)
- */
 
-/**
- * `/resume` — SESSIONS DESCRIBED BY WHAT THEY WERE.
- *
- * Three rows each: when and where, the objective in the user's own words, and
- * what actually happened. The id is NOT shown, because the id is a filename —
- * a timestamp plus four random characters — and having to recognise one was
- * the whole defect.
- *
- * `D` opens the details of the highlighted session; see `shortcuts`, which the
- * panel consults for a single typed letter.
- */
+/** `/resume` — SESSIONS DESCRIBED BY WHAT THEY WERE. */
 function sessionListAdapter({ sessions = [], title = 'RESUME SESSION', current = null }) {
   const idx = require('../sessionindex');
   const items = [];
@@ -76,14 +46,7 @@ function sessionListAdapter({ sessions = [], title = 'RESUME SESSION', current =
   };
 }
 
-/**
- * ONE SESSION, BEFORE COMMITTING TO IT.
- *
- * Every field is read from the saved session. A thing that is not there reads
- * as not there — the same rule continuity.js applies when reporting what a
- * resume actually restored, for the same reason: a reassurance that survives
- * only until the model contradicts it is worse than silence.
- */
+/** ONE SESSION, BEFORE COMMITTING TO IT. */
 function sessionDetailsAdapter({ session: s }) {
   const row = (k, v) => ({ label: `  ${pad(k, 16)}${clip(String(v), 56)}`, selectable: false });
   const para = (head, text) => {
@@ -103,11 +66,7 @@ function sessionDetailsAdapter({ session: s }) {
     items: [
       row('project', s.project),
       row('path', s.cwd || '(unknown)'),
-      // BOTH TIMES IN THE SAME CLOCK. `createdAt` is stored as an ISO string in
-      // UTC, and slicing it put "started 12:25" directly above "last activity
-      // 20:36" for a session that ran for eleven minutes — two timestamps on one
-      // panel in two different timezones, which reads as a session that began
-      // eight hours before it ended.
+      // BOTH TIMES IN THE SAME CLOCK.
       row('started', s.startedAt ? require('../sessionindex').when(Date.parse(s.startedAt)).text : '(unknown)'),
       row('last activity', s.when.text),
       row('status', s.state || 'no lifecycle recorded'),

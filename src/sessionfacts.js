@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * THE SESSION'S FACTS, ONCE (Phase 8.2) — what every surface says about the
- * session it drives: the terminal's /status, Telegram's /status, the window's
- * state. One projection from the owners, so the CLI and the Harness cannot
- * disagree about which account, model or profile the next turn uses:
- *
- *   account › model     sessionintel.lane (Coding Agent and Chat), account first
- *   effort              sessionintel.resolve (reasoning)
- *   execution           profile.of — NORMAL · FAST · ECO (+ a queued change)
- *   strategy, phase     runstrategy / supervision
- *   plan                the session's plan (done of total, the current step)
- *   project, task       sessionviews.project, the session's task and goal
- *
- * The /status that stood in the terminal before resolved the PROCESS default
- * (provider.resolve(app.cfg)): after the window chose another account, the
- * terminal named a route the next turn would not take. Read-only; no network.
- */
+/** THE SESSION'S FACTS, ONCE (Phase 8.2) — what every surface says about the session it drives: the terminal's /status, Telegram's /status, the window's… */
 
 function laneFacts(l) {
   if (!l) return { provider: null, familyId: null, account: null, accountId: null, model: null, modelId: null, effort: null, policy: null, route: null, needs: 'family', why: '' };

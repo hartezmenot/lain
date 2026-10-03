@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * PROVIDER DRIVERS — how LAIN reaches an account of a kind. Plain values.
- *
- *   BOT / AGENT / WORKER → role assignment → modelrequest
- *        → AccountInstance (accountinstances.js)   one account, its own state
- *        → ProviderDriver  (this registry)         the kind: Codex, an API, …
- *        → Transport                                API · runtime · website session
- *
- * A DRIVER HOLDS NO ACCOUNT-MUTABLE STATE. It describes itself (id, provider,
- * source type, capability labels, how to install its runtime) and `create`s
- * one handle per instance; the handle owns the process, the identity, the
- * limits. Registering is the ProviderAdapter extension point: a new kind of
- * account is a new value here, not an edit to modelrequest.
- *
- * NOT A TOOL. Nothing here is visible to a model. Which account a request uses
- * is decided by role assignment before the request exists; the model never
- * picks, calls or sees a router.
- */
+/** PROVIDER DRIVERS — how LAIN reaches an account of a kind. */
 
 const CAPABILITIES = Object.freeze(['BOT', 'CHAT', 'AGENT', 'AUX', 'VISION', 'EMBEDDING', 'EXTERNAL AGENT', 'RUNTIME ONLY']);
 const SOURCE_TYPES = Object.freeze(['api', 'runtime', 'website']);

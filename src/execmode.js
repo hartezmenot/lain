@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * PERMISSION MODES (Simplify S5) — Ask · Accept edits · Plan · Auto, per session, cycled with Shift+Tab and shown in
- * the status line. One gate, in tools/index.execute, the door every call uses. A mode changes what is allowed, never
- * which tools exist.
- *
- *   ASK           reads pass; edits, commands, computer input and other actions ask first
- *   ACCEPT_EDITS  edits pass; commands, computer input and other actions ask first
- *   PLAN          read-only: anything that changes or executes is refused ("Plan mode: read-only"); exit_plan ends it
- *   AUTO          no per-action prompts; an untrusted project behaves as ACCEPT_EDITS until it is trusted
- *
- * Deny rules (permrules.js) refuse in every mode; allow rules skip the question in ASK and ACCEPT_EDITS. Trust,
- * paths, credentials and the Computer Control guards still decide after this, whatever the mode. Legacy keeps its
- * old words (MANUAL is ASK) until S10.
- */
+/** PERMISSION MODES (Simplify S5) — Ask · Accept edits · Plan · Auto, per session, cycled with Shift+Tab and shown in the status line. */
 
 const MODES = Object.freeze(['ASK', 'ACCEPT_EDITS', 'PLAN', 'AUTO']);
 const WORD = Object.freeze({ ASK: 'Ask', ACCEPT_EDITS: 'Accept edits', PLAN: 'Plan', AUTO: 'Auto' });
@@ -50,7 +37,7 @@ function cycle(session) {
 function effective(app, session = null) {
   const s = session || (app && app.session);
   const m = of(s);
-  if (m !== 'AUTO' || !app || !app.cfg || !require('./simple').on(app)) return m;
+  if (m !== 'AUTO' || !app || !app.cfg) return m;
   if (!require('./interaction').available(app)) return m;
   return require('./trust').levelOf(app.cfg, s.cwd) === 'TRUSTED' ? m : 'ACCEPT_EDITS';
 }
@@ -88,7 +75,7 @@ function computerReads(name, input) {
 }
 
 /** read · edit · command · computer · act — what one call would do. */
-function kind(name, tool, input, simple = true, app = null) {
+function kind(name, tool, input, app = null) {
   const i = input || {};
   if (name === 'call_tool') {
     const inner = String(i.name || '');
@@ -96,7 +83,7 @@ function kind(name, tool, input, simple = true, app = null) {
     return mcpReadOnly(app, inner.split('/')[0]) ? 'read' : 'act';
   }
   if (!acts(name, tool)) return 'read';
-  if (SHELLS.test(name)) return simple && !i.background && require('./readonly').looksOnly(i.command || i.cmd || '') ? 'read' : 'command';
+  if (SHELLS.test(name)) return !i.background && require('./readonly').looksOnly(i.command || i.cmd || '') ? 'read' : 'command';
   if (name === 'computer' || /^computer_/.test(name)) return computerReads(name, i) ? 'read' : 'computer';   // computer_ui too
   if (require('./mutation').isSourceMutation(name)) return 'edit';
   return 'act';
@@ -112,32 +99,24 @@ function mcpReadOnly(app, id) {
 
 const PLAN_REFUSAL = 'Plan mode: read-only — investigate, then call exit_plan with the plan.';
 
-/**
- * The mode's verdict on one call, before anything runs.
- * @returns {Promise<{ok:true}|{ok:false,output:string}>}
- */
+/** The mode's verdict on one call, before anything runs. */
 async function gate(ctx, name, tool, input) {
   const app = ctx && ctx.app;
   const session = ctx && (ctx.session || (app && app.session));
-  const simple = require('./simple').on(app || (ctx && ctx.cfg) || {});
-  const k = kind(name, tool, input, simple, app);
+  const k = kind(name, tool, input, app);
   const cwd = (ctx && ctx.cwd) || (session && session.cwd) || process.cwd();
-  const rules = simple && app && app.cfg ? require('./permrules').of(app.cfg, session && session.cwd) : null;
+  const rules = app && app.cfg ? require('./permrules').of(app.cfg, session && session.cwd) : null;
   if (rules) {
     const denied = require('./permrules').first(rules.deny, name, input, cwd);
     if (denied) return { ok: false, output: `Denied by your permission rules: ${denied}` };
   }
   if (k === 'read') return { ok: true };
-  if (ctx && ctx.workOrder && ctx.workOrder.bounded) return { ok: true };   // legacy: a subagent's lane is its order
-  const mode = simple ? effective(app, session) : of(session);
-  if (mode === 'PLAN') {
-    return { ok: false, output: simple ? PLAN_REFUSAL : `DENIED PLAN_MODE: ${name} would change or execute something, and PLAN mode only discusses and plans. `
-      + 'Describe it in the plan; the person accepts the plan (/plan accept) or switches to AUTO (Shift+Tab) to execute.' };
-  }
-  if (mode === 'AUTO') return simple && k === 'computer' ? autoComputer(app) : { ok: true };
+  const mode = effective(app, session);
+  if (mode === 'PLAN') return { ok: false, output: PLAN_REFUSAL };
+  if (mode === 'AUTO') return k === 'computer' ? autoComputer(app) : { ok: true };
   if (mode === 'ACCEPT_EDITS' && k === 'edit') return { ok: true };
   if (rules && require('./permrules').first(rules.allow, name, input, cwd)) return { ok: true };
-  return askFirst(ctx, name, input, mode, simple);
+  return askFirst(ctx, name, input, mode);
 }
 
 /** AUTO turns Computer Control on at the person's tier (INTERACT by default); the desktop's own authorization still asks. */
@@ -149,24 +128,23 @@ async function autoComputer(app) {
   return r.ok ? { ok: true } : { ok: false, output: `Computer Control is off: ${r.why}` };
 }
 
-async function askFirst(ctx, name, input, mode, simple) {
+async function askFirst(ctx, name, input, mode) {
   const app = ctx && ctx.app;
   const session = ctx && (ctx.session || (app && app.session));
   if (!app || !require('./interaction').available(app)) {
-    return { ok: false, output: simple ? `${WORD[mode]} mode: ${name} needs the person's yes and nobody is present to give it.`
-      : `DENIED MANUAL_MODE: ${name} needs the person's yes in MANUAL mode and nobody is present to give it.` };
+    return { ok: false, output: `${WORD[mode]} mode: ${name} needs the person's yes and nobody is present to give it.` };
   }
   if (session._manualTurnGrant && session._manualTurnGrant === (ctx.turnId || null)) return { ok: true };
   const target = require('./describe').describeTarget(name, input || {});
   const answer = await require('./decisions').ask(app, {
     type: 'PERMISSION_REQUEST',
-    title: simple ? `${WORD[mode]} · allow this?` : 'MANUAL · allow this step?',
+    title: `${WORD[mode]} · allow this?`,
     question: `${name}${target ? ` · ${target}` : ''}`,
     options: ['Allow once', 'Allow for this turn', 'Deny'],
   }, ctx && ctx.signal);
   if (answer === 'Allow for this turn') { session._manualTurnGrant = ctx.turnId || null; return { ok: true }; }
   if (answer === 'Allow once') return { ok: true };
-  return { ok: false, output: simple ? `The person did not allow ${name}. Nothing was changed.` : `DENIED MANUAL_MODE: the person did not allow ${name}. Nothing was changed.` };
+  return { ok: false, output: `The person did not allow ${name}. Nothing was changed.` };
 }
 
 const GUIDANCE = {

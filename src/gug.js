@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * THE GUG — GEOMETRIC UI GRAPH. Core-owned (2026-09-24).
- *
- *     AST      what code structurally exists            codemodel.js / locate.js
- *     FGM      which feature owns what                  architecture.js
- *     Wiring   what talks to what                       wiring.js
- *     GUG      what visual nodes exist, where they are, how their geometry
- *              relates, and which source owns it         THIS FILE
- *
- * NOT Laya's, and not a replacement for any of the above. It is built from
- * DETERMINISTIC evidence only, in this order of preference:
- *
- *   1. the Workshop / browser DOM                 (inspect.js gugExpr)
- *   2. computed layout and bounds                 (the same measurement)
- *   3. UIA / accessibility bounds                 (fromUia, when no DOM)
- *   4. source stylesheet bindings                 (bind — rules and tokens)
- *   5. existing project intelligence              (uisource.js, by the caller)
- *
- * No model builds a node. A RELATION IS AN OBSERVATION, NOT AN INTENT: "right
- * gap 8" means 8 px were measured, never that a designer declared 8 px. Intent
- * stays UNKNOWN, and a limit the page did not report stays null.
- *
- * The flagship never receives the graph — only a bounded `slice` of it (a few
- * hundred tokens), rendered canonically so the same state costs nothing twice.
- */
+/** THE GUG — GEOMETRIC UI GRAPH. */
 
 const fs = require('fs');
 const path = require('path');
@@ -63,11 +39,7 @@ function token(el) {
   return slug(el.role || el.tag || 'node');
 }
 
-/**
- * STABLE SEMANTIC IDS. `composer.submit`: the node's own token under its
- * nearest named ancestor. A re-measure of the same DOM yields the same ids;
- * siblings that share a token are numbered in document order.
- */
+/** STABLE SEMANTIC IDS. */
 function assignIds(els) {
   const ids = new Array(els.length);
   const used = new Map();
@@ -90,11 +62,7 @@ function assignIds(els) {
 
 function px(v) { const m = /^(-?\d+(?:\.\d+)?)px$/.exec(String(v || '').trim()); return m ? Number(m[1]) : null; }
 
-/**
- * A GRAPH FROM A DOM MEASUREMENT (inspect.js gugExpr, or an observation
- * receipt's nodes). `els`: [{ tag, id, classes, testid, role, label, text,
- * selector, rect:{x,y,w,h}, parent (index | -1), style:{…computed px} }].
- */
+/** A GRAPH FROM A DOM MEASUREMENT (inspect.js gugExpr, or an observation receipt's nodes). */
 function fromDom(els, { root = '', surface = 'workshop', url = '', viewport = null, generation = 1, provenance = ['DOM', 'computed-style'] } = {}) {
   const list = (els || []).filter((e) => e && e.rect && e.rect.w > 0 && e.rect.h > 0).slice(0, MAX_NODES);
   // Re-index parents after the filter: a parent that was dropped hands its children to its own parent.
@@ -145,11 +113,7 @@ function pickStyle(st) {
   return out;
 }
 
-/**
- * A GRAPH FROM A UIA TREE (computer ui_tree), for surfaces with no DOM:
- * controlType, name, automationId and the bounding rectangle. No stylesheet
- * binding is possible from here, and none is invented.
- */
+/** A GRAPH FROM A UIA TREE (computer ui_tree), for surfaces with no DOM: controlType, name, automationId and the bounding rectangle. */
 function fromUia(tree, { window = '', generation = 1 } = {}) {
   const els = [];
   const walk = (n, parent) => {
@@ -168,11 +132,7 @@ function fromUia(tree, { window = '', generation = 1 } = {}) {
 
 function edge(type, from, to, extra = {}) { return { type, from, to, ...extra, provenance: 'measured', intent: 'UNKNOWN' }; }
 
-/**
- * THE RELATIONS A MEASUREMENT PROVES, for each parent and its children:
- * containment, centring, insets, sibling alignment, order, gaps, equal sizes,
- * overlap. Bounded per parent; nothing is inferred beyond the numbers.
- */
+/** THE RELATIONS A MEASUREMENT PROVES, for each parent and its children: containment, centring, insets, sibling alignment, order, gaps, equal sizes… */
 function relations(g) {
   const out = [];
   for (const p of g.nodes.values()) {
@@ -213,11 +173,7 @@ function fingerprint(g) {
 
 // ---- source binding ----------------------------------------------------------------
 
-/**
- * EVERY STYLESHEET RULE, once per stylesheet state: selector, declarations
- * with line numbers, and the custom properties (tokens) each uses or defines.
- * Keyed by the files' sizes and mtimes, so a source edit is a new index.
- */
+/** EVERY STYLESHEET RULE, once per stylesheet state: selector, declarations with line numbers, and the custom properties (tokens) each uses or defines. */
 const ruleCache = new Map();
 function rules(root) {
   const gj = require('./geometryjob');
@@ -262,12 +218,7 @@ function selects(selector, node) {
   });
 }
 
-/**
- * BIND EVERY NODE TO THE SOURCE THAT SIZES IT, or say it could not. EXACT:
- * one rule names the node and sets geometry. MULTIPLE: several do — the
- * person or the flagship chooses. UNKNOWN: none (generated class names, inline
- * styles, a framework's runtime) — said plainly, never guessed.
- */
+/** BIND EVERY NODE TO THE SOURCE THAT SIZES IT, or say it could not. */
 function bind(g, root = g.root) {
   if (!root) return g;
   const all = rules(root);
@@ -297,11 +248,7 @@ const STORE = new Map();
 function storeOf() { return STORE; }
 function _reset() { STORE.clear(); ruleCache.clear(); }
 
-/**
- * KEEP A NEW MEASUREMENT for a project. The generation advances only when the
- * graph actually differs; the previous one is kept for the reverse mapping
- * (`impact`).
- */
+/** KEEP A NEW MEASUREMENT for a project. */
 function put(app, root, g) {
   const s = storeOf(app);
   const key = path.resolve(root || g.root || '.');
@@ -323,20 +270,7 @@ function nodeFor(g, el) {
   return null;
 }
 
-/**
- * THE ONE UI → SOURCE BINDING (2026-09-25). "Which source owns this element?"
- * had two answers computed side by side — uisource.js searched the markup for
- * the component, and this graph bound the stylesheet rule that sizes it — and
- * every caller combined them its own way. It is answered here, once:
- *
- *   node       the GUG node the element is (by selector, else by bounds)
- *   style      the stylesheet rule that sizes it (bind, above), with confidence
- *   component  where the element's markup is declared — uisource.js's search,
- *              kept as EVIDENCE #5 in the header's order, never as a second owner
- *
- * Callers — the Workshop pick, the from-element route, the canonical Selection
- * (harnesscontext.selection), the geometry and selection jobs — consume this.
- */
+/** THE ONE UI → SOURCE BINDING (2026-09-25). */
 function sourceBinding(app, root, el, g = null) {
   const graph = g || get(app, root);
   const node = graph && el ? nodeFor(graph, el) : null;
@@ -354,11 +288,7 @@ function sourceBinding(app, root, el, g = null) {
 
 // ---- reverse mapping ---------------------------------------------------------------------
 
-/**
- * A SOURCE EDIT, SEEN FROM THE SCREEN: which nodes that file (or a token it
- * defines) sizes. They are marked STALE until the next measurement; the
- * generation is not advanced on a guess.
- */
+/** A SOURCE EDIT, SEEN FROM THE SCREEN: which nodes that file (or a token it defines) sizes. */
 function sourceEdited(app, root, file) {
   const g = get(app, root);
   if (!g) return [];
@@ -372,12 +302,7 @@ function sourceEdited(app, root, file) {
   return hit;
 }
 
-/**
- * WHAT CHANGED ON SCREEN between two measurements: per node, the move and the
- * resize; and the relations that appeared or disappeared. "SearchBar height
- * +6px · Results moved +6px · 2 affected visual relationships" — more useful
- * than "SearchView.tsx changed".
- */
+/** WHAT CHANGED ON SCREEN between two measurements: per node, the move and the resize; and the relations that appeared or disappeared. */
 function impact(before, after) {
   if (!before || !after) return null;
   const changes = [];
@@ -403,11 +328,7 @@ function impact(before, after) {
 
 // ---- the slice ----------------------------------------------------------------------------
 
-/**
- * GUG_SLICE for one target: its geometry, parent, the relations it takes part
- * in, its nearest neighbours, its implementation binding, provenance and what
- * is unknown. Canonical and bounded (`maxChars`); never the whole graph.
- */
+/** GUG_SLICE for one target: its geometry, parent, the relations it takes part in, its nearest neighbours, its implementation binding, provenance and… */
 function slice(g, id, { maxChars = SLICE_CHARS } = {}) {
   const n = g && g.nodes.get(id);
   if (!n) return { text: '', chars: 0, found: false };

@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * WHAT SURVIVED — compaction and resume, said out loud.
- *
- * Both of these silently rewrite the thing the model is about to read, and both
- * used to report only their own mechanics: "elided 40k chars", "resumed abc123
- * — 214 messages". Neither answers the question the user actually has, which is
- * whether the work is still intact.
- *
- * THE RULE HERE IS THE HARD ONE: never claim something was preserved without
- * looking. Each line below is a check against the session as it now stands, and
- * a thing that is not there reads as not there. "✓ decisions preserved" printed
- * unconditionally is worse than silence — it is a reassurance that survives
- * exactly until the model contradicts it.
- *
- * In particular, a restored TRANSCRIPT is not a restored context. The messages
- * always come back; the objective, the corrections the user made, the files
- * already changed and the state of the last check are separate facts, and this
- * says which of them really did.
- */
+/** WHAT SURVIVED — compaction and resume, said out loud. */
 
 const path = require('path');
 
@@ -27,13 +9,7 @@ function k(n) {
   return `${Math.round((Number(n) || 0) / 1000)}k`;
 }
 
-/**
- * What a compaction just did, and what it kept.
- *
- * @param {Session} session  AFTER the compaction
- * @param {object}  fit      the compact() result — { before, after, elided }
- * @returns {{ headline: string, kept: string[] }}
- */
+/** What a compaction just did, and what it kept. */
 function compactionSummary(session, fit = {}) {
   const kept = [];
   const task = session && session.task;
@@ -61,11 +37,7 @@ function compactionSummary(session, fit = {}) {
   return { headline, kept };
 }
 
-/**
- * What a resume genuinely restored, and what it could not.
- *
- * @returns {Array<{ok: boolean, text: string}>}
- */
+/** What a resume genuinely restored, and what it could not. */
 function resumeSummary(session, app = null) {
   const out = [];
   const task = session && session.task;
@@ -98,28 +70,12 @@ function resumeSummary(session, app = null) {
     say(c.ok === true, text);
   } else say(false, 'no check had been run, so nothing is verified');
 
-  // ---- WHAT ELSE THIS SESSION HAD IN FLIGHT --------------------------------
-  //
-  // The conclusions of a troubleshooting relay, and whether anything holds
-  // desktop permission, are exactly the things a person would otherwise have to
-  // rediscover — and the second is a safety fact, not a convenience. Both are
-  // read from the LIVE app rather than the saved session: a bridge grant cannot
-  // survive a restart by design, so saying "it is gone" is the true answer.
+  // WHAT ELSE THIS SESSION HAD IN FLIGHT
   if (!app) return out;
 
-  // (A TROUBLESHOOTING-RELAY SECTION stood here — which round the external
-  // reviewer had reached, its last recommendation, and why the relay stopped.
-  // Its only writer was investigation.relay, which went with `/external` in this
-  // pass and had been unreachable before that. Nothing set `app._troubleshoot`
-  // any more, so the section could only ever report the absence of a thing that
-  // could not happen.)
 
   try {
-    // WHICH MODEL ANSWERS A CHAT TURN — a session fact, and one a person
-    // resuming needs: a session that was consulting ChatGPT.com and comes back
-    // silently answering from LAIN's runtime would attribute the change to
-    // nobody. Read from the registry rather than from a config key, because the
-    // selection is per session. Coding is unaffected and is not claimed here.
+    // WHICH MODEL ANSWERS A CHAT TURN — a session fact, and one a person resuming needs: a session that was consulting ChatGPT.com and comes back silently…
     const reg = require('./modelsource/registry');
     const src = reg.selectedId(app);
     const model = ((app.session && app.session.sourceSelections) || {})[src] || null;

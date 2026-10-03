@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * THE OBSOLETE PRE-CLEANUP LAIN'S LEFTOVERS ON THIS MACHINE — found, carried over where they were the person's
- * choice, then removed (packaging consolidation §2–§4). The product is LAIN again (2026-10-02), so every row below is
- * told from the CURRENT LAIN by a name or a layout the current one never uses:
- *
- *   Startup\LAIN.lnk → LAIN.exe          the choice to start at sign-in → the startup setting (now LAIN Harness.lnk)
- *   "Open with" LAIN.File / LAIN.Open    the choice to be offered → the registration (now LAIN.Harness.File)
- *   <home>\desktop\LAIN.exe              the old development launcher → replaced by `LAIN Harness.exe`
- *   <home>\desktop\lain-desktop-*.exe    old window-host builds (now lain-harness-<hash>.exe)
- *   Start Menu\Programs\LAIN.lnk (a file), HKCU …\Uninstall\LAIN   old shortcut and entry (now the LAIN folder and
- *                                        the "LAIN.Install" key)
- * THE NOEMA ERA's stale window-host builds in <home>\desktop (noema-harness-*.exe, Noema Harness.exe) go too, once a
- * LAIN launcher is in place; its install folder and entries are retired by setup (distribution/setup.cs, Retire).
- *
- * NEVER TOUCHED: anything that needs an administrator (a machine-wide `C:\Program Files\LAIN` install is reported,
- * with its own uninstaller named), the person's data (that moved home already — home.js), and a running process.
- * A machine-wide obsolete install's `lain` is NOT this LAIN — the report says so.
- */
+/** THE OBSOLETE PRE-CLEANUP LAIN'S LEFTOVERS ON THIS MACHINE — found, carried over where they were the person's choice, then removed */
 
 const fs = require('fs');
 const os = require('os');
@@ -50,10 +33,7 @@ function plan({ registry = true } = {}) {
 
 function safeRead(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
 
-/**
- * CARRY OVER AND REMOVE. `launcherExe` is the LAIN Harness launcher to register (an installed one is passed by
- * setup; a development checkout builds `LAIN Harness.exe` into the home, which is what LAIN.exe used to be).
- */
+/** CARRY OVER AND REMOVE. */
 function cleanup({ launcherExe = null, cfg = null, save = null, registry = true, openWith = true } = {}) {
   const p = plan({ registry });
   const done = [];

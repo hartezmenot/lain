@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * `/stop` AND `/observing` — stopping the BOT without stopping LAIN.
- *
- *: "Separate STOP BOT from STOP INVESTIGATION. These must not be the same
- * operation."
- *
- * ------------------------------------------------------------------------
- * THE THREE THINGS "STOP" COULD MEAN, and why they must not share a key.
- *
- *   STOP THE BOT            the thing being watched should stop moving. The
- *                           evidence is the point and is kept; LAIN is now
- *                           expected to look at it.
- *   STOP THE TURN           LAIN should stop working. Ctrl+C, and it already
- *                           means exactly that everywhere in the program.
- *   STOP LAIN               leave. `/exit`, and it saves the session.
- *
- * They were one key in every version of this the user has used elsewhere, which
- * is why "stop" during a bot run is frightening: it might end the run, or it
- * might end the investigation of the run — including everything collected so
- * far — and nothing on screen says which. So the bot gets its own word, and the
- * word says what survives.
- *
- * NOTHING HERE ANALYSES ANYTHING. It stops the child and hands the observation
- * to the model, which is the half that reads evidence. The command exists so
- * the USER can stop a run at the moment they see it go wrong, without having to
- * ask the model to do it and without waiting for a turn to come round.
- */
+/** `/stop` AND `/observing` — stopping the BOT without stopping LAIN. */
 
 function register({ define, DURING_TURN, C, FLASH_MS }) {
   define('/stop', {
@@ -34,12 +8,7 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
     // MACHINERY: about the run, not about the conversation. It goes to the
     // bottom surface and clears itself.
     surface: true,
-    // NOT BLOCKED DURING A TURN, and that is the whole point of it. The moment
-    // a person most needs to stop a bot is while LAIN is mid-turn watching it;
-    // a command that waits for the turn to end would arrive after the thing it
-    // was meant to prevent. It touches only the child process and the
-    // observation's own state — never the session, the plan or the messages —
-    // so there is nothing for a turn in flight to lose.
+    // NOT BLOCKED DURING A TURN, and that is the whole point of it.
     duringTurn: DURING_TURN.SAFE,
     desc: 'Stop the observed run — LAIN keeps the evidence and keeps working',
     run(app, { rest } = {}) {
@@ -87,9 +56,7 @@ function register({ define, DURING_TURN, C, FLASH_MS }) {
         w('\n' + C.dim('  SEEN\n'));
         for (const k of s.kinds) w(C.dim(`    ${k.kind} ×${k.n}\n`));
       }
-      // WHAT IS CURRENTLY HELD DOWN belongs here more than anywhere: a bot that
-      // was stopped while a key was down leaves a keyboard that does not work,
-      // and the person needs to know which key rather than to discover it.
+      // WHAT IS CURRENTLY HELD DOWN belongs here more than anywhere: a bot that was stopped while a key was down leaves a keyboard that does not work, and…
       const held = require('./heldkeys').list();
       if (held.length) {
         w('\n' + C.yellow('  KEYS STILL HELD\n'));

@@ -1,46 +1,6 @@
 'use strict';
 
-/**
- * THE CONTEXT BUDGETER — before a flagship request, what will it cost in
- * UNCACHED input, who is responsible, and can Core make it cheaper without
- * losing anything the task needs? (2026-09-24)
- *
- * ------------------------------------------------------------------------
- * THE ESTIMATE IS STRUCTURAL, NOT A GUESS. A prefix cache serves the longest
- * byte-identical head of a request it saw before. So Core serialises the
- * request as a provider-neutral byte stream — tool schemas in order, then each
- * message — and compares it with the previous request of the same lineage
- * (session × model × connection):
- *
- *     expected cached   = the shared prefix
- *     expected uncached = everything after it
- *     expected ratio    = uncached / total
- *
- * The receipt later says what the provider actually did (cacheledger.settle);
- * the gap between the two is recorded, never hidden (a provider's TTL can
- * expire a cache the bytes deserved).
- *
- * ------------------------------------------------------------------------
- * POLICY, for a WARM request:
- *
- *     ≤ 5 %          SEND
- *     5 % … 8 %      SEND, marked budget pressure
- *     > 8 %          REDUCE the actual owners first, deterministically:
- *                    optional volatile-tail sections (git status, the IDE
- *                    snapshot, the Harness packet, a narrowed-evidence slice)
- *                    are cut to their floors with a recovery note. Required
- *                    sections (this request's guidance, grounding, the
- *                    working context / handover, the plan, the goal) and new
- *                    tool evidence are NEVER cut here — tool output is bounded
- *                    when it enters (toolbudget.js).
- *                    Still > 8 % → SEND with an EXCEPTION naming the owners.
- *                    Correctness beats the token target.
- *
- * A COLD request (first of its lineage) and an EPOCH_RESET (the stable prefix
- * really changed, with its reason) are labelled as such and are not warm
- * failures. The ratio is never improved by adding cached bytes: nothing here
- * adds content.
- */
+/** THE CONTEXT BUDGETER — before a flagship request, what will it cost in UNCACHED input, who is responsible, and can Core make it cheaper without… */
 
 const canonical = require('./canonical');
 
@@ -70,11 +30,7 @@ function ceilings(cfg = {}) {
 
 // ---- serialisation --------------------------------------------------------------
 
-/**
- * THE BYTES A PREFIX CACHE SEES, provider-neutral: the tool schemas in their
- * order, then every message. Returns the string and the segment table (where
- * each part starts and what it is) for owner attribution.
- */
+/** THE BYTES A PREFIX CACHE SEES, provider-neutral: the tool schemas in their order, then every message. */
 function serialize(wire, tools) {
   const segs = [];
   let s = '';
@@ -126,11 +82,7 @@ function lineageOf(session, pc) {
   return session._cacheLineage;
 }
 
-/**
- * PLAN ONE REQUEST: warmth, epoch, expected ratio, owners. Pure with respect
- * to the request — it reads the wire and the lineage, and records the wire as
- * the lineage's latest only when `commit` is called (after any reduction).
- */
+/** PLAN ONE REQUEST: warmth, epoch, expected ratio, owners. */
 function plan(session, pc, wire, tools, cfg = {}) {
   const lim = ceilings(cfg);
   const L = lineageOf(session, pc);
@@ -187,11 +139,7 @@ function commit(session, pl) {
   L.prev = { ...pl._commit, at: Date.now() };
 }
 
-/**
- * CUT OPTIONAL TAIL SECTIONS TO THEIR FLOORS, largest owner first, until the
- * expected ratio is within the ceiling or nothing optional is left. Returns the
- * reduced live text and what was done; the caller rebuilds and re-plans.
- */
+/** CUT OPTIONAL TAIL SECTIONS TO THEIR FLOORS, largest owner first, until the expected ratio is within the ceiling or nothing optional is left. */
 function reduceLive(live, pl, cfg = {}) {
   const lim = ceilings(cfg);
   let text = String(live || '');

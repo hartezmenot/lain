@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * THE MODEL'S POINTER AND KEYBOARD — for the LAIN Preview, and nothing else (packaging pass §L).
- *
- *   tool call (preview click …) ──▶ this queue ──▶ the Preview surface that is open (the Harness, or the standalone
- *   Preview window a CLI opens) fetches it (POST /api/preview/input/next) ──▶ posts it to the page's bridge
- *   (workshop/bridge.js `act`) ──▶ DOM events inside the preview document ──▶ the result comes back
- *   (POST /api/preview/input/result) and the tool call returns it.
- *
- * THE BOUNDARY IS STRUCTURAL: there is no OS input here at all — no SendInput, no window messages, no other process.
- * The only thing that can execute an action is the bridge script inside the project's own page, which refuses what
- * would leave the Preview (system file pickers, downloads, other sites, new windows, credential fields).
- * Every action is marked MODEL and recorded; the person's own input makes the model wait (bridge.js).
- */
+/** THE MODEL'S POINTER AND KEYBOARD — for the LAIN Preview, and nothing else (packaging pass §L). */
 
 const crypto = require('crypto');
 

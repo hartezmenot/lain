@@ -1,52 +1,6 @@
 'use strict';
 
-/**
- * COMPUTER MCP — LAIN's structured eyes and hands on this desktop.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS, AND WHAT IT IS NOT.
- *
- * It is a horizontal Core capability: Chat/Coding, Cowork and Bot all reach the
- * same one. It is NOT the retired Probe, NOT a macro recorder, and NOT a
- * memory tool — there is no process-memory read or write, no pointer or address
- * discovery, no injection and no hooks anywhere in it or in its bridge.
- *
- * ------------------------------------------------------------------------
- * OBSERVATION PREFERENCE — the whole reason this exists rather than
- * "screenshot and guess a coordinate":
- *
- *     1. native window state   which windows exist, which is in front
- *     2. UI Automation         names, control types, patterns, bounds
- *     3. semantic bounds       the rectangle of a NAMED control
- *     4. screenshot            pixels, when a person needs to see it
- *     5. OCR                   absent in V1, and said so rather than faked
- *
- * A click aimed by (2) can be verified by (2). A click aimed at a pixel cannot
- * be verified at all, which is why `click_control` exists and is what a model
- * is told to reach for.
- *
- * ------------------------------------------------------------------------
- * INPUT DELIVERED IS NOT SUCCESS. Every action goes
- *
- *     OBSERVE (the start state) → ACT → OBSERVE (the result) → VERDICT
- *
- * and the verdict is PASSED, FAILED or INCONCLUSIVE (harness/checks.js's own
- * three, not a fourth vocabulary). An action with nothing to check against is
- * INCONCLUSIVE and says so: Windows accepting a mouse event is not evidence
- * that anything happened.
- *
- * ------------------------------------------------------------------------
- * AUTHORIZATION IS A SESSION DECISION, ENFORCED PER CALL.
- *
- * `/mcp computer` asks once: "Allow LAIN to observe and control this computer
- * for this session?" — granted through permissions.js with the `computer`
- * scope, checked again inside mcp.js before every single operation, and ended
- * by disconnect, a session change, `/mcp revoke` or the process exiting.
- *
- * IT DOES NOT REPLACE THE OTHER GATES. gate.js, trust.js and permissions.js
- * still decide consequential actions; this authorization only says the desktop
- * may be observed and driven at all.
- */
+/** COMPUTER MCP — LAIN's structured eyes and hands on this desktop. */
 
 const fs = require('fs');
 const path = require('path');
@@ -95,12 +49,7 @@ function references() {
   return { ok: true, refs: out };
 }
 
-/**
- * BUILD THE BRIDGE, ONCE PER SOURCE VERSION.
- *
- * Named by a hash of the source, so an edited bridge is rebuilt and an
- * unchanged one is reused; nothing is compiled on a hot path.
- */
+/** BUILD THE BRIDGE, ONCE PER SOURCE VERSION. */
 function ensureBridge() {
   if (process.platform !== 'win32') {
     return { ok: false, why: 'Computer MCP V1 drives Windows UI Automation; this machine is not Windows' };
@@ -131,11 +80,7 @@ function ensureBridge() {
   return { ok: true, exe, built: true };
 }
 
-/**
- * THE WINDOWS GRAPHICS CAPTURE HELPER (computermcp/wgc.cs) — one frame of one window, then it exits. Built only where
- * the Windows SDK's union metadata exists (WinRT from the in-box compiler needs it); elsewhere null, and capture falls
- * back to the bridge's PrintWindow. Cached by its source hash like the bridge.
- */
+/** THE WINDOWS GRAPHICS CAPTURE HELPER (computermcp/wgc.cs) — one frame of one window, then it exits. */
 function unionWinmd() {
   const root = path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Windows Kits', '10', 'UnionMetadata');
   let versions = [];
@@ -196,10 +141,7 @@ class ComputerMCP {
     try { require('./controlwindow').write(this.app); } catch { /* no window open */ }
   }
 
-  /**
-   * CONNECT AND ASK. The question is asked ONCE per session; a reconnect while
-   * it still stands does not ask again.
-   */
+  /** CONNECT AND ASK. The question is asked ONCE per session; a reconnect while it still stands does not ask again. */
   async connect({ ask = true } = {}) {
     if (!this.connected) {
       const built = ensureBridge();
@@ -217,11 +159,7 @@ class ComputerMCP {
     return { ok: granted.ok, authorized: granted.ok, why: granted.why, capabilities: this.bridge.capabilities };
   }
 
-  /**
-   * THE ONE QUESTION. Not a list of capabilities to tick: a person decides
-   * whether LAIN may use this computer, and everything the bridge offers is
-   * what that means. Refused, nothing is granted and nothing is attempted.
-   */
+  /** THE ONE QUESTION. Not a list of capabilities to tick: a person decides whether LAIN may use this computer, and everything the bridge offers is what… */
   async authorize() {
     const interaction = require('./interaction');
     if (!interaction.available(this.app)) {
@@ -264,11 +202,7 @@ class ComputerMCP {
     return { ok: true, wasAuthorized: had };
   }
 
-  /**
-   * One operation. COMPUTER CONTROL admits it first (computercontrol.js: on for this session, the tier, the target
-   * lock, sensitive surfaces); the permission is checked inside the bridge, per call; the bridge itself refuses input
-   * after the kill switch, while the person is using the machine, or when the target is not in front.
-   */
+  /** One operation. COMPUTER CONTROL admits it first (computercontrol.js: on for this session, the tier, the target lock, sensitive surfaces); the… */
   async call(op, params = {}, { internal = false } = {}) {
     if (!this.connected) return { ok: false, why: this.why || 'Computer MCP is not connected — /computer on' };
     if (!this.authorized) return { ok: false, why: 'the computer is not authorized for this session — /computer on' };
@@ -292,10 +226,7 @@ class ComputerMCP {
   async value(params) { return this.call('uia.getValue', params); }
   async capture(params) { return this.call('screen.capture', params); }
 
-  /**
-   * ONE FRAME OF ONE WINDOW, on demand: Windows Graphics Capture when the helper exists (GPU content, occluded
-   * windows), else the bridge's PrintWindow. Admitted as the read it is (computercontrol.admit 'window.capture').
-   */
+  /** ONE FRAME OF ONE WINDOW, on demand: Windows Graphics Capture when the helper exists (GPU content, occluded windows), else the bridge's PrintWindow. */
   async captureWindow({ handle, path: out = null } = {}) {
     const a = require('./computercontrol').admit(this.app, 'window.capture', { handle });
     if (!a.ok) return { ok: false, why: a.why, denied: true };
@@ -313,21 +244,10 @@ class ComputerMCP {
     return r;
   }
 
-  /**
-   * WHAT IS TRUE NOW, for one expectation. The vocabulary a caller writes:
-   *
-   *   { window: 'Save As' }                  a window exists
-   *   { control: { name: 'Save', window } }  a control exists
-   *   { value: { …target, contains: 'x' } }  a control's text contains this
-   *   { gone: { window } | { control } }     it is no longer there
-   *   { foreground: 'Notepad' }              that window is in front
-   */
+  /** WHAT IS TRUE NOW, for one expectation. */
   async observe(expect = {}, { timeoutMs = 8000 } = {}) {
     if (expect.window) {
-      // A WINDOW IS NAMED, OR NAMED WITHIN A PROCESS. The second form is the
-      // one to use for a dialog an application you started has raised: `{ title:
-      // 'Open', pid }` cannot land on somebody else's window that happens to
-      // have the word in it. See the bridge's FindWindow.
+      // A WINDOW IS NAMED, OR NAMED WITHIN A PROCESS.
       const w = typeof expect.window === 'string' ? { title: expect.window } : (expect.window || {});
       const said = w.title || w.window || '';
       const r = await this.call('wait.window', { ...w, title: said, timeoutMs });
@@ -370,21 +290,11 @@ class ComputerMCP {
     return { ok: null, why: 'nothing was expected, so nothing was checked' };
   }
 
-  /**
-   * START AN APPLICATION — through the Harness process authority, never a
-   * second process manager, so it is owned, listed by `/ps`, and cleaned up
-   * with the task. Returns the PID, which is what every later action should be
-   * aimed by: a window TITLE is not an identity (see the bridge's FindWindow).
-   */
+  /** START AN APPLICATION — through the Harness process authority, never a second process manager, so it is owned, listed by `/ps`, and cleaned up with… */
   async openApp(command, { args = null, name = null, waitTitle = null, timeoutMs = 20000 } = {}) {
     const harness = require('./harnesslink').harnessFor(this.app);
     if (!harness || !harness.processes) return { ok: false, why: 'no process authority — an application cannot be owned' };
-    // THE WINDOWS THAT WERE ALREADY THERE. A launcher like calc.exe hands off to
-    // a store app and exits, so its pid owns nothing, and the title alone then
-    // matched whichever "Calculator" was open first — a suspended window from
-    // hours earlier whose tree was empty (found 2026-09-25: "no control matches
-    // num7Button", and the test then closed that window instead of its own).
-    // Only a window that was NOT here before the launch can be ours.
+    // THE WINDOWS THAT WERE ALREADY THERE.
     const beforeWins = await this.windows().catch(() => null);
     const existed = new Set(((beforeWins && beforeWins.ok && beforeWins.result && beforeWins.result.windows) || []).map((w) => w.handle));
     const started = harness.processes.start({
@@ -393,18 +303,7 @@ class ComputerMCP {
     if (!started || started.ok === false) return { ok: false, why: (started && started.why) || 'the application did not start' };
     const pid = started.pid || (started.process && started.process.pid) || started.commandPid || null;
     this._note(`opened ${name || command}${pid ? ` · pid ${pid}` : ''}`);
-    // ITS OWN WINDOW, waited for by PID where the OS gives us one. A
-    // single-instance application (Windows 11 Notepad) may merge into a running
-    // copy instead, and then there is no window of ours — which this reports
-    // rather than adopting somebody else's.
-    //
-    // A PID IS NOT ONE WINDOW. Measured: opening Calculator gave a pid that
-    // owned TWO windows — "Calculator" and "Settings" — because every store
-    // application on the machine is hosted by the same ApplicationFrameHost
-    // process. Taking the first row would have aimed the whole flow at
-    // somebody's Settings window. So the TITLE decides when one was asked for,
-    // the pid only narrows, and the HANDLE is what comes back for every later
-    // action to be aimed by.
+    // ITS OWN WINDOW, waited for by PID where the OS gives us one.
     const deadline = Date.now() + timeoutMs;
     const wanted = waitTitle ? String(waitTitle).toLowerCase() : '';
     let seen = null;
@@ -430,17 +329,7 @@ class ComputerMCP {
 
   // -------------------------------------------------------------- acting --
 
-  /**
-   * ONE ACTION, VERIFIED.
-   *
-   * @param {object} spec
-   *   action    focus_window | click_control | type_into | key | type | click |
-   *             scroll | drag | close_window | clipboard_write | clipboard_read
-   *   target    the control or window the action names
-   *   expect    what must become true (see `observe`) — WITHOUT it the verdict
-   *             is INCONCLUSIVE, because a delivered input proves nothing
-   *   start     an optional precondition checked BEFORE acting
-   */
+  /** ONE ACTION, VERIFIED. */
   async act(spec = {}) {
     const action = String(spec.action || '');
     const trail = [];
@@ -480,15 +369,7 @@ class ComputerMCP {
     return { verdict, why: after.why, trail, acted: true, result: done.result, observed: after.observed };
   }
 
-  /**
-   * The action itself. Nothing here decides whether it worked.
-   *
-   * PERFORM_ACTIONS (below) lists exactly the case labels this switch
-   * handles — kept as its own export so a batch step can be validated
-   * against the real set BEFORE reaching here, rather than against `ACT`
-   * (tools/computermcp.js), which also lists `batch`/`open_app`/`wait` —
-   * names the OUTER dispatch owns, not this switch. See §24/§25.
-   */
+  /** The action itself. Nothing here decides whether it worked. */
   async _perform(action, spec) {
     const t = spec.target || {};
     switch (action) {
@@ -522,11 +403,7 @@ class ComputerMCP {
         return r.ok ? { ok: true, result: r.result } : r;
       }
       case 'click': {
-        // NO COORDINATES IS NOT "WHEREVER THE MOUSE IS". A click with a named
-        // target and no x/y was delivered at the cursor's current position —
-        // (693,564), outside the dialog it named — and reported as clicking
-        // "Allow" (real desktop, 2026-09-19). A named target is the semantic
-        // click; neither a target nor a point is refused.
+        // NO COORDINATES IS NOT "WHEREVER THE MOUSE IS".
         if (!Number.isFinite(Number(spec.x)) || !Number.isFinite(Number(spec.y)) || spec.x == null || spec.y == null) {
           if (t.name || t.automationId || t.ref) return this._perform('click_control', spec);
           return { ok: false, why: 'click needs x and y, or a target to click (click_control) — nothing was clicked' };
@@ -559,16 +436,7 @@ class ComputerMCP {
     }
   }
 
-  /**
-   * A BOUNDED SEQUENCE THAT STOPS THE MOMENT THE SCREEN DISAGREES.
-   *
-   * Every step is an `act`, so every step observes. A step that FAILS ends the
-   * batch — the UI is not where the next step assumed it would be, and carrying
-   * on is how automation clicks something nobody meant. An INCONCLUSIVE step
-   * (one with nothing to check) also stops unless the caller says otherwise,
-   * because "I pressed something and cannot tell what happened" is the worst
-   * state to build three more actions on top of.
-   */
+  /** A BOUNDED SEQUENCE THAT STOPS THE MOMENT THE SCREEN DISAGREES. */
   async batch(steps = [], { continueUnverified = false } = {}) {
     const list = Array.isArray(steps) ? steps.slice(0, MAX_BATCH) : [];
     if (!list.length) return { verdict: VERDICT.INCONCLUSIVE, why: 'no steps', steps: [] };

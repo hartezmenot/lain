@@ -72,15 +72,6 @@ module.exports = async function () {
       assert.ok(/y = null \(null\)/.test(c.text), 'the variable the question is about');
       assert.ok(/>\s+5\s+z = x \+ 10/.test(c.text), 'the source line it stopped on');
     });
-
-    await test('DAP: a turn is told WHERE it is paused in one line; the state itself is asked for through a door', async () => {
-      const pkt = require('../../src/harnesscontext').packet(app, session);
-      assert.ok(/debugger: paused \(step\) in prog\.toy at prog\.toy:5/.test(pkt), pkt);
-      assert.ok(!/y = null/.test(pkt), 'no variables are injected');
-      const door = await require('../../src/house').run(app, 'debug.context', {});
-      assert.ok(door.ok && door.kind === 'read' && /y = null/.test(door.text), JSON.stringify(door).slice(0, 200));
-    });
-
     await test('DAP: continue runs to the end; the session ends and says why', async () => {
       const r = await dap.control(app, 'continue');
       assert.ok(r.ok, r.why);

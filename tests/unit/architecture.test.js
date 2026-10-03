@@ -369,7 +369,7 @@ module.exports = async function () {
     // object to be the `this` of, so any `this` in their code is that bug
     // waiting to happen again at the next split.
     const HELPERS = [
-      'repl.js', 'completion.js', 'identify.js', 'interrupt.js', 'turnevents.js',
+      'repl.js', 'interrupt.js', 'turnevents.js',
       'computer.js', 'keyboarddelivery.js',
     ];
     for (const f of HELPERS) {
@@ -411,7 +411,7 @@ module.exports = async function () {
     // hazard actually lives: modules that are plain functions over an `app`.
     const codemodel = require('../../src/codemodel');
     const EXTRACTED = [
-      'repl.js', 'completion.js', 'identify.js', 'interrupt.js', 'turnevents.js',
+      'repl.js', 'interrupt.js', 'turnevents.js',
       'computer.js', 'keyboarddelivery.js', 'ratelimit.js', 'failover.js',
       'ui/reports.js', 'ui/contextview.js',
     ];

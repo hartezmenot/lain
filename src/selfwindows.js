@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * LAIN'S OWN WINDOWS (S5.2) — never a Computer Control target: the Harness host, and the terminal that hosts this CLI
- * (every ancestor process up the parent chain, and the console window itself). Typing into LAIN's own terminal is a
- * self-injection loop. Found once per process and cached.
- */
+/** LAIN'S OWN WINDOWS (S5.2) — never a Computer Control target: the Harness host, and the terminal that hosts this CLI */
 
 const { spawnSync } = require('child_process');
 

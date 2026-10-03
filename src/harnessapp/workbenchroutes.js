@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * THE WORKBENCH ROUTES — Chat supervising the Coding Agent, the run strategy,
- * the execution profile, quota Continue, and "Send to Coding Agent".
- *
- *   /api/workbench/state           supervision.state (also in /api/state)
- *   /api/workbench/answer          answer one of LAIN's own offers:
- *                                    PLAN_FIRST        plan | direct
- *                                    URGENT_STEER      now | wait
- *                                    PENDING_STEERS    send | discuss | drop
- *                                    PLAN_DELTA        add | discuss | later
- *                                    PHASE_REVIEW      continue | review | discuss | pause
- *                                    FAST_OFFER        fast | keep
- *                                    LONG_CONTEXT_WARNING continue | eco | cancel
- *   /api/workbench/finding         discuss | use-fix | dismiss | resolve
- *   /api/workbench/strategy        Normal | Phased | Long Context Phasing (+ review policy)
- *   /api/workbench/mode            Ask | Accept edits | Plan | Auto (permission mode)
- *   /api/workbench/profile         Normal | Fast | Eco — queued to the next checkpoint while the Agent works
- *   /api/workbench/quota/continue  ▶ Continue: re-check now and resume
- *   /api/plan/send                 accept a plan and start it in the SAME session's Coding Agent lane
- *
- * Every answer is the PERSON's; nothing here asks a model to decide anything.
- */
+/** THE WORKBENCH ROUTES — Chat supervising the Coding Agent, the run strategy, the execution profile, quota Continue, and "Send to Coding Agent". */
 
 const wb = require('../workbench');
 const sup = require('../supervision');
@@ -135,11 +114,7 @@ const ROUTES = {
     return ok({ ...r, workbench: sup.state(app) });
   },
 
-  /**
-   * ▶ CONTINUE PLAN — one button, whatever the state: a quota pause re-checks now
-   * and resumes; otherwise the next phase of the APPROVED plan starts (answering an
-   * open checkpoint review). Refused while the Agent is working.
-   */
+  /** ▶ CONTINUE PLAN — one button, whatever the state: a quota pause re-checks now and resumes; otherwise the next phase of the APPROVED plan starts… */
   'POST /api/workbench/continue': async (app) => {
     // THE PERSON PRESSED CONTINUE: the continuation budget starts again (autocontinue.js).
     require('../autocontinue').reset(app.session, 'continue');
@@ -181,12 +156,7 @@ const ROUTES = {
   },
 
 
-  /**
-   * SEND TO CODING AGENT: the approved plan goes into the SAME session's Coding
-   * Agent lane and starts — no copy, no second task. Without a project folder it
-   * is refused with `projectRequired` and nothing is accepted yet; the window
-   * offers Use open project / Choose project / Create project, then sends again.
-   */
+  /** SEND TO CODING AGENT: the approved plan goes into the SAME session's Coding Agent lane and starts — no copy, no second task. */
   'POST /api/plan/send': async (app, body = {}) => {
     const s = app.session;
     const plans = require('../planhandoff');

@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * THE PREVIEW FRAME'S BRIDGE (2026-09-30) — the small script the preview proxy
- * (proxy.js) puts into the project's own page, so LAIN can inspect what it
- * shows WITHOUT streaming it.
- *
- * ------------------------------------------------------------------------
- * WHY IT EXISTS. The preview is now the project's real frontend, rendered by
- * the window itself in an iframe (browser-native scrolling, hover, typing,
- * animation and video). That iframe is another origin, so the window cannot
- * reach into its DOM — and must not. This script is the one door: it answers a
- * CLOSED list of requests from its parent (inspect, measure, clear, draft
- * style) by postMessage, and posts what the person selected. It runs nothing
- * it is sent.
- *
- * WHAT IT READS is exactly what the CDP Workshop reads (inspect.js
- * describeExpr / gugExpr): the same element description and the same bounded
- * GUG measurement, so Core binds a frame selection to source the same way.
- * Framework dev metadata (React fiber _debugSource, Vue __file, Svelte
- * __svelte_meta, data-source attributes) is added as HINTS — evidence, never
- * the binding itself.
- *
- * THE GESTURE: a normal click is the application's. HOLD (~280 ms, the pointer
- * still) enters inspection; DRAG draws a region; RELEASE selects — the
- * application never sees that press's click. The toolbar's Inspect arms a
- * one-shot pick instead. Escape cancels either.
- */
+/** THE PREVIEW FRAME'S BRIDGE (2026-09-30) — the small script the preview proxy (proxy.js) puts into the project's own page, so LAIN can inspect what it… */
 
 const inspect = require('./inspect');
 
@@ -245,11 +220,7 @@ function client() {
   window.addEventListener('error', function (e) { post('error', { message: String(e.message || 'error').slice(0, 300), source: String(e.filename || '').slice(0, 200), line: e.lineno || null }); });
   window.addEventListener('unhandledrejection', function (e) { post('error', { message: 'unhandled rejection: ' + String((e.reason && e.reason.message) || e.reason || '').slice(0, 280) }); });
 
-  // ---- MODEL-OWNED INPUT (LAIN packaging pass, §L) — inside THIS page only -----------------------------------------
-  // The model's pointer and keyboard act here, on the preview's own document: no OS input, no other window, no
-  // browser. Every action is a real DOM event sequence on a resolved target; what would leave the Preview (a system
-  // file picker, a download, a link to another site or a new window, a credential field) is REFUSED and reported so
-  // the person can handle it. The person's own input wins: while they are interacting, the model's action waits.
+  // MODEL-OWNED INPUT (LAIN packaging pass, §L) — inside THIS page only The model's pointer and keyboard act here, on the preview's own document: no OS…
   var lastUser = 0;
   ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (t) { window.addEventListener(t, function (e) { if (e.isTrusted) lastUser = Date.now(); }, true); });
   function visible(e) { var r = e.getBoundingClientRect(); var style = getComputedStyle(e); return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'; }

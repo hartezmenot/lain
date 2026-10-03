@@ -6,11 +6,7 @@ const T = require('./text');
 const { P } = require('./paint');
 const inline = (s) => require('./markdown').inline(s);
 
-/**
- * IS THIS ONE LINE PREFORMATTED? (D1) — decided per line, never per answer: a 4-space indent, box-drawing or tree
- * characters, a run of 3+ internal spaces (after any list marker), or an ASCII table row (`+--`, `| … |`). Such a line
- * keeps every space and is folded, never reflowed.
- */
+/** IS THIS ONE LINE PREFORMATTED? */
 const BOX = /[─━│┃┌┐└┘├┤┬┴┼╭╮╯╰═║╔╗╚╝╠╣╦╩╬▶◀►◄▲▼]/;
 function preformatted(line) {
   const t = String(line == null ? '' : line);
@@ -29,10 +25,7 @@ function cells(line) {
 }
 const TABLE_SEP = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
 
-/**
- * A MARKDOWN TABLE (D2): an aligned grid sized to the width, or — when the terminal is too narrow — stacked
- * `key: value` rows, one block per record.
- */
+/** A MARKDOWN TABLE (D2): an aligned grid sized to the width, or — when the terminal is too narrow — stacked `key: value` rows, one block per record. */
 function table(rows, cols) {
   const head = rows[0];
   const body = rows.slice(1);

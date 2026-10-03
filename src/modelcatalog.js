@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * WHAT EACH PROVIDER SAYS IT SERVES, GENERATION BY GENERATION (2026-10-02).
- *
- *   <config>/model-catalog.json
- *   { v:1, sources: { <source>: { gen, at, label, models: { <id>: { label, efforts, capabilities,
- *                                  firstSeen, lastSeen, status, removedAt } } } },
- *          diffs: { <source>: { gen, at, added:[{id,label}], removed:[…], changed:[{id,label,what:[…]}] } } }
- *
- * A SOURCE is a provider family (codex, claude, antigravity — the union of what its accounts' own catalogs list) or
- * one API connection (`api:<connectionId>`). Discovery is the provider's own listing, recorded where it happens:
- * an account refresh (Codex `model/list`, Claude Code `initialize`, Antigravity `fetchAvailableModels`) and an API
- * catalog refresh (`/models`). Nothing here guesses a model or a capability from a name.
- *
- * WHAT A NEW GENERATION MEANS:
- *   added      NEW — until it is selected, or for NEW_DAYS. Never on a source's first generation ("everything is new"
- *              is true and useless).
- *   removed    NOT erased: "no longer reported" (removedAt kept). Historical sessions stay readable; nothing is
- *              routed to it, because no account serves it.
- *   changed    label, effort variants or reported capabilities moved — recorded, shown only when useful.
- * NOTHING MOVES: the default model and every session's model are untouched. A model merely becomes available.
- */
+/** WHAT EACH PROVIDER SAYS IT SERVES, GENERATION BY GENERATION (2026-10-02). */
 
 const fs = require('fs');
 const path = require('path');
@@ -63,10 +43,7 @@ const strip = (id) => String(id || '').replace(/^(claude-code|codex|antigravity|
 const sameList = (a, b) => JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());
 const capsKey = (c) => JSON.stringify(Object.keys(c || {}).sort().map((k) => [k, c[k]]));
 
-/**
- * A SOURCE'S CURRENT LISTING. `models`: [{ id, label, efforts?, capabilities? }]. Returns the diff (null when nothing
- * changed — no write).
- */
+/** A SOURCE'S CURRENT LISTING. */
 function observe(source, models, { label = null, now = Date.now() } = {}) {
   const key = String(source || '');
   if (!key || !Array.isArray(models)) return null;
@@ -158,10 +135,7 @@ function sourceAt(source) { const s = read().sources[String(source || '')]; retu
 const FAMILY_OF_DRIVER = Object.freeze({ 'claude-code': 'claude', codex: 'codex', antigravity: 'antigravity' });
 const LABEL = Object.freeze({ claude: 'Claude', codex: 'Codex', antigravity: 'Antigravity' });
 
-/**
- * A FAMILY'S LISTING: the union of what every one of its accounts reported (a disabled account still counts — it is
- * kept), plus Claude Code's default profile for Claude. Called after an account's catalog was refreshed.
- */
+/** A FAMILY'S LISTING: the union of what every one of its accounts reported (a disabled account still counts — it is kept), plus Claude Code's default… */
 function observeFamily(app, family) {
   const drivers = Object.entries(FAMILY_OF_DRIVER).filter(([, f]) => f === family).map(([d]) => d);
   const byId = new Map();
@@ -200,11 +174,7 @@ function observeApi(app, { only = null } = {}) {
   return out;
 }
 
-/**
- * REFRESH MODELS — the one Core act behind MODEL › Refresh models, a provider's own Refresh models, `/model refresh`
- * and `lain model refresh`. Scoped: `family` ('codex' | 'claude' | 'antigravity' | 'api' | 'api:<id>') or all.
- * Disabled accounts are not asked (their last listing still counts). Returns the generation diffs.
- */
+/** REFRESH MODELS — the one Core act behind MODEL › Refresh models, a provider's own Refresh models, `/model refresh` and `lain model refresh`. */
 async function refresh(app, { family = null } = {}) {
   const ai = require('./accountinstances');
   const notes = [];
@@ -252,10 +222,7 @@ function summarize(d) {
   return lines.join('\n');
 }
 
-/**
- * A LIGHT BACKGROUND REFRESH after start: only sources older than TTL_MS, one minute after the process settled, never
- * blocking anything, never repeated in this process. No polling.
- */
+/** A LIGHT BACKGROUND REFRESH after start: only sources older than TTL_MS, one minute after the process settled, never blocking anything, never repeated… */
 let scheduled = false;
 function scheduleBackground(app, { delayMs = BACKGROUND_DELAY_MS } = {}) {
   if (scheduled || process.env.LAIN_ISOLATED === '1' && !process.env.LAIN_MODEL_REFRESH_IN_TESTS) return false;

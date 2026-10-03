@@ -1,62 +1,6 @@
 'use strict';
 
-/**
- * THE RECOVERY ENGINE — what to do about a failure, decided from its KIND.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE MODE THIS EXISTS TO END, and it is not "not enough retries".
- *
- * A tool fails. The model tries again. It fails the same way. The model tries
- * again with a slightly different spelling. Three requests and four minutes
- * later the tool is still not installed, because it was never going to be, and
- * nothing in the loop was capable of noticing that the failure was about the
- * MACHINE rather than about the command.
- *
- * Raising a retry budget makes that worse in exactly proportion. The fix is a
- * classification: a failure that a retry could fix and a failure that a retry
- * can never fix are different events, and only one of them should be retried.
- *
- * ------------------------------------------------------------------------
- * FOUR KINDS, FOUR RESPONSES.
- *
- *   TRANSIENT      the same action might work now: a port that was still
- *                  closing, a lock held for a moment, a socket reset.
- *                  -> RETRY, once, after a pause
- *
- *   ENVIRONMENTAL  the machine is missing something: the runner is not
- *                  installed, a dependency is absent, a shell does not exist.
- *                  -> DIAGNOSE the environment. Retrying is guaranteed waste.
- *
- *   PERMISSION     it was refused, or would need consent nobody has given.
- *                  -> ASK. Not the model's problem to route around, and
- *                  routing around it is precisely what must not happen.
- *
- *   LOGICAL        the command ran and the program was wrong. A test failed, a
- *                  file does not parse, an assertion is false.
- *                  -> RE-PLAN. This is the only kind where the CODE is the
- *                  thing to change, and it is the only kind where "try again"
- *                  without changing anything is obviously absurd.
- *
- * ------------------------------------------------------------------------
- * IT CLASSIFIES; IT DOES NOT DRIVE.
- *
- * Nothing here starts a request, edits a file or moves a task. It returns a
- * verdict with a recommended ACTION and a sentence explaining it, and the
- * caller — turn.js, the CLI, a verification loop — decides. That separation is
- * this project's oldest rule (observe != judge, account != authority) and a
- * recovery engine that acted on its own conclusions would be the most powerful
- * violation of it yet written.
- *
- * ------------------------------------------------------------------------
- * THE ATTEMPT LEDGER IS WHY A SPIRAL CANNOT FORM.
- *
- * A retry is only offered while the SAME failure has not already been retried.
- * The ledger is keyed on what actually repeated — the operation plus the
- * failure kind — so "the same thing failed the same way" is a fact rather than
- * an impression, and the second occurrence returns a different recommendation
- * from the first. That is what breaks the loop: not a smaller budget, a
- * DIFFERENT ANSWER.
- */
+/** THE RECOVERY ENGINE — what to do about a failure, decided from its KIND. */
 
 const execution = require('../execution');
 
@@ -81,18 +25,7 @@ const RETRY_BUDGET = 1;
 /** Long enough for a port to finish closing; short enough not to be a wait. */
 const RETRY_AFTER_MS = 750;
 
-/**
- * WHAT KIND OF FAILURE IS THIS?
- *
- * `execution.CLASS` is consulted FIRST and its verdict is taken, because it is
- * the module that already knows how to tell a missing shell from a missing
- * package from a syntax error in the file — knowledge earned from real
- * misclassifications, and re-deriving it from a fresh regex here would be a
- * second opinion that can disagree with the first.
- *
- * The patterns below are only for failures that never reached that module: a
- * socket error, a browser that would not attach, a check that timed out.
- */
+/** WHAT KIND OF FAILURE IS THIS? */
 const TRANSIENT_SIGNS = [
   /\bECONNRESET\b/i, /\bEPIPE\b/i, /\bEAGAIN\b/i, /\bEBUSY\b/i, /\bETIMEDOUT\b/i,
   /\bsocket hang up\b/i, /temporarily unavailable/i, /\block(ed)? by another process\b/i,
@@ -129,10 +62,6 @@ const BY_CLASS = Object.freeze({
 
 function matches(list, text) { return list.some((re) => re.test(text)); }
 
-/**
- * @param {object} failure {classification?, output?, error?, exitCode?, timedOut?, interrupted?}
- * @returns {{kind, why}}
- */
 function classify(failure = {}) {
   const cls = failure.classification;
   if (cls && BY_CLASS[cls]) {
@@ -141,9 +70,7 @@ function classify(failure = {}) {
   if (failure.timedOut) return { kind: KIND.TRANSIENT, why: 'it timed out, which may or may not repeat' };
   if (failure.interrupted) return { kind: KIND.TRANSIENT, why: 'it was interrupted before it finished' };
   const text = `${failure.error || ''}\n${failure.output || ''}`;
-  // PERMISSION IS TESTED BEFORE ENVIRONMENTAL because "access is denied" on
-  // Windows is often reported for a path that also does not exist, and routing
-  // a refusal to the diagnostics ladder would quietly work around consent.
+  // PERMISSION IS TESTED BEFORE ENVIRONMENTAL because "access is denied" on Windows is often reported for a path that also does not exist, and routing a…
   if (matches(PERMISSION_SIGNS, text)) return { kind: KIND.PERMISSION, why: 'it was refused' };
   if (matches(ENVIRONMENTAL_SIGNS, text)) return { kind: KIND.ENVIRONMENTAL, why: 'something this machine needs is absent' };
   if (matches(TRANSIENT_SIGNS, text)) return { kind: KIND.TRANSIENT, why: 'the error is one that commonly clears on its own' };
@@ -154,13 +81,7 @@ function classify(failure = {}) {
   return { kind: KIND.UNKNOWN, why: 'nothing in the failure identifies its kind' };
 }
 
-/**
- * THE LEDGER. What has already failed, how, and how often.
- *
- * Per task rather than per process: two tasks hitting the same missing runner
- * should each be told once, and a task that carries on for an hour should not
- * inherit a budget spent by a different piece of work.
- */
+/** THE LEDGER. What has already failed, how, and how often. */
 class Attempts {
   constructor() { this._seen = new Map(); }
 
@@ -178,19 +99,7 @@ class Attempts {
   clear() { this._seen.clear(); }
 }
 
-/**
- * WHAT SHOULD HAPPEN NEXT.
- *
- * @param {object} failure  see classify()
- * @param {object} opts     {operation, attempts}
- * @returns {{kind, action, why, retryAfterMs, attempt}}
- *
- * THE STRUCTURED INFORMATION IS THE POINT. A failed tool that returns only
- * "failed" gives the model one move: do it again. This returns the kind, the
- * reason, whether a retry is still on the table and what to do instead — which
- * is enough to choose a genuinely different strategy, which is the only thing
- * that ends a spiral.
- */
+/** WHAT SHOULD HAPPEN NEXT. */
 function recommend(failure = {}, { operation = '', attempts = null } = {}) {
   const { kind, why } = classify(failure);
   const ledger = attempts || new Attempts();
@@ -234,10 +143,7 @@ function recommend(failure = {}, { operation = '', attempts = null } = {}) {
   };
 }
 
-/**
- * THE SENTENCE A MODEL OR A PERSON READS. Names the kind, the reason and the
- * move — never just "failed", which is the report that produces the spiral.
- */
+/** THE SENTENCE A MODEL OR A PERSON READS. */
 function explain(verdict) {
   return `${verdict.kind}: ${verdict.why}  [next: ${verdict.action}]`;
 }

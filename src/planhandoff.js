@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * A PLAN MADE IN CHAT, ACCEPTED BY A PERSON, IMPLEMENTED IN CODING.
- *
- * ------------------------------------------------------------------------
- * THE STATES ARE EXPLICIT, AND NOTHING IS INFERRED FROM NAVIGATION.
- *
- *     DRAFT ──accept──► ACCEPTED ──complete──► COMPLETED
- *       │                   │
- *       └──superseded by a newer draft / a newer acceptance──► SUPERSEDED
- *
- * Switching tabs accepts nothing. Pressing "Continue to Coding" accepts the
- * plan, FREEZES its text (a digest is kept, so a later edit is a new DRAFT, not
- * a quiet rewrite of what was agreed), and builds a structured handoff whose
- * instruction is PREFILLED into the Coding composer. It is not submitted: the
- * person reads it, may edit it, and presses Enter. Accepting a plan never
- * mutates a source file.
- *
- * ------------------------------------------------------------------------
- * THE HANDOFF IS FACTS, NOT A TRANSCRIPT.
- *
- * The Coding model may be a different model from a different provider than the
- * Chat model. What it receives is built from durable, public state — the goal,
- * the accepted plan, the person's own requirements and constraints, the
- * project, pins, project-intelligence and evidence references, the changes
- * already made and the verification state. The Chat thread's conversation and
- * any private reasoning are never part of it. The full accepted plan rides in
- * the Coding system context (`promptSection`); the composer carries a bounded
- * instruction that REFERENCES it by id.
- *
- * ------------------------------------------------------------------------
- * DETECTION IS DETERMINISTIC. A Chat reply becomes a DRAFT when it has at least
- * two step lines AND either calls itself a plan or answers a message that asked
- * for one. No model call decides it, and `POST /api/plan/draft` lets a person
- * mark any text as the plan when detection did not.
- */
+/** A PLAN MADE IN CHAT, ACCEPTED BY A PERSON, IMPLEMENTED IN CODING. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -63,10 +29,7 @@ function attach(session) {
   return session;
 }
 
-/**
- * THE PLAN HANDOFF — the newest transfer of kind 'plan'. Not a field of its
- * own: the transfer list is the one record, and this is a way of reading it.
- */
+/** THE PLAN HANDOFF — the newest transfer of kind 'plan'. */
 function handoff(session) {
   const list = (session && Array.isArray(session.transfers)) ? session.transfers : [];
   for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].kind === 'plan') return list[i];
@@ -92,25 +55,7 @@ function restore(session, data = {}) {
   return session;
 }
 
-// ---- THE TRANSFER — the one Core representation of work changing hands ----------
-//
-// (2026-09-25) Work moved between surfaces and executors through four doors,
-// each with its own record: the plan handoff above (Chat → IDE), the BOT's
-// `hand_to_coding_agent` (a `_delegation` field), the IDE's "Move to Agent?"
-// proposal (journey.js), and "Open in /focus". Different buttons; now the same
-// door. Every one is a TRANSFER:
-//
-//   kind              plan | proposal | delegation | surface
-//   from / to         the surface or executor it leaves / reaches
-//   task              the instruction, as the receiving side will act on it
-//   constraints       the "must / never / keep …" lines carried with it
-//   findings          what the sender already established (files, errors)
-//   evidenceRefs      the canonical Selection id, the files already changed
-//   projectGeneration the one project generation it was made at
-//   state             PROPOSED → ACCEPTED / DECLINED → SUBMITTED → DONE;
-//                     a plan is PREFILLED until its Coding turn is submitted
-//
-// Kept on the session (bounded, persisted); nothing else records a handoff.
+// THE TRANSFER — the one Core representation of work changing hands
 const TRANSFER = Object.freeze({ PROPOSED: 'PROPOSED', PREFILLED: 'PREFILLED', ACCEPTED: 'ACCEPTED', DECLINED: 'DECLINED', SUBMITTED: 'SUBMITTED', DONE: 'DONE' });
 const MAX_TRANSFERS = 40;
 const PROPOSAL_TTL_MS = 30 * 60_000;
@@ -219,10 +164,7 @@ function draft(session, { text, title = null, origin = null } = {}) {
   return { ok: true, plan };
 }
 
-/**
- * AFTER A CHAT TURN: did it produce a plan? The reply is read, never
- * re-written; the person's own question decides whether "asked for a plan".
- */
+/** AFTER A CHAT TURN: did it produce a plan? */
 function capture(session, { reply, asked, origin = null } = {}) {
   const found = detect(reply, asked);
   if (!found.ok) return { ok: false, why: found.why };
@@ -251,10 +193,7 @@ function goalId(session) {
   try { return require('./goal').id(session) || null; } catch { return null; }
 }
 
-/**
- * ACCEPT: freeze, supersede the previous acceptance, build the handoff and
- * prefill the Coding composer. Executes nothing.
- */
+/** ACCEPT: freeze, supersede the previous acceptance, build the handoff and prefill the Coding composer. */
 function accept(app, id) {
   const session = app.session;
   const p = find(session, id);
@@ -296,10 +235,7 @@ function complete(session, id) {
   return { ok: true, plan: p };
 }
 
-/**
- * AFTER A CODING TURN: a submitted handoff whose work the LIFECYCLE declared
- * DONE completes its plan. The lifecycle decides; this only records it.
- */
+/** AFTER A CODING TURN: a submitted handoff whose work the LIFECYCLE declared DONE completes its plan. */
 function afterCoding(session) {
   const h = handoff(session);
   const life = session.lifecycle;
@@ -416,11 +352,7 @@ function instruction(brief) {
   return lines.join('\n');
 }
 
-/**
- * WHAT A TURN'S SYSTEM CONTEXT CARRIES about this, per view.
- *   Coding: the accepted plan in full, and the handoff's facts.
- *   Chat:   that it is the Chat view — discuss and plan, never write.
- */
+/** WHAT A TURN'S SYSTEM CONTEXT CARRIES about this, per view. */
 function promptSection(session) {
   const sv = require('./sessionviews');
   if (sv.current(session) === 'chat') {

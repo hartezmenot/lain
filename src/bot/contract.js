@@ -32,9 +32,7 @@ function digest(parts) { return crypto.createHash('sha256').update(JSON.stringif
 // Sender is deliberate: even two authorized people in one channel have separate histories.
 function sessionKey(e) { return digest([e.platform, e.accountId, e.chatId, e.threadId || '', e.senderId]); }
 function eventKey(e) { return digest([e.platform, e.accountId, e.chatId, e.messageId]); }
-// WHY A MESSAGE WAS REFUSED, in words the owner can act on — or null when it
-// is allowed. `authorized` is exactly `!whyDenied`; the reason feeds the
-// channel's receipts (bot/trace.js) so a dropped message is never silent there.
+// WHY A MESSAGE WAS REFUSED, in words the owner can act on — or null when it is allowed.
 function whyDenied(e, policy = {}) {
   const contains = (key, value) => Array.isArray(policy[key]) && policy[key].map(String).includes(value);
   if (e.bot) return 'sent by a bot';

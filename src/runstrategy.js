@@ -1,39 +1,6 @@
 'use strict';
 
-/**
- * THE RUN STRATEGY — how far the Coding Agent goes before a person looks.
- * A separate dimension from EFFORT (the model's reasoning depth) and from the
- * EXECUTION PROFILE (profile.js: Normal / Fast / Eco).
- *
- *   NORMAL         the task runs to completion: model turn after model turn,
- *                  through its plan, stopping only for a real pause (a decision
- *                  for the person, a problem, a person's stop, a quota). A model
- *                  turn ending is not the task ending (autocontinue.js).
- *   PHASED         the approved plan runs phase by phase; after each phase the
- *                  summary lands in Chat and LAIN waits for Continue
- *   LONG_CONTEXT   Long Context Phasing: phase after phase toward the whole
- *                  objective, and each phase starts from a COMPACTED context —
- *                  LAIN carries its compact phase state (landed / remaining /
- *                  failed / findings / plan), never one ever-growing raw
- *                  context. The model stays disposable; the continuation is LAIN's.
- *
- * LONG CONTEXT PHASING STOPS AND ASKS when there is a product decision, an
- * architectural ambiguity (a blocking finding), a scope expansion (a proposed
- * plan delta), a permission or dangerous operation (the Agent is waiting on a
- * person), a quota concern (paused), or failed verification that needs a new
- * strategy. The review policy can ask more often: every phase, every 3 phases,
- * or only on problems (the default, "Automatic").
- *
- * IT IS NOT CARRY-ON. The removed `carryon` had LAIN decide, unasked, that a
- * model which stopped did not mean to, whenever a step counter ran out. Here
- * LAIN continues only a task with durable continuation state (the approved
- * plan's next phase, a turn a host or provider cut), from observed state, with
- * a bounded budget and the cause recorded (autocontinue.js). Pausing stops it.
- *
- * THE WARNING IS HONEST. With enough history (two phases with usage, and a
- * provider window that reported a percentage) it states a range computed from
- * those numbers; otherwise it says "High usage expected" — never a made-up figure.
- */
+/** THE RUN STRATEGY — how far the Coding Agent goes before a person looks. */
 
 const wb = require('./workbench');
 
@@ -57,11 +24,7 @@ function planShape(session) {
   return { total: steps.length, done: steps.filter((s) => s.status === ST.DONE).length, remaining: steps.filter((s) => s.status !== ST.DONE) };
 }
 
-/**
- * THE USAGE ESTIMATE, or an honest "high" when LAIN cannot compute one.
- * Needs: ≥2 phases with observed tokens, and a provider window that reported a
- * used percentage together with LAIN-observed tokens inside that same window.
- */
+/** THE USAGE ESTIMATE, or an honest "high" when LAIN cannot compute one. */
 function estimate(app, session) {
   const w = wb.of(session);
   const withUsage = w.phases.filter((p) => p.usage && (p.usage.input + p.usage.output) > 0);
@@ -80,10 +43,7 @@ function estimate(app, session) {
   return { known: false, text: 'High usage expected.', basis: withUsage.length < 2 ? 'not enough phases observed yet to estimate' : 'the provider has not reported a usage window LAIN can compare with' };
 }
 
-/**
- * ASK FOR A STRATEGY. Long Context Phasing needs the warning answered first
- * (confirm()); the others apply at once.
- */
+/** ASK FOR A STRATEGY. Long Context Phasing needs the warning answered first (confirm()); the others apply at once. */
 function request(app, kind, { review = null } = {}) {
   const session = app.session;
   const k = norm(kind);
@@ -124,10 +84,7 @@ function set(session, kind, review = null) {
 /** Is the Agent running right now in this session? */
 function running(app) { return Boolean(app && app.abort && !app.abort.signal.aborted); }
 
-/**
- * AN EXECUTION-PROFILE CHANGE while the Agent works waits for the next safe
- * boundary (a checkpoint) — it never changes a turn already in flight.
- */
+/** AN EXECUTION-PROFILE CHANGE while the Agent works waits for the next safe boundary (a checkpoint) — it never changes a turn already in flight. */
 function queueProfile(app, p) {
   const prof = require('./profile');
   const v = prof.normalize(p);
@@ -145,23 +102,7 @@ function applyPendingProfile(app) {
   return v;
 }
 
-/**
- * AFTER A CODING TURN (a checkpoint): does the TASK carry on by itself, or stop for a person?
- *
- * A model turn ending is not the task ending (2026-09-29). NORMAL used to stop
- * here unconditionally — "each request is its own run" — so an eight-step plan
- * needed eight `continue`s. Every strategy now asks the same continuation
- * policy (autocontinue.js) with the ending's classification (turnoutcome.js):
- *
- *   NORMAL         the task runs until its plan is done, stopping only for a
- *                  real pause (a decision, a problem, a person, a quota)
- *   PHASED         stops after each phase for review
- *   LONG_CONTEXT   as NORMAL, and each phase starts from a COMPACTED context
- *                  (the boundary is marked `compact`); the review policy applies
- *
- * `ctx`: { record, cls, planDoneBefore } — without them (older callers, tests)
- * the turn is read as a natural end that moved the task.
- */
+/** AFTER A CODING TURN (a checkpoint): does the TASK carry on by itself, or stop for a person? */
 function afterPhase(session, problems = [], ctx = {}) {
   const s = get(session);
   const shape = planShape(session);
@@ -181,11 +122,7 @@ function afterPhase(session, problems = [], ctx = {}) {
     compact: s.kind === 'LONG_CONTEXT' && d.cause === 'phase-continue', why: d.why };
 }
 
-/**
- * THE NEXT PHASE'S INSTRUCTION — composed from observed state, short, and only
- * ever for a plan the person approved. The plan, findings and handover facts
- * already ride the Agent's context; this names the phase and the carried state.
- */
+/** THE NEXT PHASE'S INSTRUCTION — composed from observed state, short, and only ever for a plan the person approved. */
 function nextPhasePrompt(session) {
   const shape = planShape(session);
   const next = shape.remaining[0];

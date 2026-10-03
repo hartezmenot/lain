@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * OPENCODE RUNTIME — the real `opencode` program, through its documented
- * commands. Kept apart from OpenCode Zen as an API (an API key LAIN holds is a
- * connection in MODEL › Providers; this is the RUNTIME).
- *
- *   discovery   `opencode` on PATH, `opencode --version`
- *   telemetry   `opencode models`       provider/model ids the runtime serves
- *               `opencode auth list`    which providers hold a credential
- *                                       (names and kinds — never a key)
- *               `opencode session list --format json`   its own sessions
- *   execution   `opencode run --format json -m <provider/model>`
- *                 BOT (chat)  the read-only `plan` agent
- *                 AGENT       the default agent, in the project folder
- *               then `opencode session export <id>` for the tokens and cost
- *               OpenCode itself recorded for that run
- *
- * RUNTIME-BOUND MODELS. OpenCode's free models (`opencode/*-free`,
- * `opencode/big-pickle`, `opencode-free/*`) are served only inside OpenCode.
- * LAIN reaches them by running OpenCode — never by calling the endpoint behind
- * it or by copying OpenCode's credentials.
- */
+/** OPENCODE RUNTIME — the real `opencode` program, through its documented commands. */
 
 const fs = require('fs');
 const path = require('path');
@@ -35,12 +15,7 @@ function settings(app) { const c = (root(app) && root(app).cfg) || {}; return (c
 function which(name) { return require('../pathlookup').find(name, process.platform === 'win32' ? ['.exe', '.cmd', ''] : ['']); }
 function binary(app) { const s = settings(app); return s.binary ? (fs.existsSync(s.binary) ? s.binary : null) : (process.env.LAIN_ISOLATED === '1' ? null : which('opencode')); }
 
-/**
- * WHERE A MODEL'S ENTITLEMENT LIVES. A FREE model on an OpenCode provider
- * (opencode, opencode-go, opencode-free — "-free", big-pickle) is RUNTIME-BOUND:
- * served only inside OpenCode, so only an OpenCode session may use it
- * (runtimebound.js forbids every direct HTTP route to it).
- */
+/** WHERE A MODEL'S ENTITLEMENT LIVES. */
 function entitlement(id) {
   const [prov, ...rest] = String(id).split('/');
   const name = rest.join('/');
@@ -76,11 +51,7 @@ async function discover(app) {
 
 const srv = () => require('./opencodeserver');
 
-/**
- * TELEMETRY through the server OpenCode ships (models with their names and
- * capabilities, sessions), plus `opencode auth list` for which providers hold a
- * credential (names only). The server is started for this and stopped when idle.
- */
+/** TELEMETRY through the server OpenCode ships (models with their names and capabilities, sessions), plus `opencode auth list` for which providers hold… */
 async function telemetry(app, { prev = null } = {}) {
   const bin = binary(app);
   if (!bin) return { ok: false, why: 'not installed' };

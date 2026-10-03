@@ -111,7 +111,7 @@ function runTask(id, home) {
   });
 }
 
-(async () => {
+if (require.main === module) (async () => {
   const home = benchHome();
   const results = [];
   for (const id of ids) {
@@ -125,3 +125,5 @@ function runTask(id, home) {
   fs.mkdirSync(path.join(ROOT, 'docs', 'simplify'), { recursive: true });
   fs.writeFileSync(path.join(ROOT, 'docs', 'simplify', `bench-${label}.json`), JSON.stringify({ label, at: new Date().toISOString(), model: MODEL, connection: CONN, cfg: EXTRA, results }, null, 2));
 })().catch((e) => { console.error(e.stack || e.message); process.exit(1); });
+
+module.exports = { benchHome, FIXTURE, fixture, read, testsPass, unchanged, TASKS, runTask, MODEL, CONN };

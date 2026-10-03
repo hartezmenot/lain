@@ -38,9 +38,7 @@ async function stop() {
 process.on('disconnect', stop);
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
-// THE WORKER IS STARTED AT BOOT, not when the spec arrives (2026-10-01): a pre-warmed guardian (processes.js) then
-// has its whole tree ready, and a command costs an IPC message instead of two Node boots. The worker's own cwd/env
-// are this process's (the caller's for a cold start); the command gets the spec's cwd/env either way.
+// THE WORKER IS STARTED AT BOOT, not when the spec arrives (2026-10-01): a pre-warmed guardian (processes.js) then has its whole tree ready, and a…
 let sent = false;
 function ensureWorker() {
   if (worker || stopping) return;

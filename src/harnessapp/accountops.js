@@ -1,39 +1,13 @@
 'use strict';
 
-/**
- * ADD, TEST AND REMOVE A PROVIDER ROUTE — from the window.
- *
- * NO SECOND PROVIDER ARCHITECTURE. `/api <key>` in the terminal already joins
- * the owners in the right order (apicommand.js): providers.js names where a key
- * goes, `store` writes it under `lain:<provider>` in the existing config and
- * registers it with redact.js, `discoverModels` proves it with a catalog read
- * (no tokens spent). This file is that join with the terminal's questions
- * replaced by a form's fields — and two rules learned the hard way elsewhere:
- *
- *   A KEY THAT DOES NOT WORK IS NOT KEPT. The terminal flow stores first and
- *   reports; a form submitted with a typo would leave a dead credential behind
- *   a row that looks configured. So a failed proof puts the previous entry back
- *   (or none), and the provider's own words are returned.
- *
- *   REMOVAL NEEDS A FRESH INTENT. A route id alone is not enough to delete it
- *   (a real account was lost to a blind delete in a router studied for this —
- *   see the final report). The first call returns what would go and a
- *   single-use token bound to that id; only the second call, within two
- *   minutes, removes it.
- *
- * NOTHING SECRET GOES BACK. Every answer carries the key's shape (`sk-…9f2a`)
- * at most — never the key, a header, or a URL with a query.
- */
+/** ADD, TEST AND REMOVE A PROVIDER ROUTE — from the window. */
 
 const crypto = require('crypto');
 
 function root(app) { return (app && app._sibling) || app; }
 function bad(why, extra = {}) { return { ok: false, why: String(why), ...extra }; }
 
-// WHERE EACH PROVIDER ISSUES KEYS — its own documented page, opened in the
-// person's browser (native host `openExternal`). Only pages that are the
-// provider's own and stable; a provider absent here simply gets no link rather
-// than a guessed one.
+// WHERE EACH PROVIDER ISSUES KEYS — its own documented page, opened in the person's browser (native host `openExternal`).
 const KEY_PAGES = Object.freeze({
   openai: 'https://platform.openai.com/api-keys',
   anthropic: 'https://console.anthropic.com/settings/keys',

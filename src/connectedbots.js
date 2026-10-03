@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * CONNECTED BOTS (Phase 8.1) — external bots joining the LAIN house.
- *
- * The everyday assistant is CHAT. This is something else: a company bot, a work
- * assistant, another AI application — already running somewhere — that LAIN can
- * supervise and lend house capabilities to, without rebuilding it.
- *
- *   CONNECT   the bot stays what it is and where it is. LAIN records how to reach
- *             its status and what it may use here (projects, schedules, channels,
- *             MCP, skills, Coding Agent delegation, runtime/account choice).
- *             Nothing of the bot is copied into LAIN.
- *   MIGRATE   only when the bot DECLARES a migration (its manifest carries
- *             `lainMigration`): the supported parts (name, instructions,
- *             schedules as suggestions) become a LAIN-owned bot profile. The
- *             external bot is not deleted or changed.
- *
- * STATUS COMES FROM STRUCTURED STATE, NEVER FROM "THE PROCESS EXISTS":
- *   1. the bot's own status endpoint (JSON: state, task, since) — trusted as reported
- *   2. a process LAIN started for it: "running — state not reported", never "working"
- *   3. nothing: UNKNOWN
- * A PID proves a program is alive, not that it is doing anything.
- *
- * A bot never owns LAIN task state: delegation goes through the Coding Agent's
- * own entry (the same session rules as a person's request).
- */
+/** CONNECTED BOTS (Phase 8.1) — external bots joining the LAIN house. */
 
 const PERMS = Object.freeze(['projects', 'schedules', 'channels', 'mcp', 'skills', 'delegate', 'runtime']);
 const STATES = Object.freeze(['WORKING', 'IDLE', 'WAITING', 'ERROR', 'OFFLINE']);

@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * THE ASSISTANT'S DETERMINISTIC DOOR — sentences Core can answer or act on
- * without a model: creating reminders, schedules and watches, listing them,
- * and questions whose answers are already in Core state (limits, runtimes,
- * the loaded local model, usage). Same answers from the desktop, CHAT and
- * Telegram, because they all reach Core through app.submit.
- *
- * NOT A VERB ROUTER. Anything that is not one of these shapes returns null and
- * goes to the BOT's model as before. Anything ambiguous also returns null —
- * a wrong reminder is worse than a model turn.
- *
- * REMIND ≠ RUN. "remind me to run the tests" is a reminder (notification only);
- * "run the tests tomorrow at 9" schedules execution. The shapes below keep them
- * apart, and a reminder can never execute anything (store.normalize enforces it).
- *
- * PERMISSIONS FROM A CHANNEL. A message from Telegram (`from: 'messaging'`) may
- * only do what that channel's scopes allow (cfg.bot.platforms.telegram.scopes:
- * reminders, readUsage, readProject, runTests, editCode, computer). Defaults:
- * reminders ✓ · read usage ✓ · read project ✓ · run tests ✗ · edit code ✗ · computer ✗.
- */
+/** THE ASSISTANT'S DETERMINISTIC DOOR — sentences Core can answer or act on without a model: creating reminders, schedules and watches, listing them… */
 
 const store = require('./store');
 
@@ -78,11 +59,7 @@ function cadence(text) {
   return null;
 }
 
-/**
- * Where a result should go: the channels named in the sentence, plus the
- * channel it was asked from (Telegram) — or, from the desktop, the person's
- * default delivery (BOT › Assistant: e.g. Desktop + Telegram).
- */
+/** Where a result should go: the channels named in the sentence, plus the channel it was asked from (Telegram) — or, from the desktop, the person's… */
 function targetsFor(text, from, app = null) {
   const t = text.toLowerCase();
   const out = new Set();
@@ -126,12 +103,7 @@ function refuse(scope) { return { handled: true, text: `That is not allowed from
 
 function fmtTask(t) { return `${t.title} — ${t.type}${t.nextRun ? `, next ${new Date(t.nextRun).toLocaleString()}` : ''}${t.state !== 'scheduled' && t.state !== 'watching' ? ` (${t.state})` : ''}`; }
 
-/**
- * MATCH one message: null (not ours — the model takes it), or a thunk that
- * performs it and resolves to { handled: true, text, task? }. Synchronous, so
- * Core can decide the route before any stream starts.
- * `from` is app.submit's origin ('messaging' for Telegram).
- */
+/** MATCH one message: null (not ours — the model takes it), or a thunk that performs it and resolves to { handled: true, text, task? */
 function match(app, text, { from = null, now = Date.now() } = {}) {
   const done = (x) => () => Promise.resolve(x);
   const raw = String(text || '').trim();

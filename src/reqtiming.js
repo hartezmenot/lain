@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * WHERE ONE REQUEST'S TIME WENT (Simplify S5.1 F6), for the request trace: the effort actually put on the wire (the
- * protocol writes it into `wireOut`), time to the first event, how long reasoning and text streamed, and the reasoning
- * tokens the receipt reported. Measuring only.
- */
+/** WHERE ONE REQUEST'S TIME WENT (Simplify S5.1 F6), for the request trace: the effort actually put on the wire (the protocol writes it into `wireOut`)… */
 
 function start() {
   return { wireOut: { effort: null }, t0: Date.now(), first: 0, rStart: 0, rEnd: 0, tStart: 0, tEnd: 0 };

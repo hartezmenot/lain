@@ -41,7 +41,7 @@ const slowScript = (secs = 3) => [
       { name: 'write_file', input: { path: 'gen/audit.md', content: '# audit' } },
     ],
   },
-  { text: 'Now the slow part.', tool_calls: [{ name: 'run_bash', input: { command: `sleep ${secs}` } }] },
+  { text: 'Now the slow part.', tool_calls: [{ name: 'shell', input: { command: `sleep ${secs}` } }] },
   { text: 'Done.' },
 ];
 
@@ -67,7 +67,7 @@ module.exports = async function () {
     // The word follows the wire since 2026-09-23 (streamprogress.js): not every wait is THINKING.
     assert.match(out, /Working|THINKING|WAITING|STREAMING|Writing/i, 'waiting on the provider must be visible');
     // Before any data arrives the strip says WAITING, not THINKING (streamprogress.js, 2026-09-23).
-    assert.match(out, /waiting for model/, 'and said in words on the ONE activity line above the input');
+    assert.match(out, /Waiting for \S+/, 'and said in words on the ONE activity line above the input');
   });
 
   await test('SEE: the screen names the TOOL while the tool is running', async () => {

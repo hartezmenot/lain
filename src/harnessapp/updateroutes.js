@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * UPDATES AND EXIT, FOR THE HARNESS (packaging pass §J, §K). The same updater and lifecycle the CLI uses.
- *   POST /api/update/check     { force }            → the state (cached unless forced)
- *   POST /api/update/download                       → stage the available update (verify, unpack; nothing restarts)
- *   POST /api/update/restart   { when: now|checkpoint|task }
- *   POST /api/update/later                          → cancel a scheduled restart (the download stays)
- *   POST /api/app/exit         { mode: now|checkpoint|stop }
- */
+/** UPDATES AND EXIT, FOR THE HARNESS (packaging pass §J, §K). */
 
 const ok = (body = {}) => ({ code: 200, body: { ok: true, ...body } });
 const bad = (why, code = 400, extra = {}) => ({ code, body: { ok: false, why, ...extra } });

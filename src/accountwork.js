@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * WHO IS WORKING RIGHT NOW (Phase 8.4 hotfix) — the requests in flight, per
- * ACCOUNT.
- *
- * A provider process that is doing work for a person belongs to ONE account.
- * Connecting another account, switching, detaching or signing out must never
- * disturb it, so those operations ask THIS registry first instead of guessing:
- *
- *   busy(account)     the requests currently running through it
- *   begin/end         a runtime driver brackets each run it starts
- *
- * The registry only OBSERVES. It never stops, restarts or signals a process —
- * cancellation is the person's Stop, handled where the run lives.
- *
- * The account key is the AccountInstance id; the person's own default provider
- * profile (no instance) is `default:<driver>`.
- */
+/** WHO IS WORKING RIGHT NOW (Phase 8.4 hotfix) — the requests in flight, per ACCOUNT. */
 
 const running = new Map();   // key -> Map(token -> { at, pid, kind })
 let seq = 0;
@@ -43,9 +27,7 @@ function busy(driver, instanceId) {
   const m = running.get(keyOf(driver, instanceId));
   return m ? [...m.values()] : [];
 }
-/**
- * BUSY, BY ACCOUNT ID as a lane holds it: an instance id, or `runtime:<driver>` for the person's own default profile.
- */
+/** BUSY, BY ACCOUNT ID as a lane holds it: an instance id, or `runtime:<driver>` for the person's own default profile. */
 function busyAccount(accountId) {
   const id = String(accountId || '');
   if (!id) return [];

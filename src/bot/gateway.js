@@ -76,10 +76,7 @@ class Gateway {
     const denied = !adapter ? 'no adapter for this account' : whyDenied(e, adapter.settings);
     if (denied) {
       this.trace.note(STAGE.AUTHORIZE, { ...r, ok: false, why: denied, sender: e.senderId });
-      // An unauthorized private message is a request to be approved locally —
-      // recorded for LAIN Desktop's Bot view, answered with nothing, granting
-      // nothing. Any private message, not only `/start`: a person who typed
-      // "hi" first is the same person asking.
+      // An unauthorized private message is a request to be approved locally — recorded for LAIN Desktop's Bot view, answered with nothing, granting nothing.
       if (adapter && e.platform === 'telegram' && e.kind === 'dm' && !e.bot) {
         try { this.store.candidate(e); } catch { /* a full or unwritable store still refuses the sender */ }
       }

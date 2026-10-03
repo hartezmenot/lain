@@ -1,39 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE MODEL WROTE, RENDERED — instead of its markup shown raw.
- *
- * THE DEFECT, seen on a real screen. A model answers with headings, bullets and
- * a fenced code block, and the terminal shows:
- *
- *     ### What it does
- *     ```js
- *     return cache;
- *     ```
- *     - swallows the error
- *
- * The backticks, the hashes and the hyphens are INSTRUCTIONS TO A RENDERER, and
- * there was no renderer — so they were displayed as content. The result reads
- * like a log of somebody's markup rather than an answer, and the code is the
- * hardest part of it to find despite being the part with the answer in it.
- *
- * ------------------------------------------------------------------------
- * THIS IS PRESENTATION, AND THE ENTRIES STAY RAW.
- *
- * `pushModel` still stores exactly the lines the model wrote — that is the
- * canonical record, and a test pins it. This runs at DRAW time, where the width
- * is known, and returns painted rows. Nothing here changes what was said; it
- * changes how it is shown. The same separation the whole project runs on:
- * presentation must never become the data.
- * ------------------------------------------------------------------------
- *
- * DELIBERATELY SMALL. It handles the constructs a model actually uses in an
- * answer — fenced code, inline code, headings, bullets, numbered lists, bold,
- * quotes, rules — and passes everything else through untouched. A full
- * CommonMark implementation here would be a large dependency for a terminal
- * that cannot show most of what it parses, and every construct it got subtly
- * wrong would eat somebody's text.
- */
+/** WHAT THE MODEL WROTE, RENDERED — instead of its markup shown raw. */
 
 const T = require('./text');
 const { P } = require('./paint');
@@ -42,25 +9,7 @@ const { wrap } = require('./doc');
 /** Code is indented under a quiet gutter, so a block is findable at a glance. */
 const CODE_GUTTER = '▏';
 
-/**
- * FOLD A PREFORMATTED LINE AT A CHARACTER BOUNDARY — losslessly, and in place.
- *
- * THE RULE: a preformatted line is never broken on whitespace and never has a
- * run of spaces collapsed, because in code, a diagram, a tree or a diff hunk the
- * spacing IS the content. When a line will not fit, it is cut at the exact cell
- * the viewport ends at and continued on the next row, carrying its own leading
- * indent so the continuation stays under the block rather than under the margin.
- *
- * NOTHING IS LOST, which is the property that matters most: every character of
- * the source appears, in order, so selecting the block and copying it yields the
- * text that was actually written rather than a display-mutated version of it.
- * That is the whole argument against clipping with an ellipsis here.
- *
- * MEASURED IN CELLS, NOT CHARACTERS. A double-width glyph takes two columns, so
- * the cut is found by accumulating `T.width` one character at a time — slicing
- * by `length` is how a box-drawing figure ends up one column out on the row
- * after it.
- */
+/** FOLD A PREFORMATTED LINE AT A CHARACTER BOUNDARY — losslessly, and in place. */
 function foldPre(line, room) {
   const s = String(line == null ? '' : line).replace(/	/g, '  ');
   const w = Math.max(4, Math.floor(room));
@@ -93,87 +42,21 @@ const BULLET = '•';
 /** A newline, as a value — this file avoids a bare escape in a joiner. */
 const NL = String.fromCharCode(10);
 
-/**
- * THE TWO LINES OF A SUMMARY SOMEBODY IS ACTUALLY LOOKING FOR.
- *
- * A summary is read once, quickly, and what the reader wants out of it is the
- * command: how do I run this, how do I check it. Rendered as ordinary prose
- * those two lines are indistinguishable from the eight around them, so finding
- * `npm test` means reading the whole report — which is the exact opposite of
- * what a summary is for.
- *
- * So a `How to run: …` / `How to test: …` line is drawn as a CALLOUT: the label
- * in full weight, the command on `P.surface` — the same quiet ground a user
- * message sits on, one step lighter than the terminal. One glance finds it.
- *
- * NARROW ON PURPOSE. It is a line that NAMES itself as one of the two, with a
- * separator and something after it. A paragraph that happens to begin "How to
- * test the parser is a separate question" has no separator-plus-command shape
- * and is left completely alone.
- */
+/** THE TWO LINES OF A SUMMARY SOMEBODY IS ACTUALLY LOOKING FOR. */
 const HOWTO = /^\s*(how\s+to\s+(?:run|test)|to\s+run|to\s+test)\s*[:—–-]\s*(\S.*)?$/i;
 
-/**
- * The line with its list marker and bold markers taken off, for matching only.
- *
- * A model writes this line as `**How to test:** npm test` about as often as it
- * writes it plain, and the colon lands INSIDE the emphasis — so a pattern that
- * expects `**` to close before the separator misses the commonest spelling of
- * the very thing it is looking for. Stripping first means one pattern covers
- * every spelling instead of the pattern growing a branch per spelling.
- */
+/** The line with its list marker and bold markers taken off, for matching only. */
 function unmarked(line) {
   return String(line).replace(/^\s*[-*+•]\s+/, '').replace(/\*\*/g, '').replace(/`/g, '');
 }
 
-/**
- * HOW WIDE A HOW-TO FRAME MAY GET, and why there is a ceiling at all.
- *
- * ------------------------------------------------------------------------
- * THE CEILING WAS 56 AND IT WAS THE BUG.
- *
- * The reasoning behind it was sound and it was applied to the wrong half of the
- * problem: a frame stretched across a 200-column terminal to hold `npm test` is
- * a box with a field of nothing in it. True — and `want` below already prevents
- * that, because the frame is sized to its CONTENT and short content makes a
- * short frame. The ceiling therefore never did anything for the case it was
- * written for. What it actually did was clamp the frame for content LONGER than
- * 56 columns, which then had to be cut to fit:
- *
- *     | node bin/lain.js (start a Probe with /mcp probe, th... |
- *
- * and cut identically at 60, 100, 160 and 240 columns, because the ceiling made
- * the terminal's width irrelevant. Resizing to fullscreen could not help. The
- * one thing in a summary a person is scanning for was the one thing the summary
- * destroyed.
- *
- * SO THE CEILING IS GONE, and the pane is the only bound left. The reading-
- * measure argument that might justify keeping one belongs to PROSE, which is
- * read left to right in paragraphs; a command is SCANNED and COPIED, and
- * breaking it across rows to respect a measure serves nobody. `want` still
- * keeps a short command in a short frame, which is the whole of what the
- * original ceiling was reaching for.
- *
- * What this buys is the behaviour the defect report asked for by name: at 60
- * columns the command wraps and is complete; at 160 it fits on one row and is
- * complete. Widening the terminal reveals content instead of doing nothing.
- */
+/** HOW WIDE A HOW-TO FRAME MAY GET, and why there is a ceiling at all. */
 /** Never narrower than this, however narrow the pane. */
 const HOWTO_MIN = 24;
-/**
- * A wrapped continuation is indented, so a command that needed two rows reads
- * as one command rather than as two. The same hanging indent a bullet gets.
- */
+/** A wrapped continuation is indented, so a command that needed two rows reads as one command rather than as two. */
 const CONT = '  ';
 
-/**
- * THE SOURCE LINES OF A HOW-TO BLOCK, with its structure intact.
- *
- * Explicit newlines are the model's own paragraphing and they survive. A fenced
- * block's fences are dropped — they are instructions to a renderer, and this is
- * the renderer — while every line inside it is kept exactly as written,
- * indentation included, because in a command block the indentation is meaning.
- */
+/** THE SOURCE LINES OF A HOW-TO BLOCK, with its structure intact. */
 function howtoLines(command) {
   const raw = String(command == null ? '' : command).replace(/\r\n/g, '\n').split('\n');
   const out = [];
@@ -187,54 +70,12 @@ function howtoLines(command) {
   return out.length ? out : [''];
 }
 
-/**
- * `HOW TO RUN` / `HOW TO TEST`, as a LABELLED FRAME THAT NEVER LOSES A CHARACTER.
- *
- * ------------------------------------------------------------------------
- * IT WAS A COLOURED SURFACE, AND COLOUR IS NOT ALWAYS THERE.
- *
- * The command sat on `P.surface` with the label beside it — which reads well on
- * a colour terminal and vanishes completely without one. `NO_COLOR`, a pipe, a
- * captured log, a terminal set to a flat theme: in every one of those the two
- * most-wanted lines of a summary went back to looking like the eight around
- * them, which is the exact failure the callout exists to prevent.
- *
- * A frame is STRUCTURAL. It survives monochrome, it survives `strip`, and it is
- * the shape the brief asks for by name. The colour stays on top of it, so
- * nothing is lost where colour is available.
- *
- *     ┌─ HOW TO RUN ─────────────────────────┐
- *     │ npm start                            │
- *     └──────────────────────────────────────┘
- *
- * ------------------------------------------------------------------------
- * IT WRAPS. IT DOES NOT CUT. This is the whole of the change, and it is a
- * correctness property rather than a preference: every other construct this
- * file renders — prose, bullets, numbered items, quotes, fenced code — already
- * reflows to the width it is given, and this one alone truncated. A box whose
- * job is to carry the command somebody is about to type is the last place in
- * the interface that may end a line with an ellipsis.
- *
- * `T.fit` is still what pads each row, and it can still clip — but every row
- * handed to it has already been wrapped to `inner`, so clipping is now
- * unreachable and `fit` only ever pads. tests/unit/howtobox.test.js pins that
- * by asserting the SOURCE text is recoverable from the drawn rows.
- *
- * SIZED TO ITS CONTENT, BOUNDED BY THE PANE. Short content still makes a short
- * frame — the original aesthetic argument, which was never in dispute — and
- * long content grows the frame up to the pane and then wraps inside it.
- */
+/** `HOW TO RUN` / `HOW TO TEST`, as a LABELLED FRAME THAT NEVER LOSES A CHARACTER. */
 function howtoBox(label, command, cols) {
   const title = String(label).replace(/\s+/g, ' ').toUpperCase();
   const source = howtoLines(command);
   const longest = source.reduce((n, l) => Math.max(n, T.width(l)), 0);
-  // WIDE ENOUGH FOR THE CONTENT, NEVER WIDER THAN THE PANE. `cols` is the live
-  // viewport width, handed down from ui/layout.js on every compose, so a resize
-  // reaches this arithmetic without anything having to be invalidated.
-  // THE CONTINUATION INDENT IS RESERVED IN THE SIZING TOO, or the frame asks
-  // for exactly the width its content needs, the body then wraps two columns
-  // short of it, and a command that would have fitted on one row is broken for
-  // nothing — with a strip of empty frame beside it saying it had the room.
+  // WIDE ENOUGH FOR THE CONTENT, NEVER WIDER THAN THE PANE.
   const want = Math.max(T.width(title) + 6, longest + 4 + CONT.length);
   const w = Math.max(HOWTO_MIN, Math.min(cols, want));
   const inner = w - 4;
@@ -244,11 +85,7 @@ function howtoBox(label, command, cols) {
     const lead = (/^[ \t]*/.exec(line) || [''])[0].replace(/\t/g, '  ').slice(0, 8);
     const text = line.slice((/^[ \t]*/.exec(line) || [''])[0].length);
     if (!text) { body.push(''); continue; }
-    // ROOM RESERVED FOR THE CONTINUATION INDENT ON EVERY PART, including the
-    // first. A continuation wrapped to the same width as its opening row would
-    // be `inner + CONT` wide once indented, which overflows the frame — and an
-    // overflowing row is torn open by the border, which is a worse failure than
-    // the one being fixed.
+    // ROOM RESERVED FOR THE CONTINUATION INDENT ON EVERY PART, including the first.
     const room = Math.max(8, inner - lead.length - CONT.length);
     const parts = wrap(text, room);
     body.push(lead + parts[0]);
@@ -267,24 +104,7 @@ function howtoBox(label, command, cols) {
   ];
 }
 
-/**
- * THE LINES A BARE `How to run:` LABEL OWNS, and where the block ends.
- *
- * Two shapes, and only two, because both are things a model actually writes and
- * neither requires guessing at intent:
- *
- *   A FENCE      everything between the fences, verbatim. The fences are
- *                markup and are dropped; what is inside them is the content.
- *   AN INDENT    consecutive indented lines, which is how a command block is
- *                written without a fence. Stops at the first line that is not
- *                indented, so the paragraph after the block is not swallowed.
- *
- * A blank line between the label and the block is allowed — models put one
- * there — but a blank line does not by itself continue an indented run, or the
- * block would reach across the gap into whatever followed it.
- *
- * @returns {{lines: string[], next: number}} the body, and the index to resume at
- */
+/** THE LINES A BARE `How to run:` LABEL OWNS, and where the block ends. */
 function howtoBlock(src, at) {
   let j = at + 1;
   while (j < src.length && !String(src[j] == null ? '' : src[j]).trim()) j++;
@@ -318,37 +138,7 @@ function howtoBlock(src, at) {
   return { lines: [], next: at + 1 };
 }
 
-/**
- * THE CLOSING REPORT'S OWN SECTION LABELS, drawn as labels.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT, on a real summary. src/prompt.js asks for the report in a named
- * schema — Issue, Fix, Changed, Verification, How to run, How to test — and a
- * model that writes those as bare words on their own line
- *
- *     Issue
- *     The flag parses but is never dispatched.
- *     Fix
- *     Dispatch it in run().
- *
- * got four paragraphs. `Issue` has no `#` in front of it, so the heading rule
- * never saw it, and the one structure a summary actually has was drawn as
- * prose. The reader is left scanning for the sections instead of finding them.
- *
- * ------------------------------------------------------------------------
- * ONLY THE SCHEMA, AND THAT IS THE WHOLE OF THE CAUTION. A rule that promoted
- * any short line to a heading would turn `Done.` and `npm test` and every
- * one-word answer into a section label, which is a worse screen than the one
- * this fixes. So the list is CLOSED, it is the list ui/classify.js already
- * keeps for deciding that a message IS the summary, and it is read from there
- * rather than copied — the renderer and the classifier cannot disagree about
- * what a heading is.
- *
- * AND IT MUST BE THE WHOLE LINE. `Fix the parser` is a sentence; `Fix` alone,
- * or `Fix:` with nothing after it, is a label. A line with content after the
- * colon — `How to run: npm start` — is the callout above, which is checked
- * first and is a different shape.
- */
+/** THE CLOSING REPORT'S OWN SECTION LABELS, drawn as labels. */
 const { SCHEMA_HEADING } = require('./classify');
 
 /** ```lang … ``` — the fence, with an optional language after it. */
@@ -360,37 +150,11 @@ const HEADING = /^\s*(#{1,6})\s+(.*)$/;
 const BULLET_RE = /^(\s*)[-*+]\s+(.+)$/;
 const NUMBERED = /^(\s*)(\d{1,3})[.)]\s+(.+)$/;
 const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
-/**
- * `============` — A SEPARATOR LINE, AND THE STRUCTURE AROUND IT.
- *
- * `=` appeared in NO rule here — not FENCE, not RULE (`-`/`*`/`_`), not
- * HEADING — so a separator, the section title under it and the paragraph after
- * it all fell through to the prose branch and were word-wrapped into one
- * sentence: `0. ABSOLUTE PROJECT BOUNDARY ===== DO NOT modify LAIN...`.
- *
- * DETERMINISTIC AND NARROW. A section is separator / one non-empty line /
- * separator, or a line underlined by `=`; nothing is promoted for being short,
- * uppercase or numbered. `-` underlining is deliberately NOT setext here —
- * `---` is already RULE, and re-reading it would change existing content.
- */
+/** ` ` — A SEPARATOR LINE, AND THE STRUCTURE AROUND IT. */
 const BANNER = /^\s*={3,}\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;
 
-/**
- * INLINE MARKUP, applied to one line of prose.
- *
- * SCANNED, NOT PLACEHOLDER-SUBSTITUTED. The first version of this pulled code
- * spans out, left a sentinel behind, and put them back by matching it. Two
- * things went wrong at once and both are instructive: the sentinel was written
- * into the source as a raw NUL byte — invisible corruption of the kind this
- * project has a guard for — and any ordinary sentence containing the
- * placeholder's shape would have been rewritten into somebody else's code span.
- * A renderer silently eating text is the one thing it must never do.
- *
- * Scanning once and emitting as we go has no placeholder to collide with, and
- * every character either passes through or is deliberately consumed by a rule.
- * An unpaired marker is literal text, not the start of anything.
- */
+/** INLINE MARKUP, applied to one line of prose. */
 function inline(text) {
   const s = String(text == null ? '' : text);
   let out = '';
@@ -422,26 +186,8 @@ function inline(text) {
   return out;
 }
 
-/**
- * Render model prose into painted rows.
- *
- * @param {string[]} lines  the raw lines, as the model wrote them
- * @param {number} width    columns available for the text itself
- * @returns {string[]} painted rows, ready to draw — never re-wrapped by callers
- */
-/**
- * HOW WIDE PROSE MAY BE HERE - narrower than the frame on a very wide terminal.
- *
- * THE DISTINCTION THIS FILE HAS TO MAKE. A paragraph, a heading, a quote and a
- * bullet are PROSE: their width is a reading decision, and two hundred columns of
- * it is measurably harder to read than ninety. A fence, an indented block, a
- * how-to box and a rule are STRUCTURE: their width is part of what they mean, and
- * squeezing them into a reading measure breaks the thing the width was carrying.
- *
- * So every WRAPPING branch below asks for `measure` and every PREFORMATTED one
- * keeps `cols`. See ui/views.js `proseWidth` for the curve, and why it is not a
- * hard eighty columns.
- */
+/** Render model prose into painted rows. */
+/** HOW WIDE PROSE MAY BE HERE - narrower than the frame on a very wide terminal. */
 function render(lines, width) {
   const cols = Math.max(20, Number(width) || 80);
   const measure = require('./views').proseWidth(cols);
@@ -457,9 +203,7 @@ function render(lines, width) {
     out.push(row);
   };
 
-  // INDEXED, because a `How to run:` label can own the BLOCK written under it
-  // and the branch that draws it has to be able to consume those rows. Nothing
-  // else in this loop looks ahead; see `howtoBlock`.
+  // INDEXED, because a `How to run:` label can own the BLOCK written under it and the branch that draws it has to be able to consume those rows.
   const src = Array.from(lines || []);
   for (let i = 0; i < src.length; i++) {
     const raw = src[i];
@@ -479,23 +223,7 @@ function render(lines, width) {
       continue;                              // the fence itself is never drawn
     }
     if (inCode) {
-      // CODE IS NOT REFLOWED. Its indentation is its meaning, so it is kept and
-      // a line too long for the pane folds losslessly rather than being clipped.
-      //
-      // ---- AND THE FOLD IS NOT `wrap`, WHICH IS WHAT IT USED TO BE --------
-      //
-      // `wrap` is the PROSE wrapper: it breaks on whitespace and joins what it
-      // keeps, so a run of spaces inside a line is collapsed and a continuation
-      // starts at column zero of the block. That is correct for a sentence and
-      // destroys a diagram — measured at 50 columns,
-      //
-      //     const veryLongVariableName = someFunction(argumentOne, argumentTwo,
-      //     argumentThree, four);
-      //
-      // which has lost the alignment of everything after the break. The comment
-      // above already said code is not reflowed; the implementation reflowed it.
-      // See `foldPre`: a character-boundary fold that keeps every space and
-      // carries the line's own indent onto each continuation.
+      // CODE IS NOT REFLOWED.
       const room = Math.max(12, cols - 4);
       for (const p of foldPre(line, room)) push(`  ${P.meta(CODE_GUTTER)} ${P.cmd(p)}`);
       continue;
@@ -517,30 +245,10 @@ function render(lines, width) {
 
     if (!line.trim()) { push(''); continue; }
 
-    // ---- HOW TO RUN / HOW TO TEST, as a callout -------------------------
-    //
-    // The command goes on the reading surface because it is the one thing in a
-    // summary a person is scanning for. The label keeps full weight next to it
-    // so the pair reads as a unit.
+    // HOW TO RUN / HOW TO TEST, as a callout
     const how = HOWTO.exec(unmarked(line));
     if (how) {
-      // ---- THE COMMAND MAY BE ON THIS LINE, OR IN A BLOCK UNDER IT --------
-      //
-      // `How to run: npm start` is the form src/prompt.js asks for and is the
-      // common case. But a task with two commands, or a command plus the step
-      // that has to happen first, does not fit on one line — and a model
-      // writing that honestly produces
-      //
-      //     How to run:
-      //     ```
-      //     node bin/lain.js
-      //     /mcp probe
-      //     ```
-      //
-      // which used to render as a bare label followed by loose prose, with the
-      // structure that made it readable thrown away. Both forms now reach the
-      // same frame. NOTHING IS INFERRED: the block is taken only when the model
-      // actually wrote one, and prose is never chopped into steps by guesswork.
+      // THE COMMAND MAY BE ON THIS LINE, OR IN A BLOCK UNDER IT
       const block = howtoBlock(src, i);
       const body = how[2] ? [how[2], ...block.lines] : block.lines;
       if (body.length) {
@@ -552,19 +260,11 @@ function render(lines, width) {
       // model left empty, and the schema rule below draws it as one.
     }
 
-    // ---- THE SUMMARY SCHEMA, AS SECTION LABELS ---------------------------
-    //
-    // After HOWTO, which is the same words carrying a command and is drawn as
-    // a frame instead. See SCHEMA_HEADING above for why this list is closed.
+    // THE SUMMARY SCHEMA, AS SECTION LABELS
     const sec = SCHEMA_HEADING.exec(line);
     if (sec) {
       push('');
-      // ---- ITS OWN CASE, NOT SHOUTED ----------------------------------
-      //
-      // `### Summary` became `SUMMARY` while `### Tests` — which is not on the
-      // schema list — stayed `Tests`, so a final answer with both had two heading
-      // weights in it for no reason a reader could infer. A heading is made a
-      // heading by being bold; upper-casing it on top of that is a second claim.
+      // ITS OWN CASE, NOT SHOUTED
       push(P.head(String(sec[1])));
       continue;
     }
@@ -631,10 +331,7 @@ function render(lines, width) {
       continue;
     }
 
-    // ---- ORDINARY PROSE -------------------------------------------------
-    //
-    // Its own leading indentation is preserved, because a model that indents a
-    // continuation means something by it.
+    // ORDINARY PROSE
     const leading = (/^[ \t]*/.exec(line) || [''])[0];
     const indent = leading.replace(/\t/g, '  ').slice(0, 12);
     for (const p of wrap(inline(line.slice(leading.length)), Math.max(12, measure - indent.length))) {
@@ -646,39 +343,15 @@ function render(lines, width) {
   return out;
 }
 
-/**
- * Does this text carry markup worth rendering? Cheap, so a plain answer skips.
- *
- * ------------------------------------------------------------------------
- * A `How to run:` LINE IS STRUCTURE, and it was not counted as any.
- *
- * The gate looked for fences, hashes, list markers and backticks. A short
- * summary that ends
- *
- *     Done.
- *
- *     How to run: npm start
- *     How to test: npm test
- *
- * has none of those — so this said no, the whole message took the plain path,
- * and the two lines the callout exists for were drawn as ordinary prose. Found
- * by testing the callout ON ITS OWN: every earlier test of it sat inside an
- * answer that happened to carry a list, and the list is what opened the gate.
- */
+/** Does this text carry markup worth rendering? */
 function looksMarked(text) {
   const s = String(text == null ? '' : text);
-  // A SEPARATOR IS STRUCTURE. Without this, a brief written entirely in
-  // `=====` banners and paragraphs never reached this renderer at all: it took
-  // the plain-prose path and arrived as one wall of text.
+  // A SEPARATOR IS STRUCTURE.
   return /(?:^|\n)[ \t]*={3,}[ \t]*(?:\n|$)/.test(s)
     || /(?:^|\n)\s*(?:```|~~~|#{1,6}\s|[-*+]\s|\d{1,3}[.)]\s|>\s)/.test(s)
     || /`[^`\n]+`/.test(s)
     || /\*\*[^*\n]+\*\*/.test(s)
-    // A BARE SCHEMA HEADING IS STRUCTURE TOO, and by exactly the argument
-    // above: `Issue` / `Fix` / `Changed` on their own lines carry no markup at
-    // all, so a summary written that way took the plain path and lost the one
-    // structure it had. Two of them, for the same reason ui/classify.js wants
-    // two — one alone is a fragment, and a report is a structure.
+    // A BARE SCHEMA HEADING IS STRUCTURE TOO, and by exactly the argument above: `Issue` / `Fix` / `Changed` on their own lines carry no markup at all, so…
     || s.split('\n').some((line) => HOWTO.test(unmarked(line)))
     || s.split('\n').filter((line) => SCHEMA_HEADING.test(line)).length >= 2;
 }

@@ -1,46 +1,6 @@
 'use strict';
 
-/**
- * FROM A THING ON SCREEN TO THE CODE THAT MADE IT — and back.
- *
- * ------------------------------------------------------------------------
- * THE PRODUCT MOMENT THIS SERVES.
- *
- *     "fix the Save button"
- *
- * There are three Save buttons. The old answer was for a model to guess, edit
- * the wrong one, and be corrected two turns later. The right answer is to say
- * so, show the candidates, let the person CLICK the actual one, and then open
- * the code that produced it.
- *
- * ------------------------------------------------------------------------
- * FOUR ANSWERS, AND ONE OF THEM IS "I DO NOT KNOW".
- *
- *   EXACT     one place, and the evidence is strong — an id, or a component
- *             file whose name matches and which contains the element's text.
- *   LIKELY    one best candidate, but the evidence is circumstantial.
- *   MULTIPLE  several places match equally. The person picks; nothing guesses.
- *   UNKNOWN   nothing correlates. SAID PLAINLY rather than answered with the
- *             least-bad match, because a confident wrong file costs more than
- *             an honest shrug: the person acts on it.
- *
- * FABRICATING A MAPPING IS THE ONE FORBIDDEN OUTCOME. Every candidate carries
- * the EVIDENCE that produced it — which token was searched for, in which file,
- * on which line — so a person can see why it was offered and dismiss it in a
- * second.
- *
- * ------------------------------------------------------------------------
- * IT IS A SEARCH OVER REAL FILES, NOT A BUILD-GRAPH.
- *
- * A source-map-accurate answer needs the bundler's own graph, and this project
- * has no bundler and refuses to assume one. What it has is: the element's id,
- * its classes, its tag, its text, and `locate.js` — which already sweeps the
- * project for a name and can tell a DEFINITION from a reference.
- *
- * That is enough for the overwhelmingly common cases (an id, a distinctive
- * class, a component named after what it renders) and honestly insufficient for
- * generated class names, which is why `UNKNOWN` exists and is returned.
- */
+/** FROM A THING ON SCREEN TO THE CODE THAT MADE IT — and back. */
 
 const path = require('path');
 const locate = require('../locate');
@@ -51,14 +11,7 @@ const MAX_CANDIDATES = 8;
 /** Confidence, most certain first. */
 const CONFIDENCE = { EXACT: 'EXACT', LIKELY: 'LIKELY', MULTIPLE: 'MULTIPLE', UNKNOWN: 'UNKNOWN' };
 
-/**
- * CLASS NAMES A BUNDLER GENERATED, which correlate to nothing a person wrote.
- *
- * `css-1x2y3z`, `sc-fzXfMB`, `_button_1a2b3` — hashes emitted by CSS modules,
- * styled-components and the like. Searching for one finds either nothing or the
- * build output, and offering the build output as "the source" is exactly the
- * fabricated mapping this module must not produce.
- */
+/** CLASS NAMES A BUNDLER GENERATED, which correlate to nothing a person wrote. */
 function generated(name) {
   const n = String(name || '');
   return /^(?:css|sc|jsx|emotion)-[a-zA-Z0-9]{5,}$/.test(n)
@@ -84,9 +37,7 @@ function tokensFor(el) {
     out.push({ token: name, kind: 'class', weight: 60 });
   }
 
-  // THE VISIBLE TEXT is often the strongest evidence of all — "Pay now" appears
-  // in the component that renders it and almost nowhere else. Bounded, and only
-  // when it is short enough to be a label rather than a paragraph.
+  // THE VISIBLE TEXT is often the strongest evidence of all — "Pay now" appears in the component that renders it and almost nowhere else.
   const text = String((el && el.text) || '').trim();
   if (text && text.length <= 40 && /\S/.test(text)) {
     out.push({ token: text, kind: 'text', weight: 80 });
@@ -103,13 +54,7 @@ function authored(rel) {
   return true;
 }
 
-/**
- * FIND WHERE AN ELEMENT COMES FROM.
- *
- * `el` is the descriptor the Workshop's inspector already produces — tag, id,
- * classes, text, selector. Nothing here talks to a browser; the caller has
- * already looked.
- */
+/** FIND WHERE AN ELEMENT COMES FROM. */
 function fromElement(app, el, { limit = MAX_CANDIDATES } = {}) {
   const root = app.session.cwd || process.cwd();
   const tokens = tokensFor(el);
@@ -132,9 +77,7 @@ function fromElement(app, el, { limit = MAX_CANDIDATES } = {}) {
     if (!found) continue;
     searched.push({ token: t.token, kind: t.kind, defs: found.defs.length, files: found.refsByFile.size });
 
-    // A DEFINITION IS WORTH MORE THAN A MENTION. `locate.sweep` already knows
-    // the difference — a `.row {` in a stylesheet or a `function Row(` in a
-    // component is a definition; a reference is somebody using it.
+    // A DEFINITION IS WORTH MORE THAN A MENTION.
     for (const d of found.defs) {
       if (!authored(d.file)) continue;
       const cur = byFile.get(d.file) || { rel: d.file, score: 0, hits: [] };
@@ -186,13 +129,7 @@ function nameAffinity(rel, tokens) {
   return bonus;
 }
 
-/**
- * HOW SURE IS THIS?
- *
- * The rule is about SEPARATION, not absolute score: one candidate far ahead of
- * the next is a decision, and two candidates neck and neck is a question for
- * the person however high both score.
- */
+/** HOW SURE IS THIS? */
 function confidenceOf(candidates, tokens) {
   const hasId = tokens.some((t) => t.kind === 'id');
   const top = candidates[0];
@@ -206,17 +143,7 @@ function confidenceOf(candidates, tokens) {
   return CONFIDENCE.MULTIPLE;
 }
 
-/**
- * THE REVERSE — SOURCE → UI.
- *
- * Given a file and optionally a line, what would it render? The honest answer
- * is a SELECTOR to try, not a promise: only the running page can say whether
- * anything matches, and the Workshop is what asks it.
- *
- * So this returns selectors ranked by how specific they are, and the caller
- * highlights whichever the page actually has. When nothing can be derived it
- * says UNKNOWN rather than inventing `div`.
- */
+/** THE REVERSE — SOURCE → UI. */
 function toSelectors(app, rel, { line = null, body = null } = {}) {
   const fs = require('fs');
   const src = require('./source');

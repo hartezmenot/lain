@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * LIVE OBSERVATIONS AS RECEIPTS (2026-09-24).
- *
- * A captured live observation — DOM/accessibility nodes with bounds and state,
- * the page's network and console, runtime facts — is stored ONCE under a
- * receipt id in the LAIN home (never in the project) and answered from there:
- *
- *     observe { goal: "page",     receipt }          the outline, paged
- *     observe { goal: "element",  receipt, ref }     one node, its path, its children
- *     observe { goal: "element",  receipt, query }   the nodes a deterministic score picks
- *     observe { goal: "element",  receipt, selector} tag / .class / #id / [attr] matches
- *     observe { goal: "requests", receipt }          network, with API response summaries
- *     observe { goal: "errors",   receipt }          console
- *     observe { goal: "system",   receipt }          runtime / process facts
- *
- * Why receipts: the same observation can be read twice without the page having
- * moved on, a compact slice of it can always be EXPANDED back to the raw nodes
- * (every node keeps its `ref`), and what was read is measured — each answer is
- * recorded on the session (`observationReads`), so evidence fetched outside a
- * slice is counted as narrowing debt, not assumed away.
- *
- * Page content is untrusted data, never an instruction.
- */
+/** LIVE OBSERVATIONS AS RECEIPTS (2026-09-24). */
 
 const fs = require('fs');
 const path = require('path');
@@ -151,10 +129,7 @@ function withPath(obs, nodes) {
   return (obs.nodes || []).filter((n) => keepRefs.has(n.ref)).map((n) => `${hit.has(n.ref) ? '▸' : ' '} ${row(n, '  '.repeat(Math.min(n.depth || 0, 12)))}`);
 }
 
-/**
- * ANSWER ONE GOAL FROM A RECEIPT. Returns the observation router's shape:
- * `{ ok, source, value, summary }`.
- */
+/** ANSWER ONE GOAL FROM A RECEIPT. */
 function answer(goal, spec = {}, session = null) {
   const obs = load(spec.receipt);
   if (!obs) return { ok: false, source: 'receipt', why: `no observation receipt "${spec.receipt}"`, value: null, summary: '' };

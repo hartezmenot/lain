@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * THE HOUSE DOORS — the capabilities through which the BOT, the hover menus
- * and every surface move through LAIN.
- *
- * ------------------------------------------------------------------------
- * ONE REGISTRY, THREE KINDS OF DOOR.
- *
- *   navigate   the window goes somewhere: a view, a section, a file, a flow
- *              the PERSON completes (Add API key opens the dialog; the key is
- *              typed by the person, never by the BOT). Core validates the
- *              arguments and records `_uiNavigate` with the capability id;
- *              the window runs the SAME handler its own menus run
- *              (page/pagehouse.js). Nothing is changed by opening a door.
- *   read       answered here, from the owner: the IDE's diagnostics and
- *              selection (idecontext.js), the task (journey.js), who changed
- *              what (editledger.js), sessions (sessionindex.js).
- *   change     a LAIN SETTING the person asked for, done through its owner —
- *              `model.assign` is modelinventory.select, the same call the
- *              model pickers make. Reversible, visible in MODEL at once, and
- *              never a file: the BOT's read-only rule is about the project,
- *              and nothing here writes to it.
- *
- * The BOT does not click the DOM and does not keep its own copy of any of
- * these systems: it asks for a door by id (tools/lainself.js, action "do").
- */
+/** THE HOUSE DOORS — the capabilities through which the BOT, the hover menus and every surface move through LAIN. */
 
 const path = require('path');
 

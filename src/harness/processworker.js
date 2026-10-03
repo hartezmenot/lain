@@ -1,14 +1,6 @@
 'use strict';
 
-// This stable tree root survives the command's shell. Its guardian terminates
-// it and its descendants from outside the subtree on completion or owner death.
-// It never makes task or verification decisions.
-//
-// END OF OUTPUT IS SAID IN-BAND (2026-10-01). When the spec carries `eof`, the command's stdout/stderr are relayed
-// through this process and, once each stream has ENDED, a marker `\0LAIN-EOF:<nonce>\0` is written on it. Order
-// within a pipe is guaranteed, so the caller knows it has every byte without waiting for the whole tree to be
-// killed and every pipe holder to exit — the ~160 ms that used to sit between "echo finished" and the tool result.
-// A background grandchild that keeps the pipe open means no marker: the caller then waits for close, as before.
+// This stable tree root survives the command's shell.
 const { spawn } = require('child_process');
 // Stay as an OS tree root after the shell exits. The guardian kills this tree
 // from outside it, then confirms exit before releasing ownership.

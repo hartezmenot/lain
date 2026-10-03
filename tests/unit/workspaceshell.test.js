@@ -169,14 +169,4 @@ module.exports = async function () {
     assert.ok(!/\d+% of the/.test(out), 'no percentage without a provider reading');
   });
 
-  await test('SELF: "open the MCP settings" is navigation the window applies once', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const app = appAt(tmpdir());
-    const tool = require('../../src/tools/lainself').tools.lain_workspace;
-    await tool.run({ action: 'open', surface: 'settings', section: 'mcp' }, { app });
-    const st = (await routes.dispatch(app, 'GET', '/api/state')).body.state;
-    assert.deepStrictEqual([st.navigate.surface, st.navigate.section, st.navigate.seq], ['settings', 'mcp', 1]);
-    const bad = await tool.run({ action: 'open', surface: 'nowhere' }, { app });
-    assert.ok(bad.isError);
-    assert.ok(require('../../src/tools').has('lain_workspace', app), 'the tool is in the one vocabulary');
-  }));
 };

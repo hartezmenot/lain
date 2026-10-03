@@ -1,11 +1,6 @@
 'use strict';
 
-/**
- * `/focus`, `/fast`, `/browser` (with `/chrome` as a hidden alias), and what
- * `/plan accept` does. One module so commands.js stays a registry.
- *
- * FOCUS and FAST are session preferences (execmode.js), not runtimes.
- */
+/** `/focus`, `/fast`, `/browser` (with `/chrome` as a hidden alias), and what `/plan accept` does. */
 
 const execmode = require('./execmode');
 
@@ -18,10 +13,7 @@ function toggle(app, key, arg) {
   return on;
 }
 
-/**
- * THE PLAN IS ACCEPTED: leave PLAN, and execution begins. Durable step progress
- * appears only from here — never while the plan is still being discussed.
- */
+/** THE PLAN IS ACCEPTED: leave PLAN, and execution begins. */
 function acceptPlan(app, { C }) {
   const plan = app.session.plan;
   execmode.set(app.session, 'AUTO');

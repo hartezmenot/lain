@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * MODEL DIRECTORIES — folders the person pointed LAIN at, and the GGUF files in
- * them. LAIN stores the DIRECTORY REFERENCE and nothing else:
- *
- *   - no model file is copied, moved, renamed or deleted — ever;
- *   - removing a directory from LAIN forgets the reference and its scan; the
- *     folder and every file in it are untouched;
- *   - a scan reads GGUF HEADERS only (gguf.js) — no model is loaded into RAM.
- *
- * Stored at <configDir>/local/modeldirs.json:
- *   { dirs: [{ id, path, addedAt }], pairs: { <model file>: <projector file> | null },
- *     scans: { <dir id>: { at, files: [summary…], skipped } } }
- *
- * PROJECTOR PAIRING (vision). A model and an mmproj are paired automatically
- * only on evidence, never because they share a folder:
- *   1. the projector's output width (clip.vision.projection_dim) equals the
- *      model's embedding width — a projector built for a different model
- *      cannot feed this one; AND
- *   2. exactly one such projector sits in the model's own folder, or the two
- *      headers name the same base model (general.basename).
- * Anything short of that reads "Projector not automatically paired" and the
- * person chooses (`pair`).
- */
+/** MODEL DIRECTORIES — folders the person pointed LAIN at, and the GGUF files in them. */
 
 const fs = require('fs');
 const path = require('path');
@@ -103,10 +81,7 @@ function stem(s) {
     .replace(/(?:^|[-_.])(?:i?q\d(?:_[0-9a-z]+)*|f16|f32|bf16|mxfp4)(?=$|[-_.])/g, '').replace(/[^a-z0-9]+/g, '');
 }
 
-/**
- * THE PAIRING for one text model among the projectors LAIN found.
- * Returns { projector, how } or { projector: null, how: why-not }.
- */
+/** THE PAIRING for one text model among the projectors LAIN found. */
 function pairFor(model, projectors, manual) {
   if (manual !== undefined) {
     if (manual === null) return { projector: null, how: 'no projector (your choice)' };
@@ -126,12 +101,7 @@ function pairFor(model, projectors, manual) {
 }
 
 /** Everything LAIN knows about the directories and their models, for a view. */
-/**
- * MEMOISED (2026-10-01): provider.resolve reaches this several times per turn (runtimeconnections → llama.cpp), and it
- * re-parsed the scan state and stat'ed every directory each time — measured at ~25 ms a turn on a real home. The
- * answer is reused while the state file is unchanged, for at most LIST_TTL_MS (the directory checks). Read-only:
- * callers must not mutate it.
- */
+/** MEMOISED (2026-10-01): provider.resolve reaches this several times per turn (runtimeconnections → llama.cpp), and it re-parsed the scan state and… */
 const LIST_TTL_MS = 2000;
 let listMemo = null;
 function list() {

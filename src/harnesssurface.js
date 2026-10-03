@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * THE SURFACE ADAPTER — one projection of harness state, for every window.
- *
- * ------------------------------------------------------------------------
- * THE RULE THIS FILE ENFORCES BY EXISTING.
- *
- *     A SURFACE RENDERS. IT NEVER COMPUTES.
- *
- * The dashboard, a Telegram client and whatever comes after them all want the
- * same six facts: what is the task, what state is it in, what is running, what
- * has been proved, what evidence exists, and what just happened. The failure
- * mode is each of them assembling that itself — three readers, three notions of
- * "is it done", and no way to say which is wrong on the day they disagree.
- * src/events.js already argues this at length for the event channel; this is
- * the same argument for the state payload.
- *
- * So there is one function. `dash.js` calls it, a remote adapter calls it, and
- * the CLI reads the same `harness.snapshot()` underneath.
- *
- * ------------------------------------------------------------------------
- * WHAT IT DELIBERATELY DOES NOT CARRY.
- *
- * No message content, no file contents, no credentials, no artifact bodies.
- * The dashboard's existing rule is that the state payload carries names,
- * phases and counts and never secrets, and a new section is not an excuse to
- * relax it. An artifact is named and counted here; reading one is a separate,
- * authenticated request in whatever surface wants it.
- *
- * ------------------------------------------------------------------------
- * IT IS ABSENT RATHER THAN EMPTY WHEN THERE IS NO HARNESS.
- *
- * `null` means "no task has been opened in this session", which is a real and
- * common state. An empty object with zeroes in it would render as a task that
- * exists and has done nothing, which is a different and false claim.
- */
+/** THE SURFACE ADAPTER — one projection of harness state, for every window. */
 
 const timeline = require('./harness/timeline');
 
@@ -43,10 +9,6 @@ const RECENT_EVENTS = 12;
 /** And how many artifacts are named. The bodies are never in this payload. */
 const RECENT_ARTIFACTS = 8;
 
-/**
- * @param {object} app the App, or anything with a `_harness`
- * @returns {object|null} the projection, or null when no task has been opened
- */
 function project(app) {
   const h = app && app._harness;
   if (!h) return null;
@@ -95,13 +57,7 @@ function project(app) {
   };
 }
 
-/**
- * A ONE-LINE SUMMARY, for a surface with a status bar rather than a panel — a
- * notification, a terminal title, a phone lock screen.
- *
- * Written so the two words that matter are first: the state and whether
- * anything proved it.
- */
+/** A ONE-LINE SUMMARY, for a surface with a status bar rather than a panel — a notification, a terminal title, a phone lock screen. */
 function line(app) {
   const p = project(app);
   if (!p) return null;

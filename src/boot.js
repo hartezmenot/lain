@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * BEFORE ANYTHING ELSE RUNS — shared by `lain` (bin/lain.js) and the compatibility `noema` (bin/noema.js).
- *
- *   LAIN_*             the canonical environment names. A Noema-era NOEMA_X is mirrored to LAIN_X for the transition
- *                      (an explicit LAIN_X always wins), so old scripts keep working and no code reads NOEMA_*.
- *   THE HOME           the Noema-era ~/.noema (or an unmoved ~/.lain-v2) moves to ~/.lain once, before any module
- *                      reads it (home.js) — one rename, a junction at the old path, never a second home.
- *   `noema`            still works for a transition period — the SAME program, the same home, the same sessions and
- *                      the same Core — and says once per home that the product is called LAIN again.
- */
+/** BEFORE ANYTHING ELSE RUNS — shared by `lain` (bin/lain.js) and the compatibility `noema` (bin/noema.js). */
 
 const fs = require('fs');
 const path = require('path');

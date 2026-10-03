@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * THE STANDALONE MANAGEMENT PAGE (§76, 2026-09-30) — MODEL's essentials when the
- * Harness is not installed, or its window cannot open. A CLI-only LAIN still
- * lets a person add an account or an API key without ever typing a secret into
- * the terminal, its history or a conversation.
- *
- *   /model manage · /account add · /api add  →  fabric/dashlaunch.js
- *        ├ a Harness window (this LAIN's, or a running LAIN's)  →  MODEL
- *        └ no Harness                                          →  THIS PAGE
- *
- * A PAGE ON LOOPBACK, OPENED IN THE DEFAULT BROWSER, OWNED BY THIS CORE.
- *
- *   BOUND to 127.0.0.1 on a port the OS chooses. It ends when the page says
- *   Done, after 20 idle minutes, after two hours at most, or with LAIN.
- *
- *   THE DOOR. The browser is launched at /open/<nonce>: single-use, 60 seconds.
- *   It answers with a redirect to /#k=<session key>. The key lives in the
- *   fragment — never sent to a server, never in an access log, never in a
- *   Referer — and the page takes it out of the address bar and the history
- *   entry at once. The nonce on the launch command line is worthless after its
- *   first use.
- *
- *   EVERY CALL: POST + JSON; the key in a header, compared in constant time;
- *   Host must be this loopback address (DNS rebinding), and an Origin, when
- *   sent, must be this page's. A strict Content-Security-Policy (the page's own
- *   nonce'd script and style, nothing else), no-store, no-referrer, no framing.
- *
- *   A FIXED ALLOW-LIST of the Core routes MODEL itself uses for accounts and
- *   keys, answered by the SAME handlers — this is a second door to them, not a
- *   second implementation. Nothing it returns carries a secret: accounts are
- *   masked views, keys are only ever sent in, never read back.
- */
+/** THE STANDALONE MANAGEMENT PAGE (§76, 2026-09-30) — MODEL's essentials when the Harness is not installed, or its window cannot open. */
 
 const http = require('http');
 const crypto = require('crypto');

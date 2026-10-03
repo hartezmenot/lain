@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE EDITOR PROFILE, VS CODE / CURSOR IMPORT, EXTENSIONS AND LAIN PLUGINS —
- * the window's routes onto their owners:
- *
- *   editorprofile.js   what the IDE editor applies (settings, keys, snippets)
- *   vscodeimport.js    reading VS Code / Cursor, never writing them
- *   extensions.js      .vsix / folder / URL / Open VSX, code never run
- *   plugins.js         LAIN plugins, permissions enforced in tools/index.js
- */
+/** THE EDITOR PROFILE, VS CODE / CURSOR IMPORT, EXTENSIONS AND LAIN PLUGINS — the window's routes onto their owners */
 
 const sv = require('../sessionviews');
 

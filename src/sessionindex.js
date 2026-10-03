@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * WHICH SESSION WAS THAT? — sessions described by their CONTENT, not their key.
- *
- * `/resume` took an id and nothing else, and `/sessions` listed ids and nothing
- * else, so continuing yesterday's work was a memory test:
- *
- *     20260817-225319-78b1
- *     20260817-180236-cc8a
- *     20260818-042858-06yn
- *
- * Nothing there says which one was the dashboard bug. The id is a FILENAME —
- * a timestamp plus four random characters, internal bookkeeping — and it was
- * the only handle the user was given.
- *
- * So this reads what each session actually contains and describes it: the
- * project, the objective in the user's own words, when it was last touched, how
- * far it got, and whether an external reviewer was involved. The id becomes
- * metadata that the user never has to see or type.
- *
- * WHAT IT DOES NOT DO. It never resumes anything and never modifies a session
- * file — see session.js, where `Session.resume(id)` remains the only path that
- * crosses a session boundary, and it is still reached only by explicit request.
- * This is a reader.
- *
- * COST. Session files reach half a megabyte, and there are hundreds. Files are
- * ordered by mtime FIRST and only the head of that list is parsed, so the cost
- * is bounded by `limit` rather than by how long the user has been using LAIN.
- * A file that will not parse is reported as unreadable rather than skipped
- * silently — a session that exists and cannot be opened is a fact worth having.
- */
+/** WHICH SESSION WAS THAT? */
 
 const fs = require('fs');
 const path = require('path');
@@ -55,13 +26,7 @@ function when(ms, now = Date.now()) {
   return { group: `${month} ${d.getDate()}`, clock, text: `${month} ${d.getDate()}  ${clock}` };
 }
 
-/**
- * One session, described.
- *
- * Every field is READ. A session with no task has no objective and says so;
- * nothing here fills a gap with a plausible sentence, for the same reason the
- * investigation packet does not.
- */
+/** One session, described. */
 function describe(id, data, stat, now = Date.now()) {
   const turns = Array.isArray(data.turns) ? data.turns : [];
   const task = data.task || null;
@@ -170,19 +135,13 @@ function summaries({
   }
   stats.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
 
-  // SCOPING READS THE FILE, so the limit is applied AFTER the filter rather
-  // than before it. Slicing to `limit` first and filtering afterwards would
-  // show three of this project's sessions because the other seventeen recent
-  // ones belonged elsewhere — the list would be short for a reason nothing on
-  // screen explained.
+  // SCOPING READS THE FILE, so the limit is applied AFTER the filter rather than before it.
   const wantScope = cwd && scope !== 'all';
   const out = [];
   const cap = Math.max(1, Math.min(MAX_LIMIT, limit));
   for (const s of stats) {
     if (out.length >= cap) break;
-    // UNCHANGED FILES ARE NOT RE-PARSED (2026-10-01): the Harness asks for this list with every state read (1.5 s),
-    // and parsing the newest session files — megabytes each — was half of every /api/state. A file's summary is kept
-    // until its mtime or size moves; only `when` (relative to now) is recomputed.
+    // UNCHANGED FILES ARE NOT RE-PARSED (2026-10-01): the Harness asks for this list with every state read (1.5 s), and parsing the newest session files…
     const memo = summaryMemo.get(s.file);
     if (memo && memo.mtimeMs === s.stat.mtimeMs && memo.size === s.stat.size) {
       if (memo.unreadable) { if (!wantScope) out.push({ ...memo.row, when: when(s.stat.mtimeMs, now) }); continue; }
@@ -193,9 +152,7 @@ function summaries({
     let data;
     try { data = JSON.parse(fs.readFileSync(s.file, 'utf8')); } catch (e) {
       summaryMemo.set(s.file, { mtimeMs: s.stat.mtimeMs, size: s.stat.size, unreadable: true, row: unreadable(s.id, s.stat, e.message, now) });
-      // AN UNREADABLE FILE CANNOT BE SCOPED, because its cwd is exactly what
-      // could not be read. Shown only when nothing is being scoped — inside a
-      // project it would be an unexplained row that may not even belong here.
+      // AN UNREADABLE FILE CANNOT BE SCOPED, because its cwd is exactly what could not be read.
       if (!wantScope) out.push(unreadable(s.id, s.stat, e.message, now));
       continue;
     }
@@ -216,12 +173,7 @@ function summaries({
   return out;
 }
 
-/**
- * `/resume dashboard` — match on what the session was ABOUT.
- *
- * The id is still matched, because someone who has one should not be refused
- * for using it, but it is the last thing tried rather than the only thing.
- */
+/** `/resume dashboard` — match on what the session was ABOUT. */
 function search(list, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return list;

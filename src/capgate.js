@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * WHERE SKILLS AND HOOKS MEET A SESSION (Phase CAP) — one call from app.handle and one subscription per App, so the
- * input path carries two lines and not a feature.
- *
- *   prompt(app, text)  `/<skill> args` → the skill's instructions + the request (a skill name that is not a command);
- *                      SessionStart before a session's first prompt; UserPromptSubmit before every prompt (a hook may
- *                      block it or add bounded context — never silently rewrite it)
- *   attach(app)        Stop when a turn ends; Checkpoint when one is committed; Compact when a compaction succeeds
- */
+/** WHERE SKILLS AND HOOKS MEET A SESSION (Phase CAP) — one call from app.handle and one subscription per App, so the input path carries two lines and… */
 
 const attached = new WeakSet();
 const appOf = new WeakMap();   // session → App, so a checkpoint or compaction (which know only the session) finds it
@@ -25,10 +17,7 @@ function skillCall(app, s) {
   return k ? { name: k.name, rest: t.slice(1 + name.length).trim() } : null;
 }
 
-/**
- * BEFORE A PROMPT REACHES A MODEL. { handled, result } when the input was consumed (blocked by a hook); otherwise
- * { text } — the text to send, which is the person's own words plus anything a skill or hook added in plain sight.
- */
+/** BEFORE A PROMPT REACHES A MODEL. */
 async function prompt(app, s, { isPaste = false, asText = false } = {}) {
   attach(app);
   let text = s;

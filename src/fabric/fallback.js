@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * WHEN A BACKING ACCOUNT HITS A LIMIT MID-TASK (Phase 8.3).
- *
- *   Automatic fallback   the lane moves to the next eligible account of the
- *                        SAME family for the SAME model and effort, and the
- *                        task carries on — same session, task, model, effort,
- *                        execution, plan and phase. Only the backing account
- *                        changes, and that is recorded (tray, account detail,
- *                        every surface's status): "Codex switched to Work".
- *   Ask before switching the next eligible account is PROPOSED; nothing is sent
- *                        through it until the person says Switch.
- *   Use one account only never switched: Switch account · Wait · Choose another model.
- *   No compatible account the model and effort are never changed on their own —
- *                        the person is asked.
- *
- * The decision is fabric/policy.js's; this file applies it to the session and
- * records it. A pending question lives on the session (session.intel.pending)
- * so the window, the terminal and Telegram all show the same one, and any of
- * them can answer it (`decide`).
- */
+/** WHEN A BACKING ACCOUNT HITS A LIMIT MID-TASK (Phase 8.3). */
 
 const store = require('./store');
 const policy = require('./policy');
@@ -36,11 +17,7 @@ function resetOf(f) {
   return null;
 }
 
-/**
- * A TURN STOPPED ON A PROVIDER LIMIT. Returns null when the family has no
- * account policy to apply (one account, not a family) — the ordinary
- * rate-limit path then runs — else { action: 'switched' | 'ask' | 'pinned' | 'incompatible', ... }.
- */
+/** A TURN STOPPED ON A PROVIDER LIMIT. */
 function onTurnLimited(app, record) {
   const s = app && app.session;
   if (!s) return null;
@@ -67,13 +44,7 @@ function onTurnLimited(app, record) {
   return { action: d.decision, lane: L, pending: s.intel.pending, text: d.text };
 }
 
-/**
- * THE PERSON'S ANSWER — from the window, the terminal or Telegram.
- *   switch           to the proposed account (Ask) or `account` (Pinned: any eligible one)
- *   wait             keep the account; the task stays paused until Continue re-checks
- *   choose-model     clear the question; the surface opens its model picker
- * A switch keeps family, model and effort; a pinned lane stays pinned — to the new account.
- */
+/** THE PERSON'S ANSWER — from the window, the terminal or Telegram. */
 function decide(app, session, { choice, account = null } = {}) {
   const s = session || app.session;
   const p = s && s.intel && s.intel.pending;
@@ -117,10 +88,7 @@ function adapter(p) {
   return { title: `${p.familyLabel} · account`, kind: KIND.ASK_USER, mode: MODE.EXPANDED, items, cursor: items.findIndex((i) => i.value), footer: '↑↓ choose · Enter confirm · Esc = wait' };
 }
 
-/**
- * THE TERMINAL'S ANSWER, when a person is there to give it. Returns true when
- * the task should resume (a switch), false otherwise.
- */
+/** THE TERMINAL'S ANSWER, when a person is there to give it. */
 async function askInTerminal(app) {
   const p = app.session && app.session.intel && app.session.intel.pending;
   if (!p || !app.ui || !app.ui.enabled) return false;

@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * SEMANTIC EDITS — change a definition by NAME, not by reproducing a file.
- *
- * apply_patch is safe because it verifies the exact text before splicing, and
- * that is the right primitive when you know what the text is. It is the wrong
- * one when the unit you mean is "this function": you have to quote the whole
- * body to replace it, quote its last line to append after it, and count lines
- * to delete it. So the model reads the file to find out what it already knows —
- * that `classify` is a function and it wants to change it.
- *
- * These operate on RANGES FROM A SCANNER (see jsscan.js and codemodel.js), so
- * "the function `classify`" means its exact bytes, including its `async`, its
- * decorators-in-spirit and its closing brace, and not one byte more.
- *
- * THE RULES THEY SHARE, and they are the same rules apply_patch has:
- *
- *   AMBIGUOUS IS REFUSED. Two things called `send` means the tool says so and
- *   names both, rather than picking one and being right most of the time.
- *
- *   A WRITE THAT BREAKS THE FILE IS ROLLED BACK. The file is re-parsed after
- *   every write; if it no longer parses, the original is restored and the call
- *   reports a rejection. A half-applied semantic edit is worse than none,
- *   because the model believes it landed.
- *
- *   WHAT IT CANNOT SEE, IT SAYS. Anything that is not JavaScript gets a plain
- *   "this scanner does not read that", never a guess. apply_patch still works
- *   on every file in every language, and remains the right tool there.
- */
+/** SEMANTIC EDITS — change a definition by NAME, not by reproducing a file. */
 
 const fs = require('fs');
 const path = require('path');
@@ -51,12 +24,7 @@ function at(cwd, abs) {
   return abs;
 }
 
-/**
- * Load a file's model, or the reason there isn't one.
- *
- * Every tool here starts with this, so "no such file" and "not JavaScript" are
- * answered once, the same way, instead of five times slightly differently.
- */
+/** Load a file's model, or the reason there isn't one. */
 function load(ctx, input) {
   const abs = resolve(ctx.cwd, input.path);
   if (!abs) return { error: 'a path is required' };
@@ -72,25 +40,7 @@ function load(ctx, input) {
   return { abs, source, model };
 }
 
-/**
- * THE OUTLINE IS NOT A JAVASCRIPT QUESTION, and treating it as one was a leak.
- *
- * The unresolved-name check genuinely is JS-only: it needs bindings, and
- * codemodel.js is the only thing here that produces them. But "what is this
- * file MADE OF" is answerable in every language structure.js knows — and that
- * engine was already in the tree, reachable only from the migration path.
- *
- * So a `.py` asking for an outline got the symbol tools' refusal and a route to
- * apply_patch, which edits and cannot answer the question. The model's only
- * remaining move was to read the file whole: the exact cost `list_symbols`
- * exists to avoid, reintroduced for every language but one.
- *
- * LEXICAL, and it says so. structure.js reads declaration lines, so it misses a
- * declaration written in a shape its patterns do not cover and never invents
- * one — under-reporting, which is the direction that stays honest.
- *
- * Returns null when there is nothing to say, so the caller's real error stands.
- */
+/** THE OUTLINE IS NOT A JAVASCRIPT QUESTION, and treating it as one was a leak. */
 function outlineAnywhere(ctx, input) {
   const abs = resolve(ctx.cwd, input.path);
   if (!abs) return null;
@@ -109,12 +59,7 @@ function outlineAnywhere(ctx, input) {
   };
 }
 
-/**
- * Find exactly one symbol, or explain why that could not be done.
- *
- * The refusal names every candidate with its line and its container, which is
- * what turns "ambiguous" into a call the model can immediately make correctly.
- */
+/** Find exactly one symbol, or explain why that could not be done. */
 function one(model, name, container, cwd, abs) {
   const hits = codemodel.find(model, name, { container: container || null });
   if (!hits.length) {
@@ -137,25 +82,13 @@ function one(model, name, container, cwd, abs) {
   return { symbol: hits[0] };
 }
 
-/**
- * TEXT THE MODEL WROTE, IN THE LINE ENDINGS THE FILE ALREADY USES.
- *
- * A model emits LF. Splicing that into a CRLF file leaves the new lines LF and
- * the rest CRLF, and the mixture then spreads with every subsequent edit — the
- * same defect apply_patch was built to avoid, arrived at from the other
- * direction. Normalised to LF first so a replacement that already carries CRLF
- * does not end up with doubled carriage returns.
- */
+/** TEXT THE MODEL WROTE, IN THE LINE ENDINGS THE FILE ALREADY USES. */
 function matchEndings(text, fileText) {
   const lf = String(text).replace(/\r\n/g, '\n');
   return /\r\n/.test(fileText) ? lf.replace(/\n/g, '\r\n') : lf;
 }
 
-/**
- * Where the comment block DIRECTLY above `start` begins (a `/* … *\/` block, or
- * a run of `//` lines, with no blank line between it and the declaration), or
- * `start` itself when there is none.
- */
+/** Where the comment block DIRECTLY above `start` begins */
 function leadingCommentStart(source, start) {
   const lineStart = (i) => source.lastIndexOf('\n', i - 1) + 1;
   let cur = lineStart(start);
@@ -177,13 +110,7 @@ function leadingCommentStart(source, start) {
   return from;
 }
 
-/**
- * Write, verify, and undo the write if it broke the file.
- *
- * The rollback is the whole contract. Without it a semantic edit that produces
- * an unbalanced brace reports success, and the breakage is discovered by
- * whatever expensive thing runs next.
- */
+/** Write, verify, and undo the write if it broke the file. */
 async function writeVerified(abs, next, before, cwd) {
   fs.writeFileSync(abs, next, 'utf8');
   let check;
@@ -198,21 +125,7 @@ async function writeVerified(abs, next, before, cwd) {
   return { ok: true };
 }
 
-/**
- * DID ANYTHING STILL WANT THE THING THAT WAS JUST REMOVED?
- *
- * The unresolved check deliberately stays silent unless it can name what was
- * probably meant, because a name it cannot resolve is usually something the
- * scanner cannot see rather than a mistake. That reasoning does not apply here
- * at all: the definition was removed A MOMENT AGO, by this call, so a remaining
- * reference to it is not a scanner limitation — it is a dangling reference, and
- * it is certain.
- *
- * `module.exports = { keep, target }` after removing `keep` is the exact shape,
- * and it is invisible until something imports the module and gets undefined.
- * Scoped to the one file, because a project-wide sweep on every removal would
- * cost more than it saves — find_residue is the tool for that question.
- */
+/** DID ANYTHING STILL WANT THE THING THAT WAS JUST REMOVED? */
 function danglingNote(abs, name, cwd) {
   try {
     const model = codemodel.scanFile(abs);
@@ -304,11 +217,7 @@ tools.replace_symbol = {
     if (found.error) return { output: found.error, isError: true };
     const s = found.symbol;
     const body = matchEndings(input.replacement, f.source);
-    // A REPLACEMENT THAT BRINGS ITS OWN DOC COMMENT replaces the one above the
-    // symbol too. The symbol's range starts at its keyword, so a model that (as
-    // read_file showed it) included the JSDoc left the old one standing above
-    // the new — a duplicated comment (live, 2026-09-19). No comment in the
-    // replacement: the existing one is kept, as before.
+    // A REPLACEMENT THAT BRINGS ITS OWN DOC COMMENT replaces the one above the symbol too.
     const from = /^\s*(?:\/\*|\/\/)/.test(input.replacement) ? leadingCommentStart(f.source, s.start) : s.start;
     const next = f.source.slice(0, from) + body + f.source.slice(s.end);
     const w = await writeVerified(f.abs, next, f.source, ctx.cwd);
@@ -353,9 +262,7 @@ tools.insert_near_symbol = {
     if (found.error) return { output: found.error, isError: true };
     const s = found.symbol;
     const before = String(input.where || 'after').toLowerCase() === 'before';
-    // A blank line between two definitions, because that is how definitions are
-    // separated everywhere and a tool that welds them together produces a diff
-    // nobody wants to read.
+    // A blank line between two definitions, because that is how definitions are separated everywhere and a tool that welds them together produces a diff…
     const body = matchEndings(String(input.text).replace(/^[\r\n]+|[\r\n]+$/g, ''), f.source);
     const gap = /\r\n/.test(f.source) ? '\r\n\r\n' : '\n\n';
     const next = before
@@ -398,13 +305,7 @@ tools.remove_symbol = {
     if (found.error) return { output: found.error, isError: true };
     const s = found.symbol;
     const gone = f.source.slice(s.start, s.end);
-    // Take the blank lines the definition was sitting in with it, or every
-    // removal leaves a widening gap behind.
-    //
-    // Character by character rather than by re-slicing the file at each step:
-    // the slice-and-test version allocated a copy of the remaining file for
-    // every blank line it walked past, which on a large file with a run of
-    // them is quadratic for no reason.
+    // Take the blank lines the definition was sitting in with it, or every removal leaves a widening gap behind.
     const src = f.source;
     let from = s.start;
     let to = s.end;
@@ -609,9 +510,7 @@ tools.review_changes = {
   },
   async run(input, ctx) {
     const gitsense = require('../gitsense');
-    // WHAT LAIN BELIEVES IT CHANGED comes from the lifecycle ledger, which is
-    // already tracking it for completion evidence. Asking the model to restate
-    // the list would be asking it to remember something the harness knows.
+    // WHAT LAIN BELIEVES IT CHANGED comes from the lifecycle ledger, which is already tracking it for completion evidence.
     let expected = [];
     if (!input.all_files) {
       const life = ctx.session && ctx.session.lifecycle;

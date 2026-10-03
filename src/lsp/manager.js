@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * THE LANGUAGE SERVER MANAGER — deterministic language intelligence for /focus.
- *
- *     project ─ language detection ─ this manager ─┬─ TypeScript / JavaScript
- *                                                   ├─ Python
- *                                                   ├─ Rust (rust-analyzer)
- *                                                   ├─ C / C++ (clangd)
- *                                                   ├─ Go (gopls), C# (csharp-ls)
- *                                                   └─ anything configured
- *
- * ------------------------------------------------------------------------
- * ATTACHED, NOT HARD-CODED. A server is a command that speaks LSP over stdio.
- * The built-in catalogue only says how to FIND the usual ones (on PATH, in
- * LAIN's own tools folder, in ~/.cargo/bin); `lsp.servers` in LAIN's config
- * adds or overrides any: { id, command, args, languages, extensions }.
- * Nothing is downloaded behind the person's back.
- *
- * WHO USES IT. The IDE (definition, references, hover, completion, rename,
- * symbols, diagnostics); langfacts.js, which asks it about the canonical
- * Selection for the focus packet and Laya (the Agent is handed the server's
- * references instead of a text scan); and the Agent's rename_symbol, which
- * renames through it (semanticrename.js). The rule is §27 of the brief: if the
- * language server knows, the model is told — it does not rediscover.
- *
- * OWNERSHIP AND FAILURE. Every server is recorded in runtimeregistry.js
- * (purpose 'language-server', stopped with its project or LAIN). A crash is
- * restarted at most 3 times in 2 minutes; then it stays STOPPED and says so,
- * with Restart offered — LAIN and the editor keep working without it.
- */
+/** THE LANGUAGE SERVER MANAGER — deterministic language intelligence for /focus. */
 
 const fs = require('fs');
 const os = require('os');
@@ -100,13 +72,7 @@ function servers(app) {
 
 function languageOf(p) { return LANG_OF_EXT[path.extname(String(p)).toLowerCase()] || null; }
 
-/**
- * THE PROJECT ROOT AS THE SERVER WILL SPELL IT: the real, long path. A root
- * given as a Windows short name (C:\Users\ABCDEF~1\…) made every file exist
- * twice inside tsserver — once under each spelling — and the next change
- * crashed it (exit 0xC0000409). Everything sent to a server goes through
- * `absOf`; everything compared goes through `keyOf`.
- */
+/** THE PROJECT ROOT AS THE SERVER WILL SPELL IT: the real, long path. */
 const realRoots = new Map();
 function realOf(p) { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } }
 function project(app) {
@@ -140,11 +106,7 @@ function serverFor(app, p) {
 
 function recordKey(root, id) { return `${root}|${id}`; }
 
-/**
- * WHAT A SERVER NEEDS TO BE TOLD AT START. Configured `initializationOptions`
- * win. The TypeScript server needs a TypeScript to drive: the project's own
- * when it has one, otherwise the one installed beside the server.
- */
+/** WHAT A SERVER NEEDS TO BE TOLD AT START. */
 function initOptions(s, root) {
   if (s.initializationOptions) return s.initializationOptions;
   if (s.id !== 'typescript' || !s.command) return undefined;
@@ -233,12 +195,7 @@ async function withFile(app, p) {
   return { ok: true, rec, abs };
 }
 
-/**
- * OPEN THESE FILES IN THEIR SERVER — so a server without a project file
- * (tsconfig, pyrightconfig …) still sees the files that mention a symbol
- * before it is asked for references or a rename. Bounded; unreadable or
- * uncovered files are skipped.
- */
+/** OPEN THESE FILES IN THEIR SERVER — so a server without a project file (tsconfig, pyrightconfig …) still sees the files that mention a symbol before… */
 async function prime(app, rels, { max = 80 } = {}) {
   const root = project(app);
   if (!root) return 0;
@@ -363,11 +320,7 @@ async function workspaceSymbols(app, { query, language = null }) {
   return { ok: true, symbols: out };
 }
 
-/**
- * CAN THIS BE RENAMED, AND WHAT EXACTLY? `textDocument/prepareRename` where the
- * server offers it: the range and placeholder it would rename, or a refusal.
- * A server without prepare support still renames — `prepared: false` says so.
- */
+/** CAN THIS BE RENAMED, AND WHAT EXACTLY? */
 async function prepareRename(app, { path: p, line, col }) {
   const f = await withFile(app, p);
   if (!f.ok) return f;
@@ -445,12 +398,7 @@ function applyTo(text, edits) {
   return out;
 }
 
-/**
- * APPLY A RENAME the language server planned — through the ONE mutation
- * transaction (mutation.js `change`). The person pressing F2 is actor USER;
- * the Agent's own rename is actor MODEL (tools go through the tool door).
- * Provenance, the project generation, the GUG and PROJECT_DELTA follow there.
- */
+/** APPLY A RENAME the language server planned — through the ONE mutation transaction (mutation.js `change`). */
 async function applyRename(app, plan, { actor = 'USER' } = {}) {
   const root = project(app);
   const files = [];

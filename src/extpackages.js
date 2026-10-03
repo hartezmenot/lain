@@ -95,10 +95,7 @@ function discover({ env = process.env, configDir = null } = {}) {
   return out.sort((a, b) => a.id.localeCompare(b.id) || a.product.localeCompare(b.product));
 }
 
-/**
- * Reuse one discovered extension: copy into the store (once per content),
- * verify, register. The source folder is read, never written.
- */
+/** Reuse one discovered extension: copy into the store (once per content), verify, register. */
 function reuse({ product, id, configDir = null, env = process.env } = {}) {
   const row = discover({ env, configDir }).find((x) => x.product === product && x.id === String(id || '').toLowerCase());
   if (!row) return { ok: false, why: 'that extension was not found in that editor' };

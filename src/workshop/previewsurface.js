@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * A PREVIEW ON SCREEN — the Harness's, or a standalone Preview window for a CLI (packaging pass §M, §N).
- *
- * There is ONE Preview implementation: Core's frame preview (workshop/index.js frameOpen — the proxy, the bridge, the
- * capability broker) drawn by the Harness page module (workbench/workshop.js). A Harness window shows it in its own
- * layout; a CLI with no Harness opens the same page in preview-only mode (`--mode preview`, the host's
- * #detached-preview rendering) over the same Core pipe. The model's input (previewinput.js) reaches whichever is open.
- */
+/** A PREVIEW ON SCREEN — the Harness's, or a standalone Preview window for a CLI (packaging pass §M, §N). */
 
 const WAIT_MS = 25000;
 

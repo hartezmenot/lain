@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * A REAL SCANNER FOR JAVASCRIPT — the seam search.js said would need one.
- *
- * `symbols` and `dependents` read files as TEXT: definitions by shape,
- * references by name. That is fast, language-agnostic and right most of the
- * time, and it is why they exist. What it cannot do is give the exact BYTE
- * RANGE of a definition, and it cannot tell a name in code from the same name
- * inside a comment or a string. Both of those are the difference between an
- * index and an edit:
- *
- *     rename `id` with a regex          → renames `id` inside every URL,
- *                                          every comment, every CSS selector
- *     replace a function with a regex   → 95% right, and the other 5% is a
- *                                          silently corrupted file
- *
- * So this tokenises. It is not a parser and does not build a tree — it produces
- * the one thing a tree would have been built for: a stream of tokens with exact
- * offsets, where a name is a NAME and a string is a STRING. Everything above it
- * (codemodel.js) works on tokens rather than on characters, which is what makes
- * a rename safe and a symbol range exact.
- *
- * THE HARD PART IS `/`. It begins a regular expression or it is division, and
- * which one depends on what came before it — `a / b` against `return /x/`.
- * There is no way to know without the grammar, so this uses the standard
- * preceding-token rule AND a safety net: a regex that does not terminate is
- * re-read as division. A tokeniser that desynchronises is worse than none,
- * because everything downstream then reports confident nonsense.
- *
- * DECLARED LIMITS, because the honest statement of what a tool cannot do is
- * what makes the rest of it trustworthy:
- *   · JavaScript, JSX and TypeScript. Not Python, not Go, not Rust.
- *   · No scope analysis: it says a name is a name, not which binding it is.
- *   · No type information of any kind. A type annotation is tokens like any
- *     other, so `x: string` can leave a `string` binding behind — noise the
- *     CAVEAT in locate.js already states for every answer built on this.
- * Anything outside that returns `supported: false` and the callers say so
- * rather than guessing.
- *
- * THIS PARAGRAPH USED TO SAY "Not JSX" AND "JSX-free TypeScript", while
- * `SUPPORTED` admitted neither TS nor JSX at all — so the documented limit and
- * the enforced one disagreed, and both were wrong. Measured on a real TS/React
- * project: JSX components, typed functions and their import specifiers all come
- * out correctly. What the scanner does is now what this says it does.
- */
+/** A REAL SCANNER FOR JAVASCRIPT — the seam search.js said would need one. */
 
 /** What a token can be. A `name` is an identifier or a keyword. */
 const T = Object.freeze({
@@ -56,12 +13,7 @@ const T = Object.freeze({
   NUMBER: 'number',
 });
 
-/**
- * The keywords after which a `/` must begin a regular expression.
- *
- * `return /x/` is a regex; `count / 2` is division. The difference is entirely
- * in the token before the slash.
- */
+/** The keywords after which a `/` must begin a regular expression. */
 const REGEX_AFTER = new Set([
   'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw',
   'case', 'do', 'else', 'yield', 'await', 'if', 'while', 'switch',
@@ -86,34 +38,19 @@ const OPERATORS = [
   '*=', '/=', '%=', '&=', '|=', '^=', '**', '<<', '>>',
 ];
 
-/**
- * Is the token before a `/` one that an expression can END with?
- *
- * If it is, the slash is division. If not, a value is expected and the slash
- * opens a regex.
- */
+/** Is the token before a `/` one that an expression can END with? */
 function endsValue(tok) {
   if (!tok) return false;
   if (tok.type === T.NAME) return !REGEX_AFTER.has(tok.value);
   if (tok.type === T.NUMBER || tok.type === T.STRING || tok.type === T.TEMPLATE || tok.type === T.REGEX) return true;
   if (tok.type === T.PUNCT) {
-    // `)` and `]` and `}` are genuinely ambiguous — `if (x) /re/.test(s)` is
-    // legal and so is `(a+b) / c`. `}` is taken as ending a BLOCK (regex may
-    // follow) and `)` as ending a parenthesised value (division follows),
-    // because that is which way each is more commonly written. A wrong guess
-    // here is recovered by the unterminated-regex fallback below.
+    // `)` and `]` and `}` are genuinely ambiguous — `if (x) /re/.test(s)` is legal and so is `(a+b) / c`.
     return tok.value === ')' || tok.value === ']' || tok.value === '++' || tok.value === '--';
   }
   return false;
 }
 
-/**
- * Read a regular expression literal starting at `i` (which points at `/`).
- *
- * @returns {number} the index just past the closing `/` and its flags, or -1 if
- *   it does not terminate on this line — which means the `/` was division and
- *   the caller must re-read it as such.
- */
+/** Read a regular expression literal starting at `i` (which points at `/`). */
 function readRegex(src, i) {
   let j = i + 1;
   let inClass = false;
@@ -147,15 +84,7 @@ function readString(src, i, quote) {
   return j;
 }
 
-/**
- * Read a template literal, INCLUDING its `${...}` holes.
- *
- * The holes are real code and can contain nested templates and braces, so this
- * counts depth rather than looking for the next backtick. Everything between
- * the backticks is returned as ONE token: nothing above needs to see inside a
- * template, and a name that appears in one is not a reference worth renaming
- * without a person looking at it.
- */
+/** Read a template literal, INCLUDING its `${...}` holes. */
 function readTemplate(src, i) {
   let j = i + 1;
   let depth = 0;
@@ -175,14 +104,7 @@ function readTemplate(src, i) {
   return j;
 }
 
-/**
- * Tokenise a JavaScript source file.
- *
- * @param {string} src
- * @param {object} [o]
- * @param {boolean} [o.comments=false] include comment tokens
- * @returns {{tokens: Array, lineStarts: number[]}}
- */
+/** Tokenise a JavaScript source file. */
 function tokenize(src, { comments = false } = {}) {
   const tokens = [];
   const lineStarts = [0];
@@ -218,10 +140,7 @@ function tokenize(src, { comments = false } = {}) {
     }
     if (c === '/' && !endsValue(last)) {
       const j = readRegex(src, i);
-      // THE SAFETY NET. An unterminated regex means the preceding-token rule
-      // guessed wrong and this is division after all. Falling through to the
-      // operator branch keeps the stream synchronised; guessing again would
-      // desynchronise the rest of the file.
+      // THE SAFETY NET. An unterminated regex means the preceding-token rule guessed wrong and this is division after all. Falling through to the operator…
       if (j > 0) { push(T.REGEX, i, j); i = j; continue; }
     }
     if (c === '"' || c === "'") {
@@ -271,15 +190,7 @@ function lineAt(lineStarts, offset) {
   return lo + 1;
 }
 
-/**
- * The index of the token closing the bracket opened at `tokens[from]`.
- *
- * Works on TOKENS, so a `}` inside a string or a comment cannot close a block —
- * which is the whole reason a brace counter over raw characters is not good
- * enough to define a symbol's range.
- *
- * @returns {number} the index of the closing token, or -1 if it never closes
- */
+/** The index of the token closing the bracket opened at `tokens[from]`. */
 function matchBracket(tokens, from) {
   const open = tokens[from] && tokens[from].value;
   const close = open === '{' ? '}' : open === '(' ? ')' : open === '[' ? ']' : null;
@@ -297,38 +208,7 @@ function matchBracket(tokens, from) {
   return -1;
 }
 
-/**
- * FILES THIS SCANNER CLAIMS TO UNDERSTAND. Anything else gets an honest no.
- *
- * ------------------------------------------------------------------------
- * WHY TYPESCRIPT IS ON THIS LIST, AND WHAT IT COST TO LEAVE IT OFF.
- *
- * This read `/\.(?:js|cjs|mjs)$/i` while projectindex.js decided what to scan
- * with `/\.(?:js|jsx|mjs|cjs|ts|tsx)$/i`. Two lists, one of them wrong, and the
- * disagreement was SWALLOWED: the index marked a `.ts` file `lang: 'js'`, asked
- * for its symbols, was told "not JavaScript", and stored the file with NO
- * symbols and NO imports — no error, no warning, no degraded state.
- *
- * The effect on a TypeScript project is total. Measured on a real one
- * (toradb, 41 TS/TSX sources): the persisted index held 47 files and ZERO
- * symbols, so `locate`, `definitionsOf` and `importersOf` could never answer,
- * and every question about the project fell back to grep and whole-file reads
- * — the same regions, every turn, across every resume. That is the reread loop.
- *
- * THE SCANNER WAS ALWAYS ABLE TO DO IT. It is lexical, not a type checker, and
- * declaration SHAPES are the same in both languages; asked to scan the same
- * files with the gate bypassed it produced 1821 symbols with correct
- * containers and correct import specifiers, JSX included. The gate was the only
- * thing in the way.
- *
- * WHAT IT STILL IS: lexical. A type annotation can read as a declaration
- * (`x: string` can yield a `string` binding), and that noise is the same class
- * the CAVEAT in locate.js already states for every answer built on this. It is
- * worth far less than answering "unknown" about every symbol in the project.
- *
- * ONE LIST. Every caller asks `supports()`; nobody keeps a private copy. See
- * tests/unit/codemodel.test.js, which fails if a second list appears.
- */
+/** FILES THIS SCANNER CLAIMS TO UNDERSTAND. */
 const SUPPORTED = /\.(?:js|cjs|mjs|jsx|ts|tsx|mts|cts)$/i;
 
 function supports(file) { return SUPPORTED.test(String(file || '')); }

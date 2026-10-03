@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * THE BROWSER HARNESS CONTROLLER — sessions, flows, and the artifacts they leave.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS ADDS OVER harness/browser.js.
- *
- * That file is one page and what can be asked of it. This owns the things that
- * are not about a page: getting a browser at all, deciding between attaching to
- * one that is already open and launching one, keeping the session alive across
- * several checks of the same contract, filing the screenshots and console dumps
- * as artifacts, and closing everything when the task ends.
- *
- * ------------------------------------------------------------------------
- * A LAUNCHED BROWSER IS A MANAGED PROCESS, AND THAT IS NOT A DETAIL.
- *
- * It goes through the ProcessManager, owned by the task, so `cleanup(taskId)`
- * takes it down with everything else. A browser launched outside that ownership
- * is exactly the shape of the ninety orphaned processes this repository already
- * paid for once — headless Chrome is especially good at surviving unnoticed,
- * because nothing appears on screen to remind anybody it is there.
- *
- * ------------------------------------------------------------------------
- * THE TWO MODES, AND WHY BOTH EXIST.
- *
- * SIMPLE: the caller asks one thing — read this element, capture this page —
- * and gets an answer. That is `observe`, and it is what the observation router
- * calls.
- *
- * DELEGATED: the caller hands over a whole flow with a goal, a URL, an allowed
- * set of actions, a time limit and a verification contract, and gets back a
- * structured verdict plus artifacts. That is `verify`, and it is deliberately
- * NOT an autonomous agent: it executes the steps it was given, in order,
- * against the page it was given, and stops. There is no exploration, no
- * "try something else", and no way for a flow to navigate somewhere it was not
- * told to go.
- */
+/** THE BROWSER HARNESS CONTROLLER — sessions, flows, and the artifacts they leave. */
 
 const path = require('path');
 const fs = require('fs');
@@ -68,16 +33,7 @@ class BrowserHarness {
     if (this.bus && typeof this.bus.emit === 'function') this.bus.emit(name, payload);
   }
 
-  /**
-   * CAN A VERIFICATION BROWSER RUN?
-   *
-   * It asks env/chromium.js, NOT `browser.available({ port })`. That function
-   * reports `attachable: true` when anything is listening on 9222 and calls the
-   * capability AVAILABLE on that basis — which, after the attach path was
-   * removed, would be a availability answer about a browser this Harness will
-   * never use. Availability now means exactly what the launch path needs: a
-   * WebSocket client and a browser binary it is allowed to start.
-   */
+  /** CAN A VERIFICATION BROWSER RUN? */
   availability() {
     const rt = require('../env/chromium');
     const h = new rt.ChromiumRuntime({ processes: this.processes }).health();
@@ -99,30 +55,7 @@ class BrowserHarness {
     };
   }
 
-  /**
-   * GET A SESSION, LAUNCHING A BROWSER THIS HARNESS OWNS.
-   *
-   * ------------------------------------------------------------------------
-   * IT USED TO ATTACH FIRST, AND THAT WAS THE DEFECT.
-   *
-   * The rule here was "ATTACH BEFORE LAUNCH, always", justified as: a debug
-   * port that is already open belongs to somebody, often the person, so use
-   * theirs rather than spending a few hundred megabytes on a second browser.
-   *
-   * The premise was right and the conclusion was backwards. A debug port that
-   * belongs to the person is the one browser this instrument must NEVER touch.
-   * `browser.DEFAULT_PORT` is 9222 — the DevTools convention every tool knows —
-   * so anyone who had ever started Chrome with `--remote-debugging-port=9222`,
-   * for their own debugging or for another tool, silently handed verification
-   * their real browser: their cookies, their logged-in sessions, their open
-   * tabs. And it then created tabs and navigated in it. Nothing announced this.
-   *
-   * The few hundred megabytes were never the expensive part.
-   *
-   * So there is no attach path. Every session runs in a browser this Harness
-   * started, on a port the browser chose, in a disposable profile — see
-   * env/chromium.js, which is now the only thing in the tree that launches one.
-   */
+  /** GET A SESSION, LAUNCHING A BROWSER THIS HARNESS OWNS. */
   session(opts = {}) {
     const key = String(opts.taskId || 'default');
     if (opts.taskId && this.runtime) {
@@ -183,29 +116,9 @@ class BrowserHarness {
     return { ok: true, session };
   }
 
-  /**
-   * LAUNCH ONE, headless, in a throwaway profile.
-   *
-   * A THROWAWAY PROFILE IS A SAFETY PROPERTY, not tidiness. Reusing the
-   * person's real profile would put their logged-in sessions, cookies and
-   * saved passwords inside something a verification contract drives — and this
-   * instrument is pointed at code under test, which is by definition the code
-   * least worth trusting with them.
-   */
+  /** LAUNCH ONE, headless, in a throwaway profile. */
   async _launch(taskId, signal = null) {
-    // ---- ONE LAUNCHER FOR THE WHOLE TREE ---------------------------------
-    //
-    // This used to be fifty lines of "find a browser, build args, spawn, poll
-    // DevToolsActivePort, open an endpoint" — and workshop/index.js and
-    // modelsource/webbrowser.js each had their own copy, which had already
-    // drifted apart on the details (who deletes the stale port file, who
-    // disables extensions, who goes through the ProcessManager). See
-    // env/chromium.js, which owns all of it now, and env/purpose.js, which
-    // holds the differences that are REAL rather than accidental.
-    //
-    // VERIFY is the purpose here, and its traits carry the properties this
-    // instrument depends on: headless, a fresh disposable profile per launch,
-    // extensions off, and ownership by the TASK so it dies with it.
+    // ONE LAUNCHER FOR THE WHOLE TREE
     const rt = require('../env/chromium');
     const runtime = new rt.ChromiumRuntime({ processes: this.processes, events: this.bus });
     const got = await runtime.launch(rt.PURPOSE.VERIFY, {
@@ -220,8 +133,6 @@ class BrowserHarness {
     // launched profile — it is handed the same two fields it always had.
     this._launches.set(String(taskId || 'default'), { processId: inst.proc ? inst.proc.processId : null, profile: inst.profileDir });
     // WHICH BROWSER PRODUCED THIS, recorded where the evidence can reach it.
-    // A verdict that cannot name its browser cannot be compared with last
-    // week's — see env/chromiuminstall.js on why the build is pinned.
     this.lastBrowser = {
       version: inst.version, owned: inst.owned, managed: inst.managed,
       source: inst.source, path: inst.browserPath, environment: inst.environment,
@@ -233,10 +144,7 @@ class BrowserHarness {
 
   // ------------------------------------------------------------- observing --
 
-  /**
-   * ANSWER ONE QUESTION. Called by the observation router, which has already
-   * decided that this source is the right one to ask.
-   */
+  /** ANSWER ONE QUESTION. */
   async observe(source, spec = {}, ctx = {}) {
     const got = await this.session({ taskId: ctx.taskId, launch: spec.launch !== false });
     if (!got.ok) return { ok: false, source, why: got.why, value: null, summary: got.why };
@@ -302,26 +210,7 @@ class BrowserHarness {
 
   // ------------------------------------------------------------- verifying --
 
-  /**
-   * RUN A FLOW AND JUDGE IT.
-   *
-   * The spec a verification contract writes:
-   *
-   *     { kind: 'browser',
-   *       url: 'http://localhost:5173/login',
-   *       actions: [ {type:'type', selector:'#email', text:'a@b.c'},
-   *                  {type:'click', selector:'button[type=submit]'},
-   *                  {type:'wait', selector:'.dashboard'} ],
-   *       assert:  [ {selector:'.dashboard', visible:true} ],
-   *       expect_url: '/dashboard',
-   *       no_console_errors: true,
-   *       screenshot: true }
-   *
-   * EVERY FAILURE MODE IS DISTINGUISHED. No browser is INCONCLUSIVE. A page
-   * that will not load is INCONCLUSIVE — nothing about the flow was learned. An
-   * assertion that is false is FAILED. That three-way split is the whole reason
-   * a browser check is trustworthy enough to gate a task on.
-   */
+  /** RUN A FLOW AND JUDGE IT. */
   async verify(spec = {}, ctx = {}) {
     const abort = new AbortController();
     const cancel = () => abort.abort();
@@ -383,11 +272,7 @@ class BrowserHarness {
       const r = await this._act(s, action, ctx);
       trail.push(`${type} ${action.selector || action.url || ''}: ${r.why}`);
       if (!r.ok) {
-        // AN ACTION THAT COULD NOT HAPPEN IS INCONCLUSIVE, NOT FAILED. "The
-        // button was not there to click" might BE the bug — but it might also
-        // be a page that had not finished rendering, and a check has no way to
-        // tell those apart. The assertions say what is true; the actions only
-        // get there.
+        // AN ACTION THAT COULD NOT HAPPEN IS INCONCLUSIVE, NOT FAILED.
         return { verdict: VERDICT.INCONCLUSIVE, why: `the flow could not continue: ${r.why}`, output: trail.join('\n') };
       }
     }

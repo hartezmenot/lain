@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * AN IMAGE IN A TERMINAL — what may honestly be said about one.
- *
- * A TUI cannot show a picture. The temptation is to approximate: render the
- * PNG as ASCII blocks, print it, and let the conversation proceed as though
- * somebody had looked at it. That is the same false-verification failure the
- * whole evidence model exists to prevent, wearing a different hat — an ASCII
- * approximation of a screenshot is not the screenshot, and a person who "saw"
- * one has not seen the thing being asked about.
- *
- * So this does the opposite. It reads the FACTS about the file — that it
- * exists, its real pixel dimensions, its size, when it was written — states
- * them, and says plainly that nobody has looked at it and where to look.
- *
- *     ▣ shot-1787.png   1280×720 · 84 KB · just now
- *       NOT SEEN — press V, or open it, to look at it
- *
- * Dimensions come from parsing the file header, not from a library and not
- * from a guess: a claim about an image should be measured from the image.
- */
+/** AN IMAGE IN A TERMINAL — what may honestly be said about one. */
 
 const fs = require('fs');
 const path = require('path');
@@ -31,14 +12,7 @@ function isImage(file) {
   return IMAGE.has(path.extname(String(file || '')).toLowerCase());
 }
 
-/**
- * Real pixel dimensions, read from the file's own header.
- *
- * PNG and GIF are fixed-offset and trivial. JPEG requires walking its segment
- * chain to the frame header, which is still a dozen lines and is the only way
- * to know rather than assume. An unrecognised or truncated file returns null —
- * unknown, which is a true answer, rather than a plausible-looking number.
- */
+/** Real pixel dimensions, read from the file's own header. */
 function dimensions(buf) {
   try {
     // PNG: 8-byte signature, then IHDR with width/height as big-endian u32.
@@ -96,12 +70,7 @@ function ago(ms) {
   return `${Math.round(s / 3600)}h ago`;
 }
 
-/**
- * The rows an image gets in OUTPUT.
- *
- * NOT SEEN is stated on every one of them, every time, and is the entire point:
- * this pane can prove a capture happened and can never prove anybody looked.
- */
+/** The rows an image gets in OUTPUT. */
 function imageLines(file, width = 80) {
   const { P } = require('./paint');
   const d = describe(file);
@@ -112,12 +81,7 @@ function imageLines(file, width = 80) {
   const facts = `${dim} · ${size} · ${ago(d.at)}`;
   return [
     '      ' + P.info(head) + '  ' + P.meta(facts),
-    // The claim this pane is careful about. A terminal cannot show the picture,
-    // and an ASCII approximation of it would not be the picture.
-    // NOT SEEN, AND HOW TO SEE IT. Saying only that a terminal cannot show a
-    // picture is honest and a dead end — the one thing a person wants at that
-    // moment is to look, and `/image` is how. See imageview.js, which opens it
-    // in LAIN's own Chromium when one is running.
+    // The claim this pane is careful about.
     '      ' + P.warn('NOT SEEN') + P.meta(' — a terminal cannot show an image. /image opens it.'),
     '      ' + P.meta(require('./text').clip(d.file, Math.max(20, width - 8))),
   ];

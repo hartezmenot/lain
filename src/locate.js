@@ -1,57 +1,6 @@
 'use strict';
 
-/**
- * ONE QUESTION, ONE ROUND TRIP: "where is this, and what touches it?"
- *
- * ------------------------------------------------------------------------
- * THE MEASURED FAILURE THIS EXISTS FOR.
- *
- * A request in this codebase costs about 65,000 input tokens — 14,778 of fixed
- * prompt and tool schemas, and up to 50,000 of conversation — and returns a
- * tool call of about 36 output tokens. That is the whole shape of the incident:
- * 815 requests, 59.2M input, 202K output.
- *
- * The model was not being wasteful. It was doing the only thing available to
- * it. Asked to change one function, it had to run this sequence, and EVERY ARROW
- * IS A FULL 65K REQUEST:
- *
- *     symbols("saveSettings")      -> where is it?
- *          |
- *     read_symbol("saveSettings")  -> what does it do?
- *          |
- *     dependents("src/settings.js") -> what breaks if I change it?
- *          |
- *     read_file(...)               -> ...and what did that caller look like?
- *
- * Four hops, ~260,000 input tokens, to learn four facts that are all sitting on
- * disk and are all derivable from ONE pass over the tree.
- *
- * ------------------------------------------------------------------------
- * SO THE COMPOSITION HAPPENS HERE, NOT IN THE MODEL.
- *
- * This walks the project ONCE and answers all four at the same time. It is not
- * a new index and not a new subsystem: it uses `search.walk` for the traversal,
- * the same `defineRe` classification `symbols` uses, the same import matching
- * `dependents` uses, and `codemodel` for the definition body. Nothing here
- * knows anything those do not.
- *
- * WALKING ONCE IS ALSO CHEAPER THAN THE TWO TOOLS IT REPLACES. `symbols` and
- * `dependents` each walk the whole tree; asking both costs two traversals and
- * two model round trips. This costs one of each.
- *
- * ------------------------------------------------------------------------
- * IT RETURNS EVIDENCE, NOT A VERDICT. The definition is quoted because that is
- * the thing being changed. References are COUNTED PER FILE rather than listed
- * line by line: "7 uses across 4 files" is what a person decides with, and the
- * forty lines behind it are what made the old output expensive. Anything deeper
- * remains one `read_file` away — see the note on escalation at `MAX_*`.
- *
- * WHAT IT CANNOT DO, stated because a tool that overstates its reach is worse
- * than one that is narrow. It is LEXICAL, exactly like the two tools it
- * composes: it cannot tell two different things with the same name apart, it
- * cannot follow an alias or a re-export chain, and it counts a mention in a
- * comment as a use. It is a very good index. It is not a compiler.
- */
+/** ONE QUESTION, ONE ROUND TRIP: "where is this, and what touches it?" */
 
 const fs = require('fs');
 const path = require('path');
@@ -62,16 +11,7 @@ const codemodel = require('./codemodel');
 /** Files bigger than this are indexed by name only — see search.js. */
 const MAX_FILE_BYTES = 2_000_000;
 
-/**
- * ---- WHERE THE ANSWER STOPS AND ESCALATION BEGINS ----------------------
- *
- * These are the budget for a CURATED answer, not a ceiling on what the model
- * may know. The rule this file follows is "cheapest sufficient evidence first",
- * never "cheapest evidence forever": every cap below is reported when it bites
- * (`[N more]`), and the ordinary tools remain available for the case where the
- * summary genuinely was not enough. A tool that silently truncated would teach
- * the model to distrust the channel, which costs more than it saves.
- */
+/** WHERE THE ANSWER STOPS AND ESCALATION BEGINS */
 const MAX_DEF_LINES = 60;
 const MAX_DEF_FILES = 6;
 const MAX_REF_FILES = 12;
@@ -84,10 +24,7 @@ function rel(root, abs) {
   return path.relative(root, abs).replace(/\\/g, '/');
 }
 
-/**
- * The specifier forms a file can be imported by — the same set `dependents`
- * builds, kept here so one walk can answer both questions.
- */
+/** The specifier forms a file can be imported by — the same set `dependents` builds, kept here so one walk can answer both questions. */
 function specForms(relPath) {
   const forms = new Set();
   const noExt = relPath.replace(/\.[^./]+$/, '');
@@ -117,10 +54,7 @@ function importsTarget(line, fromRel, targetRel, forms) {
   return targetRel.endsWith('/' + spec);
 }
 
-/**
- * ONE PASS. Collects, for `name`: every line that defines it, every line that
- * imports it, and a per-file count of every other mention.
- */
+/** ONE PASS. Collects, for `name`: every line that defines it, every line that imports it, and a per-file count of every other mention. */
 function sweep(root, name, { include = null } = {}) {
   const word = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
   const isDef = search.defineRe(name);
@@ -183,13 +117,7 @@ function dependentsOf(root, targetRel, { include = null } = {}) {
   return hits;
 }
 
-/**
- * The definition body, when the file is one `codemodel` can read.
- *
- * BOUNDED AND SAID SO. A 400-line function is quoted to its first 60 lines with
- * the range named, because the point of this call is to decide WHERE to work —
- * the whole body is one `read_symbol` away and the answer says so.
- */
+/** The definition body, when the file is one `codemodel` can read. */
 function definitionBody(abs, name) {
   let model;
   try { model = codemodel.scanFile(abs); } catch { return null; }
@@ -211,23 +139,12 @@ function definitionBody(abs, name) {
   };
 }
 
-/**
- * WHERE IS THIS, AND WHAT TOUCHES IT.
- *
- * @param {string} root  the project root
- * @param {string} what  an identifier, or a project-relative file path
- * @returns {{ok:boolean, text:string, meta:object}}
- */
+/** WHERE IS THIS, AND WHAT TOUCHES IT. */
 function locate(root, what, { include = null } = {}) {
   const q = String(what == null ? '' : what).trim();
   if (!q) return { ok: false, text: 'locate needs a name or a path', meta: {} };
 
-  // ---- A PATH IS A DIFFERENT QUESTION FROM A NAME ------------------------
-  //
-  // "what is wired into src/settings.js" and "where is saveSettings" are both
-  // asked with one word, and answering the wrong one wastes the round trip this
-  // call exists to save. A value that names a file that EXISTS is a path;
-  // everything else is a name, including a word with a dot in it.
+  // A PATH IS A DIFFERENT QUESTION FROM A NAME
   const asPath = path.resolve(root, q);
   let isFile = false;
   try { isFile = fs.statSync(asPath).isFile(); } catch { isFile = false; }
@@ -316,11 +233,7 @@ function locateName(root, name, { include = null } = {}) {
     }
   }
 
-  // ---- WHO TOUCHES IT ---------------------------------------------------
-  //
-  // COUNTED PER FILE, not listed line by line. "7 uses across 4 files" is what
-  // the decision is made with; the forty individual lines behind it are what
-  // made the old answer expensive without making it better.
+  // WHO TOUCHES IT
   const files = [...refsByFile.entries()].sort((a, b) => b[1] - a[1]);
   if (files.length) {
     out.push(`REFERENCED ${refs} time(s) across ${files.length} file(s)`);
@@ -331,13 +244,7 @@ function locateName(root, name, { include = null } = {}) {
     out.push('');
   }
 
-  // ---- WHAT BREAKS IF IT CHANGES ----------------------------------------
-  //
-  // FROM THE INDEX WHERE THERE IS ONE. `.lain/` already records every file's
-  // import specifiers, so this question costs a lookup rather than a second
-  // walk of the tree - see projectindex.js. The index is refreshed against the
-  // disk before it is read, so it cannot answer from a stale entry; when there
-  // is no index, or it holds nothing for this project, the walk still happens.
+  // WHAT BREAKS IF IT CHANGES
   if (primary) {
     const deps = importersFromIndex(root, primary.file) || dependentsOf(root, primary.file, { include });
     out.push(deps.length
@@ -356,14 +263,7 @@ function locateName(root, name, { include = null } = {}) {
   };
 }
 
-/**
- * Importers from `.lain/`, or null when the index cannot answer.
- *
- * NULL RATHER THAN AN EMPTY LIST, and the difference is the whole care here: an
- * empty list means "nothing imports this", which is a claim, and a missing
- * index means "ask the tree". Returning `[]` for the second would report a file
- * as unused because an index had not been built yet.
- */
+/** Importers from `.lain/`, or null when the index cannot answer. */
 function importersFromIndex(root, relPath) {
   let pi;
   try { pi = require('./projectindex'); } catch { return null; }

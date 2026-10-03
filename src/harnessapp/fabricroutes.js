@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * MODEL — "what intelligence can LAIN actually use?" — as one projection, and
- * the operations on local models, runtimes and legacy keys.
- *
- *   current   what CHAT, the BOT and the Coding Agent use now
- *   groups    Local · Runtimes & plans · Chat sources · Cloud APIs — each row
- *             says what it is, where it runs, which roles it may fill, and its
- *             usage or limit in the terms that source actually has (a local
- *             model has NO provider quota; a plan shows what its runtime
- *             recorded; nothing is invented)
- *   runtimes  every runtime adapter: DISCOVERY / TELEMETRY / EXECUTION apart
- *
- * Reads caches and LAIN's own registries; a refresh is always explicit.
- */
+/** MODEL — "what intelligence can LAIN actually use?" — as one projection, and the operations on local models, runtimes and legacy keys. */
 
 const path = require('path');
 

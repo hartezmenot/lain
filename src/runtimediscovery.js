@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * WHAT IS ON THIS MACHINE — runtimes and their homes, found, never taken.
- *
- * For each runtime driver: is its binary on PATH, and which of its documented
- * homes exist (~/.codex, $CODEX_HOME, ~/.claude, $CLAUDE_CONFIG_DIR, …). For a
- * home, LAIN checks that it EXISTS and whether the runtime's own sign-in file is
- * PRESENT — by existence only. No file inside another application's home is
- * opened, read or copied here.
- *
- * ADOPT registers an existing home as an account instance (direct mode, that
- * home), so LAIN talks to the runtime there. It copies nothing and moves no
- * token. It happens only when the person presses Adopt — discovery never
- * enables anything by itself.
- *
- * Read on demand (the Runtimes view, `/account`), cached briefly; never polled.
- */
+/** WHAT IS ON THIS MACHINE — runtimes and their homes, found, never taken. */
 
 const fs = require('fs');
 const os = require('os');

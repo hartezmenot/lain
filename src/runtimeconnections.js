@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * RUNTIME AND LOCAL MODELS AS CONNECTIONS — so they are chosen, resolved,
- * traced, cancelled and counted exactly like every other model:
- *
- *   BOT / Agent ─▶ catalog ─▶ provider.chat (modelrequest envelope) ─▶ protocol 'runtime'
- *                                                                      └▶ runtimeprovider.js
- *
- * There is no second chat subsystem for local models or runtimes. Each source
- * contributes one connection whose models carry the ROLES they may fill
- * (modelroles.js) — a local model gets AGENT only after its compatibility test,
- * a runtime model only when its runtime executes agent work.
- *
- *   local:llamacpp      GGUF text models in the person's model directories
- *   local:ollama        what the Ollama service last listed
- *   runtime:<id>        models a runtime adapter can serve now (cached telemetry)
- *   runtime:codex:<n>   one native Codex account (its own home): the models Codex
- *                       listed for it at its last refresh — Chat / BOT through
- *                       codex exec (drivers/codexexec.js), never the Coding Agent
- *
- * Synchronous and cheap: reads caches and LAIN's own registries, never a network.
- */
+/** RUNTIME AND LOCAL MODELS AS CONNECTIONS — so they are chosen, resolved, traced, cancelled and counted exactly like every other model */
 
 const PROTOCOL = 'runtime';
 
@@ -71,11 +51,7 @@ function codexConnections() {
   }));
 }
 
-/**
- * CLAUDE ACCOUNTS LAIN holds, each with its own configuration directory (drivers/claudeaccount.js): one route
- * per signed-in account (runtime:claude-code:<instance>). The person's own default profile is the plain
- * `runtime:claude-code` route above; these are the accounts LAIN connected in addition — never the same directory.
- */
+/** CLAUDE ACCOUNTS LAIN holds, each with its own configuration directory (drivers/claudeaccount.js): one route per signed-in account… */
 function claudeConnections() {
   let recs = [];
   try { recs = require('./accountinstances').records(); } catch { recs = []; }
@@ -97,15 +73,7 @@ function antigravityConnections() {
   }));
 }
 
-/**
- * Every runtime/local connection, in the shape connections.fromConfig produces.
- *
- * MEMOISED PER APP for up to a second, and dropped whenever the catalog's inputs
- * change (appcatalog.invalidate): the header names the model the next turn uses,
- * and naming a runtime's model asked for this list — which reads telemetry and
- * walks PATH — on every redraw. In a profiled task that was 2.4 s of 2.9 s of
- * the terminal's CPU (Phase 8.2).
- */
+/** Every runtime/local connection, in the shape connections.fromConfig produces. */
 const MEMO_MS = 1000;
 // ONE ENTRY PER CALLER (2026-10-01): a single slot was evicted on every call, because provider.resolve asks with no
 // App and the header/turn ask with one — measured rebuilding on every resolve (~66 ms a turn on a real home).

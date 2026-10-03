@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * MCP & SKILLS ROUTES (Phase 8.1) — integrations.js, drawn by the MCP & SKILLS surface.
- *
- *   /api/integrations/state            servers, skills, the catalog, this project's recommendations
- *   /api/integrations/mcp/add          { name, transport, command | url, env, headers, secretEnv, secretHeaders }
- *   /api/integrations/mcp/connect      { id } — starts it and lists its tools / resources / prompts
- *   /api/integrations/mcp/disconnect   { id }
- *   /api/integrations/mcp/enable       { id, enabled }
- *   /api/integrations/mcp/remove       { id } — and the secrets LAIN kept for it
- *   /api/integrations/skill/validate   { path }
- *   /api/integrations/skill/add        { path } | { repo } — added DISABLED, after validation
- *   /api/integrations/skill/enable     { id, enabled }
- *   /api/integrations/skill/remove     { id, deleteFiles }
- */
+/** MCP & SKILLS ROUTES (Phase 8.1) — integrations.js, drawn by the MCP & SKILLS surface. */
 
 const ig = require('../integrations');
 

@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * CONDITION WATCHES — "tell me when …", evaluated from STATE LAIN already
- * holds. No model is ever asked whether a condition is true.
- *
- *   window_reset    a provider window's reset time has passed
- *                   (Claude Code windows from its runtime; Codex accounts' windows)
- *   channel_state   a channel stops (or starts) being operational (Telegram)
- *   runtime_state   a runtime reaches a state (e.g. OpenCode Operational)
- *
- * A condition LAIN cannot observe is refused at creation, with the reason — a
- * ZCode Start Plan expiry, for instance: ZCode does not report it to LAIN.
- * `memo` carries what the last check saw, so a watch fires on the CHANGE.
- */
+/** CONDITION WATCHES — "tell me when …", evaluated from STATE LAIN already holds. */
 
 const KINDS = Object.freeze(['window_reset', 'channel_state', 'runtime_state', 'plan_expiry']);
 

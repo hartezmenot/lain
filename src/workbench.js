@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * THE WORKBENCH STATE — what Chat needs to supervise the Coding Agent, kept on
- * the session it supervises. ONE owner for persistence; the behaviour lives in
- * the modules that use it:
- *
- *   strategy        runstrategy.js   Normal / Phased / Long Context Phasing, the
- *                                    review policy, and the warning handshake
- *   pendingProfile  runstrategy.js   an execution-profile change asked for while
- *                                    the Agent works — applied at the next checkpoint
- *   steers          supervision.js   ideas typed in Chat while the Agent works:
- *                                    PENDING until compared with a checkpoint
- *   findings        supervision.js   what the Agent found, structured:
- *                                    { severity, summary, evidence, affected,
- *                                      possibleFix, blocking }
- *   phases          supervision.js   one summary per checkpoint: landed, found,
- *                                    remaining, failed, recommended next change
- *   deltas          supervision.js   work discovered beyond the APPROVED plan —
- *                                    consequences added, expansions proposed
- *   quota           quotapause.js    RUNNING / QUOTA_PAUSED, and what Continue re-checks
- *   offers          supervision.js   LAIN's own questions (plan first? fast? steer now?)
- *   surface         surfacehandoff.js which surface holds the writer (Harness / CLI)
- *
- * NOT A SECOND TASK OWNER. The task, the plan, the handover, compaction and the
- * transcript stay where they are; this records the supervision facts about
- * them. Chat and the Coding Agent are the two threads of the SAME session
- * (sessionviews.js), so there is exactly one of these per task.
- */
+/** THE WORKBENCH STATE — what Chat needs to supervise the Coding Agent, kept on the session it supervises. */
 
 const crypto = require('crypto');
 

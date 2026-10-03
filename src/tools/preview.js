@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * THE PREVIEW TOOL — the model tests the project's own frontend INSIDE the
- * LAIN Preview: click, type, scroll, drag, keys. Never the person's browser, never the desktop, never another app.
- * See workshop/previewinput.js for the path an action takes and bridge.js for what the page refuses.
- */
+/** THE PREVIEW TOOL — the model tests the project's own frontend INSIDE the LAIN Preview: click, type, scroll, drag, keys. */
 
 const TARGET = {
   type: 'object',
@@ -76,10 +72,7 @@ function toAction(i) {
   }
 }
 
-/**
- * THE ONE PREVIEW TOOL (S9): the project's own page in the LAIN Preview — read it, click, type, scroll, drag, keys.
- * Never the person's browser, the desktop, or another app.
- */
+/** THE ONE PREVIEW TOOL (S9): the project's own page in the LAIN Preview — read it, click, type, scroll, drag, keys. */
 const tools = {
   preview: {
     mutates: false,

@@ -1,51 +1,19 @@
 'use strict';
 
-/**
- * A SCRIPTED PROVIDER, for testing the real binary.
- *
- * This exists for one reason: rule 26 requires smoke tests that launch the
- * actual executable, and a real provider makes those tests slow, non-hermetic,
- * credential-dependent and expensive. This double replaces the NETWORK CALL and
- * nothing else — the binary, argv parsing, REPL, session, turn loop, tool
- * dispatch, filesystem and shell tools, rendering and error handling are all
- * the real thing.
- *
- * A run using this is LIVE CLI VERIFIED. It is never LIVE PROVIDER VERIFIED.
- *
- * Script format — LAIN_MOCK_SCRIPT points at a JSON array; each element is one
- * model response, consumed in order:
- *
- *   { "text": "hello" }
- *   { "text": "reading it", "tool_calls": [ { "name": "read_file",
- *                                             "input": { "path": "a.txt" } } ] }
- *   { "error": { "status": 503, "message": "upstream down" } }
- *   { "error": { "code": "ECONNREFUSED" } }
- *   { "text": "slow", "delayMs": 800 }        the provider took a while
- *
- * Running past the end of the script yields a plain closing message, so a loop
- * that takes more steps than expected terminates instead of hanging.
- */
+/** A SCRIPTED PROVIDER, for testing the real binary. */
 
 const fs = require('fs');
 
-// Per-PROCESS cursor. Each smoke test spawns its own binary, so this is the
-// natural lifetime; within one process, multi-turn scripts sequence across
-// turns in call order. It is test-double state, not application state, and no
-// App instance reads it.
-//
-// A NOTE ON LEAKS, because two wrong fixes lived here briefly: a turn leaked
-// from an earlier test CAN consume a later test's steps, and keying cursors by
-// conversation text both broke multi-turn sequencing and misfired on reused
-// input texts (measured: 12 integration failures). The correct place to stop a
-// leaked turn is where it tries to reach the provider: turn.js refuses to admit
-// a request for an aborted turn, cancelled at the boundary. Tests that leave
-// slow turns alive must wait for them — the harness's contract, not the mock's.
+// Per-PROCESS cursor. Each smoke test spawns its own binary, so this is the natural lifetime; within one process, multi-turn scripts sequence across…
 let cursor = 0;
 let script = null;
+let loadedFrom = null;
 
 function loadScript() {
-  if (script) return script;
   const p = process.env.LAIN_MOCK_SCRIPT;
+  if (script && loadedFrom === (p || null)) return script;
+  if (script) cursor = 0;   // a new script (another test) starts at its first step
+  loadedFrom = p || null;
   if (!p) { script = []; return script; }
   try {
     const data = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -58,11 +26,7 @@ function loadScript() {
 }
 
 async function* chat(pc, messages, opts = {}) {
-  // MEASUREMENT SEAM. `LAIN_MOCK_WIRELOG` appends one line per request with the
-  // size of the payload that was actually about to be sent. That number is the
-  // only honest answer to "did context management change anything" — the
-  // persisted session is measured after the fact, and the request is the thing
-  // a provider accepts or refuses.
+  // MEASUREMENT SEAM. `LAIN_MOCK_WIRELOG` appends one line per request with the size of the payload that was actually about to be sent. That number is…
   if (process.env.LAIN_MOCK_WIRELOG) {
     const chars = messages.reduce((n, m) => n + String((m && m.content) || '').length, 0);
     try { fs.appendFileSync(process.env.LAIN_MOCK_WIRELOG, `${messages.length}\t${chars}\n`); } catch { /* measurement must never break a run */ }
@@ -77,16 +41,7 @@ async function* chat(pc, messages, opts = {}) {
     return;
   }
 
-  // ---- A PROVIDER THAT TAKES TIME -------------------------------------
-  //
-  // `{ "delayMs": 800 }` holds the response open. Every other field scripts
-  // WHAT the model said; this scripts that saying it was not instantaneous,
-  // which is the one property a test of NON-BLOCKING behaviour needs and the
-  // only way to get it without spawning a process and depending on a shell.
-  //
-  // IT HONOURS THE SIGNAL, so a cancelled turn unwinds here immediately rather
-  // than sitting out its delay — which is also what makes cancellation
-  // observable at a known point. No polling: one timer, one abort listener.
+  // A PROVIDER THAT TAKES TIME
   if (step.delayMs > 0) {
     await new Promise((resolve) => {
       const t = setTimeout(resolve, step.delayMs);
@@ -106,9 +61,7 @@ async function* chat(pc, messages, opts = {}) {
     throw e;
   }
 
-  // A REASONING-ONLY RESPONSE, which is what a real route did and what left
-  // Context empty. `{ "reasoning": "..." }` with no `text` reproduces it
-  // exactly: the model produced prose, and none of it in `content`.
+  // A REASONING-ONLY RESPONSE, which is what a real route did and what left Context empty.
   if (typeof step.reasoning === 'string' && step.reasoning) {
     for (const part of step.reasoning.match(/\S+\s*|\s+/g) || [step.reasoning]) {
       if (opts.signal && opts.signal.aborted) break;
@@ -127,9 +80,7 @@ async function* chat(pc, messages, opts = {}) {
     }
   }
 
-  // `{ "toolStreamMs": 3000 }` streams each call's arguments over that long, in
-  // slices, the way a router relays a 10 KB `edit_file` — the liveness record
-  // (streamprogress.js) sees PREPARING TOOL with the size growing, and no text.
+  // `{ "toolStreamMs": 3000 }` streams each call's arguments over that long, in slices, the way a router relays a 10 KB `edit_file` — the liveness record…
   if (Array.isArray(step.tool_calls) && step.tool_calls.length && step.toolStreamMs > 0 && opts.live) {
     const progress = require('./streamprogress');
     const calls = step.tool_calls;
@@ -169,6 +120,6 @@ async function* chat(pc, messages, opts = {}) {
 }
 
 /** Test hook — resets the cursor within one process. */
-function _reset() { cursor = 0; script = null; }
+function _reset() { cursor = 0; script = null; loadedFrom = null; }
 
 module.exports = { chat, _reset };

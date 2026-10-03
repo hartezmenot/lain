@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * READ A ZIP (a .vsix is one) — entries out of the central directory, stored
- * or deflated, nothing else. LAIN has no runtime dependencies, and a .vsix
- * needs exactly this much of the format.
- *
- * AN ARCHIVE IS UNTRUSTED INPUT, so every limit is checked before any byte is
- * written: an entry name that would land outside the target ("../", an
- * absolute path, a drive letter) is refused, as are more than MAX_ENTRIES
- * entries or more than MAX_TOTAL bytes once inflated (a zip bomb inflates to
- * gigabytes from kilobytes). Encrypted and zip64 archives are refused, not
- * guessed at.
- */
+/** READ A ZIP (a .vsix is one) — entries out of the central directory, stored or deflated, nothing else. */
 
 const fs = require('fs');
 const path = require('path');
@@ -75,10 +64,7 @@ function safe(name) {
   return norm;
 }
 
-/**
- * Extract the entries under `prefix` (e.g. "extension/") into `dest`, prefix
- * removed. Returns the files written.
- */
+/** Extract the entries under `prefix` */
 function extract(file, dest, { prefix = '' } = {}) {
   const buf = fs.readFileSync(file);
   const list = entries(buf);

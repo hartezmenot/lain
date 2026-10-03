@@ -438,7 +438,7 @@ module.exports = async function () {
       cwd, configDir, env: tui,
       stdinSteps: ['run the check\n', '\x03', '\x03', '\x03'], stepDelayMs: 1200,
       script: [
-        { text: 'Running.', tool_calls: [{ name: 'run_cmd', input: { command: 'ping -n 10 127.0.0.1' } }] },
+        { text: 'Running.', tool_calls: [{ name: 'shell', input: { shell: 'cmd', command: 'ping -n 10 127.0.0.1' } }] },
         { text: 'SECOND_STEP_SHOULD_NOT_RUN' },
       ],
       timeoutMs: 25000,

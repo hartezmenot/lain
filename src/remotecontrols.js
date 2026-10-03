@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * CONTROLS OVER CANONICAL SESSION STATE — the same verbs from the Harness
- * composer, Telegram and any other remote surface. They change Core state and
- * return text; they are never sent to a model, and no surface keeps a copy.
- *
- *   /model [id]        the Coding Agent's provider › model (sessionintel)
- *   /account [auto|ask|pin <n>]   the provider's account policy and backing accounts (fabric)
- *   /effort [level]    one of the levels the lane's model declares (fabric/effortcaps.js)
- *   /fast /eco         execution profile, toggles (the active one again → Normal); /normal resets (queued while the Agent works)
- *   /mode [m]          Ask · Accept edits · Plan · Auto (execmode)
- *   /strategy [s]      Normal · Phased · Long Context Phasing (the warning is answered separately)
- *   /status            the session: project, lane, phase, model, profile, strategy
- *   /usage             provider windows and LAIN-observed usage in them
- *   /project           the attached project, or how to attach one
- *   /compact           the one context authority compacts (no model call)
- *   /target [n]        (Telegram) which session this chat drives
- *   /help
- *
- * ChatGPT Chat stays CHAT ONLY: sessionintel refuses it as the Coding Agent.
- */
+/** CONTROLS OVER CANONICAL SESSION STATE — the same verbs from the Harness composer, Telegram and any other remote surface. */
 
 const LIST = Object.freeze([
   ['/model', 'Coding Agent provider › model — /model <id>'], ['/account', 'account policy — /account auto · ask · pin <n>'],

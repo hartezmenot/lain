@@ -1,38 +1,6 @@
 'use strict';
 
-/**
- * SETTINGS — A SCHEMA, CURRENT VALUES, AND VALIDATED UPDATES.
- *
- * ------------------------------------------------------------------------
- * ONLY SETTINGS WITH A BACKEND. Each field names the authority that honours it:
- *
- *   general.startup.*        src/startup.js — cfg.startup (harness, minimized,
- *                            restoreWorkspace), projected onto a per-user
- *                            Startup-folder shortcut to `LAIN Harness.exe --startup`
- *   general.closeToTray      native/host.cs OnClosing — FIXED behaviour, shown
- *   general.background       Core outlives the window — FIXED behaviour, shown
- *   general.maxSteps         cfg.maxSteps, honoured by turn.js
- *   models.defaultCoding     cfg.model — the process default for Coding
- *   models.defaultChat       cfg.defaultChat — applied to NEW engineering
- *                            sessions (sessionroutes `POST /api/session/new`)
- *   paths.defaultProjectRoot cfg.defaultProjectRoot — offered by
- *                            `POST /api/project/recent` and "Add project"
- *   paths.nodePath           cfg.nodePath — noderesolve.js; the launcher reads
- *                            it at build time, so a change needs a restart
- *   notifications.*          cfg.notifications — src/notify.js
- *   privacy.trustedDirectories  cfg.trustedPaths — trust.js; `forget` removes one
- *
- * Read-only facts (detected Node, config and session directories, model
- * sources, messaging connections) are fields with `editable: false`.
- *
- * Settings with no backend are NOT listed — no theme, no accent, no update
- * channel — because a switch that does nothing is worse than no switch.
- *
- * ------------------------------------------------------------------------
- * A FRONTEND NEVER WRITES A CONFIG PATH. It sends `{key, value}` for a key in
- * the schema; this file validates, applies through the owner, saves, and says
- * whether a restart is needed. An unknown key is refused.
- */
+/** SETTINGS — A SCHEMA, CURRENT VALUES, AND VALIDATED UPDATES. */
 
 const path = require('path');
 
@@ -46,13 +14,7 @@ function notif(cfg, k) {
   return n[k] !== false;
 }
 
-/**
- * §55 — functional state only: DISCONNECTED / WAITING (bridge up, extension
- * has not registered yet) / CONNECTED, plus the count Settings actually
- * needs. "Installed" is not reported — Node has no way to ask Chrome's own
- * extension list, and a guess dressed as a fact is worse than the honest
- * three states this bridge can actually observe. See src/lainchrome.js.
- */
+/** §55 — functional state only: DISCONNECTED / WAITING (bridge up, extension has not registered yet) / CONNECTED, plus the count Settings actually needs. */
 function chromeField(app) {
   const c = require('./lainchrome').existing(app);
   const s = c ? c.status() : { connected: false, extensionSeen: false, authorizedTabs: [] };

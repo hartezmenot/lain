@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE CHANGE PANES — diff, files, output. Pure state → lines, like views.js.
- *
- * These live in their own module only because they are the three views that read
- * CHECKPOINT BYTES rather than session state; the rule is the same and so is the
- * signature. Nothing here calls a model, and nothing here mutates: a diff is
- * computed from the bytes captured before a mutating call and the bytes on disk
- * now, so it is a fact about the filesystem, never a claim by the model.
- */
+/** THE CHANGE PANES — diff, files, output. */
 
 const fs = require('fs');
 const path = require('path');
@@ -19,10 +11,7 @@ const SKIP = /^(?:node_modules|\.git|dist|build|out|target|vendor|__pycache__|\.
 // Measured VISIBLY — these panes carry colour now, and `.length` counts escape
 // bytes as if they took cells. See ui/text.js.
 const T = require('./text');
-// THE ONE WRAPPER. A command and its output are content and may not be cut to
-// the column - see the note in `outputView`. `wrapIndented` never drops a
-// character and never rejoins an indented line into prose, which matters here:
-// in command output the layout IS information.
+// THE ONE WRAPPER. A command and its output are content and may not be cut to the column - see the note in `outputView`. `wrapIndented` never drops a…
 const { wrapIndented, MAX_WRAPPED_ROWS } = require('./doc');
 const clip = T.clip;
 const pad = T.pad;
@@ -30,19 +19,8 @@ function rel(cwd, p) {
   try { return path.relative(cwd, p).replace(/\\/g, '/'); } catch { return String(p); }
 }
 
-/**
- * Every file this session touched, with a real line count for each.
- *
- * THE one place that answers "what changed" — the diff view, the files view, the
- * completion screen and the file picker all consume this rather than each
- * walking the checkpoints their own way.
- *
- * @returns {Array<{path, rel, kind, added, removed, before, after}>}
- */
-/**
- * MEMOISED PER CHECKPOINT GENERATION (2026-10-02): the answer only changes when a checkpoint is added or removed, or a
- * file on disk changes — so each file is re-read only when its size or mtime moved. A redraw costs a stat per file.
- */
+/** Every file this session touched, with a real line count for each. */
+/** MEMOISED PER CHECKPOINT GENERATION (2026-10-02): the answer only changes when a checkpoint is added or removed, or a file on disk changes — so each… */
 const changedMemo = new WeakMap();   // checkpoints → { gen, cwd, files: Map(path → { mtimeMs, size, row }) , out }
 function changedFiles({ checkpoints, cwd }) {
   if (!checkpoints || !Array.isArray(checkpoints.entries)) return changedFilesNow({ checkpoints, cwd });
@@ -94,22 +72,14 @@ function changedFilesNow({ checkpoints, cwd }) {
 }
 
 /** Line counts either side of the common prefix/suffix. Bounded and exact. */
-/**
- * A FILE'S LINES. The newline that ENDS the last line does not start another:
- * `'a\nb\n'.split('\n')` is three elements for two lines, and every count and
- * diff built on it reported one phantom empty line added or removed.
- */
+/** A FILE'S LINES. The newline that ENDS the last line does not start another: `'a\nb\n'.split('\n')` is three elements for two lines, and every count… */
 function linesOf(text) {
   const t = String(text);
   if (!t) return [];
   return (t.endsWith('\n') ? t.slice(0, -1) : t).split('\n');
 }
 
-/**
- * Lines added/removed, from the same edit script `unified` draws — so the
- * count beside a file agrees with its [Diff]. The prefix/suffix span counted
- * two edits eight lines apart as +8 -8 (live completion card, 2026-09-18).
- */
+/** Lines added/removed, from the same edit script `unified` draws — so the count beside a file agrees with its [Diff]. */
 function countChanges(a, b) {
   let added = 0;
   let removed = 0;
@@ -120,16 +90,7 @@ function countChanges(a, b) {
   return { added, removed };
 }
 
-/**
- * A RENAME IS TWO EVENTS THAT MEAN ONE THING.
- *
- * The checkpoints record bytes per path, so moving a file appears as one path
- * deleted and another added. Pairing them is not a guess: it is only a rename
- * when the removed bytes and the added bytes are IDENTICAL and non-empty, which
- * is a fact about the two files rather than an inference about intent. Anything
- * else stays two separate changes, because reporting a rewrite as a rename
- * would hide the rewrite.
- */
+/** A RENAME IS TWO EVENTS THAT MEAN ONE THING. */
 function groupChanges(files) {
   const added = files.filter((f) => f.kind === 'added');
   const removed = files.filter((f) => f.kind === 'deleted');
@@ -151,34 +112,10 @@ function groupChanges(files) {
   };
 }
 
-/**
- * DIFF — WHAT WAS IMPLEMENTED, WHAT CHANGED, WHAT WENT AWAY.
- *
- * Grouped by what happened rather than listed alphabetically, because those are
- * the three different questions a person has when they look at this. Colour
- * carries the same meaning it does everywhere else: green added, yellow
- * modified, red removed, cyan for a path.
- */
-/**
- * ONE DIFF ROW — conventional semantics, on its own reading surface.
- *
- *   +  added     green
- *   -  removed   red
- *      context   neutral
- *
- * THE MARKER IS NEVER THE COLOUR'S JOB. `+` and `-` stay in the text, so the
- * diff is still readable with colour off, in a pipe, or by somebody who cannot
- * distinguish the two hues — which is most of why the convention exists.
- *
- * The row is padded to the full width BEFORE the background is applied, so the
- * surface is a rectangle rather than a ragged stripe behind each line. The
- * foreground is applied inside it: an inner reset would close the background
- * too (see ui/paint.js on nesting).
- */
+/** DIFF — WHAT WAS IMPLEMENTED, WHAT CHANGED, WHAT WENT AWAY. */
+/** ONE DIFF ROW — conventional semantics, on its own reading surface. */
 function diffRow(line, width, P) {
-  // THE LAIN DIFF PALETTE (ui/palette.js, 2026-09-23): an added row is teal-green
-  // on dark teal, a removed row rose on dark red, context neutral on the raised
-  // ground; the line number is muted on every row.
+  // THE LAIN DIFF PALETTE (ui/palette.js, 2026-09-23): an added row is teal-green on dark teal, a removed row rose on dark red, context neutral on the…
   const { C } = require('../render');
   const mark = line.slice(5, 6);
   const gap = /^\s{5}…/.test(line);
@@ -192,15 +129,7 @@ function diffRow(line, width, P) {
 /** At or above this width a diff is drawn side by side; below it, unified. */
 const SPLIT_MIN = 150;
 
-/**
- * THE SAME HUNKS, SIDE BY SIDE — old on the left, new on the right — built from
- * the unified rows `unified()` produced, so there is one diff and two layouts.
- * Old line numbers of context rows come from the running (adds − dels) offset.
- * `visible[i]` says whether source row i has arrived (the arrival animation);
- * a pair shows once all of its sources have.
- *
- * @returns {string[]} painted rows, each exactly `width` cells
- */
+/** THE SAME HUNKS, SIDE BY SIDE — old on the left, new on the right — built from the unified rows `unified()` produced, so there is one diff and two… */
 function diffSplit(lines, width, visible = null) {
   const { C } = require('../render');
   const half = Math.floor((width - 3) / 2);
@@ -251,18 +180,6 @@ function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 40
   const pick = selected ? files.find((f) => f.rel === selected) : null;
   if (!pick) {
     // EXPANDED BY DEFAULT.
-    //
-    // This pane used to be a LIST — `src/app.js   +3 -2` — with "Enter to open
-    // a file" underneath it. So the one question the pane exists to answer,
-    // "what actually changed?", cost a keystroke per file to reach, and
-    // reviewing four files meant four round trips through a menu. A diff view
-    // whose default state contains no diff is a table of contents.
-    //
-    // Every changed file is now shown in full, separated by a heavy rule
-    // carrying the path and its counts, and the workspace windows the result:
-    // scrolling down walks out of one file and into the next, which is how
-    // every other diff a person reads behaves. `selected` still drills into a
-    // single file, so nothing that worked before was taken away.
     const lines = [];
     let budget = maxLines;
     for (let i = 0; i < files.length; i++) {
@@ -273,10 +190,7 @@ function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 40
       }
       const counts = `+${f.added} -${f.removed}`;
       const kind = f.kind === 'added' ? P.ok : f.kind === 'deleted' ? P.bad : P.warn;
-      // The divider IS the file boundary, and it stays findable while scrolling
-      // because it is the widest, brightest thing in the pane. Measured
-      // visibly — these rows carry colour, and `.length` counts escapes as
-      // cells (see ui/text.js), which is what tears a rule off its right edge.
+      // The divider IS the file boundary, and it stays findable while scrolling because it is the widest, brightest thing in the pane.
       const head = `━━ ${f.rel} `;
       const fill = Math.max(2, width - T.width(head) - counts.length - 3);
       lines.push(P.info(head + '━'.repeat(fill)) + ' ' + P.meta(counts));
@@ -304,25 +218,14 @@ function diffView({ checkpoints, cwd, width = 80, selected = null, maxLines = 40
   return lines;
 }
 
-/**
- * A line-level diff with line numbers and a little context, in real hunks
- * (unchanged runs between them elided to `…`). Bounded twice: the LCS table by
- * diffscript.MAX_CELLS, and the rows by `max` changed lines — a 10,000-line
- * rewrite cannot produce 10,000 rows.
- */
+/** A line-level diff with line numbers and a little context, in real hunks (unchanged runs between them elided to `…`). */
 function unified(before, after, max = 400, context = 3) {
   const a = before == null ? [] : linesOf(before);
   const b = after == null ? [] : linesOf(after);
   if (before == null) return b.slice(0, max).map((l, i) => `${String(i + 1).padStart(4)} + ${l}`);
   if (after == null) return a.slice(0, max).map((l, i) => `${String(i + 1).padStart(4)} - ${l}`);
 
-  // ---- REAL HUNKS, not one prefix/suffix span ------------------------------
-  //
-  // Bracketing the change between the common prefix and suffix drew two edits
-  // eight lines apart as eight removed + eight added lines — every unchanged
-  // line between them marked as changed (live [Diff] on pricing.js, +2 -2 drawn
-  // as -8 +8, 2026-09-18). The line-level edit script is diffscript.ops (LCS on
-  // the middle, bounded by MAX_CELLS, degrading to the old single span).
+  // REAL HUNKS, not one prefix/suffix span
   const ops = require('./diffscript').ops(a, b);
   const near = new Uint8Array(ops.length);
   for (let i = 0; i < ops.length; i++) {
@@ -349,14 +252,7 @@ function unified(before, after, max = 400, context = 3) {
   return out;
 }
 
-/**
- * FILES — the project as a bounded tree, with this session's changes marked.
- *
- * The old version listed ONLY changed files, so before the first edit the view
- * was empty and the tab was useless. The tree is a shallow scan with a hard cap
- * and the same SKIP set used everywhere else, so a generated directory can never
- * flood it.
- */
+/** FILES — the project as a bounded tree, with this session's changes marked. */
 function filesView({ checkpoints, cwd, width = 80, tree = null, cursor = -1 }) {
   const { P } = require('./paint');
   const files = changedFiles({ checkpoints, cwd });
@@ -365,13 +261,6 @@ function filesView({ checkpoints, cwd, width = 80, tree = null, cursor = -1 }) {
   const lines = [];
 
   // WHAT CHANGED, FIRST — grouped by what happened to it.
-  //
-  // This grouping used to live at the top of the DIFF pane, where it stood
-  // BETWEEN the user and the diff. DIFF is now expanded by default (see
-  // diffView), so the question "which files did this touch?" needs its own
-  // home, and it belongs here: this is the structural view of the project, and
-  // "changed" is a structural fact about it. The tree below still marks each
-  // one, so the two halves agree.
   if (files.length) {
     const g = groupChanges(files);
     const section = (mark, label, paint, rows) => {
@@ -400,9 +289,7 @@ function filesView({ checkpoints, cwd, width = 80, tree = null, cursor = -1 }) {
     return lines;
   }
 
-  // Real tree connectors. `last[d]` says whether the entry at depth d is the
-  // final child, which is what decides between `├─` and `└─` and whether the
-  // deeper levels still need a `│` running through them.
+  // Real tree connectors.
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     let prefix = '';
@@ -432,10 +319,7 @@ function lastAtDepth(entries, i, d) {
   return true;
 }
 
-/**
- * A shallow, bounded project tree. Directories are expanded one level below the
- * root only — enough to orient, and it cannot walk a monorepo forever.
- */
+/** A shallow, bounded project tree. */
 function scanTree(cwd, { max = MAX_TREE_ENTRIES, depth = 2 } = {}) {
   const out = [];
   const walk = (dir, d, prefix) => {
@@ -460,13 +344,7 @@ function scanTree(cwd, { max = MAX_TREE_ENTRIES, depth = 2 } = {}) {
 }
 
 /** OUTPUT — bounded command/test output, newest last. */
-/**
- * IMAGE FILES MENTIONED BY A COMMAND'S OUTPUT.
- *
- * Read from the text rather than declared by the caller, because the caller is
- * often a shell command that has no idea it produced a picture - a screenshot
- * tool, a test that writes a diff image, a Python script that saves a plot.
- */
+/** IMAGE FILES MENTIONED BY A COMMAND'S OUTPUT. */
 const img = require('./images');
 
 function imagesIn(o) {
@@ -490,19 +368,7 @@ function outputView({ outputs = [], width = 80, running = null }) {
   for (const o of outputs.slice(-5)) {
     const ok = o.exitCode === 0;
     const mark = ok ? P.ok('✓') : o.exitCode == null ? P.meta('·') : P.bad('✗');
-    // ---- A COMMAND AND ITS OUTPUT ARE CONTENT, NOT LABELS ---------------
-    //
-    // The same defect the how-to callout had (ui/markdown.js), on the pane
-    // whose entire job is to show what was run and what it said. `clip` ended a
-    // long command with an ellipsis - so the pane that answers 'what did LAIN
-    // actually execute?' answered with most of it - and did the same to every
-    // output line, which is where a stack frame's tail, a failing assertion's
-    // actual value and a deep path all live.
-    //
-    // A row that is a LABEL may be cut to the column; this pane has none.
-    // THE MARK IS DRAWN ONCE. Repeating it on a continuation would read as
-    // several commands with several outcomes; the wrapped rows are indented
-    // under it instead, so the whole thing is visibly one command.
+    // A COMMAND AND ITS OUTPUT ARE CONTENT, NOT LABELS
     const cmd = wrapIndented(String(o.command || ''), Math.max(12, width - 6));
     lines.push(`  ${mark} ` + P.cmd(cmd[0]));
     for (const part of cmd.slice(1)) lines.push('    ' + P.cmd(part));
@@ -511,10 +377,7 @@ function outputView({ outputs = [], width = 80, running = null }) {
     // Trailing blank lines are just a gap between one command and the next.
     while (shown.length && !shown[shown.length - 1].trim()) shown.pop();
     for (const l of shown) {
-      // BOUNDED PER SOURCE LINE, because a minified bundle printed to stdout is
-      // one line of forty thousand characters and wrapping it unconditionally
-      // turns a scrollable pane into a wall. What is past the bound is COUNTED
-      // and said, never silently cut.
+      // BOUNDED PER SOURCE LINE, because a minified bundle printed to stdout is one line of forty thousand characters and wrapping it unconditionally turns a…
       const parts = wrapIndented(String(l), Math.max(12, width - 8));
       const keep = parts.slice(0, MAX_WRAPPED_ROWS);
       for (const part of keep) lines.push('      ' + part);
@@ -522,31 +385,16 @@ function outputView({ outputs = [], width = 80, running = null }) {
         lines.push(P.meta(`      ... ${parts.length - keep.length} more wrapped row(s) of this line`));
       }
     }
-    // AN IMAGE IS NAMED AND MEASURED, NEVER APPROXIMATED. A screenshot's path in
-    // a stream of text says nothing about what was captured; an ASCII rendering
-    // of it would say something false. See ui/images.js.
+    // AN IMAGE IS NAMED AND MEASURED, NEVER APPROXIMATED.
     for (const f of imagesIn(o)) for (const l of img.imageLines(f, width)) lines.push(l);
     if (body.length > 200) lines.push(P.meta(`      … ${body.length - 200} more lines`));
     // THE EXIT STATUS IS ALWAYS STATED, including zero.
-    //
-    // It was announced only on failure, on the reasoning that success is the
-    // expected case — but this is the pane a person opens to find out whether
-    // something FINISHED, and silence is exactly as consistent with "still
-    // running", "killed", and "output truncated" as it is with success. A
-    // command that ended says so.
     lines.push('      ' + (ok
       ? P.meta('Process exited 0')
       : P.bad(`Process exited ${o.exitCode == null ? '?' : o.exitCode}`)));
     lines.push('');
   }
   // WHAT IS EXECUTING RIGHT NOW, at the foot where the newest thing belongs.
-  // Without it this pane described only the past, and "what is running?" — the
-  // question it exists to answer — had no answer here at all.
-  //
-  // The fields are the ones a person checks when something is taking too long:
-  // what was asked for, which program is doing it, and that it has not finished.
-  // Everything shown is read from the call already in flight; nothing here
-  // starts, probes or polls anything.
   if (running) {
     const what = running.target || running.name || '';
     // The command IN FLIGHT, whole - see the note above. This is the row a
@@ -562,9 +410,7 @@ function outputView({ outputs = [], width = 80, running = null }) {
 
 module.exports = {
   changedFiles, countChanges, linesOf, groupChanges, diffView, diffRow, diffSplit, SPLIT_MIN, unified, filesView, scanTree, outputView,
-  // EXPORTED so `/image` can offer the images LAIN has actually seen mentioned
-  // without keeping a second list of them. One record of a thing, read both by
-  // the pane that draws it and by the command that opens it — see imageview.js.
+  // EXPORTED so `/image` can offer the images LAIN has actually seen mentioned without keeping a second list of them.
   imagesIn,
   MAX_TREE_ENTRIES,
 };

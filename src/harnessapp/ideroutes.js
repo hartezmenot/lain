@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE IDE'S ROUTES — file operations, search, source control, the editor's
- * context report, file checks, and the project's own `.vscode` settings.
- *
- * Every one delegates: fileops.js and source.js for the filesystem (inside the
- * project, never over an existing file), gitops.js for git, idecontext.js for
- * what the editor reports, diagnostics.js for syntax checks. This file adds an
- * envelope and the one rule they share: no project attached, no file routes.
- */
+/** THE IDE'S ROUTES — file operations, search, source control, the editor's context report, file checks, and the project's own `.vscode` settings. */
 
 const fs = require('fs');
 const path = require('path');
@@ -32,13 +24,7 @@ function readJsonc(abs) {
   try { return JSON.parse(stripJsonc(text)); } catch { return { unreadable: true }; }
 }
 
-/**
- * COMMENTS AND TRAILING COMMAS OUT, STRINGS UNTOUCHED. A regex cannot tell a
- * comment from "**\/*.py" in a glob or "https://" in a URL — which is how an
- * extension manifest full of globs read as unreadable. So this walks the text
- * and only acts outside strings — twice, because a trailing comma is only
- * visible as trailing once the comment after it is gone (`true, // x\n}`).
- */
+/** COMMENTS AND TRAILING COMMAS OUT, STRINGS UNTOUCHED. */
 function stripJsonc(text) { return stripPass(stripPass(text)); }
 
 function stripPass(text) {
@@ -88,12 +74,7 @@ const ROUTES = {
     return ok({ path: at.rel, clean: Boolean(r.ok), inconclusive: Boolean(r.inconclusive), line: r.line || null, message: r.ok ? '' : String(r.message || r.why || r.error || 'syntax error') });
   },
 
-  /**
-   * GO TO DEFINITION for any language: the project index's declarations first
-   * (projectindex.js), then the model search tool's own declaration pattern
-   * (tools/search.js defineRe) over the project — the same two answers the
-   * model gets when it asks where something is defined.
-   */
+  /** GO TO DEFINITION for any language: the project index's declarations first (projectindex.js), then the model search tool's own declaration pattern… */
   'POST /api/ide/definition': (app, body = {}) => {
     if (!attached(app)) return noProject();
     const name = String(body.name || '').trim();
@@ -123,11 +104,7 @@ const ROUTES = {
     return ok({ name, locations: out });
   },
 
-  /**
-   * WHICH PROJECT FILES A FILE'S RELATIVE IMPORTS NAME — so the editor's
-   * TypeScript service can see them. Node's resolution order, inside the
-   * project only; a specifier that resolves nowhere is simply absent.
-   */
+  /** WHICH PROJECT FILES A FILE'S RELATIVE IMPORTS NAME — so the editor's TypeScript service can see them. */
   'POST /api/ide/resolve': (app, body = {}) => {
     if (!attached(app)) return noProject();
     const src = require('./source');
@@ -169,11 +146,7 @@ const ROUTES = {
     return ok({ at: r ? r.at : null });
   },
 
-  /**
-   * THE PROJECT'S OWN .vscode FOLDER, read and never written: settings,
-   * recommended extensions, launch configurations and tasks. Opening a
-   * project must not modify it.
-   */
+  /** THE PROJECT'S OWN .vscode FOLDER, read and never written: settings, recommended extensions, launch configurations and tasks. */
   'POST /api/workspace/vscode': (app) => {
     if (!attached(app)) return noProject();
     const dir = path.join(app.session.cwd, '.vscode');

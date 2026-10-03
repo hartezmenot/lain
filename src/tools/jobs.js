@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * BACKGROUND WORK IN ONE PLACE (Simplify S7). A background command runs in this process (jobs.js), its whole output
- * streamed to a file under the session folder. `job_status` reads it once; when the job ends its result rejoins the
- * session by itself, once (bgdetach.rejoin) — nothing to wait on or poll. Jobs end when LAIN exits.
- */
+/** BACKGROUND WORK IN ONE PLACE (Simplify S7). */
 
 const fs = require('fs');
 const path = require('path');
@@ -30,10 +26,7 @@ function logDir(session) {
   return path.join(require('../config').sessionsDir(), String((session && session.id) || 'nosession'), 'jobs');
 }
 
-/**
- * START A COMMAND AS A JOB — the one place that turns a request into a child (run_background and observe_start).
- * @returns {{ok:boolean, job?:object, shell?:string, why?:string}}
- */
+/** START A COMMAND AS A JOB — the one place that turns a request into a child (run_background and observe_start). */
 function startFor(app, ctx, { command, shell, timeoutMs, cwd } = {}) {
   const cmd = String(command || '').trim();
   if (!cmd) return { ok: false, why: 'a command is required' };

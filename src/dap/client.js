@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * ONE DEBUG ADAPTER, SPOKEN TO OVER THE DEBUG ADAPTER PROTOCOL.
- *
- * Content-Length framed JSON over stdio — the same transport as LSP, with the
- * DAP message shapes: `request` (seq, command, arguments) → `response`
- * (request_seq, success, body | message), and `event` (event, body). Nothing
- * here knows a language; the manager (manager.js) decides which adapter runs.
- *
- * A DYING ADAPTER NEVER TAKES LAIN WITH IT: a broken pipe is reported through
- * `onExit`, pending requests are rejected, and nothing throws out of an event.
- */
+/** ONE DEBUG ADAPTER, SPOKEN TO OVER THE DEBUG ADAPTER PROTOCOL. */
 
 const { spawn } = require('child_process');
 

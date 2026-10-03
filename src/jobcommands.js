@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * `/jobs`, `/bg` and `/cancel` — the smallest interface to work in flight.
- *
- * ------------------------------------------------------------------------
- * WHAT THESE ARE FOR, and it is one question in four spellings: what is
- * happening that I am not looking at?
- *
- *     what is running?          /bg          (a glance)  ·  /jobs (the account)
- *     what is #1 doing?         /jobs 1
- *     did it finish? fail?      /bg          ·  /jobs 1
- *     what processes is it?     /ps
- *     stop it                   /bg stop 1   ·  /cancel 1
- *     start another one         /bg <request>
- *
- * DELIBERATELY NOT A JOB MANAGER. There is no pause, no resume, no priority, no
- * dependency and no scheduling. Those are the parts of a job subsystem that
- * exist because a job subsystem exists, rather than because anybody wanted
- * them.
- *
- * ------------------------------------------------------------------------
- * SAFE DURING A TURN, ALL THREE. That is the whole point: a command about work
- * in flight that could not be run while work was in flight would be useless.
- * They read a record and set a flag; none of them touches the session, the plan
- * or the working tree, which is what `DURING_TURN.BLOCKED` is actually for.
- *
- * ------------------------------------------------------------------------
- * `/bg` IS THE ONLY WAY TO GET A SECOND CONCURRENT JOB, and that is a decision
- * rather than an omission. Text typed while a job runs is a STEER — a
- * correction to the work you are watching — which is what it has always been
- * and what "also check the backend" almost always means. Starting a competing
- * job by accident, because a correction was misread as a new task, is a far
- * worse failure than having to type three characters when you did mean one.
- * See src/repl.js for the steer path and src/agentjob.js for why only one job
- * may own the conversation.
- */
+/** `/jobs`, `/bg` and `/cancel` — the smallest interface to work in flight. */
 
 const { STATE } = require('./jobs');
 /** How much of a job's own account `/jobs <n>` shows. Enough to judge it by. */
@@ -52,25 +18,7 @@ function mark(job, C) {
   return job.waiting ? C.yellow('◒') : C.cyan('●');
 }
 
-/**
- * HOW LONG A JOB HAS BEEN AT IT — `00:03:18`, the same shape as everything else.
- *
- * IT WAS `3m18s`, AND THAT WAS A SECOND VOCABULARY FOR ONE IDEA. The foreground
- * work clock above the caret reads `HH:MM:SS` (ui/workclock.js); a background job
- * read `3m18s`; both are elapsed time on the same screen, and a person comparing
- * "how long has this taken" against "how long has that taken" had to convert
- * between two formats to do it.
- *
- * SO IT IS THE SAME FUNCTION, not merely the same shape. `hhmmss` is imported
- * rather than reimplemented, which is what stops the two drifting the day one of
- * them grows an hours field and the other does not.
- *
- * THE CLOCKS THEMSELVES STAY SEPARATE. A job owns its own `elapsedMs` and the
- * foreground owns its own accumulator; this is only how both are spelled. A
- * background job running for an hour must not put an hour on the foreground row,
- * and it does not — see ui/projection.js on why a `/bg` task never holds the
- * spinner.
- */
+/** HOW LONG A JOB HAS BEEN AT IT — `00:03:18`, the same shape as everything else. */
 const elapsedOf = (ms) => require('./ui/workclock').hhmmss(ms);
 
 /** One row per job: what it is, what it is doing, how long it has been at it. */
@@ -114,13 +62,7 @@ function detail(app, id, C) {
     out.push(`  ${C.dim('result   ')} ${calls} tool call(s)`);
     if (rec.text) out.push(`  ${C.dim('said     ')} ${String(rec.text).replace(/\s+/g, ' ').slice(0, 200)}`);
   }
-  // ---- THE WHOLE ACCOUNT, NOT A SUMMARY OF IT ---------------------------
-  //
-  // What it actually did, in order, read from the job's OWN session — which is
-  // the same record the conversation keeps, so there is no second transcript
-  // format here. The main ACTIVITY feed stays calm because this is on demand:
-  // you ask for a job's story when you want it, rather than having two stories
-  // interleaved in one pane. See the note in ui/jobsview.js.
+  // THE WHOLE ACCOUNT, NOT A SUMMARY OF IT
   const acts = [];
   for (const t of (j.session && j.session.turns) || []) {
     for (const a of (t.actions || [])) acts.push(a);
@@ -150,25 +92,8 @@ function detail(app, id, C) {
 }
 
 function register({ define, C, FLASH_MS }) {
-  // ---- /steer MOVED HERE, UNCHANGED IN MEANING -------------------------
-  //
-  // It is the same subject as the three below: work in flight, and what you
-  // can do to it while it is in flight. It kept every word of its behaviour -
-  // bare `/steer <instruction>` still means the conversation you are watching,
-  // and the routing form still routes - and gained one branch that lets a
-  // NUMBER aim it at a background job. See the note inside it.
-  //
-  // The move also took commands.js back under the size guard, which is the
-  // guard doing its job rather than a reason for the move.
-/**
- * `/steer` — CORRECT THE WORK THAT IS ALREADY RUNNING.
- *
- * Not a second task and not a cancellation: the instruction is queued and the
- * turn loop hands it to the model between steps, before the next request. That
- * is the first moment a correction can land without arriving in the middle of a
- * tool call. SAFE during a turn by construction — it is the one command whose
- * entire purpose is to run during one.
- */
+  // /steer MOVED HERE, UNCHANGED IN MEANING
+/** `/steer` — CORRECT THE WORK THAT IS ALREADY RUNNING. */
 define('/steer', {
     flashMs: FLASH_MS,   // a receipt, not an inspector - see FLASH_MS
   // MACHINERY: LAIN talking about itself, not about the work. Goes to the
@@ -182,11 +107,6 @@ define('/steer', {
       return;
     }
     // A ROUTING STEER FIRST — and only when the words genuinely name a route.
-    // `/steer to omniroute` moves the SAME MODEL to another provider, which is
-    // a failover and not a model change; `/steer stop editing files` is what it
-    // has always been. See failover.steer for how the two are told apart, and
-    // why an unrecognised word stays an instruction rather than becoming a
-    // route nobody asked for.
     const routed = failover.steer(app, rest);
     if (routed.handled) {
       app.render.write((routed.ok ? C.green(`  ${routed.message}`) : C.dim(`  ${routed.message}`)) + '\n');
@@ -194,19 +114,7 @@ define('/steer', {
       return;
     }
 
-    // ---- `/steer <n> <instruction>` REACHES A BACKGROUND JOB --------------
-    //
-    // ADDED WITHOUT MOVING THE DEFAULT. Bare `/steer <instruction>` still means
-    // exactly what it always meant — the conversation you are watching — so
-    // every existing use, every muscle memory and every test is unchanged. A
-    // LEADING NUMBER is the only thing that redirects it, and only when a job
-    // by that number actually exists: `/steer 2 read the files first` steers
-    // job #2, while `/steer 2 spaces of indent, not 4` is an instruction that
-    // happens to begin with a digit and is treated as one.
-    //
-    // A background job has its own steer queue for the same reason it has its
-    // own session — see src/jobrunner.js. Its turn takes them at the next step
-    // boundary, which is the identical mechanism pointed somewhere else.
+    // `/steer <n> <instruction>` REACHES A BACKGROUND JOB
     const aimed = /^(\d+)\s+(\S[\s\S]*)$/.exec(rest);
     if (aimed) {
       const job = app.jobs.get(aimed[1]);
@@ -230,10 +138,7 @@ define('/steer', {
       app.render.write(C.dim('  No active task to steer. Type the instruction on its own to start one.\n'));
       return;
     }
-    // `NOW`, BECAUSE NAMING THE COMMAND IS THE DELIBERATE ACT. A bare sentence
-    // typed during a turn is ambient and WAITS; `/steer` is the same intent as
-    // pressing Enter a second time. Its description has always promised "at its
-    // next model turn", which WAIT would quietly have stopped meaning.
+    // `NOW`, BECAUSE NAMING THE COMMAND IS THE DELIBERATE ACT.
     app.queueSteer(rest, 'NOW');
     app.render.write(C.green('  ⚑ STEER') + C.dim(' — queued for the next model turn\n'));
     app.render.write(C.dim(`    ${rest}\n`));
@@ -253,59 +158,7 @@ define('/steer', {
     },
   });
 
-  /**
-   * `/bg` — LAIN'S BACKGROUND WORK.
-   *
-   * ------------------------------------------------------------------------
-   * IT CREATES NO SECOND EXECUTION SYSTEM. Every form below delegates:
-   *
-   *     /bg <instruction>   app.startBackground  ->  src/jobrunner.js
-   *     /bg                 app.jobs             ->  src/agentjob.js
-   *     /bg stop <id>       job.cancel           ->  the same cooperative stop
-   *                                                  `/cancel` has always used
-   *
-   * `startBackground` opens an AgentJob with its own session and its own steer
-   * queue, running the ordinary turn loop. Whether the work it then does
-   * becomes a JOB or a SERVICE is decided by the tools it reaches for, using
-   * semantics that already exist and are not re-implemented here:
-   *
-   *     `run the integration suite`   -> run_background  -> jobs.js
-   *                                      a command that ENDS and yields a
-   *                                      RESULT. QUEUED -> RUNNING -> SUCCEEDED
-   *                                      / FAILED / CANCELLED / TIMED_OUT.
-   *     `start the dev server`        -> service_start   -> harness/processes.js
-   *                                      a process that STAYS UP and has a
-   *                                      HEALTH, a port and an owning task.
-   *
-   * That distinction is spelled out at length in harness/processes.js and this
-   * command does not get a vote in it. LAIN classifies by doing.
-   *
-   * ------------------------------------------------------------------------
-   * `/bg` AND `/ps` ARE TWO ALTITUDES OF ONE THING.
-   *
-   *     /bg   LOGICAL work — what you asked for, what it is doing, whether it
-   *           finished, and whether the finish was proved.
-   *     /ps   PHYSICAL processes — the pids and services that work is currently
-   *           made of.
-   *
-   * One request can be several processes, or none yet, or none any more. Which
-   * is exactly why they are separate commands rather than one list.
-   *
-   * ------------------------------------------------------------------------
-   * BACKGROUND IS NOT UNVERIFIED. A `/bg` task runs under the same harness
-   * contract as the conversation: execution, then verification, then
-   * settlement. A process exiting zero is not a verdict — the task reaches
-   * PASSED only when its verification contract has the evidence, which is
-   * harness/state.js's rule and not something this command can shortcut.
-   * `/verify` and `/tasks` show the settled state.
-   *
-   * ------------------------------------------------------------------------
-   * IT DOES NOT SPAM THE CONVERSATION. Starting one prints a single line and
-   * hands the prompt straight back; the running account lives in the job's own
-   * session and is reached with `/jobs <n>`. Progress and completion surface as
-   * ONE ROW in the background region above the input (ui/jobsview.js), which is
-   * event-driven — `app.jobs.changed()` redraws, nothing polls.
-   */
+  /** `/bg` — LAIN'S BACKGROUND WORK. */
   define('/bg', {
     surface: true,
     args: '[<instruction>]  ·  stop <id>',
@@ -314,17 +167,7 @@ define('/steer', {
       const w = (s) => app.render.write(s + '\n');
       const arg = String(rest || '').trim();
 
-      // ---- BARE `/bg` IS A SUMMARY, NOT A USAGE MESSAGE -------------------
-      //
-      // It used to print `Usage: /bg inspect the README…`, which is the one
-      // thing somebody typing `/bg` on its own almost never wants: they are
-      // asking what is running, and being told how to start more is an answer
-      // to a question they did not ask. The usage line is still here — it is
-      // what an EMPTY list says, where it is the only useful thing to say.
-      // ---- BARE `/bg` WHILE SOMETHING BLOCKS: DETACH IT (§28–30) ----------
-      // The running process keeps its PID and moves to the background; with
-      // no process, a thinking turn continues as a bounded read-only branch.
-      // Only then is it a summary. See bgdetach.js.
+      // BARE `/bg` IS A SUMMARY, NOT A USAGE MESSAGE
       if (!arg) {
         const bg = require('./bgdetach');
         const proc = bg.running(app).length ? bg.detachProcess(app) : null;
@@ -340,12 +183,7 @@ define('/steer', {
       const words = arg.split(/\s+/);
       if (words[0].toLowerCase() === 'stop') return void stop(app, C, w, words[1]);
 
-      // ---- ANYTHING ELSE IS THE WORK ITSELF -------------------------------
-      //
-      // No parsing, no classification, no keyword table deciding "server" means
-      // a service. The instruction goes to the model and the model reaches for
-      // the tool that fits, which is the only classifier in this program that
-      // has ever been right about an arbitrary sentence.
+      // ANYTHING ELSE IS THE WORK ITSELF
       const job = app.startBackground(arg);
       w(C.green(`  Background #${job.id} started`) + C.dim(`  ·  ${arg.replace(/\s+/g, ' ').slice(0, 60)}`));
       w(C.dim(`  Keep talking — /bg to check on it · /bg stop ${job.id} to end it`));
@@ -402,47 +240,7 @@ define('/steer', {
   });
 }
 
-/**
- * BARE `/bg` — the LOGICAL background work, one row each.
- *
- *     Background
- *     #17  RUNNING   run the integration suite            2m14s
- *     #18  PASSED    start the frontend dev server          41s
- *
- * ------------------------------------------------------------------------
- * DELIBERATELY NOT `/ps`, AND DELIBERATELY NOT `/jobs`.
- *
- * `/ps` is the processes this work is currently MADE OF — pids, ports,
- * services. One row here can be several rows there, or none.
- *
- * `/jobs` is the full account, including the conversation itself and the whole
- * of what each job did and said. This is the glance: what did I ask for, is it
- * still going, and did it work.
- *
- * THE CONVERSATION IS NOT A ROW. `job.primary` is the work you are watching —
- * the feed IS its output and the live row above the input says what it is
- * doing. Repeating it here would be a fourth copy of the one thing hardest to
- * miss. Only work you are NOT looking at earns a row, which is the same rule
- * ui/jobsview.js follows for the same reason.
- *
- * ------------------------------------------------------------------------
- * `COMPLETED` IS NOT `PASSED`, AND THIS COLUMN NEVER CONFLATES THEM.
- *
- * The state column is the JOB's own lifecycle: the turn ended, or it failed, or
- * you stopped it. That is a fact this code has.
- *
- * Whether the WORK IS PROVED is a different question with a different owner.
- * The harness settles a task PASSED or FAILED from evidence — `settle()` is the
- * only thing in harness/runtime.js that can reach PASSED, and it only takes a
- * verification result. A background task that ran to completion has proved
- * nothing by doing so, and printing PASSED off a clean exit is precisely the
- * shortcut harness/state.js exists to refuse.
- *
- * So the verdict rides BESIDE the row, in the harness's own words, and only
- * once the task it belongs to is terminal: `COMPLETED  task PASSED`. With no
- * verdict yet, the row says COMPLETED and stops there — which is the honest
- * answer and the one that sends somebody to `/verify`.
- */
+/** BARE `/bg` — the LOGICAL background work, one row each. */
 function summary(app, C, w) {
   const all = app.jobs.all().filter((j) => !j.primary);
   const shells = app._jobs ? app._jobs.all() : [];
@@ -483,18 +281,7 @@ function summary(app, C, w) {
   w(C.dim(ENDS));
 }
 
-/**
- * The harness's verdict for the task this background work belongs to, or ''.
- *
- * READ, NEVER DERIVED. `job.taskId` is the task that was already open when the
- * work started (see jobrunner.startBackground — it reads `activeId` and never
- * opens one, because opening one would move the conversation's own task). The
- * state comes straight from the runtime, and only `settle()` puts a task in a
- * terminal state.
- *
- * A NON-TERMINAL TASK YIELDS NOTHING. RUNNING and VERIFYING are not verdicts,
- * and rendering them beside a finished job would read as one.
- */
+/** The harness's verdict for the task this background work belongs to, or ''. */
 function settledState(app, job) {
   try {
     const h = require('./harnesslink').existing(app);
@@ -510,18 +297,7 @@ function tone(C, state) {
   return C.dim(state);
 }
 
-/**
- * `/bg stop <id>` — the same cooperative stop `/cancel` has always performed.
- *
- * NOT A SECOND LIFECYCLE. It resolves the same AgentJob and calls the same
- * `cancelOne` below, so "stopped" means exactly what it has always meant: the
- * job ends at its next safe point, and anything it owns is taken down by the
- * process manager's cleanup for its task rather than by this command reaching
- * for pids.
- *
- * `/bg logs`, `/bg resume` and `/bg restart` are deliberately absent. They are
- * the parts of a job manager that exist because a job manager exists.
- */
+/** `/bg stop <id>` — the same cooperative stop `/cancel` has always performed. */
 function stop(app, C, w, id) {
   const running = app.jobs.running().filter((j) => !j.primary);
   if (!id) {
@@ -534,21 +310,14 @@ function stop(app, C, w, id) {
   const j = app.jobs.get(id);
   if (!j) { w(C.dim(`  No background task #${id}. /bg to see what there is.`)); return; }
   if (j.primary) {
-    // THE CONVERSATION IS NOT BACKGROUND WORK, and stopping it is Ctrl+C —
-    // which is the key a person already has their hand on. Silently cancelling
-    // the turn they are watching because they typed a number would be the
-    // worst possible reading of an ambiguous command.
+    // THE CONVERSATION IS NOT BACKGROUND WORK, and stopping it is Ctrl+C — which is the key a person already has their hand on.
     w(C.dim('  #' + j.id + ' is the conversation, not background work. Ctrl+C stops the turn.'));
     return;
   }
   cancelOne(app, j, C, w);
 }
 
-/**
- * COOPERATIVE, and it says which. A job that had already finished is not an
- * error to report — it is a race the user lost by a second, and telling them it
- * "failed to cancel" would be describing their timing as a fault.
- */
+/** COOPERATIVE, and it says which. */
 function cancelOne(app, job, C, w) {
   if (job.done) { w(C.dim(`  #${job.id} had already ${String(job.state).toLowerCase()}.`)); return; }
   job.cancel('you cancelled it');

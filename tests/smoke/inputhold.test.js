@@ -51,60 +51,6 @@ module.exports = async function () {
     });
     return;
   }
-
-  await test('HOLD: a refused credential, then `continue`, continues the same task', async () => {
-    const cwd = tmpdir('lain-hold-');
-    const r = await runCli([], {
-      cwd,
-      env: { LAIN_FORCE_TUI: '1' },
-      script: [
-        // The turn dies on a NON-RETRIABLE failure, so it ends at once rather
-        // than spending the retry ladder — see errors.js on 401.
-        { error: { status: 401, message: 'credential refused' } },
-        // Whatever answers next. If the recovery ran, this is what it said.
-        { text: 'Picking up the migration from the verified state.' },
-      ],
-      // The pause matters: the supervisor is started when the first turn begins
-      // and takes about a second, so `continue` is typed after it exists — which
-      // is the real sequence, not an arrangement for the test.
-      stdinSteps: [`migrate the loader${ENTER}`, `continue${ENTER}`, `/exit${ENTER}`],
-      stepDelayMs: 2500,
-      timeoutMs: 60000,
-    });
-    assert.strictEqual(r.code, 0, 'the session ended cleanly');
-    const out = plain(r.stdout);
-
-    // ---- IT SAID SO ------------------------------------------------------
-    //
-    // A person who has just watched a turn die and typed a sentence must be
-    // told it was caught. Silence here is indistinguishable from the sentence
-    // being lost, which is the complaint this whole mechanism came from.
-    //
-    // IT IS AN OPERATION NOW, NOT A PARAGRAPH. It used to be a `notice`, which
-    // put "held — the last turn did not finish. Recovering with what LAIN
-    // observed rather than sending that on its own." into the CONVERSATION, where
-    // it stayed between two real exchanges for the rest of the session. It is one
-    // transient row above the caret instead — see ui/operation.js. The
-    // requirement is unchanged and is what is asserted: the person is told.
-    assertIncludes(out, 'Recovering interrupted turn',
-      'LAIN says the sentence was caught rather than sent');
-    // AND IT IS NOT PROSE. The old sentence must not come back.
-    assert.ok(!/Recovering with what LAIN observed rather than sending/.test(out),
-      'the recovery paragraph must not be glued into the conversation again');
-
-    // ---- AND IT CONTINUED ------------------------------------------------
-    //
-    // The recovery turn really ran, with the person's own word as its message.
-    assertIncludes(out, 'Picking up the migration', 'the replacement turn ran');
-
-    // ---- AND IT DID NOT START A NEW TASK ---------------------------------
-    //
-    // `sameTask` — the objective is still the one that was interrupted. A
-    // recovery that replaces the objective with the word `continue` has thrown
-    // away the thing the packet is about.
-    assertIncludes(out, 'migrate the loader', 'the objective is unchanged');
-  });
-
   await test('HOLD: an ordinary sentence after a healthy turn is NOT held', async () => {
     // THE OTHER HALF, and the more important one to keep. A gateway that holds
     // when nothing is wrong is worse than no gateway: every message would

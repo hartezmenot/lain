@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * WATCH SOMETHING RUN, WITHOUT WATCHING IT — the tool half of observe.js.
- *
- *     observe_start  say what should happen and what is worth noticing
- *     (LAIN goes quiet; the run's own output drives evidence capture)
- *     observe_stop   stop the run, keep everything, and read it back
- *
- * ------------------------------------------------------------------------
- * WHY THE MODEL IS NOT GIVEN A "LOOK AT THE SCREEN NOW" LOOP.
- *
- * It already has one — `computer{op:"screenshot"}` — and that is the right tool
- * for looking at something once. What it must not do is BECOME the observation
- * strategy, because a model watching a twenty-minute bot run by taking a
- * screenshot every few seconds spends a request per glance, fills its context
- * with near-identical frames, and still misses the three-second indicator
- * between two of them.
- *
- * So the tools are shaped to make the cheap thing the obvious thing. There is
- * no `observe_poll`. `observe_stop` returns everything that happened, once, and
- * the description says so — the same reasoning that gave jobs.js `job_wait`
- * instead of a status loop.
- *
- * ------------------------------------------------------------------------
- * WHAT THE MODEL DECIDES, WHICH IS EVERYTHING THAT MATTERS ().
- *
- *   what the run is expected to do          — recorded before it starts
- *   which lines are worth noticing          — the rules
- *   which of those deserve a screenshot     — `capture`
- *   what the screen should show if a claim  — `expect`, used at correlation
- *     is true
- *   what the evidence means                 — after reading it back
- *
- * LAIN supplies the mechanism: matching, timing, capturing, keeping the sources
- * apart, and putting them side by side at the end. It never decides that
- * something proves anything.
- */
+/** WATCH SOMETHING RUN, WITHOUT WATCHING IT — the tool half of observe.js. */
 
 const observe = require('../observe');
 const correlate = require('../correlate');
@@ -49,18 +14,7 @@ function observatoryOf(app) {
   return app._observatory;
 }
 
-/**
- * TAKE A LOOK, BECAUSE A RULE ASKED FOR ONE.
- *
- * Screenshot then OCR, and the OCR is what makes the capture EVIDENCE rather
- * than a file on disk: an unread PNG can only ever support "a picture exists".
- * Both are recorded exactly as they came back — a refused screen capture is
- * recorded as refused, and the correlation step reports NOT SEEN rather than
- * quietly leaving the claim unchecked.
- *
- * NEVER THROWS. It runs inside the output stream's callback, where a rejection
- * would be an unhandled one that has nothing to do with the bot.
- */
+/** TAKE A LOOK, BECAUSE A RULE ASKED FOR ONE. */
 async function capture(app, rule, obs) {
   try {
     const shot = await computer.perform(app, 'screenshot', {}, { why: `${rule.name} — ${rule.why || 'worth a look'}` });
@@ -69,9 +23,7 @@ async function capture(app, rule, obs) {
       return;
     }
     const path = (shot.result && (shot.result.path || shot.result.file)) || '';
-    // OCR IS A SEPARATE CHANNEL and may be closed on its own — a machine that
-    // allows screenshots but not text extraction is a real configuration, and
-    // the capture is still worth keeping without it.
+    // OCR IS A SEPARATE CHANNEL and may be closed on its own — a machine that allows screenshots but not text extraction is a real configuration, and the…
     const read = await computer.perform(app, 'ocr', {}, { why: `read the screen for ${rule.name}` });
     const text = read.stage === cap.STAGE.SUCCEEDED
       ? String((read.result && (read.result.text || read.result.ocr)) || '')
@@ -210,13 +162,7 @@ tools.observe_stop = {
     if (!obs) return { output: 'nothing is being observed', isError: true };
 
     obs.state = observe.STATE.STOP_REQUESTED;
-    // THE PROCESS FIRST, then the reading. Anything the bot prints while the
-    // evidence is being read would be evidence about a run that is already over.
-    //
-    // `cancel` is the job vocabulary — there is one job state machine and this
-    // does not get a second word for ending a child (see jobs.js). Already
-    // finished is not an error: a bot that crashed on its own is exactly the
-    // case where the evidence matters most.
+    // THE PROCESS FIRST, then the reading.
     if (obs.job && typeof obs.job.cancel === 'function' && !obs.job.done) {
       try { obs.job.cancel('you stopped the run'); } catch { /* already gone */ }
     }
@@ -256,9 +202,7 @@ tools.observe_stop = {
         `  ${result.question.why}`,
         '  Use ask_user: they know what that screen is supposed to look like and you do not.');
     }
-    // CHANNELS THAT WERE SHUT are part of the evidence: a claim nothing could
-    // check is unresolved BECAUSE of a permission decision, not because the bot
-    // misbehaved, and the difference decides what to do next.
+    // CHANNELS THAT WERE SHUT are part of the evidence: a claim nothing could check is unresolved BECAUSE of a permission decision, not because the bot…
     const shut = computer.channelsOf(app);
     const brief = shut ? shut.brief() : '';
     if (brief) out.push('', brief);

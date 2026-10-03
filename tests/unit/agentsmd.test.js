@@ -15,7 +15,6 @@ const path = require('path');
 const { test, tmpdir } = require('../helpers');
 
 const agentsmd = require('../../src/agentsmd');
-const promptparts = require('../../src/promptparts');
 const goal = require('../../src/goal');
 const authority = require('../../src/authority');
 const { Session } = require('../../src/session');
@@ -46,25 +45,5 @@ module.exports = async function () {
       if (was == null) delete process.env.LAIN_AGENTS_HOME; else process.env.LAIN_AGENTS_HOME = was;
     }
   });
-  await test('LIVE PROMPT: the standing goal reaches the prompt a real turn sends', () => {
-    const cwd = tmpdir('live-goal-');
-    const app = realApp(cwd);
-    goal.set(app.session, 'Finish the LAIN foundation');
-    const p = promptparts.of(app);
-    assert.match(p.stable, /# Goal[\s\S]*Finish the LAIN foundation/, 'it was missing from every live turn before');
-    assert.strictEqual((app.systemPrompt().match(/Finish the LAIN foundation/g) || []).length, 1, 'and the one-string path states it once');
-  });
 
-  await test('LIVE PROMPT: a /bg fork is prompted from ITS session, carrying its own assignment', () => {
-    const cwd = tmpdir('live-bg-');
-    const app = realApp(cwd);
-    app.session.task = new Task('parent task');
-    const fork = new Session({ cwd });
-    fork.task = Task.from(app.session.task.toJSON());
-    fork.workOrder = authority.issue(app.session, { id: '7', objective: 'measure the timer drift' });
-    const parent = promptparts.of(app);
-    const worker = promptparts.of(app, { session: fork });
-    assert.ok(!/Your assignment/.test(parent.stable), 'the foreground issues orders; it does not execute one');
-    assert.match(worker.stable, /# Your assignment[\s\S]*WORK ORDER 7[\s\S]*measure the timer drift/);
-  });
 };

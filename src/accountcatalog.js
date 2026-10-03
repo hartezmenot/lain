@@ -1,53 +1,13 @@
 'use strict';
 
-/**
- * ACCOUNT FIRST (Phase 8.2) — WHICH ACCOUNT a request goes through, then which
- * model that account offers.
- *
- *     ACCOUNT  ─▶  MODEL  ─▶  EFFORT  ─▶  EXECUTION
- *
- * A model name alone never says who pays for a request: `gpt-6-sol` is offered
- * by the Codex accounts 9Router holds, by Orca inside 9Router, by an OpenAI API
- * key … Before this, the Chat lane stored the model only and `catalog.resolve`
- * took the FIRST route serving it. Every choice now names its account, and a
- * request is resolved through exactly that account or refused before it is sent.
- *
- * ------------------------------------------------------------------------
- * AN ACCOUNT IS A ROUTE LAIN CAN SEND THROUGH, named for what owns its sign-in:
- *
- *   OAuth · 9Router    <9router-conn>:<prefix>   a provider pool 9Router holds
- *                                                (Codex, Claude Code, Antigravity …)
- *   Runtime            runtime:<id>              a runtime's own sign-in
- *                                                (Claude Code, OpenCode, ZCode)
- *   Runtime (native)   runtime:codex:<instance>  one Codex home = one ChatGPT account
- *   API                <connection id>           an API key LAIN holds
- *   Local              local:llamacpp · local:ollama
- *
- * ------------------------------------------------------------------------
- * 9ROUTER CHOOSES INSIDE A POOL, AND LAIN SAYS SO. 9Router's chat endpoint
- * (0.5.91) does not let a client pin one of the accounts it holds for a
- * provider, and does not report which one answered: it picks by its own
- * strategy and falls over to the next on a limit. So a 9Router pool is ONE
- * account to LAIN — `pinned: false`, with that sentence on it — and a request
- * "through Codex · 9Router" is exactly that, never claimed to be one ChatGPT
- * login. A specific Codex login is a native Codex account (its own home).
- *
- * WHAT THIS READS: the catalog LAIN already built (connections.js discovery
- * cache — no network), the runtime registry and telemetry caches, and 9Router
- * adoption in config. Nothing here sends a request, and nothing secret is held.
- */
+/** ACCOUNT FIRST (Phase 8.2) — WHICH ACCOUNT a request goes through, then which model that account offers. */
 
 const fs = require('fs');
 const path = require('path');
 
 const KIND = Object.freeze({ OAUTH: 'oauth', RUNTIME: 'runtime', API: 'api', LOCAL: 'local', ROUTER: 'router' });
 
-/**
- * 9ROUTER PROVIDER PREFIXES, as people know them. `oauth` pools are
- * subscriptions signed in inside 9Router; the rest are API providers 9Router
- * carries. `into` merges a prefix into another account (the Antigravity
- * sign-in serves both Gemini `ag/…` and Claude `agcc/…`).
- */
+/** 9ROUTER PROVIDER PREFIXES, as people know them. */
 const NINE = Object.freeze({
   cc: { family: 'claude', name: 'Claude Code', oauth: true },
   cx: { family: 'codex', name: 'Codex', oauth: true },
@@ -109,11 +69,7 @@ function apiLabel(conn) {
   return host ? `${host} API` : conn.id;
 }
 
-/**
- * THE ACCOUNT A ROUTE BELONGS TO — pure, so provider.resolve can stamp a
- * request with it without an App. `route` is a catalog route connectionId,
- * `base` the configured connection it goes through.
- */
+/** THE ACCOUNT A ROUTE BELONGS TO — pure, so provider.resolve can stamp a request with it without an App. */
 function accountIdForRoute(route, base) {
   const r = String(route || '');
   if (!r) return null;
@@ -161,10 +117,7 @@ function windowsOf(limits) {
 
 function names(app) { const a = cfgOf(app).accounts; return (a && a.names && typeof a.names === 'object') ? a.names : {}; }
 
-/**
- * EVERY ACCOUNT, grouped by the company whose sign-in it is. Memoised on
- * everything it reads, so a picker, a status line or a redraw costs a lookup.
- */
+/** EVERY ACCOUNT, grouped by the company whose sign-in it is. */
 function list(app) {
   const r = root(app);
   // ANOTHER LAIN CHANGED THE REGISTRY (the Harness added an API while this CLI runs): taken from disk first.
@@ -376,10 +329,7 @@ function models(app, accountId, { query = '', limit = 400 } = {}) {
   return hit.slice(0, Math.max(1, Math.min(2000, Number(limit) || 400)));
 }
 
-/**
- * THE ROUTE THAT CARRIES `model` FOR `account` — or a refusal naming the
- * accounts that do offer it. Never another account's route.
- */
+/** THE ROUTE THAT CARRIES `model` FOR `account` — or a refusal naming the accounts that do offer it. */
 function routeFor(app, accountId, modelId) {
   const acct = find(app, accountId);
   if (!acct) return { ok: false, code: 'NO_ACCOUNT', why: `no account "${accountId}" is configured` };
@@ -437,11 +387,7 @@ function offering(app, modelId) {
   return L.accounts.filter((a) => ids.has(a.id));
 }
 
-/**
- * THE MODEL TO USE WHEN AN ACCOUNT IS CHOSEN WITHOUT ONE — only a declared
- * one: the person's per-account default, the connection's own `default`, or
- * the only model it has. Otherwise null, and the caller asks.
- */
+/** THE MODEL TO USE WHEN AN ACCOUNT IS CHOSEN WITHOUT ONE — only a declared one: the person's per-account default, the connection's own `default`, or… */
 function defaultModel(app, accountId) {
   const acct = find(app, accountId);
   if (!acct) return null;

@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * A PROJECT'S LAIN FOLDER — `.lain/`, and the Noema-era `.noema/` for projects Noema already opened.
- *
- * ONE AUTHORITY PER PROJECT: `.lain/` when it exists; otherwise an existing `.noema/` (used as it is, read AND written,
- * until it is migrated); otherwise a new project gets `.lain/`. The two are never both written. Moving `.noema/` →
- * `.lain/` is DELIBERATE (`lain project migrate`), because a project may track its folder in its own git history and a
- * silent rename would be a change in the person's repository they did not make.
- */
+/** A PROJECT'S LAIN FOLDER — `.lain/`, and the Noema-era `.noema/` for projects Noema already opened. */
 
 const fs = require('fs');
 const path = require('path');

@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE PREVIEW PAGE ACTUALLY SHOWS — read structurally, bounded, and
- * scoped to what a turn can use.
- *
- * ------------------------------------------------------------------------
- * THE RULE THAT SHAPES EVERY FUNCTION HERE: NEVER SEND THE WHOLE DOM.
- *
- * A page's DOM is megabytes and almost all of it is noise. Handed to a model it
- * buries the one element the person is asking about, costs a fortune, and
- * routinely does not fit. So every reader below returns a BOUNDED, NAMED answer
- * about a specific thing: this element, these console errors, these failing
- * requests. `element()` is the point of the whole file — a person clicks one
- * button and LAIN receives that button, its box, its computed layout and its
- * accessible name, in a few hundred characters.
- *
- * ------------------------------------------------------------------------
- * EVIDENCE ORDER, the same one modelsource/pageops.js states.
- *
- *   1. semantic attributes   data-testid, id, aria-*
- *   2. accessibility state   what a user is TOLD about the element
- *   3. computed layout       the numbers that decide "is it aligned"
- *   4. a screenshot          only when the question is genuinely visual
- *
- * A screenshot is not the default reading. "Is this centred" is answered by
- * `justify-content` and a bounding box exactly, and by a picture approximately.
- */
+/** WHAT THE PREVIEW PAGE ACTUALLY SHOWS — read structurally, bounded, and scoped to what a turn can use. */
 
 /** Nothing read off a page is unbounded. */
 const MAX_TEXT = 2000;
@@ -49,17 +24,7 @@ async function ask(page, what, expression) {
   return r.ok ? { ok: true, value: r.value } : { ok: false, why: `${what}: ${r.why}` };
 }
 
-/**
- * EVERYTHING WORTH KNOWING ABOUT ONE ELEMENT, in one round trip.
- *
- * Identity, accessible name, box, computed layout, and the PARENT's layout —
- * which is included because most alignment complaints are about the parent's
- * `justify-content`, not the child's own properties. One evaluate rather than
- * six, because each round trip is a real millisecond against a person waiting.
- *
- * `selector` of null reads `window.__lainPicked`, which is what the click
- * picker leaves behind.
- */
+/** EVERYTHING WORTH KNOWING ABOUT ONE ELEMENT, in one round trip. */
 function describeExpr(selectorOrNull) {
   return `(() => {
     const sel = ${lit(selectorOrNull)};
@@ -114,12 +79,7 @@ function describeExpr(selectorOrNull) {
   })()`;
 }
 
-/**
- * THE GUG MEASUREMENT (gug.js fromDom): every VISIBLE element's box, its
- * nearest measured ancestor, its identity and the computed px that decide its
- * geometry — bounded to `max` elements, in document order. One evaluate. No
- * text beyond a short label, no attributes beyond identity.
- */
+/** THE GUG MEASUREMENT (gug.js fromDom): every VISIBLE element's box, its nearest measured ancestor, its identity and the computed px that decide its… */
 const GUG_STYLE = ['display', 'position', 'top', 'left', 'right', 'bottom', 'width', 'height', 'min-width', 'max-width', 'min-height', 'max-height',
   'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'gap',
   'justify-content', 'align-items', 'flex-direction'];
@@ -194,15 +154,7 @@ async function element(page, selector) {
   return { ok: true, element: r.value };
 }
 
-/**
- * THE ELEMENT PICKER — a real click-to-select workflow.
- *
- * Injects an overlay that highlights whatever is under the pointer and records
- * the next click, then GETS OUT OF THE WAY. Deliberately not a permanent
- * script: it removes its own listeners on selection and on Escape, because a
- * page still carrying an inspector's capture-phase handlers is not the page the
- * person is testing, and every click after that would be swallowed.
- */
+/** THE ELEMENT PICKER — a real click-to-select workflow. */
 const PICKER = `(() => {
   if (window.__lainPicker) return 'already';
   const box = document.createElement('div');
@@ -251,12 +203,7 @@ async function pick(page) {
   return r.ok ? { ok: true, state: r.value } : r;
 }
 
-/**
- * PICK THE ELEMENT AT A POINT — the click a person makes on the preview IMAGE
- * in the application, mapped to the page's own coordinates by the caller. The
- * same descriptor the in-window picker produces, without having to go and
- * click in a second window.
- */
+/** PICK THE ELEMENT AT A POINT — the click a person makes on the preview IMAGE in the application, mapped to the page's own coordinates by the caller. */
 async function pickAt(page, x, y) {
   const px = Math.max(0, Math.round(Number(x) || 0));
   const py = Math.max(0, Math.round(Number(y) || 0));
@@ -280,13 +227,7 @@ async function unpick(page) {
     '(() => { if (window.__lainPicker) window.__lainPicker.stop(); window.__lainPicked = null; return "off"; })()');
 }
 
-/**
- * THE ACCESSIBILITY TREE — what a user is TOLD, which is a different question
- * from what is in the document.
- *
- * A `<div onclick>` is in the DOM and invisible to this. For "can somebody
- * actually use this control", the accessible answer is the true one.
- */
+/** THE ACCESSIBILITY TREE — what a user is TOLD, which is a different question from what is in the document. */
 async function axTree(page, selector = null) {
   if (!page || typeof page.axTree !== 'function') {
     return { ok: false, why: 'this page cannot report an accessibility tree' };
@@ -300,13 +241,7 @@ async function axTree(page, selector = null) {
   return { ok: true, nodes };
 }
 
-/**
- * THE CONSOLE, SUMMARISED FIRST.
- *
- * `2 errors` is what a person needs to see; the lines are what they expand to.
- * Returning the whole log by default is how a Workshop becomes a log viewer
- * nobody reads.
- */
+/** THE CONSOLE, SUMMARISED FIRST. */
 function consoleReport(session) {
   const errors = session && typeof session.errors === 'function' ? session.errors() : [];
   const all = (session && Array.isArray(session.console)) ? session.console : [];
@@ -320,12 +255,7 @@ function consoleReport(session) {
   };
 }
 
-/**
- * THE NETWORK, SUMMARISED THE SAME WAY, AND FAILURES FIRST.
- *
- * `POST /checkout 500` is the row that matters. Two hundred 200s are not an
- * observation, they are scenery.
- */
+/** THE NETWORK, SUMMARISED THE SAME WAY, AND FAILURES FIRST. */
 function networkReport(session) {
   const all = (session && Array.isArray(session.network)) ? session.network : [];
   const failed = all.filter((n) => Number(n.status) >= 400);

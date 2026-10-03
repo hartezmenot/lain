@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * MODEL CAPABILITY PROFILES (Execution Discipline §36–§39) — discretion from MEASURED behaviour, not the model's name.
- *
- *   tool_call_validity      calls that named a real tool with usable arguments
- *   patch_success           writes that applied
- *   false_completion_rate   completion requests the arbiter refused, or VERIFIED claims it had to downgrade
- *   repetition_rate         identical observations repeated
- *   verification_propensity changes followed by a check before the turn ended
- *   usable_context, vision, long_horizon_coherence (turns a task stayed on its outcome) — recorded where known
- *
- * DISCRETION: STRONG (whole task, broad tools, the model chooses investigation and verification) · MEDIUM (stronger
- * focus packet, a verification recommendation) · WEAK (narrow scope, precomputed context, mandatory verification tier,
- * independent completion check, early escalation).
- *
- * LOWER CAPABILITY REDUCES DISCRETION, NEVER EVIDENCE QUALITY: the arbiter applies the same standard to everyone; a
- * WEAK profile only has less latitude in how it meets it. Until a model has a measured history, a family prior is
- * used — and the prior is overridden by what the model actually does.
- */
+/** MODEL CAPABILITY PROFILES (Execution Discipline §36–§39) — discretion from MEASURED behaviour, not the model's name. */
 
 const fs = require('fs');
 const path = require('path');

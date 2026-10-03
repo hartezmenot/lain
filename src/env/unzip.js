@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * A ZIP READER, because the browser distribution arrives as one and this
- * project does not take dependencies.
- *
- * ------------------------------------------------------------------------
- * WHY NOT SHELL OUT TO `tar` / `unzip` / `Expand-Archive`?
- *
- * Because the three behave differently on the one thing that matters here.
- * Extracting an archive downloaded over the network is the moment a path like
- * `../../../.ssh/authorized_keys` gets to choose where it lands, and the
- * defence has to be in the extractor. Delegating it means inheriting whatever
- * the local tool happens to do — which on Windows is a different tool
- * (`bsdtar`) than on Linux (`unzip`, sometimes absent), with different
- * traversal handling and different symlink handling. `reject` below is one
- * rule, applied identically everywhere.
- *
- * It also removes an availability question from the install path: a machine
- * without `unzip` is not a machine where the Harness browser cannot be
- * installed.
- *
- * ------------------------------------------------------------------------
- * WHAT IT DELIBERATELY DOES NOT DO.
- *
- * No encryption, no Zip64, no symlinks, no multi-disk. Chrome for Testing uses
- * none of them, and every one of those is a place to be subtly wrong. Each is
- * DETECTED and REFUSED rather than ignored — an extractor that quietly skips
- * an entry it does not understand produces a half-installed browser that fails
- * later, somewhere else, for a reason nobody can trace back to here.
- */
+/** A ZIP READER, because the browser distribution arrives as one and this project does not take dependencies. */
 
 const fs = require('fs');
 const path = require('path');
@@ -41,14 +13,7 @@ const SIG_LOCAL = 0x04034b50;
 const STORED = 0;
 const DEFLATED = 8;
 
-/**
- * FIND THE END-OF-CENTRAL-DIRECTORY RECORD.
- *
- * It is at the end, but not at a fixed offset: a zip may carry up to 64KB of
- * trailing comment. So this scans BACKWARDS from the end — backwards because a
- * forward scan can match the signature inside compressed data and find a
- * plausible-looking record that is not the real one.
- */
+/** FIND THE END-OF-CENTRAL-DIRECTORY RECORD. */
 function findEocd(buf) {
   const min = Math.max(0, buf.length - 0x10000 - 22);
   for (let i = buf.length - 22; i >= min; i--) {
@@ -57,16 +22,7 @@ function findEocd(buf) {
   return -1;
 }
 
-/**
- * IS THIS PATH ALLOWED TO EXIST UNDER `dest`?
- *
- * Absolute paths, drive letters and `..` segments are all refused by NAME
- * before anything is created, and then the resolved result is checked against
- * `dest` again. Two checks rather than one because they fail differently: the
- * name check catches the obvious attack, and the resolve check catches the
- * clever one (a name that is harmless per-segment but escapes once the OS has
- * normalised it).
- */
+/** IS THIS PATH ALLOWED TO EXIST UNDER `dest`? */
 function reject(name, dest) {
   const n = String(name || '');
   if (!n) return 'an entry has no name';
@@ -109,9 +65,7 @@ function entries(buf) {
     const local = buf.readUInt32LE(off + 42);
     const name = buf.slice(off + 46, off + 46 + nameLen).toString('utf8');
     if (flags & 0x1) return { ok: false, why: `encrypted archives are not supported (${name})` };
-    // The UNIX mode lives in the high 16 bits. S_IFLNK (0xA000) is a symlink,
-    // whose "contents" are a path — extracting one is how an archive writes
-    // outside its own directory without any `..` in a name.
+    // The UNIX mode lives in the high 16 bits.
     const mode = (external >>> 16) & 0xffff;
     if ((mode & 0xf000) === 0xa000) return { ok: false, why: `symlinks are not supported (${name})` };
     out.push({ name, method, crc, compressed, size, local, mode, dir: /[/\\]$/.test(name) });
@@ -127,18 +81,7 @@ function dataOffset(buf, e) {
   return e.local + 30 + buf.readUInt16LE(e.local + 26) + buf.readUInt16LE(e.local + 28);
 }
 
-/**
- * EXTRACT THE WHOLE ARCHIVE.
- *
- * `strip` drops leading path segments, because these distributions wrap
- * everything in one versioned top directory that nobody wants in the
- * destination.
- *
- * The CRC is checked per entry. A truncated download is the likeliest fault
- * here and it produces a browser that starts and then misbehaves in ways that
- * look like application bugs — so it is worth the cheap check to fail at the
- * install instead.
- */
+/** EXTRACT THE WHOLE ARCHIVE. */
 function extract(zipPath, dest, { strip = 0 } = {}) {
   let buf;
   try { buf = fs.readFileSync(zipPath); } catch (e) {
@@ -179,9 +122,7 @@ function extract(zipPath, dest, { strip = 0 } = {}) {
 
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, body);
-    // THE EXECUTABLE BIT IS THE POINT ON POSIX. A perfectly extracted browser
-    // that cannot be run is not extracted. Windows has no such bit and
-    // `chmod` there is a no-op, so this is simply skipped rather than guarded.
+    // THE EXECUTABLE BIT IS THE POINT ON POSIX.
     if (process.platform !== 'win32' && (e.mode & 0o111)) {
       try { fs.chmodSync(full, (e.mode & 0o777) || 0o755); executables.push(rel); } catch { /* mode is advisory */ }
     }

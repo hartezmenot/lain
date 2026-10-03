@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * THE UPDATE, AS EVERY SURFACE SAYS IT (Phase 7, 2026-10-02) — one canonical view in Core, read by the CLI (its notice,
- * its header, `/update`) and the Harness (the button, its popover). Nothing composes its own sentence about it.
- *
- *   available   "↑ LAIN 1.2.3 ready to update"          the CLI's notice and header; the Harness button "Update ready ●"
- *   staged      "✓ Update installed · Restart to activate"  downloaded, verified and unpacked; the launcher would start
- *                                                         it on the next start — restarting now is the person's choice
- *   current     nothing is said
- *
- * THE ACTIVE TASK IS NEVER KILLED: restarting is offered "now" only when nothing is working (no turn, no background job,
- * no background agent — lifecycle.busy); otherwise "after the current checkpoint" (a pause the task resumes from) or
- * "after the task". LAIN never restarts itself because it found an update.
- */
+/** THE UPDATE, AS EVERY SURFACE SAYS IT (Phase 7, 2026-10-02) — one canonical view in Core, read by the CLI (its notice, its header, `/update`) and the… */
 
 function U() { return require('./updater'); }
 function LC() { return require('./lifecycle'); }

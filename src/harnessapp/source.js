@@ -1,68 +1,13 @@
 'use strict';
 
-/**
- * THE SOURCE WORKSPACE'S BACK HALF — the tree, the file, the save.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT A SECOND FILESYSTEM AUTHORITY, AND THAT IS THE WHOLE DESIGN.
- *
- * The blueprint says it in as many words: the Source UI owns PRESENTATION AND
- * EDIT INTENT; Core/Harness owns the actual read, write and trust. So this
- * module resolves paths through `tools/fs.js` (the one resolver), refuses
- * anything outside the workspace, and applies the SAME truncation guard a model
- * write goes through — because a person dragging a selection over a 30KB file
- * and hitting save is the identical accident, and the guard does not care who
- * caused it.
- *
- * What it adds is the things an EDITOR needs and a tool call does not: a tree
- * to navigate, the modification time so a stale buffer can be noticed, and the
- * knowledge that a file is one this session has already changed.
- *
- * ------------------------------------------------------------------------
- * A SAVE IS CONDITIONAL ON WHAT WAS READ.
- *
- * Every open carries the file's `mtime` and size, and every save sends them
- * back. If the file on disk has moved on — LAIN edited it, a build wrote it,
- * git checked something out — the save is REFUSED and the caller is told, with
- * the current bytes, so a person can look before deciding.
- *
- * This is the one interaction where a Harness editor could destroy work that a
- * model just did, and the ordinary last-write-wins would do it silently and
- * often: the entire point of the product is that LAIN is editing these files at
- * the same time as the person is looking at them.
- *
- * ------------------------------------------------------------------------
- * BOUNDED, because it is served over HTTP to a page. A file bigger than
- * MAX_FILE_BYTES is reported as too large rather than streamed into a browser
- * that will hang trying to syntax-highlight it.
- */
+/** THE SOURCE WORKSPACE'S BACK HALF — the tree, the file, the save. */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const fstools = require('../tools/fs');
 
-/**
- * THE IDENTITY OF A FILE'S CONTENTS — the save token.
- *
- * ---- WHY NOT `mtimeMs`, WHICH IS WHAT THIS USED TO BE -----------------
- *
- * Two writes inside the same millisecond produce the IDENTICAL mtime. Measured
- * on this machine:
- *
- *     write .a{opacity:0.2}  -> mtimeMs 1789025279604.5515
- *     write .a{opacity:0.9}  -> mtimeMs 1789025279604.5515   (unchanged)
- *
- * So the conditional save FAILED OPEN exactly where it mattered: LAIN edits a
- * file, the person hits save a moment later, the mtimes match, the guard is
- * satisfied and the model's work is overwritten silently. Not a rare race —
- * LAIN writes fast, and saving straight afterwards is the normal thing to do.
- *
- * A hash of the bytes has no resolution to run out of. It costs a few
- * microseconds on files this editor will open at all (2MB ceiling), and it
- * answers the actual question — "is this still the file I read?" — rather than
- * a proxy for it.
- */
+/** THE IDENTITY OF A FILE'S CONTENTS — the save token. */
 function digest(text) {
   return crypto.createHash('sha256').update(String(text), 'utf8').digest('hex').slice(0, 32);
 }
@@ -79,26 +24,14 @@ const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 /** How many entries one directory listing returns. A tree, not an index. */
 const MAX_ENTRIES = 800;
 
-/**
- * DIRECTORIES A SOURCE TREE SHOULD NOT OFFER TO OPEN.
- *
- * Not a security boundary — `inside()` is that. This is about usefulness: a
- * tree whose first expansion is 40,000 files of `node_modules` is a tree
- * nobody can navigate, and the person is looking for their own code.
- */
+/** DIRECTORIES A SOURCE TREE SHOULD NOT OFFER TO OPEN. */
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.hg', '.svn', 'dist', 'build', 'out', 'target',
   '__pycache__', '.venv', 'venv', '.next', '.nuxt', 'coverage', '.cache',
   '.lain', '.noema', '.lain-probe', 'vendor', '.gradle', '.idea',
 ]);
 
-/**
- * EXTENSIONS KNOWN TO BE TEXT — kept for callers that ask cheaply by name
- * (the Workshop's source correlation). It is NO LONGER THE GATE for opening a
- * file: that allowlist was the root cause of "several files cannot be opened"
- * — a Dockerfile, a Makefile, a .log, a .xml, a .cc was refused before its
- * bytes were ever looked at. Opening now decides from the CONTENT (`classify`).
- */
+/** EXTENSIONS KNOWN TO BE TEXT — kept for callers that ask cheaply by name (the Workshop's source correlation). */
 const TEXT_EXT = new Set([
   '.html', '.htm', '.css', '.scss', '.sass', '.less',
   '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx',
@@ -109,10 +42,7 @@ const TEXT_EXT = new Set([
   '.sql', '.graphql', '.vue', '.svelte', '.txt', '.gitignore', '.editorconfig',
 ]);
 
-/**
- * EXTENSIONS THAT ARE CERTAINLY NOT TEXT. Used only to label a tree row before
- * anything is read; `open` still decides from the bytes.
- */
+/** EXTENSIONS THAT ARE CERTAINLY NOT TEXT. */
 const BINARY_EXT = new Set([
   '.exe', '.dll', '.so', '.dylib', '.bin', '.obj', '.o', '.a', '.lib', '.pdb', '.class', '.jar', '.war',
   '.zip', '.gz', '.tgz', '.bz2', '.xz', '.7z', '.rar', '.tar', '.iso', '.dmg', '.msi', '.cab',
@@ -121,11 +51,7 @@ const BINARY_EXT = new Set([
   '.ttf', '.otf', '.woff', '.woff2', '.eot', '.psd', '.sqlite', '.db', '.pyc', '.node', '.wasm', '.blend',
 ]);
 
-/**
- * THE EDITOR MODE — the language id the IDE's editor (Monaco) understands,
- * by extension and by well-known file name. Unknown is `plaintext`, never a
- * refusal: an unknown extension is an unknown grammar, not an unreadable file.
- */
+/** THE EDITOR MODE — the language id the IDE's editor (Monaco) understands, by extension and by well-known file name. */
 const MODE_BY_EXT = Object.freeze({
   '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript', '.jsx': 'javascript',
   '.ts': 'typescript', '.tsx': 'typescript', '.mts': 'typescript', '.cts': 'typescript',
@@ -161,17 +87,7 @@ function mode(rel) {
   return MODE_BY_EXT[path.extname(base)] || 'plaintext';
 }
 
-/**
- * WHAT THESE BYTES ARE, AND HOW TO TURN THEM INTO TEXT AND BACK.
- *
- * The byte-order mark decides first (UTF-8, UTF-16 LE/BE — a UTF-16 file is
- * full of NUL bytes and was refused as "binary" before); then a NUL in the
- * first block means binary; then strict UTF-8 is tried, and a file that is
- * not valid UTF-8 is read as Latin-1 rather than mangled with replacement
- * characters that a save would write back.
- *
- * @returns {{binary:true} | {binary:false, text:string, encoding:string, eol:'CRLF'|'LF'}}
- */
+/** WHAT THESE BYTES ARE, AND HOW TO TURN THEM INTO TEXT AND BACK. */
 function classify(buf) {
   let encoding = 'utf8';
   let text;
@@ -231,11 +147,7 @@ function isText(name) {
   return TEXT_EXT.has(e) || TEXT_EXT.has(name.toLowerCase());
 }
 
-/**
- * HOW A TREE ROW SHOULD OPEN, from the name alone: an image previews, a known
- * binary format says so, and EVERYTHING ELSE is offered to the editor, which
- * reads the bytes before deciding.
- */
+/** HOW A TREE ROW SHOULD OPEN, from the name alone: an image previews, a known binary format says so, and EVERYTHING ELSE is offered to the editor… */
 function kindOf(name) {
   const e = path.extname(name).toLowerCase();
   if (IMAGE_MIME[e]) return 'image';
@@ -246,19 +158,10 @@ function kindOf(name) {
 /** Names a tree never shows: version-control internals and LAIN's own index. */
 const HIDDEN = new Set(['.git', '.hg', '.svn', '.lain', '.noema', '.lain-probe', '.ds_store', 'thumbs.db']);
 
-/**
- * IS THIS PATH INSIDE THE WORKSPACE? The security boundary, checked on every
- * call rather than once at the edge.
- *
- * `path.relative` rather than a `startsWith` on strings: `/proj` and
- * `/project-two` share a prefix and are not the same tree, and that is exactly
- * the mistake a string comparison makes.
- */
+/** IS THIS PATH INSIDE THE WORKSPACE? */
 function inside(cwd, abs) {
   const r = path.relative(path.resolve(cwd), path.resolve(abs));
-  // AN EMPTY RESULT IS THE ROOT ITSELF, AND THE ROOT IS INSIDE. Requiring a
-  // non-empty relative path refused the project directory — so the tree could
-  // not list the one directory it exists to list.
+  // AN EMPTY RESULT IS THE ROOT ITSELF, AND THE ROOT IS INSIDE.
   if (r === '') return true;
   return !r.startsWith(`..${path.sep}`) && r !== '..' && !path.isAbsolute(r);
 }
@@ -269,21 +172,12 @@ function locate(app, rel) {
   const abs = fstools.resolve(cwd, String(rel || ''));
   if (!abs) return { ok: false, why: 'no path given' };
   if (!inside(cwd, abs)) return { ok: false, why: `outside the project: ${rel}` };
-  // `fstools.rel` hands back the ABSOLUTE path when the relative one is empty —
-  // i.e. for the project root itself, which is exactly what a tree asks for
-  // first. Left alone, every path in the first listing came back absolute.
+  // `fstools.rel` hands back the ABSOLUTE path when the relative one is empty — i.e.
   const r = path.relative(path.resolve(cwd), path.resolve(abs)).replace(/\\/g, '/');
   return { ok: true, abs, cwd, rel: r === '' ? '.' : r };
 }
 
-/**
- * ONE DIRECTORY, not the whole tree.
- *
- * LAZY BY DIRECTORY, because a recursive walk of an unknown project is
- * unbounded and the person only ever looks at one branch. Directories first,
- * then files, each alphabetical — the order every file tree has used for
- * thirty years, and the one a hand goes to without looking.
- */
+/** ONE DIRECTORY, not the whole tree. */
 function tree(app, rel = '') {
   const at = locate(app, rel || '.');
   if (!at.ok) return at;
@@ -343,13 +237,7 @@ function changedPaths(app) {
   } catch { return []; }
 }
 
-/**
- * OPEN A FILE.
- *
- * `mtimeMs` and `size` come back with the body and are the SAVE TOKEN — see
- * the header. They are the file's identity at the moment it was read, and a
- * save that cannot present them is a save from a buffer that may be stale.
- */
+/** OPEN A FILE. */
 function open(app, rel) {
   const at = locate(app, rel);
   if (!at.ok) return at;
@@ -397,20 +285,7 @@ function open(app, rel) {
   };
 }
 
-/**
- * SAVE, IF THE FILE IS STILL THE ONE THAT WAS OPENED.
- *
- * THREE REFUSALS, and each is a way a person loses work that they would not
- * find out about until much later:
- *
- *   STALE       the bytes on disk changed since the open. Almost always LAIN,
- *               because that is the product working as intended. Refused with
- *               the current body so the caller can show both.
- *   TRUNCATION  the same guard a model write goes through (tools/fs.js). A
- *               save that keeps under half of a file over 2KB is a collapse
- *               far more often than it is an edit.
- *   OUTSIDE     not this project's business at all.
- */
+/** SAVE, IF THE FILE IS STILL THE ONE THAT WAS OPENED. */
 async function save(app, rel, body, { hash = null, mtimeMs = null, force = false, encoding = null, origin = 'USER' } = {}) {
   const at = locate(app, rel);
   if (!at.ok) return at;
@@ -439,10 +314,7 @@ async function save(app, rel, body, { hash = null, mtimeMs = null, force = false
   }
 
   if (st && !force) {
-    // THE SAME FUNCTION A MODEL WRITE GOES THROUGH, called the way it is
-    // actually shaped: `(abs, content)` in, `{was, now}` or null out. It does
-    // its own `statSync`, so a new file and a small file are already handled
-    // there rather than re-decided here.
+    // THE SAME FUNCTION A MODEL WRITE GOES THROUGH, called the way it is actually shaped: `(abs, content)` in, `{was, now}` or null out.
     const risk = fstools.truncationRisk(at.abs, text);
     if (risk) {
       return {
@@ -455,10 +327,7 @@ async function save(app, rel, body, { hash = null, mtimeMs = null, force = false
     }
   }
 
-  // THE PERSON'S SAVE IS A MUTATION LIKE ANY OTHER (mutation.js `change`,
-  // actor USER): provenance — EXTERNAL first if the file moved under LAIN —
-  // the one project generation, the GUG, freshness and PROJECT_DELTA all
-  // follow from the transaction. Nothing here writes around it.
+  // THE PERSON'S SAVE IS A MUTATION LIKE ANY OTHER (mutation.js `change`, actor USER): provenance — EXTERNAL first if the file moved under LAIN — the one…
   return require('../mutation').change(app, {
     name: 'editor.save', targets: [at.abs], origin: origin === 'FORMATTER' ? 'FORMATTER' : null,
     what: origin === 'FORMATTER' ? `formatted ${at.rel}` : '',
@@ -475,13 +344,7 @@ async function save(app, rel, body, { hash = null, mtimeMs = null, force = false
   });
 }
 
-/**
- * HAS ANYTHING THE EDITOR HOLDS MOVED UNDER IT?
- *
- * Polled with the rest of the state. Cheap — one `stat` per open tab — and it
- * is what turns "LAIN edited this file" into a thing the editor NOTICES rather
- * than something the person discovers when their save is refused.
- */
+/** HAS ANYTHING THE EDITOR HOLDS MOVED UNDER IT? */
 function freshness(app, open = []) {
   const out = [];
   for (const t of Array.isArray(open) ? open.slice(0, 24) : []) {
@@ -507,13 +370,7 @@ function freshness(app, open = []) {
   return out;
 }
 
-/**
- * QUICK OPEN — a bounded search by filename, not a full-text index.
- *
- * Deliberately NOT a second search implementation: for CONTENT there is
- * tools/search.js and the model uses it. This answers only "where is the file
- * called something like this", which is what a quick-open box is for.
- */
+/** QUICK OPEN — a bounded search by filename, not a full-text index. */
 function find(app, query, { limit = 40 } = {}) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return { ok: true, matches: [] };

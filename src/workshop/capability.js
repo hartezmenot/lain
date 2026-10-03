@@ -1,34 +1,12 @@
 'use strict';
 
-/**
- * A BACKEND CAPABILITY THAT WAKES ON FIRST USE (Gate 4, found by the CineFlex run).
- *
- * The capability broker (proxy.js) could forward a live capability only to a
- * backend already running — so "press Play and only playback wakes" needed the
- * person to start the backend by hand. `.lain/preview.json` may now name the
- * command that serves a live capability:
- *
- *     "playback": { "match": ["/api/stream/"], "mode": "live", "command": "node server.js", "port": 7011 }
- *
- * NOTHING RUNS UNTIL THE PREVIEW ASKS. The first request the capability claims
- * (the person pressing Play) starts that command through the ProcessManager —
- * owned, named `cap:<name>`, tracked apart from the frontend's dev server — the
- * request waits for it (bounded), then is forwarded. It stops with the preview,
- * or when the person turns the capability off. Nothing else wakes with it.
- *
- * LOOPBACK: the process is told PORT and HOST=127.0.0.1, and the port must be
- * served by the process tree LAIN started (portowner) before a request is sent.
- */
+/** A BACKEND CAPABILITY THAT WAKES ON FIRST USE (Gate 4, found by the CineFlex run). */
 
 const devserver = require('./devserver');
 
 const WAKE_MS = 90_000;
 
-/**
- * Start one capability's backend. Resolves { ok, url, port, processId, pid, alive() } or { ok:false, why, log }.
- * @param {string} root  the project folder (the command's cwd)
- * @param {{name:string, command:string, port:?number}} rule
- */
+/** Start one capability's backend. */
 async function wake(root, rule, { processes = null, taskId = null, timeoutMs = WAKE_MS } = {}) {
   if (!rule || !rule.command) return { ok: false, why: `${rule ? rule.name : 'this capability'} names no command to start` };
   if (!processes) return { ok: false, why: 'no process manager, so a capability backend cannot be owned or stopped' };

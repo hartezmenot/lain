@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * THE TASK CARRIES ON ACROSS MODEL BOUNDARIES — bounded, classified, recorded.
- *
- * ------------------------------------------------------------------------
- * WHAT CHANGED (2026-09-29). A person asked for a task; the Coding Agent
- * worked a phase, the model ended its turn at a checkpoint, and LAIN stopped —
- * "Normal strategy — each request is its own run" — and waited for someone to
- * type `continue`. It did the same after a stale evidence id, a delegate role
- * in the wrong case, a missing temp file, a provider that dropped the stream,
- * and a process that died. Every one of those is a MODEL boundary, not a TASK
- * boundary, and LAIN already holds everything needed to go on: the approved
- * plan, what landed, what remains, what failed, the handover.
- *
- * So after a Coding turn this answers ONE question — does another turn start
- * by itself? — from the ending's classification (turnoutcome.js), the run
- * strategy, the checkpoint's problems and a small continuation BUDGET:
- *
- *   consecutive continuations that moved nothing     2 → the person is asked
- *   provider failures after the turn's own retries   3 restarts, waiting 20 s · 60 s · 180 s
- *   host crashes resumed without progress between    2 → the person is asked
- *
- * Progress (a plan step done, a file changed, a tool that succeeded) resets the
- * budget; so does anything a person types. Exhausting it never FAILS the task:
- * it pauses it with the reason, and ▶ Continue carries on from the same state.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS NOT CARRY-ON. `carryon` (removed) decided that a model which
- * stopped did not mean to, whenever a step counter ran out, and sent "continue
- * from where you stopped" up to four times. Here:
- *   - the trigger is a CLASSIFIED ending with durable continuation state behind
- *     it — an approved plan with steps left, or a turn the host or provider cut;
- *   - the instruction is composed from that state (runstrategy.nextPhasePrompt,
- *     continueactions.instruction), naming the step — never the bare word;
- *   - a natural end with nothing left, a question to the person, a blocking
- *     finding, a scope change, failed verification, a refusal, a person's stop
- *     or pause, a step cap they configured, and a quota measured in hours all
- *     STOP, exactly as before;
- *   - every automatic continuation is logged with its cause (`continuation.log`).
- *
- * Nothing here calls a model. It returns a decision; submitclose.js and the
- * recovery path start the turn through the one door (app.submit).
- */
+/** THE TASK CARRIES ON ACROSS MODEL BOUNDARIES — bounded, classified, recorded. */
 
 const wb = require('./workbench');
 const T = require('./turnoutcome');
@@ -95,10 +54,7 @@ function failureNote(record) {
     + 'Do not repeat a call that failed the same way — use the allowed values it named, a different tool, or a different approach.';
 }
 
-/**
- * THE INSTRUCTION a continuation sends — composed from durable state, never the bare word "continue".
- * Plan work names its phase (runstrategy.nextPhasePrompt); a turn cut off without a plan resumes the objective.
- */
+/** THE INSTRUCTION a continuation sends — composed from durable state, never the bare word "continue". */
 const LEAD = Object.freeze({
   'provider-restart': 'The provider connection failed and has been re-established; nothing in the project was lost. ',
   'auto-resume': 'The process that was running this task stopped mid-turn and LAIN recovered the session (its tool results were repaired from what actually happened on disk). ',
@@ -116,18 +72,7 @@ function instruction(session, { cause, record = null }) {
   return `${lead}${body}${record ? ` ${failureNote(record)}` : ''} If the work was in fact finished, say so and state what you concluded.`.trim();
 }
 
-/**
- * AFTER A CODING TURN: does the task carry on by itself?
- *
- * @param {object} session
- * @param {object} record          the finished turn
- * @param {object} cls             turnoutcome.classify(...)
- * @param {object} o
- *   problems       supervision.problems — reasons a person must look (blocking finding, delta, verification …)
- *   strategy       'NORMAL' | 'PHASED' | 'LONG_CONTEXT'
- *   planDoneBefore the plan's done count when the turn started (for progress)
- * @returns {{ continue: boolean, why: string, cause?: string, delayMs?: number, prompt?: string, needsUser?: boolean }}
- */
+/** AFTER A CODING TURN: does the task carry on by itself? */
 function decide(session, record, cls, { problems = [], strategy = 'NORMAL', planDoneBefore = null } = {}) {
   const c = state(session);
   if (!record || !AUTOMATIC.has(record.from || '')) reset(session, record && record.from ? record.from : 'person');
@@ -157,14 +102,9 @@ function decide(session, record, cls, { problems = [], strategy = 'NORMAL', plan
     return { continue: true, cause: 'provider-restart', delayMs, why: cls.why, prompt: instruction(session, { cause: 'provider-restart', record }) };
   }
 
-  // COMPLETED or TOOL_RECOVERABLE: the model ended its turn. With a plan, the TASK carries on while the plan does.
-  // WITHOUT ONE — THE GOAL LOOP (2026-10-01): a model turn that ended while its own closing words name the next
-  // piece of the work is a MODEL boundary, not the goal's end. It used to stop here and wait for `continue`.
+  // COMPLETED or TOOL_RECOVERABLE: the model ended its turn.
   if (!shape.remaining.length) {
-    // DURABLE UNFINISHED WORK, NOT WORDS (2026-10-02). Closing words alone ("next I'll look at…") used to start
-    // another turn — LAIN deciding activity should continue. A continuation now needs state that SAYS the work is
-    // unfinished: explicit asks still open, acceptance criteria not yet met, or a goal the person set — and no
-    // settled verdict, blocker or decision. The model's named next step stays orientation for that turn.
+    // DURABLE UNFINISHED WORK, NOT WORDS (2026-10-02).
     const unfinished = durableUnfinished(session);
     // Open asks / unmet criteria continue on their own; a standing /goal (long-lived, spans tasks) continues only
     // when the model ALSO named the next piece of work toward it.
@@ -191,11 +131,7 @@ function decide(session, record, cls, { problems = [], strategy = 'NORMAL', plan
   return { continue: true, cause: 'phase-continue', delayMs: 0, why: cls.why, prompt: instruction(session, { cause: 'phase-continue', record: cls.outcome === T.OUTCOME.TOOL_RECOVERABLE ? record : null }) };
 }
 
-/**
- * AFTER A CRASH: a session loaded with a turn its process never finished (inflight.recover →
- * session.recovered). Resumes by itself when the turn was the Coding Agent's and the budget allows.
- * Returns the decision; the caller submits.
- */
+/** AFTER A CRASH: a session loaded with a turn its process never finished (inflight.recover → session.recovered). */
 function onRecovered(session) {
   const rec = session && session.recovered;
   if (!rec || rec.autoResumeDecided) return { continue: false, why: 'nothing recovered' };
@@ -212,15 +148,7 @@ const FRESH_MS = 30 * 60 * 1000;
 /** Let the host finish settling (the REPL, the window's first poll) before the resumed turn starts. */
 const RECOVERY_DELAY_MS = 1500;
 
-/**
- * A SESSION ADOPTED WITH A TURN ITS PROCESS NEVER FINISHED (App.adopt; the
- * session loaded through inflight.recover). A recent Coding crash resumes by
- * itself — the same task, session and phase, from the repaired transcript,
- * carrying the handover packet the Guardian's recovery uses (`app._handover`)
- * — once the host has settled and only if nothing else started meanwhile. An
- * old crash, or one the budget refuses, is marked paused (`host-crashed`) and
- * ▶ Continue resumes it.
- */
+/** A SESSION ADOPTED WITH A TURN ITS PROCESS NEVER FINISHED (App.adopt; the session loaded through inflight.recover). */
 function scheduleRecovery(app) {
   const s = app && app.session;
   const rec = s && s.recovered;
@@ -231,30 +159,12 @@ function scheduleRecovery(app) {
     if (why) w.strategy.pausedForReview = why;
     try { s.save(); } catch { /* in memory */ }
   };
-  // SIMPLE: a crash reopens the session; nothing sends a turn — ▶ Continue (the person) resumes it.
-  const fresh = !require('./simple').on(app) && rec.lastActiveAt && Date.now() - rec.lastActiveAt < FRESH_MS;
-  if (!fresh) { rec.autoResumeDecided = true; pause('the execution host stopped mid-turn'); return { scheduled: false, why: 'not a recent crash — ▶ Continue resumes it' }; }
-  rec.autoResumeScheduled = true;
-  const t = setTimeout(async () => {
-    // THE PERSON (or another surface) MOVED ON: nothing is resumed behind their back.
-    if (app.session !== s || app.abort || app.wantExit) return;
-    const d = onRecovered(s);
-    if (!d.continue) { pause(d.why); return; }
-    try { require('./surfacehandoff').notePause(app, null); } catch { /* the lease is advisory here */ }
-    app._handover = { reason: `TURN_LOST: the process running this task stopped at step ${rec.step}${rec.during ? ` (during ${rec.during})` : ''}; LAIN repaired the transcript from what happened on disk`, kind: 'TURN_LOST', state: null, input: [] };
-    try { require('./ui/operation').say(app, 'Resuming the interrupted task'); } catch { /* no screen */ }
-    try { await app.submit(d.prompt, { sameTask: true, from: 'auto-resume' }); } catch { pause('the resumed turn could not start'); } finally { app._handover = null; }
-  }, RECOVERY_DELAY_MS);
-  if (t.unref) t.unref();
-  return { scheduled: true };
+  // A crash reopens the session; nothing sends a turn — ▶ Continue (the person) resumes it.
+  rec.autoResumeDecided = true; pause('the execution host stopped mid-turn');
+  return { scheduled: false, why: 'not a recent crash — ▶ Continue resumes it' };
 }
 
-/**
- * A RESTART WAITED OUT, CANCELLABLY. The session says what it is waiting for
- * (the window draws "Restarting · …"), and it holds a fresh abort controller so
- * Stop — the window's, Ctrl+C, Telegram's — ends the wait and nothing restarts.
- * Resolves true when the wait ran out, false when a person ended it.
- */
+/** A RESTART WAITED OUT, CANCELLABLY. */
 async function wait(app, ms, cause = 'provider-restart') {
   const s = app.session;
   const c = state(s);
@@ -278,11 +188,7 @@ async function wait(app, ms, cause = 'provider-restart') {
   }
 }
 
-/**
- * LONG CONTEXT PHASING'S BOUNDARY: the next phase starts from a compacted
- * context, through the one authority that may compact (session.contextAuthority).
- * The plan, landed / remaining and the findings ride every prompt already.
- */
+/** LONG CONTEXT PHASING'S BOUNDARY: the next phase starts from a compacted context, through the one authority that may compact… */
 function compactBoundary(app) {
   try {
     const pc = require('./provider').resolve(app.cfg);
@@ -299,14 +205,7 @@ function view(session) {
   };
 }
 
-/**
- * DOES THE GOAL CONTINUE PAST THIS MODEL TURN? A cue, or null.
- *
- * Read from the model's OWN closing words, never guessed: the last few sentences announce a next action ("Next I'll
- * update the tests", "Now I need to wire the route", "Remaining: …") and the reply is neither a question to the person
- * nor a stated blocker, and the task's outcome is not already satisfied by evidence (discipline arbiter). A closing
- * that claims the work is finished is an ending; the completion checks decide whether that claim holds.
- */
+/** DOES THE GOAL CONTINUE PAST THIS MODEL TURN? */
 const INTENT = /\b(?:next,?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+|next\s+|then\s+)?(?:update|add|run|fix|check|verify|write|implement|create|move|change|look|continue|proceed|start|finish|handle|wire|test|refactor|remove|apply|patch|edit|try|re-?run|inspect|investigate|address|complete)|let me\s+(?:now\s+|next\s+)?(?:update|add|run|fix|check|verify|write|implement|create|continue|proceed|wire|test|finish|look|inspect)|(?:now|next)\s+(?:i\s+)?(?:need|have)\s+to|still\s+(?:need|needs|to\s+do|remaining|left)|not\s+(?:yet\s+)?(?:done|finished|complete))\b|\bremaining\s*(?:work|steps?)?\s*:/i;
 const FINISHED = /^\W*(?:fixed|done|completed?|finished|verified|resolved)\b|\b(?:(?:fixed|done|completed?) and (?:verified|tested)|all (?:done|set|tests pass(?:ing)?)|(?:task|work|change|fix|implementation) (?:is )?(?:now )?(?:complete|done|finished)|that(?:'s| is) (?:it|everything)|nothing (?:else|more|further) (?:to do|remains))\b/i;
 function lastSentences(text, n = 3) {
@@ -314,10 +213,7 @@ function lastSentences(text, n = 3) {
   const parts = t.split(/(?<=[.!?])\s+(?=[A-Z0-9*_`-])/);
   return parts.slice(-n).join(' ');
 }
-/**
- * WHAT DURABLE STATE SAYS IS STILL OPEN — or null. Settled verdicts (DONE, DONE_UNVERIFIED, BLOCKED, NEEDS_DECISION)
- * end it; open asks, unmet acceptance criteria or an active /goal keep it going.
- */
+/** WHAT DURABLE STATE SAYS IS STILL OPEN — or null. */
 function durableUnfinished(session) {
   const life = session && session.lifecycle;
   const d = life && life.discipline;
@@ -355,11 +251,7 @@ function goalCue(session, record) {
   return { next: next || m[0] };
 }
 
-/**
- * THE CONTINUATION, FROM THE GOAL — not from the last sentence. The continuity digest (discipline/digest.js) carries
- * OUTCOME · ASKS · CRITERIA · FACTS · CHANGES · CHECKS · OPEN QUESTIONS · BLOCKERS; the model's own named next step is
- * ORIENTATION, which evidence may overrule. LAIN owns continuity and honesty; the model owns the tactics.
- */
+/** THE CONTINUATION, FROM THE GOAL — not from the last sentence. */
 function goalInstruction(session, record, cue) {
   let state = '';
   try { state = require('./discipline/digest').digest(session.lifecycle, { cwd: session.cwd }); } catch { state = ''; }

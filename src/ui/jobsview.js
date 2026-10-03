@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * WHAT IS RUNNING THAT YOU ARE NOT LOOKING AT — one compact region.
- *
- * ------------------------------------------------------------------------
- * WHY IT IS A REGION AND NOT PROSE IN THE FEED.
- *
- * A background job produces exactly what a foreground one does: reads,
- * searches, commands, edits. Putting that in the ACTIVITY feed would double the
- * stream a person is trying to read and interleave two accounts with no way to
- * tell which sentence belonged to which piece of work. And it would keep
- * moving: the feed scrolls, so "what is #2 doing" would be a question you
- * answer by scrolling to find out where it got to.
- *
- * So a job's *account* stays in its own session and its *status* gets one row,
- * in a fixed place, above the input — beside the pending-steer region, which is
- * the same idea for the same reason and is drawn by the same mechanism
- * (ui/pending.js). One row per job, the newest at the bottom, nothing that
- * moves except the words on it.
- *
- * ------------------------------------------------------------------------
- * IT NEVER TOUCHES THE INPUT LINE. The region is composed into the frame like
- * every other region; the input box is drawn after it and the caret is parked
- * last (ui/layout.js). A job finishing while you are half way through typing
- * changes one row three lines up and nothing else — no scrollback, no reflow of
- * what you have typed, and no redraw of anything that did not change, because
- * an identical frame is never written.
- *
- * ------------------------------------------------------------------------
- * THE PRIMARY JOB IS NOT LISTED. It is the conversation: the header says what
- * it is doing, the status strip says how long, and the feed IS its output.
- * Repeating it here would be a fourth copy of the one thing already hardest to
- * miss. Only work you are NOT looking at earns a row.
- *
- * FINISHED JOBS LINGER, BRIEFLY. A job that completes while you are reading
- * something else has to be able to say so — but a permanent row for finished
- * work would turn the region into a log. It holds for `KEEP_DONE_MS` and goes.
- * `/jobs` still has all of it.
- */
+/** WHAT IS RUNNING THAT YOU ARE NOT LOOKING AT — one compact region. */
 
 const T = require('./text');
 const { P } = require('./paint');
@@ -57,15 +20,7 @@ function itemsOf(state, now = Date.now()) {
   });
 }
 
-/**
- * THE WHOLE SHAPE IN ONE PLACE: how many rows are drawn, how many are only
- * counted, and what that adds up to.
- *
- * One function because the three answers have to agree — the same argument
- * ui/pending.js makes, and the same failure if they are computed apart: a
- * region that asks for more rows than it draws is drawn over whatever is
- * beneath it.
- */
+/** THE WHOLE SHAPE IN ONE PLACE: how many rows are drawn, how many are only counted, and what that adds up to. */
 function plan(state, room = 99, now = Date.now()) {
   const items = itemsOf(state, now);
   if (!items.length || room < 2) return { shown: 0, hidden: 0, rows: 0 };
@@ -73,10 +28,7 @@ function plan(state, room = 99, now = Date.now()) {
   if (items.length > shown && 1 + shown + 1 > room) shown = room - 2;
   if (shown < 1) return { shown: 0, hidden: 0, rows: 0 };
   const hidden = items.length - shown;
-  // A PARKED JOB COSTS A SECOND ROW for its question. Counted here rather than
-  // discovered while drawing: a region that draws more rows than it reserved is
-  // a region drawn over whatever is beneath it. See ui/pending.js on why the
-  // count and the draw must be one function.
+  // A PARKED JOB COSTS A SECOND ROW for its question.
   const asking = items.slice(-shown).filter((j) => j.needsInput && j.question).length;
   const want = 1 + shown + asking + (hidden > 0 ? 1 : 0);
   return { shown, hidden, rows: Math.min(want, Math.max(0, room)) };
@@ -85,25 +37,12 @@ function plan(state, room = 99, now = Date.now()) {
 /** How many rows the region wants. Zero when nothing is running. */
 function rows(state, room = 99, now = Date.now()) { return plan(state, room, now).rows; }
 
-/**
- * HOW LONG THE JOB HAS BEEN AT IT — the one elapsed vocabulary in LAIN.
- *
- * THE THIRD COPY OF THIS FUNCTION, found by reading a real frame: the live row
- * above the caret said `00:00:02`, `/bg` said `3m18s`, and this region said
- * `0s` - three spellings of elapsed time on ONE screen, two of them needing a
- * conversion before they could be compared with the third.
- *
- * `hhmmss` is imported rather than reimplemented, which is what stops them
- * drifting again. See ui/workclock.js; the CLOCKS stay separate (a job owns its
- * own `elapsedMs`), only the spelling is shared.
- */
+/** HOW LONG THE JOB HAS BEEN AT IT — the one elapsed vocabulary in LAIN. */
 const secs = (ms) => require('./workclock').hhmmss(ms);
 
 /** One job, as one row: what it is, what state, and what it is doing now. */
 function line(j, width) {
-  // NEEDS INPUT IS THE LOUDEST NON-FAILURE STATE, because it is the only one
-  // that will not clear on its own. A job merely waiting on a slow tool needs
-  // nothing from anybody; this one is stopped until somebody answers.
+  // NEEDS INPUT IS THE LOUDEST NON-FAILURE STATE, because it is the only one that will not clear on its own.
   const mark = j.state === 'SUCCEEDED' ? P.ok('✓')
     : j.state === 'FAILED' ? P.bad('✗')
       : j.state === 'CANCELLED' ? P.meta('■')
@@ -122,35 +61,19 @@ function line(j, width) {
   return T.fit(`${head}${state}  ${P.plain(what)}${tail}  ${P.meta(secs(j.elapsedMs))}`, width);
 }
 
-/**
- * The region as exactly `height` rows of `width` cells.
- *
- * Padded to the height it was given, because a region that returns fewer rows
- * than the layout reserved leaves whatever was there before showing through.
- */
+/** The region as exactly `height` rows of `width` cells. */
 function draw(state, width = 80, height = 0, now = Date.now()) {
   if (height <= 0) return [];
   const { shown, hidden } = plan(state, height, now);
   if (!shown) return new Array(height).fill(T.fit('', width));
   const items = itemsOf(state, now);
-  // ---- A LABEL, NOT A SECOND FULL-WIDTH RULE ---------------------------
-  //
-  // It drew `── BACKGROUND ─────────…` across the whole frame, which put a second
-  // heavy horizontal line on a screen that has exactly one on purpose — the
-  // header's. Two rules of equal weight make the surface read as a dashboard
-  // divided into panes, which is the thing the one-surface design is not.
-  //
-  // The word alone does the same job. It is dim, sentence case, and there is a
-  // blank row above it because whitespace separates regions at least as well as a
-  // line does and costs the same row.
+  // A LABEL, NOT A SECOND FULL-WIDTH RULE
   const out = [T.fit(P.meta('Background'), width)];
   // NEWEST LAST, so a job that has just started appears next to the input where
   // the eye already is, and the list does not reorder itself as jobs finish.
   for (const j of items.slice(-shown)) {
     out.push(line(j, width));
-    // THE QUESTION GETS ITS OWN ROW when there is one. A row that says a job is
-    // blocked without saying what on is a row that sends you to another command
-    // to find out — and this region exists so a glance is enough.
+    // THE QUESTION GETS ITS OWN ROW when there is one.
     if (j.needsInput && j.question && out.length < height) {
       out.push(T.fit(P.meta('       ') + P.plain(T.clip(String(j.question), Math.max(10, width - 10))), width));
     }

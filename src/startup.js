@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * START LAIN HARNESS WHEN THE PERSON SIGNS IN — a per-user Startup-folder shortcut, no administrator.
- *
- * THE SETTING IS CANONICAL, THE SHORTCUT IS ITS PROJECTION. `config.json` → `startup` holds the person's choice:
- *
- *     harness           start LAIN Harness at sign-in        default OFF — never opted in silently
- *     minimized         start it minimized                     default OFF
- *     restoreWorkspace  reopen the last session and project    default ON
- *
- * The Settings page and `lain settings startup …` both change THIS setting and then `sync()` makes Windows match
- * it. The shortcut points at the VERSION-INDEPENDENT launcher (`<install>\LAIN Harness.exe --startup`), so it
- * survives every update and rollback without being rewritten; the launcher applies a staged update before anything
- * starts (distribution/launcher.cs), and a LAIN already running (a CLI's Core) is attached to, never duplicated
- * (desktoprun.js). Setup re-syncs after install/repair/add-Harness and removes the shortcut when the Harness is
- * removed or LAIN is uninstalled — no dead entry is ever left behind.
- *
- * OLDER ENTRIES ARE REPLACED: the obsolete pre-cleanup `Startup\LAIN.lnk` (→ LAIN.exe) and the Noema-era
- * `Startup\Noema Harness.lnk`. The person chose to start the program at sign-in, so the choice carries over once
- * and the old shortcut is removed. (The current entry is `LAIN Harness.lnk` — a different name, never confused.)
- */
+/** START LAIN HARNESS WHEN THE PERSON SIGNS IN — a per-user Startup-folder shortcut, no administrator. */
 
 const fs = require('fs');
 const os = require('os');
@@ -43,10 +24,7 @@ function legacyLinkPath() { return legacyLinkPaths().find((p) => fs.existsSync(p
 /** The person's choice, with defaults. */
 function setting(cfg) { return { ...DEFAULTS, ...((cfg && cfg.startup && typeof cfg.startup === 'object') ? cfg.startup : {}) }; }
 
-/**
- * WHAT TO START: the installed, version-independent Harness launcher; in a development checkout the launcher
- * `lain --desktop` installed into the home (desktop.js). Null when the Harness is not installed at all.
- */
+/** WHAT TO START: the installed, version-independent Harness launcher; in a development checkout the launcher `lain --desktop` installed into the home… */
 function launcher() {
   const root = process.env.LAIN_INSTALL_ROOT;
   if (root) { const p = path.join(root, 'LAIN Harness.exe'); return fs.existsSync(p) ? p : null; }
@@ -96,10 +74,7 @@ function writeLink(target, args) {
   return fs.existsSync(link) ? { ok: true, link } : { ok: false, why: 'PowerShell reported success and produced no shortcut' };
 }
 
-/**
- * REMOVE THE ENTRY. `owned`: only when it points into THIS installation (LAIN_INSTALL_ROOT) — what uninstall uses, so
- * removing one LAIN install never takes away the sign-in entry another install (or a checkout) registered.
- */
+/** REMOVE THE ENTRY. `owned`: only when it points into THIS installation (LAIN_INSTALL_ROOT) — what uninstall uses, so removing one LAIN install never… */
 function remove({ owned = false } = {}) {
   const link = linkPath();
   if (!fs.existsSync(link)) return { ok: true, removed: false };
@@ -113,12 +88,7 @@ function remove({ owned = false } = {}) {
   return { ok: true, removed: true };
 }
 
-/**
- * MAKE WINDOWS MATCH THE SETTING. Idempotent; safe to run at every install, repair, update and Harness change.
- *   owned   (setup) take away only an entry that points into THIS install — never another install's or a checkout's
- *   legacy  carry LAIN's Startup shortcut over (false for a portable/unregistered install: that is not the machine's)
- * @returns {{ ok, registered, why?, migrated? }}
- */
+/** MAKE WINDOWS MATCH THE SETTING. */
 function sync(cfg, { save = null, owned = false, legacy = true } = {}) {
   if (process.platform !== 'win32') return { ok: true, registered: false, why: 'Windows only' };
   let migrated = false;
@@ -151,11 +121,7 @@ function status(cfg) {
   };
 }
 
-/**
- * `lain settings startup status | harness on|off | minimized on|off | restore on|off | sync | remove` — the same
- * setting. Setup runs `sync --owned [--no-legacy]` after install/repair/Harness changes and `remove --owned` at
- * uninstall.
- */
+/** `lain settings startup status | harness on|off | minimized on|off | restore on|off | sync | remove` — the same setting. */
 function cli(args, { out = process.stdout } = {}) {
   const config = require('./config');
   const cfg = config.load();

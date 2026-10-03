@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * WHAT A TERMINAL SHOWS, FROM WHAT IT WAS SENT.
- *
- * A pseudoconsole does not print a transcript; it paints a screen. PSReadLine
- * redraws the line being typed with cursor moves, erases and colour, so the
- * raw bytes of `echo abc` after one backspace are "echo abcX", a move back, a
- * repaint, "echo abc". Stripping the escapes from that leaves both copies —
- * which is what the BOT was reading as "the terminal".
- *
- * This replays the bytes onto a grid, the way the window's terminal does, and
- * returns the lines. Deliberately small: printable text, CR / LF / BS / TAB,
- * cursor position (H f), column (G), relative moves (A B C D), erase in line
- * (K) and display (J). Colour and modes are read and ignored. Rows addressed
- * by CUP are relative to the visible screen, which is the last `rows` lines.
- */
+/** WHAT A TERMINAL SHOWS, FROM WHAT IT WAS SENT. */
 
 const ESC = '\u001b';
 

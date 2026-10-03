@@ -1,41 +1,7 @@
 'use strict';
 
-/**
- * MODEL SEARCH — split out of catalog.js because it is an ALGORITHM, not a
- * fact about routing. catalog.js answers "what models exist and how are they
- * reached"; this answers "which of them did the user mean".
- */
-/**
- * SEARCH THE WAY PEOPLE TYPE.
- *
- * The old version tested ONE contiguous substring, so a query only matched when
- * its words happened to be adjacent, in that order, with that spacing. Measured
- * against the real 975-model catalog:
- *
- *   qwen free   →  0 results   (while `qwen3.8 27b Free` sat in the catalog)
- *   qwen 3.7    →  0 results   (while `qwen3.7 Flash` sat in the catalog)
- *   qwen3.7     →  9 results
- *
- * Nobody remembers a provider's exact punctuation. `qwen 3.7`, `qwen3.7` and
- * `QWEN 3.7` are the same question and must give the same answer.
- *
- * TWO NORMAL FORMS, both cheap and both computed from what is already in memory:
- *
- *   squashed  every non-alphanumeric character removed — `qwen3.7-27b-free`
- *             and `Qwen 3.7 27B Free` both become `qwen3727bfree`, which is
- *             what makes punctuation stop mattering.
- *   tokens    split on punctuation AND on letter↔digit boundaries, so
- *             `qwen3.8` yields `qwen · 3 · 8`. That is what lets `qwen free`
- *             find a name where the two words are separated by a version and a
- *             size.
- *
- * A multi-word query requires ALL its tokens (an AND, not an OR) — otherwise
- * `qwen free` degenerates into `qwen` and buries the one model that matched
- * both. If nothing satisfies the AND, it falls back to best-effort rather than
- * showing an empty screen, and says nothing false either way.
- *
- * Deterministic, local, zero tokens, no dependency.
- */
+/** MODEL SEARCH — split out of catalog.js because it is an ALGORITHM, not a fact about routing. */
+/** SEARCH THE WAY PEOPLE TYPE. */
 
 /** Everything about a model a person might type at it. */
 function haystack(m) {
@@ -59,11 +25,7 @@ function tokenize(s) {
     .filter(Boolean);
 }
 
-/**
- * How well does this model answer this query? Lower is better; -1 is no match.
- * Each tier is a statement about HOW the match was made, so any result can be
- * explained without trusting a score.
- */
+/** How well does this model answer this query? */
 function rankModel(m, qSquashed, qTokens) {
   const name = m.displayName.toLowerCase();
   const nameSquashed = squash(name);
@@ -78,10 +40,7 @@ function rankModel(m, qSquashed, qTokens) {
 
   if (qTokens.every((t) => nameTokens.includes(t))) return 4;             // every word, in the name
 
-  // A PREFIX OF A WORD, never a substring of one. `son` must still reach
-  // `sonnet`; `7` must not reach `27`. Matching anywhere inside a token made
-  // `qwen 3.7` return `qwen3.8 27b free` — the 7 of "27" satisfied it, so a
-  // version query dragged in the neighbouring version.
+  // A PREFIX OF A WORD, never a substring of one.
   const prefixOf = (t, list) => list.some((x) => x.startsWith(t));
   if (qTokens.every((t) => prefixOf(t, nameTokens))) return 5;            // every word, by prefix
   if (qTokens.every((t) => prefixOf(t, allTokens))) return 6;            // every word, incl. provider

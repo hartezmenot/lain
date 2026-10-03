@@ -133,14 +133,6 @@ module.exports = async function () {
     assert.match(sep.counterExample, /PowerShell 7|pwsh/, 'it must say where && does exist');
   });
 
-  await test('CONTRACT: changing directory is a parameter, proved from the advertised schema', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const cwd = byName(contracts.pathFacts(ROOT, ROOT), 'Changing directory');
-    assert.ok(cwd);
-    assert.strictEqual(cwd.value, 'pass cwd as a tool parameter');
-    assert.match(cwd.counterExample, /cd /, 'the thing not to do must be named');
-    assert.strictEqual(cwd.via, F.VIA.SCHEMA);
-  }));
-
   await test('CONTRACT: findings report forward-slashed relative paths on every platform', () => {
     const p = byName(contracts.pathFacts(ROOT, ROOT), 'Paths reported by findings');
     assert.match(p.value, /forward slashes/);

@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * ACCOUNT INSTANCES — one row per account LAIN can reach, each its own thing.
- *
- * ------------------------------------------------------------------------
- * AN ACCOUNT INSTANCE IS:
- *
- *   id, driver_id, display_name          who it is to LAIN
- *   identity                             who the PROVIDER says it is (from the
- *                                        runtime/API, never typed in)
- *   source_type                          api · runtime · website
- *   runtime, config_home, shadow_home    where its runtime keeps its state
- *   credential_ref                       a NAME for its secret (credentials.js),
- *                                        or null when the runtime holds its own
- *   authentication_state, runtime_state  read from the handle
- *   models, capabilities                 what it serves, and the labels
- *   limits, reset_windows                the provider's own windows
- *   assigned_roles                       where the person put it
- *
- * ------------------------------------------------------------------------
- * WHO OWNS WHAT (nothing moves here):
- *
- *   API-key accounts    connections.js — each configured connection IS an
- *                       instance; this file projects it (credential by ref)
- *   runtime accounts    persisted here, non-secret: <configDir>/accounts.json;
- *                       live state in the driver's per-instance handle
- *   website sessions    modelsource/registry.js (projected by the window)
- *
- * NEVER MERGED. Two instances signed in as the same email, the same provider,
- * the same model or reading the same session store are two rows with two
- * usages and two sets of limits. A shared identity is flagged, not collapsed.
- *
- * NO ROTATION. Nothing here moves work to another account because one is
- * limited. A switch is the person's act (or an explicit, configured failover
- * that says so where it happens).
- */
+/** ACCOUNT INSTANCES — one row per account LAIN can reach, each its own thing. */
 
 const fs = require('fs');
 const path = require('path');
@@ -77,12 +43,7 @@ function stampWindows(limits, now = Date.now()) {
   };
 }
 
-/**
- * WHAT A REFRESH LEARNED IS KEPT (Phase 8.2) — the account's models and whether
- * it is signed in — so its route (runtime:codex:<id>) exists with no process
- * running. Once per refresh: the person's, or the one Codex's sign-in triggers.
- * Non-secret: model ids and a flag.
- */
+/** WHAT A REFRESH LEARNED IS KEPT (Phase 8.2) — the account's models and whether it is signed in — so its route (runtime:codex:<id>) exists with no… */
 function remember(app, rec, snap) {
   if (!snap || !snap.refreshedAt || (rec.seenAt || 0) >= snap.refreshedAt) return;
   try {
@@ -264,13 +225,7 @@ async function refresh(app, id) {
   catch (e) { return { ok: false, why: require('./redact').text(String(e.message || e)).slice(0, 200), instance: get(app, id) }; }
 }
 
-/**
- * THIS ACCOUNT'S QUOTA — the provider's own windows, never a model request. A driver with its own quota read
- * uses it (Claude: Anthropic's usage read, or this account's last receipt — no process started); the rest refresh
- * their status, which for Codex is `account/rateLimits/read` through its app-server. An API source whose provider
- * answers quota on request (Z.ai's monitor — fabric/quotaread.js) is read with the key this module already projects;
- * the key goes to that one read and nowhere else (tests/unit/credentialguard.test.js).
- */
+/** THIS ACCOUNT'S QUOTA — the provider's own windows, never a model request. */
 async function refreshQuota(app, id, opts = {}) {
   const h = handle(app, id);
   if (!h) return refreshApiQuota(app, id);
@@ -311,15 +266,7 @@ async function login(app, id, { device = false } = {}) {
   catch (e) { return { ok: false, why: require('./redact').text(String(e.message || e)).slice(0, 200) }; }
 }
 
-/**
- * DISCONNECT one account, touching no other:
- *   · its runtime stops (the process this handle started)
- *   · the runtime's own sign-out removes its sign-in — by default only in a home
- *     LAIN created; an adopted home keeps it unless `logout: true` is asked for
- *   · an overlay shadow home LAIN made is removed (links unlinked, never followed)
- *   · a direct home is KEPT — its native sessions are the person's history
- *   · it leaves the registry and every role
- */
+/** DISCONNECT one account, touching no other: · its runtime stops (the process this handle started) · the runtime's own sign-out removes its sign-in… */
 async function disconnect(app, id, { logout, removeProfile = false } = {}) {
   const d = read();
   const rec = d.instances[id];
@@ -347,10 +294,7 @@ async function disconnect(app, id, { logout, removeProfile = false } = {}) {
   return { ok: true, steps };
 }
 
-/**
- * A REAL EXECUTION SUCCEEDED THROUGH THIS ACCOUNT. Capabilities that need an execution to be believed (Antigravity's Chat and
- * Assistant) are advertised only from here on — never from a sign-in alone, never from a fake. `how`: 'request' | 'test'.
- */
+/** A REAL EXECUTION SUCCEEDED THROUGH THIS ACCOUNT. */
 function markVerified(app, id, how = 'request') {
   const d = read();
   const rec = d.instances[id];

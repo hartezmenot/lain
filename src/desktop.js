@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * LAIN DESKTOP — building it, starting it, and owning its lifetime.
- *
- * ------------------------------------------------------------------------
- * THE SHAPE OF THE PRODUCT, AFTER THIS FILE.
- *
- *     lain              the CLI, unchanged
- *     lain --app        LAIN Desktop: a native window LAIN owns
- *
- * What used to happen — mint a token, start an HTTP listener, launch the
- * person's Chrome at a localhost URL and hope the tab was the application — is
- * gone from the normal path. The window is ours, the channel is a private pipe
- * (harnessapp/ipc.js), and the UI is loaded from packaged files.
- *
- * ------------------------------------------------------------------------
- * BUILT THE WAY THE COMPUTER MCP BRIDGE IS BUILT, and for the same reasons:
- * `csc.exe` is part of Windows, the source ships readable in the tree, and the
- * result is cached by the hash of its own inputs so it compiles once. LAIN
- * gains no build system and no toolchain a person has to install.
- *
- * The one thing Windows does not provide is the WebView2 SDK — the runtime is
- * part of the OS, the SDK is not — so it is vendored, verified and pinned. See
- * native/vendor.js.
- *
- * ------------------------------------------------------------------------
- * NOT A SECOND RUNTIME. This module compiles a host, hands it a pipe name and
- * a secret, and watches the process. It holds no session, starts no turn and
- * decides no permission. Everything the window can do, it does by asking Core
- * over a route that already existed.
- */
+/** LAIN DESKTOP — building it, starting it, and owning its lifetime. */
 
 const { spawn } = require('child_process');
 const crypto = require('crypto');
@@ -66,14 +37,7 @@ function compiler() {
   return best;
 }
 
-/**
- * THE ASSETS THE WINDOW RENDERS.
- *
- * `harnessapp/page.js` builds the whole interface as one document, so the
- * "packaging" of the frontend is writing that document to disk beside the host.
- * A release therefore needs no dev server and no HTTP listener to show its own
- * UI — which is exactly what `--dev` exists to relax and nothing else.
- */
+/** THE ASSETS THE WINDOW RENDERS. */
 function writeAssets(dir) {
   fs.mkdirSync(dir, { recursive: true });
   const h = harness();
@@ -81,11 +45,7 @@ function writeAssets(dir) {
   const html = h.html();
   const file = path.join(dir, 'index.html');
   fs.writeFileSync(file, html);
-  // THE HARNESS'S OTHER ASSETS (its vendored editor) are served from the same
-  // origin as the page — web workers require it. COPIED, not linked: WebView2's
-  // virtual host refuses to follow a junction (ERR_ACCESS_DENIED, measured), so
-  // the files must really be under the mapped folder. Copied once per version:
-  // a VERSION file that matches means the copy is already current.
+  // THE HARNESS'S OTHER ASSETS (its vendored editor) are served from the same origin as the page — web workers require it.
   for (const a of (typeof h.assetDirs === 'function' ? h.assetDirs() : [])) {
     const at = path.join(dir, ...String(a.url).split('/'));
     try {
@@ -101,11 +61,7 @@ function writeAssets(dir) {
   return { dir, file, bytes: Buffer.byteLength(html) };
 }
 
-/**
- * BUILD (or reuse) THE HOST EXECUTABLE.
- *
- * @returns {{ok: boolean, why?: string, exe?: string, built?: boolean}}
- */
+/** BUILD (or reuse) THE HOST EXECUTABLE. */
 /** The LAIN icon the host carries (title bar, taskbar, Alt+Tab). */
 const ICON = path.join(__dirname, '..', 'distribution', 'brand', 'lain.ico');
 /** A host built by the release (distribution/release.js) — an installed LAIN never needs a compiler. */
@@ -179,41 +135,12 @@ function prebuild(dir) { return build({ out: dir }); }
 /** The window host for this build, or null — also what tells Explorer that "Open with" changed. */
 function hostExe() { const b = build(); return b.ok ? b.exe : null; }
 
-/**
- * MAKE THE APPLICATION LAUNCHABLE FROM A SHORTCUT.
- *
- * ------------------------------------------------------------------------
- * TWO THINGS A DOUBLE-CLICK NEEDS THAT A `/app` NEVER DID.
- *
- * A STABLE NAME. The build is cached under the hash of its inputs, which is
- * right for a cache and useless for a shortcut: the target would break on the
- * next change to the host. `LAIN Harness.exe` is a copy under a name that does not
- * move.
- *
- * AND A WAY TO FIND NODE. Started from Explorer the host has no Core, no
- * pipe, and no LAIN — it has to start one, which means running Node, which
- * means knowing where Node is. `launch.json` beside the exe records what the
- * resolver found on THIS machine at build time (src/noderesolve.js), so the
- * launcher does not have to re-derive it from an Explorer PATH that may not
- * contain Node at all. The host re-probes if the manifest is stale, and says
- * so natively if it cannot — it never falls back to a browser (§32).
- *
- * The secret is NOT in here: this file says how to start Core, not how to talk
- * to one. The pipe and its secret are minted per run and handed to the window
- * on its command line, exactly as before.
- */
+/** MAKE THE APPLICATION LAUNCHABLE FROM A SHORTCUT. */
 function installLauncher(built, { cfg = {}, at = null } = {}) {
   if (!built || !built.ok) return { ok: false, why: (built && built.why) || 'the host is not built' };
   const node = require('./noderesolve').find({ cfg });
   const entry = path.join(__dirname, '..', 'bin', 'lain.js');
-  // WHERE THE FRONT DOOR GOES. By default LAIN's own directory, which is what a
-  // developer running from a checkout wants. An INSTALL passes `at`, because
-  // LAIN Harness.exe belongs with the program it launches — and the uninstaller then
-  // removes it with everything else it put there.
-  //
-  // `launch.json` goes BESIDE THE LAUNCHER, wherever that is: native/host.cs
-  // reads it from its own directory ("beside this exe"), so the two cannot be
-  // separated without the host losing the answer it was given.
+  // WHERE THE FRONT DOOR GOES.
   const launcher = at ? path.resolve(at) : launcherPath();
   try {
     fs.mkdirSync(path.dirname(launcher), { recursive: true });
@@ -231,15 +158,7 @@ function installLauncher(built, { cfg = {}, at = null } = {}) {
   return { ok: true, launcher, node: node.ok ? node.exe : null, why: node.ok ? '' : node.why };
 }
 
-/**
- * START THE APPLICATION.
- *
- * Core's private channel first, then the window. The secret goes to the child
- * on its command line — the trusted launch relationship §9 describes — and is
- * never written anywhere a later reader could pick it up.
- *
- * @returns {Promise<{ok: boolean, why?: string, pid?: number, pipe?: string}>}
- */
+/** START THE APPLICATION. */
 async function open(app, { dev = false, wait = false, debugPort = 0, mode = null, section = null, minimized = false } = {}) {
   const built = build();
   if (!built.ok) return built;
@@ -256,10 +175,7 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
   }
   const assets = writeAssets(path.join(built.dir, 'assets'));
 
-  // THE WINDOW'S OWN FILES FOLLOW THE CONFIG HOME. Under the real home these
-  // are exactly the host's defaults; under a test profile they are the
-  // profile's, so a test window never writes the person's window state or
-  // renderer profile.
+  // THE WINDOW'S OWN FILES FOLLOW THE CONFIG HOME.
   const base = path.dirname(homeDir());
   const args = [
     '--pipe', started.pipe,
@@ -270,10 +186,7 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
     // THE CORE THIS WINDOW BELONGS TO: the host ends itself when this process is gone (no orphan windows).
     '--core-pid', String(process.pid),
   ];
-  // A DEBUGGING PORT IS A DEVELOPMENT AFFORDANCE AND IS GATED TWICE — here and
-  // again in the host — so a release build cannot open one by accident.
-  // A SMALL LAIN WINDOW (packaging pass §E, §M): the Model Dashboard or the Preview alone — the same page and components
-  // as the Harness, drawn in that mode, with the ordinary Windows title bar.
+  // A DEBUGGING PORT IS A DEVELOPMENT AFFORDANCE AND IS GATED TWICE — here and again in the host — so a release build cannot open one by accident.
   if (mode === 'dashboard' || mode === 'preview') args.push('--mode', mode, '--native-caption', ...(section ? ['--section', String(section)] : []));
   if (minimized) args.push('--minimized');   // started at sign-in with "Start minimized" (startup.js)
   if (dev) args.push('--dev');

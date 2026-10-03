@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * RUNTIME-BOUND MODELS MAY ONLY RUN INSIDE THEIR RUNTIME.
- *
- * OpenCode's free models are served only to OpenCode itself. Reaching one over
- * plain HTTP — OpenCode Zen's endpoint, or a router that forwards to it — is the
- * path OpenCode refuses ("OpenCode's free tier can only be used from within
- * OpenCode"), and it is the path LAIN must not take: the free tier is an
- * entitlement of the OpenCode program. The route LAIN uses instead is the
- * OpenCode RuntimeBridge (drivers/opencodeserver.js): a real OpenCode session.
- *
- * `check` is consulted by provider.resolve for every API route. It answers
- * { kind: 'runtime-bound', ... } — and the request is not sent — when BOTH:
- *   - the route reaches OpenCode's service: its base URL is on opencode.ai, or
- *     its routing namespace / model prefix names OpenCode (opencode, opencode-go,
- *     opencode-free, oczen, ocgo …), and
- *   - the model is a free, runtime-bound one ("-free", big-pickle, or listed as
- *     runtime-bound by the OpenCode runtime itself).
- */
+/** RUNTIME-BOUND MODELS MAY ONLY RUN INSIDE THEIR RUNTIME. */
 
 const OPENCODE_HOST = /(^|\.)opencode\.ai$/i;
 const OPENCODE_NS = /^(opencode(-go|-free|-zen)?|oc(zen|go|free)?)$/i;

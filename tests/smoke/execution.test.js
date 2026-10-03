@@ -133,8 +133,8 @@ module.exports = async function () {
         {
           text: 'Starting it in the background so I can keep working.',
           tool_calls: [{
-            name: 'run_background',
-            input: { command: `"${process.execPath}" -e "console.log('JOB DONE')"` },
+            name: 'shell',
+            input: { background: true, command: `"${process.execPath}" -e "console.log('JOB DONE')"` },
           }],
         },
         // The model does something else while it runs — the behaviour the tool
@@ -175,7 +175,7 @@ module.exports = async function () {
       script: [
         {
           text: 'Starting.',
-          tool_calls: [{ name: 'run_background', input: { command: 'echo IT BROKE && exit 5', shell: 'cmd' } }],
+          tool_calls: [{ name: 'shell', input: { background: true, command: 'echo IT BROKE && exit 5', shell: 'cmd' } }],
         },
         { text: 'A foreground check meanwhile.', tool_calls: [{ name: 'process_run', input: { program: process.execPath, args: ['-e', 'setTimeout(()=>{},2500)'] } }] },
         { text: 'One look.', tool_calls: [{ name: 'job_status', input: { id: 'j1' } }] },
@@ -202,8 +202,8 @@ module.exports = async function () {
         {
           text: 'Starting the slow check.',
           tool_calls: [{
-            name: 'run_background',
-            input: { command: `"${process.execPath}" -e "console.log('WORKING'); setTimeout(()=>{},2500)"` },
+            name: 'shell',
+            input: { background: true, command: `"${process.execPath}" -e "console.log('WORKING'); setTimeout(()=>{},2500)"` },
           }],
         },
         { text: 'It is running. I will carry on in the meantime.' },

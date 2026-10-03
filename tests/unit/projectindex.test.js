@@ -174,14 +174,6 @@ module.exports = async function () {
     assert.ok(text.length < 4000, `orientation must stay compact, was ${text.length} chars`);
   });
 
-  await test('INDEX: the capability is registered and reachable from the live tool list', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const tools = require('../../src/tools');
-    assert.ok(tools.names().includes('understand'), 'understand must be in the live vocabulary');
-    const schema = require('../../src/tools/intel').tools.understand.schema;
-    assert.match(schema.description, /BEFORE listing directories/, 'and say when to reach for it');
-    assert.strictEqual(require('../../src/tools/intel').tools.understand.mutates, false);
-  }));
-
   await test('INDEX: .lain is ignored by git — it is machine state, not source', () => {
     const root = path.join(__dirname, '..', '..');
     const ignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');

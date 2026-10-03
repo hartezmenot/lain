@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * THE CODEX DRIVER — a plain value. It holds no account state; `create` makes
- * one instance handle per AccountInstance, and every mutable fact (the process,
- * who is signed in, the limits Codex reported, the threads it holds) lives in
- * that handle's closure. Two handles share nothing, so eight accounts are
- * eight independent things that happen to run the same binary.
- *
- * WHAT IT ASKS CODEX, and only through Codex's own app-server protocol:
- *
- *   account/read            who this home is signed in as (type, email, plan)
- *   account/rateLimits/read the windows Codex itself reports (used %, reset)
- *   account/login/start     Codex's own sign-in: a browser URL or a device code.
- *                           LAIN opens the URL; it never sees a password and
- *                           never borrows Codex's OAuth client for itself.
- *   account/logout          Codex's own sign-out for this home
- *   thread/list, loaded/list, resume, unsubscribe   native sessions + the
- *                           single-writer handoff (threadwriters.js)
- *
- * LIMITS ARE CODEX'S WORDS. Windows are shown as reported, one per row, never
- * averaged or combined; a window past its reset is marked expired until the
- * next read, never assumed replenished.
- */
+/** THE CODEX DRIVER — a plain value. */
 
 const codexhome = require('./codexhome');
 const { CodexRpc, resolveBinary } = require('./codexrpc');

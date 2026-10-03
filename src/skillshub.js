@@ -228,10 +228,7 @@ function entryFor(src, dir, root, extra = {}) {
   return { key: `${src.id}:${rel}`, source: src.id, sourceLabel: src.label, rel, dir, ...d, tags: [...new Set([...(d.tags || []), ...(extra.tags || [])])], version: d.version || extra.version || null, indexedAt: Date.now() };
 }
 
-/**
- * REFRESH — fetch a source (or all) and rewrite the index. The page never
- * waits on this: it draws the index it has and is told when this lands.
- */
+/** REFRESH — fetch a source (or all) and rewrite the index. */
 async function refresh({ id = null } = {}) {
   const v0 = readIndex();
   const ids = id ? [id] : Object.keys(v0.sources);
@@ -384,14 +381,7 @@ function lineDiff(a, b) {
   return out;
 }
 
-/**
- * UPDATE — never a silent overwrite of a local change.
- *   check       what is available, and what was changed locally
- *   diff        local vs incoming, per changed file
- *   overwrite   take the new version (a new script or dependency disables it until confirmed)
- *   keep        keep the local copy; this version is not offered again
- *   duplicate   install the new version beside it
- */
+/** UPDATE — never a silent overwrite of a local change. */
 function update(app, id, { action = 'check' } = {}) {
   const integ = require('./integrations');
   const e = integ.store(app).skills[id];

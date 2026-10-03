@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * THE TASK CONTRACT — what was asked, what would show it is done, and what is known (Execution Discipline §17–§18,
- * §40–§41, §52). Stored by LAIN, revised by the model; never only in transient model prose.
- *
- *   outcome     the requested OBSERVABLE outcome ("after changing X and pressing Save, X survives a reload")
- *   asks        every explicit ask, tracked separately (A1, A2 …) — completion cannot quietly forget one
- *   criteria    acceptance criteria (C1 …): provisional, revisable, each tied to asks and to evidence
- *   facts       established facts with provenance and FRESHNESS: STRUCTURAL facts hold until their owner changes;
- *               EXECUTION facts ("the server is running") expire within minutes
- *   hypotheses, questions, blockers, scaffolding (temporary files the task must account for)
- */
+/** THE TASK CONTRACT — what was asked, what would show it is done, and what is known (Execution Discipline §17–§18, §40–§41, §52). */
 
 const EXECUTION_TTL_MS = 3 * 60 * 1000;
 const MAX = { asks: 24, criteria: 24, facts: 40, hypotheses: 12, questions: 12, blockers: 12, scaffolding: 24 };
@@ -19,11 +9,7 @@ const CRITERION_STATUS = Object.freeze(['PROVISIONAL', 'MET', 'UNMET', 'DROPPED'
 
 const clip = (s, n = 400) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n);
 
-/**
- * THE EXPLICIT ASKS IN A REQUEST. Only an enumeration the person wrote — a numbered or bulleted list of two or more
- * items, or "1)", "A1", "(a)" markers — becomes separate asks; anything else is ONE ask, the request itself. A
- * guessed split would make LAIN hold a task open for asks nobody made.
- */
+/** THE EXPLICIT ASKS IN A REQUEST. */
 function extractAsks(request) {
   const text = String(request || '');
   const lines = text.split(/\r?\n/).map((l) => l.trim());

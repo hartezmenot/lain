@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * THE RELEASE KEYS NOEMA TRUSTS — Ed25519 public keys, built in. A release manifest is believed only when its
- * signature verifies against one of these (manifest.js). The private half never ships: it is held, DPAPI-protected,
- * by whoever builds releases (distribution/release.js reads it; docs/INSTALL-UPDATE.md says where).
- *
- * `LAIN_UPDATE_TEST_KEY` (a PEM) adds a key for the updater's own tests and nothing else — it is read only when
- * LAIN_ISOLATED is set, so a normal install cannot be pointed at a different signer.
- */
+/** THE RELEASE KEYS NOEMA TRUSTS — Ed25519 public keys, built in. */
 
 const RELEASE_KEYS = Object.freeze([
   // noema-release-1 (2026-09-30)

@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * THE OPENCODE SERVER — `opencode serve`, OpenCode's own v2 HTTP API, started
- * and owned by LAIN. This is the RuntimeBridge's transport for OpenCode:
- *
- *   LAIN modelrequest ─▶ OpenCode bridge ─▶ opencode serve (loopback) ─▶ an OpenCode session ─▶ model
- *
- * WHY THE SERVER AND NOT A PROVIDER ROUTE. OpenCode's free models refuse every
- * request that is not an OpenCode agent session — even OpenCode's own
- * `experimental/generate` answers "OpenCode's free tier can only be used from
- * within OpenCode" (measured 2026-09-26). So LAIN never calls the endpoint behind
- * OpenCode and never reads OpenCode's provider settings (`/api/provider` exposes
- * them; this bridge does not call it). It creates a real session and lets
- * OpenCode make the request.
- *
- * THE SERVER'S OWN SECURITY. Bound to 127.0.0.1 on an ephemeral port, with a
- * password LAIN generates per start (OPENCODE_SERVER_PASSWORD) and sends as
- * HTTP Basic (`opencode:<password>`), which is how the server authenticates.
- * That password is LAIN's, not a provider credential; it lives in memory only.
- *
- * OWNERSHIP. The process is registered in runtimeregistry.js (onOwnerExit:
- * 'stop'), stopped when idle for `idleMs`, and stopped with LAIN. OpenCode's
- * shared background service (`opencode service`) is never touched.
- *
- *   BOT / chat   the `build` agent with every side effect denied (edit, write,
- *                patch, bash, webfetch, task) — a plain answer. Denying ALL
- *                actions makes the free tier refuse the request, so reading
- *                tools stay available, in a scratch folder.
- *   Agent        the `build` agent in the project folder; shell commands and
- *                web fetches denied unless cfg.runtimes.opencode.agentShell.
- */
+/** THE OPENCODE SERVER — `opencode serve`, OpenCode's own v2 HTTP API, started and owned by LAIN. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -143,11 +114,7 @@ async function messages(s, sessionId, directory) {
     .map((m) => ({ role: m.type, text: m.type === 'user' ? String(m.text || '') : (m.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('') }));
 }
 
-/**
- * ONE PROMPT through a real OpenCode session, streamed. Yields provider events
- * (text, runtime_tool, finish, usage). `mode` 'chat' denies side effects; 'agent'
- * lets OpenCode work in `cwd` with its own tools.
- */
+/** ONE PROMPT through a real OpenCode session, streamed. */
 async function* prompt(s, { text, model, mode = 'chat', cwd, signal = null, title = 'LAIN', agentShell = false }) {
   const [providerID, ...rest] = String(model || '').split('/');
   const modelRef = providerID && rest.length ? { providerID, id: rest.join('/') } : null;

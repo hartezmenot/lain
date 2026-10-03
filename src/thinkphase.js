@@ -1,9 +1,6 @@
 'use strict';
 
-/**
- * ONE THINKING PHASE of a request (Simplify S5.1): from the first reasoning byte to the first text or tool call, the
- * end of the request, or Ctrl+C. Recorded on the turn as `thinking` for display only — never sent back to the model.
- */
+/** ONE THINKING PHASE of a request (Simplify S5.1): from the first reasoning byte to the first text or tool call, the end of the request, or Ctrl+C. */
 
 const KEEP = 2000;
 

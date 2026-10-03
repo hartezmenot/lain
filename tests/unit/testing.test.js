@@ -250,15 +250,6 @@ module.exports = async function () {
     assert.strictEqual(T.promptLine(project({ 'a.txt': 'x' })), '');
   });
 
-  await test('PROMPT: the tools are registered and reachable by name', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const reg = require('../../src/tools');
-    assert.ok(reg.has('discover_tests'), 'discover_tests must be dispatchable');
-    assert.ok(reg.has('run_tests'), 'run_tests must be dispatchable');
-    const named = reg.schemas().map((s) => s.name);
-    assert.ok(named.includes('discover_tests'), 'and advertised, or the model never calls it');
-    assert.ok(named.includes('run_tests'));
-  }));
-
   await test('TOOL: discover_tests reports LAIN\'s own suite through the registry', async () => {
     const reg = require('../../src/tools');
     const r = await reg.execute('discover_tests', {}, { cwd: path.join(__dirname, '..', '..') });

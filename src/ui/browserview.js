@@ -1,12 +1,6 @@
 'use strict';
 
-/**
- * THE MINIMAL BROWSER SURFACE IN THE CLI (§18–20) — not Chrome in a pane.
- *
- * What a person needs to see about a page while doing frontend work: title,
- * URL, which browser answered, viewport, a semantic outline, console and
- * network errors. Plain lines, bounded, drawn in the transient panel.
- */
+/** THE MINIMAL BROWSER SURFACE IN THE CLI (§18–20) — not Chrome in a pane. */
 
 function clip(s, w) { const t = String(s == null ? '' : s); return t.length > w ? `${t.slice(0, Math.max(1, w - 1))}…` : t; }
 

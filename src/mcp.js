@@ -1,54 +1,10 @@
 'use strict';
 
-/**
- * THE DESKTOP BRIDGE SEAM.
- *
- * LAIN does not automate a desktop. It talks to a process that does.
- *
- *     LAIN → (this file) → bridge process (stdio, JSON lines) → the desktop
- *
- * That boundary is the whole design. Screen capture, mouse and keyboard
- * synthesis and window management are platform work with real security weight,
- * and a coding CLI that grows its own copy of them becomes a remote-control tool
- * that happens to edit files. So the bridge is EXTERNAL, the user configures
- * which one, and LAIN ships none: with nothing configured this reports NOT
- * CONFIGURED and every capability is simply absent.
- *
- * IT IS GENERIC ON PURPOSE. The operations are `screen.capture`, `mouse.move`,
- * `mouse.click`, `keyboard.type`, `window.list` and `window.focus` — the
- * primitives every desktop automation is built from. Nothing here knows about
- * any particular application; an auto-clicker, a memory-editor workflow and a
- * form-filling script are all just callers. There is no game-specific code, no
- * process memory access and no code injection in this seam, and adding any
- * would be a different product.
- *
- * NOTHING REACHES THE DESKTOP WITHOUT CONSENT. Every operation is gated on
- * permissions.js, checked here, on every call, immediately before it is sent —
- * not once at connect time. A revoked grant stops the next action, not the next
- * session.
- *
- * THE PROTOCOL, one JSON object per line, in both directions:
- *
- *     → {"id":1,"op":"hello","client":"lain","version":1}
- *     ← {"id":1,"ok":true,"name":"...","version":"...","capabilities":[...]}
- *     → {"id":2,"op":"window.list"}
- *     ← {"id":2,"ok":true,"result":[{"id":"...","title":"..."}]}
- *     ← {"id":3,"ok":false,"error":"no such window"}
- *
- * A bridge that fails to answer, dies, or speaks nonsense is DISCONNECTED with
- * the real reason attached. It is never reported as available.
- */
+/** THE DESKTOP BRIDGE SEAM. */
 
 const { spawn } = require('child_process');
 
-/**
- * Operation → the permission it requires. An op not in here is not callable.
- *
- * THE STRUCTURED HALF IS COMPUTER MCP'S (src/computermcp.js): UI Automation
- * reads (`uia.*`, `wait.*`, `displays`) and the actions they aim. They are in
- * THIS table because there is one gate for everything that reaches the desktop
- * — a second table would be a second answer to "may this happen".
- */
+/** Operation → the permission it requires. */
 const OPS = Object.freeze({
   'screen.capture': 'screen',
   'mouse.move': 'mouse',
@@ -101,18 +57,7 @@ const STATE = Object.freeze({
 
 const HELLO_TIMEOUT_MS = 5000;
 const CALL_TIMEOUT_MS = 15_000;
-/**
- * AN OPERATION THAT IS *SUPPOSED* TO BLOCK MUST NOT BE CUT OFF BY THE PIPE.
- *
- * `wait.window`, `wait.control` and `wait.gone` carry their own `timeoutMs`:
- * the caller has said how long the screen is allowed to take. The transport had
- * a flat 15s deadline underneath them, so every wait longer than that reported
- * "no answer within 15s" — a transport failure wearing the costume of a screen
- * that never changed. Observed: a 20s wait for a file dialog that HAD opened.
- *
- * So a call's deadline is the wait the caller asked for plus room to answer,
- * never shorter than the ordinary one, and never unbounded.
- */
+/** AN OPERATION THAT IS *SUPPOSED* TO BLOCK MUST NOT BE CUT OFF BY THE PIPE. */
 const CALL_GRACE_MS = 5_000;
 const MAX_CALL_TIMEOUT_MS = 120_000;
 
@@ -123,32 +68,7 @@ function callDeadline(params) {
 }
 const MAX_LINE = 4_000_000;      // a screenshot arrives as one line
 
-/**
- * EVERY CONFIGURED SERVER, by name.
- *
- * The config began as ONE bridge — `mcp.command` — because there was one thing
- * to talk to. That shape cannot express what people actually have: a browser
- * server, a filesystem server, a desktop server, each its own process with its
- * own command and its own capabilities. So the config now reads:
- *
- *     "mcp": {
- *       "servers": {
- *         "browser": { "command": ["node", "path/to/browser-mcp.js"] },
- *         "desktop": { "command": ["python", "bridge.py"], "enabled": false }
- *       }
- *     }
- *
- * THE OLD SHAPE STILL WORKS and is listed as the server named `desktop`, so no
- * existing setup breaks — and there is still exactly ONE resolver, because a
- * second one "for the old way" is how two different answers to "is a bridge
- * configured" come to exist.
- *
- * `enabled: false` keeps a server in the config and out of the running: the
- * difference between "not set up" and "deliberately switched off" is worth
- * being able to say.
- *
- * @returns {Array<{id, command, cwd, env, name, enabled}>}
- */
+/** EVERY CONFIGURED SERVER, by name. */
 function servers(cfg = {}) {
   const m = cfg.mcp || cfg.desktopBridge || null;
   if (!m) return [];
@@ -158,9 +78,7 @@ function servers(cfg = {}) {
       id,
       command: s.command.map(String),
       cwd: s.cwd || undefined,
-      // A server inherits NOTHING by default. It is a process with hands on the
-      // machine; handing it the whole environment (tokens included) is not a
-      // convenience worth having.
+      // A server inherits NOTHING by default.
       env: s.env && typeof s.env === 'object' ? { ...s.env } : {},
       name: s.name || s.command[0],
       enabled: s.enabled !== false,
@@ -173,15 +91,7 @@ function servers(cfg = {}) {
   return legacy ? [legacy] : [];
 }
 
-/**
- * The server the DESKTOP tool talks to.
- *
- * ONE bridge is connected at a time. The permission model, the control window
- * and the revoke path are all built around a single live grant, and quietly
- * running four of them would make "what is allowed right now" unanswerable —
- * which is the one question that design exists to keep answerable. The server
- * named `desktop` wins if there is one; otherwise the first enabled server.
- */
+/** The server the DESKTOP tool talks to. */
 function settings(cfg = {}) {
   const all = servers(cfg).filter((s) => s.enabled);
   if (!all.length) return null;
@@ -301,11 +211,7 @@ class Bridge {
     });
   }
 
-  /**
-   * Perform one operation. THE GATE IS HERE, checked on every call.
-   *
-   * @returns {{ok, result?, error?, denied?}}
-   */
+  /** Perform one operation. */
   async call(op, params = {}) {
     const cap = OPS[op];
     if (!cap) return { ok: false, error: `unknown desktop operation "${op}"` };

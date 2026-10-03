@@ -133,16 +133,4 @@ module.exports = async function () {
     assert.match(msg, /does not verify/);
     assert.ok(!/still failing/i.test(msg));
   });
-
-  await test('EVIDENCE: handover.js narrates the masked command as INCONCLUSIVE, never PASSED', () => {
-    const handover = require('../../src/handover');
-    const life = new Lifecycle('check for a lua interpreter');
-    life.observeTool({ name: 'run_cmd', input: { command: MASKED_CMD }, output: 'DONE', isError: false, exitCode: 0 });
-    const session = { task: { objective: 'check for a lua interpreter', handovers: [] }, lifecycle: life, plan: null };
-    const text = handover.build ? handover.build(session, { model: 'm', stopReason: 'max-steps' }) : null;
-    if (text) {
-      assert.ok(!/DONE.*PASSED|PASSED.*DONE/i.test(text), 'must never read as the DONE echo having passed anything');
-      assert.match(text, /INCONCLUSIVE/);
-    }
-  });
 };

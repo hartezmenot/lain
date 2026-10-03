@@ -1,26 +1,10 @@
 'use strict';
 
-/**
- * RESTART FOR AN UPDATE, AND EXIT — the one safe way LAIN stops while work may be in hand (packaging pass §I3, §K).
- *
- *   when: 'now'         at once (offered only when idle, or when the person chose "stop")
- *         'checkpoint'  at the next COMMITTED checkpoint (taskcheckpoint.js commit) — never mid-step
- *         'task'        when the Coding Agent is no longer working (the task finished, paused or needs the person)
- *
- * THE SEQUENCE, always the same: commit the checkpoint → save the session → release the writer lease (a pause, never
- * an ending) → then, for an update, point the install at the staged version and exit with 75 so the launcher starts it
- * with `--resume <session> --after-update`; for Exit, the ordinary shutdown (teardown.js). The resumed process
- * continues the SAME task from the SAME committed step — the stale "Step 3/4" failure cannot recur, because the
- * position is the durable commit, not a count.
- */
+/** RESTART FOR AN UPDATE, AND EXIT — the one safe way LAIN stops while work may be in hand (packaging pass §I3, §K). */
 
 const WATCH_MS = 2000;
 
-/**
- * IS ANYTHING WORKING? A turn, the Coding Agent's run — and BACKGROUND WORK (Phase 7): an in-process job
- * (run_background) or a background agent ends with this process, so a restart over one would kill it. A supervised job
- * outlives LAIN and does not count.
- */
+/** IS ANYTHING WORKING? */
 function busy(app) {
   try {
     if (app.abort) return true;
@@ -66,10 +50,7 @@ async function perform(app, kind, { stopTurn = false } = {}) {
   return { ok: true, exiting: true, checkpoint: cp };
 }
 
-/**
- * ARM IT for later: 'checkpoint' fires on the next committed checkpoint, 'task' when the Agent stops working.
- * One arm at a time per kind; a newer choice replaces an older one; `cancel` clears it.
- */
+/** ARM IT for later: 'checkpoint' fires on the next committed checkpoint, 'task' when the Agent stops working. */
 function arm(app, kind, when) {
   const st = app._pendingStop || (app._pendingStop = {});
   cancel(app, kind);

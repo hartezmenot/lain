@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * WHERE IS NODE — asked properly, because the answer is not always on PATH.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS EXISTS TO END.
- *
- * LAIN Desktop is launched from a shortcut, the Start menu, or a double-click.
- * None of those inherit the PATH a developer has in their terminal: Explorer
- * hands a process the SYSTEM and USER PATH as they were when Explorer started,
- * which on a machine where Node was installed after login, or installed for a
- * different user, or installed by a version manager that edits a shell profile
- * rather than the registry, does not contain Node at all.
- *
- * So `spawn('node', …)` fails with ENOENT and the person is shown "a node
- * error" about a program they can see in `C:\Program Files\nodejs`. That is the
- * worst kind of error: true, useless, and indistinguishable from LAIN being
- * broken.
- *
- * ------------------------------------------------------------------------
- * THE ORDER, AND WHY EACH STEP IS WHERE IT IS.
- *
- *   1. THE NODE ALREADY RUNNING THIS CODE. `process.execPath` is not a guess —
- *      it is the interpreter that got here, it certainly exists, and it is
- *      certainly capable of running LAIN because it is running LAIN. Anything
- *      else is a worse answer to the same question.
- *   2. WHAT THE USER CONFIGURED. `nodePath` in config, or `LAIN_NODE` in the
- *      environment. A person who has said where Node is has settled it, and an
- *      override that loses to a search is not an override.
- *   3. PATH. The ordinary case, and the one that works in a terminal.
- *   4. THE STANDARD WINDOWS INSTALL. `%ProgramFiles%\nodejs\node.exe` — where
- *      the official installer puts it, and where it is on this machine.
- *   5. THE 32-BIT LOCATION, for a 32-bit Node on a 64-bit Windows.
- *   6. FAIL, NAMING EVERY PLACE THAT WAS LOOKED. A diagnostic a person can act
- *      on beats a category of error every time.
- *
- * ------------------------------------------------------------------------
- * IT RETURNS A PATH, NEVER A COMMAND STRING.
- *
- * `C:\Program Files\nodejs\node.exe` contains a space, and the only reliable
- * way to survive that is never to build a shell string in the first place:
- * callers spawn `{ exe, args }` with an argument ARRAY and no shell. A quoted
- * command line is a second escaping problem that only shows up on the machines
- * that have the space — which is all of them.
- */
+/** WHERE IS NODE — asked properly, because the answer is not always on PATH. */
 
 const fs = require('fs');
 const path = require('path');
@@ -67,20 +24,10 @@ function pathDirs(env) {
   return String(raw).split(path.delimiter).map((d) => d.trim()).filter(Boolean);
 }
 
-/**
- * THE STANDARD WINDOWS INSTALL LOCATIONS.
- *
- * Read from the environment rather than hard-coded, because `Program Files` is
- * localised on some Windows installations and relocated on others — the
- * variable is the machine's own answer. The literal is the last-resort fallback
- * for a process started with an environment so bare it has neither.
- */
+/** THE STANDARD WINDOWS INSTALL LOCATIONS. */
 function windowsInstalls(env, override) {
   if (process.platform !== 'win32') return [];
-  // INJECTABLE FOR TESTS ONLY, and for one reason: this machine HAS Node at the
-  // literal fallback below, so "Node is genuinely unavailable" is otherwise
-  // unreachable here — and an error path nobody can execute is an error path
-  // nobody has checked. Production passes nothing and searches for real.
+  // INJECTABLE FOR TESTS ONLY, and for one reason: this machine HAS Node at the literal fallback below, so "Node is genuinely unavailable" is otherwise…
   const roots = Array.isArray(override) ? override : [
     env.ProgramFiles,
     env['ProgramFiles(x86)'],
@@ -97,15 +44,7 @@ function windowsInstalls(env, override) {
   return out;
 }
 
-/**
- * FIND NODE.
- *
- * @param {{env?: object, cfg?: object, self?: string|null}} opts
- *   `self` is the running interpreter — `process.execPath` in production, and
- *   overridable so a test can ask what a NON-Node caller (the native host)
- *   would find without that shortcut answering first.
- * @returns {{ok: true, exe: string, how: string} | {ok: false, why: string, searched: string[]}}
- */
+/** FIND NODE. */
 function find(opts = {}) {
   const env = opts.env || process.env;
   const cfg = opts.cfg || {};
@@ -118,11 +57,7 @@ function find(opts = {}) {
     if (usable(self)) return { ok: true, exe: self, how: 'the Node already running LAIN' };
   }
 
-  // ---- 2. WHAT SOMEBODY CONFIGURED --------------------------------------
-  //
-  // A CONFIGURED PATH THAT IS WRONG IS AN ERROR, NOT A HINT. Falling through to
-  // a search would silently run a different Node than the one the person named,
-  // which is the bug an override exists to prevent.
+  // 2. WHAT SOMEBODY CONFIGURED
   const declared = String(cfg.nodePath || env.LAIN_NODE || '').trim();
   if (declared) {
     searched.push(`the configured path (${declared})`);
@@ -163,10 +98,7 @@ function find(opts = {}) {
   };
 }
 
-/**
- * The same answer, or a thrown error carrying the diagnostic. For callers that
- * cannot usefully continue without Node and would only rethrow.
- */
+/** The same answer, or a thrown error carrying the diagnostic. */
 function must(opts = {}) {
   const r = find(opts);
   if (!r.ok) { const e = new Error(r.why); e.searched = r.searched; throw e; }

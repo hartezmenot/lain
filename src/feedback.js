@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * PRODUCT FEEDBACK — a report the person writes, with only the attachments
- * they tick, previewed exactly as it will be kept.
- *
- *   types        Bug · UX problem · Model/provider problem · Performance ·
- *                Feature request · Other
- *   attachments  (each an explicit checkbox; off unless ticked)
- *                version            LAIN Core and Harness versions, OS
- *                surface            which surface was open
- *                errors             recent errors — anonymized (home and project
- *                                   paths replaced, secrets redacted)
- *                runtime            runtime status (state words only — no
- *                                   identities, emails or account ids)
- *                screenshot         a picture of the window, only when ticked
- *                logs               recent request outcomes: model, status,
- *                                   error class, duration — never content
- *   never        API keys, OAuth tokens, provider credentials, project source,
- *                private prompts, conversations. Every string passes redact.js,
- *                and a final scan refuses a payload that still looks like a secret.
- *
- * WHERE IT GOES: saved locally (<configDir>/feedback/<id>.json) — there is no
- * LAIN feedback server. The person may then, explicitly, file it as a GitHub
- * issue on a repository they configured (cfg.feedback.repo) through github.js.
- */
+/** PRODUCT FEEDBACK — a report the person writes, with only the attachments they tick, previewed exactly as it will be kept. */
 
 const fs = require('fs');
 const os = require('os');
@@ -78,10 +55,7 @@ function recentRequests() {
   } catch { return []; }
 }
 
-/**
- * BUILD the report exactly as it would be kept. Nothing leaves the machine here.
- * { type, title, description, include: {version,…}, surface, clientErrors, screenshot (data URL) }
- */
+/** BUILD the report exactly as it would be kept. */
 async function build(app, body = {}) {
   const type = TYPES[body.type] ? body.type : null;
   if (!type) return { ok: false, why: `type is one of ${Object.keys(TYPES).join(', ')}` };

@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE DEVELOPMENT TOOLING'S ROUTES — the window onto three Core owners:
- *
- *   runtimeregistry.js   what LAIN is running (terminals, language servers,
- *                        extension hosts, services), each with an owner and a
- *                        verified identity; stop is scoped to one record
- *   exthost/manager.js   extensions whose code runs, each in its own process
- *   lsp/manager.js       language servers attached to the project
- *
- * Every route here delegates. Writes (a rename the person asked for) go
- * through the one mutation transaction inside the owner, never around it.
- */
+/** THE DEVELOPMENT TOOLING'S ROUTES — the window onto three Core owners */
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function reply(r) { return r && r.ok !== false ? ok(r) : { code: 200, body: { ok: false, ...(r || {}), why: String((r && r.why) || 'refused') } }; }
@@ -22,11 +11,7 @@ const ROUTES = {
     const reg = require('../runtimeregistry');
     return ok({ processes: reg.list().filter((p) => p.alive !== false), owner: reg.defaultOwner() });
   },
-  /**
-   * LEGACY TEST SUPERVISORS (legacyprocs.js): a scan that changes nothing, and
-   * a stop of the SELECTED ids only — each re-verified as the same process and
-   * still a verified orphan at that moment.
-   */
+  /** LEGACY TEST SUPERVISORS (legacyprocs.js): a scan that changes nothing, and a stop of the SELECTED ids only — each re-verified as the same process and… */
   'POST /api/runtime/legacy/scan': () => ok(require('../legacyprocs').scan()),
   'POST /api/runtime/legacy/stop': (app, body = {}) => reply(require('../legacyprocs').stop(Array.isArray(body.ids) ? body.ids.slice(0, 200) : [])),
   /** A person pressed Stop on ONE verified record. */

@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * ROUTER SERVER ROUTES (Phase 8.1) — Settings › Router Server, over serve.js.
- *
- *   /api/server/status     running? where? how many requests? the token (masked only)
- *   /api/server/start      /api/server/stop
- *   /api/server/configure  { port, host, allowRemote, startWithLain, expose }
- *   /api/server/token      { reveal: true } the LOCAL LAIN token, to paste into a client — never a provider key
- *   /api/server/regenerate a new local token (the old one stops working)
- */
+/** ROUTER SERVER ROUTES (Phase 8.1) — Settings › Router Server, over serve.js. */
 
 const serve = require('../serve');
 const ok = (b = {}) => ({ code: 200, body: { ok: true, ...b } });

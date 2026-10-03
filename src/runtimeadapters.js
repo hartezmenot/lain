@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * RUNTIME ADAPTERS — every runtime LAIN can work through, reported in three
- * separate answers that are never collapsed into one "connected":
- *
- *     DISCOVERY   can LAIN find (and, where it makes sense, adopt or start) it?
- *     TELEMETRY   can LAIN read its models, limits, credits, sessions, status?
- *     EXECUTION   can LAIN submit work to it and get the result back?
- *
- *   LAIN ─▶ adapter ─▶ the runtime's REAL program ─▶ its provider
- *
- * No adapter impersonates a runtime: none forges its identity, borrows its
- * client id, copies its credentials or calls the service behind it. Where a
- * runtime's entitlement lives only inside it, the adapter runs that runtime.
- *
- * STATES (`state`):
- *   NOT_INSTALLED   nothing found
- *   DETECTED        installed; not read yet
- *   TELEMETRY_ONLY  status readable; no execution path
- *   READY           an execution path exists; not yet proven by a run
- *   OPERATIONAL     a run through LAIN succeeded (the last one)
- *   DEGRADED        installed, but its status or last run failed
- *   RUNNING/STOPPED local services (Ollama running or not)
- *
- * Telemetry is cached per adapter (<configDir>/runtimes/<id>.json) so model
- * pickers read it synchronously; it is refreshed on request, never polled.
- */
+/** RUNTIME ADAPTERS — every runtime LAIN can work through, reported in three separate answers that are never collapsed into one "connected" */
 
 const fs = require('fs');
 const path = require('path');

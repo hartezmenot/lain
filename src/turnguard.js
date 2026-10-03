@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * HOW THE LAST TURN ENDED, AND WHETHER THE NEXT SENTENCE NEEDS A BRIEFING (2026-10-02).
- *
- * This is the judgement the Rust Guardian used to hold (guardian.rs turn_end/offer), now kept WITH THE SESSION it is
- * about (`workbench.guard`, saved with the session file) — so it survives exactly as long as the work does, and needs
- * no second process to be asked.
- *
- *   turn ends             state              the next sentence
- *   completed             COMPLETED          delivered bare; any owed briefing is closed
- *   aborted / cancelled   CANCELLED          delivered bare (the person chose to stop)
- *   rate_limited          RATE_LIMITED       delivered WITH a briefing (RATE_LIMITED: …)
- *   anything else         PROVIDER_FAILED    delivered WITH a briefing (PROVIDER_FAILED: …)
- *   never ended           RUNNING, but no    TURN_LOST: the host died mid-turn — the session was repaired from disk
- *                         turn runs here     (inflight.js) and the next sentence carries that
- *
- * "Briefing" is handover.js's packet (app._handover → systemPrompt): the person's words go to the model unchanged;
- * what LAIN observed rides in the system prompt.
- */
+/** HOW THE LAST TURN ENDED, AND WHETHER THE NEXT SENTENCE NEEDS A BRIEFING (2026-10-02). */
 
 const wb = require('./workbench');
 
@@ -55,10 +38,7 @@ function end(app, record) {
 
 function running(app) { return Boolean(app && app.abort && !app.abort.signal.aborted); }
 
-/**
- * MAY THIS SENTENCE GO STRAIGHT THROUGH? '' when it may; otherwise the reason, `KIND: detail`, that the briefing
- * carries. The most specific reason wins — the same ranking guard.rs used.
- */
+/** MAY THIS SENTENCE GO STRAIGHT THROUGH? */
 function held(app) {
   const s = app && app.session;
   if (!s) return '';

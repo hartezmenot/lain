@@ -48,7 +48,7 @@ module.exports = async function () {
     const r = await runCli(['-p', 'list the directory'], {
       cwd,
       script: [
-        { text: 'Listing.', tool_calls: [{ name: 'run_bash', input: { command: 'ls -1' } }] },
+        { text: 'Listing.', tool_calls: [{ name: 'shell', input: process.platform === 'win32' ? { command: 'dir /b', shell: 'cmd' } : { command: 'ls -1' } }] },
         { text: 'That is the listing.' },
       ],
     });
@@ -300,35 +300,34 @@ module.exports = async function () {
     assertIncludes(r.stdout, 'That is JSON.');
   });
 
-  await test('SMOKE: run_cmd / run_powershell execute for real on this platform', async () => {
+  await test('SMOKE: shell with shell:"cmd" executes for real on this platform', async () => {
     const cwd = tmpdir('lain-smoke-');
     const isWin = process.platform === 'win32';
-    const tool = isWin ? 'run_cmd' : 'run_bash';
-    const command = isWin ? 'echo CMD_MARKER' : 'echo CMD_MARKER';
+    const command = 'echo CMD_MARKER';
     const r = await runCli(['-p', 'run it'], {
       cwd,
       script: [
-        { text: 'Running.', tool_calls: [{ name: tool, input: { command } }] },
+        { text: 'Running.', tool_calls: [{ name: 'shell', input: isWin ? { command, shell: 'cmd' } : { command } }] },
         { text: 'Ran it.' },
       ],
     });
     assert.strictEqual(r.code, 0);
-    assertIncludes(r.stdout, 'CMD_MARKER', `${tool} produced real output`);
+    assertIncludes(r.stdout, 'CMD_MARKER', 'shell produced real output');
   });
 
   if (process.platform === 'win32') {
-    await test('SMOKE: run_powershell executes for real', async () => {
+    await test('SMOKE: shell runs PowerShell for real', async () => {
       const cwd = tmpdir('lain-smoke-');
       const r = await runCli(['-p', 'run it'], {
         cwd,
         script: [
-          { text: 'Running.', tool_calls: [{ name: 'run_powershell', input: { command: 'Write-Output PS_MARKER' } }] },
+          { text: 'Running.', tool_calls: [{ name: 'shell', input: { command: 'Write-Output PS_MARKER' } }] },
           { text: 'Ran it.' },
         ],
         timeoutMs: 60000,
       });
       assert.strictEqual(r.code, 0);
-      assertIncludes(r.stdout, 'PS_MARKER', 'run_powershell produced real output');
+      assertIncludes(r.stdout, 'PS_MARKER', 'shell produced real output');
     });
   }
 
@@ -344,7 +343,7 @@ module.exports = async function () {
   await test('SMOKE: /tools lists the real registry and shell tools are present', async () => {
     const r = await runCli([], { stdin: '/tools\n/exit\n', script: [] });
     assert.strictEqual(r.code, 0);
-    for (const t of ['run_bash', 'run_powershell', 'run_cmd', 'read_file', 'write_file', 'edit_file', 'list_dir']) {
+    for (const t of ['shell', 'read_file', 'write_file', 'edit_file', 'list_dir']) {
       assertIncludes(r.stdout, t);
     }
   });

@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * ANTIGRAVITY ACCOUNTS — one AccountInstance per Google sign-in, each with its
- * OWN profile (Phase 8.4 hotfix).
- *
- * ------------------------------------------------------------------------
- * THE BOUNDARY (the same one T3 keeps, written for LAIN, with no dependency on T3):
- *
- *   one profile directory per account   <config>/accounts/antigravity/<id>
- *   GEMINI_HOME = that directory        the agent reads and writes its settings and
- *                                       its sign-in THERE, not in ~/.gemini
- *   AGY_ACP_FORCE_FILE_STORAGE=1        the sign-in is a file in that profile, never the
- *                                       operating system's shared credential store
- *   BROWSER = a shim                    the sign-in URL is captured for the person, and
- *                                       belongs to the auth session that started it
- *   ambient credentials removed         GEMINI_API_KEY / GOOGLE_API_KEY / application
- *                                       credentials in LAIN's own environment never reach it
- *
- * Nothing is shared between accounts, and nothing is read from `~/.gemini` — the
- * Gemini CLI's ambient Google credential is not LAIN's to use. Each account is one
- * directory; a new account starts from an EMPTY one.
- *
- * THE RUNTIME is Google's Antigravity ACP server (`agy_acp_server`), spoken to over
- * the Agent Client Protocol (acp.js). LAIN does not bundle it: it is downloaded ON
- * THE PERSON'S EXPLICIT REQUEST from Google's release address, checked against a
- * pinned SHA-256 before it is unpacked, and never run unverified (installServer).
- *
- * WHO AN ACCOUNT IS comes from its OWN profile's `google_accounts.json` (the active
- * address — not a secret) and whether its own sign-in file exists (presence only;
- * the token is never read). Models come from the server's own `session/new`.
- * Quota: this server does not report any, and none is invented.
- */
+/** ANTIGRAVITY ACCOUNTS — one AccountInstance per Google sign-in, each with its OWN profile (Phase 8.4 hotfix). */
 
 const fs = require('fs');
 const os = require('os');
@@ -213,11 +183,7 @@ async function* chat(pc, messages, opts = {}) {
   }
 }
 
-/**
- * THE TEST MESSAGE: one short REAL request through THIS account (its own server, its own profile). If it answers, the account is
- * verified — and only then are Chat and Assistant advertised for it. Nothing is sent that the person did not ask for, nothing is
- * retried, and an account that is busy is not touched.
- */
+/** THE TEST MESSAGE: one short REAL request through THIS account (its own server, its own profile). */
 async function verify(app, id) {
   const ai = require('../accountinstances');
   const rec = ai.record(id);
@@ -236,13 +202,7 @@ async function verify(app, id) {
 // ---- THE OFFICIAL ACP SERVER: downloaded on the person's request, verified, then unpacked --------------------------
 const install = { state: 'idle', bytes: 0, total: 0, why: null, at: 0 };
 
-/**
- * WHAT IS ALREADY INSTALLED, AND WHY IT IS NOT ENOUGH (audit, 2026-09-29). Google's Antigravity CLI (`agy`, installed
- * under %LOCALAPPDATA%\agy — 1.2.13 here) has a headless print mode, but no per-account profile: it always runs the
- * one account it is signed in to, and it ignores GEMINI_HOME. LAIN keeps every Antigravity account in its OWN private
- * profile (the auth-isolation invariant), which only the ACP server supports — so the server is needed, and the
- * person is told the size and this reason before anything is downloaded. Existence only: nothing of agy's is read.
- */
+/** WHAT IS ALREADY INSTALLED, AND WHY IT IS NOT ENOUGH (audit, 2026-09-29). */
 function installedCli() {
   if (process.env.LAIN_ISOLATED === '1') return null;
   const p = path.join(process.env.LOCALAPPDATA || '', 'agy', 'bin', 'agy.exe');
@@ -261,11 +221,7 @@ function installStatus(app) {
   };
 }
 
-/**
- * INSTALL THE SERVER. Explicit only (the caller passes `confirm: true` after telling the person the size and the
- * source): one https download from the pinned address (or the configured mirror), its SHA-256 checked against the
- * pinned value BEFORE anything is unpacked, then unpacked into LAIN's own tools folder. A mismatch deletes it.
- */
+/** INSTALL THE SERVER. Explicit only (the caller passes `confirm: true` after telling the person the size and the source): one https download from the… */
 async function installServer(app, { confirm = false } = {}) {
   if (!confirm) return { ok: false, why: 'confirm the download first' };
   if (install.state === 'downloading' || install.state === 'unpacking') return { ok: true, started: false, why: 'already installing' };
@@ -331,11 +287,7 @@ function download(url, file, onProgress, sha256, hops = 0) {
 }
 
 // ---- ANTIGRAVITY OVER HTTPS (antigravityapi.js) — no runtime, no download -------------------------------------------
-/**
- * ONE ACCOUNT, ONE TOKEN, ITS OWN CREDENTIAL REFERENCE. The handle reads the account's token record (DPAPI) only when it
- * needs to talk to Google, refreshes it when it is about to expire and keeps the refreshed record under the SAME
- * reference. Identity, project, models and quota are the provider's own answers (describeAccount); none is inferred.
- */
+/** ONE ACCOUNT, ONE TOKEN, ITS OWN CREDENTIAL REFERENCE. */
 function httpsHandle(instance) {
   const cfgI = instance.config || {};
   const ref = cfgI.credentialRef;

@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * THE JOURNEY'S ROUTES — the window onto the session journey and its neighbours:
- *
- *   journey.js       which room the window is in; "move to Agent?" answered
- *   house.js         the doors, listed and walked through
- *   editledger.js    who changed which lines (Core's provenance ledger)
- *   focuspacket.js   what the Agent would be handed for a request (preview)
- */
+/** THE JOURNEY'S ROUTES — the window onto the session journey and its neighbours */
 
 const sv = require('../sessionviews');
 

@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * EXTENSION COLOUR THEMES — the "imported" theme preset (Phase 8).
- *
- * An installed extension's `contributes.themes` is DATA: a JSON file of editor
- * colours and TextMate token colours. LAIN reads that file — it never runs the
- * extension to get it — and hands the editor a Monaco theme:
- *
- *   list(app)       every contributed theme: { id: 'ext:<extId>/<label>', label, extension, base }
- *   read(app, id)   { label, base: 'vs' | 'vs-dark', colors, rules } — colours
- *                   limited to the editor's own keys, token rules mapped from
- *                   TextMate scopes to the editor's token names
- *
- * A theme file may `include` another (VS Code's own convention); includes are
- * followed inside the extension's folder only, at most four deep.
- */
+/** EXTENSION COLOUR THEMES — the "imported" theme preset (Phase 8). */
 
 const fs = require('fs');
 const path = require('path');

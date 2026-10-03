@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * FINDING A PROGRAM ON PATH, ONCE — llama.cpp's lookup memo (Phase 8.1), for the
- * runtime drivers too (Phase 8.2).
- *
- * A walk is a stat per PATH directory × extension, ~150 on a typical Windows
- * PATH, and the terminal's header asked each runtime driver for its binary on
- * every redraw: in a profiled task, 1.3 s of 2 s of CPU was the `claude` and
- * `opencode` walks. A program found is re-checked with one stat (it may have
- * been uninstalled); one not found is looked for again after 30 s, so a runtime
- * installed while LAIN runs still appears. A changed PATH is a different key.
- */
+/** FINDING A PROGRAM ON PATH, ONCE — llama.cpp's lookup memo (Phase 8.1), for the runtime drivers too (Phase 8.2). */
 
 const fs = require('fs');
 const path = require('path');

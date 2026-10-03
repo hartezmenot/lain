@@ -1,42 +1,6 @@
 'use strict';
 
-/**
- * THE VMWARE PROVIDER — `vmrun`, and nothing invented.
- *
- * ------------------------------------------------------------------------
- * ON THIS MACHINE, TODAY, VMWARE IS NOT INSTALLED.
- *
- * That was established by looking, not assumed: no `vmrun`, `vmware` or `vmcli`
- * on PATH; no `HKLM\SOFTWARE\VMware, Inc.`; no VMware entry in either uninstall
- * registry view; no VMware services registered. So every operation below
- * returns VM_UNAVAILABLE with that sentence, and NOTHING here has been proved
- * against a running hypervisor.
- *
- * This file is written to the real `vmrun` interface — the verbs, the argument
- * order, the exit behaviour and the output shapes are the documented ones — but
- * until it has run against an installation, that is a claim about the code and
- * not about the world. It is labelled NOT VERIFIED and it stays that way until
- * somebody runs it. Reporting a smoke as passing because the provider returned
- * a plausible object would be the exact dishonesty §5 forbids.
- *
- * ------------------------------------------------------------------------
- * WHY `vmrun` AND NOT THE REST OF THE VMWARE SURFACE.
- *
- * `vmrun` ships with Workstation, Player and Fusion, is stable across versions,
- * and covers every verb §5 asks for. `vmcli` is newer and Workstation-only, and
- * the VIX API needs a native binding this project will not take. One tool,
- * present wherever VMware is, driven as a subprocess.
- *
- * ------------------------------------------------------------------------
- * GUEST CREDENTIALS ARE NOT STORED, AND NOT LOGGED.
- *
- * `vmrun -gu <user> -gp <password>` puts a guest password on a command line.
- * This module takes them from the environment at call time
- * (`LAIN_VM_GUEST_USER` / `LAIN_VM_GUEST_PASSWORD`) and never writes them to
- * config, never returns them in a result and REDACTS them from every command
- * string it reports — see `redact`, which is applied to the diagnostic before
- * it can reach an error message, an artifact or a transcript.
- */
+/** THE VMWARE PROVIDER — `vmrun`, and nothing invented. */
 
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -104,13 +68,7 @@ function guestAuth() {
   return { ok: true, user, args: ['-gu', user, '-gp', pass] };
 }
 
-/**
- * REMOVE ANYTHING SECRET FROM A COMMAND BEFORE IT IS SHOWN OR STORED.
- *
- * Applied to the ARGUMENT ARRAY rather than to a joined string, so the value
- * after `-gp` is replaced positionally instead of by pattern-matching a
- * password that could be any text at all.
- */
+/** REMOVE ANYTHING SECRET FROM A COMMAND BEFORE IT IS SHOWN OR STORED. */
 function redact(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
@@ -152,9 +110,7 @@ function run(args, { timeoutMs = CALL_TIMEOUT_MS } = {}) {
     child.on('error', (e) => { clearTimeout(timer); finish(failures.fail(CODE.GUEST_EXEC_FAILED, `vmrun failed: ${(e && e.message) || e}`, redact(args))); });
     child.on('close', (code) => {
       clearTimeout(timer);
-      // `vmrun` reports failure in its OUTPUT as often as in its exit code —
-      // "Error: The virtual machine is not powered on" with status 0 is normal.
-      // Treating exit code alone as truth would report failures as successes.
+      // `vmrun` reports failure in its OUTPUT as often as in its exit code — "Error: The virtual machine is not powered on" with status 0 is normal.
       const text = `${out}${err}`;
       const errored = code !== 0 || /^Error:/im.test(text);
       if (errored) {
@@ -195,14 +151,7 @@ async function list() {
   return { ok: true, running, count: running.length };
 }
 
-/**
- * THE STATE OF ONE REGISTERED VM.
- *
- * RUNNING IS NOT READY, and §24 is explicit about it: a powered-on guest whose
- * runner cannot answer is not a machine that can take work. So this reports
- * STOPPED or BUSY from the hypervisor, and READY only ever comes from the
- * handshake in guest.js. This function cannot return READY, deliberately.
- */
+/** THE STATE OF ONE REGISTERED VM. */
 async function status(env) {
   if (!env || !env.vmx) {
     return failures.fail(CODE.VM_UNAVAILABLE, `${(env && env.id) || 'the environment'} has no .vmx path registered`);
@@ -260,24 +209,7 @@ async function snapshot(env, name) {
   return { ok: true, snapshot: String(name) };
 }
 
-/**
- * RESTORE A KNOWN CLEAN STATE.
- *
- * ------------------------------------------------------------------------
- * THE MOST DESTRUCTIVE OPERATION IN THIS FILE, AND THE MOST GUARDED.
- *
- * Reverting a snapshot DISCARDS everything the guest has done since it was
- * taken. On somebody's real machine that is their work, gone, with no undo. So
- * three things must all hold, and each is checked separately so the refusal
- * says which one failed:
- *
- *   · the VM is registered Harness-owned
- *   · the snapshot is the one REGISTERED as this environment's clean state,
- *     not any snapshot a caller names — so a bug elsewhere cannot revert a
- *     person to an arbitrary point in their own history
- *   · that snapshot actually exists, checked before the revert rather than
- *     discovered by `vmrun` failing halfway
- */
+/** RESTORE A KNOWN CLEAN STATE. */
 async function restore(env, name = null) {
   const own = ownership(env); if (!own.ok) return own;
   const want = name || env.cleanSnapshot;
@@ -341,11 +273,7 @@ async function copyOut(env, guestPath, hostPath) {
   return { ok: true, from: String(guestPath), to: String(hostPath) };
 }
 
-/**
- * IS THE GUEST ANSWERING? Bounded, and it asks the GUEST rather than the
- * hypervisor — `vmrun` reporting a VM as running says nothing about whether
- * anything inside it can take work. See §24.
- */
+/** IS THE GUEST ANSWERING? */
 async function health(env, { timeoutMs = 30_000 } = {}) {
   const st = await status(env);
   if (!st.ok) return st;

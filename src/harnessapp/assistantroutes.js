@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * THE ASSISTANT'S ROUTES — a projection of Core's task store, never a second
- * one. CHAT › Schedules, BOT › Assistant and Home search all read the same
- * /api/assistant/state; Telegram reaches the same store through app.submit.
- *
- *   /api/assistant/state      tasks (Upcoming / Recurring / Watches / Completed),
- *                             recent activity with delivery receipts, settings,
- *                             channel permissions, the scheduler's own status
- *   /api/assistant/task       create — a MODEL-BACKED recurring task is refused
- *                             until the caller has shown the policy and confirms it
- *   /api/assistant/task/act   cancel | pause | resume | remove | run (now)
- *   /api/assistant/settings   notifications, default delivery, quiet hours,
- *                             background execution, condition checks, missed runs
- *   /api/assistant/scopes     what Telegram may do (per capability)
- */
+/** THE ASSISTANT'S ROUTES — a projection of Core's task store, never a second one. */
 
 const store = require('../assistant/store');
 

@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * TECHNOLOGIES, AS DATA — never as pairs.
- *
- * The whole point of the migration engine is that there is no `cpp_to_python`
- * and no `react_to_vue` anywhere in the program. A pair is a combinatorial
- * explosion nobody can finish writing: eleven languages alone is a hundred and
- * ten directions, and the twelfth language breaks every one of them.
- *
- * So what is written down is one row per technology — what it is called, what
- * it is called by people who are in a hurry, which files belong to it, and how
- * you can tell it is present in a tree. A migration is then any ORDERED PAIR of
- * rows, including two rows this file has never seen: an unknown name resolves
- * to an `unknown` descriptor that carries the user's own word and no claims,
- * and the rest of the engine works with it exactly as it works with C++.
- *
- * ------------------------------------------------------------------------
- * WHAT A ROW MAY AND MAY NOT SAY.
- *
- * It may say what its files look like, because that is a fact about the world.
- * It may NOT say how to translate anything, what the target should be called,
- * or what the idiomatic equivalent of a C++ destructor is in Python. That is
- * the expensive model's job, and a table of hand-written equivalences is how
- * the pair explosion gets in through the back door.
- * ------------------------------------------------------------------------
- */
+/** TECHNOLOGIES, AS DATA — never as pairs. */
 
 const fs = require('fs');
 const path = require('path');
@@ -40,11 +16,7 @@ const TECH_KIND = Object.freeze({
   UNKNOWN: 'unknown',
 });
 
-/**
- * ROWS. `ext` is ordered — the FIRST is what a new file of this technology is
- * named, and the rest are recognised but not generated. `marks` are the files
- * or dependency names whose presence is evidence the technology is in use.
- */
+/** ROWS. `ext` is ordered — the FIRST is what a new file of this technology is named, and the rest are recognised but not generated. `marks` are the… */
 const ROWS = [
   // ---- languages --------------------------------------------------------
   { id: 'cpp', label: 'C++', kind: TECH_KIND.LANGUAGE, aliases: ['c++', 'cplusplus', 'cxx'], ext: ['.cpp', '.cc', '.cxx', '.hpp', '.hxx'], marks: ['CMakeLists.txt', 'Makefile'] },
@@ -98,16 +70,7 @@ function normalise(name) {
     .replace(/-(?:js|lang|framework)$/, '');
 }
 
-/**
- * Resolve a name a person wrote into a descriptor.
- *
- * AN UNKNOWN NAME IS NOT A FAILURE. "Migrate the renderer from Skia to my own
- * rasteriser" is a perfectly good migration and this file has never heard of
- * either side; it gets a descriptor carrying the user's own word, `kind` of
- * UNKNOWN and no extensions, and every stage downstream is written to cope
- * with exactly that — target paths become questions the model answers instead
- * of derivations this table makes.
- */
+/** Resolve a name a person wrote into a descriptor. */
 function resolve(name) {
   const raw = String(name == null ? '' : name).trim();
   if (!raw) return null;
@@ -145,33 +108,18 @@ function primaryExt(tech) {
   return tech && tech.ext && tech.ext.length ? tech.ext[0] : '';
 }
 
-/**
- * Rewrite one path from one technology to another.
- *
- * Returns '' when the target has no extension of its own — a build system, a
- * runtime, an unknown name — because inventing `webpack.config.vite` would be
- * worse than admitting the mapping is not derivable and letting the contract
- * carry it as an open question.
- */
+/** Rewrite one path from one technology to another. */
 function retarget(rel, from, to) {
   const p = String(rel || '').replace(/\\/g, '/');
   const ext = primaryExt(to);
   if (!ext) return '';
   const cur = path.posix.extname(p);
   if (!cur) return '';
-  // A HEADER HAS NO COUNTERPART in a language without headers, so `scanner.hpp`
-  // and `scanner.cpp` would both become `scanner.py` and one would silently
-  // overwrite the other. Naming it keeps the collision visible in the map.
+  // A HEADER HAS NO COUNTERPART in a language without headers, so `scanner.hpp` and `scanner.cpp` would both become `scanner.py` and one would silently…
   return p.slice(0, -cur.length) + ext;
 }
 
-/**
- * Which technologies are actually present in this tree, with the evidence.
- *
- * Counted from real files, so "React" means jsx files or a react dependency,
- * not a word in a README. Used to resolve an implicit source ("migrate this to
- * Python" — from what?) without spending a model call on it.
- */
+/** Which technologies are actually present in this tree, with the evidence. */
 function detect(root) {
   const { walk } = require('./tools/search');
   const counts = new Map();

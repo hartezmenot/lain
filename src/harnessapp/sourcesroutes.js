@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * MODEL › SOURCES (Phase 8.1) — every source of intelligence LAIN is connected
- * to, and exactly the removal actions that apply to each. One vague "Remove"
- * for everything is how a person accidentally signs out of an account they
- * wanted to keep; each action here says what it does and what it leaves alone.
- *
- *   api key route        Remove API credential (keep the route) · Remove source
- *   runtime account      Detach from LAIN (the runtime keeps its sign-in) ·
- *                        Sign out (through the runtime itself, only when asked)
- *   9Router provider     Detach reference (it stays connected in 9Router)
- *   9Router, available   Adopt (no sign-in again; 9Router keeps the auth)
- *
- * Removing from LAIN never revokes the provider account.
- *
- *   /api/sources/list     { connected: [...], available: [...], ninerouter }
- *   /api/sources/action   { kind, id, confirm }
- */
+/** MODEL › SOURCES (Phase 8.1) — every source of intelligence LAIN is connected to, and exactly the removal actions that apply to each. */
 
 const ok = (body = {}) => ({ code: 200, body: { ok: true, ...body } });
 const bad = (why, code = 400, extra = {}) => ({ code, body: { ok: false, why: String(why || 'refused'), ...extra } });
@@ -69,9 +53,7 @@ async function list(app) {
     ninerouter = p.status;
     available = (p.providers || []).filter((x) => !x.adopted && x.kind === 'account').map((x) => ({ id: `9router:${x.prefix}`, kind: '9router-available', label: x.label, source: 'In 9Router', models: x.count, actions: [ACT.adopt] }));
   } catch (e) { ninerouter = { running: false, why: e.message }; }
-  // ANTIGRAVITY (Phase 8.1): preferred through 9Router when 9Router already holds it;
-  // otherwise the official Antigravity app is where its sign-in lives. LAIN never takes
-  // its tokens or cookies — it says where the account can be connected.
+  // ANTIGRAVITY (Phase 8.1): preferred through 9Router when 9Router already holds it; otherwise the official Antigravity app is where its sign-in lives.
   const ag = antigravityApp();
   const viaNine = available.some((x) => x.id === '9router:ag') || connected.some((x) => x.id === '9router:ag');
   if (ag && !viaNine) available.push({ id: 'antigravity-app', kind: 'runtime-detected', label: 'Antigravity', source: `Antigravity app · ${ag}`, note: 'Connect your Antigravity account in 9Router (then adopt it here), or sign in inside the Antigravity app. LAIN does not take its sign-in.', actions: [] });
@@ -115,11 +97,7 @@ async function action(app, body = {}) {
     try { require('../fabric/store').event('source-removed', { kind: 'api', id }); require('../fabric/tray').changed(app); } catch { /* the registry reports on the next read */ }
     return ok({ done: 'source removed', note: 'Removed from LAIN. The provider account itself is not revoked.' });
   }
-  // THREE DIFFERENT THINGS, never one button:
-  //   detach          LAIN forgets the account. Nothing is signed out and nothing is deleted.
-  //   sign-out        the provider's own sign-out, in THAT account's directory only (a LAIN-owned one).
-  //   remove-profile  sign out AND delete the directory LAIN made for it.
-  // None of them runs under a request that is working through the account (accountwork.js).
+  // THREE DIFFERENT THINGS, never one button: detach LAIN forgets the account.
   if (kind === 'detach' || kind === 'sign-out' || kind === 'remove-profile') {
     if ((kind === 'sign-out' || kind === 'remove-profile') && body.confirm !== true) return bad('confirm signing out', 428, { needsConfirm: true });
     const d = await require('../accountinstances').disconnect(app, id, { logout: kind !== 'detach', removeProfile: kind === 'remove-profile' });

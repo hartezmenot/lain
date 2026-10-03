@@ -1,53 +1,8 @@
 'use strict';
 
-/**
- * WHICH WAYS OF ACTING AND SEEING ARE STILL OPEN — the refusal ledger.
- *
- * A permission decision is not an error, and it is not a failed task. It closes
- * ONE CHANNEL and leaves every other one open.
- *
- *     permission denied ≠ investigation failure
- *     it means that evidence/action channel is unavailable
- *
- * ------------------------------------------------------------------------
- * WHAT WENT WRONG WITHOUT THIS.
- *
- * The refusal was per-call text and nothing remembered it. So a model that was
- * told "the user did not allow keyboard.press. Do not ask again." had exactly
- * one thing standing between it and asking again: its own good manners. Three
- * calls later the same prompt appeared on the user's screen for a decision they
- * had already made — and each of those calls was a model request spent on a
- * question that was answered the first time.
- *
- * Worse, the refusal read like a failure. A task whose keyboard was denied is
- * not a task that failed; it is a task that must now ask the person to press
- * the key. Nothing was carrying that distinction, so an investigation stopped
- * when it should have changed hands.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS DOES, AND THE TWO THINGS IT REFUSES TO DO.
- *
- * It records the state of each channel, answers "may I still do this?" BEFORE a
- * transport is contacted, and — the part that matters — carries the FALLBACK:
- * what remains possible when the channel is shut.
- *
- *   IT NEVER RE-ASKS. A DENIED channel is answered from here. No transport
- *     call, no second prompt, no permission dialog the user has already
- *     dismissed. `reopen` exists because a person may change their mind, but
- *     only they can trigger it.
- *
- *   IT NEVER DOWNGRADES THE TRUTH. A denied screenshot does not become "the
- *     screen looked fine". The channel is UNAVAILABLE, visual evidence is
- *     absent, and anything that would have relied on it says NOT SEEN.
- */
+/** WHICH WAYS OF ACTING AND SEEING ARE STILL OPEN — the refusal ledger. */
 
-/**
- * THE CHANNELS, named for what they GIVE YOU rather than for the syscall.
- *
- * `fallback` is the whole reason this file is not a boolean: it is what LAIN
- * can still do, in words the model can act on, so a refusal produces a changed
- * plan rather than a stopped one.
- */
+/** THE CHANNELS, named for what they GIVE YOU rather than for the syscall. */
 const CHANNEL = Object.freeze({
   KEYBOARD: 'KEYBOARD',
   MOUSE: 'MOUSE',
@@ -77,13 +32,7 @@ const OP_CHANNEL = Object.freeze({
   hold: CHANNEL.KEYBOARD,
 });
 
-/**
- * The state of one channel.
- *
- * OPEN and UNKNOWN are deliberately different. UNKNOWN means nothing has been
- * tried, which is not a promise that it will work — claiming a channel is open
- * before anything has used it is how "CONNECTED" came to mean nothing.
- */
+/** The state of one channel. */
 const STATE = Object.freeze({
   UNKNOWN: 'UNKNOWN',
   OPEN: 'OPEN',
@@ -115,13 +64,7 @@ class Channels {
     return this;
   }
 
-  /**
-   * Nothing can carry it — no transport, no bridge, the feature is absent.
-   *
-   * SEPARATE FROM DENIED because they call for different things from the user:
-   * a denial is reversed by changing their mind, an absence by starting
-   * something. Collapsing them into "unavailable" loses which one to tell them.
-   */
+  /** Nothing can carry it — no transport, no bridge, the feature is absent. */
   unavailable(name, why = 'nothing can carry it') {
     if (!CHANNEL[name]) return this;
     const prev = this._entry(name);
@@ -137,26 +80,13 @@ class Channels {
     return this;
   }
 
-  /**
-   * The user changed their mind. The ONLY way out of DENIED.
-   *
-   * Deliberately not called from any automatic path: a channel that reopened
-   * itself would be a permission prompt that comes back, which is the exact
-   * behaviour people learn to click through.
-   */
+  /** The user changed their mind. */
   reopen(name) {
     if (this.byName.has(name)) this.byName.delete(name);
     return this;
   }
 
-  /**
-   * May this operation be attempted at all?
-   *
-   * Answered WITHOUT TOUCHING A TRANSPORT, which is the point: a denied channel
-   * costs nothing and cannot raise a second prompt.
-   *
-   * @returns {{ok:boolean, channel:string, state:string, why:string, fallback:string}}
-   */
+  /** May this operation be attempted at all? */
   check(op) {
     const channel = OP_CHANNEL[op] || null;
     if (!channel) return { ok: true, channel: null, state: STATE.UNKNOWN, why: '', fallback: '' };
@@ -176,14 +106,7 @@ class Channels {
     return out;
   }
 
-  /**
-   * What the model is told about the closed channels — facts and a way forward.
-   *
-   * PHRASED AS A CHANGED SITUATION, not as an error. "KEYBOARD UNAVAILABLE —
-   * you can ask the user to press the keys" is something to plan around; "tool
-   * failed: permission denied" is something to retry, and retrying is exactly
-   * what must not happen.
-   */
+  /** What the model is told about the closed channels — facts and a way forward. */
   brief() {
     const shut = this.closed();
     if (!shut.length) return '';

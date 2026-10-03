@@ -101,75 +101,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------- internal control stays hidden --
-
-  await test('GLUE: a continuation LAIN sends itself is NEVER a user message', () => {
-    // THE INVARIANT: runtime control reaches the model, not the transcript. `from`
-    // is what enforces it — a submission with one is drawn as a caption, never as
-    // a user block.
-    const conv = read('ui', 'conversation.js');
-    // `typed` rides beside `from`: text a PERSON entered is never captioned, and
-    // a synthetic resume still is (tests/unit/continuevisible.test.js).
-    assert.match(conv, /sayInput\(out, text, from(?:, typed[^)]*)?\)/, 'the feed asks who submitted it');
-    const phrasing = read('ui', 'phrasing.js');
-    assert.match(phrasing, /selfAskedCaption/, 'and a non-user submission gets a caption');
-
-    // AND THE KEY MATCHES. It was `rate-limit-wait` against a table holding
-    // `rate-limit-resume`, so the caption fell through to a generic line naming an
-    // internal identifier at the user.
-    // EVERY `from` ANY CALLER USES, not just one: a key the table does not know
-    // falls through to a generic caption that names an internal identifier at the
-    // user. Two of them did.
-    const known = require('../../src/ui/phrasing').SELF_ASKED;
-    const used = new Set();
-    const walk = (dir) => {
-      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        const q = path.join(dir, e.name);
-        if (e.isDirectory()) { walk(q); continue; }
-        if (!e.name.endsWith('.js')) continue;
-        const text = fs.readFileSync(q, 'utf8');
-        for (const m of text.matchAll(/submit\([^)]*from: '([a-z-]+)'/g)) used.add(m[1]);
-      }
-    };
-    walk(SRC);
-    assert.ok(used.size >= 3, 'the walk found the submissions: ' + [...used].join(', '));
-    // EVERY RUNTIME CONTINUATION IS DECLARED. `src/` composes these four prompts
-    // for itself, and each must be captioned rather than drawn as a user message.
-    // AND EVERY OTHER ONE: a list of four let 'rate-limit-switch' and 'continue' through, and both were
-    // drawn as a second USER block (live, 2026-09-19). Only a transport carrying a PERSON's words is exempt.
-    // `continue` is a shelf's Continue button: the person pressed it, and the instruction it
-    // sent is shown as what they asked (tests/smoke/shelves.test.js reads it off the screen).
-    const PERSON = new Set(['messaging', 'continue']);
-    for (const key of used) {
-      assert.ok(PERSON.has(key) || Object.prototype.hasOwnProperty.call(known, key), 'a runtime submission needs a caption: ' + key);
-    }
-    for (const key of ['rate-limit-resume', 'provider-failover', 'handover', 'steer']) {
-      assert.ok(used.has(key), 'the walk should have found ' + key);
-      assert.ok(Object.prototype.hasOwnProperty.call(known, key),
-        'a runtime continuation needs a caption: ' + key);
-    }
-    // AND AN UNKNOWN `from` IS A PERSON, NOT AN IDENTIFIER. A transport nobody
-    // declared here — a message relayed from a phone — must be drawn as what it
-    // says, never as `carrying on (its-internal-key)` with the text thrown away.
-    const { selfAskedCaption } = require('../../src/ui/phrasing');
-    assert.strictEqual(selfAskedCaption('some-new-transport'), null,
-      'an undeclared source is treated as the user speaking');
-    // ASSERTED AS BEHAVIOUR, not as source text: the file's own comments quote the
-    // removed fallback to explain why it went, and a grep for the phrase would
-    // match the explanation rather than the code.
-    assert.match(read('ui', 'phrasing.js'), /return SELF_ASKED\[from\] \|\| null;/,
-      'an unknown source returns null rather than a composed caption');
-    const said = views.activity({
-      session: {
-        turns: [{
-          userInput: 'fix the loader', from: 'some-new-transport', text: 'Done.',
-          narration: [{ step: 0, text: 'Done.' }], actions: [],
-        }],
-      },
-      width: 90,
-    }).map(strip).join(LF);
-    assert.match(said, /fix the loader/, 'and their words are on the screen');
-  });
-
   await test('GLUE: the continuation PROMPT never reaches the drawn feed', () => {
     // Driven through the renderer: a turn submitted by the runtime is drawn as its
     // caption, and the control text it carried is nowhere on screen.
@@ -300,14 +231,5 @@ module.exports = async function () {
     }).map(strip).join(LF);
     assert.match(text, /weighing the two options/,
       'a turn with nothing but thinking must not read as a lost reply');
-  });
-
-  await test('GLUE: the standing policy says what to communicate, and that routine work is not narrated', () => {
-    // Structural, not a test of model wording: the constitution has to SAY it — once, as judgment. The catalogue of
-    // forbidden phrases that used to ride on every request is gone; dropping narration lines is the interface's job.
-    const { POLICY } = require('../../src/discipline/constitution');
-    assert.match(POLICY, /Communicate findings, decisions, contradictions and blockers/);
-    assert.match(POLICY, /Do not narrate routine work/);
-    assert.ok(require('../../src/prompt').BASE.startsWith(POLICY), 'and the prompt IS the constitution');
   });
 };

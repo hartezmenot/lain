@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * THE SIMPLE PROMPT (Simplify S3): one fixed system prompt, then LAIN.md, memory and the skills list — identical on
- * every request of a session, so it caches. The live tail carries only the todo list (background results arrive
- * through the turn's side context). No mode guidance, no task state, no handover.
- */
+/** THE SIMPLE PROMPT (Simplify S3): one fixed system prompt, then LAIN.md, memory and the skills list — identical on every request of a session, so it… */
 
 const fs = require('fs');
 const os = require('os');

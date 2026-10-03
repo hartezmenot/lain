@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * THE CLIENT FOR THE PROCESS THAT OUTLIVES THIS ONE.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS FOR, in one measurement. `app._jobs` is a `Jobs` instance held in
- * memory on the App. It is never persisted and appears in no session state, so
- * a background worker survives a failed TURN and dies with the PROCESS — and a
- * suite that finished thirty seconds after LAIN crashed finished for nobody.
- * Two handover properties failed on exactly that, because nothing outlived the
- * application to watch the work.
- *
- * The supervisor (rust/lain-supervisor) owns those workers instead. This file
- * is the only thing in LAIN that talks to it.
- *
- * ------------------------------------------------------------------------
- * IT IS ALWAYS OPTIONAL, and that is a hard rule rather than a courtesy.
- *
- * LAIN is a zero-dependency Node program that must run on a machine with no
- * Rust toolchain, and 2,567 passing tests do not get to become conditional on a
- * binary being built. So every function here answers with a STATE rather than
- * throwing: `available:false` when the binary is absent, and the existing
- * in-process `jobs.js` continues to be what `run_background` uses. Nothing in
- * the tool vocabulary changes, and nothing regresses when the supervisor is not
- * there — see `probe()`.
- *
- * ------------------------------------------------------------------------
- * DISCOVERY IS A FILE AND A PID, which is `instances.js`'s convention and is
- * borrowed on purpose: the supervisor writes `endpoint.json` under LAIN's config
- * home, and a record is only believed if the process it names is alive. The one
- * failure this must never have is handing somebody a port that now belongs to
- * something else.
- */
+/** THE CLIENT FOR THE PROCESS THAT OUTLIVES THIS ONE. */
 
 const fs = require('fs');
 const net = require('net');
@@ -45,27 +14,15 @@ const START_TIMEOUT_MS = 8000;
 
 function home() {
   if (process.env.LAIN_HOME) return process.env.LAIN_HOME;
-  // A run with its OWN home (LAIN_CONFIG_DIR — a test, a bench, a second identity) has its own sessions, so it must
-  // never report them to the person's supervisor. 2026-10-01: an ad-hoc bench wrote ~30 fake sessions into the real
-  // ~/.noema/supervisor/guardian because this read userHome() and ignored the override.
+  // A run with its OWN home (LAIN_CONFIG_DIR — a test, a bench, a second identity) has its own sessions, so it must never report them to the person's…
   return require('./home').resolve();
 }
 
 function stateDir(root = home()) { return path.join(root, 'supervisor'); }
 function endpointFile(root = home()) { return path.join(stateDir(root), 'endpoint.json'); }
 
-/**
- * Where the built binary is. Debug and release are both accepted because a
- * contributor who ran `cargo build` should not have to learn why it did not
- * take effect.
- */
-/**
- * DISCOVERY IS CACHED. probe() used to stat three binary paths and re-read endpoint.json on EVERY call — and the
- * Guardian probes several times per phase note, so a turn spent more Core CPU discovering the supervisor than
- * talking to it (bench/latency, 2026-10-01: endpoint() 13 % of sampled time, readFileUtf8 the top self cost). A
- * binary does not appear mid-run often enough to matter for BINARY_TTL_MS; an endpoint is re-read when its file
- * changes (one stat) and is never believed past its pid's death (one signal-0, no I/O).
- */
+/** Where the built binary is. */
+/** DISCOVERY IS CACHED. */
 const BINARY_TTL_MS = 5000;
 let binaryMemo = null;
 function binary() {
@@ -78,28 +35,19 @@ function binary() {
 }
 
 function findBinary() {
-  // THE OVERRIDE IS CHECKED LIKE ANY OTHER PATH. Returning it unverified made
-  // `probe()` report a supervisor that was available and `ensure()` then spawn
-  // something that does not exist — which fails asynchronously, long after the
-  // call that could have reported it honestly.
+  // THE OVERRIDE IS CHECKED LIKE ANY OTHER PATH.
   const forced = process.env.LAIN_SUPERVISOR_BIN;
   if (forced) {
     try { return fs.statSync(forced).isFile() ? forced : null; } catch { return null; }
   }
-  // AN INSTALLED LAIN ships the supervisor prebuilt as native/prebuilt/lain-supervisor.exe (distribution/release.js);
-  // a development checkout builds rust/lain-supervisor and uses the newest build. A Noema-era build
-  // (noema-supervisor) is still found until it is rebuilt under the LAIN name.
+  // AN INSTALLED LAIN ships the supervisor prebuilt as native/prebuilt/lain-supervisor.exe (distribution/release.js); a development checkout builds…
   const names = process.platform === 'win32' ? ['lain-supervisor.exe', 'noema-supervisor.exe'] : ['lain-supervisor', 'noema-supervisor'];
   for (const exe of names) {
     const shipped = path.join(__dirname, '..', 'native', 'prebuilt', exe);
     try { if (fs.statSync(shipped).isFile()) return shipped; } catch { /* a development checkout */ }
   }
   const root = path.join(__dirname, '..', 'rust', 'lain-supervisor', 'target');
-  // THE NEWEST BUILD WINS, not a fixed preference for `release`. Preferring
-  // release unconditionally meant that `cargo build` (which writes debug) left
-  // a stale release binary in charge, so a change was made, tested, and had no
-  // effect — the supervisor answering was one built hours earlier. Whichever was
-  // compiled most recently is the one the developer meant.
+  // THE NEWEST BUILD WINS, not a fixed preference for `release`.
   let best = null;
   for (const p of ['release', 'debug'].flatMap((profile) => names.map((exe) => path.join(root, profile, exe)))) {
     try {
@@ -143,12 +91,7 @@ function endpoint(root = home()) {
 /** Forget cached discovery (tests that start/stop supervisors, and a refused connection). */
 function invalidate() { endpointMemo.clear(); binaryMemo = null; }
 
-/**
- * WHAT IS ACTUALLY POSSIBLE RIGHT NOW — one answer, never an exception.
- *
- * `{ available, running, why }`. Callers branch on this; nothing here decides
- * policy, and the absence of a toolchain is a normal state rather than an error.
- */
+/** WHAT IS ACTUALLY POSSIBLE RIGHT NOW — one answer, never an exception. */
 function probe() {
   const bin = binary();
   const ep = endpoint();
@@ -162,14 +105,7 @@ function probe() {
   return { available: true, running: false, endpoint: null, binary: bin, why: 'no supervisor is running' };
 }
 
-/**
- * Send one request and read one reply.
- *
- * A connection per call. These are rare, local and small, and a persistent
- * socket would be a second lifetime to manage for no measurable gain — while
- * costing exactly the property this whole component exists for, since a client
- * holding a socket open is a client whose death is visible to the server.
- */
+/** Send one request and read one reply. */
 function send(port, msg, { timeoutMs = TIMEOUT_MS } = {}) {
   return new Promise((resolve) => {
     let settled = false;
@@ -194,11 +130,7 @@ function send(port, msg, { timeoutMs = TIMEOUT_MS } = {}) {
   });
 }
 
-/**
- * SEVERAL REQUESTS, ONE CONNECTION. The server answers the lines of one connection in order (main.rs `handle`), so
- * a batch of observations costs one connect instead of one each. Replies come back in request order; a failure
- * fills every unanswered slot with the same {ok:false}.
- */
+/** SEVERAL REQUESTS, ONE CONNECTION. */
 function sendMany(port, msgs, { timeoutMs = TIMEOUT_MS } = {}) {
   if (!msgs.length) return Promise.resolve([]);
   return new Promise((resolve) => {
@@ -234,14 +166,7 @@ async function callManyIfRunning(msgs, opts = {}) {
   return sendMany(ep.port, msgs, opts);
 }
 
-/**
- * Make sure one is running, and return the endpoint.
- *
- * DETACHED, with its streams let go. That is the whole mechanism: a child that
- * shares this process's stdio and process group would be torn down with it, and
- * the requirement is precisely that it is not. `unref()` then removes it from
- * this process's event loop so LAIN can exit whenever it likes.
- */
+/** Make sure one is running, and return the endpoint. */
 const starting = new Map();
 const owned = new Map();
 
@@ -294,12 +219,7 @@ async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } 
       windowsHide: true,
       env: { ...process.env, LAIN_HOME: root },
     });
-    // A SPAWN FAILURE ARRIVES LATE, AND UNHANDLED IT IS FATAL. `spawn` reports
-    // ENOENT by emitting `error` on the child, after this function has already
-    // returned — and an 'error' event with no listener takes the whole Node
-    // process down. LAIN must never die because an optional component is
-    // missing, so the failure is absorbed here and surfaced by the readiness
-    // poll below, which is the thing that can actually report it.
+    // A SPAWN FAILURE ARRIVES LATE, AND UNHANDLED IT IS FATAL.
     child.on('error', (e) => { spawnError = e; });
     if (child.pid) {
       owned.set(child.pid, child);
@@ -336,18 +256,7 @@ async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } 
   return { available: true, running: false, endpoint: null, binary: first.binary, why: 'the supervisor did not announce a port in time' };
 }
 
-/**
- * ONE CALL TO A SUPERVISOR THAT IS ALREADY THERE — and never one that is not.
- *
- * `call` below starts one when none is running, which is right for submitting a
- * job and wrong for everything the Guardian does: guardian.js is on the input
- * path and on the turn loop's status callback, and neither may pay eight
- * seconds for a process to boot. So the two are separate functions rather than
- * a flag, because a flag on the wrong call site is a spawn nobody meant.
- *
- * Answers `{ok:false}` when nothing is listening, which every caller already
- * treats as "the runtime cannot say", the same as an unbuilt binary.
- */
+/** ONE CALL TO A SUPERVISOR THAT IS ALREADY THERE — and never one that is not. */
 async function callIfRunning(msg, opts = {}) {
   const ep = endpoint();
   if (!ep) return { ok: false, error: 'no supervisor is running' };
@@ -365,14 +274,7 @@ async function call(msg, opts = {}) {
   return send(ep.port, msg, opts);
 }
 
-/**
- * Start work that must outlive this process.
- *
- * `requestId` is the idempotency key and matters more than it looks: a client
- * that loses the connection between sending this and reading the reply does not
- * know whether the work started. Retrying with the same key returns the SAME
- * job rather than a second copy of a build. See §14 and Registry::submit.
- */
+/** Start work that must outlive this process. */
 async function submit({ command, shell = '', cwd = '', session = '', requestId = '', deadlineSecs = 0 }, opts = {}) {
   if (!command) return { ok: false, error: 'submit needs a command' };
   const request_id = requestId || `${session || 'nosession'}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
@@ -382,13 +284,7 @@ async function submit({ command, shell = '', cwd = '', session = '', requestId =
   return call({ op: 'submit', command, shell, cwd, session, request_id, deadline_secs }, opts);
 }
 
-/**
- * EXECUTION EVENTS SINCE `after` — what happened while nobody was reasoning.
- *
- * The reconnect path for the brain rather than for the job list: a worker may
- * have failed, or run out its window, at a moment when no model was connected.
- * Compact by construction — identifiers and measurements, never a log.
- */
+/** EXECUTION EVENTS SINCE `after` — what happened while nobody was reasoning. */
 async function events({ after = 0, limit = 50 } = {}, opts = {}) {
   return call({ op: 'events', after, limit }, opts);
 }
@@ -396,12 +292,7 @@ async function events({ after = 0, limit = 50 } = {}, opts = {}) {
 async function status(jobId, opts = {}) { return call({ op: 'status', job_id: jobId }, opts); }
 async function cancel(jobId, opts = {}) { return call({ op: 'cancel', job_id: jobId }, opts); }
 
-/**
- * Every job the supervisor knows about, optionally for one session.
- *
- * This is the reconnect path: a brand-new LAIN process asks and is told what
- * happened while it did not exist.
- */
+/** Every job the supervisor knows about, optionally for one session. */
 async function list({ session = '' } = {}, opts = {}) { return call({ op: 'list', session }, opts); }
 
 /** Stop the supervisor. Running workers are NOT killed — this process stops. */
@@ -423,11 +314,7 @@ async function shutdownIn(root, { timeoutMs = 3000 } = {}) {
   if (alive(ep.pid)) throw new Error(`supervisor ${ep.pid} remained after teardown in ${root}`);
 }
 
-/**
- * Build the binary. Only ever called deliberately — never on a normal start,
- * because a coding CLI that shells out to a compiler at launch is a coding CLI
- * that fails to launch on a machine without one.
- */
+/** Build the binary. Only ever called deliberately — never on a normal start, because a coding CLI that shells out to a compiler at launch is a coding… */
 function build({ release = true } = {}) {
   const dir = path.join(__dirname, '..', 'rust', 'lain-supervisor');
   const args = ['build', '--offline'];

@@ -1,71 +1,6 @@
 'use strict';
 
-/**
- * ONE LAIN — how a second launch finds the first instead of becoming a second.
- *
- * ------------------------------------------------------------------------
- * THE PROBLEM. LAIN Desktop has to be launchable on its own: from a shortcut,
- * from the Start menu, from a taskbar pin. Nobody should have to open a
- * terminal, run `lain` and type `/app` to get their application — and a window
- * that only exists because a CLI opened it is a child of a terminal, which is
- * exactly what the product is not.
- *
- * But "launchable on its own" and "one Core" are in tension. Two LAINs in one
- * account is two bot gateways polling the same Telegram token, two supervisors,
- * two model sessions, two writers on one session directory. So a direct launch
- * has to be able to DISCOVER a LAIN that is already running and hand the
- * request to it.
- *
- *                  LAIN Desktop.exe        (second launch)
- *                          │
- *                    control pipe  ──►  the LAIN already running
- *                          │                     │
- *                     (no Core found)        shows its window
- *                          │
- *                   start Core here
- *
- * ------------------------------------------------------------------------
- * WHAT THE CONTROL PIPE MAY DO, AND WHY IT IS SAFE THAT IT IS NOT AUTHENTICATED.
- *
- * This is the part to be careful about, so it is stated plainly.
- *
- * The desktop CHANNEL (harnessapp/ipc.js) carries the whole API — the
- * conversation, the sessions, a turn. It is per-run, randomly named, and its
- * first message must carry a secret handed to the child process at launch.
- * NONE of that changes, and nothing here weakens it.
- *
- * THIS pipe carries three verbs and no data:
- *
- *     show     open/focus the desktop window of the running LAIN
- *     status   is it up, since when, what is it hosting
- *     quit     shut down, through the ordinary shutdown path
- *     dashboard:<section>   open the window at MODEL › <section> (a name from a
- *              fixed list — Phase 8.3's /model manage, /account add, /api add)
- *     open     { path } — a file or folder, opened in the IDE (Windows' "Open with
- *              LAIN", 2026-09-29): a path, never a credential; it runs nothing
- *              (openpath.js)
- *
- * It reads no conversation, starts no turn, grants no permission, reveals no
- * credential and names no session. A Windows named pipe created with default
- * security is reachable by processes running as this user — and a process
- * running as this user can already read `~/.lain`, every transcript in it and
- * every credential beside them. So these three verbs give such a process
- * nothing it did not have, which is the ONLY reason an unauthenticated channel
- * is acceptable here. The moment a verb would carry more than this, it belongs
- * on the authenticated channel instead.
- *
- * `quit` is included deliberately: ending something is the direction that is
- * always safe to allow (see bin/lain-control.js, which exists on the same
- * principle).
- *
- * ------------------------------------------------------------------------
- * THE LOCK FILE IS A HINT, NOT A CLAIM.
- *
- * `core.json` records a pid and when it started. A pid is reused by the
- * operating system and a file survives a crash, so the file is never believed
- * on its own: liveness is decided by whether the CONTROL PIPE ANSWERS. A stale
- * lock therefore costs one failed connect and is then overwritten.
- */
+/** ONE LAIN — how a second launch finds the first instead of becoming a second. */
 
 const fs = require('fs');
 const net = require('net');
@@ -84,14 +19,7 @@ let announced = null;
 
 function lockFile() { return path.join(config.configDir(), 'core.json'); }
 
-/**
- * The control pipe's name.
- *
- * DERIVED, NOT RANDOM — it has to be findable by a process that has no
- * relationship to this one yet. Keyed by the config directory so two LAIN
- * installations pointed at different `~/.lain` directories (a test run, a second
- * account) are genuinely separate instances rather than fighting over one name.
- */
+/** The control pipe's name. */
 function controlPipe({ legacy = false } = {}) {
   let dir = path.resolve(config.configDir());
   // THE NOEMA ERA (2026-09-29 … 10-02) listened as noema-core-<hash of ~/.noema>: the default home before it moved.
@@ -127,12 +55,7 @@ function read() {
   } catch { return null; }
 }
 
-/**
- * ASK THE RUNNING LAIN SOMETHING. Resolves `null` when there is not one.
- *
- * @param {string} verb  'show' | 'status' | 'quit' | 'open' (with `path`)
- * @returns {Promise<object|null>}
- */
+/** ASK THE RUNNING LAIN SOMETHING. */
 async function ask(verb, opts = {}) {
   // A NOEMA-ERA CORE STILL RUNNING ON THIS HOME listens under its old name: asked second, only when no LAIN answers
   // the door at all — so a new LAIN never starts a second Core beside it.
@@ -167,12 +90,7 @@ function askOn(pipe, verb, { timeout = VERB_MS, path: target = null } = {}) {
   });
 }
 
-/**
- * IS A LAIN ALREADY RUNNING? The answer is whether it ANSWERS, not whether a
- * file exists — see the header.
- *
- * @returns {Promise<{running: boolean, pid?: number, since?: number, surface?: string}>}
- */
+/** IS A LAIN ALREADY RUNNING? */
 async function discover() {
   const lock = read();
   const reply = await ask('status', { timeout: PROBE_MS });
@@ -180,16 +98,7 @@ async function discover() {
   return { running: true, pid: reply.pid, since: reply.since, surface: reply.surface, desktop: reply.desktop, version: reply.version || null, protocol: reply.protocol == null ? null : reply.protocol };
 }
 
-/**
- * BECOME THE LAIN THIS ACCOUNT IS RUNNING.
- *
- * Fails softly: a LAIN that cannot take the lock still works completely, it is
- * simply not the one a direct Desktop launch will find. That is the right
- * failure — refusing to start because a pipe name was taken would turn a
- * cosmetic collision into an outage.
- *
- * @returns {Promise<{ok: boolean, why?: string, pipe?: string}>}
- */
+/** BECOME THE LAIN THIS ACCOUNT IS RUNNING. */
 function announce(app, { surface = 'cli' } = {}) {
   return new Promise((resolve) => {
     if (announced) { resolve({ ok: true, already: true, pipe: announced.pipe }); return; }
@@ -228,14 +137,9 @@ function announce(app, { surface = 'cli' } = {}) {
   });
 }
 
-/**
- * THE THREE VERBS. Nothing else is reachable from here, by construction: an
- * unknown verb is refused rather than falling through to anything.
- */
+/** THE THREE VERBS. Nothing else is reachable from here, by construction: an unknown verb is refused rather than falling through to anything. */
 async function handle(app, verb, { surface, path: target = null }) {
   // OPEN A FILE OR FOLDER (Windows "Open with LAIN", 2026-09-29): the project it belongs to and the file, in the IDE.
-  // It carries a PATH and nothing else, runs nothing and grants nothing (openpath.js) — a process running as this
-  // user could open that file itself — which is what keeps it inside this pipe's rule.
   if (verb === 'open') {
     try {
       const r = await require('./openpath').open(app, target);
@@ -253,9 +157,7 @@ async function handle(app, verb, { surface, path: target = null }) {
     return { ok: true, pid: process.pid, since: announced ? announced.since : 0, surface, desktop, ...(build || {}) };
   }
   if (verb === 'show' || verb === 'show:minimized') {
-    // THE RUNNING LAIN OPENS ITS OWN WINDOW. The launcher that asked does not
-    // get a channel, a secret or a handle — it gets a yes or a no. `show:minimized` is a sign-in launch with
-    // "Start minimized" (startup.js): the window opens minimized, or an existing one is left where it is.
+    // THE RUNNING LAIN OPENS ITS OWN WINDOW.
     try {
       const r = await require('./desktopwindow').open(app, { minimized: verb === 'show:minimized' });
       return { ok: Boolean(r.ok || r.already), already: Boolean(r.already), why: r.why || '' };
@@ -287,10 +189,7 @@ async function handle(app, verb, { surface, path: target = null }) {
     } catch (e) { return { ok: false, why: (e && e.message) || String(e) }; }
   }
   if (verb === 'quit') {
-    // THROUGH THE ONE SHUTDOWN SEQUENCE — src/teardown.js — and on the next tick
-    // so this answer is written before the process starts tearing itself down.
-    // A `quit` that skipped the sequence would leave exactly the orphans the
-    // sequence exists to prevent.
+    // THROUGH THE ONE SHUTDOWN SEQUENCE — src/teardown.js — and on the next tick so this answer is written before the process starts tearing itself down.
     app.wantExit = true;
     setTimeout(async () => {
       try { await require('./teardown').shutdown(app, { why: 'you quit LAIN' }); } catch { /* going anyway */ }

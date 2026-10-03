@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * EXECUTION DISCIPLINE — LAIN owns it; the model owns judgment (packaging-pass consolidation, §1).
- *
- *     REQUEST → requested observable outcome → BELIEF / EVIDENCE STATE (facts, provenance, freshness, unknowns,
- *     hypotheses, explicit asks, acceptance criteria, check states) → choose a useful observation or action →
- *     act / inspect → observe → classify → update belief → … → stop when the outcome is evidenced, blocked,
- *     disproven, or genuinely needs a decision.
- *
- * One `Discipline` per task, held by the task's Lifecycle (so it is task-scoped and survives save/resume with it).
- * Its parts:  contract.js (outcome, asks, criteria, facts) · checks.js (CheckState) · integrity.js (test edits) ·
- * claims.js (typed claims) · arbiter.js (completion) · retry.js (no blind retries) · profile.js (capability →
- * discretion) · dialect.js (tool vocabulary per model family) · constitution.js (the short standing policy and
- * .lain/LAIN.md) · digest.js (what survives compaction and handover).
- */
+/** EXECUTION DISCIPLINE — LAIN owns it; the model owns judgment (packaging-pass consolidation, §1). */
 
 const { Contract } = require('./contract');
 const { CheckLedger } = require('./checks');
@@ -37,9 +24,7 @@ class Discipline {
     if (/^preview(_|$)/.test(String(name))) {   // the one preview tool (S9): its action names the observation
       return this.checks.observation({ tool: name === 'preview' ? `preview_${(input && input.action) || 'read'}` : name, target: (input && (input.target || input.key || input.keys || null)) || null, actor: 'MODEL', ok: ok !== false, text: output, gen });
     }
-    // `observe` ON A LIVE GOAL (element, page, screen, errors, requests…) is a runtime observation too — a DOM
-    // measurement is exactly the evidence a "move it 6px" criterion needs (a real GLM run was refused for lack of it,
-    // 2026-10-01). Its file/code/changes goals are reads, not observations of the running thing.
+    // `observe` ON A LIVE GOAL (element, page, screen, errors, requests…) is a runtime observation too — a DOM measurement is exactly the evidence a "move…
     if (name === 'observe' && input && !input.receipt && !/^(file|code|changes)$/i.test(String(input.goal || ''))) {
       return this.checks.observation({ tool: 'observe', target: { goal: input.goal || null, selector: input.selector || null, url: input.url || null }, actor: 'MODEL', ok: ok !== false, text: output, gen });
     }

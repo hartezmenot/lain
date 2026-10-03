@@ -106,11 +106,7 @@ function levelsFor(fam, entry, pinned) {
   return entry.efforts.slice();
 }
 
-/**
- * WHAT THE EFFORT CONTROL OFFERS (2026-10-02): the model's NATIVE levels when it has them (source 'provider' — sent
- * to the provider exactly as declared), otherwise LAIN's Low / High / Max (source 'lain' — LAIN's execution depth:
- * context, tools, exploration, delegation; never sent to the model and never presented as hidden reasoning).
- */
+/** WHAT THE EFFORT CONTROL OFFERS (2026-10-02): the model's NATIVE levels when it has them */
 function offered(fam, entry, pinned) {
   const l = levelsFor(fam, entry, pinned);
   return l.length ? { levels: l, source: 'provider' } : { levels: caps().LAIN_LEVELS.slice(), source: 'lain' };
@@ -193,9 +189,7 @@ function lane(app, session = app.session, which = 'coding') {
   if (!acct && !fam && account.value && !implicit) { needs = 'account'; why = `the account "${account.value}" is not configured here`; }
   const b = acct && fam ? fam.accounts.find((x) => x.id === acct.id) : null;
   const effortLabel = effort ? caps().label(effort) : (levels && levels.length ? 'Default' : '');
-  // THE CANONICAL ROUTE (2026-09-29): source › model › effort › execution, and only when it RESOLVES. A half-resolved
-  // lane ("Select provider · GPT-6 Sol", a keyless "Z.ai API · GLM 5.3 Flash") is never drawn: every surface shows
-  // `display.text`, which is the whole route or "Select model" — with `display.problem` saying why when a choice broke.
+  // THE CANONICAL ROUTE (2026-09-29): source › model › effort › execution, and only when it RESOLVES.
   const resolved = Boolean(route);
   const execution = (() => { try { return require('./profile').of(s, root(app).cfg); } catch { return 'NORMAL'; } })();
   // A ROUTE CAN RESOLVE WITHOUT A FAMILY: a connection the fabric does not group (a localhost OpenAI-compatible
@@ -245,17 +239,7 @@ function roleGate(r, modelId, rt, L, A) {
   return gate.ok ? null : gate;
 }
 
-/**
- * CHOOSE — the one write every surface makes. Passive: nothing is sent.
- *
- *   family            the provider family; the model is kept when the family
- *                     offers it, else the family's declared default, else the
- *                     lane waits for a model. The backing account follows policy.
- *   account           a specific backing account (the family follows it)
- *   model             must be offered by the lane's family; a model offered by
- *                     one other family only moves the lane to that family
- *   effort            must be a level the model declares ('auto' = its default)
- */
+/** CHOOSE — the one write every surface makes. */
 async function choose(app, session, { lane: which = 'coding', family, account, model, effort, _apply = false } = {}) {
   // CHOSEN, SO NO LONGER NEWS (modelcatalog.js): the NEW mark ends when the model is selected.
   if (model && family) { try { require('./modelcatalog').seen(String(family).startsWith('api:') ? family : family, model); } catch { /* a marker */ } }
@@ -266,9 +250,7 @@ async function choose(app, session, { lane: which = 'coding', family, account, m
   const L = which === 'chat' ? 'chat' : 'coding';
   const li = laneState(session, L);
   const cur = lane(app, session, L);
-  // A CHOICE MADE WHILE THIS LANE IS WORKING waits for the next safe turn boundary (pending_backing_account_id):
-  // the request in flight keeps the account it started on, and is never cut off for the switch. The person's Stop
-  // is the only thing that ends a run early. It is validated when it is applied.
+  // A CHOICE MADE WHILE THIS LANE IS WORKING waits for the next safe turn boundary (pending_backing_account_id): the request in flight keeps the account…
   if (!_apply && cur.account && (family !== undefined || account !== undefined || model !== undefined || effort !== undefined) && laneBusy(session, cur)) {
     if (account) { const a = A.accountFor(app, account); if (!a) return { ok: false, code: 'NO_ACCOUNT', why: `no account "${account}" is configured` }; if (!a.usable) return { ok: false, code: 'ACCOUNT_UNUSABLE', why: `${a.name}: ${a.why}` }; }
     if (family) { const f = F.family(app, family); if (!f) return { ok: false, code: 'NO_FAMILY', why: `no provider "${family}" is connected` }; }
@@ -363,10 +345,7 @@ function laneBusy(session, cur) {
   try { return require('./accountwork').busyAccount(cur.account).length > 0; } catch { return false; }
 }
 
-/**
- * THE TURN BOUNDARY: a choice that waited for a running request is applied now, validated as any choice is. One
- * that no longer holds (the account was detached meanwhile) is dropped, and the person is told.
- */
+/** THE TURN BOUNDARY: a choice that waited for a running request is applied now, validated as any choice is. */
 async function applyPending(app, session = app.session) {
   const out = [];
   for (const L of ['chat', 'coding']) {
@@ -438,13 +417,7 @@ function accountsFor(app, modelId) {
 
 const EFFORTS = ['auto', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
-/**
- * SET one choice at one layer. `value` null clears that layer (the next layer
- * down takes over). A SESSION choice is `choose`. A DEFAULT (project / global)
- * stores the FAMILY with the model — never a model name that resolves through
- * whichever route reaches it first, and a backing account only when pinned.
- * Reasoning is per lane: `which` names it (default: the lane in front).
- */
+/** SET one choice at one layer. */
 async function set(app, session, { lane: part, field, value = null, scope = 'session', which: whichLane = null } = {}) {
   if (!['session', 'project', 'global'].includes(scope)) return { ok: false, why: 'scope is session, project or global' };
   if (!['bot', 'chat', 'coding', 'reasoning'].includes(part)) return { ok: false, why: 'the choice is chat, coding or reasoning' };

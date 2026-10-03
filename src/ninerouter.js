@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * 9ROUTER AS A SOURCE (Phase 8.1) — adopt the accounts the person already
- * connected in 9Router (Antigravity, Claude, Codex, Kiro, Copilot …) instead of
- * signing in to them again.
- *
- *     LAIN → modelrequest → the 9Router connection (its OpenAI-compatible
- *     endpoint, usually http://127.0.0.1:20128/v1) → 9Router → the account
- *
- * 9ROUTER IS AUTH AND TRANSPORT, NOT LAIN'S BRAIN. LAIN keeps sessions, plans,
- * compaction, handover, tools and project state; 9Router only carries a request
- * to an account it already holds.
- *
- * NOTHING IS TAKEN FROM 9ROUTER. Discovery reads 9Router's model catalog — the
- * one LAIN's own connection to 9Router already discovered (connections.js cache,
- * fetched with the access key the person gave LAIN; 9Router 0.5.91 wants that
- * key even for `/v1/models`) — and groups it by the provider prefix 9Router
- * puts on every id (`ag/…` Antigravity, `cx/…` Codex …). Only with no LAIN
- * connection yet is 9Router asked directly (no key, no inference, no quota).
- * 9Router's dashboard API needs its own login and is never called; its data
- * folder (auth, db) is never read. OAuth tokens stay inside 9Router. Requests go
- * through the LAIN connection that points at 9Router, with the 9Router access
- * key the person gave LAIN (kept in the Windows secret store) when it wants one.
- *
- *   status(app)          installed? running? which LAIN connection is 9Router's?
- *   providers(app)       the providers 9Router serves, with model counts, adopted or not
- *   adopt(app, prefix)   add that provider as a LAIN source ("Source: 9Router")
- *   detach(app, prefix)  remove LAIN's reference — the account in 9Router is untouched
- */
+/** 9ROUTER AS A SOURCE (Phase 8.1) — adopt the accounts the person already connected in 9Router (Antigravity, Claude, Codex, Kiro, Copilot …) instead of… */
 
 const fs = require('fs');
 const path = require('path');
@@ -61,12 +34,7 @@ function isNineRouterUrl(u) {
   try { const x = new URL(String(u || '')); return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(x.hostname) && Number(x.port) === PORT; } catch { return false; }
 }
 
-/**
- * THE LAIN CONNECTIONS THAT ARE 9ROUTERS — one rule, the account catalog's: a
- * connection declared `provider: '9router'`, or one at 9Router's own local
- * address. (This used to know only the address, so a 9Router the catalog listed
- * was "not connected" here, and adopting from it made a second connection.)
- */
+/** THE LAIN CONNECTIONS THAT ARE 9ROUTERS — one rule, the account catalog's: a connection declared `provider: '9router'`, or one at 9Router's own local… */
 function connections9(app) {
   const conns = cfgOf(app).connections || {};
   // PRESENCE ONLY — whether a key is configured, never the key (credentials stay with the transport).
@@ -145,11 +113,7 @@ async function providers(app, connId = null) {
   return { ok: true, status: st, providers: out };
 }
 
-/**
- * ADOPT: a provider 9Router already holds becomes a LAIN source. When LAIN has
- * no connection to 9Router yet, one is created (no key: the person adds the
- * 9Router access key if their 9Router requires one). Nothing is sent to a model.
- */
+/** ADOPT: a provider 9Router already holds becomes a LAIN source. */
 async function adopt(app, prefix, { key = null } = {}) {
   // THE ACCOUNT THE PERSON CLICKED — `<9Router connection>:<provider>` — names its 9Router exactly;
   // a bare provider ("cx") means the first 9Router LAIN knows.

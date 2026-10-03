@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * THE CLI AND UPDATES (packaging pass §I). One updater (updater.js); this is only the CLI's policy over it.
- *
- *   CHECK      once, 30 s after an interactive CLI starts, then at most every six hours (cached) — never a loop.
- *   STAGE      download + verify + unpack in the background, independent of whatever task is running.
- *   SAY IT     once per version, in the words every surface uses (update/ux.js): "↑ LAIN X ready to update", then
- *              "✓ Update installed · Restart to activate". The header carries the same words until it is done.
- *   NEVER BY ITSELF (Phase 7): LAIN does not restart because it found an update — the launcher starts the installed
- *              version next time anyway. The person chooses /update now (only when nothing is working) ·
- *              /update after-checkpoint · /update after-task · /update later. The active task is never killed.
- */
+/** THE CLI AND UPDATES (packaging pass §I). */
 
 // LAIN_UPDATE_IDLE_MS / LAIN_UPDATE_FIRST_CHECK_MS shorten the waits for the acceptance run; nothing else changes.
 const IDLE_MS = Number(process.env.LAIN_UPDATE_IDLE_MS) > 0 ? Number(process.env.LAIN_UPDATE_IDLE_MS) : 60 * 1000;
@@ -50,11 +40,7 @@ function start(app) {
   return { first, every };
 }
 
-/**
- * THE HARNESS: CHECK ONLY. The window's Update button (beside Usage) appears when the check finds a release; the
- * person downloads and restarts from there (harnessapp/updateroutes.js) — a graphical session is never restarted
- * or even downloaded into by itself. Same cadence, same unref'd timers.
- */
+/** THE HARNESS: CHECK ONLY. */
 function watch(app) {
   if (!U().installRoot() || process.env.LAIN_NO_UPDATE_CHECK === '1') return null;
   const check = () => U().check({ cfg: app.cfg }).then(() => { try { require('../harnessapp/ipc').wake(); } catch { /* no window */ } }, () => null);
@@ -117,11 +103,7 @@ async function oneShot(args = []) {
   return 0;
 }
 
-/**
- * AFTER THE LAUNCHER RESTARTED INTO A NEW VERSION (`--after-update`): say so, and — when the session had unfinished
- * plan work (it was paused at a committed checkpoint for the restart) — continue it from that checkpoint, the same way
- * ▶ Continue does. The position is the durable commit, so the task resumes exactly where it stopped.
- */
+/** AFTER THE LAUNCHER RESTARTED INTO A NEW VERSION (`--after-update`): say so, and — when the session had unfinished plan work */
 function afterRestart(app) {
   const b = U().build();
   const st = U().readState();

@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * LAIN SKILLS — one index over three scopes; METADATA ONLY until a skill is used (Phase CAP, 2026-10-02).
- *
- *   project  <project>/.lain/skills/<skill>/SKILL.md        (a Noema-era .noema/skills is read the same way)
- *   user     <home>/skills/<skill>/SKILL.md                 (~/.lain/skills; the Skills Hub installs here too)
- *   plugin   an ENABLED plugin's declared skills            (plugins.js — `skills: [{ name, path }]`)
- *
- * A NAME IS ONE SKILL: project shadows user shadows plugin, and the shadowed ones are reported, never merged.
- *
- * THE INDEX is front matter only — name, description, flags — read from the first 4 KB of each SKILL.md and cached by
- * modification time. A turn is told names and one-line descriptions (prompt(), bounded); the BODY is read when the
- * model calls `use_skill` or the person types `/skill <name>` / `/<name>`. A hundred installed skills cost the prompt
- * a bounded list and nothing else.
- *
- * FRONT MATTER LAIN READS
- *   name, description                 required (a `# Heading` stands in for a missing name)
- *   manual_only: true                 never offered to the model; only `/skill <name>` or `/<name>` runs it
- *                                     (`disable-model-invocation: true` is read as the same thing)
- *   context: scout                    runs in an ISOLATED read-only SCOUT subagent; only its result comes back
- *   allowed-tools, argument-hint      shown; `allowed-tools` is advisory (the role's tools are the boundary)
- *
- * A SKILL IS INSTRUCTIONS. Nothing in a skill folder is executed by LAIN on its own; scripts beside SKILL.md are
- * listed so the model can run them through the ordinary, gated shell tools when the instructions say so.
- * A user skill registered as DISABLED (the Hub installs a skill with scripts disabled) stays out of the index.
- */
+/** LAIN SKILLS — one index over three scopes; METADATA ONLY until a skill is used (Phase CAP, 2026-10-02). */
 
 const fs = require('fs');
 const path = require('path');
@@ -156,10 +132,7 @@ function signature(roots, files) {
   return [...roots.map((r) => `${r}:${mtime(r)}`), ...files.map((f) => `${f}:${mtime(f)}`)].join('|');
 }
 
-/**
- * THE INDEX for a project (or none): { skills: [...winners], shadowed: [...], byName: Map }. Cheap when nothing
- * changed: a stat of each root and each SKILL.md, at most every STAT_TTL_MS.
- */
+/** THE INDEX for a project (or none): { skills: [...winners], shadowed: [...], byName: Map }. */
 function index({ cfg = null, projectRoot = null, configDir = null, now = Date.now() } = {}) {
   const key = `${projectRoot || ''}|${configDir || ''}|${homeDir()}`;
   const hit = cache.get(key);
@@ -180,7 +153,7 @@ function index({ cfg = null, projectRoot = null, configDir = null, now = Date.no
     ...scanRoot(uRoot, 'user', { disabled: reg.disabled }),
     ...reg.extra.map((f) => entry(f, 'user')).filter(Boolean),
     ...pluginSkills(configDir),
-    ...(require('./simple').on(cfg) ? scanRoot(path.join(__dirname, '..', 'skills'), 'builtin') : []),   // shipped with LAIN (migrate); simple mode only, lowest precedence
+    ...scanRoot(path.join(__dirname, '..', 'skills'), 'builtin'),   // shipped with LAIN (migrate), lowest precedence
   ];
   const byName = new Map();
   const shadowed = [];
@@ -213,7 +186,7 @@ function prompt(app, session = null) {
   const shown = list.slice(0, LISTED);
   const lines = shown.map((e) => `- ${e.name}: ${e.description.slice(0, DESC_CHARS)}${e.description.length > DESC_CHARS ? '…' : ''}${e.context === 'scout' ? ' [runs as a scout]' : ''}`);
   const more = list.length - shown.length;
-  return `# Skills\nLoad a skill with ${require('./simple').on(app) ? 'the Skill tool' : 'use_skill(name)'} when the task matches it — never all of them.${more > 0 ? ` ${more} more: ${require('./simple').on(app) ? 'tool_search' : 'search_capabilities'} finds them.` : ''}\n${lines.join('\n')}`;
+  return `# Skills\nLoad a skill with the Skill tool when the task matches it — never all of them.${more > 0 ? ` ${more} more: tool_search finds them.` : ''}\n${lines.join('\n')}`;
 }
 
 /** THE BODY, read now: instructions (bounded) and the files beside them. */
@@ -232,10 +205,7 @@ function find(app, name, session = null) {
   return idx.byName.get(slug(name)) || null;
 }
 
-/**
- * WHAT A SLASH INVOCATION SENDS (`/skill <name> args` or `/<name> args`): the skill's instructions and the person's
- * request, as one message. A scout skill is marked so the turn delegates it (expandFor returns { scout: true }).
- */
+/** WHAT A SLASH INVOCATION SENDS (`/skill <name> args` or `/<name> args`): the skill's instructions and the person's request, as one message. */
 function expand(app, name, args = '') {
   const e = find(app, name);
   if (!e) return { ok: false, why: `no skill named "${name}" — /skill list shows what is installed` };

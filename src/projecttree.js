@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * A PROJECT AS A TREE, AND WHETHER IT HAS A CAPABILITY (split from compare.js in S9, when /compare moved to tools/dev):
- * `scanDir` walks a folder into `{ files, read(rel) }`; `detect` answers from paths and, where a capability lives inside
- * a shared file, from content. Used by /health, the audit and troubleshooting.
- */
+/** A PROJECT AS A TREE, AND WHETHER IT HAS A CAPABILITY (split from compare.js in S9, when /compare moved to tools/dev): `scanDir` walks a folder into… */
 
 const fs = require('fs');
 const path = require('path');

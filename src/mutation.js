@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * THE MUTATION TRANSACTION — one lifecycle for every LAIN-controlled source write.
- *
- * ------------------------------------------------------------------------
- * WHAT IT REPLACES. Audited before this was written, the lifecycle of a write
- * was spread over three places that did not know about each other:
- *
- *     turn.js         captured a checkpoint — only when the input had `path`, so
- *                     `move_file`, `rename_symbol` and `migration_activate`
- *                     wrote with no way back
- *     tools/index.js  ran the parse and lint checks, appended notes, decided nothing
- *     tools/edit.js   the per-file stale checks (staleness, foreignWrite, noInspection)
- *
- * There was no baseline, no verdict, no revert and no receipt, and no place a
- * work order could be checked. The edit tools themselves are good and are not
- * rewritten; their stale checks stay where they are. What is new is the ONE
- * lifecycle around them:
- *
- *     CHANGE REQUEST → AUTHORITY / WORK ORDER → BASELINE → STALE → CHECKPOINT
- *       → APPLY → STRUCTURAL VERIFY (parse · lint · scope) → PROJECT REFRESH
- *       → VERIFY CONTRACT → KEEP | REVERT → RECEIPT
- *
- * Every source mutator reaches it through `tools/index.js:execute`, and a
- * worker proposal reaches it through proposal.js. Shell commands are NOT source
- * mutations in this sense — nothing can know their targets in advance — and are
- * covered by the dirty tracker (freshness.js) instead.
- *
- * ------------------------------------------------------------------------
- * KEEP IS THE MAIN EXECUTOR'S DEFAULT, AND THAT IS DELIBERATE. A multi-step
- * refactor passes through states that do not parse; reverting each one would
- * make the refactor impossible. The structural result is still recorded and
- * still told to the model, exactly as before. REVERT is the verdict when the
- * authority says the change may not stand: a bounded worker whose write broke
- * the file, left its scope, or failed the verification it was committed under;
- * or any caller that supplied a verification which failed.
- *
- * REVERT NEVER DESTROYS A CONCURRENT CHANGE. A file still holding exactly what
- * the transaction wrote is restored whole. A file somebody changed since has
- * only the transaction's own hunk reversed, located by its context; when that
- * cannot be done unambiguously the file is left alone and the verdict says
- * REVERT_CONFLICT rather than guessing.
- */
+/** THE MUTATION TRANSACTION — one lifecycle for every LAIN-controlled source write. */
 
 const fs = require('fs');
 const path = require('path');
@@ -58,21 +17,7 @@ const VERDICT = Object.freeze({
 
 const MAX_RECEIPTS = 60;
 
-/**
- * WHO MADE THE CHANGE. One transaction lifecycle for every actor; the actor
- * decides attribution, never the path the bytes took.
- *
- *   USER    the person — an editor save, a create / rename / delete / replace
- *           in the IDE, a rename the person asked the language server for
- *   MODEL   a model's tool call (the Coding Agent, a worker)
- *   CORE    Core itself, on the person's request, with no model (the
- *           deterministic geometry and selection jobs)
- *   TOOL    an attached tool acting for the person: an extension's edit, a
- *           git operation that rewrote the working tree
- *
- * `ctx.origin` refines provenance where the ledger has a sharper word:
- * 'FORMATTER', 'extension:<id>', 'language-server', 'git'.
- */
+/** WHO MADE THE CHANGE. */
 const ACTOR = Object.freeze({ USER: 'USER', MODEL: 'MODEL', CORE: 'CORE', TOOL: 'TOOL' });
 
 function provenanceSource(actor, origin) {
@@ -98,14 +43,7 @@ function isSourceMutation(name) {
   return PATH_TOOLS.has(name) || name === 'move_file' || name === 'rename_symbol' || name === 'migration_activate';
 }
 
-/**
- * WHAT A CALL WILL TOUCH, known BEFORE it runs.
- *
- * @returns {Promise<{paths:string[], delegated:boolean}|null>} null when the
- *   call is not a source mutation at all (a rename dry run, for instance).
- *   `delegated` marks a tool that owns its own checkpoint and rollback
- *   (`migration_activate`), whose targets are only known from its result.
- */
+/** WHAT A CALL WILL TOUCH, known BEFORE it runs. */
 async function targetsOf(name, input, ctx) {
   const inp = input && typeof input === 'object' ? input : {};
   const cwd = (ctx && ctx.cwd) || process.cwd();
@@ -127,14 +65,7 @@ async function targetsOf(name, input, ctx) {
 /** The one snapshot primitive lives in checkpoint.js. */
 const { snapshot } = require('./checkpoint');
 
-/**
- * REVERSE ONLY THIS TRANSACTION'S HUNK in a file that has changed since.
- *
- * The change is `before → after` bounded by their common prefix and suffix. Its
- * `after` text, with as much surrounding context as still matches exactly once
- * in the current file, is replaced by the corresponding `before` text. Returns
- * the new text, or null when there is no unambiguous place to do it.
- */
+/** REVERSE ONLY THIS TRANSACTION'S HUNK in a file that has changed since. */
 function reverseHunk(before, after, now) {
   const B = String(before);
   const A = String(after);
@@ -228,18 +159,7 @@ function refused(tx, verdict, output, ctx) {
   return { output, isError: true, mutated: [], transaction: summary(tx), [verdict === VERDICT.STALE ? 'stale' : 'denied']: true };
 }
 
-/**
- * RUN ONE CHANGE THROUGH THE WHOLE LIFECYCLE.
- *
- * @param {object} o
- *   `name`, `input`  the change request
- *   `ctx`            the tool context: cwd, session, checkpoints, turnId,
- *                    workOrder, verify, revertOnStructural
- *   `apply`          async () => tool result — the mutation itself
- *   `targets`        explicit absolute paths, for a caller that is not a tool
- *                    (a proposal commit); otherwise derived from the request
- *   `baselineExtra`  { rel: fingerprint } a proposal was computed against
- */
+/** RUN ONE CHANGE THROUGH THE WHOLE LIFECYCLE. */
 async function transact({ name, input = {}, ctx = {}, apply, targets = null, baselineExtra = null }) {
   const cwd = ctx.cwd || process.cwd();
   const session = ctx.session || null;
@@ -421,22 +341,7 @@ async function transact({ name, input = {}, ctx = {}, apply, targets = null, bas
   };
 }
 
-/**
- * WHAT EVERY KEPT CHANGE MEANS FOR THE REST OF CORE — once, here, whoever made
- * it. Before this lived in five places (the editor save route, turnclose, the
- * geometry and selection jobs, and each writer's own ledger call), and a path
- * that forgot one left the project generation, the GUG or the provenance
- * ledger describing a project that no longer existed.
- *
- *   provenance       editledger.record — who wrote which lines
- *   generation       harnesscontext.noteSourceEdit — the ONE project
- *                    generation, the GUG nodes the file sizes marked stale,
- *                    the recent-actions ledger, the journey
- *   PROJECT_DELTA    one event per transaction with the files and the actor
- *
- * (freshness, evidence invalidation and the receipt are done above, in the
- * lifecycle itself.)
- */
+/** WHAT EVERY KEPT CHANGE MEANS FOR THE REST OF CORE — once, here, whoever made it. */
 function consequences(ctx, tx, changed, { cwd, session, name, input }) {
   const source = provenanceSource(tx.actor, tx.origin);
   const by = { USER: 'user', MODEL: 'agent', CORE: 'core', TOOL: 'tool' }[tx.actor] || 'agent';
@@ -471,19 +376,7 @@ function consequences(ctx, tx, changed, { cwd, session, name, input }) {
   tx.generation = generation;
 }
 
-/**
- * A CHANGE THAT IS NOT A MODEL'S TOOL CALL — the person's save in the editor,
- * a create / rename / delete / replace in the IDE, a rename the person asked
- * the language server for, an extension's edit, a git operation that rewrote
- * the working tree. The SAME lifecycle as a tool write (baseline, checkpoint
- * when it is a model's, apply, structural check, freshness, evidence
- * invalidation, receipt, and `consequences`: provenance, the one project
- * generation, the GUG, PROJECT_DELTA) — only the actor differs.
- *
- * `targets` are absolute file paths known before the write; `write` performs
- * it and returns the caller's own result object (kept on the reply). A write
- * that turns out to touch other files names them in `mutated`.
- */
+/** A CHANGE THAT IS NOT A MODEL'S TOOL CALL — the person's save in the editor, a create / rename / delete / replace in the IDE, a rename the person… */
 async function change(app, { actor = ACTOR.USER, origin = null, name, targets, write, what = '' }) {
   const session = app && app.session;
   const ctx = {

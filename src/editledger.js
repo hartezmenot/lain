@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * CORE'S CHANGE PROVENANCE — who changed which lines, recorded WHEN it happened.
- *
- * Core owns this record; Laya and the context compilers READ it (they never
- * write or decide provenance).
- *
- * ------------------------------------------------------------------------
- * WHY NOT GIT. A diff says what changed and nothing about who: a line the
- * person typed in the editor and a line the Coding Agent wrote look the same
- * in `git diff`, and by the time anyone asks "what did I change?" the only
- * honest answer left is a guess. So the origin is captured at the one moment
- * it is known:
- *
- *   USER        the IDE editor saved it (POST /api/files/save)
- *   FORMATTER   the editor saved a change its formatter made, and nothing else
- *   AGENT       a LAIN-controlled write — every one passes mutation.js, the
- *               single transaction around source writes; its task id is kept
- *   BOT         reserved: the BOT does not write (tools/index.js refuses it)
- *   EXTENSION   reserved for extension-made edits (none run today)
- *   EXTERNAL    the file changed on disk and LAIN did not write it — seen when
- *               LAIN next looked; WHICH lines is unknown and is said so
- *   UNKNOWN     a caller that could not say
- *
- * ------------------------------------------------------------------------
- * TWO RECORDS, BOTH MACHINE-LOCAL (LAIN's config folder, never the project):
- *
- *   <configDir>/provenance/<projectId>.jsonl     append-only history: one line
- *                                                per change, bounded by rotation
- *   <configDir>/provenance/<projectId>.state.json per file: its last known hash
- *                                                and its REGIONS — which source
- *                                                wrote which lines NOW
- *
- * The regions are the part a history cannot give you. "The person edited lines
- * 72–91" is stale the moment the Agent adds ten lines above them; here every
- * later change SHIFTS earlier regions and clips what it overwrote, so the
- * answer is about the file as it stands. When a change's lines cannot be known
- * (an EXTERNAL write), the file's regions are kept but marked approximate.
- *
- * EVIDENCE, NOT OWNERSHIP. Nothing here locks a line or refuses a write. The
- * Agent is TOLD that the person edited a region recently (focuspacket.js) and
- * decides with that in hand — the task decides what may change.
- */
+/** CORE'S CHANGE PROVENANCE — who changed which lines, recorded WHEN it happened. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -76,12 +35,7 @@ function relOf(root, p) {
 
 function lines(text) { return String(text == null ? '' : text).replace(/\r\n/g, '\n').split('\n'); }
 
-/**
- * THE CHANGED HUNKS between two texts, in OLD coordinates, 0-based:
- * [{ os, oc, ns, nc }] — old start/count replaced by new start/count. Common
- * prefix and suffix are trimmed first; the middle is an exact LCS when it is
- * small enough and one hunk when it is not (a coarser answer, never a wrong one).
- */
+/** THE CHANGED HUNKS between two texts, in OLD coordinates, 0-based: [{ os, oc, ns, nc }] — old start/count replaced by new start/count. */
 function hunks(before, after) {
   const a = lines(before), b = lines(after);
   let p = 0;
@@ -113,11 +67,7 @@ function hunks(before, after) {
 
 // ---- regions ---------------------------------------------------------------------------
 
-/**
- * APPLY ONE CHANGE TO A FILE'S REGIONS. Regions are 0-based half-open
- * [start, end) line spans with a source. Hunks go bottom-up so each one's old
- * coordinates are still valid when it is applied.
- */
+/** APPLY ONE CHANGE TO A FILE'S REGIONS. */
 function applyToRegions(regions, hs, entry) {
   let rs = (regions || []).slice();
   const sorted = hs.slice().sort((x, y) => y.os - x.os);
@@ -147,10 +97,7 @@ function applyToRegions(regions, hs, entry) {
 // ---- storage ----------------------------------------------------------------------------
 
 const cache = new Map();   // projectId -> state
-// THE STATE FILE IS SHARED BY EVERY PROCESS on the project (the Harness and a
-// CLI): a cached copy is used only while the file is the one it was read from.
-// Otherwise the Harness would mistake a CLI's recorded edit for an EXTERNAL one
-// and then write its stale copy over the CLI's record.
+// THE STATE FILE IS SHARED BY EVERY PROCESS on the project (the Harness and a CLI): a cached copy is used only while the file is the one it was read…
 function stampOf(f) { try { const st = fs.statSync(f); return `${st.mtimeMs}:${st.size}`; } catch { return null; } }
 function load(root) {
   const id = pid(root);
@@ -194,11 +141,7 @@ function append(root, entry) {
 
 // ---- recording --------------------------------------------------------------------------
 
-/**
- * ONE CHANGE, at the moment it is made. `before`/`after` are the file's text;
- * `before: null` is a new file. Returns the entry, or null when nothing changed.
- * Never throws: provenance is a record, and a record must not cost a save.
- */
+/** ONE CHANGE, at the moment it is made. */
 function record(root, { source = SOURCE.UNKNOWN, path: p, before = null, after = null, sessionId = null, taskId = null, actor = null, tool = null } = {}) {
   try {
     if (!root || !p) return null;
@@ -232,12 +175,7 @@ function record(root, { source = SOURCE.UNKNOWN, path: p, before = null, after =
   } catch { return null; }
 }
 
-/**
- * LAIN LOOKED AT A FILE. If it is not what LAIN last recorded, somebody outside
- * LAIN changed it: an EXTERNAL entry, lines unknown, and the file's regions are
- * marked approximate from here on. Files LAIN has never recorded are ignored —
- * there is no "before" to differ from.
- */
+/** LAIN LOOKED AT A FILE. */
 function observe(root, p, text, { sessionId = null } = {}) {
   try {
     const rel = relOf(root, p);
@@ -288,11 +226,7 @@ function regions(root, p) {
   };
 }
 
-/**
- * THE PERSON'S RECENT HAND-EDITS in these files — what the Coding Agent must be
- * told before it works there. Regions as they stand now, so the line numbers
- * are the file's current ones.
- */
+/** THE PERSON'S RECENT HAND-EDITS in these files — what the Coding Agent must be told before it works there. */
 function recentUserEdits(root, rels, { withinMs = 24 * 3600_000 } = {}) {
   const now = Date.now();
   const out = [];

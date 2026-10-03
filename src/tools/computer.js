@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * computer — LAIN's own operations on the machine.
- *
- *     model → this tool → LAIN owns the aim, the order and the evidence
- *                       → a transport performs the syscall
- *
- * THE OWNERSHIP CORRECTION. Every operation on the machine used to be spelled
- * in a FOREIGN vocabulary (`probe(op:"input.mouse.click")`), which made the
- * Probe the owner of clicking, typing, focusing and seeing, and LAIN a pipe.
- * Here the model names what it WANTS — `click`, `focus`, `screenshot` — and
- * LAIN decides how, whether, and what may be claimed afterwards. Which bridge
- * carries it is an implementation detail the model never has to learn.
- *
- * THE RAW INSTRUMENT IS NOT THIS. Memory, breakpoints, disassembly and
- * findings belong to an external instrument (lain-probe, owned by the LAIN
- * Harness, not this CLI) — screen and input are not that: they are how anyone
- * uses a computer, and LAIN owns them. (The raw `probe` tool that exposed the
- * instrument directly — `probe{op:"memory.read"}` — was removed from LAIN CLI
- * with the Probe integration in 2026-09; the desktop bridge below is the only
- * transport.)
- *
- * IT ONLY EXISTS WHEN SOMETHING CAN CARRY IT. `tools/index.js` includes this
- * only while a transport is connected, so an ordinary coding session is never
- * told the machine can be driven — and cannot try.
- *
- * NOTHING HERE SYNTHESISES INPUT OR CAPTURES A SCREEN. The syscall belongs to
- * the bridge, and the user's permission belongs to the bridge's own gate. What
- * LAIN refuses to do is act unaimed, or call an accepted injection a delivery.
- */
+/** computer — LAIN's own operations on the machine. */
 
 const computer = require('../computer');
 const cap = require('../capability');
@@ -45,9 +17,7 @@ const schema = {
     + 'and cannot be aimed at a window — screenshot first, find the thing, then click where it is. '
     + 'Input comes back SENT_UNCONFIRMED: the OS accepted it and nothing watched the target '
     + 'receive it, so confirm by looking (screenshot, ocr, or the target\'s own log). '
-    // AIM THE READS, and say so where the model will read it. Without this,
-    // "what does the game show" was answered with a picture of the whole
-    // desktop, LAIN's own panels included, and the text of every window at once.
+    // AIM THE READS, and say so where the model will read it.
     + 'AIM screenshot AND ocr with `window` (or an explicit `region`) whenever you want ONE '
     + 'window: unaimed, they capture the entire desktop including LAIN\'s own panels, and the '
     + 'text you get back will be a mixture of everything on screen. `windows` lists what is open.',
@@ -87,11 +57,7 @@ function paramsFor(op, input) {
     case 'type': return { text: String(input.text == null ? '' : input.text) };
     case 'key': return { key: String(input.key || '') };
     case 'hold': return { key: String(input.key || ''), ms: Number(input.ms) || undefined };
-    // A REGION GOES TO BOTH READS. `screenshot` took nothing at all, so "look
-    // at the game" produced a picture of the whole desktop — LAIN's own panels
-    // included — and LAIN then had to guess which text belonged to the target.
-    // An explicit region wins; naming a `window` is resolved to one in
-    // computer.perform, which is where the aiming lives.
+    // A REGION GOES TO BOTH READS.
     case 'ocr': case 'screenshot': return input.region ? { region: input.region } : {};
     default: return {};
   }

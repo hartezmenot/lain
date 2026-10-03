@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * RENAME, ON TOKENS — the operation a regex cannot do safely.
- *
- * `sed s/id/ident/g` rewrites the `id` in a URL, in a CSS selector, in the word
- * "identity" inside a comment, and in a JSON key that a server is expecting.
- * Every one of those is invisible in the diff summary and none of them is
- * caught by a test until something reaches that path. It is the single most
- * common way a mechanical refactor breaks a project quietly.
- *
- * This renames IDENTIFIER TOKENS. A name inside a string, a template, a comment
- * or a regular expression is not an identifier and is never touched — but it IS
- * COUNTED AND REPORTED, because a string containing the old name is very often
- * a real dependency: a tool name in a schema, a key in a config file, a route.
- * Those are exactly the leftovers that make a migration look finished when it
- * is not, so they are surfaced rather than quietly skipped.
- *
- * WHAT IT WILL NOT DECIDE FOR YOU. `obj.send()` might be the method being
- * renamed or a completely different `send` on a completely different object,
- * and nothing short of type inference can tell. So member accesses are counted
- * and left alone unless the caller says otherwise, and the count is in the
- * report either way. Guessing here is how a rename half-lands.
- *
- * EVERY CHANGED FILE IS RE-PARSED, and rolled back on its own if it no longer
- * parses. A rename that breaks one file out of twenty must not leave nineteen
- * done and one broken with no record of which.
- */
+/** RENAME, ON TOKENS — the operation a regex cannot do safely. */
 
 const fs = require('fs');
 const { tokenize, T, supports } = require('./jsscan');
@@ -47,11 +22,7 @@ const SITE = Object.freeze({
 
 function isPunct(t, v) { return t && t.type === T.PUNCT && t.value === v; }
 
-/**
- * Every place `name` appears in one source, classified.
- *
- * @returns {Array<{kind, start, end, line}>}
- */
+/** Every place `name` appears in one source, classified. */
 function sitesIn(source, name) {
   const { tokens, lineStarts } = tokenize(source, { comments: true });
   const { lineAt } = require('./jsscan');
@@ -91,17 +62,7 @@ function applySites(source, sites, to) {
   return out;
 }
 
-/**
- * Rename `from` to `to` across a tree.
- *
- * @param {string} root
- * @param {string} from
- * @param {string} to
- * @param {object} [o]
- * @param {string} [o.include]        glob limiting which files are touched
- * @param {boolean} [o.members=false] also rewrite `x.from` member accesses
- * @param {boolean} [o.dryRun=false]  report what would change, change nothing
- */
+/** Rename `from` to `to` across a tree. */
 async function rename(root, from, to, opts = {}) {
   const gen = renameBody(root, from, to, opts);
   let step = gen.next();
@@ -109,12 +70,7 @@ async function rename(root, from, to, opts = {}) {
   return step.value;
 }
 
-/**
- * THE DRY RUN, SYNCHRONOUS: the same walk and classification as `rename`,
- * writing nothing. A caller that must decide on the input's own tick
- * (selectionjob.js, routed before any await) reads it directly. A dry run
- * never reaches the body's one `yield`, so this loop never spins.
- */
+/** THE DRY RUN, SYNCHRONOUS: the same walk and classification as `rename`, writing nothing. */
 function scan(root, from, to, { include = '', members = false } = {}) {
   const gen = renameBody(root, from, to, { include, members, dryRun: true });
   let step = gen.next();
@@ -141,9 +97,7 @@ function* renameBody(root, from, to, { include = '', members = false, dryRun = f
     if (includeRe && !includeRe.test(f.rel)) continue;
     if (scanned >= MAX_FILES || sites >= MAX_SITES) break;
     if (!supports(f.abs)) {
-      // A file this scanner does not claim is never edited by guesswork. It is
-      // still SEARCHED as text, so a Python or JSON file holding the old name
-      // is reported rather than silently ignored.
+      // A file this scanner does not claim is never edited by guesswork.
       let raw;
       try { raw = fs.readFileSync(f.abs, 'utf8'); } catch { continue; }
       const w = new RegExp(`(?:^|[^A-Za-z0-9_$])${from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^A-Za-z0-9_$]|$)`);
@@ -169,10 +123,7 @@ function* renameBody(root, from, to, { include = '', members = false, dryRun = f
 
     const next = applySites(source, toChange, to);
     fs.writeFileSync(f.abs, next, 'utf8');
-    // ---- AND DID IT SURVIVE? ---------------------------------------------
-    //
-    // Per file, so one broken file is rolled back on its own rather than
-    // taking a correct rename in nineteen others with it.
+    // AND DID IT SURVIVE?
     let ok = true;
     try {
       const check = yield diagnostics.checkFile(f.abs);

@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * DELIVERING AN ASSISTANT RESULT — to each of the task's targets, with a
- * receipt per target; the run's delivery state is DELIVERED, PARTIAL or FAILED.
- * Nothing is dropped silently: a target that cannot receive says why.
- *
- *   desktop    the LAIN window's host: a native notification that, when
- *              clicked, opens BOT › Assistant (or the task's origin). With no
- *              window running, FAILED: "no LAIN window".
- *   chat       LAIN Chat › Schedules (the activity the window shows) —
- *              DELIVERED when recorded; it never writes into a conversation.
- *   telegram   the Phase-5 Telegram channel (one channel, one bot): the same
- *              delivery path a BOT reply takes, to the approved people.
- *
- * Quiet hours are applied by the scheduler BEFORE delivery (deferral), never here.
- */
+/** DELIVERING AN ASSISTANT RESULT — to each of the task's targets, with a receipt per target; the run's delivery state is DELIVERED, PARTIAL or FAILED. */
 
 async function toDesktop(app, task, text) {
   try {

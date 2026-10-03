@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * HOW A MODEL TURN ENDED — and what that means for the TASK it belongs to.
- *
- * ------------------------------------------------------------------------
- * A MODEL TURN IS NOT A TASK. One request a person makes can take many model
- * turns: a turn, its tools, the model's own continuation, a checkpoint, the
- * next phase, and so on until the work is done. The defect this exists for
- * (2026-09-29): every ending of every turn was read the same way — anything
- * other than `end` became "the turn ended: <reason>", which the checkpoint
- * turned into a pause, and NORMAL paused at every checkpoint regardless. A
- * missing temp file, a stale evidence id or a delegate role in the wrong case
- * then read as "Paused", and the person typed `continue` again and again.
- *
- * So the ending is CLASSIFIED once, here, into one of ten outcomes, and each
- * outcome says whether the task can carry on without a person:
- *
- *   COMPLETED             the model ended its turn normally          task may continue
- *   TOOL_RECOVERABLE      tools failed, the model saw every failure   task may continue
- *                         and alternatives exist
- *   PROVIDER_CRASH        the provider or its transport failed after  task may continue,
- *                         the turn's own retries                     after a bounded wait
- *   HOST_CRASH            the process running the turn died, or the   crash: resumes itself;
- *                         host closed                                closed: paused
- *   NEEDS_USER_DECISION   a person has to choose (a question, a       paused
- *                         blocking finding, a refusal, setup)
- *   EXPLICIT_PAUSE        the person paused it, or capped its steps   paused
- *   QUOTA_EXHAUSTED       the account's plan window ran out           account policy, else paused
- *   PROVIDER_RATE_LIMIT   the provider throttled the route            account policy, else paused
- *   TOOL_FATAL            a required tool cannot run and nothing      paused
- *                         replaces it (the project folder is gone)
- *   CANCELLED             the person stopped it                       stopped
- *
- * ------------------------------------------------------------------------
- * IT DECIDES NOTHING. It reads a finished record and the session and says
- * what happened; whether another turn starts is autocontinue.js's question,
- * asked with this answer and the continuation budget. A classifier that also
- * submitted work would be a counter with authority (tests/unit/architecture).
- */
+/** HOW A MODEL TURN ENDED — and what that means for the TASK it belongs to. */
 
 const fs = require('fs');
 
@@ -89,16 +52,7 @@ function toolErrors(record) {
   return ((record && record.errors) || []).filter((e) => e && e.kind === 'TOOL');
 }
 
-/**
- * THE CLASSIFICATION. Pure over its inputs.
- *
- * @param {object|null} record   the finished turn record (null: interrupted before `done`)
- * @param {object} o
- *   session       the session the turn ran in
- *   hostClosing   the process running the turn is on its way out (app.wantExit)
- *   recovered     the record was rebuilt after its process died (inflight.recover)
- * @returns {{ outcome: string, continuable: boolean, why: string, label: string, toolErrors: number }}
- */
+/** THE CLASSIFICATION. Pure over its inputs. */
 function classify(record, { session = null, hostClosing = false, recovered = false } = {}) {
   const out = (outcome, why) => ({
     outcome, why: String(why || '').slice(0, 300), label: LABEL[outcome],
@@ -148,11 +102,7 @@ function classify(record, { session = null, hostClosing = false, recovered = fal
   return out(OUTCOME.COMPLETED, 'the model ended its turn');
 }
 
-/**
- * DID THE TURN MOVE THE TASK? The budget's question (autocontinue.js): a turn
- * that completed a plan step, changed a file, or ran a tool that succeeded made
- * progress; one that only failed, or only talked, did not.
- */
+/** DID THE TURN MOVE THE TASK? */
 function progressed(record, { planDoneBefore = null, planDoneAfter = null } = {}) {
   if (!record) return false;
   if (planDoneBefore != null && planDoneAfter != null && planDoneAfter > planDoneBefore) return true;

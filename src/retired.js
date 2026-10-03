@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * ROUTING SYSTEMS THIS PRODUCT NO LONGER SUPPORTS — one authority, every layer.
- *
- * providers.js RETIRED only removed the provider ROWS from the picker. The
- * user's own config still carried live connections to the removed systems
- * (`omniroute` as a bridge on 127.0.0.1:20128 — 9router's port — plus
- * `lain:tokenrouter` and `lain:api.tokenrouter.com`), so their models kept
- * flowing into the catalog, search and `/model`. This module is consulted at
- * config load, connection discovery, the on-disk catalog cache and send-time
- * resolution, so a removed system cannot re-enter through any of them.
- *
- * A session or config that still SELECTS one is not rerouted: resolution
- * reports `Unavailable · provider removed` and the person chooses.
- *
- * 9ROUTER IS SUPPORTED (restored 2026-09-18, on the user's word — it is how
- * they diagnose LAIN CLI). It is not in this list, and no port rule hides a
- * local route: a connection on 127.0.0.1:20128 is served like any other.
- */
+/** ROUTING SYSTEMS THIS PRODUCT NO LONGER SUPPORTS — one authority, every layer. */
 
 const SYSTEMS = ['omniroute', 'tokenrouter'];
 
@@ -51,11 +34,7 @@ function modelSystem(modelId) {
   return m ? systemOf(m[1]) : null;
 }
 
-/**
- * The config with removed connections taken out. The names removed are kept on
- * a non-enumerable field so a surface can say why a route vanished, and so
- * `config.save` never writes them back.
- */
+/** The config with removed connections taken out. */
 function prune(cfg) {
   if (!cfg || typeof cfg !== 'object') return cfg;
   const removed = [];
@@ -75,10 +54,7 @@ function prune(cfg) {
   return cfg;
 }
 
-/**
- * Is the SELECTION itself on a removed system? Checked before resolution so the
- * model is never quietly served by whatever else happens to carry its name.
- */
+/** Is the SELECTION itself on a removed system? */
 function selection(cfg = {}) {
   const pruned = (cfg && cfg._retired) || [];
   const conn = cfg && cfg.connection;

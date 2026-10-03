@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * THE INTELLIGENCE FABRIC, FOR EVERY WINDOW (Phase 8.3) — the Model Dashboard,
- * the composer's pickers, the tray and a dashboard opened from the CLI all read
- * and write the ONE Core registry through these routes. The CLI and Telegram
- * call the same modules directly. Nothing here sends a request to a model.
- *
- *   POST /api/intel/families   provider families (backing accounts, policy, quota) + this session's lanes
- *   POST /api/intel/family     { id } — one family, with its models and recent events
- *   POST /api/intel/search     { query, family, kind, capability, effort, available, lane } — the model index
- *   POST /api/intel/policy     { family, policy: auto|pinned|ask, pinned? }
- *   POST /api/intel/order      { family, order: [accountId…] } — fallback priority
- *   POST /api/intel/alias      { id, name } — "Personal", "Work"; identity is never changed
- *   POST /api/intel/effort     { lane, effort } — a level the lane's model declares
- *   POST /api/intel/decide     { choice: switch|wait|choose-model, account? } — the pending account question
- *   POST /api/intel/roles      the role defaults (Chat, Assistant, Coding, Research, Vision, Auxiliary)
- *   POST /api/intel/role       { role, family, model, effort, execution, policy, pinned }
- *   POST /api/intel/tray       the tray summary (what the host is sent)
- *   POST /api/intel/refresh    { family? } — ask the runtimes for their reported windows again
- *   POST /api/intel/events     { since, type } — fallbacks, sources added/removed, migrations
- *   POST /api/intel/discovered { force? } — native provider homes found on this PC (existence only)
- *   POST /api/intel/detach       { id, mode: detach|sign-out|remove-profile, confirm? } — ONE account, any kind; never under a running request
- *   POST /api/intel/detach-all   { family, signOut?, confirm } — every account of a provider (in-use ones are skipped and named)
- *   POST /api/intel/verify       { id } — one short real message through an Antigravity account; capabilities are advertised only after it answers
- *   POST /api/intel/auth/start   { family, name? } — connect ONE new account: an AuthSession, its own process, its own new profile
- *   POST /api/intel/auth/status  { id? , family? } — where that sign-in stands (STARTING · AWAITING_BROWSER · VERIFYING · CONNECTED · FAILED · CANCELLED)
- *   POST /api/intel/auth/cancel  { id } — stop THAT sign-in only; every other account and run is untouched
- *   POST /api/intel/use        { key } — "Use in LAIN": register a discovered home, ask the runtime who it is
- *   POST /api/migrate/discover { exportFile? } → the plan (keys never leave Core) + a token
- *   POST /api/migrate/apply    { token, decisions }
- *   POST /api/migrate/finish   { id } — a discovered account the person has dealt with
- */
+/** THE INTELLIGENCE FABRIC, FOR EVERY WINDOW (Phase 8.3) — the Model Dashboard, the composer's pickers, the tray and a dashboard opened from the CLI all… */
 
 const ok = (b = {}) => ({ code: 200, body: { ok: true, ...b } });
 const bad = (why, code = 400, extra = {}) => ({ code, body: { ok: false, why: String(why), ...extra } });
@@ -97,11 +67,7 @@ const ROUTES = {
     S().setOrder(f.id, order);
     return ok({ family: F().familyView(F().family(app, f.id)) });
   },
-  /**
-   * ENABLE / DISABLE AN ACCOUNT (2026-10-02). Core state (fabric/store): automatic fallback, the model picker and every
-   * lane read it. Disabling an account a request is working through never interrupts that request — it is excluded from
-   * the NEXT choice, and the answer says so (`afterCurrent`).
-   */
+  /** ENABLE / DISABLE AN ACCOUNT (2026-10-02). */
   'POST /api/intel/enable': async (app, body = {}) => {
     const id = String(body.id || '');
     const known = F().families(app).some((f) => f.accounts.some((a) => a.id === id));
@@ -173,11 +139,7 @@ const ROUTES = {
     if (role === 'coding' && execution) { const cfg = ((app && app._sibling) || app).cfg; cfg.executionProfile = execution; try { require('../config').save(cfg); } catch { /* in memory */ } }
     return ok({ role, value: S().roleDefault(role) });
   },
-  /**
-   * REFRESH MODELS (2026-10-02) — the provider's own listing, as a new catalog generation (modelcatalog.js). All
-   * providers, or one (`family`: codex · claude · antigravity · api · api:<connection>). Distinct from Refresh account.
-   * Nothing is selected for anyone: a new model only becomes available.
-   */
+  /** REFRESH MODELS (2026-10-02) — the provider's own listing, as a new catalog generation (modelcatalog.js). */
   'POST /api/models/refresh': async (app, body = {}) => {
     const MC = require('../modelcatalog');
     const r = await MC.refresh(app, { family: body.family ? String(body.family) : null });
@@ -190,12 +152,7 @@ const ROUTES = {
     const since = Number(body.since) || 0;
     return ok({ newCount: MC.newCount(), diffs: MC.diffs({ since }), summaries: MC.diffs({ since }).map((d) => MC.summarize(d)).filter(Boolean) });
   },
-  /**
-   * REFRESH ACCOUNT — identity, health and quota (2026-10-02). One account (`id`), one provider (`family`), or all.
-   * `force` asks the provider even when the last reading is younger than its TTL (the person pressed Refresh); without
-   * it a fresh reading is served from the cache. A DISABLED account is skipped: nothing polls an account nothing uses.
-   * Models are a different act — `/api/models/refresh`.
-   */
+  /** REFRESH ACCOUNT — identity, health and quota (2026-10-02). */
   'POST /api/intel/refresh': async (app, body = {}) => {
     const fam = body.family ? String(body.family) : null;
     const only = body.id ? String(body.id) : null;
@@ -225,9 +182,7 @@ const ROUTES = {
   },
   // DISCOVER (Phase 8.4): what already exists on this PC. Existence only; cached briefly; no model, no quota.
   'POST /api/intel/discovered': async (app, body = {}) => ok({ discovered: require('../fabric/discover').discovered(app, { force: Boolean(body.force) }) }),
-  // CONNECT ACCOUNT (Phase 8.4 hotfix): an AuthSession scoped to ONE new account. It never touches an existing account's
-  // directory or any running provider process (authsession.js).
-  // REMOVE ONE ACCOUNT — any kind (a connected instance, the default runtime profile, a setup entry). Detach never signs out.
+  // CONNECT ACCOUNT (Phase 8.4 hotfix): an AuthSession scoped to ONE new account.
   'POST /api/intel/detach': async (app, body = {}) => {
     const id = String(body.id || ''); const mode = ['detach', 'sign-out', 'remove-profile'].includes(body.mode) ? body.mode : 'detach';
     if (mode !== 'detach' && body.confirm !== true) return bad('confirm signing out', 428, { needsConfirm: true });

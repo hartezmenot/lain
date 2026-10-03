@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * THE TASK RECORD — what a task IS, once a task is more than a sentence.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS NOT src/task.js, AND WHY src/task.js STAYS EXACTLY AS IT IS.
- *
- * `src/task.js` owns TASK IDENTITY: is this input the same task as before, a
- * continuation, a restatement, a steer, or pasted content? That question is
- * about the person's words, it is answered deterministically from text, and it
- * has one classifier by architectural rule. Nothing here re-derives it — the
- * runtime consumes `task.classify()`'s verdict exactly as app.js already does.
- *
- * This owns the OTHER half, which src/task.js deliberately never had: a task as
- * a thing with a workspace, processes, observations, verifications, artifacts
- * and a state. `Task` in task.js is `{objective, steers, turnIds}` and lives on
- * the session — it dies with the session. This lives on disk, under
- * `.lain/tasks/<id>/`, and outlives the session, the model and the process.
- *
- * The two are LINKED, not merged: a record carries `objective` (copied from the
- * session task at creation) and `sessionId`. Merging them would put a
- * filesystem write inside the classifier that runs on every keystroke's worth
- * of input, and would give the thing that decides "is this a steer?" an opinion
- * about whether the browser is healthy.
- *
- * ------------------------------------------------------------------------
- * WHAT A RECORD MAY AND MAY NOT HOLD.
- *
- * MAY: facts with provenance. A state and when it changed. A process id and
- * its port. A verification verdict and the checks that produced it. Artifact
- * ids. Counts of things that happened.
- *
- * MAY NOT: anything a model said. The transcript is the session's, and copying
- * prose in here would make the record a second transcript that nothing
- * compacts. `title` is the one exception and it is a label, capped, one line.
- *
- * ------------------------------------------------------------------------
- * `verifications` APPENDS AND NOTHING REMOVES FROM IT.
- *
- * A task that failed verification, was repaired and re-verified keeps BOTH
- * entries. The flight recorder's value is that the first one is still there —
- * "it passed" and "it passed on the second attempt after the browser flow
- * failed" are different facts, and a record that can only express the first is
- * how a harness quietly starts lying.
- */
+/** THE TASK RECORD — what a task IS, once a task is more than a sentence. */
 
 const state = require('./state');
 
@@ -57,16 +14,7 @@ const MAX_OBSERVATIONS = 200;
 
 let seq = 0;
 
-/**
- * Task ids are `t<n>-<timestamp36>`.
- *
- * The sequence makes ids readable in one session ("t3 failed"); the timestamp
- * makes them unique ACROSS sessions, which the sequence alone cannot — two
- * LAINs started an hour apart would both call their first task `t1` and write
- * into the same directory. The counter is module-level and is a COUNTER, not
- * state: it holds no session, no task and no opinion, which is what the
- * architecture guard's rule about module scope is actually about.
- */
+/** Task ids are `t<n>-<timestamp36>`. */
 function newId(now = Date.now()) {
   seq += 1;
   return `t${seq}-${now.toString(36)}`;
@@ -80,25 +28,8 @@ class TaskRecord {
     this.objective = String(objective || '');
     this.workspace = String(workspace);
     this.sessionId = sessionId ? String(sessionId) : null;
-    /**
-     * WHERE THIS TASK RUNS — `host` or `vm:<id>`. See env/environments.js.
-     *
-     * ON THE TASK, because §6's failure is what happens when it is not: the
-     * filesystem answers "host", the browser answers "the VM" and the process
-     * manager answers "host", every one of them succeeds, and three subsystems
-     * are describing three different copies of the project with nothing
-     * anywhere reporting a contradiction. Bound once, read by everything.
-     *
-     * It defaults to `host` and stays there for almost every task, which is
-     * correct — the point is that it is an ANSWER rather than an assumption.
-     */
+    /** WHERE THIS TASK RUNS — `host` or `vm:<id>`. */
     // AN UNREADABLE VALUE BECOMES `host`, NEVER `undefined` AND NEVER A VM.
-    // `parse` returns no `spec` when it cannot read the input, and taking that
-    // straight would have left the field undefined — a task with no answer to
-    // "where does this run", which is the exact hole this field closes. The
-    // host is the safe fallback in the only direction that matters: work stays
-    // on the machine it was already on instead of escaping to a guest nobody
-    // named.
     this.environment = (require('../env/environments').parse(environment).spec) || 'host';
     /** Why the task is in the state it is in. Always a sentence a person reads. */
     this.reason = 'created';
@@ -122,12 +53,7 @@ class TaskRecord {
     this.agents = [];
   }
 
-  /**
-   * MOVE. Refuses illegal transitions rather than performing them quietly.
-   *
-   * @returns {{ok:boolean, why:string}} — the refusal reason is shown to a
-   *   person, which is why it is a sentence rather than a code.
-   */
+  /** MOVE. Refuses illegal transitions rather than performing them quietly. */
   get state() { return this.#state; }
 
   moveTo(next, why = '', verification = null) {

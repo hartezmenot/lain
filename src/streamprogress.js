@@ -1,39 +1,6 @@
 'use strict';
 
-/**
- * IS THE MODEL DOING ANYTHING? — measured per request, from the wire.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT (reported 2026-09-23). The clock moved and nothing said whether
- * the model was alive. The activity box said THINKING for every moment a
- * request was open — before the first byte, while hidden reasoning streamed,
- * while a 10 KB `edit_file` argument arrived — and the only thing that could
- * tell those apart, the stream itself, was parsed and thrown away: tool-call
- * argument deltas were accumulated silently and surfaced only as one
- * `tool_calls` event at the very end.
- *
- * ------------------------------------------------------------------------
- * ONE MUTABLE RECORD PER REQUEST, NOT AN EVENT PER CHUNK. provider.js writes
- * the byte-level facts (bytes, data events, tool-argument bytes, hidden
- * thinking deltas); turn.js writes the text/reasoning facts; the screen READS
- * the record on the frames it already draws (the work clock ticks every
- * second). No redraw storm, no new event type through the turn loop, and a
- * frame always sees the current numbers.
- *
- * ------------------------------------------------------------------------
- * THE WORDS, and what each one may claim:
- *
- *   WAITING         request sent, no data yet — nothing is known
- *   THINKING        reasoning is arriving (shown as a size, never quoted)
- *   STREAMING       the visible answer is arriving
- *   PREPARING TOOL  a tool call's arguments are arriving — `edit_file · 9.6 KB`
- *   STALLED         no data for the stall threshold; the connection may still
- *                   be open (keepalives are bytes, not progress)
- *
- * Slow reasoning with bytes arriving is not a stall. A large argument
- * streaming is not a stall. Nothing here aborts anything — provider.js owns
- * the real inactivity cut-off (180 s); this only says what is true.
- */
+/** IS THE MODEL DOING ANYTHING? */
 
 /** No data for this long after data began: STALLED. */
 const STALL_MS = 45_000;
@@ -113,10 +80,7 @@ function thoughtLines(live, width = 70, n = 4) {
   return out.slice(-n);
 }
 
-/**
- * turn.js: visible answer text. The commentary is the model's own words from
- * the paragraph in progress — what it is saying NOW — clipped. Never reasoning.
- */
+/** turn.js: visible answer text. */
 function text(live, chunk = '', now = Date.now()) {
   if (!live) return;
   const s = String(chunk || '');
@@ -154,10 +118,7 @@ function commentaryLine(live, max = COMMENTARY_MAX) {
   return '…' + (cut >= 0 && cut < max / 2 ? tail.slice(cut + 2) : tail.slice(1));
 }
 
-/**
- * WHAT IS TRUE RIGHT NOW. Pure: `now` in, words out.
- * @returns {{word:string, detail:string, quietMs:number, elapsed:string, stalled:boolean}}
- */
+/** WHAT IS TRUE RIGHT NOW. */
 function state(live, now = Date.now()) {
   if (!live) return null;
   const elapsed = clock(now - live.startedAt);
@@ -167,9 +128,7 @@ function state(live, now = Date.now()) {
     const alive = live.lastByteAt && now - live.lastByteAt < STALL_MS ? ' · connection alive' : '';
     return { word: 'STALLED', detail: `no model data for ${clock(quietMs)}${alive}`, quietMs, elapsed, stalled: true };
   }
-  // A ROUTER MAY HOLD A WHOLE TOOL CALL until it is complete (measured through
-  // 9router, 2026-09-23: 6.6 KB of arguments arrived in 4 frames after ~10 s),
-  // so a long silence before the first frame is said as what it may be.
+  // A ROUTER MAY HOLD A WHOLE TOOL CALL until it is complete (measured through 9router, 2026-09-23: 6.6 KB of arguments arrived in 4 frames after ~10 s)…
   if (!live.lastDataAt) {
     // THE HEARTBEAT (2026-10-01): a wait says how long it has been once it is long enough to wonder about — never a
     // fake progress figure, and never "first response" on step 4.

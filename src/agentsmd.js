@@ -29,12 +29,7 @@ const path = require('path');
 
 const MAX_BYTES = 16_000;
 
-/**
- * LAIN.md IS THE CANONICAL CONSTITUTION (discipline/constitution.js) — LAIN's, not any one provider's. A Noema-era
- * LAIN.md, or an older AGENTS.md, is read only while no LAIN.md exists, so nothing a person wrote is lost; every
- * write goes to LAIN.md. Provider-native files (CLAUDE.md, a runtime's AGENTS.md) are RENDERED from it and never read
- * back as a second authority.
- */
+/** LAIN.md IS THE CANONICAL CONSTITUTION (discipline/constitution.js) — LAIN's, not any one provider's. */
 function firstExisting(list) { for (const f of list) if (fs.existsSync(f)) return f; return list[0]; }
 
 /** `~/.lain/LAIN.md` — or a Noema-era NOEMA.md / an older AGENTS.md while none exists (the home moved to ~/.lain). */
@@ -80,12 +75,7 @@ function forPrompt(root) {
     + parts.join('\n\n');
 }
 
-// ------------------------------------------------------------ editing ----
-//
-// SETTINGS › AGENT INSTRUCTIONS: view, edit, save, reset — the person's files,
-// written only on an explicit action. Reset never destroys custom content
-// silently: it shows the diff, needs confirmation when the file was modified,
-// and keeps the previous text as <file>.bak-<time> beside it.
+// editing
 
 const DEFAULT_FILE = path.join(__dirname, 'defaults', 'AGENTS.md');
 const SCOPES = Object.freeze(['global', 'project']);

@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE USAGE INDEX (Phase 8.1) — so opening USAGE never re-reads history.
- *
- * Two layers over the receipts (usage.js, <configDir>/usage/receipts-YYYY-MM.jsonl):
- *
- *   ROWS       each receipts file is parsed ONCE per process; afterwards only the
- *              bytes appended since the last read are parsed (the files are
- *              append-only JSONL). A file that shrank or was replaced is re-read.
- *   BUCKETS    hourly aggregates keyed by
- *                hour · provider · account · model · project · session · role · origin
- *              with requests / failed / input / output / reasoning / cache read /
- *              cache write / reported cost. Persisted to usage/index-v1.json with
- *              each file's indexed size, so a NEW PROCESS continues from where the
- *              last one stopped instead of rebuilding (the historical build happens
- *              once). A receipt written by this process updates its bucket as it
- *              is appended.
- *
- *   generation() increments whenever new receipts are seen — the key other caches
- *   (reset windows) invalidate on, instead of recomputing per render.
- *
- * The receipts stay the source of truth; the index is disposable and rebuilt
- * whenever it disagrees with the files (unknown version, a file that shrank).
- */
+/** THE USAGE INDEX (Phase 8.1) — so opening USAGE never re-reads history. */
 
 const fs = require('fs');
 const path = require('path');
@@ -189,10 +167,7 @@ function persist() {
   } catch { /* a cache */ }
 }
 
-/**
- * AGGREGATES over [from, to] grouped by one dimension (or 'hour'/'day'), from the
- * buckets — no receipt is read. Filters match exact dimension values.
- */
+/** AGGREGATES over [from, to] grouped by one dimension (or 'hour'/'day'), from the buckets — no receipt is read. */
 function aggregate({ from = 0, to = Date.now() + 1, by = null, filters = {} } = {}) {
   ensureBuckets();
   // Fold in anything appended since (tail only).

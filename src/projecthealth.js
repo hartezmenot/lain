@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * `/health` — IS THIS PROJECT HEALTHY?
- *
- * A view of the CODEBASE the user is working on. Not of LAIN: LAIN's own
- * readiness is a different question with a different answer, and it lives in
- * health.js behind `/ready`. Running `/health` in scalpbot and being told about
- * LAIN's provider, context window and connections is an answer to a question
- * nobody asked — the project is what the user came here to understand.
- *
- * EVIDENCE, AND A CONFIDENCE WITH IT. Every row is read from the tree by
- * audit.js (one scan, reused here rather than re-walked) or from this session's
- * own checkpoints and lifecycle. Nothing is asked of a model. And because a
- * local scan can be wrong about what it means, findings carry how sure we are:
- *
- *   ✓ CONFIRMED    the evidence IS the finding — the file is 140 KB, the
- *                  catch block is empty, there are no test files
- *   ⚠ LIKELY       the evidence strongly implies it but a person should look
- *   ? NEEDS REVIEW something was noticed and this cannot judge it
- *
- * That distinction is the whole guard against the failure mode of tools like
- * this: reporting "unused code" because a naive search found no reference, and
- * being confidently wrong in a way that costs someone an afternoon.
- */
+/** `/health` — IS THIS PROJECT HEALTHY? */
 
 const path = require('path');
 
@@ -53,12 +31,7 @@ const SURE = Object.freeze({
 /** A file this big is doing too much — the same threshold /audit uses. */
 const BIG_FILE_BYTES = 60_000;
 
-/**
- * Read the project into grouped rows plus graded findings.
- *
- * @param {string} root  the project directory
- * @param {object} app   optional — supplies THIS session's work state
- */
+/** Read the project into grouped rows plus graded findings. */
 async function assess(root, app = null) {
   const a = await audit(root);
   const groups = [];
@@ -190,10 +163,7 @@ function nextAction(a, work) {
 
 // ------------------------------------------------------------------- view ---
 
-/**
- * The assessment as a framed pane. Same engine as the command — this only lays
- * it out — and every row is fitted to the frame, colour included (ui/text.js).
- */
+/** The assessment as a framed pane. */
 function projectHealthLines(a, width = 80) {
   if (!a) return T.box('PROJECT HEALTH', ['  reading the project…'], Math.max(40, width));
   const w = Math.max(44, width);

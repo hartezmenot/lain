@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * WHAT LAIN SHOWS BEFORE THERE IS ANY WORK.
- *
- * The splash on the shell's own screen, the plain-text banner a pipe gets, and
- * the empty-state pane the workspace shows until the first task exists. Three
- * surfaces, one question: "what is this, where is it pointed, and what do I type
- * next?" They live together and away from views.js because they are the only
- * views that describe the PROGRAM rather than the work.
- *
- * Everything here is already-known state — a cached shallow project scan and the
- * resolved route — so it costs nothing and cannot be stale by more than a
- * session.
- */
+/** WHAT LAIN SHOWS BEFORE THERE IS ANY WORK. */
 
 const T = require('./text');
 const { P } = require('./paint');
@@ -22,12 +10,7 @@ const pad = T.pad;
 const center = T.center;
 const { shortPath, projectName } = T;
 
-/**
- * THE SPLASH — what a shell sees before the interface takes the screen.
- *
- * Drawn on the NORMAL buffer, so it stays in the scrollback after LAIN exits,
- * which is where "what was that and where was it pointed?" belongs.
- */
+/** THE SPLASH — what a shell sees before the interface takes the screen. */
 function splashLines({ cwd, bold = (s) => s, dim = (s) => s }) {
   return [
     '',
@@ -50,27 +33,14 @@ function bannerLines({ cwd, sessionId, resumed = false, tools = 0, bold = (s) =>
   ];
 }
 
-/**
- * THE EMPTY STATE — the workspace before there is any work.
- *
- * It used to be one line, "(nothing yet)", above twenty blank rows: the screen
- * answered none of the questions a person actually has on launch.
- */
+/** THE EMPTY STATE — the workspace before there is any work. */
 function welcome({ cwd, project = null, model, provider, connection, effort, resume = null, width = 80, height = 20 }) {
   const w = Math.max(30, width);
 
-  // Two kinds of row: CENTRED display lines, and a left-aligned block of
-  // label/value pairs whose column is centred as one object — centring the
-  // pairs individually would make the values wander.
-  //
-  // Each row carries a RANK. The start screen must always fit: rather than
-  // overflowing and scrolling the wordmark off the top, the lowest-ranked rows
-  // are dropped until it does. Rank 0 is what the screen exists to say.
+  // Two kinds of row: CENTRED display lines, and a left-aligned block of label/value pairs whose column is centred as one object — centring the pairs…
   const rows = [];
   const mid = (text, rank = 0) => rows.push({ text, mid: true, rank });
-  // The separator is EXPLICIT, not implied by the padding: "Last session" is
-  // exactly 12 characters, so padding it to 12 added nothing and the value ran
-  // straight into the label — "Last sessiongnum".
+  // The separator is EXPLICIT, not implied by the padding: "Last session" is exactly 12 characters, so padding it to 12 added nothing and the value ran…
   const label = (k, v, rank = 0) => rows.push({ text: `${pad(P.meta(k), 12)} ${v}`, rank });
   const gap = (rank = 2) => rows.push({ text: '', mid: true, rank });
 
@@ -112,15 +82,7 @@ function welcome({ cwd, project = null, model, provider, connection, effort, res
   return out;
 }
 
-/**
- * WRITING them, as well as building them.
- *
- * The splash goes to the NORMAL screen (`render.out`) so it survives in the
- * scrollback after LAIN exits; the banner goes through the renderer, because on
- * a pipe it is ordinary output. Two lines each in app.js, and app.js was at the
- * god-object limit — but the real reason they live here is that they are the
- * launch surfaces, and this is the launch-surface module.
- */
+/** WRITING them, as well as building them. */
 function writeSplash(app) {
   const { C } = require('../render');
   for (const l of splashLines({ cwd: app.session.cwd, bold: C.bold, dim: C.dim })) {

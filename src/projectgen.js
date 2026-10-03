@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * THE PROJECT GENERATION — one number per project, shared by every LAIN
- * process working on it (2026-09-25).
- *
- * It used to live in harnesscontext.js as a Map in process memory, which made
- * it a per-PROCESS count: the Harness and a CLI attached to the same project
- * each had their own "generation 7", and neither number meant anything to the
- * other. Anything keyed by it — the canonical Selection, a focus artifact,
- * evidence validity — could not be compared across surfaces.
- *
- * Now it is a small file next to the project's provenance (editledger.js keeps
- * the same per-project directory): `<projectId>.generation.json`, holding the
- * number and the last changes that advanced it. Advancing takes a short lock
- * so two processes never hand out the same number.
- *
- *   advance(root, {file, by})   the ONE way the number moves. Called only by
- *                               harnesscontext.noteSourceEdit, whose own two
- *                               callers are guarded (oneauthority.test.js).
- *   current(root)               the number now — re-read when the file moved.
- *   since(root, n)              the changes after generation n.
- *
- * A change another process made is noticed on the next read; the listeners
- * registered with `onForeign` (the GUG's stale marks) hear about it, so this
- * process's derived state does not keep describing the old file.
- *
- * `base` — the generation a prompt's stable prefix was built at — is a fact
- * about THIS process's prompt cache, not about the project, so it stays in
- * memory here and is never written.
- */
+/** THE PROJECT GENERATION — one number per project, shared by every LAIN process working on it (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');

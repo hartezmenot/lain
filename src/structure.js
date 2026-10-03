@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * WHAT A SOURCE FILE IS MADE OF, IN ANY LANGUAGE.
- *
- * `codemodel.js` answers this for JavaScript with a real token stream, and
- * nothing here competes with it — for a `.js` file this module CALLS it. What
- * this adds is the same question asked of a `.cpp`, a `.py`, a `.rs`, a `.vue`
- * or an agent definition written in Markdown, because a migration has to be
- * able to say what the SOURCE was made of before it can say what the TARGET
- * should be made of.
- *
- * ------------------------------------------------------------------------
- * IT IS DELIBERATELY LEXICAL, AND THAT IS THE RIGHT TRADE.
- *
- * A real parser for eleven languages is eleven dependencies that have to be
- * installed on the user's machine, and the question being asked does not need
- * one. "This file declares a Scanner with initialize, scan, filter and result"
- * is answerable from declaration lines, and it is ALL that the structural
- * translation stage consumes: the responsibilities, not the bodies.
- *
- * So the failure mode is chosen on purpose. It MISSES declarations written in
- * shapes the patterns do not cover, and it never INVENTS one — a missed unit
- * shows up as a smaller target structure that the model then fills in, while a
- * fabricated unit would be a responsibility nobody asked for. Under-reporting
- * is recoverable; over-reporting is a lie about the user's code.
- * ------------------------------------------------------------------------
- *
- * NOTHING HERE IS CACHED. Same rule as codemodel.js: the file on disk at the
- * moment of the call is the answer, so there is nothing to go stale.
- */
+/** WHAT A SOURCE FILE IS MADE OF, IN ANY LANGUAGE. */
 
 const fs = require('fs');
 const path = require('path');
@@ -51,15 +23,7 @@ const MAX_BYTES = 1500000;
 /** Units reported for one file. A file with more than this has other problems. */
 const MAX_UNITS = 400;
 
-/**
- * THE PATTERNS, one family per language.
- *
- * Each entry is `[regexp, kind, nameGroup]` and is applied per LINE, so a
- * declaration inside a string that happens to span a line boundary cannot
- * match halfway. Anchored at the start of the line wherever the language
- * allows, because an unanchored class pattern matches the word "class" in a
- * comment, and that is the over-reporting this file refuses to do.
- */
+/** THE PATTERNS, one family per language. */
 const PATTERNS = {
   python: [
     [/^\s*class\s+([A-Za-z_]\w*)/, UNIT.CLASS, 1],
@@ -67,9 +31,7 @@ const PATTERNS = {
   ],
   c: [
     [/^\s*(?:template\s*<[^>]*>\s*)?(?:class|struct)\s+([A-Za-z_]\w*)/, UNIT.CLASS, 1],
-    // A DEFINITION, not a declaration: it ends in an opening brace, not in a
-    // semicolon. That is the whole difference between a header's promise and a
-    // file's contents.
+    // A DEFINITION, not a declaration: it ends in an opening brace, not in a semicolon.
     [/^\s*(?:[A-Za-z_][\w:<>,*&\s]*\s+)?([A-Za-z_]\w*)::([A-Za-z_~]\w*)\s*\([^;]*\)\s*(?:const\s*)?\{/, UNIT.METHOD, 2],
     [/^\s*(?:static\s+|inline\s+|virtual\s+|explicit\s+)*[A-Za-z_][\w:<>,*&\s]*\s+\*?([A-Za-z_]\w*)\s*\([^;]*\)\s*(?:const\s*)?\{/, UNIT.FUNCTION, 1],
   ],
@@ -142,14 +104,7 @@ function languageOf(file) {
 /** Is this path a data or configuration resource rather than an implementation? */
 function isData(file) { return DATA_RE.test(String(file || '')); }
 
-/**
- * The units declared in `source`.
- *
- * JavaScript goes to codemodel.js, which has a token stream and therefore knows
- * a name in a string from a name in code. Everything else uses the line
- * patterns above. Never throws: an unreadable or unrecognised file has no
- * structure to report, which is a fact rather than an error.
- */
+/** The units declared in `source`. */
 function extract(source, file = '') {
   const text = String(source == null ? '' : source);
   const language = languageOf(file);
@@ -174,10 +129,7 @@ function extract(source, file = '') {
   out.via = familyName;
 
   const lines = text.split('\n');
-  // A CONTAINER IS INFERRED FROM INDENTATION, and only where the language
-  // actually uses indentation to mean containment. Guessing a container in C++
-  // from whitespace would attribute a free function to whichever class was
-  // declared above it, so the guess is made only where it is sound.
+  // A CONTAINER IS INFERRED FROM INDENTATION, and only where the language actually uses indentation to mean containment.
   const indentScoped = familyName === 'python' || familyName === 'ruby';
   let container = '';
   let containerIndent = -1;
@@ -215,13 +167,7 @@ function extractFile(abs, rel = '') {
   return extract(text, rel || abs);
 }
 
-/**
- * The RESPONSIBILITIES a structure describes, as plain names.
- *
- * This is what survives a migration. `Scanner.scan` is a responsibility; the
- * fact that it was spelled `void Scanner::scan()` is not, and carrying the
- * spelling across would be translating syntax instead of preserving behaviour.
- */
+/** The RESPONSIBILITIES a structure describes, as plain names. */
 function responsibilities(struct) {
   const out = [];
   for (const u of (struct && struct.units) || []) {

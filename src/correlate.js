@@ -1,44 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE LOG SAID AGAINST WHAT THE SCREEN SHOWED.
- *
- *: the point is not to collect both. It is to notice when they disagree.
- *
- * ------------------------------------------------------------------------
- * THE FAILURE THIS EXISTS TO CATCH, in the user's own example: the log reports
- * that the minigame completed, and the final screenshot still shows the
- * minigame. Every individual record is true. The bot really did print
- * ROUND_COMPLETE, and the screen really does show the minigame — and the
- * conclusion "the round completed" is false.
- *
- * That is not a fact anything can supply. It only exists BETWEEN two records
- * from different sources, and it is invisible to anything looking at either one
- * alone. So the sources are kept apart all the way through observe.js and are
- * brought together exactly here, once, deliberately.
- *
- * ------------------------------------------------------------------------
- * THE FOUR VERDICTS, and none of them is "success".
- *
- *   CORROBORATED  both sources, same story. The strongest thing available.
- *   CONTRADICTED  both sources, different stories. Becomes a QUESTION, never a
- *                 conclusion — see below.
- *   UNRESOLVED    the log says something and the screen was never seen. Not a
- *                 failure and not a confirmation: an absence.
- *   UNEXPLAINED   the screen shows something no log line accounts for. The most
- *                 interesting one, and the one a log-only investigation cannot
- *                 have.
- *
- * A CONTRADICTION IS NOT A DIAGNOSIS. LAIN does not get to decide which source
- * is lying — the log could be wrong, the screenshot could be of the wrong
- * moment, the expectation could be mistaken. What it does is state both, name
- * the disagreement, and ask. That is: "Can you tell me whether that screen
- * is expected?"
- *
- * AND `SENT_UNCONFIRMED` NEVER BECOMES `SUCCESS`. An input LAIN injected is a
- * record of an injection, not of a receipt, and the only thing that can promote
- * it is a source that watched the target — which is precisely what this reads.
- */
+/** WHAT THE LOG SAID AGAINST WHAT THE SCREEN SHOWED. */
 
 const { SOURCE } = require('./observe');
 
@@ -49,42 +11,16 @@ const VERDICT = Object.freeze({
   UNEXPLAINED: 'UNEXPLAINED',
 });
 
-/**
- * How close in time two records must be to be about the same moment.
- *
- * A SCREEN IS A LATER STATEMENT THAN THE LOG LINE THAT TRIGGERED IT — the
- * capture is fired by the line and takes as long as a screenshot takes. Too
- * tight and nothing ever pairs; too loose and a capture is matched to a line
- * from a different round. Three seconds is wider than any capture measured here
- * and narrower than the gap between rounds.
- */
+/** How close in time two records must be to be about the same moment. */
 const WINDOW_MS = 3000;
 
-/**
- * Does this visual record support, or contradict, what the log claimed?
- *
- * DELIBERATELY SHALLOW, and this is the important design decision in the file.
- * It compares TERMS the user supplied — the words that identify the state — and
- * nothing else. It does not attempt to understand the screen; understanding is
- * the model's job, and a clever heuristic here would be LAIN deciding what the
- * evidence means, which puts firmly on the other side of the line.
- *
- * So: a claim, a capture, and whether the capture's text mentions the terms.
- * Everything subtler is left for the model to read in the packet.
- */
+/** Does this visual record support, or contradict, what the log claimed? */
 function mentions(text, terms) {
   const hay = String(text || '').toLowerCase();
   return terms.filter((t) => t && hay.includes(String(t).toLowerCase()));
 }
 
-/**
- * ONE CLAIM, CHECKED.
- *
- * @param {object} claim  { kind, at, detail } — the LOG event
- * @param {Array}  visuals  VISUAL evidence records with `text` (OCR) if any
- * @param {object} expect  { present: [], absent: [] } — what the screen should
- *                         show if the claim is true, in the user's words
- */
+/** ONE CLAIM, CHECKED. */
 function checkClaim(claim, visuals, expect = {}) {
   const present = Array.isArray(expect.present) ? expect.present : [];
   const absent = Array.isArray(expect.absent) ? expect.absent : [];
@@ -153,13 +89,7 @@ function checkClaim(claim, visuals, expect = {}) {
   };
 }
 
-/**
- * VISUAL EVIDENCE THAT NO LOG LINE ACCOUNTS FOR.
- *
- * The direction a log-only investigation structurally cannot look. A dialog, a
- * crash box, an indicator that appeared while the program said nothing at all
- * — the absence of a log line is exactly what makes it worth reporting.
- */
+/** VISUAL EVIDENCE THAT NO LOG LINE ACCOUNTS FOR. */
 function unexplained(visuals, logs, watchFor = []) {
   const out = [];
   for (const v of visuals) {
@@ -178,15 +108,7 @@ function unexplained(visuals, logs, watchFor = []) {
   return out;
 }
 
-/**
- * THE WHOLE COMPARISON, for one finished observation.
- *
- * @param {Observation} obs
- * @param {object} o
- *   claims    log event kinds that ASSERT something about the screen
- *   expect    { <kind>: { present: [], absent: [] } }
- *   watchFor  terms whose appearance on screen is notable in itself
- */
+/** THE WHOLE COMPARISON, for one finished observation. */
 function compare(obs, { claims = [], expect = {}, watchFor = [] } = {}) {
   const logs = obs.from(SOURCE.LOG);
   const visuals = obs.captures.slice();
@@ -208,13 +130,7 @@ function compare(obs, { claims = [], expect = {}, watchFor = [] } = {}) {
       UNRESOLVED: count(VERDICT.UNRESOLVED),
       UNEXPLAINED: count(VERDICT.UNEXPLAINED),
     },
-    /**
-     * WHAT TO DO NEXT — a question when the evidence disagrees with itself.
-     *
-     * Not an answer. A contradiction means two trustworthy records cannot both
-     * be right about the same moment, and which one to believe is a matter of
-     * fact about the target that the user knows and LAIN does not.
-     */
+    /** WHAT TO DO NEXT — a question when the evidence disagrees with itself. */
     question: findings.find((f) => f.verdict === VERDICT.CONTRADICTED) || null,
   };
 }

@@ -1,63 +1,10 @@
 'use strict';
 
-/**
- * THE PROJECT'S OWN WORDS — what they mean, kept where the next model finds them.
- *
- * ------------------------------------------------------------------------
- * THE COST THIS REMOVES, and it is measured rather than assumed.
- *
- * Every project invents vocabulary. In this one: `steer`, `handover`, `gate`,
- * `guardian`, `evidence`, `probe`, `capability`. None of those words means here
- * what it means anywhere else. A model that has just taken over — a compaction,
- * a model switch, a crashed session, a new day — meets `steer` in a file and has
- * exactly two options: infer it from surrounding code (a guess, and guesses about
- * vocabulary compound), or read enough of the tree to be sure (several requests,
- * each carrying the whole context).
- *
- * A definition is forty words. Written once, it removes that choice for every
- * model that ever opens the project again.
- *
- * ------------------------------------------------------------------------
- * WRITTEN FOR A STRANGER, and the fields enforce it.
- *
- *     TERM        the word as it actually appears in the code
- *     TYPE        what KIND of thing it is — a component, a state, an
- *                 interaction, a rule. Without this, "gate" reads as a noun
- *                 when it is a verb, and the reader starts wrong.
- *     PURPOSE     what it is FOR. One sentence, no jargon that needs its own
- *                 entry to decode.
- *     LOCATION    where it lives, when it has a place.
- *     OWNS        what it is the authority for — the field that stops two
- *                 components quietly claiming the same responsibility.
- *     INVARIANT   what must never stop being true. The most valuable line in
- *                 an entry: it is the thing a change can break silently.
- *     LIFECYCLE   the states it moves through, in order, when it has any.
- *     SEE         related terms.
- *
- * NOTHING IS MANDATORY EXCEPT TERM AND PURPOSE. A dictionary that demands a
- * complete entry gets no entries: the practical failure mode is not a sloppy
- * definition, it is an empty file because writing one felt like a project. A
- * definition may be refined later, and `at`/`by` record when it last was.
- *
- * ------------------------------------------------------------------------
- * SEARCHABLE BY CONCEPT, not only by exact word. Somebody asks about
- * "interruption" and the entry is called `steer`; a dictionary that only
- * answers exact lookups would have nothing to say. So the search reads the
- * purpose and invariant text too, and returns candidates.
- *
- * ------------------------------------------------------------------------
- * NOT NOTES, AND NOT A TRANSCRIPT. An entry is a DEFINITION — durable, about
- * the project, useful to somebody who was not here. "We decided to try X" is a
- * concern (memory.js) and belongs there; `.lain/` holds what the project IS.
- */
+/** THE PROJECT'S OWN WORDS — what they mean, kept where the next model finds them. */
 
 const lainstore = require('./lainstore');
 
-/**
- * WHAT KIND OF WORD THIS IS. Loose, because a project's vocabulary is its own,
- * but named — an unlabelled definition makes a reader guess the part of speech
- * before they can use it.
- */
+/** WHAT KIND OF WORD THIS IS. */
 const KIND = Object.freeze({
   /** A part of the system that exists and can be pointed at. */
   COMPONENT: 'Architecture component',
@@ -134,13 +81,7 @@ function save(root, dict) {
   return lainstore.write(root, 'concepts', { terms: dict.terms, updatedAt: dict.updatedAt });
 }
 
-/**
- * DEFINE A TERM, or refine the one that is there.
- *
- * MERGES. The same rule architecture.declare follows and for the same reason: a
- * model adding a lifecycle must not thereby delete an invariant somebody wrote
- * last month. Only supplied fields move.
- */
+/** DEFINE A TERM, or refine the one that is there. */
 function define(dict, spec) {
   const term = String((spec && spec.term) || '').trim();
   if (!term) return { ok: false, error: 'a definition needs a term' };
@@ -151,9 +92,7 @@ function define(dict, spec) {
 
   if (spec.kind != null) {
     const k = String(spec.kind);
-    // ACCEPTED BY LABEL OR BY SHORT NAME. `COMPONENT` and
-    // `Architecture component` are the same request, and refusing one of them
-    // is a papercut that costs entries.
+    // ACCEPTED BY LABEL OR BY SHORT NAME.
     const match = KINDS.has(k) ? k : KIND[k.toUpperCase().replace(/[^A-Z]/g, '_')];
     if (!match) return { ok: false, error: `unknown kind "${spec.kind}" — one of ${Object.keys(KIND).join(', ')}` };
     entry.kind = match;
@@ -185,14 +124,7 @@ function forget(dict, term) {
 /** Exact lookup. */
 function get(dict, term) { return dict.terms[keyOf(term)] || null; }
 
-/**
- * SEARCH BY CONCEPT.
- *
- * Exact match first, then terms that contain the query, then entries whose
- * PURPOSE or INVARIANT text mentions it. That last tier is what makes this a
- * concept map rather than a glossary: somebody asks about "interruption" and
- * gets `steer`, whose purpose sentence contains the word.
- */
+/** SEARCH BY CONCEPT. */
 function search(dict, query, { max = 8 } = {}) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return [];
@@ -231,13 +163,7 @@ function render(entry) {
   return out.join('\n');
 }
 
-/**
- * THE WHOLE VOCABULARY, one line each.
- *
- * Grouped by kind, because "what components are there" and "what states are
- * there" are different questions and a flat alphabetical list answers neither.
- * Capped: the full text of every entry is not what a listing is for.
- */
+/** THE WHOLE VOCABULARY, one line each. */
 function list(dict, { max = 60 } = {}) {
   const entries = Object.values(dict.terms);
   if (!entries.length) {

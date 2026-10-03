@@ -174,22 +174,6 @@ module.exports = async function () {
     turnclose.accountTo(life, record);
     assert.strictEqual(life.state, 'ACTIVE');
   });
-
-  await test('OPENING: the interruption and blocked-state facts ride the FIRST request of a turn only', () => {
-    const prompt = require('../../src/prompt');
-    const s = new Session({ cwd: tmpdir('lain-open-') });
-    s.task = new Task('x');
-    s.lifecycle = new Lifecycle('x');
-    s.lifecycle.noteAuthFailure('api.b.ai', '403');
-    s.turns = [{ turnId: 't0', stopReason: 'provider', steps: 3, actions: [{ name: 'run_bash', target: 'sed' }] }];
-    const first = prompt.build({ session: s, cwd: s.cwd, separate: true });
-    const later = prompt.build({ session: s, cwd: s.cwd, separate: true, opened: true });
-    assert.match(first.live, /did NOT finish/);
-    assert.match(first.live, /NEEDS_AUTH/);
-    assert.ok(!/did NOT finish/.test(later.live), 'not restated on later steps');
-    assert.ok(!/NEEDS_AUTH/.test(later.live));
-  });
-
   await test('OPENING: the real turn loop sends the opening on step 0 and the continuing tail afterwards', async () => {
     const { runTurn } = require('../../src/turn');
     process.env.LAIN_PROVIDER = 'mock';

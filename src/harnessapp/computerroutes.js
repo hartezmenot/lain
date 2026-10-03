@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * COMPUTER CONTROL ROUTES (Phase CU) — the Harness's Enable button, target picker, indicator and Stop. The same Core
- * state the CLI's `/computer` changes (computercontrol.js); the Harness asks, Core decides.
- *
- *   /api/computer/state     { on, tier, target, label, killed, paused, … } — read every few seconds while on (quiet)
- *   /api/computer/enable    { tier } — the desktop's one authorization question is asked on this machine
- *   /api/computer/disable · /api/computer/stop
- *   /api/computer/windows   the top-level windows to choose a target from (sensitive ones are marked, not offered)
- *   /api/computer/target    { handle | window, raw }
- */
+/** COMPUTER CONTROL ROUTES (Phase CU) — the Harness's Enable button, target picker, indicator and Stop. */
 
 const cc = require('../computercontrol');
 

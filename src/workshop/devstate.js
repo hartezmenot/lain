@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * THE DEV SERVER AS A FIRST-CLASS OBJECT.
- *
- *     devServer { projectRoot, packageManager, script, command, cwd, pid, port,
- *                 status, startedAt, url, lastError, adopted, processId }
- *
- *     STOPPED ──start──► STARTING ──ready──► RUNNING
- *                           │                  │
- *                           └──fails──► FAILED ◄┘ (the process exited)
- *     RUNNING ──restart──► RESTARTING ──► STARTING …
- *
- * ------------------------------------------------------------------------
- * THE STATUS IS NOT INFERRED FROM THE PREVIEW. A preview can fail to load over
- * a healthy server (a 500 from its API proxy) and a preview can be absent over
- * a running one. So the record is moved only by what the process authority
- * reported: the manager started a process, the port answered or the URL was
- * announced, the process exited.
- *
- * ------------------------------------------------------------------------
- * A PREVIEW THAT ANSWERS 500 IS EVIDENCE, NOT A RESTART TRIGGER.
- *
- * `probe` asks the URL once and records the answer as a structured object —
- * the status, the exact request, the server process's state and its recent
- * output — for the window to show. Nothing here restarts on a 500: a server
- * answering 500 is a server that is up and telling you something is wrong
- * behind it, and restarting it in a loop would erase the logs that say what.
- */
+/** THE DEV SERVER AS A FIRST-CLASS OBJECT. */
 
 const devserver = require('./devserver');
 
@@ -170,10 +144,7 @@ class DevServers {
     return this.start(key, { ...opts, restarting: true });
   }
 
-  /**
-   * ASK THE URL ONCE and record what it said. A 5xx is structured evidence.
-   * Never restarts anything.
-   */
+  /** ASK THE URL ONCE and record what it said. */
   async probe(root, { path: reqPath = '/', timeoutMs = 8000 } = {}) {
     const key = this._key(root);
     const rec = this._rec.get(key);

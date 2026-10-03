@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * ONE `codex app-server`, spoken to over stdio — newline-delimited JSON-RPC
- * (`{id, method, params}` → `{id, result|error}`; notifications have no id).
- *
- * ONE PROCESS PER ACCOUNT INSTANCE, started with that instance's CODEX_HOME and
- * nothing else changed. There is one Codex binary on the machine; eight
- * accounts are eight processes of it with eight homes, not eight installs.
- *
- * SPAWNED WITHOUT A SHELL, so the PID we hold is Codex's own and `close()`
- * stops exactly the process this client started — never one found by name.
- * (A `shell: true` spawn leaves the real child behind when the shell dies.)
- */
+/** ONE `codex app-server`, spoken to over stdio — newline-delimited JSON-RPC (`{id, method, params}` → `{id, result|error}`; notifications have no id). */
 
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');

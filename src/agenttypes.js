@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * AGENT TYPES (Simplify S6): markdown files with frontmatter — `name`, `description`, `tools`, `model`, `effort` — in
- * `~/.lain/agents/` and the project's `.lain/agents/` (the project's win on a name clash). The body is the agent's own
- * instructions. Built-ins: `explore` (read-only, made for searching) and `general` (the core tools minus Agent).
- */
+/** AGENT TYPES (Simplify S6): markdown files with frontmatter — `name`, `description`, `tools`, `model`, `effort` — in `~/.lain/agents/` and the… */
 
 const fs = require('fs');
 const os = require('os');

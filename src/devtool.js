@@ -1,9 +1,6 @@
 'use strict';
 
-/**
- * DEVELOPER TOOLS live in tools/dev/ (S9) — compare, survey, deadcode, tokenaudit, the benches — outside the npm
- * package. A command that uses one loads it from a development checkout, and says so plainly where it is absent.
- */
+/** DEVELOPER TOOLS live in tools/dev/ (S9) — compare, survey, deadcode, tokenaudit, the benches — outside the npm package. */
 
 const path = require('path');
 

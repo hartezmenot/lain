@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * WHAT A TASK DOES WHEN IT RUNS — Core capabilities, not a BOT-only brain.
- *
- *   notify           the task's own text                                 NO_MODEL
- *   limits_summary   every reported window, credits and plans (Core data)  NO_MODEL
- *   usage_summary    consumption by project / source (usage receipts)      NO_MODEL
- *   runtime_status   which runtimes are operational, what local model runs NO_MODEL
- *   run_tests        the project's own test command, in the project        NO_MODEL (a capability)
- *   bot_prompt       a model answers the instruction                       BOT_MODEL / LOCAL_CHEAP / RESEARCH
- *   agent_task       Coding Agent work — not run unattended: it becomes a
- *                    follow-up the person starts (a person present)        CODING_AGENT
- *
- * A MODEL-BACKED TASK GETS A SMALL CONTEXT. Never the full BOT workspace
- * prompt (~19k tokens): an assistant instruction, the task's instruction and —
- * only when the task asks for it — deterministic data (limits, usage) that Core
- * already has. Nothing else (no tool schemas, no project, no IDE state).
- */
+/** WHAT A TASK DOES WHEN IT RUNS — Core capabilities, not a BOT-only brain. */
 
 const fs = require('fs');
 const path = require('path');

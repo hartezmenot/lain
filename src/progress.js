@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * NON-PROGRESS — the same discovery repeated under the same state.
- *
- * ------------------------------------------------------------------------
- * NOT A COUNTER ON TURNS. "Three reads and we stop" would stop a model that is
- * legitimately re-reading a file an editor just changed, and would never notice
- * a model re-reading the same twenty lines once per compaction for an hour.
- * What is measured is STATE EQUIVALENCE. Two reads are the same discovery when
- * every one of these is unchanged between them:
- *
- *     goal · task · plan step (index and text)
- *     the source fingerprint of what was read     (readreceipts.js)
- *     the set of files observed so far            (no new dependency discovered)
- *     mutations since                              (nothing written)
- *     validations since                            (nothing checked)
- *
- * If the source changed, the receipt is not current and the read is ordinary
- * discovery. If anything was written or checked, the state moved and the read
- * is a legitimate recheck.
- *
- * ------------------------------------------------------------------------
- * WHAT HAPPENS, BY VERDICT. Never a refusal to give the model bytes it needs:
- *
- *     DISCOVERY      first observation under this state      runs normally
- *     REDUNDANT      the identical output is still in the     not re-run; told where it is
- *                    conversation
- *     RECHECK        the output was compacted away and the    served from the receipt, not
- *                    source is unchanged                      re-run (when the output was kept)
- *     NON_PROGRESS   the same discovery a third time under    served as above, with the
- *                    identical state                          pending action named
- *
- * The steer is a TOOL RESULT, attached to the read that triggered it. It is not
- * written in the user's voice (looping.js explains why that was removed) and it
- * does not stop the turn.
- */
+/** NON-PROGRESS — the same discovery repeated under the same state. */
 
 const crypto = require('crypto');
 
@@ -61,15 +27,7 @@ function stateOf(session) {
   return p;
 }
 
-/**
- * THE CURRENT STEP OF THE LIVE PLAN, or none.
- *
- * FIXED 2026-09-18: this read `!s.done`, a field plan steps never carry (they
- * have `status`), and it ignored retirement — so every NON_PROGRESS steer named
- * "plan step 1" of whatever plan the session had EVER had, long after that plan
- * ended. Reported live: "Pending: plan step 1: Repair and run the existing
- * compatibility regression tests" injected into receipts from a finished pass.
- */
+/** THE CURRENT STEP OF THE LIVE PLAN, or none. */
 function planStepOf(session) {
   const plan = session && session.plan;
   const live = plan && plan.isLive !== false && !plan.retiredAt;
@@ -121,19 +79,7 @@ function pendingAction(session) {
   return parts.length ? parts.join('; ') : 'the next write or check the task needs';
 }
 
-/**
- * WHICH EVIDENCE A READ ASKS FOR — the FILE, not the command that asked.
- *
- * Deliberately not the tool and not the arguments: `read_file`, `sed -n`,
- * `head`, `cat` and a `grep` against one file are one question asked five ways,
- * and counting them separately is how three reads of one settled file under one
- * unchanged state produced no steer at all.
- *
- * WHETHER THAT EVIDENCE IS ALREADY IN HAND is a different question, and it is
- * the ledger's: `readreceipts.covering` knows what was actually read — a whole
- * file, a span, a symbol — so a window of a large file not yet seen stays
- * ordinary discovery. One authority for coverage, not two that can disagree.
- */
+/** WHICH EVIDENCE A READ ASKS FOR — the FILE, not the command that asked. */
 function semanticKey(read) {
   return process.platform === 'win32' ? String(read.abs).toLowerCase() : String(read.abs);
 }
@@ -143,11 +89,7 @@ function note(p, ev) {
   if (p.events.length > MAX_EVENTS) p.events.splice(0, p.events.length - MAX_EVENTS);
 }
 
-/**
- * BEFORE A CALL RUNS. Returns `{ read, verdict, substitute }` for a source read,
- * or null for anything else. `substitute` is a tool result to use instead of
- * running the call, or null to run it.
- */
+/** BEFORE A CALL RUNS. Returns `{ read, verdict, substitute }` for a source read, or null for anything else. `substitute` is a tool result to use… */
 function before(session, name, input) {
   if (!session || !session.evidence) return null;
   const read = receipts.parse(name, input, session.cwd);
@@ -158,26 +100,7 @@ function before(session, name, input) {
   // WHAT ALREADY ANSWERS THIS, whatever command asked it. `current` is the
   // identical call (the only bytes safe to serve); `covering` is the question.
   const covered = receipt || receipts.covering(session.evidence, read);
-  // ---- THE SAME QUESTION, NOT THE SAME COMMAND ------------------------
-  //
-  // This counted repeats under `read.exact` — the tool name and its arguments.
-  // So asking the same thing a different way started the count again, and
-  // "ask it a different way" is precisely what a model does when it believes
-  // one more read will settle something:
-  //
-  //     read_file api.ts              → first
-  //     sed -n '120,180p' api.ts      → "new" question
-  //     grep -n addMovie api.ts       → "new" question
-  //
-  // Three reads of one unchanged file under one unchanged state, counted as
-  // three separate discoveries and steered on none of them. The identity that
-  // matters is WHICH EVIDENCE was asked for: the file, and the symbol or region
-  // within it — and a region already covered by an earlier read is the same
-  // evidence, not a new one. See semanticKey/covers.
-  // WHETHER THE EVIDENCE IS ALREADY IN HAND is the LEDGER's answer (`covering`
-  // searches every receipt for this file), not something re-derived here — one
-  // authority, and it is the one that knows what was actually read. `seen` only
-  // carries how many times it has been asked under this state.
+  // THE SAME QUESTION, NOT THE SAME COMMAND
   const target = semanticKey(read);
   const seen = p.seen[target];
   const same = covered && seen && seen.state === key;
@@ -188,10 +111,7 @@ function before(session, name, input) {
 
   const nonProgress = repeats >= 2;
 
-  // ALREADY ANSWERED, BUT NOT BY THIS EXACT CALL. The bytes cannot be served —
-  // a grep and a read of one file do not produce the same output — so the call
-  // RUNS, and the steer rides on its result. Without this, asking the same
-  // question a new way escaped the gate entirely, which is the loop.
+  // ALREADY ANSWERED, BUT NOT BY THIS EXACT CALL.
   if (!receipt) {
     if (!nonProgress) return { read, verdict: VERDICT.DISCOVERY, substitute: null, repeats };
     const steer = `\nNON_PROGRESS: this is observation ${repeats + 1} of ${receipts.label(covered)} under unchanged state — `
@@ -214,10 +134,7 @@ function before(session, name, input) {
   // A WHOLE-FILE read_file BELONGS TO THE LEDGER (evidence.js `check`), whose
   // contract and wording are its own; the gate only records and steers it.
   const wholeFile = read.route === 'read_file' && read.from == null;
-  // A READ IS ALWAYS SERVED — the ledger's promise, kept here. What a receipt
-  // saves is RE-RUNNING it: the same bytes, verified unchanged by fingerprint,
-  // come from the receipt. `observedOutput` is those bytes, so the repetition
-  // detectors (lifecycle.js, looping.js) still see an identical result.
+  // A READ IS ALWAYS SERVED — the ledger's promise, kept here.
   if (!wholeFile && receipt.output != null) {
     receipt.served += 1;
     return {
@@ -247,9 +164,7 @@ function after(session, name, input, result, gate, { toolCallId = '' } = {}) {
     output: result.output, isError: result.isError,
     taskId: (session.task && session.task.id) || '', planStep: step.index, toolCallId,
   });
-  // The first observation of a file is itself a state change (a new dependency
-  // is known). The state the NEXT identical read is compared with is the one
-  // after it was recorded.
+  // The first observation of a file is itself a state change (a new dependency is known).
   const target = semanticKey(gate.read);
   if (p.seen[target]) p.seen[target].state = stateKey(session);
   if (gate.steer) return { ...result, output: `${String(result.output || '')}${gate.steer}`, observedOutput: result.output };

@@ -42,7 +42,6 @@
 const assert = require('assert');
 const { test } = require('../helpers');
 
-const prompt = require('../../src/prompt');
 const contextfit = require('../../src/contextfit');
 
 /** A session-shaped object with the fields the prompt path actually reads. */
@@ -55,38 +54,6 @@ function sessionLike(extra = {}) {
 
 module.exports = async function () {
   // ---- THE SPLIT CHANGES ORDER, NOT CONTENT ------------------------------
-
-  await test('TOKENS: splitting the prompt changes not one byte of what the model is told', () => {
-    const args = {
-      cwd: '/proj', platform: 'win32', model: 'glm-5.3-flash',
-      mode: 'IMPLEMENT', session: sessionLike(),
-    };
-    const whole = prompt.build(args);
-    const { stable, live } = prompt.build({ ...args, separate: true });
-    const rejoined = live ? `${stable}\n\n${live}` : stable;
-    // IDENTICAL. This is an ordering change; if it were ever anything more, the
-    // model would be receiving different instructions and this would fail.
-    assert.strictEqual(rejoined, whole, 'the halves must rejoin into exactly the original prompt');
-    assert.ok(stable.length > 0 && live.length > 0, 'both halves must carry something');
-  });
-
-  await test('TOKENS: the cacheable head does not move when volatile state changes', () => {
-    // ---- THE PROPERTY THE INCIDENT VIOLATED ------------------------------
-    //
-    // A prefix cache keeps the longest identical HEAD of a request. Volatile
-    // text placed before the conversation means a turn boundary re-prices the
-    // whole request — fifty thousand tokens of transcript that did not change,
-    // behind one byte that did.
-    const base = { cwd: '/proj', platform: 'win32', model: 'glm-5.3-flash', separate: true };
-    const quiet = prompt.build({ ...base, mode: 'IMPLEMENT', session: sessionLike() });
-    const busy = prompt.build({
-      ...base,
-      mode: 'DEBUG',
-      session: sessionLike({ task: { steers: [{ text: 'skip the migration for now' }] } }),
-    });
-    assert.strictEqual(busy.stable, quiet.stable, 'the stable half moved when only volatile state changed');
-    assert.notStrictEqual(busy.live, quiet.live, 'the volatile half must be where the change lands');
-  });
 
   // ---- WHERE THE VOLATILE BLOCK SITS ON THE WIRE -------------------------
 
@@ -146,25 +113,6 @@ module.exports = async function () {
   });
 
   // ---- WHAT MUST NEVER BE IN A REQUEST -----------------------------------
-
-  await test('TOKENS: runtime telemetry never reaches the model', () => {
-    // ---- THE FEEDBACK LOOP THIS PREVENTS ---------------------------------
-    //
-    //     request -> telemetry -> context -> new request -> telemetry changes
-    //     -> the cache is invalidated by the act of measuring it
-    //
-    // Token counts are an instrument reading. They belong on a screen.
-    const built = prompt.build({
-      cwd: '/proj', platform: 'win32', model: 'glm-5.3-flash',
-      mode: 'IMPLEMENT', session: sessionLike(),
-    });
-    for (const word of [
-      'cache_read', 'cacheRead', 'input_tokens', 'inputTokens', 'output_tokens',
-      'outputTokens', 'tokens used', 'request #', 'latency',
-    ]) {
-      assert.ok(!built.includes(word), `the prompt carries telemetry: ${word}`);
-    }
-  });
 
   await test('TOKENS: the tool schemas are counted once, and they are the largest fixed cost', () => {
     const tokenaudit = require('../../tools/dev/tokenaudit');

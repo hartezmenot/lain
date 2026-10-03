@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * FRESHNESS — whether what LAIN knows about the project still matches the disk.
- *
- * ------------------------------------------------------------------------
- * FOUR STATES, EACH DERIVED, NEVER STAMPED.
- *
- *     FRESH     every fingerprint the knowledge depends on matches the disk now
- *     STALE     at least one dependency changed or vanished since it was recorded
- *     PARTIAL   some dependencies match and some could not be checked (a file
- *               recorded by identity only, a language nothing here parses)
- *     UNKNOWN   the knowledge names no dependency to check
- *
- * OBSERVED state (the index, symbols, imports, fingerprints) is authoritative
- * about source: it is re-measured before it answers. SEMANTIC state
- * (architecture, concepts, wiring, remembered facts, validation) is an
- * interpretation backed by evidence — the fingerprints of the files it was
- * established against — and it is STALE the moment that evidence moves, until
- * something re-establishes it. Disk always wins.
- *
- * ------------------------------------------------------------------------
- * EXTERNAL CHANGES ARE CHEAP TO NOTICE AND LAZY TO ABSORB.
- *
- *     filesystem event  →  mark that path dirty  →  (nothing else, yet)
- *     next query        →  re-stat and re-scan only the dirty paths
- *
- * An editor saving, `git checkout`, a formatter or a generator produces events;
- * none of them causes a walk of the repository. When the watcher is unavailable
- * (a platform without recursive watch, a directory that cannot be watched) the
- * index falls back to its stat walk, which is always correct and merely slower.
- */
+/** FRESHNESS — whether what LAIN knows about the project still matches the disk. */
 
 const fs = require('fs');
 const path = require('path');
@@ -42,12 +13,7 @@ const IGNORE = /(^|\/)(\.lain|\.noema|\.git|node_modules|__pycache__|target|dist
 const OVERFLOW = 2000;
 
 function norm(p) { return String(p || '').replace(/\\/g, '/').replace(/^\.\//, ''); }
-/**
- * THE REAL PATH, ALWAYS. On Windows a temp or profile path can carry an 8.3
- * short name (`HARTEZ~1`); libuv's watcher reports events under the long name
- * and ASSERTS — aborting the whole process — when the two disagree. Measured
- * here, not guessed: `Assertion failed: !_wcsnicmp(filename, dir, dirlen)`.
- */
+/** THE REAL PATH, ALWAYS. */
 function realRoot(root) {
   const r = path.resolve(String(root));
   try { return fs.realpathSync.native(r); } catch { return r; }
@@ -56,10 +22,7 @@ function keyOf(root) { const r = realRoot(root); return process.platform === 'wi
 
 const trackers = new Map();
 
-/**
- * START WATCHING A PROJECT. Idempotent. Returns the tracker, whose `available`
- * says whether events will actually arrive.
- */
+/** START WATCHING A PROJECT. */
 function track(root) {
   const k = keyOf(root);
   if (trackers.has(k)) return trackers.get(k);
@@ -105,10 +68,7 @@ function markChanged(root, absPaths) {
   if (t) t.generation += 1;
 }
 
-/**
- * THE PATHS A TARGETED REFRESH MUST RE-MEASURE, or null when it cannot be
- * targeted (no watcher, overflow, or an index built before watching began).
- */
+/** THE PATHS A TARGETED REFRESH MUST RE-MEASURE, or null when it cannot be targeted (no watcher, overflow, or an index built before watching began). */
 function pending(root, indexRefreshedAt = 0) {
   const t = trackerOf(root);
   if (!t || !t.available || t.overflow) return null;
@@ -136,11 +96,7 @@ function fingerprintOf(root, rel) {
   return f ? f.fp : null;
 }
 
-/**
- * STAMP THE EVIDENCE a piece of knowledge is established against: the content
- * fingerprint of each path that exists now. Directories and absent paths are
- * recorded with `fp: null` and a kind, so they read back as PARTIAL, not FRESH.
- */
+/** STAMP THE EVIDENCE a piece of knowledge is established against: the content fingerprint of each path that exists now. */
 function stamp(root, rels) {
   const out = [];
   const seen = new Set();
@@ -157,11 +113,7 @@ function stamp(root, rels) {
   return { evidence: out, at: Date.now() };
 }
 
-/**
- * IS KNOWLEDGE ESTABLISHED AGAINST THIS EVIDENCE STILL TRUE OF THE DISK?
- *
- * @returns {{state, stale:string[], unchecked:string[]}}
- */
+/** IS KNOWLEDGE ESTABLISHED AGAINST THIS EVIDENCE STILL TRUE OF THE DISK? */
 function ofEvidence(root, evidence) {
   const rows = Array.isArray(evidence) ? evidence : [];
   if (!rows.length) return { state: STATE.UNKNOWN, stale: [], unchecked: [] };
@@ -237,10 +189,7 @@ function tally(states) {
   return out;
 }
 
-/**
- * EVERY LAYER'S FRESHNESS, COUNTED. The index is loaded, not refreshed: this
- * reports how far what is written has drifted from the disk.
- */
+/** EVERY LAYER'S FRESHNESS, COUNTED. */
 function report(root) {
   const lainstore = require('./lainstore');
   const index = require('./projectindex').load(root);
@@ -303,11 +252,7 @@ function baselineState(root, rel, b) {
 
 const baselined = new Set();
 
-/**
- * MEASURE THE PROJECT BEFORE LAIN FIRST WRITES TO IT. Idempotent per process,
- * and a no-op when `.lain/fingerprints/baseline.json` already exists. Refuses a
- * home directory or a filesystem root: those are not projects.
- */
+/** MEASURE THE PROJECT BEFORE LAIN FIRST WRITES TO IT. */
 function ensureBaseline(root) {
   const r = path.resolve(String(root || ''));
   const k = keyOf(r);

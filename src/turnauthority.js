@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * A TURN STARTED, AND HOW IT ENDED — recorded where the session lives (2026-10-02).
- *
- *   turnguard.js       the judgement: how it ended, and whether the next sentence needs a briefing
- *   sessionjournal.js  the record every other surface reads: the window (live), another process, the phone
- *   sessionstatus.js   the rail's word, told at once
- *
- * This used to tell the Rust Guardian, which kept a second copy of the same turn state and owned the pid that proved
- * a turn was lost. The session lease (sessionlease.js) now answers "is anybody still running this", and the
- * judgement lives with the session it is about. Nothing here waits on another process.
- *
- * THE ONE JUDGEMENT IS UNCHANGED: A CANCELLATION IS NOT A FAILURE. Ctrl+C is the person's own decision, so the next
- * sentence after it goes through bare; every other bad ending earns the next sentence a briefing.
- */
+/** A TURN STARTED, AND HOW IT ENDED — recorded where the session lives (2026-10-02). */
 
 const guard = require('./turnguard');
 const journal = require('./sessionjournal');
@@ -62,10 +49,7 @@ function end(app, record) {
 /** Kept for callers that named the project for the Guardian; the journal carries the session itself. */
 function identify() {}
 
-/**
- * HOW FAR THROUGH, WHEN SOMETHING HAS COUNTED — AND NOT OTHERWISE. The plan is the only real counter; with no plan,
- * the activity alone (never an invented percentage). Recorded only when it changes.
- */
+/** HOW FAR THROUGH, WHEN SOMETHING HAS COUNTED — AND NOT OTHERWISE. */
 function reportProgress(app, phase) {
   const session = app && app.session;
   if (!session || !session.id) return;

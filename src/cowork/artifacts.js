@@ -27,10 +27,7 @@ function taskRecords(app) {
   if (!session || !session.id || !session.cwd) return [];
   const store = new ArtifactStore(session.cwd);
   const current = require('../harnesslink').existing(app)?.runtime.latest();
-  // A process can die while a task is RUNNING after it has already produced a
-  // useful file. Session identity and workspace ownership are the boundary;
-  // requiring a terminal verdict here would make that persisted file vanish
-  // precisely on restart, when Cowork needs to recover it.
+  // A process can die while a task is RUNNING after it has already produced a useful file.
   const tasks = store.listTasks();
   if (current) tasks.unshift(current);
   const seen = new Set();

@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * EXTENSIONS — installing VS Code-format extensions (.vsix) into LAIN, and
- * using the part of them LAIN can use.
- *
- * ------------------------------------------------------------------------
- * WHAT LAIN DOES WITH AN EXTENSION, AND WHAT IT DOES NOT.
- *
- * LAIN does not run the VS Code extension host. An extension whose package
- * declares code (`main` / `browser`) is stored and listed, and that code is
- * NEVER loaded, required or executed — installed code would be privileged, and
- * there is no sandbox here to run it in. What LAIN uses is declarative:
- *
- *   contributes.snippets   → offered in the IDE editor for that language
- *
- * Everything else an extension contributes is shown as "not used by LAIN"
- * rather than implied to work.
- *
- * ------------------------------------------------------------------------
- * WHERE ONE COMES FROM:
- *
- *   a .vsix file           zipread.js, every entry path checked
- *   a folder               an unpacked extension (package.json at its root)
- *   an https URL           a .vsix download, size-capped
- *   Open VSX               open-vsx.org's public API — the registry that
- *                          publishes a sha256 for every file, which is checked
- *                          before anything is kept. The Microsoft Marketplace
- *                          is not used: its terms limit it to Microsoft's own
- *                          products.
- *
- * SCOPE: `global` lives in LAIN's config directory; `workspace` in the
- * project's own `.lain/extensions`. Enabled state is kept per scope.
- */
+/** EXTENSIONS — installing VS Code-format extensions (.vsix) into LAIN, and using the part of them LAIN can use. */
 
 const fs = require('fs');
 const os = require('os');
@@ -140,10 +109,7 @@ async function search(query) {
 
 // ---- install -------------------------------------------------------------------
 
-/**
- * A GIT SOURCE, checked before anything runs: an https address with no user or password in it (a token in a URL
- * ends up in logs and history), an optional branch/tag, and an optional sub-folder written as `url#path/in/repo`.
- */
+/** A GIT SOURCE, checked before anything runs: an https address with no user or password in it (a token in a URL ends up in logs and history), an… */
 function gitSource(raw, ref = null) {
   let s = String(raw || '').trim();
   let subdir = null;
@@ -160,11 +126,7 @@ function gitSource(raw, ref = null) {
   return { ok: true, url: `${u.origin}${u.pathname.replace(/\/$/, '')}`, ref: r, subdir: subdir || null };
 }
 
-/**
- * Install from `{ vsix }`, `{ folder }`, `{ url }` or `{ openvsx, version }`.
- * Nothing is kept until the package reads, its id is valid and (for Open VSX)
- * its sha256 matches.
- */
+/** Install from `{ vsix }`, `{ folder }`, `{ url }` or `{ openvsx, version }`. */
 async function install(src = {}, { scope = 'global', configDir = null, project = null } = {}) {
   const root = rootFor(scope, { configDir, project });
   if (!root) return bad('a workspace install needs a project');
@@ -303,9 +265,7 @@ function setEnabled(id, enabled, { scope = 'global', ...opts } = {}) {
 function uninstall(id, { scope = 'global', ...opts } = {}) {
   const f = find(id, scope, opts);
   if (!f.entry) return bad(`${id} is not installed (${scope})`);
-  // A REUSED PACKAGE lives in the content-addressed store (extpackages.js) and
-  // may be the same bytes another entry uses: uninstall unregisters it; the
-  // store keeps it until `extpackages.orphans({ remove: true })` is asked for.
+  // A REUSED PACKAGE lives in the content-addressed store (extpackages.js) and may be the same bytes another entry uses: uninstall unregisters it; the…
   if (f.entry.packageRef) {
     f.reg.installed = f.reg.installed.filter((x) => x.id !== id);
     writeRegistry(f.root, f.reg);

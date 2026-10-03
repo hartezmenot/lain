@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * AN OS-BACKED SECRET STORE — so a new kind of credential does not become one
- * more plaintext field in config.json.
- *
- * ------------------------------------------------------------------------
- * WINDOWS: DPAPI, CurrentUser scope (System.Security.Cryptography.ProtectedData).
- * The blob on disk can be decrypted only by this Windows user on this machine;
- * copying the file elsewhere yields nothing. The secret travels to PowerShell
- * on STDIN, never on a command line (a command line is visible to every
- * process on the machine), and the output is base64 of the protected bytes.
- *
- * ELSEWHERE: `available()` is false and `put` refuses. A caller must then
- * decide not to keep the credential rather than fall back to plaintext —
- * falling back silently is the defect this file exists to prevent.
- *
- * WHAT USES IT: OAuth tokens (chatgptauth.js). API keys that already live in
- * config.json stay there (masked in every UI, redacted in every log); moving
- * the existing provider credential path is a separate, deliberate migration.
- *
- * Blobs live in <configDir>/secrets/<name>.dpapi — one file per secret, named
- * by a caller-chosen key, never by the secret.
- */
+/** AN OS-BACKED SECRET STORE — so a new kind of credential does not become one more plaintext field in config.json. */
 
 const fs = require('fs');
 const path = require('path');
@@ -75,11 +54,7 @@ function get(name) {
   try { return ps(UNPROTECT, blob); } catch { return null; }
 }
 
-/**
- * MANY AT ONCE (Phase 8.1 performance): one PowerShell for every name instead of
- * one each — listing ten API routes cost ten spawns (~2.5 s) on every CLI start.
- * Returns { name: secret | null }. Nothing is printed; the pipe carries base64.
- */
+/** MANY AT ONCE (Phase 8.1 performance): one PowerShell for every name instead of one each — listing ten API routes cost ten spawns (~2.5 s) on every… */
 const UNPROTECT_MANY = "Add-Type -AssemblyName System.Security; foreach ($l in ([Console]::In.ReadToEnd() -split \"`n\")) { $l=$l.Trim(); if (-not $l) { continue }; "
   + "try { $b=[Convert]::FromBase64String($l); $o=[Security.Cryptography.ProtectedData]::Unprotect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); "
   + "[Console]::Out.WriteLine([Convert]::ToBase64String($o)) } catch { [Console]::Out.WriteLine('-') } }";
@@ -98,10 +73,7 @@ function getMany(names) {
   return out;
 }
 
-/**
- * THE SAME, WITHOUT BLOCKING (Phase 8.2): a CLI start used to wait ~250 ms on this
- * PowerShell before its first prompt. Resolves { name: secret | null }.
- */
+/** THE SAME, WITHOUT BLOCKING (Phase 8.2): a CLI start used to wait ~250 ms on this PowerShell before its first prompt. */
 function getManyAsync(names) {
   const out = {};
   const want = [];

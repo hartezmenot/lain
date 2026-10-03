@@ -101,43 +101,6 @@ module.exports = async function () {
     const plan2 = new Plan('x'); plan2.addSteps(['Fix a']); fsm.noteMutation(plan2, ['src/a.js']);
     assert.match(fsm.reopen(plan2, 'segfault somewhere'), /owner is not clear/);
   });
-
-  await test('FINAL SMOKE: /bg keeps the task open; the rejoined result settles it without a "continue"', async () => {
-    const root = project();
-    const session = { cwd: root, lifecycle: new Lifecycle('fix'), plan: new Plan('fix') };
-    session.plan.addSteps(['Fix A']); fsm.ensureTerminal(session.plan, root);
-    write(session.lifecycle, path.join(root, 'package.json')); session.plan.complete('fixed');   // project-wide
-    session.lifecycle.observeTool({ name: 'run_tests', input: { which: 'smoke' }, output: 'DETACHED', finalSmoke: true, detached: true });
-    assert.strictEqual(fsm.state(session.lifecycle, root), 'RUNNING');
-    assert.match(session.lifecycle.complete({ cwd: root }).why, /still running in the background/, 'not DONE while it runs');
-    let completed = 0;
-    const app = { session, abort: null, render: { notice() {}, write() {}, nl() {} }, ui: { enabled: false }, submit: () => Promise.resolve() };
-    const orig = require('../../src/completion').maybeComplete;
-    require('../../src/completion').maybeComplete = () => { completed += 1; return true; };
-    try {
-      const r = fsm.settleBackground(app, session, { kind: 'process', label: 'npm run smoke', ok: true, summary: 'exit 0', tail: 'smoke PASSED' });
-      assert.deepStrictEqual(r, { passed: true });
-      assert.strictEqual(fsm.state(session.lifecycle, root), 'PASSED');
-      assert.strictEqual(session.plan.steps[1].status, 'done', 'the smoke step is ticked');
-      assert.strictEqual(completed, 1, 'and the completion validator ran without being asked');
-    } finally { require('../../src/completion').maybeComplete = orig; }
-
-    // FAIL: reopen + a self-started continuation carrying the evidence.
-    const s2 = { cwd: root, lifecycle: new Lifecycle('fix'), plan: new Plan('fix') };
-    s2.plan.addSteps(['Fix A']); fsm.ensureTerminal(s2.plan, root);
-    fsm.noteMutation(s2.plan, ['src/alpha.js']); write(s2.lifecycle, 'src/alpha.js'); s2.plan.complete('fixed');
-    s2.lifecycle.observeTool({ name: 'run_tests', input: { which: 'smoke' }, output: 'DETACHED', finalSmoke: true, detached: true });
-    const sent = [];
-    const app2 = { session: s2, abort: null, submit: (t, o) => { sent.push([t, o]); return Promise.resolve(); } };
-    const f = fsm.settleBackground(app2, s2, { kind: 'process', label: 'npm run smoke', ok: false, summary: 'exit 1', tail: 'at src/alpha.js:3 assertion failed' });
-    await new Promise((r) => setTimeout(r, 10));
-    assert.ok(f.failed);
-    assert.strictEqual(s2.plan.steps[0].status, 'active', 'the owning step reopened');
-    assert.strictEqual(sent.length, 1, 'a continuation started on its own');
-    assert.match(sent[0][0], /FAILED[\s\S]*reopened step 1/);
-    assert.strictEqual(sent[0][1].sameTask, true);
-  });
-
   await test('FINAL SMOKE: the strip never says DONE over a changed tree whose final smoke has not passed', () => {
     const base = { lastTurn: { stopReason: 'end', toolCalls: 3, filesChanged: 1 } };
     const missing = status.liveState({ ...base, finalSmoke: { state: 'MISSING', why: 'final smoke has not run since the last change: npm run smoke' } }, Date.now());

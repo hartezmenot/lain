@@ -1,38 +1,10 @@
 'use strict';
 
-/**
- * THE ONE MODEL REQUEST ENVELOPE — every request to a model, whatever carries it.
- *
- *     Core model request
- *       ├─ identity      reqtrace: id, turn, step, reason (why it is asking)
- *       ├─ ownership     session, task
- *       ├─ admission     a cancelled turn sends nothing
- *       ├─ cancellation  the turn's signal travels with it
- *       └─ accounting    outcome and the usage receipt, on the same record
- *               │
- *       transport (after the envelope, never instead of it)
- *         ├─ 'api'       provider.js — Anthropic, OpenAI-compatible, Responses
- *         └─ 'website'   modelsource/* — a signed-in ChatGPT.com / Gemini page
- *
- * ------------------------------------------------------------------------
- * WHY (2026-09-25). A website source's request went `chatdispatch → source.send`
- * with its own counting and nothing else: no request identity, no trace, no
- * task. "How many model requests did this session make, for which task, and
- * why?" had two answers depending on the transport. Transports stay
- * specialised — driving a web page is nothing like an HTTPS stream — but the
- * AUTHORITY over a request is here, once.
- *
- * Measuring and gating only: nothing here retries, delays or rewrites a request.
- * A failure inside the envelope never costs the request (a tracer that throws
- * would be a measurement able to end a turn).
- */
+/** THE ONE MODEL REQUEST ENVELOPE — every request to a model, whatever carries it. */
 
 const TRANSPORT = Object.freeze({ API: 'api', WEBSITE: 'website', RUNTIME: 'runtime', LOCAL: 'local' });
 
-/**
- * OPEN A REQUEST. Returns `{ ok, env }` — or `{ ok: false, why }` when the turn
- * it belongs to was already cancelled (nothing is sent for a dead turn).
- */
+/** OPEN A REQUEST. Returns `{ ok, env }` — or `{ ok: false, why }` when the turn it belongs to was already cancelled (nothing is sent for a dead turn). */
 function open({ turn = null, step = null, reason = null, transport = TRANSPORT.API, model = '', connection = '', provider = '', project = null, role = null, origin = null, sessionId = null, taskId = null, signal = null, app = null } = {}) {
   if (signal && signal.aborted) return { ok: false, why: 'the turn was cancelled before the request was sent' };
   const reqtrace = require('./reqtrace');
@@ -74,11 +46,7 @@ function sized(env, messages, tools) {
   try { require('./reqtrace').sized(env.rec, messages, tools); } catch { /* measurement only */ }
 }
 
-/**
- * The API transport's entry (provider.chat): the envelope from the provider
- * connection and the caller's trace, sized; throws when the turn was already
- * cancelled — nothing is sent for a dead turn.
- */
+/** The API transport's entry (provider.chat): the envelope from the provider connection and the caller's trace, sized; throws when the turn was already… */
 function openApi(pc, messages, opts = {}) {
   const t = opts.trace || {};
   const opened = open({

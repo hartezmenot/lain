@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * A CODING TURN HANDED TO A RUNTIME THAT DOES AGENT WORK ITSELF.
- *
- * When the Coding Agent is a runtime model (Claude Code, OpenCode), the turn is
- * not run by LAIN's tool loop: the runtime works in the project folder with its
- * OWN tools, under its OWN sign-in, and LAIN streams what it does. This is the
- * third source of the one event stream app.js consumes (chatdispatch.js is the
- * second): `text`, `notice`, `provider_failure`, `done`, and `turnclose.close`
- * at the end so the turn leaves the same record every turn leaves.
- *
- * A LOCAL MODEL IS NOT THIS. A verified local model is an Agent inside LAIN's
- * own loop, with LAIN's tools and gates; only a runtime that acts for itself
- * comes through here.
- *
- * The request is one modelrequest (transport 'runtime'): identity, session,
- * task, cancellation — and the receipt the runtime reported for its work.
- */
+/** A CODING TURN HANDED TO A RUNTIME THAT DOES AGENT WORK ITSELF. */
 
 const { newRecord } = require('./turnrecord');
 const turnclose = require('./turnclose');

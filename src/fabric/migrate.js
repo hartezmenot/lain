@@ -1,60 +1,6 @@
 'use strict';
 
-/**
- * IMPORT ACCOUNTS — a ONE-TIME move from another router installation INTO
- * LAIN's own fabric, so LAIN stops depending on the router.
- *
- *     discover(app)            what each migration source holds
- *     plan(app, found)         per account: its CLASS, and what will happen
- *     apply(app, items)        do it, one decision per account
- *
- * ------------------------------------------------------------------------
- * FOUR CLASSES (2026-09-29). "Every imported sign-in needs a new sign-in" was
- * too simple: it made people sign in to accounts whose complete, portable
- * sign-in the source already held. Each discovered account is classified from
- * what the source ACTUALLY provides:
- *
- *   PORTABLE_AUTH             a complete credential the provider accepts from
- *                             anywhere: an API key the person owns, or a sign-in
- *                             in the provider CLI's own format that can be renewed
- *                             and was issued to that CLI's own client
- *                             (fabric/portable.js). It MOVES — into LAIN's secret
- *                             store, or a NEW LAIN-owned profile — and is then
- *                             verified with the provider. No sign-in.
- *   NATIVE_PROFILE_REFERENCE  the provider's own profile is on this PC (found by
- *                             discover.js, or named by the export): LAIN uses it
- *                             where it is. Nothing is copied. No sign-in.
- *   REAUTH_REQUIRED           the source cannot give LAIN a usable sign-in, and
- *                             says why: only metadata, encrypted to its own app,
- *                             issued to another application's OAuth client, no
- *                             refresh token, expired, or refused by the provider.
- *   UNSUPPORTED               LAIN has no runtime for the family (or, for Z.ai,
- *                             integrates it through its API only).
- *
- * VERIFICATION IS THE PROVIDER'S. A migrated or adopted account is CONNECTED
- * only after the provider's own status read names a signed-in account — never
- * a model request, never quota spent. A refusal leaves the account waiting,
- * with the refusal as its reason.
- *
- * SOURCES (adapters):
- *   connection   a router LAIN is connected to — which providers it serves,
- *                read from LAIN's own model list: METADATA ONLY
- *   export       a file the person picked (JSON, documented below)
- * Nothing here reads a router's private data folder or calls its dashboard.
- *
- * AFTERWARDS the account is just "Codex · Personal" or "DeepSeek API": the
- * source is kept only as provenance (diagnostics, the migration history), never
- * shown as a brand in the account list.
- *
- * EXPORT FORMAT (a router's backup, or one written by hand):
- *   { "source": "<name>", "accounts": [
- *     { "family": "codex", "kind": "oauth", "identity": "me@example.com", "label": "Personal",
- *       "credential": { "format": "codex-auth-json", "data": { …Codex auth.json… } } },
- *     { "family": "claude", "kind": "oauth", "identity": "…", "profileDir": "C:\\Users\\me\\.claude" },
- *     { "family": "antigravity", "kind": "oauth", "identity": "…", "credential": { "encrypted": true } },
- *     { "family": "copilot", "kind": "oauth", "identity": "…" },
- *     { "family": "deepseek", "kind": "api", "provider": "deepseek", "baseUrl": "https://api.deepseek.com/v1", "key": "sk-…" } ] }
- */
+/** IMPORT ACCOUNTS — a ONE-TIME move from another router installation INTO LAIN's own fabric, so LAIN stops depending on the router. */
 
 const fs = require('fs');
 const path = require('path');
@@ -156,10 +102,7 @@ function namedProfile(x) {
   return exists(path.join(home, f)) ? { key: `${DRIVER[x.family]}|${home}`, where: home, home, driver: DRIVER[x.family], named: true } : null;
 }
 
-/**
- * THE CLASS OF ONE DISCOVERED ACCOUNT, and why. Pure over what the source provided and what is on this PC.
- * @returns {{ authClass, reason, portable?, native? }}
- */
+/** THE CLASS OF ONE DISCOVERED ACCOUNT, and why. */
 function classify(x, { native = [] } = {}) {
   if (x.kind === 'api') {
     return x.transferable ? { authClass: CLASS.PORTABLE_AUTH, reason: 'an API key you own — it moves into LAIN\'s secret store once the provider accepts it' }
@@ -182,15 +125,7 @@ function classify(x, { native = [] } = {}) {
   return { authClass: CLASS.REAUTH_REQUIRED, reason: portable.reasonText({ reason: 'metadata' }) };
 }
 
-/**
- * WHAT WILL HAPPEN to each discovered account — never an action yet.
- *   transfer     PORTABLE_AUTH, an API key: verify with the provider, keep in the secret store
- *   migrate      PORTABLE_AUTH, a sign-in: a new LAIN-owned profile, verified with the provider
- *   adopt        NATIVE_PROFILE_REFERENCE: LAIN uses the profile where it is; its identity is checked
- *   reauth       REAUTH_REQUIRED: waits for LAIN's own sign-in, with the reason
- *   unsupported  UNSUPPORTED: stays discovered, with the reason
- *   duplicate    likely already here: Keep existing · Replace · Add separately
- */
+/** WHAT WILL HAPPEN to each discovered account — never an action yet. */
 function plan(app, found) {
   const ph = store.placeholders();
   let native = [];
@@ -236,11 +171,7 @@ async function migrate(app, x) {
   return { ok: true, result: hint && got && hint !== got ? 'migrated-other' : 'migrated', authClass: CLASS.PORTABLE_AUTH, account: r.id };
 }
 
-/**
- * NATIVE_PROFILE_REFERENCE: use the profile where it is, then CHECK who it is. The same account → connected,
- * nothing left waiting. A different account → LAIN still uses the profile (it is the person's) but the imported
- * account keeps waiting for its own sign-in: identity is never assumed.
- */
+/** NATIVE_PROFILE_REFERENCE: use the profile where it is, then CHECK who it is. */
 async function adoptNative(app, x, p) {
   let used;
   if (p.adopt && p.adopt.named) {
@@ -282,10 +213,7 @@ function placeholder(x, cls = null) {
   return { ok: true, result: state === 'UNSUPPORTED' ? 'unsupported' : 'reauth-required', authClass: c.authClass, reason: c.reason, placeholder: id, how: r.how };
 }
 
-/**
- * APPLY — `decisions` maps each discovered key to the person's answer where one
- * is needed: 'keep' (skip; keep what LAIN has) · 'replace' · 'separate'.
- */
+/** APPLY — `decisions` maps each discovered key to the person's answer where one is needed: 'keep' (skip; keep what LAIN has) · 'replace' · 'separate'. */
 async function apply(app, found, decisions = {}) {
   const planned = plan(app, found);
   const out = [];
@@ -310,11 +238,7 @@ async function apply(app, found, decisions = {}) {
   return { ok: true, results: out };
 }
 
-/**
- * A PLACEHOLDER IS DONE when LAIN's own sign-in for it exists: an account of the
- * family with the same identity (or, with no identity to compare, when the
- * person says so — `finish`).
- */
+/** A PLACEHOLDER IS DONE when LAIN's own sign-in for it exists: an account of the family with the same identity */
 function reconcile(app) {
   const done = [];
   for (const [id, p] of Object.entries(store.placeholders())) {
@@ -326,11 +250,7 @@ function reconcile(app) {
 }
 function finish(id) { const p = store.placeholders()[id]; if (!p) return { ok: false, why: 'no such discovered account' }; store.dropPlaceholder(id); store.event('migration', { family: p.family, result: 'dismissed', placeholder: id }); return { ok: true }; }
 
-/**
- * Everything every source holds right now: a router LAIN is connected to (metadata), a router INSTALLED on this PC
- * (its own sign-ins, read-only — fabric/routerimport.js), and an export file the person picked.
- * `routerPaths` is for tests; `routers: false` leaves installed routers out.
- */
+/** Everything every source holds right now: a router LAIN is connected to (metadata), a router INSTALLED on this PC */
 function discover(app, { exportFile = null, routers = true, routerPaths = null } = {}) {
   const found = [];
   const ri = require('./routerimport');

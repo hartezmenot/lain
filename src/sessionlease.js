@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * WHO MAY WRITE A SESSION — one lease per session, shared by every LAIN process on this home (2026-10-02).
- *
- *   <sessions>/.lease/<id>.json  { v, owner:{pid,nonce,surface,host}|null, epoch, since, beat,
- *                                  pausedBy, at, from, handoff, reservedFor, request }
- *
- * THE ONE OWNER of "which process executes this session". It replaces the writer kept inside the session file
- * (workbench.surface — read once below for sessions written before this file existed) and the Rust Guardian's
- * owner_pid. surfacehandoff.js is the surface vocabulary on top of it (Continue in CLI, Take back, ▶ Continue).
- *
- * EVERY CHANGE IS A COMPARE-AND-SWAP. A change runs inside a tiny mutex (`.lease/<id>.lock`, created exclusively,
- * held for one read-modify-write, then removed). Two processes acquiring at once: exactly one wins, the other reads
- * the winner. A mutex left behind by a crash inside that window is older than MUTEX_STALE_MS and is broken.
- *
- * LIVENESS IS THE PID AND A HEARTBEAT. The owner rewrites `beat` every BEAT_MS. A lease whose pid is gone, or whose
- * beat is older than STALE_MS (a reused pid, a wedged process), is dead and may be taken — with the epoch advanced, so
- * a stale owner that wakes up finds it no longer holds what it thinks it holds.
- *
- * OWNERSHIP IS (pid, process nonce, surface). Within one process the CLI and every Harness view of its sessions are
- * one surface; tests that run a CLI App and a Harness App side by side in one process are two.
- *
- * NO AUTOMATIC MIGRATION. A live owner is never displaced: another surface may only `request` the session, and the
- * owner hands it over at its next idle moment (between turns) — see `tick`.
- */
+/** WHO MAY WRITE A SESSION — one lease per session, shared by every LAIN process on this home (2026-10-02). */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -145,11 +122,7 @@ function refusal(r, me) {
   return `This session continues in ${name} now${r.owner ? ` (pid ${r.owner.pid})` : ''}. ${how[0].toUpperCase()}${how.slice(1)}.`;
 }
 
-/**
- * TAKE THE SESSION FOR THIS SURFACE, or say who has it.
- *   force: ignore a reservation (an explicit Take back) — never a live owner
- * @returns {{ok:true, lease, took:boolean, previous:object|null}|{ok:false, why, lease}}
- */
+/** TAKE THE SESSION FOR THIS SURFACE, or say who has it. */
 function acquire(id, { surface, force = false, busy = null } = {}) {
   const me = surfaceName(surface);
   const r = mutate(id, (cur) => {

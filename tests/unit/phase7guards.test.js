@@ -122,16 +122,6 @@ module.exports = async function () {
     assert.strictEqual(n, 0);
   });
 
-  await test('8 · a simple BOT chat (local model or not) carries no project/focus/tool context', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    app.session.thread = 'chat';
-    app.session.messages = [];
-    const o = require('../../src/jobrunner').turnOptions(app, { session: app.session, signal: null, text: 'what is 2 + 2' });
-    assert.strictEqual(o.tools, false);
-    assert.strictEqual(o.live, '');
-    assert.ok(!/focus|project|workspace/i.test(o.systemPrompt.replace(/files or projects/, '')), 'no project context');
-    app.session.thread = 'coding';
-  }));
-
   await test('9 · scheduler processes are runtime-owned: test runs go through the runtime registry; no bare spawn in the assistant', async () => {
     for (const f of fs.readdirSync(path.join(SRC, 'assistant'))) assert.ok(!/child_process/.test(code(path.join(SRC, 'assistant', f))), `${f} spawns nothing directly`);
     fs.writeFileSync(path.join(cwd, 'package.json'), JSON.stringify({ scripts: { test: 'x' } }));

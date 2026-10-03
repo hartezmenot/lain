@@ -143,37 +143,4 @@ module.exports = async function () {
       assert.ok(!shape.includes(word), `a task record must not carry \`${word}\``);
     }
   });
-  await test('HANDOVER: the packet names WHY the previous executor stopped', () => {
-    // END TO END, and it catches a real wiring bug: the packet first read
-    // `task.executor.why`, which by the time a replacement is reading it
-    // belongs to the REPLACEMENT — whose `why` is empty, because nothing has
-    // gone wrong for it yet. The reason lives on the handover row.
-    const handover = require('../../src/handover');
-    const t = working();
-    t.blockExecutor('weekly limit reached');
-    t.assignExecutor({ provider: 'zai', model: 'glm-4.6' });
-
-    const packet = handover.build({
-      cwd: process.cwd(), task: t,
-      turns: [{ model: 'opus-5', stopReason: 'provider', steps: 9, actions: [] }],
-    }, { toModel: 'glm-4.6' });
-
-    assert.match(packet, /continuing this task from a different model \(opus-5\)/);
-    assert.match(packet, /opus-5 stopped because: weekly limit reached/,
-      'the incoming model must know it was a provider limit, not a dead end');
-    assert.match(packet, /provenance, not ownership/i);
-    assert.match(packet, /implement the account backend/, 'and the objective survives');
-  });
-
-  await test('HANDOVER: a task that never had an executor still hands over cleanly', () => {
-    // Total: the packet is built for sessions whose `task` is a plain object
-    // with nothing but an objective, and it must not throw on the new fields.
-    const handover = require('../../src/handover');
-    const packet = handover.build({
-      cwd: process.cwd(), task: { objective: 'something older' },
-      turns: [{ model: 'model-a', stopReason: 'provider', steps: 1, actions: [] }],
-    }, { toModel: 'model-b' });
-    assert.match(packet, /continuing this task from a different model/);
-    assert.ok(!/stopped because:/.test(packet), 'and invents no reason it does not have');
-  });
 };

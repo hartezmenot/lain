@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE CAPABILITY SURFACE, ASKED FOR WHEN NEEDED (Phase CAP, 2026-10-02).
- *
- *   search_capabilities { query, detail? }   skills and MCP tools by name/description — from the index and the MCP
- *                                            catalog, starting nothing; `detail` returns one tool's input schema
- *   use_skill           { name, request? }   one skill's instructions, read now (a `context: scout` skill runs in an
- *                                            isolated read-only SCOUT and only its result comes back)
- *   mcp_call            { server, tool, arguments }   a lazily described MCP tool, under the person's trust
- *
- * REGISTERED ONLY WHEN THERE IS SOMETHING TO FIND (tools/index.js): no skills and no lazy MCP server cost a request
- * nothing at all — three small schemas appear only once something is installed.
- */
+/** THE CAPABILITY SURFACE, ASKED FOR WHEN NEEDED (Phase CAP, 2026-10-02). */
 
 function skills() { return require('../skills'); }
 function mcp() { return require('../mcpreg'); }

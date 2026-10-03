@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * WHEN A TASK RUNS NEXT — plain arithmetic on the task's schedule, in its
- * own time zone. No model, no guess.
- *
- *   { at: <epoch ms> }                                   once (reminder, scheduled)
- *   { every: 'day',   at: 'HH:MM' }                       daily
- *   { every: 'weekday', at: 'HH:MM' }                     Monday–Friday
- *   { every: 'week',  at: 'HH:MM', weekday: 0–6 }         weekly (0 = Sunday)
- *   { every: 'month', at: 'HH:MM', monthday: 1–31 }       monthly (clamped to the month's length)
- *   { every: 'hours', interval: N }                       every N hours from creation
- *   { poll: seconds }                                     a watch's check cadence (≥ 30 s)
- */
+/** WHEN A TASK RUNS NEXT — plain arithmetic on the task's schedule, in its own time zone. */
 
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 

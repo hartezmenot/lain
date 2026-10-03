@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE COMMITTED TASK CHECKPOINT — Core's one answer to "where does this task stand?" (Gate 3 §81–84, 2026-09-30).
- * (Not checkpoint.js: that module is REVERSIBILITY — the prior bytes of files a tool changes.)
- *
- *     task → phase → model turn → tools → landed changes → evidence → CHECKPOINT COMMIT → advance
- *
- * A step's progress becomes current only when it is COMMITTED: the plan's new position (a step finished, a
- * revision, a phase checkpoint, a person's steer) is written into `session.checkpoint` and the session is saved
- * — atomically, before the call that moved it returns. A process that dies a moment later comes back to the
- * committed position, never to an older one and never to the model's prose about it.
- *
- * ONE AUTHORITY, EVERY SURFACE READS IT:
- *
- *   taskId              the task the work belongs to (task.js)
- *   phaseId             the Workbench phase record last closed (supervision.checkpoint), if any
- *   stepId              the plan step in hand — its stable id (plan.js), not its number
- *   step {index,total}  its place among the live steps: "step 3 of 5" everywhere
- *   checkpointId        this commit
- *   generation          increases with every commit; a surface holding a lower one is stale
- *
- * The Harness task strip, the handover packet and the continuation instruction read `view(session)`; none of
- * them counts steps of its own.
- */
+/** THE COMMITTED TASK CHECKPOINT — Core's one answer to "where does this task stand?" (Gate 3 §81–84, 2026-09-30). */
 
 const crypto = require('crypto');
 
@@ -56,10 +34,7 @@ function view(session) {
   };
 }
 
-/**
- * COMMIT: record where the work stands and write the session before returning. `phaseId` names the Workbench
- * phase record this commit closes. A save that fails is reported (`saved: false`), not hidden.
- */
+/** COMMIT: record where the work stands and write the session before returning. */
 function commit(session, reason, { phaseId = null, save = true } = {}) {
   if (!session) return null;
   const prev = session.checkpoint || { generation: 0, phaseId: null };
@@ -89,10 +64,7 @@ function commit(session, reason, { phaseId = null, save = true } = {}) {
   return out;
 }
 
-/**
- * ON COMMIT: `fn(session, checkpoint)` after every committed checkpoint — how "restart after the current checkpoint"
- * (update/lifecycle.js) waits for a safe point without polling. Returns the function that removes it.
- */
+/** ON COMMIT: `fn(session, checkpoint)` after every committed checkpoint — how "restart after the current checkpoint" (update/lifecycle.js) waits for a… */
 const LISTENERS = new Set();
 function onCommit(fn) { LISTENERS.add(fn); return () => LISTENERS.delete(fn); }
 

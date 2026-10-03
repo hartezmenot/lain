@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * `/account` — THE PROVIDER'S BACKING ACCOUNTS AND ITS ACCOUNT POLICY (Phase 8.3).
- * The same Core the window uses — the intelligence fabric (fabric/index.js,
- * fabric/store.js) and sessionintel — so a change here is on the window, the
- * tray and Telegram at once. There is no CLI-only account system.
- *
- *   /account                 the current lane's provider: its policy and its
- *                            backing accounts, numbered, with reported quota
- *   /account all             every provider family
- *   /account <provider> …    the same verbs for another provider ("/account codex pin 2")
- *   /account automatic       Automatic fallback — the next eligible account on a limit
- *   /account ask             Ask before switching
- *   /account pin <n|name>    Use one account only — never switched without asking
- *   /account reorder 2,1,3   the fallback priority
- *   /account rename <n> <alias>   a display name; the identity is never changed
- *   /account use <name>      a specific backing account for this lane
- *   /account add | manage    open the Model Dashboard (sign-ins happen there — never here)
- *   /account refresh [name]  ask the runtimes again for their reported windows
- */
+/** `/account` — THE PROVIDER'S BACKING ACCOUNTS AND ITS ACCOUNT POLICY (Phase 8.3). */
 
 /** The lane the terminal's next turn runs on — the session's current view. */
 function laneOf(app) { try { return require('./sessionviews').current(app.session) === 'chat' ? 'chat' : 'coding'; } catch { return 'coding'; } }
@@ -176,11 +158,7 @@ function pickBacking(fam, word) {
     || fam.accounts.find((a) => a.name.toLowerCase().startsWith(w)) || fam.accounts.find((a) => (a.identity && a.identity.email || '').toLowerCase().startsWith(w)) || null;
 }
 
-/**
- * `/usage [today|7d|30d|all] [by <dim>]` — consumption from the receipts;
- * `/usage limits` — every account's provider windows, one row per window.
- * The same owners the USAGE tab reads (usage.js, usageroutes.limits).
- */
+/** `/usage [today|7d|30d|all] [by <dim>]` — consumption from the receipts; `/usage limits` — every account's provider windows, one row per window. */
 function registerUsage({ define }) {
   define('/usage', {
     surface: true,
@@ -218,11 +196,7 @@ function registerUsage({ define }) {
   });
 }
 
-/**
- * `/channel [status|test|restart|disconnect]` — botconnect.js, the one channel owner.
- * `/extensions [list|found]` — extensions.js / extpackages.js.
- * No state of their own; the window's Bot and Extensions views read the same.
- */
+/** `/channel [status|test|restart|disconnect]` — botconnect.js, the one channel owner. */
 function registerChannels({ define }) {
   define('/channel', {
     surface: true,

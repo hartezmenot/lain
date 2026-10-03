@@ -1,34 +1,11 @@
 'use strict';
 
-/**
- * A MINIMAL AGENT CLIENT PROTOCOL (ACP) CLIENT — JSON-RPC 2.0 over a child's
- * stdio, newline-delimited. Only what LAIN needs to talk to an ACP server such as
- * Antigravity's:
- *
- *   initialize          the server's auth methods and capabilities
- *   authenticate        the provider's own sign-in (`oauth-personal` opens a Google page)
- *   session/new         a session — and, where the server says so, the models it offers
- *   session/prompt      one turn; text arrives as `session/update` notifications
- *
- * LAIN advertises NO client capabilities (no file system, no terminal): the
- * server is a chat model here. Any request it makes of the client — a
- * permission, a file read — is answered "not supported", never granted.
- *
- * The server's stdout is the protocol channel, but some servers print a
- * human line there too ("Open the following link to authenticate…"); lines that
- * are not JSON are handed to `onText`, never treated as protocol.
- *
- * ONE PROCESS PER OPEN. It is registered with the runtime registry so a LAIN
- * exit reaps it, and closed by whoever opened it — never by anyone else.
- */
+/** A MINIMAL AGENT CLIENT PROTOCOL (ACP) CLIENT — JSON-RPC 2.0 over a child's stdio, newline-delimited. */
 
 const { spawn } = require('child_process');
 
 const PROTOCOL_VERSION = 1;
 
-/**
- * @returns {{ child, request, on, notify, close, closed }}
- */
 function open(command, args = [], { env = {}, cwd = process.cwd(), purpose = 'runtime:acp', label = null, onText = null, onStderr = null } = {}) {
   const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let reg = null;

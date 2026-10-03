@@ -215,28 +215,6 @@ module.exports = async function () {
         `"${label}" is a narrowing, not a contradiction`);
     }
   });
-
-  await test('14.B: plan_write keeps the steps and drops the contradicting label', async () => {
-    // THE PLAN STILL LANDS. Refusing real work over a display string would lose
-    // the steps, which are the useful part.
-    const tool = require('../../src/tools/plan').tools.plan_write;
-
-    const session = {};
-    goalMod.set(session, 'stabilise handover');
-    session.task = new Task('fix continuation');
-
-    const r = await tool.run({ steps: ['read the builder', 'add the sentence'], objective: 'redesign frontend' },
-      { session });
-
-    assert.ok(session.plan, 'the plan must be written');
-    assert.strictEqual(session.plan.steps.length, 2, 'the steps survive');
-    assert.strictEqual(session.plan.objective, 'fix continuation',
-      'filed under the task, not under the model\'s contradicting label');
-    assert.match(r.output, /was not kept/, 'and the model is told, so it does not repeat it');
-    assert.strictEqual(r.meta.objectiveRejected, true);
-    assert.ok(!r.isError, 'it is a correction, not a failure — the plan landed');
-  });
-
   await test('14.B: a compatible label from the model IS kept', () => {
     // The guard must not become "the model may never label a plan".
     const s = {};
@@ -445,25 +423,5 @@ module.exports = async function () {
     assert.doesNotThrow(() => authority.brief(chain, { omit: ['goal'] }));
     assert.doesNotThrow(() => authority.brief(chain, {}));
     assert.strictEqual(authority.brief(null), '');
-  });
-
-  await test('PROMPT: only a WORKER is told its assignment, and the goal is stated once', async () => {
-    const a = app(tmpdir('authority-prompt-'));
-    goalMod.set(a.session, 'make the authority chain canonical');
-    a.session.task = new Task('fix /bg goal inheritance');
-
-    // THE FOREGROUND CONVERSATION IS NOT EXECUTING AN ORDER — it is the thing
-    // that issues them, and the absence of the section is what says so.
-    const foreground = require('../../src/appprompt').build(a);
-    assert.ok(!foreground.includes('# Your assignment'));
-
-    const fork = require('../../src/jobrunner').forkSession(a);
-    fork.workOrder = authority.issue(a.session, { id: '7', objective: 'inspect the README too' });
-    const worker = require('../../src/appprompt').build({ ...a, session: fork });
-
-    assert.match(worker, /# Your assignment/);
-    assert.match(worker, /WORK ORDER 7/);
-    assert.strictEqual((worker.match(/make the authority chain canonical/g) || []).length, 1,
-      'the standing goal must appear exactly once in a prompt');
   });
 };

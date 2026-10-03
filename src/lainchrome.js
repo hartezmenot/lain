@@ -1,42 +1,6 @@
 'use strict';
 
-/**
- * LAIN FOR CHROME — the local, authenticated bridge to the user's REAL Chrome
- * session. NOT the Frontend Workshop (a project-bound preview) and NOT
- * WebModel's own isolated browsing profile (src/env/chromium.js) — this is a
- * companion extension the user installs in the Chrome they already use, in
- * the shape of Claude's own Chrome extension: inspect a tab, click, type,
- * navigate, hand structured evidence back. It does not touch the native
- * Harness UI — Desktop menus, Project Files, Settings use ordinary WebView2
- * input, never this.
- *
- * ------------------------------------------------------------------------
- * TRANSPORT: PLAIN HTTP, ON PURPOSE. LAIN has zero npm runtime dependencies
- * (see docs/STATUS.md), so this is not a `ws` WebSocket server — it is a
- * bounded long-poll protocol over Node's own `http`, which an MV3 service
- * worker can speak with nothing but `fetch`. Every endpoint requires the
- * per-session token this bridge mints on `connect()`; nothing is ever bound
- * to anything but 127.0.0.1.
- *
- *   POST /lain-chrome/register     {token}                  -> {ok, sessionId}
- *   GET  /lain-chrome/poll         ?token=...                -> {command|null}   (long poll)
- *   POST /lain-chrome/result       {token, id, result}       -> {ok}
- *   POST /lain-chrome/disconnect   {token}                   -> {ok}
- *
- * ------------------------------------------------------------------------
- * SECURITY MODEL (see §28-46 of the brief this exists for):
- *   - the token is generated per `connect()`, shown once, never persisted
- *     across processes, and required on every request
- *   - the server binds 127.0.0.1 only — never reachable off the machine
- *   - the FIRST registered request's Origin (chrome-extension://<id>) is
- *     pinned; any later request from a different origin is refused, so a
- *     stolen token still cannot be replayed from a different extension
- *   - which TABS are controllable is the EXTENSION's own decision, made by
- *     the person clicking "Authorize this tab" — this bridge only ever sees
- *     tab ids the extension already chose to expose, never scrapes for more
- *   - disconnected (no token issued, or explicitly disconnected) fails
- *     CLOSED: polls and commands are refused, not silently no-op'd
- */
+/** LAIN FOR CHROME — the local, authenticated bridge to the user's REAL Chrome session. */
 
 const http = require('http');
 const crypto = require('crypto');
@@ -115,9 +79,7 @@ class LainChrome {
     this.connected = false;
     for (const [, p] of this.inFlight) { clearTimeout(p.timer); p.reject(new Error(why)); }
     this.inFlight.clear();
-    // Entries are { resolve } (see the poll handler). Calling the entry itself threw
-    // "resolve is not a function" whenever a real extension had a poll waiting —
-    // and left the disconnect half done: token set, server still listening.
+    // Entries are { resolve } (see the poll handler).
     for (const w of this.waitingPolls) (typeof w === 'function' ? w : w.resolve)(null);
     this.waitingPolls = [];
     this.pendingCommands = [];
@@ -161,9 +123,7 @@ class LainChrome {
   async _onRegister(req, res, origin) {
     const body = JSON.parse((await readBody(req)) || '{}');
     if (!this.connected || body.token !== this.token) return json(res, 401, { ok: false, error: 'bad token' }, origin);
-    // PIN THE ORIGIN, ONCE. A registration from a second origin with the same
-    // token — the token having leaked, or a second copy of the extension —
-    // is refused rather than silently accepted as a second controller.
+    // PIN THE ORIGIN, ONCE.
     if (this.pinnedOrigin && origin !== this.pinnedOrigin) {
       return json(res, 403, { ok: false, error: 'this token is already bound to a different extension origin' }, origin);
     }
@@ -223,10 +183,7 @@ class LainChrome {
     if (p) {
       clearTimeout(p.timer);
       this.inFlight.delete(body.id);
-      // A CONTENT SCRIPT CANNOT WRITE FILES — a screenshot comes back as a
-      // data URL and LAIN (which can) turns it into the same kind of artifact
-      // path Computer MCP's screenshot already produces, so tools/chrometab.js
-      // needs no separate code path for the two.
+      // A CONTENT SCRIPT CANNOT WRITE FILES — a screenshot comes back as a data URL and LAIN (which can) turns it into the same kind of artifact path…
       p.resolve(this._materializeDataUrl(body.result));
     }
     return json(res, 200, { ok: true }, origin);
@@ -249,14 +206,7 @@ class LainChrome {
     }
   }
 
-  /**
-   * SEND ONE COMMAND, AND WAIT FOR THE EXTENSION'S ANSWER.
-   *
-   * This is the only way LAIN's tool (tools/chrometab.js) talks to the
-   * browser. Every command is `{op, params}`; the extension alone decides
-   * how to execute it (which tab, whether it is authorized) and always sends
-   * SOME result back — refused, failed, or done — never silence.
-   */
+  /** SEND ONE COMMAND, AND WAIT FOR THE EXTENSION'S ANSWER. */
   request(op, params = {}, { timeoutMs = COMMAND_TIMEOUT_MS } = {}) {
     if (!this.connected) return Promise.resolve({ ok: false, error: 'Chrome bridge is not connected — run /chrome connect' });
     if (!this.extensionSeen) return Promise.resolve({ ok: false, error: 'the extension has not registered yet — open its popup and paste the token' });

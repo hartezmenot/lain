@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * EVERY ACCOUNT'S CURRENT WINDOWS — ONE PROJECTION, FROM THE FABRIC (2026-10-02).
- *
- * The windows themselves have one owner: what each provider reported, kept per account (fabric/store.recordQuota and
- * the account's own reading, the newest winning — fabric/index.js `backing`). This file is the one place they are
- * PROJECTED for readers that are not the Accounts page: Usage's limits panel, the per-window usage overlay
- * (resetwindows.js), the top-right tracker. None of them reads a cache of its own any more, so none can disagree.
- *
- *   rows(app) → [{ id, family, familyLabel, name, kind, instanceId, base, enabled, windows:[{ id, label, usedPercent,
- *                  remainingPercent, resetsAt, expired }], quotaAt, quotaSource, quotaNote }]
- */
+/** EVERY ACCOUNT'S CURRENT WINDOWS — ONE PROJECTION, FROM THE FABRIC (2026-10-02). */
 
 const NAMED_MINS = Object.freeze({ five_hour: 300, '5-hour': 300, seven_day: 10080, '7-day': 10080, weekly: 10080, monthly: 43200 });
 

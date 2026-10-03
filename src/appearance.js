@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * THE HARNESS'S APPEARANCE — persisted in Core (cfg.ui), applied by the window.
- * Independent axes, so any combination works (JetBrains keymap + LAIN theme):
- *
- *   mode       dark · light · system
- *   palette    lain · slate · violet · coral · mono · custom      (accent family)
- *   custom     { background, surface, accent, secondary, warning } — five flat colours
- *   zoom       80 · 90 · 100 · 110 · 125 · 150 · 175 · 200        (the whole window)
- *   type       small · medium · large                             (text size, composes with zoom)
- *   icons      small · medium · large
- *   theme      lain · vscode · cursor · jetbrains · ext:<id>      (workbench/editor theme preset)
- *   keymap     lain · vscode · cursor · jetbrains · custom
- *   density    comfortable · compact
- *   nav        compact · expanded        (the app panel beside every surface but the IDE — icons, or
- *                                        icons and names; expanded by default since 2026-09-30, and
- *                                        icons only on a narrow window whatever the choice)
- *
- * No gradient, glow or shadow tokens exist here on purpose: depth comes from
- * spacing, contrast, block proportion and hairline separators.
- */
+/** THE HARNESS'S APPEARANCE — persisted in Core (cfg.ui), applied by the window. */
 
 const MODES = ['dark', 'light', 'system'];
 const PALETTES = ['lain', 'slate', 'violet', 'coral', 'mono', 'custom'];

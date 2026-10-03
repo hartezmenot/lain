@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * COMPUTER CONTROL — the person's switch over LAIN's hands on this desktop (Phase CU, 2026-10-02).
- *
- * SEPARATE FROM PREVIEW. The Preview's pointer and keyboard drive LAIN's own Preview window; this drives the person's
- * real desktop. Nothing granted to the Preview carries over here, and nothing here is granted silently.
- *
- * OFF BY DEFAULT, PER SESSION. `/computer on` (or the Harness's Enable) turns it on for THIS session; a new session,
- * `/computer off`, the kill switch (Ctrl+Alt+Pause, in the bridge) or closing LAIN turns it off. The CLI and the
- * Harness read and change the same state, because it lives in Core (on the App), not in a window.
- *
- * THREE TIERS, the person's choice:
- *   OBSERVE   windows, the accessibility tree, a capture — nothing is pressed or typed
- *   INTERACT  (default) input, but only into the TARGET window — focus-locked: if anything else comes to the front,
- *             input pauses (FOCUS_LOST) rather than landing in the wrong window; clicks must fall inside the target
- *   FULL      any window, window close, the clipboard, system hotkeys — still never a sensitive surface, never UAC
- *
- * EVERY DESKTOP OPERATION PASSES admit() (computermcp.js call), so the structured `computer` tool, the MNK primitives
- * (tools/computerinput.js) and request_computer obey one rule. The bridge adds what only it can see at the moment of
- * input: the kill switch, "the person is using the computer" (their input always wins) and the focus lock.
- *
- * SENSITIVE SURFACES are refused, not attempted: UAC / the secure desktop, Windows credential and security prompts,
- * password managers, password fields. The person does those. A model cannot lower this.
- *
- * ONLY THE PRIMARY AGENT by default: subagents are not given computer tools (toolfunnel `computer` family) unless the
- * person sets cfg.computer.agents. LAIN WEB may look, and cannot grant FULL without a local confirmation.
- */
+/** COMPUTER CONTROL — the person's switch over LAIN's hands on this desktop (Phase CU, 2026-10-02). */
 
 const TIERS = Object.freeze(['OBSERVE', 'INTERACT', 'FULL']);
 const READ_OPS = new Set(['window.list', 'window.active', 'displays', 'uia.tree', 'uia.find', 'uia.getValue', 'wait.window', 'wait.control', 'wait.gone', 'cursor.get', 'screen.capture', 'window.capture', 'control.state']);
@@ -48,10 +23,7 @@ function enabled(app) { const s = stateOf(app); return Boolean(s && s.on && s.se
 function tier(app) { return enabled(app) ? stateOf(app).tier : null; }
 function rank(t) { return TIERS.indexOf(String(t || '').toUpperCase()); }
 
-/**
- * TURN IT ON for this session. `by` is who asked: cli | harness | web | request (a model's request_computer, which the
- * person approved for observation). The desktop itself is authorized by computermcp.connect's one question.
- */
+/** TURN IT ON for this session. */
 async function enable(app, { tier: want = 'INTERACT', by = 'cli', ask = true, confirmedLocally = false } = {}) {
   const t = String(want || 'INTERACT').toUpperCase();
   if (!TIERS.includes(t)) return { ok: false, why: `tier is one of ${TIERS.join(', ')}` };
@@ -111,10 +83,7 @@ function sensitive(w) {
   return SENSITIVE_TITLES.some((re) => re.test(String(w.title || '')));
 }
 
-/**
- * ADMIT ONE DESKTOP OPERATION (computermcp.js call). Returns { ok, why?, params? } — params possibly scoped to the
- * target. `internal` = LAIN's own control ops.
- */
+/** ADMIT ONE DESKTOP OPERATION (computermcp.js call). */
 function admit(app, op, params = {}, { internal = false } = {}) {
   if (CONTROL_OPS.has(op)) return internal ? { ok: true, params } : { ok: false, why: `${op} is LAIN's, not a tool's` };
   if (internal && op === 'control.state') return { ok: true, params };   // LAIN reading its own switch, on or off

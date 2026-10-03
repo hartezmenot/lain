@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * CAN THIS LOCAL MODEL BE THE CODING AGENT? — a small, explicit test.
- *
- * Generating text is not enough to code: the Agent must follow an instruction,
- * ask for a tool in LAIN's structured form, continue correctly from the tool's
- * result, stop when cancelled, and hold a modest context. Five short probes,
- * each through the NORMAL request path (provider.chat → modelrequest, role
- * 'machinery', reason 'agent-test'), so the test is traced and counted too:
- *
- *   instruction     "reply with exactly READY"                → text contains READY
- *   tool request    a read_file tool, asked to use it        → a well-formed read_file call
- *   tool result     the call + a tool result naming a word  → the answer uses that word
- *   cancel          a long answer, aborted after its first chunk → the stream ends, runtime healthy
- *   context         ~1,500 words of filler around a code   → the code comes back
- *
- * RESULT: verified (all five) · partial (instruction + tool result, but not
- * all) · unsupported (otherwise). Small by design — no large local workload.
- *
- * KEYED to what was tested: the model FILE (path, size, modified time — or an
- * Ollama digest), the adapter and runtime version, and the configuration
- * (context, projector). Change any of them and the old result no longer applies.
- */
+/** CAN THIS LOCAL MODEL BE THE CODING AGENT? */
 
 const fs = require('fs');
 const path = require('path');
@@ -93,10 +72,7 @@ async function collect(pc, messages, opts) {
   return { text, calls };
 }
 
-/**
- * RUN THE TEST for one local model. `pc` is resolved through the catalog like
- * any request. Returns the stored result.
- */
+/** RUN THE TEST for one local model. */
 async function run(app, modelId, { signal = null, cwd = process.cwd() } = {}) {
   const key = keyFor(app, modelId);
   if (!key) return { ok: false, why: 'LAIN does not know this local model' };

@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE BOT'S PROFILE — name, tone, language and behaviour, as the person set
- * them (BOT › Profile). Stored in config (cfg.bot.profile); rendered into the
- * STABLE part of the BOT's system prompt (prompt.js), so it costs one cached
- * prefix, not a per-turn increment.
- *
- * A profile is a preference about HOW the BOT talks. It carries no authority:
- * it cannot widen a permission, enable a tool or change what the Agent may do.
- */
+/** THE BOT'S PROFILE — name, tone, language and behaviour, as the person set them (BOT › Profile). */
 
 const LIMITS = Object.freeze({ name: 40, tone: 80, language: 40, behavior: 800 });
 const DEFAULTS = Object.freeze({ name: 'LAIN', tone: '', language: 'auto', behavior: '' });

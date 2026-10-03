@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * ONE WRITER PER SESSION, HANDED BETWEEN SURFACES — Harness ⇄ CLI.
- *
- * The lease itself is sessionlease.js (one file per session, compare-and-swap, heartbeat). This file is the SURFACE
- * vocabulary on top of it, unchanged for its callers:
- *
- *   Harness ──Continue in CLI──► the session is reserved for the CLI → `lain --resume <id>`
- *   CLI     ──/handback─────────► reserved for the Harness → the Harness reloads it from disk and carries on
- *   claim(app)    every executing surface takes the lease before a turn (App.submit / inputgate); a session another
- *                 process wrote meanwhile is reloaded from disk first — never a stale in-memory copy written over it
- *   release(app)  on the way out: unfinished work is a PAUSE (`cli-closed`, `host-closed`), not an ending
- *   sync(app)     the Harness notices a host that died (pid gone or heartbeat stale) and records the pause it left
- *   resumeHere()  ▶ Continue: take the lease, reload the session as the other host left it, continue the SAME task
- *   takeBack()    explicit: a free/reserved session is taken; a LIVE owner is only ASKED (it hands over when idle)
- *
- * The same task, the same session file, the same Core state: nothing is copied and no second task is created.
- */
+/** ONE WRITER PER SESSION, HANDED BETWEEN SURFACES — Harness ⇄ CLI. */
 
 const fs = require('fs');
 const path = require('path');
@@ -62,10 +46,7 @@ function reload(app) {
   return true;
 }
 
-/**
- * THE SURFACE TAKES THE LEASE as it starts working. Returns the lease view, or null when another surface holds it
- * (check() says why). When the session was last written by someone else, it is reloaded from disk first.
- */
+/** THE SURFACE TAKES THE LEASE as it starts working. */
 function claim(app) {
   const s = app && app.session;
   if (!s || !s.id) return null;
@@ -77,10 +58,7 @@ function claim(app) {
   return lease.view(s.id, { surface: me });
 }
 
-/**
- * CLAIM, WAITING A MOMENT FOR A HAND-OVER THIS SURFACE ASKED FOR (`lain --resume`, /takeover): an idle owner lets go
- * at its next beat (≤ 2 s). A busy owner is never displaced — after the wait the claim is refused as usual.
- */
+/** CLAIM, WAITING A MOMENT FOR A HAND-OVER THIS SURFACE ASKED FOR (`lain --resume`, /takeover): an idle owner lets go at its next beat (≤ 2 s). */
 async function claimWaiting(app, { waitMs = 4000 } = {}) {
   const got = claim(app);
   if (got) return got;
@@ -145,10 +123,7 @@ function handoff(app, to) {
   return { ok: true, surface: lease.view(s.id), command: h.command, cwd: s.cwd };
 }
 
-/**
- * TAKE IT BACK HERE. A free or reserved session is taken and reloaded from disk. A session a LIVE process holds is
- * never taken: that process is asked, and hands it over at its next idle moment (sessionlease.tick).
- */
+/** TAKE IT BACK HERE. A free or reserved session is taken and reloaded from disk. A session a LIVE process holds is never taken: that process is asked… */
 function takeBack(app) {
   const s = app.session;
   const me = surfaceOf(app);
@@ -181,10 +156,7 @@ function reapDeadCli(id) {
   return r ? { writer: null, pausedBy: r.pausedBy, at: r.at, from: r.from, handoff: null, pid: r.deadPid } : null;
 }
 
-/**
- * THE HARNESS FOLLOWS THE LEASE: a host that died is recorded and its session reloaded; a session handed back to this
- * surface is taken and reloaded.
- */
+/** THE HARNESS FOLLOWS THE LEASE: a host that died is recorded and its session reloaded; a session handed back to this surface is taken and reloaded. */
 function sync(app) {
   const s = app && app.session;
   if (!s || !s.id) return null;

@@ -1,16 +1,6 @@
 'use strict';
 
-/**
- * THE PROJECT'S DEV SERVER, AS ROUTES. Every decision is workshop/devstate.js's
- * (and devserver.js's beneath it); this adds the envelope and one rule: a dev
- * server belongs to an ATTACHED project, so a session with none is refused
- * rather than serving whatever directory it happens to sit in.
- *
- * Start/stop/restart are POSTs because each one spawns or ends a process.
- * `probe` requests the page once and records a structured result — a 500 is
- * reported with the request, the server's state and its recent output, and is
- * never a reason to restart.
- */
+/** THE PROJECT'S DEV SERVER, AS ROUTES. */
 
 const sv = require('../sessionviews');
 

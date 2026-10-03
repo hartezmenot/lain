@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * THE EXTENSION HOST — one VS Code extension, in its own Node process.
- *
- * ------------------------------------------------------------------------
- * WHAT RUNS HERE AND WHAT CANNOT.
- *
- * Core (manager.js) starts this file as a separate `node` process, one per
- * extension, under Node's permission model:
- *
- *   --permission --allow-fs-read=<this folder>,<the extension>[,<workspace>]
- *                --allow-fs-write=<its storage>[,<workspace>]
- *                [--allow-child-process]
- *
- * so what the person granted is enforced by the Node runtime, not by
- * convention: an extension without "workspace write" gets ERR_ACCESS_DENIED
- * from `fs.writeFile` on a project file, and one without "processes" cannot
- * spawn anything. It talks to Core only over the IPC channel below; it has no
- * access to Core's memory, LAIN's tools, the session or credentials.
- *
- * ------------------------------------------------------------------------
- * THE `vscode` MODULE IS A DECLARED SUBSET (see API_VERSION and SUPPORTED).
- * Anything outside it throws `LAIN_UNSUPPORTED vscode.<name>` at the moment it
- * is touched, and Core records it for the extension's compatibility report —
- * an unsupported API is never a silent no-op.
- */
+/** THE EXTENSION HOST — one VS Code extension, in its own Node process. */
 
 const Module = require('module');
 const path = require('path');

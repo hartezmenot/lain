@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * LLAMA.CPP — a llama-server LAIN starts, owns, health-checks and stops.
- *
- *     model chosen → ensure() → llama-server (owned, registered) → /health → ready
- *
- * ONE SERVER PER MODEL CONFIGURATION, REUSED. A request never spawns a server:
- * `ensure` returns the healthy one already serving this exact configuration
- * (file, projector, context, GPU layers, threads), and starts one only when
- * none is. By default one LAIN-owned server runs at a time (`maxServers`,
- * cfg.local.llamacpp.maxServers): a second model is a CONTROLLED SWITCH — the
- * current server is stopped only when no request is in flight on it.
- *
- * RESOURCES. Before starting, the need is estimated from the file sizes the
- * header scan already knows (weights + projector, plus a stated KV-cache
- * allowance) against the machine's free memory. A start that would not fit is
- * refused with the numbers, not attempted. What is MEASURED afterwards is the
- * server process's working set — reported as process memory, never as VRAM.
- *
- * OWNERSHIP. Every server is registered in runtimeregistry.js (pid + start
- * time, policy onOwnerExit: 'stop'). Only servers LAIN started are ever
- * stopped; another llama-server on this machine is not LAIN's and is never
- * touched, looked up by name, or killed.
- */
+/** LLAMA.CPP — a llama-server LAIN starts, owns, health-checks and stops. */
 
 const fs = require('fs');
 const net = require('net');
@@ -61,11 +39,7 @@ function binary(app) {
 function cliBinary(app) { const s = settings(app); return s.cli ? (fs.existsSync(s.cli) ? s.cli : null) : (process.env.LAIN_ISOLATED === '1' ? null : which('llama-cli')); }
 
 let versionCache = null;
-/**
- * THE SERVER'S VERSION — the same binary always answers the same, so it is asked
- * once per binary (path, size, time), not once per LAIN start: `--version` was a
- * blocking process launch on every CLI start (Phase 8.2). Kept in the config home.
- */
+/** THE SERVER'S VERSION — the same binary always answers the same, so it is asked once per binary (path, size, time), not once per LAIN start… */
 function versionFile() { return path.join(require('../config').configDir(), 'local', 'llama-version.json'); }
 function version(app) {
   const b = binary(app);
@@ -102,9 +76,7 @@ function keyOf(cfg) { return JSON.stringify([cfg.file, cfg.projector || null, cf
 function configFor(app, model) {
   const s = settings(app);
   const per = (require('./modeldirs').list().settings || {})[model.file] || {};
-  // CONTEXT: the person's setting; else the largest of 32k / 24k / 16k / 8k that the header allows
-  // and free memory holds. LAIN's own BOT request (system prompt + tool schemas) is ~19k tokens, so
-  // 8k is a last resort that says so on the first refused request.
+  // CONTEXT: the person's setting; else the largest of 32k / 24k / 16k / 8k that the header allows and free memory holds.
   const cap = (n) => (model.contextLength ? Math.min(n, model.contextLength) : n);
   let ctx = cap(per.ctx || s.ctx || 32768);
   if (!per.ctx && !s.ctx) {
@@ -160,10 +132,7 @@ function stop(key, { force = false } = {}) {
 
 function stopAll() { let n = 0; for (const k of [...servers.keys()]) { if (stop(k, { force: true }).ok) n++; } return { stopped: n }; }
 
-/**
- * ENSURE the model is served. Returns the ready server's view, or
- * { ok:false, why } — a model that cannot start is an answer, never a hang.
- */
+/** ENSURE the model is served. */
 async function ensure(app, modelId, { signal = null, startTimeoutMs = 180000, spawnFn = spawn } = {}) {
   const model = require('./modeldirs').byId(modelId);
   if (!model) return { ok: false, why: `${modelId} is not in any model directory LAIN knows` };

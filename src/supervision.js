@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * CHAT SUPERVISES THE CODING AGENT — without racing it.
- *
- * Chat and the Coding Agent are the two threads of ONE session (sessionviews.js).
- * While the Agent works, Chat does not generate new coding prompts: it waits
- * for an AUTHORITATIVE checkpoint (a finished turn: the plan, the findings, the
- * verification, what landed) and only then helps the person decide what next.
- *
- *   WHILE THE AGENT RUNS, a Chat message is handled here, with no model call:
- *     status question   → the Agent's state, from Core ("Phase 2 · Implementing")
- *     urgent steer      → LAIN asks: [Steer now] (applied at the next safe step
- *                         boundary) or [Wait for checkpoint] — with the cost said
- *     anything else     → a PENDING STEER, compared with the next checkpoint
- *   AT A CHECKPOINT (checkpoint()):
- *     a PHASE SUMMARY — landed / found / remaining / failed / recommended next
- *     change — goes to Chat automatically, with the actions the person needs
- *     (Continue plan · Review problem · Discuss · Pause); pending steers are put
- *     to the person; the run strategy decides whether LAIN continues on its own.
- *   FINDINGS are structured Core state (report_finding): severity, summary,
- *     evidence, affected work, possible fix, blocking. Chat turns them into
- *     decisions; a blocking one stops Long Context Phasing.
- *   PLAN DELTAS: the APPROVED plan is never silently rewritten. A consequence
- *     the Agent had to do is recorded as added; a scope expansion is PROPOSED
- *     and waits for [Add to plan] / [Discuss] / [Leave for later].
- *   PLAN FIRST: a broad Coding request is offered [Plan in Chat first] /
- *     [Implement directly] — LAIN's workflow decision, not Agent chatter.
- *
- * Nothing here exposes model reasoning, and nothing is a second task owner:
- * the plan is session.plan, the handover is handover.js, the state is workbench.js.
- */
+/** CHAT SUPERVISES THE CODING AGENT — without racing it. */
 
 const wb = require('./workbench');
 
@@ -97,10 +68,7 @@ function settleSteers(session, ids, state) {
 const STATUS_RE = /^(?:what(?:'s| is)\s+(?:it|the agent|the coding agent)\s+doing|status|progress|how(?:'s| is)\s+it\s+going|how far|where are we)\b/i;
 const URGENT_RE = /^(?:stop|halt|quit|don'?t|do not|never)\b|\bstop (?:doing|changing|touching|editing|using)\b|\binstead\b|\bright now\b|\bimmediately\b/i;
 
-/**
- * A CHAT MESSAGE WHILE THE AGENT RUNS. Deterministic; returns what Chat shows.
- * { kind: 'status'|'urgent'|'pending', text, offer?, steer? }
- */
+/** A CHAT MESSAGE WHILE THE AGENT RUNS. */
 function chatWhileRunning(app, text) {
   const r = classifyWhileRunning(app, text);
   const w = wb.of(app.session);
@@ -127,11 +95,7 @@ function classifyWhileRunning(app, text) {
 
 // ------------------------------------------------------------------- findings & deltas --
 
-/**
- * A FINDING FROM THE AGENT (the report_finding tool, or LAIN's own verification).
- * `addsWork` is work beyond the approved plan: a small consequence is recorded
- * as added; anything else is a PROPOSED delta awaiting the person.
- */
+/** A FINDING FROM THE AGENT (the report_finding tool, or LAIN's own verification). */
 function reportFinding(session, f = {}, source = 'agent') {
   const w = wb.of(session);
   const sev = SEVERITY.includes(String(f.severity || '').toLowerCase()) ? String(f.severity).toLowerCase() : 'minor';
@@ -188,13 +152,7 @@ function problems(app, record) {
 /** Endings after which the window shows no "Continue?" card: the person stopped it, or the quota pause says it all. */
 const QUIET_STOPS = new Set(['CANCELLED', 'QUOTA_EXHAUSTED', 'PROVIDER_RATE_LIMIT']);
 
-/**
- * A CODING TURN ENDED: summarise the phase for Chat, put pending steers and
- * deltas to the person, apply a queued profile change, classify the ending and
- * decide — by the run strategy and the continuation policy — whether the TASK
- * carries on. Returns { phase, next?, cause?, delayMs?, compact? } where `next`
- * is the instruction for the next model turn when it does.
- */
+/** A CODING TURN ENDED: summarise the phase for Chat, put pending steers and deltas to the person, apply a queued profile change, classify the ending… */
 function checkpoint(app, record) {
   const s = app.session;
   if (!s || !record) return null;
@@ -289,10 +247,7 @@ function planFirstOffer(session, text) {
 
 // ------------------------------------------------------------------- Chat's view --
 
-/**
- * WHAT CHAT KNOWS OF THE AGENT — compact, authoritative, never the transcript.
- * Rides the Chat thread's live context (promptparts).
- */
+/** WHAT CHAT KNOWS OF THE AGENT — compact, authoritative, never the transcript. */
 function chatContext(app) {
   const s = app.session;
   const w = wb.of(s);

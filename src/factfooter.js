@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * THE FACT FOOTER (Simplify S4): what LAIN itself recorded during a turn, shown under the model's report — files
- * changed with +/- counts, commands with exit code and duration, background jobs still running, agents used. Built
- * only from records Core already has; shown in the CLI and Harness, never sent to the model.
- */
+/** THE FACT FOOTER (Simplify S4): what LAIN itself recorded during a turn, shown under the model's report — files changed with +/- counts, commands with… */
 
 const path = require('path');
 

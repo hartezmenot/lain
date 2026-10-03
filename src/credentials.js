@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * CREDENTIAL REFERENCES — the one boundary a secret crosses.
- *
- * ------------------------------------------------------------------------
- * EVERYTHING OUTSIDE CORE'S TRANSPORT SEES A REFERENCE, NEVER THE SECRET.
- *
- *   credential_ref   `cred:<owner>:<kind>` — a name, safe anywhere: config,
- *                    the account registry, API responses, the DOM, logs, the
- *                    BOT's answers, usage rows.
- *   describe(ref)    what a person may see: present, kind, a masked shape
- *                    (`••••9f2a`), when it was stored. Never more.
- *   resolve(ref)     the secret itself. Called ONLY where a request is built
- *                    (connections.fromConfig → the provider transport). It is
- *                    registered with redact.js the moment it is read, so even a
- *                    slip that prints it prints `[redacted]`.
- *
- * The secret itself lives in the OS store (secretstore.js: DPAPI, CurrentUser),
- * one blob per reference. The non-secret facts about it (kind, last four,
- * fingerprint, stored at) live in <configDir>/credentials.json so a listing
- * never has to decrypt anything.
- *
- * NO "SHOW FULL KEY". There is no function here that returns a secret to a
- * caller that is not about to send it to its provider, and no route calls
- * resolve. Replace, Remove and Test are the verbs.
- *
- * WHERE THE STORE IS UNAVAILABLE (non-Windows), `store` refuses rather than
- * falling back to plaintext; the caller says so.
- */
+/** CREDENTIAL REFERENCES — the one boundary a secret crosses. */
 
 const fs = require('fs');
 const path = require('path');
@@ -108,11 +81,7 @@ function resolve(r) {
   return s;
 }
 
-/**
- * WARM THE CACHE for several references in one secret-store call (Phase 8.1).
- * Only for references this process will resolve anyway (a connections listing);
- * nothing leaves this module — resolve() still hands out one secret at a time.
- */
+/** WARM THE CACHE for several references in one secret-store call (Phase 8.1). */
 function prefetch(refs) {
   // (a key the launch warm-up is already reading is left to it — prefetchAsync, below)
   const want = [...new Set((refs || []).filter((r) => isRef(r) && !cache.has(r) && !inflight.has(r)))];
@@ -127,12 +96,7 @@ function prefetch(refs) {
   }
 }
 
-/**
- * WARM THE CACHE WITHOUT BLOCKING (Phase 8.2) — started first thing at launch, so
- * the first listing (the header, the dashboard) finds the keys already read
- * instead of stopping the prompt for a secret-store round trip. resolve() is
- * unchanged: anything not warmed yet is read the old way, one at a time.
- */
+/** WARM THE CACHE WITHOUT BLOCKING (Phase 8.2) — started first thing at launch, so the first listing (the header, the dashboard) finds the keys already… */
 let warming = Promise.resolve();
 const inflight = new Set();
 function prefetchAsync(refs) {
@@ -159,10 +123,7 @@ function warmed() { return warming; }
 function cached(r) { return cache.has(r); }
 /** The secret exists — a file check, no decryption (listings use this; a request reads the secret itself). */
 function present(r) { return isRef(r) && (cache.has(r) || store_().has(blobName(r))); }
-/**
- * READ ONE SECRET WITHOUT BLOCKING, right before the request that needs it (provider.chat). A launch warm-up already
- * reading it is joined, never duplicated. Afterwards resolve() answers from the cache.
- */
+/** READ ONE SECRET WITHOUT BLOCKING, right before the request that needs it (provider.chat). */
 async function ensure(r) {
   if (!isRef(r) || cache.has(r)) return;
   if (inflight.has(r)) { await warming; if (cache.has(r)) return; }
@@ -192,10 +153,7 @@ function remove(r) {
 
 function list() { return Object.keys(readMeta().refs).map(describe); }
 
-/**
- * THE GUARD: does any secret this process has seen appear in `value`?
- * For tests and for boundaries that want to fail closed.
- */
+/** THE GUARD: does any secret this process has seen appear in `value`? */
 function leaks(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   for (const s of cache.values()) if (s && s.length >= 8 && text.includes(s)) return true;

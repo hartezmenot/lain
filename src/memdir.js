@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * MEMORY (Simplify S8): `~/.lain/projects/<id>/memory/` — one fact per markdown file, and `MEMORY.md`, an index of
- * one line per fact that is loaded into every session's prompt for that project. The model saves a fact when the
- * person asks it to remember something or it learns something durable (the `memory` tool); `/memory` lists and edits.
- */
+/** MEMORY (Simplify S8): `~/.lain/projects/<id>/memory/` — one fact per markdown file, and `MEMORY.md`, an index of one line per fact that is loaded… */
 
 const fs = require('fs');
 const path = require('path');

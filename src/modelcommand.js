@@ -9,28 +9,12 @@ function agentGate(app, id) {
   return null;
 }
 
-/**
- *  AND  — browsing the catalog, and choosing from it.
- *
- * Split out of catalog.js, which had reached the god-object guard. The seam is
- * a real one: that file ANSWERS QUESTIONS about what is served — build, search,
- * fold effort variants, resolve a name — and this is the one COMMAND that asks
- * them on a person's behalf and writes the answer to config.
- *
- * Everything it needs is imported from catalog.js. It adds no second search, no
- * second notion of what a route is, and no second place that decides a default.
- */
+/** AND — browsing the catalog, and choosing from it. */
 
 const config = require('./config');
 const { search, displayName } = require('./catalog');
 
-/**
- * THE MODEL PICKER — the one implementation behind /models and /model.
- *
- * It lives here because every branch of it is a catalog question. commands.js
- * registers the two names; there is no second state machine, no second filter
- * and no second idea of what Enter means.
- */
+/** THE MODEL PICKER — the one implementation behind /models and /model. */
 /** Print a refresh's generations: "Codex models updated / + GPT-6.1 Sol", or that nothing changed. */
 async function refreshModels(app, { family = null, C = null, write = null } = {}) {
   const w = write || ((s) => app.render.write(s));
@@ -57,23 +41,13 @@ async function refreshCli({ cwd = process.cwd() } = {}) {
 }
 
 async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refreshCatalog } = {}) {
-    // `refresh` is accepted on all three of /api, /model and /models because
-    // there is no way to guess which one a person will reach for, and they run
-    // the same code — there is one registry.
-    // REFRESH MODELS — every provider's own listing (accounts and API connections), one Core act (modelcatalog.js).
-    // `/model refresh codex` scopes it to one provider; `/api refresh` still re-reads API catalogs alone.
+    // `refresh` is accepted on all three of /api, /model and /models because there is no way to guess which one a person will reach for, and they run the…
     if (/^refresh\b/i.test(rest.trim())) {
       const fam = rest.trim().split(/\s+/)[1] || null;
       await refreshModels(app, { family: fam, C });
       return;
     }
-    // ---- ACCOUNT FIRST (Phase 8.2) -------------------------------------------
-    //
-    // `/model` chooses FOR THIS SESSION, on the lane the next turn runs on, from
-    // the models THE CHOSEN ACCOUNT offers — the same write the window's composer
-    // makes (sessionintel.choose). `/model all` browses every account's models
-    // (picking one also chooses its account). `/model default <name>` sets what
-    // new sessions start with.
+    // ACCOUNT FIRST (Phase 8.2)
     const intel = require('./sessionintel');
     const laneName = (() => { try { return require('./sessionviews').current(app.session) === 'chat' ? 'chat' : 'coding'; } catch { return 'coding'; } })();
     const words0 = rest.trim().split(/\s+/).filter(Boolean);
@@ -96,10 +70,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     const famNow = !browseAll && laneNow.family ? require('./fabric/index').family(app, laneNow.family) : null;
     const famAccounts = famNow ? new Set(famNow.accounts.map((a) => a.id)) : null;
     const A = require('./accountcatalog');
-    /**
-     * Choose FAMILY + MODEL (+ effort) for this session's lane — the one write. A picked route names
-     * its family; the backing account is the family's policy's to choose, not the row the person hit.
-     */
+    /** Choose FAMILY + MODEL (+ effort) for this session's lane — the one write. */
     const choose = async (modelId, routeId, effort) => {
       const acct = routeId ? A.accountFor(app, routeId) : null;
       const fam = acct ? require('./fabric/index').familyOfAccount(app, acct.id) : null;
@@ -111,15 +82,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       try { app.session.save(); } catch { /* saved with the next turn */ }
       return r;
     };
-    // ---- MODELS FIRST; SOURCES ARE SECONDARY (§54–55) -----------------------
-    //
-    // This used to open a "Model source" shelf — LAIN · ChatGPT.com ·
-    // Gemini.google.com — before any model, flattening SOURCES into the place a
-    // person looks for MODELS. `/model` is now "Search models…" straight away;
-    // the website sources are reached with the `external:` filter (or /source),
-    // where each is one secondary row. See ui/adapters.js modelsAdapter.
-    // A picker with nothing in it is not an answer. If no route has ever been
-    // asked what it serves, ask now — this is the moment the list is needed.
+    // MODELS FIRST; SOURCES ARE SECONDARY (§54–55)
     await app.ensureCatalog();
     const whole = app.catalog();
     // THE ACCOUNT'S SLICE: only its models, only its routes — a picker never
@@ -133,13 +96,6 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     const w = (s) => app.render.write(s);
     if (famNow && !browseAll && !rest) w(C.dim(`  ${famNow.label} · ${famNow.models.length} model(s) · /model all for every provider\n`));
     // ONE RULE EVERYWHERE: commit when nothing is left to decide.
-    //
-    // `/models sonnet` matches 52 models, so it opens the picker with `sonnet`
-    // already filtering. `/models claude-opus-5` matches exactly one, so there
-    // is nothing to browse and it is simply selected — the same judgement Enter
-    // makes inside the picker, so the two can never give different answers for
-    // the same words. This also keeps exact-name selection working on a real
-    // terminal, where the panel would otherwise be the only way in.
     const soleMatch = rest ? (() => {
       const known = new Set(app.connections().map((c) => c.id));
       const tail = args.length > 1 ? args[args.length - 1] : null;
@@ -153,16 +109,11 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // open the SAME panel — a name is a filter, not a different command.
     if (cat.models.length && !soleMatch && app.ui && app.ui.enabled) {
       const { modelsAdapter } = require('./ui/panel');
-      // Readiness and availability are DIFFERENT questions and stay separate
-      // fields: one is about credentials, the other about reachability. Both key
-      // off baseConnectionId — the connection a request actually goes through,
-      // not the display id, which may carry a route namespace.
+      // Readiness and availability are DIFFERENT questions and stay separate fields: one is about credentials, the other about reachability.
       const byId = new Map(app.connections().map((c) => [c.id, c]));
       const readinessOf = (c) => (byId.get(c.baseConnectionId) || {}).readiness || 'unknown';
       const availabilityOf = (c) => app.availability.getFor(c.baseConnectionId, c.modelId).status;
-      // ONE builder, used both to open the browser and to rebuild it as the
-      // user types. Effort now travels with the route choice, so picking in the
-      // browser settles model, connection and level in a single act.
+      // ONE builder, used both to open the browser and to rebuild it as the user types.
       const newModels = require('./newmodels');
       const isNew = newModels.all();
       let pending = null;
@@ -173,9 +124,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         filter,
         readinessOf,
         availabilityOf,
-        // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on
-        // it, and "rate limited" without "clears in 3h 59m" is the half of the
-        // fact that does not help anybody choose.
+        // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on it, and "rate limited" without "clears in 3h 59m" is the half of the fact that…
         availabilityRaw: (c) => app.availability.getFor(c.baseConnectionId, c.modelId),
         isNew,
         externalSources: externalSources(app),
@@ -191,9 +140,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
           newModels.seen(model.id);
         },
       });
-      // Typing narrows the list. `replace` swaps the frame's CONTENT without
-      // touching the promise below, so a filter keystroke can never resolve or
-      // orphan the caller. Purely local: the catalog is already in memory.
+      // Typing narrows the list.
       app.ui.setModelFilter((text) => {
         if (app.ui.panel.stack.length !== 1) return;   // not inside a drill-down
         app.ui.panel.replace(build(text));
@@ -205,17 +152,11 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         const r = await choose(pending.model, pending.route, pending.effort);
         if (!r.ok) { if (app.input) app.input.setLine(''); else app.ui.setInput(''); w(C.dim(`  ${r.why}\n`)); return; }
       }
-      // THE QUERY BELONGED TO THE PICKER, so it leaves with it. While the
-      // browser is open the filter text lives on the input line — that is what
-      // makes typing narrow the list — and it was being left behind when the
-      // panel closed, so the next thing typed was appended to a dead search and
-      // submitted as `qwen free/status`.
+      // THE QUERY BELONGED TO THE PICKER, so it leaves with it.
       if (app.input) app.input.setLine('');
       else app.ui.setInput('');
       if (picked && picked.source) { await pickSource(app, picked.source); return; }
-      // DID MY MODEL ACTUALLY CHANGE? Answered on the spot, in the words the
-      // picker used — not left for the user to go and check with /status. The
-      // header updates too; this is the receipt for the action just taken.
+      // DID MY MODEL ACTUALLY CHANGE?
       if (picked && picked.model) {
         const chosen = (cat.models || []).find((m) => m.id === picked.model);
         const name = chosen ? chosen.displayName : picked.model;
@@ -241,9 +182,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       w(C.dim('  /provider refresh <id> re-reads a route\'s catalog.\n'));
       return;
     }
-    // ONE row format for the full list and for a search — effort variants are
-    // collapsed, so gpt-5.5-low/-medium/-high is one model with three efforts,
-    // never three rows.
+    // ONE row format for the full list and for a search — effort variants are collapsed, so gpt-5.5-low/-medium/-high is one model with three efforts…
     const fresh = require('./newmodels').all();
     const rows = (list) => {
       // The SAME row format the picker uses: a count is only worth showing where
@@ -269,18 +208,13 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       rows(cat.models);
       return;
     }
-    // `/models <name> <connection>` names a route explicitly. The last word is
-    // only treated as a connection when it IS one — otherwise a two-word model
-    // name would lose its second word and match nothing, which is exactly what
-    // happened to `claude-opus-5 omniroute` when the whole string was searched.
+    // `/models <name> <connection>` names a route explicitly.
     const known = new Set(app.connections().map((c) => c.id));
     const last = args.length > 1 ? args[args.length - 1] : null;
     const wantConn = last && known.has(last) ? last : null;
     const query = wantConn ? rest.slice(0, rest.length - wantConn.length).trim() : rest;
 
-    // A NAME IS A SEARCH, not a selection. Showing one arbitrary hit out of
-    // forty is how `/models sonnet` on a 967-model catalog concealed every
-    // Sonnet but one. Commit only when the answer is unambiguous.
+    // A NAME IS A SEARCH, not a selection.
     const hits = search(cat, query);
     if (!hits.length) { w(C.dim(`  No model matching "${query}".\n`)); return; }
     if (hits.length > 1) {
@@ -289,12 +223,6 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       return;
     }
     // EXACTLY ONE MATCH IS A CHOICE ALREADY MADE.
-    //
-    // The same rule the picker applies to Enter, applied here: when nothing is
-    // left to decide, decide it. This is also the only way to select a model
-    // without a terminal — scripts and piped sessions have no panel — so it
-    // keeps `/model <exact-name>` working as a selection while `/models sonnet`
-    // stays a search.
     const m = hits[0];
     let conn = (wantConn && m.connections.find((c) => c.connectionId === wantConn)) || null;
     if (wantConn && !conn) {
@@ -302,21 +230,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       return;
     }
 
-    // ---- ONE MODEL IS NOT ONE CHOICE WHEN TWO ROUTES SERVE IT --------------
-    //
-    // This took `m.connections[0]` — an arbitrary route, whichever the catalog
-    // happened to list first — committed it, and THEN printed "2 routes serve
-    // this model" underneath. The one moment the user was making a decision was
-    // the moment LAIN made it for them, and the list of alternatives was a
-    // report on a choice already taken.
-    //
-    // The name narrowed it to one MODEL. WHICH PROVIDER SERVES IT IS A SECOND
-    // QUESTION, with real differences behind it: price, rate limits, effort
-    // levels, and which one is answering right now. So it gets asked — through
-    // the same route picker the browser drills into, so there is one
-    // implementation of "choose a route" rather than a second for the typed path.
-    // ROUTES OF ONE PROVIDER FAMILY ARE NOT A CHOICE (Phase 8.3): they are its backing accounts, and the
-    // family's account policy picks among them. Only routes through DIFFERENT providers are asked about.
+    // ONE MODEL IS NOT ONE CHOICE WHEN TWO ROUTES SERVE IT
     const famOfRoute = (c) => { const a = A.accountFor(app, c.connectionId); const fm = a ? require('./fabric/index').familyOfAccount(app, a.id) : null; return fm ? fm.id : c.connectionId; };
     if (!conn && new Set(m.connections.map(famOfRoute)).size === 1) conn = m.connections[0];
     if (!conn && m.connections.length > 1 && app.ui && app.ui.enabled) {
@@ -328,9 +242,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
         currentConnection: app.cfg.connection,
         readinessOf: (c) => (byId.get(c.baseConnectionId) || {}).readiness || 'unknown',
         availabilityOf: (c) => app.availability.getFor(c.baseConnectionId, c.modelId).status,
-        // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on
-        // it, and "rate limited" without "clears in 3h 59m" is the half of the
-        // fact that does not help you choose.
+        // THE WHOLE ENTRY, not just the word: the rate-limit countdown lives on it, and "rate limited" without "clears in 3h 59m" is the half of the fact that…
         availabilityRaw: (c) => app.availability.getFor(c.baseConnectionId, c.modelId),
         onPickRoute: (_model, c) => { picked = c; },
       }));
@@ -339,9 +251,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
       if (!picked) { w(C.dim('  unchanged.\n')); return; }
       conn = picked;
     }
-    // OFF A TTY there is nobody to ask, so the first route is taken — and said
-    // out loud below. A script that pipes `/model x` still works; it simply
-    // learns which route it got instead of being quietly assigned one.
+    // OFF A TTY there is nobody to ask, so the first route is taken — and said out loud below.
     if (!conn) conn = m.connections[0];
     if (!conn) {
       w(C.dim(`  "${m.displayName}" has no route that can serve it.\n`));
@@ -358,10 +268,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     // that there were other routes.
     if (m.connections.length > 1) {
       w(C.dim(`  ${m.connections.length} routes serve this model:\n`));
-      // FREE/PAID IS THE ONE SPLIT §57 ASKS FOR, and only when the user's own
-      // config actually said which route is which (catalog.js `tier`) — an
-      // unset tier is never guessed, so a model with no known tiers keeps its
-      // old flat list exactly as before.
+      // FREE/PAID IS THE ONE SPLIT §57 ASKS FOR, and only when the user's own config actually said which route is which (catalog.js `tier`) — an unset tier…
       const known = m.connections.filter((c) => c.tier).length;
       const printRow = (c) => {
         const a = app.availability.getFor(c.baseConnectionId || c.connectionId, c.modelId);
@@ -383,12 +290,7 @@ async function pickCommand(app, { args = [], rest = '' } = {}, { C, config, refr
     if (conn.efforts.length) w(C.dim(`  efforts on this route: ${conn.efforts.join(', ')}  ·  /effort to choose\n`));
 }
 
-/**
- * THE SOURCE SHELF, then — for a website — its account's models.
- *
- * @returns {Promise<'lain'|'web'|null>} 'lain' to continue into the catalog
- *   browser; 'web' when a website source was handled here; null when closed.
- */
+/** THE SOURCE SHELF, then — for a website — its account's models. */
 /** The website sources, as secondary rows for the `external:` filter. */
 function externalSources(app) {
   try {

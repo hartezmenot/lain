@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * WHAT A PERSON ACTUALLY PASTES SOMEWHERE ELSE — the task summary, and the
- * diagnostic context.
- *
- * ------------------------------------------------------------------------
- * BOTH ARE BUILT FROM RECORDS. NEITHER READS THE SCREEN.
- *
- * The rule the blueprint states as "do not scrape rendered terminal pixels" is
- * not fastidiousness. A rendered line has been wrapped to the terminal's width,
- * truncated to fit a column, painted with SGR sequences, and interleaved with
- * a spinner that was overwriting itself four times a second. Everything that
- * makes it readable on screen makes it wrong in a paste — and the parts worth
- * having (what was asked, what changed, what was proved) are all in
- * `session.turns`, the checkpoint ledger and the Harness record already.
- *
- * So the authorities are: `session.turns` (turnclose.js writes it),
- * `session.plan`, `session.lifecycle`, the checkpoint ledger via ui/panes, and
- * the Harness task record. Nothing here re-runs work and nothing asks a model.
- *
- * ------------------------------------------------------------------------
- * WHAT IS DELIBERATELY LEFT OUT, AND WHY EACH ONE.
- *
- *   reasoning        A turn record keeps `reasoning` so a turn that said
- *                    nothing is not a blank pane. It is the model's private
- *                    working, it is not addressed to anyone, and putting it in
- *                    a paste sends it somewhere it was never meant to go. It
- *                    is excluded HERE rather than filtered later, so no future
- *                    section can accidentally include it.
- *   activity         A spinner's worth of "READING file.js" at four frames a
- *                    second. It described a moment that has passed.
- *   token telemetry  Answers a question nobody pasting this is asking.
- *   the timer        Same.
- *   READY / status   Transient by construction.
- *   the command menu, anchors, dividers, decoration — drawing, not content.
- *
- * ------------------------------------------------------------------------
- * TWO SHAPES BECAUSE THERE ARE TWO QUESTIONS.
- *
- *   `summary`   "what happened, and where does it stand" — for a colleague, a
- *               commit message, a status update. Compressed and current.
- *   `context`   "here is everything you need to diagnose this" — for another
- *               model. Chronological, from the initiating request forward, and
- *               it keeps the durable tool results a diagnosis needs.
- */
+/** WHAT A PERSON ACTUALLY PASTES SOMEWHERE ELSE — the task summary, and the diagnostic context. */
 
 const MAX_ANSWER = 4000;
 const MAX_TOOL_RESULT = 2000;
@@ -53,9 +10,7 @@ const MAX_STEER = 400;
 function initiatingTurn(session) {
   const turns = (session && session.turns) || [];
   for (let i = turns.length - 1; i >= 0; i--) {
-    // A CONTINUATION IS NOT AN INITIATION. `from` marks a turn LAIN started on
-    // its own behalf (a recovery, an advisory continuation); summarising one of
-    // those reports the machinery's request instead of the person's.
+    // A CONTINUATION IS NOT AN INITIATION.
     if (!turns[i].from || turns[i].from === 'user' || turns[i].typed) return turns[i];
   }
   return turns[turns.length - 1] || null;
@@ -75,41 +30,7 @@ function trim(s, n) {
   return t.length > n ? `${t.slice(0, n)}\n… (${t.length - n} more characters)` : t;
 }
 
-/**
- * THE PUBLIC TEXT OF A RECORD, OR NOTHING AT ALL.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT THIS EXISTS FOR, QUOTED FROM A REAL EXPORT:
- *
- *     USER (mid-turn)
- *     [object Object]
- *
- *     USER (mid-turn)
- *     [object Object]
- *
- * `steerTexts` is named for what it used to hold and not for what it holds:
- * turn.js pushes `{ step, text }` records, so a projection that treated each
- * entry as a string produced `String({…})` — the one output a diagnostic
- * export must never contain, because it discards the very sentence the export
- * exists to carry.
- *
- * MY OWN FIXTURE HID IT. The test for this put plain strings in `steerTexts`,
- * which is not what the writer writes, so it passed against a shape that does
- * not occur. The regressions below now use the REAL record shape.
- *
- * ------------------------------------------------------------------------
- * OMISSION IS THE FALLBACK, NEVER STRINGIFICATION.
- *
- * An object with no public text is internal — a marker, a counter, a shape
- * nobody outside LAIN was meant to read. There is no honest rendering of it,
- * so it does not appear. Emitting `[object Object]`, or a JSON dump, would
- * hand somebody debugging their own code a fact about LAIN's internals in
- * place of the sentence they typed.
- *
- * `TEXT_KEYS` is ordered by how likely a field is to be what a person actually
- * said, and every one of them is a field a HUMAN authored — never `reasoning`,
- * never a system prompt, never a tool payload.
- */
+/** THE PUBLIC TEXT OF A RECORD, OR NOTHING AT ALL. */
 const TEXT_KEYS = ['text', 'message', 'content', 'value'];
 
 function publicText(entry) {
@@ -138,14 +59,7 @@ function changed(app) {
   } catch { return []; }
 }
 
-/**
- * WHAT WAS PROVED, from the Harness rather than from anything the model said.
- *
- * A verification is the one part of a summary that must not come from prose:
- * "I ran the tests and they pass" is a sentence, and PASSED/FAILED with a
- * reason is a verdict. Where there is no Harness record this says nothing at
- * all rather than reporting the absence as a pass.
- */
+/** WHAT WAS PROVED, from the Harness rather than from anything the model said. */
 function verification(app) {
   const out = [];
   try {
@@ -186,13 +100,7 @@ function howToRun(app) {
   } catch { return []; }
 }
 
-/**
- * `/copy` — THE TASK SUMMARY.
- *
- * Sections appear only when they have something in them. An empty `CHANGED`
- * heading over nothing tells a reader that the section exists; leaving it out
- * tells them nothing changed, which is the true statement.
- */
+/** `/copy` — THE TASK SUMMARY. */
 function summary(app) {
   const s = app.session;
   const start = initiatingTurn(s);
@@ -209,9 +117,7 @@ function summary(app) {
 
   section('USER REQUEST', trim((start && start.userInput) || (s.task && s.task.objective) || '', 1500));
 
-  // MID-TURN CORRECTIONS ARE PART OF THE REQUEST. They are the least
-  // recoverable thing in the record — a tool result can be produced again by
-  // running the tool; a sentence somebody typed an hour ago cannot.
+  // MID-TURN CORRECTIONS ARE PART OF THE REQUEST.
   const steers = [];
   for (const t of span) {
     for (const st of (t.steerTexts || [])) {
@@ -243,23 +149,7 @@ function summary(app) {
   return out.length ? out.join('\n') : null;
 }
 
-/**
- * `/copy context` — THE DIAGNOSTIC EXPORT.
- *
- * ------------------------------------------------------------------------
- * IT IS FOR ANOTHER MODEL, AND THAT DECIDES EVERY INCLUSION.
- *
- * The person is going somewhere else to ask "why did this happen". So it starts
- * at the request that began this, runs forward in time, and keeps the things a
- * diagnosis is actually made from: what was asked, what LAIN said in public,
- * what the tools actually did, what errors came back, what was steered.
- *
- * `session.messages` — what `/copy context` used to dump — is the wrong source
- * even though it looks like the right one. It is the provider's wire format:
- * system prompts, tool-call plumbing, full file bodies re-sent for cache
- * alignment. It is enormous, it is mostly not conversation, and it contains
- * the assembled prompt rather than the exchange.
- */
+/** `/copy context` — THE DIAGNOSTIC EXPORT. */
 function context(app, { all = false } = {}) {
   const s = app.session;
   const span = all ? ((s.turns || []).slice()) : turnSpan(s);
@@ -278,9 +168,7 @@ function context(app, { all = false } = {}) {
   if (s.task && s.task.objective) out.push(`# objective: ${trim(s.task.objective, 300)}`);
 
   for (const t of span) {
-    // The person's words first, because they are what everything after is a
-    // response to. An advisory continuation is labelled as one rather than
-    // presented as something the user typed.
+    // The person's words first, because they are what everything after is a response to.
     const who = t.from && t.from !== 'user' && !t.typed ? `USER (via ${t.from})` : 'USER';
     push(who, t.userInput);
 
@@ -289,9 +177,7 @@ function context(app, { all = false } = {}) {
       if (said) push('USER (mid-turn)', said);
     }
 
-    // WHAT THE TOOLS DID. Summaries, not bodies: an `actions` entry already
-    // carries the shape a diagnosis needs — which tool, on what, and what came
-    // back — without the file contents that make a raw transcript unusable.
+    // WHAT THE TOOLS DID. Summaries, not bodies: an `actions` entry already carries the shape a diagnosis needs — which tool, on what, and what came back…
     for (const a of (t.actions || [])) {
       const label = [a.verb || a.tool, a.target].filter(Boolean).join(' ');
       const detail = a.summary || a.detail || a.result || '';

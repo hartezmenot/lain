@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * OPEN A FILE OR A FOLDER IN LAIN — what Windows' "Open with LAIN" and
- * "Open folder in LAIN" do (2026-09-29).
- *
- *   LAIN Harness.exe "D:\cheate\crates\inspect\src\main.rs"
- *     → the running LAIN (or a new one) opens the PROJECT that file belongs to
- *       — the nearest folder with .git, .lain, package.json, Cargo.toml,
- *       pyproject.toml, go.mod, a solution … else the file's own folder —
- *       through the IDE's own rule (workspaceroutes.openProject: the same
- *       project is reused, an untouched session takes it, anything else gets a
- *       NEW session — never two projects in one conversation), then the IDE
- *       comes forward with that file open and focused.
- *   LAIN Harness.exe "D:\cheate"
- *     → the folder is opened as the project.
- *
- * NOTHING RUNS. Opening is navigation: no turn starts, no command is executed,
- * nothing is granted — which is why the control pipe may carry it (corelock.js).
- * The window applies the navigation once (S.navigate, pageshell).
- */
+/** OPEN A FILE OR A FOLDER IN LAIN — what Windows' "Open with LAIN" and "Open folder in LAIN" do (2026-09-29). */
 
 const fs = require('fs');
 const path = require('path');
@@ -64,10 +46,7 @@ function resolveTarget(p) {
   return { ok: true, dir: false, root, rel: path.relative(root, abs).split(path.sep).join('/'), abs };
 }
 
-/**
- * OPEN IT. Returns { ok, root, file, session } — the window is told through `_uiNavigate`
- * (applied once, even by a window that is only now starting).
- */
+/** OPEN IT. Returns { ok, root, file, session } — the window is told through `_uiNavigate` (applied once, even by a window that is only now starting). */
 async function open(app, target) {
   const t = resolveTarget(target);
   if (!t.ok) return t;

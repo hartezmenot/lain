@@ -1,40 +1,8 @@
 'use strict';
 
-/**
- * WHAT IS HAPPENING, AS NAMED FACTS — the contract a companion renders.
- *
- * THE PROBLEM THIS SOLVES. LAIN mirrored one thing into the Probe window: the
- * model's final prose, through `session.say`. So a companion that wanted to show
- * "what is LAIN doing right now" had to RECONSTRUCT it from transcript text —
- * guess from wording whether a tool was running, whether a question was open,
- * whether the task had finished. the design forbids exactly that, and it
- * is right to: a second reader inferring state from prose is a second state
- * machine, and it will disagree with the first one.
- *
- * So the events are named, LAIN owns them, and a companion renders them. There
- * is ONE source of truth and it is this side.
- *
- * WHAT THIS IS NOT:
- *
- *   · not a second task state — every payload is read from state that already
- *     exists at the moment it is emitted, and nothing here computes progress,
- *     decides completion or holds an opinion
- *   · not a control channel — a subscriber cannot answer, cancel or steer
- *   · not a transcript — prose lives in the session; these are facts about it
- *   · not a timer — nothing polls, and an event exists only because something
- *     genuinely happened
- *
- * A SUBSCRIBER THAT THROWS MUST NOT BREAK A TURN. A companion window is a
- * convenience; the work is not. Every handler is called inside a try, and a
- * broken one is dropped rather than allowed to take the turn down with it.
- */
+/** WHAT IS HAPPENING, AS NAMED FACTS — the contract a companion renders. */
 
-/**
- * THE VOCABULARY. Exactly the names in and nothing invented
- * beside them — a companion written against this list is written against all of
- * it, and a name that appears in one place and not the other is the drift this
- * exists to prevent.
- */
+/** THE VOCABULARY. Exactly the names in and nothing invented beside them — a companion written against this list is written against all of it, and a… */
 const EVENT = Object.freeze({
   TASK_STARTED: 'task.started',
   TASK_PROGRESS: 'task.progress',
@@ -50,24 +18,7 @@ const EVENT = Object.freeze({
   TASK_COMPLETED: 'task.completed',
   TASK_FAILED: 'task.failed',
 
-  // ---- THE HARNESS VOCABULARY -------------------------------------------
-  //
-  // ONE BUS, NOT TWO. The Task Runtime (src/harness/) needed named facts for
-  // exactly the reason the block above exists: a second reader that infers
-  // "is it verifying?" from prose is a second state machine, and it will
-  // disagree with the first one. The temptation was a `harness/events.js`
-  // with its own emitter, its own subscriber list and its own trimming — and
-  // then a companion would have to attach to two channels and merge them in
-  // arrival order, which is the drift this file was written to prevent.
-  //
-  // So the names live here, beside the ones that were already here, and the
-  // rule above still holds: an unknown name is REFUSED, and a subscriber that
-  // throws is dropped rather than allowed to take the turn down.
-  //
-  // THESE ARE STILL NOT A STATE MACHINE. Every payload is read from state
-  // that already exists at the moment it is emitted. `task.state` REPORTS a
-  // transition that src/harness/state.js already decided and the runtime
-  // already applied; it never causes one, and nothing subscribed to it may.
+  // THE HARNESS VOCABULARY
   TASK_CREATED: 'task.created',
   TASK_PAUSED: 'task.paused',
   TASK_RESUMED: 'task.resumed',
@@ -115,13 +66,7 @@ const MAX_KEPT = 200;
 /** No payload field is worth more than this to a window that is drawing it. */
 const MAX_FIELD = 2000;
 
-/**
- * Trim one payload to what a companion can actually use.
- *
- * A tool result can be a megabyte, and a companion window drawing a status line
- * needs a sentence of it. Bounding here rather than at each call site means no
- * emitter can accidentally push a screenshot through the event channel.
- */
+/** Trim one payload to what a companion can actually use. */
 function trim(payload) {
   if (!payload || typeof payload !== 'object') return {};
   const out = {};
@@ -143,11 +88,7 @@ class EventBus {
     this.dropped = 0;
   }
 
-  /**
-   * Subscribe. Returns a function that unsubscribes — a companion that
-   * disconnects must be able to stop being called, or every reconnect leaks a
-   * handler that draws to a window nobody is looking at.
-   */
+  /** Subscribe. Returns a function that unsubscribes — a companion that disconnects must be able to stop being called, or every reconnect leaks a handler… */
   on(fn) {
     if (typeof fn !== 'function') return () => {};
     this._handlers.push(fn);
@@ -157,15 +98,7 @@ class EventBus {
     };
   }
 
-  /**
-   * State a fact. Unknown names are REFUSED rather than forwarded.
-   *
-   * A typo'd event name is a companion that silently never shows something, and
-   * that is indistinguishable from the feature not working. The contract is the
-   * list above; anything else is a bug on this side and says so.
-   *
-   * @returns {object|null} the event as it was delivered, or null if refused.
-   */
+  /** State a fact. Unknown names are REFUSED rather than forwarded. */
   emit(name, payload = {}) {
     const type = String(name || '');
     if (!KNOWN.has(type)) return null;
@@ -197,19 +130,7 @@ class EventBus {
   clear() { this._kept.length = 0; }
 }
 
-/**
- * A BUS THAT IS ALWAYS THERE, even when the app is not.
- *
- * Tools are called with whatever context their caller has — the turn loop
- * passes a whole App, and a unit test passes the three fields the tool reads.
- * An emitter that assumed `app.events` turned "this tool works in isolation"
- * into a TypeError, which is a real fragility and not only a test artefact: a
- * companion channel is a convenience, and nothing may fail because it is
- * absent.
- *
- * So a missing bus is a bus that swallows. Nothing is queued, nothing is
- * remembered, and nothing throws.
- */
+/** A BUS THAT IS ALWAYS THERE, even when the app is not. */
 const NULL_BUS = Object.freeze({
   emit() { return null; },
   on() { return () => {}; },

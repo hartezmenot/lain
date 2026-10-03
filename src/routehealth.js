@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * DURABLE ROUTE HEALTH — what a route's provider last told us, kept across processes (2026-10-02).
- *
- *   <config>/route-health.json   { v:1, routes: { <connectionId>: row } }
- *
- * The rows have the shape the Rust supervisor's provider store used (providers.rs), because availability.js hydrates
- * from exactly that shape and `/provider status` prints it. The rules are the same ones, moved here so a rate limit
- * is remembered without starting a second process:
- *
- *   a request that WORKED         → AVAILABLE, the limit and the failure count cleared (a 200 is the only proof)
- *   AUTH                          → the reason only; never counted toward the breaker (the server answered)
- *   RATE_LIMITED                  → DEGRADED with rate_limited + the STATED reset (none stated ⇒ none invented)
- *   any other failure             → DEGRADED, UNAVAILABLE once the failure count reaches the threshold
- *   a person's decision           → DISABLED / MAINTENANCE stay until a person clears them
- *
- * On first use, the supervisor's existing records (<supervisor>/providers/*.json) are imported once.
- */
+/** DURABLE ROUTE HEALTH — what a route's provider last told us, kept across processes (2026-10-02). */
 
 const fs = require('fs');
 const path = require('path');

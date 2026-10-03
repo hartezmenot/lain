@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * THINKING, FOLDED (Simplify S5.1): one dim line per thinking phase — `▸ Thought for 2m 23s · 8.2k tokens` — that
- * Ctrl+O opens to show what the model thought. An interrupted think reads `▸ Thinking (interrupted) · 759 tokens`.
- * Display only: never the model's message, never sent back to it.
- */
+/** THINKING, FOLDED (Simplify S5.1): one dim line per thinking phase — `▸ Thought for 2m 23s · 8.2k tokens` — that Ctrl+O opens to show what the model… */
 
 const EXPANDED_ROWS = 14;
 

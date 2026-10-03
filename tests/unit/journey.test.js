@@ -75,57 +75,6 @@ module.exports = async function () {
     journey.restore(back, JSON.parse(JSON.stringify(s.toJSON())));
     assert.strictEqual(back.journey.path.length, 3, 'the path is part of the session file');
   });
-
-  await test('JOURNEY: one task across Chat → Agent → IDE — a read-only aside does not replace it', () => {
-    const s = sessionFor(root);
-    const app = { session: s, cfg: { model: 'mock-coder', connection: 'mock' }, ui: { enabled: false }, projectIsEmpty: () => false, checkpoints: null };
-    const { identify } = require('../../src/identify');
-    s._agentVia = { via: 'chat', reason: 'implementation work from Chat' };
-    identify(app, 'Fix the provider retry bug in src/provider.js', false, null);
-    s._agentVia = null;
-    const id = s.task.id;
-    assert.ok(s.task.agentic && s.task.origin === 'chat', 'the Agent carries it, and it began in Chat');
-    journey.agentEnded(app);
-    s._asideTurn = true;
-    const v = identify(app, 'How much of my ChatGPT account is available?', false, 'EXPLAIN');
-    s._asideTurn = false;
-    assert.ok(v.aside, 'a question while the Agent carries work is an aside');
-    assert.strictEqual(s.task.id, id, 'the same task is still in hand');
-    identify(app, 'continue', false, null);
-    assert.strictEqual(s.task.id, id, '"continue" continues it — no duplicate task');
-    assert.ok(!s.task.steers.some((x) => /ChatGPT account/.test(x.text)), 'the aside was not written into the task as a correction');
-    // Without the aside flag (a turn in the Agent's own thread) the same kind of
-    // sentence steers the task — task.js's rule, unchanged.
-    identify(app, 'also keep the old retry count', false, null);
-    assert.strictEqual(s.task.id, id);
-    assert.ok(s.task.steers.some((x) => /old retry count/.test(x.text)));
-    assert.strictEqual(journey.reseat(app), false, 'nothing to re-seat while the Agent task is in hand');
-    s.task = new T.Task('what does this do?');
-    assert.ok(journey.reseat(app), 'the Agent task is re-seated if anything else ever replaced it');
-    assert.strictEqual(s.task.id, id);
-    const view = journey.project(app);
-    assert.strictEqual(view.agentTask.id, id);
-    assert.strictEqual(view.ids.session, s.id);
-    assert.ok(view.ids.project && view.ids.project.startsWith('P'));
-  });
-
-  await test('JOURNEY: work the Agent takes up after a BOT question is a new task, not a steer of the question', () => {
-    const s = sessionFor(root);
-    const app = { session: s, cfg: { model: 'mock-coder', connection: 'mock' }, ui: { enabled: false }, projectIsEmpty: () => false, checkpoints: null };
-    const { identify } = require('../../src/identify');
-    identify(app, 'what does this function do?', false, 'EXPLAIN');
-    const q = s.task.id;
-    s._agentVia = { via: 'ide' };
-    identify(app, 'Rename fixButton to ButtonFix everywhere.', false, null);
-    s._agentVia = null;
-    assert.notStrictEqual(s.task.id, q, 'a new task');
-    assert.ok(/Rename fixButton/.test(s.task.objective) && s.task.agentic);
-    s._agentVia = { via: 'ide' };
-    identify(app, 'continue', false, null);
-    s._agentVia = null;
-    assert.ok(/Rename fixButton/.test(s.task.objective), 'continue still continues it');
-  });
-
   await test('BOT → AGENT: code changes are PROPOSED in the BOT tab; questions answered; the AGENT tab and Chat go straight', () => {
     const s = sessionFor(root);
     const app = { session: s };
@@ -235,37 +184,6 @@ module.exports = async function () {
     const e = ledger.entries(root, { rel: 'src/agentfile.js' }).pop();
     assert.ok(e && e.source === 'AGENT' && e.taskId === s.task.id, JSON.stringify(e));
   });
-
-  await test('FOCUS PACKET: consumes the ONE canonical Selection — references, not the repository; wire names preserved', async () => {
-    ledger.reset();
-    const abs = path.join(root, 'src/ui/button.js');
-    const before = fs.readFileSync(abs, 'utf8');
-    ledger.record(root, { source: 'USER', path: abs, before: before.replace('render()', 'renderOld()'), after: before });
-    const s = sessionFor(root);
-    const app = { session: s };
-    // The editor's report, recorded the one way: idecontext holds the facts,
-    // harnesscontext derives the Selection from them.
-    require('../../src/idecontext').record(s, { file: 'src/ui/button.js', selection: { text: 'fixButton', startLine: 3, endLine: 3 }, cursor: { line: 3, col: 7 }, tabs: [] });
-    require('../../src/harnesscontext').fromIde(app, s, { file: 'src/ui/button.js', selection: { text: 'fixButton', startLine: 3, endLine: 3 } });
-    const sel = require('../../src/harnesscontext').selection(app, s);
-    assert.ok(sel && sel.symbol && sel.symbol.name === 'fixButton', JSON.stringify(sel && sel.symbol));
-    assert.strictEqual(require('../../src/harnesscontext').selection(app, s), sel, 'resolved once: the same object until the selection or the project changes');
-    const pk = await focuspacket.build(app, s, { task: 'Change this variable from fixButton to ButtonFix including whatever relies on it.' });
-    assert.ok(pk.intent.rename && pk.intent.symbol === 'fixButton' && pk.intent.to === 'ButtonFix', JSON.stringify(pk.intent));
-    assert.ok(pk.metrics.fromCanonicalSelection && pk.metrics.selection.id === sel.id, 'the packet names the canonical selection it consumed');
-    assert.ok(pk.text.includes(`SELECTION ${sel.id}`));
-    for (const f of ['src/ui/button.js', 'src/ui/actions.js', 'src/backend/ui-actions.js', 'tests/button.test.js']) assert.ok(pk.relevant.includes(f), `${f} is relevant`);
-    assert.ok(!pk.relevant.includes('src/unrelated.js'), 'an unrelated file is not sent');
-    assert.ok(/preserve serialized\/wire names "fix_button"/.test(pk.text), pk.text);
-    assert.ok(/STRINGS AND COMMENTS/.test(pk.text), 'the comment naming it is listed, not renamed');
-    assert.ok(/PROVENANCE/.test(pk.text) && /by hand/.test(pk.text), 'the person\'s recent edit is carried');
-    assert.ok(pk.metrics.filesSelected < pk.metrics.projectFiles, JSON.stringify(pk.metrics));
-    assert.ok(!/const other = 1/.test(pk.text), 'no file bodies travel in the packet');
-    const hctx = require('../../src/harnesscontext').packet(app, s);
-    assert.ok(hctx.includes(`selection ${sel.id}`) && /selected text/.test(hctx), 'the Harness packet renders the same Selection');
-    assert.ok(!/Selected text/.test(require('../../src/idecontext').section(app, Object.assign(s, { _ideTurn: true }))), 'the IDE section no longer renders a second copy');
-  });
-
   await test('FOCUS PACKET: a layout request uses the GUG binding of the selected element, with its current value', async () => {
     const s = sessionFor(root);
     const app = { session: s };

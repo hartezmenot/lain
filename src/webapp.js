@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * THE TELEGRAM WEBAPP — LIVE PROGRESS, NOT ANOTHER HARNESS (§42–46).
- *
- * A read-only view a phone opens from the Bot: PC status, CLI and Harness
- * sessions, background jobs, the current step, elapsed, recent changes,
- * verification, and what needs the person. It exposes NO control: approvals
- * and actions go through the Bot and the Core decision record (decisions.js),
- * never through this endpoint.
- *
- * SECURITY, in order:
- *   1. `POST /auth` accepts only Telegram WebApp `initData`, verified with
- *      HMAC-SHA256 under key HMAC-SHA256("WebAppData", bot token), fresh
- *      (auth_date within 24h), from a user the Bot already allows.
- *   2. It returns a short-lived bearer token HMAC-signed by a per-install key.
- *   3. `GET /progress` requires that token. There is no unauthenticated route
- *      except the bootstrap page, which contains no data.
- *   4. ENDPOINT SELECTION IS AUTHENTICATED. The page used to accept any server
- *      whose /ping said `{lain:true}` and then POSTed the signed initData to it —
- *      so a stale LAN/VPN address now held by another device could collect
- *      initData and replay it here within 24h. Now the button URL carries a
- *      per-install ping key (`k`), /ping answers a fresh nonce with
- *      HMAC(k, nonce), and the page verifies it (WebCrypto) before initData
- *      goes anywhere. No verification, no endpoint.
- *
- * ROUTING is connectivity.js: the bootstrap page probes the LAN, Tailscale and
- * ZeroTier endpoints in parallel with short timeouts and keeps the one that
- * answered by preference, showing `CONNECTED · LAN` or `CONNECTED · Tailscale`.
- * Telegram requires WebApps to be served over HTTPS; on a phone that means the
- * page is reached through Tailscale's HTTPS (`tailscale serve`) or a reverse
- * proxy — plain-http LAN access works from a browser on the same network.
- */
+/** THE TELEGRAM WEBAPP — LIVE PROGRESS, NOT ANOTHER HARNESS (§42–46). */
 
 const crypto = require('crypto');
 const http = require('http');
@@ -125,10 +95,7 @@ async function pick(){const ctl=new AbortController();setTimeout(()=>ctl.abort()
  (p.needsInput.length?'<p><b>Needs you:</b> '+p.needsInput.map(n=>h(n.title)).join(', ')+'</p>':'')};tick();setInterval(tick,4000)})();
 </script>`;
 
-/**
- * Start the progress server. `allowUsers` are the Bot's own allowed Telegram
- * ids; `botToken` verifies initData. Returns { server, port, endpoints, close }.
- */
+/** Start the progress server. */
 function start({ port = 0, host = '0.0.0.0', botToken = '', allowUsers = [], home = require('./config').configDir(), jobs = () => [] } = {}) {
   const key = installKey(home);
   const pingKey = pingKeyOf(key);

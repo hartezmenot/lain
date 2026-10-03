@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * THE USAGE VIEW'S ROUTES — consumption (usage.js receipts) and limits (the
- * providers' own windows, per account), side by side and never combined.
- *
- *   /api/usage          totals, one grouping, every filter (project, session,
- *                       task, model, provider, account, role, source), the facets
- *                       a filter bar offers, local runtime speed, and context
- *                       efficiency — provider cache and LAIN's own reuse apart
- *   /api/usage/limits   grouped by what the source actually reports:
- *                         active    windows a provider or runtime reported
- *                         plans     credits / plans a provider reports
- *                         none      accounts with nothing reported (collapsed)
- *                         local     local models — no provider quota
- */
+/** THE USAGE VIEW'S ROUTES — consumption (usage.js receipts) and limits (the providers' own windows, per account), side by side and never combined. */
 
 const usage = require('../usage');
 
@@ -26,10 +13,7 @@ const FILTERS = ['project', 'session', 'task', 'model', 'provider', 'account', '
 
 function root(app) { return (app && app._sibling) || app; }
 
-/**
- * Every account's windows, as reported — THE SAME PROJECTION the Accounts page draws (fabric/quotaview.js). Usage owns
- * history and analytics; current capacity is the account's, so this only formats it (2026-10-02).
- */
+/** Every account's windows, as reported — THE SAME PROJECTION the Accounts page draws (fabric/quotaview.js). */
 function limits(app) {
   const accounts = require('../fabric/quotaview').rows(app).map((r) => ({
     id: r.id, name: r.name, driver: r.family, provider: r.brand || r.family, source: r.kind, enabled: r.enabled,

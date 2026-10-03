@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * THE CONSTITUTION (Execution Discipline §30–§33).
- *
- * POLICY — the short standing instruction every model gets. It teaches judgment, not procedure: everything LAIN can
- * enforce mechanically (stale edits, permissions, repeated failures, claim verification, test-integrity checks, task
- * continuation, scope) is enforced in Core and reaches the model as a CONTEXTUAL message when it applies — never as
- * a permanent wall of warnings.
- *
- * `.lain/LAIN.md` — the canonical PROJECT constitution: this project's conventions, owned by LAIN (not by any one
- * provider). Provider-native forms are RENDERED from it — CLAUDE.md-style context for Claude Code, AGENTS.md-style
- * developer instructions for Codex, a plain system section for everything else — and never become separate
- * authorities. A Noema-era NOEMA.md or a legacy AGENTS.md is read when no LAIN.md exists (agentsmd.js).
- */
+/** THE CONSTITUTION (Execution Discipline §30–§33). */
 
 const POLICY = `You are the active agent in LAIN, operating on a real project through real tools.
 
@@ -50,10 +38,7 @@ function project(root) {
   return text && text.trim() ? { file, text: text.trim() } : null;
 }
 
-/**
- * RENDER the constitution (policy + project LAIN.md) for one runtime family. Same content, the surface each provider
- * reads natively — so Claude Code, Codex, GLM or a local model all receive LAIN's policy, not their own.
- */
+/** RENDER the constitution (policy + project LAIN.md) for one runtime family. */
 function render(family, root = null) {
   const p = project(root);
   const body = p ? `${POLICY}\n\n## This project (${path.basename(path.dirname(p.file))}/LAIN.md)\n${p.text}` : POLICY;

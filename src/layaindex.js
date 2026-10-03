@@ -1,48 +1,6 @@
 'use strict';
 
-/**
- * THE LAYA PROJECT INDEX — a project's embeddings, prepared before a task asks.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT THIS CLOSES (Toralink, 2026-09-24). Laya was HOT and still
- * produced 0 inferences. Its adapter kept one in-memory text→vector memo, and
- * the ranking request embedded every project file it had not seen — inside the
- * 2 s TASK deadline. The first ranking of a project was therefore a cold index
- * build, it always missed the deadline, and lexical fallback answered. The
- * memo also died with the process, so every new worker host paid it again.
- *
- *     MODEL HOT  !=  PROJECT READY.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS. The worker host (workerhostmain.js) owns one index per project:
- *
- *   items      one line per candidate file — path, first doc line, declared
- *              symbols — from the existing project index (projectindex.js,
- *              IN MEMORY: `persist:false`, so nothing is written to the
- *              project's `.lain/`); the same exclusions the index already
- *              applies, plus generated / build / lockfile / benchmark output
- *   vectors    Laya's embedding of each line, computed ONCE in the background
- *              (prewarm, at project attach) and persisted in LAIN's machine-local
- *              cache — `<LAIN home>/workercache/laya/<project>/` — never in the
- *              source tree, so git never sees it and a read-only project stays
- *              byte-identical
- *   ranking    a task's Laya inference is the QUERY embedding only; cosine
- *              against the prepared vectors runs here, in microseconds
- *
- * KEYING. A file's vector is reused only when its CONTENT fingerprint (sha1 of
- * the bytes — never the mtime) and its embedded TEXT are both unchanged, and
- * the whole store only when the embedding identity (Laya model + adapter
- * embedding schema + item schema) matches exactly. Otherwise it is recomputed:
- * vectors from an incompatible encoder are never compared.
- *
- * A RENAME is a re-embed. The path is part of the embedded text, so the old
- * vector is not the new file's vector even when the bytes are identical —
- * reusing it would be wrong, and correctness comes first.
- *
- * HOLDS NO AUTHORITY: it ranks candidates it is given. It never chooses the
- * candidate universe (Core's deterministic tier does, locateassist.js), never
- * sees the user's constraints, and never writes anything but its own cache.
- */
+/** THE LAYA PROJECT INDEX — a project's embeddings, prepared before a task asks. */
 
 const fs = require('fs');
 const path = require('path');
@@ -58,10 +16,7 @@ const TEXT_MAX = 300;
 
 /** Worth embedding as evidence about behaviour. */
 const TEXTY = /\.(m?[jt]sx?|cjs|py|rs|go|java|kt|cs|rb|php|swift|css|scss|html?|vue|svelte|md|json|ya?ml|toml|sql|sh|ps1)$/i;
-/**
- * NEVER EMBEDDED: output, not source. On top of the walk's own exclusions
- * (tools/search.js — node_modules, .git, …), which this does not duplicate.
- */
+/** NEVER EMBEDDED: output, not source. */
 const GENERATED = /(^|\/)(?:dist|build|coverage|\.next|\.nuxt|\.cache|\.turbo|__pycache__|\.venv|venv|target|\.lain|\.noema)(?:\/|$)|(^|\/)bench(?:marks?)?\/out\/|\.min\.(?:js|css)$|\.map$|(^|\/)(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock)$/i;
 
 const sha1 = (s) => crypto.createHash('sha1').update(s).digest('hex');
@@ -85,10 +40,7 @@ function headLine(src) {
   return '';
 }
 
-/**
- * THE CANDIDATE LINES, from the project index held IN MEMORY.
- * @returns {{items:[{id,text,contentHash,textHash,imports}], considered, excluded, generation, index}}
- */
+/** THE CANDIDATE LINES, from the project index held IN MEMORY. */
 function items(root, { index = null } = {}) {
   const ix = index || require('./projectindex').fresh(root, { persist: false }).index;
   const files = (ix && ix.files) || {};
@@ -130,9 +82,6 @@ function embedKey(meta) {
 function cacheRoot(hostDir) { return path.join(path.dirname(path.resolve(hostDir)), 'workercache', 'laya'); }
 function storeDir(root, key) { return path.join(root, key); }
 
-/**
- * @returns {{ok:true, byId:Map<id,{contentHash,textHash}>, vecs:Map<id,Float32Array>, meta, ms}|{ok:false, why}}
- */
 function readStore(dir, key) {
   const t0 = Date.now();
   let meta;
@@ -177,11 +126,7 @@ function writeStore(dir, { key, dim, root, projectKey: pk, generation: gen, byId
   return { bytes: buf.length + Buffer.byteLength(JSON.stringify(meta)), ms: Date.now() - t0 };
 }
 
-/**
- * WHAT A REFRESH MUST DO. A vector is reused only when the file's content AND
- * embedded text are unchanged; everything else is embedded; files that left
- * the candidate set are removed (no dead candidates in the ranking space).
- */
+/** WHAT A REFRESH MUST DO. */
 function plan(byId, vecs, list) {
   const reuse = [];
   const embed = [];
@@ -213,11 +158,7 @@ function toB64(vectors) {
   return buf.toString('base64');
 }
 
-/**
- * COSINE OVER THE PREPARED VECTORS — only candidates whose stored text is
- * exactly the current one are scored; anything else is reported as stale,
- * never ranked on an old vector.
- */
+/** COSINE OVER THE PREPARED VECTORS — only candidates whose stored text is exactly the current one are scored; anything else is reported as stale, never… */
 function rankCandidates(byId, vecs, qvec, candidates, k = 8) {
   const norm = (v) => { let s = 0; for (let i = 0; i < v.length; i += 1) s += v[i] * v[i]; return Math.sqrt(s) || 1; };
   const qn = norm(qvec);
@@ -235,11 +176,7 @@ function rankCandidates(byId, vecs, qvec, candidates, k = 8) {
   return { ranked: scored.slice(0, k), scored: scored.length, stale };
 }
 
-/**
- * READY FOR TASK — both axes: the model resident and answering, AND this
- * project's index usable (READY, or a STALE_PARTIAL whose refresh is not
- * running). A model that is hot over an absent or building index is NOT ready.
- */
+/** READY FOR TASK — both axes: the model resident and answering, AND this project's index usable */
 function readyForTask(modelState, project, indexing = null) {
   if (!['HOT_IDLE', 'INFERENCING'].includes(modelState) || !project) return false;
   if (indexing) return false;

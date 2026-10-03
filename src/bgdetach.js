@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * `/bg` — DETACH THE WORK THAT IS BLOCKING THE FOREGROUND (§28–31, §71).
- *
- * `/bg` does not start another implementation agent. It takes what is running
- * NOW and moves it out of the way:
- *
- *   a foreground PROCESS (a smoke tier, a build, a download, a dev server) —
- *     the SAME child keeps running (same PID, nothing restarted); the tool call
- *     that was waiting on it returns at once saying where it went, and the
- *     model carries on with independent work;
- *
- *   a stuck REASONING/RESEARCH branch with no process under it — the turn is
- *     stopped and a bounded read-only branch continues in the background with
- *     only the objective, the current plan step, the evidence refs and the
- *     project, never a copy of the conversation (subagents.js).
- *
- * WHEN IT FINISHES it rejoins the ORIGINAL session, turn and plan step: a
- * `BG COMPLETE · <what> · <result>` line, the result recorded as evidence
- * (with test counts when the runner stated them), delivered to the model on
- * the framed context tail at its next step — or at the next turn if none is
- * running — and announced to remote surfaces. Foreground context is untouched.
- */
+/** `/bg` — DETACH THE WORK THAT IS BLOCKING THE FOREGROUND (§28–31, §71). */
 
 const MAX_TAIL = 1500;
 const DETACHED_CAP_MS = 2 * 60 * 60 * 1000;
@@ -31,12 +10,7 @@ function fgOf(app) {
   return app._fgProcs;
 }
 
-/**
- * A foreground tool registers the process it is waiting on. Returns the
- * unregister function. `entry.detach(job)` must resolve the waiting tool call
- * immediately and keep the child running; `entry` reports completion through
- * the `onDone` it is handed.
- */
+/** A foreground tool registers the process it is waiting on. */
 function register(app, entry) {
   if (!app) return () => {};
   const list = fgOf(app);
@@ -73,15 +47,10 @@ function rejoin(app, session, r) {
   try { require('./tools/shell').noteVerified({ session }, r.label, r.tail); } catch { /* telemetry only */ }
   try { require('./notify').attention(app, 'BACKGROUND_COMPLETE', `${r.label} · ${r.summary}`, { jobId: r.jobId }); } catch { /* notifications are best effort */ }
   try { app.render.notice(r.ok ? 'info' : 'warn', `BG COMPLETE · ${r.label} · ${r.summary}`); } catch { /* no renderer */ }
-  // THE FINAL SMOKE settles the task on its own when it comes back (finalsmoke.js).
-  if (!require('./simple').on(app)) { try { require('./finalsmoke').settleBackground(app, session, r); } catch { /* the result is still recorded above */ } }   // legacy: the final smoke settles the task
   try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* nothing drawn */ }
 }
 
-/**
- * The results not yet seen by the model, as one framed-context section, and
- * marked delivered. Called by the turn loop before each request.
- */
+/** The results not yet seen by the model, as one framed-context section, and marked delivered. */
 function takeContext(session) {
   const list = (session && session._bgResults) || [];
   const fresh = list.filter((r) => !r.delivered);

@@ -1,38 +1,6 @@
 'use strict';
 
-/**
- * THE HARNESS APPLICATION'S API — reads, and the few actions that cost something.
- *
- * ------------------------------------------------------------------------
- * TWO KINDS OF ROUTE, AND THE SPLIT IS THE POINT.
- *
- *   GET /api/state        cheap, polled, opens nothing. See state.js.
- *   POST /api/…           deliberate. Each one launches a browser, contacts a
- *                         website, starts a dev server or submits a turn, and
- *                         is reached only because a person clicked something.
- *
- * A poll that could open a browser is a poll that opens one every two seconds.
- * So model DISCOVERY, Workshop OPEN, viewport changes, captures and
- * verification are all POSTs, and `/api/state` reports only what is already
- * known.
- *
- * ------------------------------------------------------------------------
- * IT DELEGATES EVERY DECISION.
- *
- * Nothing here decides whether a task passed, which model is available, whether
- * a page loaded, or whether a file changed. Each route calls the module that
- * owns that question and hands back what it said. The one thing these functions
- * add is an HTTP shape.
- *
- * ------------------------------------------------------------------------
- * SUBMITTING A TURN GOES THROUGH `app.handle`, WHICH IS THE ONE DOOR.
- *
- * Not `submit`, and certainly not `runTurn`. `handle` is where a command is
- * recognised, an open question is answered, a composed goal is captured and the
- * input gateway admits or holds a sentence — and every one of those must behave
- * identically whether the words arrived from the terminal or from the
- * application. A second entry point would be a second set of rules.
- */
+/** THE HARNESS APPLICATION'S API — reads, and the few actions that cost something. */
 
 const state = require('./state');
 const source = require('./source');
@@ -44,29 +12,13 @@ function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400) { return { code, body: { ok: false, why: String(why || 'refused') } }; }
 function noProject() { return { code: 409, body: { ok: false, why: 'no project is attached to this session', projectRequired: true } }; }
 
-/**
- * Bound work, so a wedged browser cannot hold an HTTP connection open forever. The deadline
- * goes when the work does (deadline.js) — it used to stay armed 30–120 s after every call.
- */
+/** Bound work, so a wedged browser cannot hold an HTTP connection open forever. */
 function within(promise, ms = ACTION_TIMEOUT_MS, what = 'the operation') {
   return require('../deadline').race(promise, ms, () => ({ ok: false, why: `${what} did not finish within ${Math.round(ms / 1000)}s` }));
 }
 
-/**
- * EVERY ROUTE, as `METHOD /path` -> handler.
- *
- * A flat table rather than a chain of ifs, so "what can this application do"
- * is answerable by reading one object — and so an unknown path is a 404 rather
- * than something falling through to a handler that half-matches it.
- */
-/**
- * A WORKSHOP PICK, ANSWERED ONCE — both doors (a click on the preview image,
- * a click in the preview window) end here. The pick is measured into the GUG
- * (workshopPicked), which makes it the canonical Selection; the answer is THAT
- * Selection's one binding (node, style owner, component evidence), not a second
- * resolution — and `open` is the source the IDE should show: the style owner
- * when it is bound EXACT / LIKELY, otherwise the component that renders it.
- */
+/** EVERY ROUTE, as `METHOD /path` -> handler. */
+/** A WORKSHOP PICK, ANSWERED ONCE — both doors (a click on the preview image, a click in the preview window) end here. */
 async function pickAnswer(app, ws, element) {
   const hc = require('../harnesscontext');
   let gug = null;
@@ -104,27 +56,7 @@ const ROUTES = {
     return result.ok ? ok(result) : bad(result.why, result.class === 'PERMISSION_REQUIRED' ? 403 : 400);
   },
 
-  /**
-   * A FILE DROPPED ON THE APPLICATION WINDOW.
-   *
-   * ------------------------------------------------------------------------
-   * THE NATIVE HOST SENDS PATHS; NOTHING ELSE IN LAIN EVER SEES THEM.
-   *
-   * Dragging `sales.xlsx` onto the window is the most natural way to start a
-   * Cowork task, and it is also the shortest path from "the operating system"
-   * to "a model's input" — so it is the one that has to be narrowest. This
-   * route reads the bytes and hands them to the SAME staging authority the
-   * browser upload uses (`cowork/attachments.stage`), which names, bounds,
-   * types and scopes the result to the session.
-   *
-   * WHAT THE MODEL RECEIVES is an artifact reference. The absolute path the
-   * host reported is never put into a session, never rendered, and never
-   * reaches a prompt: a path is machine authority in text form, and handing one
-   * to untrusted content is how a file outside the work gets opened.
-   *
-   * The host originates this call, so a refusal is reported the same way any
-   * other staging refusal is — it does not become a native dialog of its own.
-   */
+  /** A FILE DROPPED ON THE APPLICATION WINDOW. */
   'POST /api/desktop/drop': async (app, body = {}) => {
     const fs2 = require('fs');
     const path2 = require('path');
@@ -150,24 +82,7 @@ const ROUTES = {
     return ok({ staged, refused });
   },
 
-  /**
-   * QUIT LAIN — from the tray, which is the only place this comes from.
-   *
-   * ------------------------------------------------------------------------
-   * THE HOST ASKS; CORE DECIDES AND CORE DOES IT.
-   *
-   * Closing the window hides it (native/host.cs); this is the other thing, and
-   * the two are deliberately different gestures. The reason it is a ROUTE rather
-   * than the host simply exiting is ownership: the messaging gateway, the agent
-   * jobs, the shell children, the browsers and the dev servers all belong to
-   * Core, and only Core's own sequence stops all of them. A host that killed
-   * itself would leave every one of those running with nothing on screen to say
-   * so — the exact orphan the sequence exists to prevent.
-   *
-   * IT CLOSES THE WINDOW AS PART OF THE SHUTDOWN, so the answer to this request
-   * may never arrive. That is correct and is why the host has its own bounded
-   * backstop.
-   */
+  /** QUIT LAIN — from the tray, which is the only place this comes from. */
   'POST /api/desktop/quit': async (app) => {
     app.wantExit = true;
     setTimeout(async () => {
@@ -206,12 +121,7 @@ const ROUTES = {
 
   // ------------------------------------------------ the chat model source --
 
-  /**
-   * WHAT THIS ACCOUNT ACTUALLY OFFERS. Paid: it opens the authenticated
-   * browser, and on a signed-out account it reports AUTH_REQUIRED rather than
-   * an empty list — see modelsource/webmodel.js on why those are different
-   * answers.
-   */
+  /** WHAT THIS ACCOUNT ACTUALLY OFFERS. */
   'POST /api/source/models': async (app, body) => {
     const registry = require('../modelsource/registry');
     const src = registry.get(app, String(body.source || ''));
@@ -238,31 +148,8 @@ const ROUTES = {
 
   // ------------------------------------------------------------- the turn --
 
-  /**
-   * ASK SOMETHING. The application does not wait for the answer: a coding turn
-   * runs for minutes, and an HTTP request held open for one is a request that
-   * times out somewhere in between. The reply arrives through `/api/state` like
-   * everything else, which is also what keeps the terminal and the application
-   * showing the same conversation.
-   */
-  // ---- THE SOURCE WORKSPACE -------------------------------------------
-  //
-  // `/api/files/…`, NOT `/api/source/…`. That prefix was already taken, by the
-  // MODEL sources — ChatGPT, Gemini, the local runtime. Two unrelated meanings
-  // of "source" under one namespace is the kind of collision that reads fine
-  // the day it lands and costs an afternoon later.
-  //
-  // READS ARE POSTs, and that is deliberate rather than sloppy REST: they take
-  // a PATH from the caller, and a path in a query string is a path in the
-  // browser's history, in the address bar and in any log between. The bodies
-  // are tiny and the page is the only client.
-  //
-  // Every one of them goes through harnessapp/source.js, which resolves through
-  // tools/fs.js and refuses anything outside the project — the UI holds edit
-  // INTENT and never the file authority.
-  // PROJECT FILES ARE THE ATTACHED PROJECT'S. With no project attached there is
-  // no tree to show — never LAIN's own folder — and the refusal says so
-  // structurally (`projectRequired`) so the panel can offer Add project.
+  /** ASK SOMETHING. The application does not wait for the answer: a coding turn runs for minutes, and an HTTP request held open for one is a request that… */
+  // THE SOURCE WORKSPACE
   'POST /api/files/tree': (app, body) => {
     if (!require('../sessionviews').project(app.session).attached) return noProject();
     const r = source.tree(app, String(body.path || ''));
@@ -289,23 +176,12 @@ const ROUTES = {
       hash: body.hash, mtimeMs: body.mtimeMs, force: Boolean(body.force), encoding: body.encoding || null,
       origin: body.origin === 'FORMATTER' ? 'FORMATTER' : 'USER',
     });
-    // A REFUSAL IS NOT AN ERROR HERE. Stale and truncation both come back 200
-    // with the reason and the evidence, because the page has to SHOW them —
-    // a 4xx would be swallowed by the generic handler and the person would see
-    // "save failed" with nothing to act on.
-    // (The generation, the GUG and provenance follow inside the mutation
-    // transaction the save went through — source.save → mutation.change.)
+    // A REFUSAL IS NOT AN ERROR HERE.
     const { transaction, checkpoint, output, isError, mutated, ...shown } = r || {};
     return ok({ ...shown, generation: transaction ? transaction.generation : null });
   },
 
-  // ---- UI <-> SOURCE --------------------------------------------------
-  //
-  // The defining feature. Both directions return EVIDENCE and a CONFIDENCE,
-  // and `UNKNOWN` is a real answer — see harnessapp/uisource.js on why a
-  // confident wrong file costs more than an honest shrug.
-  // THE ONE UI → SOURCE BINDING (gug.sourceBinding): the component evidence is
-  // what this route has always answered; the style owner comes with it.
+  // UI <-> SOURCE
   'POST /api/files/from-element': (app, body) => {
     const b = require('../gug').sourceBinding(app, app.session.cwd, body.element || {});
     return ok({ ...(b.component || { confidence: 'UNKNOWN', candidates: [] }), binding: b });
@@ -314,24 +190,7 @@ const ROUTES = {
     require('./uisource').toSelectors(app, String(body.path || ''), { line: body.line }),
   ),
 
-  /**
-   * A SENTENCE TYPED INTO A CONVERSATION.
-   *
-   * ------------------------------------------------------------------------
-   * INTO A SESSION THAT IS ALREADY WORKING, IT IS A STEER — as in the terminal.
-   *
-   * This used to be a flat 409. That is the right shape of answer for "two
-   * uncontrolled turns in one session" and the wrong answer for what a person
-   * is actually doing, which is adding a sentence to work in progress. The
-   * terminal has had the correct contract for a long time: a steer defaults to
-   * WAIT and lands when the work in flight finishes, and `submit`'s drain
-   * delivers it as the user's own text. So the window uses that contract rather
-   * than a second one.
-   *
-   * NOTE WHICH SESSION. `app` here is the one the request named (see
-   * `acting`), so a steer reaches the conversation it was typed into and a turn
-   * running in a different one is untouched.
-   */
+  /** A SENTENCE TYPED INTO A CONVERSATION. */
   'POST /api/turn': async (app, body) => {
     // A TURN FROM A VIEW — Chat or Coding — has its own sequencing rules. See
     // viewroutes.submit. Without `view` the behaviour below is unchanged.
@@ -342,10 +201,7 @@ const ROUTES = {
       app.queueSteer(text, body.now ? 'NOW' : 'WAIT');
       return ok({ accepted: true, steered: true, when: body.now ? 'NOW' : 'WAIT' });
     }
-    // NOT AWAITED, deliberately — see above. `handle` is the one door: it
-    // recognises commands, answers open questions, captures a composed goal and
-    // consults the input gateway, exactly as it does for the terminal.
-    // IN THE HARNESS PORT: this turn's questions and approvals come to the window.
+    // NOT AWAITED, deliberately — see above.
     Promise.resolve(require('./sessionroutes').withPort(app, () => app.handle(text, { from: 'harness-app' }))).catch(() => {});
     return ok({ accepted: true });
   },
@@ -358,10 +214,7 @@ const ROUTES = {
 
   // ------------------------------------------------------- the Workshop ---
 
-  /**
-   * OPEN THE WORKSHOP for the current project: start or adopt the dev server,
-   * launch the project-bound preview browser, and load the page.
-   */
+  /** OPEN THE WORKSHOP for the current project: start or adopt the dev server, launch the project-bound preview browser, and load the page. */
   'POST /api/workshop/open': async (app, body) => {
     const ws = require('../workshop').forApp(app);
     const r = await within(ws.open(app.session.cwd, {
@@ -434,13 +287,7 @@ const ROUTES = {
     return ok({ shot: r, before });
   },
 
-  /**
-   * VERIFY THE FRONTEND at one or more viewports.
-   *
-   * IT RETURNS EVIDENCE, NOT A VERDICT ABOUT THE TASK. harness/verify.js and
-   * completion.js remain the only things that settle work; this is what they
-   * settle from. See workshop/index.js `verify`.
-   */
+  /** VERIFY THE FRONTEND at one or more viewports. */
   'POST /api/workshop/verify': async (app, body) => {
     const ws = require('../workshop').forApp(app);
     const taskId = (app._harness && app._harness.snapshot && app._harness.snapshot().task)
@@ -451,45 +298,16 @@ const ROUTES = {
       selector: body.selector || null,
     }), ACTION_TIMEOUT_MS * 2, 'verification');
     if (!Array.isArray(r.results)) return bad(r.why || 'verification did not complete');
-    // A FAILING CHECK IS EVIDENCE, NOT AN ERROR. `r.ok` is the verdict and used to
-    // override the envelope, so the page showed "did not complete" and threw away
-    // the one result a person needed — which viewport broke, and how.
+    // A FAILING CHECK IS EVIDENCE, NOT AN ERROR.
     return { code: 200, body: { ...r, ok: true, passed: Boolean(r.ok) } };
   },
 
 };
 
-/**
- * Dispatch one request. Returns `{code, body}`; the server does the writing.
- *
- * UNKNOWN IS 404, not a fall-through. A path that half-matches a handler is how
- * an application quietly does the wrong thing.
- */
-/**
- * WHICH CONVERSATION A REQUEST IS FOR.
- *
- * ------------------------------------------------------------------------
- * THE SURFACE NAMES THE SESSION; IT DOES NOT MOVE INTO IT.
- *
- * Every route below used to act on "the App", which meant "whatever session the
- * terminal happened to be on" — so the window could only ever operate on one
- * conversation, and switching to a second one had to drag the terminal with it.
- * That coupling is what made a running turn look like a lock on the whole
- * application. See src/sessionpool.js.
- *
- * Now a request may carry `session`, and the handler is given the App that owns
- * that conversation. Without one it is given the VIEW — the session the window
- * is showing, which is a fact about the window and not about what is executing.
- *
- * A NAMED SESSION THAT IS NOT LIVE IS A REFUSAL, not a silent fallback onto the
- * view: acting on a different conversation than the one the caller named is the
- * worst possible way to be wrong here.
- */
+/** Dispatch one request. */
+/** WHICH CONVERSATION A REQUEST IS FOR. */
 function acting(app, body) {
-  // DISPATCH ASKS NO MORE OF ITS ARGUMENT THAN A HANDLER DOES. A real `App`
-  // always has a pool; a test double standing in for one may not, and a
-  // transport layer that demanded a method the routes themselves never call
-  // would turn "this object is missing something" into an error about pools.
+  // DISPATCH ASKS NO MORE OF ITS ARGUMENT THAN A HANDLER DOES.
   const pool = typeof app.pool === 'function' ? app.pool() : null;
   if (!pool) return { app };
   const named = body && body.session ? String(body.session) : '';
@@ -518,28 +336,13 @@ async function dispatch(app, method, pathname, body) {
     const pick = acting(app, body);
     if (pick.refuse) return pick.refuse;
     const out = await fn(pick.app, body || {});
-    // ---- A WRITE MOVED SOMETHING; LOOK AGAIN NOW -------------------------
-    //
-    // Creating a session, selecting one, closing one, starting a turn — every
-    // POST here changes what the window is showing. Waiting for the next poll
-    // to notice meant a click could sit for most of a second before the
-    // application admitted it had happened, which reads as LAIN being slow at
-    // the one thing that is instant. GET is excluded: a read changes nothing,
-    // and waking on it would be a loop.
-    //
-    // A READ SENT AS POST IS STILL A READ. The window calls several of these
-    // on every render (is the open file fresh?) or on a short clock (the
-    // terminal pump); waking on them made poll → render → read → wake → poll a
-    // loop at pipe speed — measured at ~70 state reads a second, enough to
-    // starve every turn on Core's event loop.
+    // A WRITE MOVED SOMETHING; LOOK AGAIN NOW
     if (String(method).toUpperCase() !== 'GET' && !QUIET_READS.has(pathname)) {
       try { require('./ipc').wake(); } catch { /* no window is connected */ }
     }
     return out;
   } catch (e) {
-    // A ROUTE THAT THREW IS REPORTED, NEVER SWALLOWED. The application shows the
-    // sentence; the alternative is a button that does nothing for no stated
-    // reason, which is indistinguishable from a broken build.
+    // A ROUTE THAT THREW IS REPORTED, NEVER SWALLOWED.
     return { code: 500, body: { ok: false, why: `${key}: ${(e && e.message) || e}` } };
   }
 }
@@ -578,9 +381,7 @@ Object.assign(ROUTES, require('../settings').ROUTES);
 Object.assign(ROUTES, require('./workspaceroutes').ROUTES);
 // The IDE: file operations, search, source control, editor context — ideroutes.js.
 Object.assign(ROUTES, require('./ideroutes').ROUTES);
-// Route modules with their quiet reads: the editor profile, VS Code / Cursor import and extensions (extroutes); the
-// session journey, house doors, Laya's provenance and the focused packet (journeyroutes); runtime processes, the
-// extension host and language servers (devtoolroutes); Settings › Storage (cacheroutes); updates and Exit (updateroutes).
+// Route modules with their quiet reads: the editor profile, VS Code / Cursor import and extensions (extroutes); the session journey, house doors…
 for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes'), require('./computerroutes')]) {   // + Computer Control (Phase CU)
   Object.assign(ROUTES, mod.ROUTES);
   for (const q of mod.QUIET || []) QUIET_READS.add(q);

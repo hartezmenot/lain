@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * FAST · NORMAL · ECO — the session's EXECUTION PROFILE (Simplify S5.1). Behaviour is the same in all three; only spend
- * differs, and only in these four ways:
- *
- *                                   NORMAL          FAST            ECO
- *   default effort (none chosen)    model default   lowest native   lowest native    (fabric/effortcaps.js)
- *   parallel read-only calls/step   2               4               2
- *   tool output cap (head+tail)     normal          normal          tighter          (toolbudget.js)
- *   compaction threshold            normal          normal          earlier          (compactAt)
- *
- * A profile never changes the tools array or the system prompt, so toggling it mid-session keeps the cache. An
- * explicit effort (config, session or project) wins over the profile's default, and the header says so.
- * `/fast` and `/eco` toggle; `/normal` resets. SLOW (retired) reads as ECO.
- */
+/** FAST · NORMAL · ECO — the session's EXECUTION PROFILE (Simplify S5.1). */
 
 const PROFILES = Object.freeze(['FAST', 'NORMAL', 'ECO']);
 /** Retired profiles and what they read as now. */

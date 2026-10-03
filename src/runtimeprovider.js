@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE 'runtime' PROTOCOL — provider.chat's transport for local and runtime
- * models. Same event vocabulary as every other protocol (text, reasoning,
- * tool_calls, finish, usage), inside the same modelrequest envelope, so a
- * request to a local model is identified, traced, cancellable and counted
- * like any other.
- *
- *   llamacpp      ensure the owned llama-server for this model (reuse a healthy
- *                 one; a controlled switch otherwise), then its OpenAI-compatible
- *                 endpoint — with llama.cpp's own `timings` kept as local metrics
- *   ollama        Ollama's /api/chat (its own durations and counts)
- *   claude-code   the Claude Code program (runtimechat → claude -p, no tools)
- *   opencode      the OpenCode program (opencode run, plan agent)
- *   zcode         the ZCode runtime (workspace/generateText)
- *   codex         one native Codex account (codex exec in its own home — drivers/codexexec.js)
- */
+/** THE 'runtime' PROTOCOL — provider.chat's transport for local and runtime models. */
 
 async function* llamaChat(pc, messages, opts) {
   const llamacpp = require('./local/llamacpp');

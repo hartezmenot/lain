@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * `/skill` · `/hooks` · `/mcp servers|trust` — the capability surface from the CLI (Phase CAP). The Harness page
- * (Settings › Capabilities) reads the same rows (skills.rows, mcpreg.rows, userhooks.rows).
- *
- *   /skill                     list (same as /skill list)
- *   /skill <name> [request]    run a skill now: its instructions + the request go to the model as one message
- *   /hooks                     what runs, where it comes from; `/hooks consent` / `/hooks revoke` for this project
- *   /mcp servers               health, trust, schema mode and per-request cost of every MCP server
- *   /mcp trust <id> <level>    DISABLED | READ_ONLY | ASK | TRUSTED — the person's decision, never a server's
- */
+/** `/skill` · `/hooks` · `/mcp servers|trust` — the capability surface from the CLI (Phase CAP). */
 
 function register({ define, C }) {
   define('/skill', {

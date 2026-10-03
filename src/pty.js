@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * THE PROJECT TERMINAL — a real one, owned by Core.
- *
- * ------------------------------------------------------------------------
- * WHAT MAKES IT A TERMINAL RATHER THAN A COMMAND RUNNER.
- *
- * `run_bash` runs a command and gives back its output. That is not a terminal,
- * and the difference is not cosmetic: a program that detects a pipe turns off
- * colour, turns off progress bars, stops asking questions and buffers its
- * output. So "show me the dev server" through a pipe shows a different program
- * than the one a person would have run.
- *
- * A PSEUDOCONSOLE is what makes the shell believe it has a console — colour,
- * redraw, Ctrl+C, reflow on resize. Windows exposes exactly one
- * (`CreatePseudoConsole`, Windows 10 1809+), Node cannot call it without a
- * native addon, and LAIN has zero runtime dependencies. So the ConPTY lives in
- * `native/pty.cs`, compiled on demand by the `csc.exe` that is part of Windows
- * — the same arrangement the Computer MCP bridge already uses.
- *
- * ------------------------------------------------------------------------
- * CORE OWNS IT. THE WINDOW ONLY WATCHES.
- *
- * The session owns the working directory, the shell and the lifetime; the
- * renderer sends keystrokes and receives bytes. Two consequences that are the
- * whole point:
- *
- *   HIDING THE PANEL DOES NOT KILL THE SHELL. The drawer is a view. A build
- *   running in it keeps running while the drawer is shut, exactly as it would
- *   in a terminal window behind another window.
- *
- *   ENDING THE SESSION DOES. It is a child of this process and it goes with
- *   everything else Core owns — see src/teardown.js.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT A SECOND EXECUTION PATH AROUND THE TOOL GATE, and that distinction
- * is worth being exact about. This is a shell A PERSON types into, in a project
- * they already opened, which is the same authority they have in any terminal on
- * their own machine. The MODEL cannot reach it: no tool writes here, and the
- * only way bytes arrive is a keystroke from the window. `run_bash` — what the
- * model uses — still goes through gate.js, trust.js and the mutation
- * transaction, unchanged.
- */
+/** THE PROJECT TERMINAL — a real one, owned by Core. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -73,10 +32,7 @@ function compiler() {
   return best;
 }
 
-/**
- * BUILD (or reuse) THE CONPTY BRIDGE. Cached by the hash of its own source, so
- * it compiles once and an edit to the source rebuilds it.
- */
+/** BUILD (or reuse) THE CONPTY BRIDGE. */
 function ensureBridge() {
   if (process.platform !== 'win32') return { ok: false, why: 'the project terminal is a Windows pseudoconsole' };
   let src;
@@ -102,14 +58,7 @@ function ensureBridge() {
   return { ok: true, exe, built: true };
 }
 
-/**
- * WHICH SHELL. PowerShell where it exists, because it is what a person on this
- * machine actually has open; `cmd.exe` is the floor that is always present.
- *
- * NOT bash: `tools/shell.js` picks a shell for the MODEL, where a POSIX one is
- * often the better answer. This is the shell a PERSON is going to type in, and
- * on Windows that is PowerShell.
- */
+/** WHICH SHELL. PowerShell where it exists, because it is what a person on this machine actually has open; `cmd.exe` is the floor that is always present. */
 function defaultShell() {
   const sysRoot = process.env.SystemRoot || 'C:\\Windows';
   const pwsh = path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
@@ -194,13 +143,7 @@ class Terminal {
   }
 }
 
-/**
- * THE TERMINALS ONE APP HAS OPEN.
- *
- * Per-App, never module scope — the same rule every other piece of session
- * state follows, and for the same reason: two LAINs in one process must not
- * share a shell.
- */
+/** THE TERMINALS ONE APP HAS OPEN. */
 function stateOf(app) {
   if (!app._terminals) app._terminals = new Map();
   return app._terminals;
@@ -216,11 +159,7 @@ function list(app) {
 
 function get(app, id) { return stateOf(app).get(String(id || '')) || null; }
 
-/**
- * OPEN ONE.
- *
- * @returns {{ok: boolean, why?: string, terminal?: Terminal}}
- */
+/** OPEN ONE. */
 function open(app, { cwd = null, cols = 120, rows = 30, shell = null } = {}) {
   const map = stateOf(app);
   const living = [...map.values()].filter((t) => t.alive).length;
@@ -264,9 +203,7 @@ function open(app, { cwd = null, cols = 120, rows = 30, shell = null } = {}) {
       else if (msg.ev === 'error') { t.error = String(msg.why || ''); t._append(Buffer.from(`\r\n[LAIN] ${t.error}\r\n`, 'utf8')); }
     }
   });
-  // THE BRIDGE'S OWN STDERR IS THE BRIDGE FAILING, not the shell's output. It
-  // goes into the buffer marked as ours so a person is not left with a blank
-  // panel and no reason.
+  // THE BRIDGE'S OWN STDERR IS THE BRIDGE FAILING, not the shell's output.
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk) => { t._append(Buffer.from(`\r\n[LAIN terminal] ${String(chunk).trim()}\r\n`, 'utf8')); });
   child.on('exit', (code) => { if (t.exitCode === null) t.exitCode = Number(code) || 0; });
@@ -283,11 +220,7 @@ function close(app, id) {
   return { ok: true, id: t.id };
 }
 
-/**
- * EVERY TERMINAL THIS APP HOLDS, ended. Called by the one shutdown sequence —
- * a shell that outlives LAIN is the orphan this repository has already paid for
- * several times. See src/teardown.js.
- */
+/** EVERY TERMINAL THIS APP HOLDS, ended. */
 function closeAll(app) {
   const map = stateOf(app);
   let n = 0;

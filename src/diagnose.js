@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * WHY ISN'T THIS WORKING — the MACHINE half of that question.
- *
- * `/status` says what LAIN is configured to do; `provider.js` and
- * `availability.js` say whether a route is healthy. Neither answers the
- * question a stuck user actually has, which is about the host: is the Node
- * version new enough, is there a terminal, can the config directory be written,
- * is there a shell for run_bash to use. V1 had this as `/doctor` and V2 had
- * lost it.
- *
- * The checks live here rather than inside the command because they are facts
- * about the environment, not presentation — which makes them testable directly
- * and keeps `commands.js` a registry rather than a place where logic collects.
- *
- * EVERY CHECK IS A LOCAL SYSCALL. Nothing here opens a socket or spends a
- * request: a diagnostic that costs money to run is one nobody runs when they
- * are already worried about spending.
- */
+/** WHY ISN'T THIS WORKING — the MACHINE half of that question. */
 
 const fs = require('fs');
 const path = require('path');
@@ -40,9 +23,7 @@ function checks(app) {
     ? 'Interactive terminal'
     : 'No TTY — the framed UI is off and output is linear');
 
-  // Sessions, /undo history and the model catalog all live under the config
-  // directory. If it cannot be written, everything appears to work during the
-  // session and none of it is there afterwards.
+  // Sessions, /undo history and the model catalog all live under the config directory.
   const dir = config.configDir();
   try {
     fs.mkdirSync(dir, { recursive: true });
@@ -73,11 +54,7 @@ function checks(app) {
   else if (process.platform === 'win32') ok('Shell for run_bash: PowerShell / cmd (no bash found, which is normal on Windows)');
   else warn('No shell found for run_bash — shell commands will fail');
 
-  // THE TAB TITLE is a side effect on someone else's window, and when it does
-  // not take there is nothing on screen to say why. LAIN writes OSC 0 and 2 on
-  // every redraw; a terminal that pins its own tab name simply ignores them, and
-  // that is a setting in the terminal rather than a fault here. So this reports
-  // what LAIN actually sent, and names the setting to check if the tab differs.
+  // THE TAB TITLE is a side effect on someone else's window, and when it does not take there is nothing on screen to say why.
   const title = require('./termtitle');
   if (!title.enabled()) {
     warn('Terminal title not set — no TTY, TERM=dumb, or LAIN_NO_TITLE is set');
@@ -108,27 +85,8 @@ function checks(app) {
   return out;
 }
 
-/**
- * What `/status` reports: the SESSION and its route, as label/value pairs.
- *
- * `checks()` answers "is this machine capable of running LAIN"; this answers
- * "what is LAIN currently pointed at". Both are reports built from state and
- * printed by a command, which is why they live together and neither lives in
- * the command registry.
- *
- * @returns {Array<[string, string]>}
- */
-/**
- * A cache-hit-rate suffix for the tokens row, or '' when there is nothing to
- * say — no request has gone out, or the provider never reported cache usage
- * at all (a non-Anthropic route). Folded onto the existing row rather than
- * given one of its own: `/status` is a fixed-height panel windowed to the
- * terminal, and an unconditional extra row pushes whatever was last — here,
- * `config` — past the visible slice on a short terminal. This is the one
- * number that answers "is caching actually working" without re-deriving it
- * from raw provider events by hand: read tokens near zero next to real
- * conversation history is the signature of a broken or invalidated cache.
- */
+/** What `/status` reports: the SESSION and its route, as label/value pairs. */
+/** A cache-hit-rate suffix for the tokens row, or '' when there is nothing to say — no request has gone out, or the provider never reported cache usage… */
 /** A token count a person reads at a glance: 950 · 12.4k · 3.1M (/token has the exact figures). */
 function short(n) {
   const v = Number(n) || 0;
@@ -147,9 +105,7 @@ function cacheSuffix(u) {
 }
 
 function statusRows(app, { dim = (s) => s } = {}) {
-  // THE ROUTE THIS SESSION'S NEXT TURN TAKES (Phase 8.2) — its lane, not the
-  // process default: after the window chose another account, the default named
-  // a route the next turn would not take.
+  // THE ROUTE THIS SESSION'S NEXT TURN TAKES (Phase 8.2) — its lane, not the process default: after the window chose another account, the default named a…
   let pc;
   try { pc = providerMod.resolve(require('./sessionviews').turnCfg(app, app.session)); } catch { pc = providerMod.resolve(app.cfg); }
   const room = sessionMod.budgetChars(pc);
@@ -169,14 +125,6 @@ function statusRows(app, { dim = (s) => s } = {}) {
     // headline number rather than something you have to know to ask for.
     ['context', `${Math.round(used / 1000)}k / ${Math.round(room / 1000)}k chars (${room > 0 ? Math.round((used / room) * 100) : 0}%) · ↑${short(u.inputTokens)} ↓${short(u.outputTokens)} · ${u.requests} requests${cacheSuffix(u)} · ${app.session.messages.length} messages · ${app.session.turns.length} turns`],
     // WHAT LAIN KNOWS ABOUT THIS PROJECT WITHOUT READING IT AGAIN.
-    //
-    // One line, because it is the line that would have made a silent failure
-    // obvious: a whole TypeScript project once indexed to 47 files and ZERO
-    // declarations, and every question about it fell back to grep and whole-file
-    // reads on every turn. A count says that in one glance. It reads the index
-    // that is already on disk and never builds one — asking for status must not
-    // start a scan. See projectindex.coverage.
-    // (and, at its end, which surface is up — the window is the application now, not a URL)
     ['index', `${projectRow(app.session.cwd, dim)} · ${appBrief(dim)}`],
     // ONE LINE, THE PATH ALONE: a row that wraps is a row the panel cannot fit at its foot.
     ['config', config.configDir()],
@@ -197,11 +145,7 @@ function appRow(dim) {
     const win = require('./desktopwindow').status();
     const chan = require('./harnessapp/ipc').status();
     if (win.open) return `LAIN Desktop · pid ${win.pid}${chan.running ? ' · private channel' : dim(' · channel down')}`;
-    // AND WHETHER THIS PROCESS IS THE ONE A LAUNCH WOULD FIND. The window is
-    // opened by launching LAIN, not by a command here, so the useful fact is
-    // whether a launch would reach THIS session or start its own. The browser
-    // surface that used to be reported on this row went with `/app`
-    // (2026-09-15). See src/corelock.js.
+    // AND WHETHER THIS PROCESS IS THE ONE A LAUNCH WOULD FIND.
     const lock = require('./corelock').status();
     return dim(lock.holding
       ? 'closed — launching LAIN Desktop opens this session'

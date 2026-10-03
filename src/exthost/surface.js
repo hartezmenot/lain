@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE VS CODE API LAIN'S EXTENSION HOST PROVIDES — one list, and the scan that
- * compares an extension's code against it (2026-09-25).
- *
- * host.js implements the subset; this file NAMES it, so the compatibility
- * report can say before an extension runs which APIs it references that LAIN
- * does not provide — not only the ones it happened to call (host.js's Proxy
- * reports those at runtime). tests/unit/exthost.test.js keeps the two honest:
- * every member listed here must exist in host.js.
- *
- * The scan is STATIC and says so: it reads the extension's entry bundle for
- * `<namespace>.<member>` on the vscode namespaces. A bundler that renames the
- * module object still leaves the member names (`e.window.createWebviewPanel`);
- * a member reached by computed access is not seen. It is evidence for the
- * report, never a reason to refuse running an extension the person allowed.
- */
+/** THE VS CODE API LAIN'S EXTENSION HOST PROVIDES — one list, and the scan that compares an extension's code against it (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');

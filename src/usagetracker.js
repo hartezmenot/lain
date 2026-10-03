@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * THE USAGE TRACKER'S NUMBERS (2026-09-30) — one place, for every surface that
- * shows them (the Harness's top-right ring and its dropdown; the tray reads the
- * same fabric figures).
- *
- *   ring      what REMAINS of the tightest window the ACTIVE ROUTE's backing
- *             account reported — per lane (Chat, Coding Agent) — or nothing,
- *             said as "not reported". Never a number LAIN made up.
- *   windows   every window that account reported, each with what LAIN itself
- *             observed inside it (resetwindows.js), apart from the provider's %.
- *   overall   LAIN-OBSERVED usage over a range: tokens, requests, cache reads,
- *             cache reuse where providers reported it, and the model shares.
- *
- * THE TWO ARE NEVER COMBINED: unrelated providers' windows do not add up to an
- * "overall quota", so there is none. The Harness renders these values; it does
- * not compute its own.
- */
+/** THE USAGE TRACKER'S NUMBERS (2026-09-30) — one place, for every surface that shows them */
 
 const RANGES = Object.freeze({
   today: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); },

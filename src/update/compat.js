@@ -1,12 +1,6 @@
 'use strict';
 
-/**
- * CLI ↔ HARNESS COMPATIBILITY. The CLI and the Harness are two surfaces over ONE Core (per config directory), and
- * after an update one of them may still be running the previous version. They attach only when their Core protocol
- * is the same; within one protocol an older surface is merely told a newer one is installed.
- *
- *   PROTOCOL   bumps when the Core's attach/IPC contract changes in a way an older surface cannot speak.
- */
+/** CLI ↔ HARNESS COMPATIBILITY. */
 
 const PROTOCOL = 1;
 

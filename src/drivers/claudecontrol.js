@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * CLAUDE CODE, ASKED — NOT RUN (2026-10-02).
- *
- * One short Claude Code process per refresh, in the ACCOUNT'S OWN configuration directory, speaking its SDK control
- * protocol and nothing else:
- *
- *   claude -p --input-format stream-json --output-format stream-json --verbose
- *     → {"type":"control_request","request_id":"init","request":{"subtype":"initialize"}}
- *     → {"type":"control_request","request_id":"usage","request":{"subtype":"get_usage","skip_behaviors":true}}
- *     ← control_response init:   account { email, organization, subscriptionType, apiProvider },
- *                                models [{ value, displayName, description, supportedEffortLevels, … }]
- *     ← control_response usage:  rate_limits { five_hour, seven_day, seven_day_opus, seven_day_sonnet,
- *                                model_scoped[] } — utilization 0–100 USED, resets_at ISO
- *
- * NO USER MESSAGE IS SENT, so nothing is generated and no quota is spent (verified live with Claude Code 2.1.286:
- * both answers in ~2.4 s, stdin closed at once). Claude Code reads — and renews — its own sign-in: LAIN never
- * opens `.credentials.json`, for the person's own profile or for one LAIN made.
- *
- * TOLERANT BY DESIGN: `get_usage` is marked experimental by Claude Code. Every field is optional here; a missing
- * window is simply not reported, an unknown subtype answer is "unsupported" (an older Claude Code), and nothing is
- * ever inferred from a model's name.
- */
+/** CLAUDE CODE, ASKED — NOT RUN (2026-10-02). */
 
 const WINDOWS = Object.freeze([
   ['five_hour', '5-hour'],
@@ -95,10 +74,7 @@ function parse(lines) {
   return r;
 }
 
-/**
- * ASK. `binary` is { command, args } (claudeaccount.binaryOf); `env` the account's own ({ CLAUDE_CONFIG_DIR }).
- * @returns {Promise<{ok, account?, models?, limits?, rateLimitsAvailable?, why?, unsupported?}>}
- */
+/** ASK. `binary` is { command, args } (claudeaccount.binaryOf); `env` the account's own ({ CLAUDE_CONFIG_DIR }). @returns {Promise<{ok, account?… */
 async function ask(binary, env = {}, { usage = true, timeoutMs = TIMEOUT_MS, cwd = null } = {}) {
   if (!binary || !binary.command) return { ok: false, why: 'Claude Code is not installed' };
   const reqs = [{ type: 'control_request', request_id: 'init', request: { subtype: 'initialize' } }];

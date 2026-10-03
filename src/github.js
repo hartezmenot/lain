@@ -1,45 +1,6 @@
 'use strict';
 
-/**
- * GITHUB AS A PROJECT SOURCE — repositories become LAIN projects through a real
- * local working tree. LAIN never edits GitHub file objects over the API.
- *
- *   GitHub repo ─▶ clone ─▶ LAIN project (index, state) ─▶ Chat · Coding Agent · IDE
- *
- * AUTHENTICATION — whoever owns it, never a borrowed one:
- *   gh       GitHub's own CLI, signed in by the person (`gh auth login`). LAIN
- *            runs it; the token stays in gh's own store. Preferred.
- *   device   OAuth device flow with a CLIENT ID THE PERSON REGISTERED for LAIN
- *            (cfg.github.clientId) — never another application's. The token is
- *            kept in the OS secret store (DPAPI), never in config or a prompt.
- *   token    a FINE-GRAINED, repository-scoped token the person created, kept
- *            in DPAPI. Offered last; broad classic tokens are not asked for.
- * Secrets never reach a model, a log, the DOM or usage: they are registered with
- * redact.js and handed only to the git/gh process that needs them.
- *
- * VISIBILITY is whatever the identity/app can see — private repositories appear
- * only when they were authorized to it.
- *
- * SEVERAL IDENTITIES, EACH ITS OWN (2026-09-30):
- *   gh:<login>      an account GitHub CLI holds (gh keeps several per host). To act
- *                   as it, LAIN asks gh for THAT account's token and hands it to
- *                   the one git/gh process by environment — never on a command
- *                   line — and never switches gh's own active account.
- *   oauth:<login>   GitHub's device flow with the person's own OAuth App client id;
- *                   scopes chosen explicitly (read-only unless they ask for write).
- *   pat:<login>     a fine-grained token the person created.
- * oauth / pat tokens live in DPAPI under their own names; adding one never touches
- * another. LAIN's ACTIVE account is LAIN's choice alone (cfg.github.active). A
- * repository remembers the account it was opened with (cfg.github.bindings) and
- * what GitHub said that account may do there; a write it may not make is refused
- * with the reason — never retried silently as someone else.
- *
- * WRITES ARE EXPLICIT. Pull, branch, commit, push, pull request and issue each
- * need an explicit action from the person (the route passes `confirm`); none is
- * a model tool, and none happens because the Agent edited files. Normal git
- * semantics stay primary: git does the work; GitHub is asked only for what is
- * GitHub's (repositories, pull requests, issues).
- */
+/** GITHUB AS A PROJECT SOURCE — repositories become LAIN projects through a real local working tree. */
 
 const fs = require('fs');
 const path = require('path');
@@ -81,10 +42,7 @@ function gcfg(app) { const c = root(app).cfg; c.github = c.github || {}; return 
 
 // ------------------------------------------------------------ accounts --
 
-/**
- * THE ACCOUNTS GITHUB CLI HOLDS for github.com — `gh auth status` lists each with whether it is gh's own active one.
- * (gh prints tokens there masked; only the logins and scopes are read.) Cached briefly: status is asked often.
- */
+/** THE ACCOUNTS GITHUB CLI HOLDS for github.com — `gh auth status` lists each with whether it is gh's own active one. */
 let ghMemo = null;
 function ghAccounts(app) {
   const gh = ghBin(app);
@@ -277,11 +235,7 @@ async function connectToken(app, tok) {
 
 // ------------------------------------------------------------ device flow (the person's own OAuth App) --
 
-/**
- * SCOPES ARE CHOSEN, NEVER ASSUMED: read-only by default; write to public repositories, or to private ones, only
- * when the person picks it. (GitHub's OAuth scopes are coarse: `repo` reaches every private repository the person
- * can reach — said so where it is chosen.)
- */
+/** SCOPES ARE CHOSEN, NEVER ASSUMED: read-only by default; write to public repositories, or to private ones, only when the person picks it. */
 const DEVICE_SCOPES = Object.freeze({ read: 'read:user', public: 'read:user public_repo', private: 'read:user repo' });
 const devices = new Map();   // handle -> { deviceCode, clientId, interval, expires }
 async function deviceStart(app, { access = 'read' } = {}) {
@@ -313,10 +267,7 @@ async function devicePoll(app, handle) {
   return keep(app, t, 'oauth', me, String(j.scope || d.scope).split(/[\s,]+/).filter(Boolean));
 }
 
-/**
- * FORGET ONE ACCOUNT in LAIN. A LAIN-held token is deleted from DPAPI; a GitHub CLI account is only hidden from
- * LAIN — gh keeps its own sign-in (`gh auth logout` is the person's). No other account is touched.
- */
+/** FORGET ONE ACCOUNT in LAIN. */
 function disconnect(app, id = null) {
   const a = id ? find(app, String(id)) : activeAccount(app);
   if (!a) return { ok: false, why: 'no such GitHub account in LAIN', status: status(app) };
@@ -336,10 +287,7 @@ function disconnect(app, id = null) {
   saveCfg(app);
   return { ok: true, status: status(app), note };
 }
-/**
- * THE PERSON'S OWN OAUTH APP for the device flow — a public client id (the device flow takes no secret, and none is
- * asked for). GitHub's ids are 20 characters: hex for older apps, `Ov23…` / `Iv1.…` for newer ones.
- */
+/** THE PERSON'S OWN OAUTH APP for the device flow — a public client id (the device flow takes no secret, and none is asked for). */
 function setClientId(app, id) {
   const v = String(id || '').trim();
   if (v && !/^(Ov23[A-Za-z0-9]{16}|Iv1\.[a-f0-9]{16}|Iv23[A-Za-z0-9]{16}|[a-f0-9]{20})$/.test(v)) return { ok: false, why: 'that does not look like a GitHub OAuth App client id' };
@@ -490,10 +438,7 @@ function register(app, fullName, dir, { existing }) {
 const ACTIONS = Object.freeze(['fetch', 'sync', 'merge-abort', 'pull', 'branch', 'commit', 'push', 'pr-create', 'pr-view', 'issue-view', 'issue-create']);
 const WRITES = new Set(['sync', 'merge-abort', 'pull', 'branch', 'commit', 'push', 'pr-create', 'issue-create']);
 
-/**
- * ONE EXPLICIT ACTION on a local clone. Writes need `confirm: true` — the
- * person's own button press — and are never taken because the Agent edited.
- */
+/** ONE EXPLICIT ACTION on a local clone. */
 async function action(app, dir, kind, args = {}, { confirm = false } = {}) {
   if (!ACTIONS.includes(kind)) return { ok: false, why: `action is one of ${ACTIONS.join(', ')}` };
   if (!dir || !fs.existsSync(path.join(dir, '.git'))) return { ok: false, why: 'this project is not a git working tree' };
@@ -517,10 +462,6 @@ async function action(app, dir, kind, args = {}, { confirm = false } = {}) {
     return r.code === 0 ? ok({ out: 'fetched' }) : { ok: false, kind, offline: true, why: `Offline or the remote refused: ${(r.stderr || r.error || '').trim().split('\n').pop()}`, state: { ...projectStatus(dir), state: 'OFFLINE', label: 'Offline' } };
   }
   // SYNC: fetch, then bring the remote's commits in the SAFE way — never a reset, never a discard.
-  //   behind only        fast-forward
-  //   ahead and behind   a merge commit; a conflict is LEFT for the person (Abort merge offered)
-  //   local changes      git itself refuses if an incoming change would overwrite them — said so
-  //   ahead only         nothing to bring in; Push is the next step
   if (kind === 'sync') {
     const f = git(['fetch', '--prune'], dir, { timeout: 5 * 60000, env: netEnv });
     if (f.code !== 0) return { ok: false, kind, offline: true, why: `Offline or the remote refused: ${(f.stderr || f.error || '').trim().split('\n').pop()}`, state: { ...projectStatus(dir), state: 'OFFLINE', label: 'Offline' } };

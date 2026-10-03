@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE LAIN UPDATER — one implementation, used by the CLI, the Harness and `lain update`.
- *
- *   check     the channel's signed manifest, at most every CHECK_MS unless asked (cached in <home>/update/state.json)
- *   download  the asset for this machine → <install>/staging → SHA-256 checked against the SIGNED manifest
- *   stage     extracted to <install>/versions/<version> (a new directory — nothing running is touched)
- *   apply     previous ← current, current ← staged, pending ← staged; the app exits with 75 and the launcher
- *             (distribution/launcher.cs) starts the new version with the session to resume. A pending version that
- *             never reports healthy is rolled back by the launcher to the previous one.
- *
- * WHERE IT APPLIES. Only to an INSTALLED LAIN (the launcher sets LAIN_INSTALL_ROOT; a Noema-era launcher's
- * NOEMA_INSTALL_ROOT is mirrored by boot.js). A development checkout (`node bin/lain.js`) has nothing to switch and says so.
- * THE RENAME (2026-10-02): a package carries BOTH app/bin/lain.js and the compatibility app/bin/noema.js, so a
- * Noema-era build can stage and start it; this updater accepts manifests for product `lain` or the Noema-era `noema`. No timer runs unless the CLI or Harness started one, and
- * that one checks at most every six hours — never a poll loop.
- */
+/** THE LAIN UPDATER — one implementation, used by the CLI, the Harness and `lain update`. */
 
 const fs = require('fs');
 const path = require('path');
@@ -82,9 +67,7 @@ function resolveUrl(base, u) {
   return path.join(base, u);
 }
 
-/**
- * CHECK. { state: 'current'|'available'|'staged'|'unconfigured'|'error', ... } — cached; `force` skips the interval.
- */
+/** CHECK. { state: 'current'|'available'|'staged'|'unconfigured'|'error', ... } — cached; `force` skips the interval. */
 async function check({ cfg = {}, force = false, now = Date.now() } = {}) {
   const s = settings(cfg);
   const st = readState();
@@ -130,10 +113,7 @@ function summarize(st, b = build()) {
 }
 function status() { return summarize(readState()); }
 
-/**
- * DOWNLOAD + VERIFY + STAGE. Independent of any running task: nothing the app is using is touched.
- * { ok, staged: { version, dir } } or { ok: false, why } — a bad hash or a bad package is rejected and deleted.
- */
+/** DOWNLOAD + VERIFY + STAGE. */
 async function stage({ cfg = {} } = {}) {
   const root = installRoot();
   if (!root) return { ok: false, why: 'updates apply to an installed LAIN — this is a development checkout' };
@@ -175,17 +155,12 @@ async function stage({ cfg = {} } = {}) {
   fs.renameSync(tmp, target);
   try { fs.unlinkSync(file); } catch { /* kept */ }
   writeState({ ...readState(), staged: { version: a.version, at: Date.now(), dir: target }, lastError: null });
-  // THE LAUNCHER'S VIEW OF IT: at the next cold start at Windows sign-in, the launcher switches to this verified
-  // version BEFORE anything runs (distribution/launcher.cs) — one launch, never "start the old one, then restart".
-  // A Windows shutdown with an update staged therefore replaces nothing mid-shutdown.
+  // THE LAUNCHER'S VIEW OF IT: at the next cold start at Windows sign-in, the launcher switches to this verified version BEFORE anything runs…
   setPointer('staged', a.version);
   return { ok: true, staged: { version: a.version, dir: target } };
 }
 
-/**
- * APPLY — point the install at the staged version and ask the launcher to restart into it with `args` (the session
- * to resume). The caller must already have committed its checkpoint and saved; it then exits with RESTART_CODE.
- */
+/** APPLY — point the install at the staged version and ask the launcher to restart into it with `args` (the session to resume). */
 function apply({ args = [], cwd = process.cwd() } = {}) {
   const root = installRoot();
   if (!root) return { ok: false, why: 'updates apply to an installed LAIN' };

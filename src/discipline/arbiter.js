@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * THE COMPLETION ARBITER (Execution Discipline §26–§27). Completion is decided by LAIN; a model may REQUEST it and
- * never certify it.
- *
- *   DONE                    an answer (nothing changed), or a change whose required proof is on record · every
- *                           explicit ask addressed · nothing to disclose
- *   DONE_UNVERIFIED(reason) finished, with something DISCLOSED: proof the contract asks for is missing, a failure not
- *                           caused by this change (pre-existing / unknown), a test change that affects verification
- *   PARTIAL(remaining)      explicit asks still open
- *   BLOCKED(layer, reason)  the model reports a blocker it cannot pass
- *   NEEDS_DECISION(q)       a question only the person can answer
- *   ACTIVE                  not finished: a failure CAUSED BY THIS CHANGE, scaffolding left in place, a required suite
- *                           not yet run or still running
- *
- * ORDER (2026-10-02): verifycontract.requirement() is asked FIRST — it is the single verification authority — and
- * everything after is evidence measured against it. Activity alone ("a command ran") is never what finishes or
- * blocks a task. The final smoke runs only where the contract asks for broad proof (PROJECT/RELEASE).
- *
- * THE SIGNAL THAT STOPS OVER-EXECUTION: `outcomeSatisfied` — every acceptance criterion the model set is evidenced
- * by a current observation and no ask is open. Further changes are then refused until the person asks for more.
- */
+/** THE COMPLETION ARBITER (Execution Discipline §26–§27). */
 
 const { DISCRIMINATION, rankOf } = require('./checks');
 
@@ -54,11 +34,7 @@ function outcomeSatisfied(life) {
   return live.every((c) => criterionHolds(c, d, gen));
 }
 
-/**
- * EVALUATE. `life` is the task Lifecycle (its discipline, evidence, generation and smoke state).
- * @param {object} o  { cwd, requested: the model asked to complete, request: {state, layer, reason, question},
- *                      claims: typed claims, discretion: STRONG|MEDIUM|WEAK, objective }
- */
+/** EVALUATE. `life` is the task Lifecycle (its discipline, evidence, generation and smoke state). @param {object} o { cwd, requested: the model asked to… */
 function evaluate(life, { cwd = null, requested = false, request = null, claims = null, discretion = 'STRONG', objective = '', changeClass = null, readOnly = false } = {}) {
   const d = life.discipline;
   const e = life.evidence;
@@ -73,12 +49,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
   if (requested && request && request.state === STATE.BLOCKED) return out(STATE.BLOCKED, `${request.layer || 'unknown layer'}: ${String(request.reason || 'blocked').slice(0, 300)}`, { layer: request.layer || null, claims: cl });
   if (e.userConfirmed) return out(STATE.DONE, 'confirmed by the person', { claims: cl });
 
-  // ---- 1. HOW MUCH PROOF THIS TASK NEEDS — asked FIRST (2026-10-02) -------------------------------------------
-  //
-  // Universal activity gates used to run ahead of this ("nothing ran", "the last command failed", "changed but
-  // unchecked"), so proportionality never got a vote: a read-only answer had to invent a command, and an unrelated
-  // red suite forced a model to repair code nobody asked about just to finish. The contract decides; every check
-  // below is evidence measured against it, and only a failure CAUSED BY THIS CHANGE keeps the task open.
+  // 1. HOW MUCH PROOF THIS TASK NEEDS — asked FIRST (2026-10-02)
   const objectiveText = objective || (d && d.contract.request) || '';
   const vc = require('../verifycontract');
   const req = vc.requirement(cwd || process.cwd(), changed.map((p) => rel(cwd, p)), { objective: objectiveText, discretion });
@@ -92,11 +63,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
   // PENDING WORK that would change the report.
   if (life.smoke && life.smoke.running) return out(STATE.ACTIVE, require('../finalsmoke').why('RUNNING', cwd), { smoke: 'RUNNING', level: req.level, claims: cl });
 
-  // ---- 2. NOTHING CHANGED: an answer, a report, an investigation ----------------------------------------------
-  //
-  // The observation IS the evidence: "what is the package name" is finished when the model has read it and says so.
-  // No mutation, command or smoke is owed. A request that asked for a CHANGE and changed nothing finishes honestly
-  // as DONE_UNVERIFIED — the model may know none was needed; the report says nothing was changed.
+  // 2. NOTHING CHANGED: an answer, a report, an investigation
   if (!changed.length) {
     // TICKING BOXES IS NOT DOING WORK: on the PLAN path (the model never asked to finish), a plan marked done with
     // nothing observed at all — no change, no command, no observation — is not an answer either.
@@ -125,11 +92,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     if (open.length) return out(STATE.PARTIAL, `explicit asks not yet addressed: ${open.map((a) => `${a.id} ${a.text.slice(0, 60)}`).join('; ')}`, { remaining: open.map((a) => a.id), level: req.level, claims: cl });
   }
 
-  // ---- 4. A FAILURE CAUSED BY THIS CHANGE keeps it open; any other failure is DISCLOSED -----------------------
-  //
-  // Caused-by-this-change: it passed before and fails now (TASK_CAUSED), or it is a check that exercises a changed
-  // file and was not already failing. Everything else — pre-existing, unknown causality on an unrelated check — is
-  // information the report carries. It never authorises repairing code outside the task.
+  // 4. A FAILURE CAUSED BY THIS CHANGE keeps it open; any other failure is DISCLOSED
   const ours = failing.filter((c) => c.latest.classification === 'TASK_CAUSED' || (c.targeted && c.latest.classification !== 'PREEXISTING'));
   if (ours.length) {
     const k = ours[ours.length - 1];
@@ -153,9 +116,7 @@ function evaluate(life, { cwd = null, requested = false, request = null, claims 
     const best = passingNow.reduce((m, c) => Math.max(m, rankOf(DISCRIMINATION, d.checks.discrimination(c, gen, { staticCounts }))), 0);
     if (best < rankOf(DISCRIMINATION, req.minDiscrimination)) {
       unverified = true;
-      // THE RELEVANT EVIDENCE SET, not `lastCommand`: an inconclusive result (a masked command — `… & echo DONE`, a
-      // no-match grep) is named for what it is when it was the only supposed proof. It is never called a failure,
-      // and it never satisfies the contract. When real evidence exists, an inconclusive last command is irrelevant.
+      // THE RELEVANT EVIDENCE SET, not `lastCommand`: an inconclusive result (a masked command — `… & echo DONE`, a no-match grep) is named for what it is…
       const inconclusive = d.checks.commands().filter((c) => c.latest && c.latest.gen === gen && c.latest.state === 'UNVERIFIED');
       if (inconclusive.length) {
         const k = inconclusive[inconclusive.length - 1];

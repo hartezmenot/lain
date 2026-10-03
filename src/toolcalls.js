@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * Normalize a step's tool calls BEFORE they are persisted: an empty or
- * duplicate id leaves a tool_result nothing can be matched to, which every
- * provider rejects, and string arguments are parsed once here.
- */
+/** Normalize a step's tool calls BEFORE they are persisted: an empty or duplicate id leaves a tool_result nothing can be matched to, which every… */
 function normalize(calls, step) {
   const seen = new Set();
   return (calls || []).filter(Boolean).map((c, i) => {

@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * WHAT THE PERSON IS LOOKING AT IN THE IDE — so "what does this function do?"
- * and "fix these errors" need nothing pasted.
- *
- * ------------------------------------------------------------------------
- * TWO SOURCES, EACH THE AUTHORITY FOR ITS HALF.
- *
- *   the editor   the IDE reports it (POST /api/ide/context): the file in
- *                front, the cursor, the selection, the open tabs, and the
- *                problems its language services found. Only the window knows
- *                these; they are UI facts, recorded here per session, IN
- *                MEMORY — never written into the transcript or the session file.
- *   the terminal Core's own pty store (pty.js). The window is not asked what a
- *                shell printed; Core already holds the bytes.
- *
- * ------------------------------------------------------------------------
- * IN THE VOLATILE HALF OF THE PROMPT, BOUNDED, AND ONLY FOR IDE TURNS.
- *
- * promptparts.js appends `section(session)` beside the git snapshot and the
- * pinned files. It is silent unless the turn came from the IDE (`session.
- * _ideTurn`, set by viewroutes.submit) and the report is recent: a Chat turn,
- * a Telegram turn, or a stale report from an hour ago reaches no prompt.
- */
+/** WHAT THE PERSON IS LOOKING AT IN THE IDE — so "what does this function do?" and "fix these errors" need nothing pasted. */
 
 const MAX_SELECTION = 6000;
 const MAX_DIAGNOSTICS = 40;
@@ -67,9 +45,7 @@ function terminalTail(app, id = null) {
     const last = list[list.length - 1];
     const t = (id && pty.get(app, id)) || (last && pty.get(app, last.id));
     if (!t || !t.buffer || !t.buffer.length) return null;
-    // AS THE SCREEN SHOWS IT, not the bytes that painted it: the pseudoconsole
-    // redraws with cursor moves, and stripped escapes would leave every
-    // repaint in the text (vtscreen.js).
+    // AS THE SCREEN SHOWS IT, not the bytes that painted it: the pseudoconsole redraws with cursor moves, and stripped escapes would leave every repaint in…
     const text = require('./vtscreen').render(t.buffer.slice(-MAX_TERMINAL * 6).toString('utf8'), { cols: t.cols, rows: t.rows });
     return { alive: Boolean(t.alive), text: text.slice(-MAX_TERMINAL) };
   } catch { return null; }
@@ -85,9 +61,7 @@ function section(app, session) {
   const no = s._ideExclude || {};
   if (c.file && !no.file) out.push(`Current file: ${c.file}${c.language ? ` (${c.language})` : ''}${c.cursor ? ` — cursor at line ${c.cursor.line}, column ${c.cursor.col}` : ''}`);
   if (c.tabs.length && !no.file) out.push(`Open tabs: ${c.tabs.join(', ')}`);
-  // THE SELECTION IS NOT RENDERED HERE: it is the canonical Selection's
-  // (harnesscontext.selection), rendered once in the Harness context packet.
-  // This section keeps what only the editor report carries.
+  // THE SELECTION IS NOT RENDERED HERE: it is the canonical Selection's (harnesscontext.selection), rendered once in the Harness context packet.
   if (c.diagnostics.length && !no.problems) {
     const errs = c.diagnostics.filter((d) => d.severity === 'error').length;
     out.push(`\nProblems (${errs} error${errs === 1 ? '' : 's'}, ${c.diagnostics.length - errs} other):`);

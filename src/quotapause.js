@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * QUOTA PAUSE, AND A CONTINUE THAT RE-CHECKS NOW.
- *
- *   RUNNING ──(provider limit)──► QUOTA_PAUSED ──▶ Continue──► re-check ──► running again
- *
- * The task is not failed and nothing is rebuilt: the plan, the phase, what
- * landed / remains / failed, the findings, the approved deltas and the evidence
- * all stay in the session exactly as they were (they are persisted with it).
- *
- * ▶ CONTINUE MEANS "RE-CHECK NOW AND CONTINUE", never "wait until the old
- * predicted reset". The prediction goes stale for ordinary reasons — a banked
- * reset, the person switched account, the provider reset early, or it simply
- * accepts new work again — so Continue clears LAIN's own rate-limit hold on
- * the route, refreshes the account's reported state where LAIN can read it,
- * and resumes the same task. If the provider still refuses, the task is paused
- * again with the provider's NEW answer; nothing waits on the old timer.
- */
+/** QUOTA PAUSE, AND A CONTINUE THAT RE-CHECKS NOW. */
 
 const wb = require('./workbench');
 
@@ -50,10 +34,7 @@ async function recheck(app, q) {
   return notes;
 }
 
-/**
- * ▶ CONTINUE. Re-check now, then resume the same task on the Coding thread.
- * `submitFn` is for tests; the default submits through the one door.
- */
+/** ▶ CONTINUE. Re-check now, then resume the same task on the Coding thread. `submitFn` is for tests; the default submits through the one door. */
 async function resume(app, { submitFn = null } = {}) {
   const s = app.session;
   const w = wb.of(s);

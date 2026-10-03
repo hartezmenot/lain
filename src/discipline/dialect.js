@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * TOOL SEMANTICS AND DIALECTS (Execution Discipline §34–§35) — the same operations in the vocabulary each model
- * family uses natively, so no model is made to speak another's dialect.
- *
- *   SEMANTIC OPS   read-resource · search-project · modify-resource · execute-command · inspect-history ·
- *                  inspect-runtime · inspect-preview          (what a call MEANS — the evidence and permission layer)
- *   DIALECTS       claude  Read · Edit · Write · Grep · Glob · Bash
- *                  codex   shell · rg · apply_patch (the *** Begin Patch envelope)
- *                  glm     bash · read · search · str_replace
- *                  local   the canonical names, strict schemas (no extra properties)
- *
- * A dialect call is TRANSLATED and run as the canonical tool through the one execute() door — same gates, same
- * permissions, same mutation ledger, same CheckState. Only the surface differs.
- */
+/** TOOL SEMANTICS AND DIALECTS (Execution Discipline §34–§35) — the same operations in the vocabulary each model family uses natively, so no model is… */
 
 const OPS = Object.freeze({
   'read-resource': ['read_file', 'list_dir', 'file_info', 'read_symbol'],

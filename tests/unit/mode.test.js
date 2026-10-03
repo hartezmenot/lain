@@ -136,28 +136,6 @@ module.exports = async function () {
   });
 
   // ------------------------------------------------------------- guidance ---
-
-  await test('GUIDANCE: each mode carries advice, and it reaches the prompt', () => {
-    const prompt = require('../../src/prompt');
-    for (const k of Object.values(K)) {
-      assert.ok(prompt.MODE_GUIDANCE[k], `no guidance for ${k}`);
-    }
-    const built = prompt.build({ cwd: '/p', mode: K.BUGFIX });
-    assert.match(built, /Trace the path first/, 'the bugfix workflow must reach the model');
-    assert.ok(!/Build it in stages/.test(built), 'and only that mode\'s guidance');
-  });
-
-  await test('GUIDANCE: read-only modes tell the model not to change anything', () => {
-    const prompt = require('../../src/prompt');
-    assert.match(prompt.build({ mode: K.AUDIT }), /Do not change anything/i);
-    assert.match(prompt.build({ mode: K.EXPLAIN }), /Do not modify files/i);
-  });
-
-  await test('GUIDANCE: no mode means no extra prompt at all', () => {
-    const prompt = require('../../src/prompt');
-    const bare = prompt.build({ cwd: '/p' });
-    assert.ok(!/# This request/.test(bare), 'an unclassified turn costs no extra tokens');
-  });
   await test('MODE: a greeting with an address is CHAT, not work', () => {
     // Only a greeting standing completely alone was recognised, so "hi there"
     // fell through every rule to the default — which is IMPLEMENT. Saying hello

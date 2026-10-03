@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * THE PREVIEW PROXY AND CAPABILITY BROKER (2026-09-30).
- *
- * ------------------------------------------------------------------------
- * REAL FRONTEND, BACKEND DORMANT. The window renders the project's actual
- * frontend in an iframe — natively, not streamed. Between that iframe and the
- * project's dev server sits this proxy, on its own loopback port:
- *
- *     preview iframe ──▶ proxy (127.0.0.1:P) ──▶ dev server (the project's)
- *                          │  ├ documents: + <script src="/__lain/bridge.js">
- *                          │  ├ WebSocket upgrades (HMR) passed straight through
- *                          │  └ CAPABILITY BROKER: requests that belong to a
- *                          │     backend capability are answered by its mode
- *
- * THE CAPABILITIES are the project's backend, named by what they do —
- * playback, authentication, filesystem, database-read, database-write,
- * search-live, scanner, download, sync, network — and mapped to request paths
- * in .lain/preview.json:
- *
- *     "capabilities": {
- *       "playback":      { "match": ["/api/stream/"], "mode": "live", "target": "http://127.0.0.1:7001" },
- *       "database-read": { "match": ["/api/library"], "mode": "adapter", "adapter": ".lain/preview-data" },
- *       "scanner":       { "match": ["/api/scan"],    "mode": "off" }
- *     }
- *
- *   off       answered 503 with a JSON body that says so — the page sees a
- *             dormant backend, never a hang
- *   adapter   answered from preview data in the project (a JSON file per path)
- *   live      forwarded to that capability's real backend — only when turned on
- *
- * A live capability may name the COMMAND that serves it instead of a target
- * ("command": "node server.js"): nothing runs until the first request it claims,
- * which wakes it (capability.js) — the person pressing Play, not the preview opening.
- *
- * A capability's DEFAULT is off (or its adapter, when it has one); turning one
- * on is the person's choice for this preview, and nothing else wakes with it.
- * The MOST SPECIFIC match claims a request (/api/library/scan beats /api/library).
- * Requests no capability claims go to the dev server, which is the frontend.
- *
- * LOOPBACK ONLY, and it forwards to the addresses it was given — never to one a
- * request names. It holds no credentials and adds none.
- */
+/** THE PREVIEW PROXY AND CAPABILITY BROKER (2026-09-30). */
 
 const http = require('http');
 const net = require('net');
@@ -80,11 +39,7 @@ function rulesFor(root, overrides = {}) {
   return out;
 }
 
-/**
- * The rule whose match is MOST SPECIFIC for this path — never whichever the file happens to list first:
- * a match naming the path exactly beats every prefix, and a longer prefix beats a shorter one
- * (GET /api/v1/favorites is "/api/v1/favorites", not "/api/v1/favorites/" — a different endpoint).
- */
+/** The rule whose match is MOST SPECIFIC for this path — never whichever the file happens to list first: a match naming the path exactly beats every… */
 function matchRule(rules, url) {
   const p = String(url || '/').split('?')[0];
   let best = null; let score = -1;
@@ -114,12 +69,6 @@ function inject(html) {
 }
 
 class PreviewProxy {
-  /**
-   * @param {object} o
-   * @param {string} o.target  the dev server's own URL (http://127.0.0.1:5173/)
-   * @param {string} o.root    the project folder (for .lain/preview.json and adapters)
-   * @param {function} [o.waker]  (rule) → Promise<{ok, url, processId, alive()}>: starts a capability's command
-   */
   constructor({ target, root, waker = null }) {
     this.target = new URL(target);
     this.root = root;

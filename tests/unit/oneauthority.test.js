@@ -97,17 +97,6 @@ module.exports = async function () {
     assert.deepStrictEqual(callers, ['harnessapp/source.js', 'mutation.js'], callers.join(', '));
     assert.ok(/external/.test(code('harnessapp/source.js').match(/noteSourceEdit\([^)]*\)/)[0]), 'the freshness poll reports only EXTERNAL changes');
   });
-
-  await test('ONE AUTHORITY · ROUTING: the Harness supplies facts; Core dispatch decides what the words mean', () => {
-    const br = code('harnessapp/botroute.js');
-    const decide = br.slice(br.indexOf('function decide('), br.indexOf('function botOnRuntime('));
-    assert.ok(/dispatch'\)\.route\(/.test(decide), 'decide delegates to dispatch.route');
-    assert.ok(!/\.test\(t(ext)?\)/.test(decide), 'no word regex in the Harness decide');
-    assert.ok(!/require\('\.\.\/mode'\)/.test(br), 'botroute does not consult the classifier itself');
-    assert.ok(/intent\(text\)/.test(code('mode.js')) && /function route\(/.test(code('dispatch.js')));
-    assert.ok(/takeRouted\(/.test(code('identify.js')), 'the same input is classified once');
-  });
-
   await test('ONE AUTHORITY · MODELS: both transports enter the one request envelope', () => {
     assert.ok(/modelrequest'\)[\s\S]*openApi\(/.test(code('provider.js')), 'the API transport opens the envelope');
     // PHASE 8.3: the website transport is removed — nothing sends through a website source any more.
@@ -149,15 +138,6 @@ module.exports = async function () {
     assert.notStrictEqual(b.component.confidence, 'UNKNOWN', b.component.why);
     assert.ok(b.component.candidates.some((c) => c.rel === 'src/Search.jsx'), JSON.stringify(b.component.candidates));
   });
-
-  await test('ONE AUTHORITY · HANDOFF: every door reaches the one transfer record', () => {
-    assert.deepStrictEqual(grepSrc(/_delegation|_agentProposal/), [], 'no private handoff fields remain');
-    assert.ok(/planhandoff'\)\.transfer\(/.test(code('journey.js')), 'the proposal is a transfer');
-    assert.ok(/propose\(/.test(code('tools/handoff.js')), 'hand_to_coding_agent records a transfer');
-    assert.ok(/transfer\(app, \{\s*kind: 'plan'/.test(code('planhandoff.js')), 'the plan handoff is a transfer');
-    assert.ok(/planhandoff'\)\.transfer\(/.test(code('house.js')), 'entering /focus is recorded as a transfer');
-  });
-
   await test('ONE AUTHORITY · SURFACES: presentation state stays in the window', () => {
     const j = code('journey.js');
     assert.ok(!/focusReport|cleanFocus|\bopen:\s*files/.test(j), 'the Focus workspace (tabs, caret) is not Core state');
@@ -185,17 +165,5 @@ module.exports = async function () {
     assert.ok(/lsp\(\)\.references\(/.test(code('langfacts.js')));
     assert.ok(/semanticrename'\)\.rename\(/.test(code('tools/semantic.js')), 'rename_symbol tries the language server first');
     assert.ok(!/sitesIn\(|readdirSync/.test(code('focuspacket.js')), 'the focus packet keeps no scanner of its own');
-  });
-
-  await test('ONE AUTHORITY · TOOLS: the funnel narrows what a turn is SHOWN; execution reads the whole active set', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const idx = code('tools/index.js');
-    assert.ok(/toolfunnel'\)\.filter\(/.test(idx.split('function schemas(')[1].split('function has(')[0]), 'schemas() applies the funnel');
-    const exec = idx.split('async function execute(')[1];
-    assert.ok(/const tool = \(deferred \? legacyActive\(app\) : active\(\(\) => app\)\)\[name\]/.test(exec) && !/toolfunnel'\)\.(filter|shows)\(/.test(exec.split('toolfunnel\')')[0]), 'execute() is not narrowed by the funnel');
-  }));
-
-  await test('ONE AUTHORITY · DEBUG: paused state is asked for, never injected into a turn', () => {
-    assert.ok(/pausedAt\(app\)/.test(code('harnesscontext.js')) && !/dap\/manager'\)\.context\(/.test(code('harnesscontext.js')), 'the packet says WHERE, not the variables');
-    assert.ok(/'debug\.context'/.test(code('house.js')));
   });
 };

@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * ONE SEARCHABLE MODEL PROJECTION, PER VIEW — so a frontend never has to know
- * what a catalog, a connection or a website model source is.
- *
- *     search(app, { lane: 'chat' | 'coding', query })
- *       → [{ source, provider, modelId, displayName, capabilities, availability,
- *            authState, locality, selected, connectionId }]
- *
- * ------------------------------------------------------------------------
- * EVERY ROW COMES FROM AN INVENTORY THAT ALREADY EXISTS. Nothing is hard-coded.
- *
- *   LAIN's runtime   the configured catalog (appcatalog.js) — both views
- *   ChatGPT.com /    the inventory the logged-in ACCOUNT reported last time it
- *   Gemini           was discovered (webmodel.js). Chat view only: a website is
- *                    consulted, it never codes. A source never discovered
- *                    contributes one row saying so, with its auth state, and
- *                    `POST /api/source/models` is how it gets discovered — a
- *                    search is not allowed to open a browser.
- *
- * The ranking is modelsearch.js's — the same algorithm `/models` uses — so the
- * terminal and the window agree about what "qwen 3.7" means.
- *
- * ------------------------------------------------------------------------
- * SELECTION IS PER VIEW AND PER SESSION.
- *
- *   chat    session.chatSource + session.sourceSelections (modelsource state).
- *           Choosing a runtime model for Chat records it on the session ONLY;
- *           it does not move the Coding model or the process default.
- *   coding  session.views.coding (sessionviews.js), resolved through the same
- *           catalog resolution `/model` uses so a Coding turn can reach it.
- */
+/** ONE SEARCHABLE MODEL PROJECTION, PER VIEW — so a frontend never has to know what a catalog, a connection or a website model source is. */
 
 const net = require('net');
 const roles = require('./modelroles');
@@ -135,9 +105,7 @@ async function webRows(app) {
     // eslint-disable-next-line no-await-in-loop -- two sources, status never launches with open:false
     const st = await src.status({ open: false }).catch((e) => ({ state: 'FAILED', why: (e && e.message) || String(e) }));
     const inv = src._inventory && Array.isArray(src._inventory.models) ? src._inventory.models : null;
-    // CHATGPT CHAT (modelroles.CHATGPT_CHAT) is ONE row under its own name, with
-    // its LAIN alias as metadata and CHAT ONLY as its capability — whether or
-    // not the site's own options were discovered yet.
+    // CHATGPT CHAT (modelroles.CHATGPT_CHAT) is ONE row under its own name, with its LAIN alias as metadata and CHAT ONLY as its capability — whether or…
     const chatOnly = d.id === roles.CHATGPT_CHAT.source;
     const tag = { capabilityLabel: 'CHAT ONLY', roles: [roles.ROLE.CHAT], alias: chatOnly ? roles.CHATGPT_CHAT.alias : null, origin: chatOnly ? roles.CHATGPT_CHAT.origin : null };
     if (chatOnly) {
@@ -172,12 +140,7 @@ async function webRows(app) {
   return out;
 }
 
-/**
- * SEARCH. May read the catalog (a POST route); never opens a browser.
- *
- * ACCOUNT FIRST (Phase 8.2): with `account`, only what THAT account offers —
- * a picker never lists a router's thousand models to someone who chose Codex.
- */
+/** SEARCH. May read the catalog (a POST route); never opens a browser. */
 async function search(app, { lane = LANE.CODING, query = '', limit = MAX_ROWS, account = null } = {}) {
   const which = lane === LANE.CHAT ? LANE.CHAT : LANE.CODING;
   try { await app.ensureCatalog({ announce: false }); } catch { /* an unreadable catalog yields no runtime rows */ }
@@ -214,12 +177,7 @@ async function search(app, { lane = LANE.CODING, query = '', limit = MAX_ROWS, a
   };
 }
 
-/**
- * SELECT for one view of this session — ACCOUNT FIRST (Phase 8.2). The one
- * write is sessionintel.choose; connectionId (a route) or account names
- * the account, and a model is validated against it. A model with no account
- * is accepted only when exactly one account offers it.
- */
+/** SELECT for one view of this session — ACCOUNT FIRST (Phase 8.2). */
 async function select(app, { lane, source = 'lain', modelId, connectionId = null, account } = {}) {
   const which = lane === LANE.CHAT ? 'chat' : lane === LANE.CODING ? 'coding' : null;
   if (!which) return { ok: false, why: 'lane must be "chat" or "coding"' };

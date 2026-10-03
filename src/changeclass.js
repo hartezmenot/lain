@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * HOW MUCH MACHINERY A CODE CHANGE GETS (2026-09-30) — the execution class.
- *
- *   DIRECT   "move this 8px down", "change this colour", "rename this text" —
- *            locate the owner, the minimal patch, verify, one or two lines back.
- *   NARROW   "move this config to JSON", "extract this component", a semantic
- *            rename across a few files — owner → references → extract/update
- *            consumers → diagnostics → repair.
- *   AGENT    a feature across a subsystem, a multi-owner bug — the Coding
- *            Agent as it always runs.
- *   PHASED   a migration, a new architecture, a long multi-step project —
- *            planned first (the plan-first offer) and run phase by phase.
- *
- * LAIN used to give every edit the whole machinery: read the project, narrate
- * the architecture, rediscover the file, and eventually edit. The class keeps
- * a trivial edit trivial. The person never has to see these labels.
- *
- * ------------------------------------------------------------------------
- * DETERMINISTIC FIRST. The classifier below decides from the words, the
- * selection and what the request came from — no model. JEV (workers.js
- * `change_class`) may be asked ONLY when a recruited model passed that
- * contract's gate and the deterministic answer is uncertain; its answer can
- * ESCALATE the class (DIRECT → NARROW → AGENT → PHASED) and never lower it. A
- * safety floor (deleting files, history rewrites, credentials…) is Core's and
- * nothing overrides it. With no Jev, LAIN works exactly the same.
- */
+/** HOW MUCH MACHINERY A CODE CHANGE GETS (2026-09-30) — the execution class. */
 
 const ORDER = Object.freeze(['DIRECT', 'NARROW', 'AGENT', 'PHASED']);
 const CLASS = Object.freeze({ DIRECT: 'DIRECT', NARROW: 'NARROW', AGENT: 'AGENT', PHASED: 'PHASED' });
@@ -40,21 +15,14 @@ const CHANGE_RE = /\b(change|make|set|increase|decrease|reduce|bump|raise|lower|
 const SIZE_ADJ_RE = /\b(make|made|keep)\s+(it|them|these|those|(this|that|the)(\s+[\w-]+){0,2})\s+(a\s+(bit|little|touch)\s+)?(bigger|smaller|wider|narrower|taller|shorter|bolder|lighter|darker|brighter|rounder|flatter|tighter|looser)\b/i;
 const TEXTEDIT_RE =/\b(rename|change|update|replace|reword|fix (the )?(typo|spelling))\b[^.?!]{0,50}\b(text|label|title|heading|placeholder|copy|caption|tooltip|wording|headline|button text)\b|\b(change|replace|rename) ["“'][^"”']{1,80}["”'] (to|with) ["“'][^"”']{1,80}["”']/i;
 
-// ONE NEW ELEMENT (Gate 4, spec §102): "add Settings button", "add a divider under the header" — a short request for a
-// single piece of UI beside what is selected is as local as a colour change. A button that must also DO something new
-// ("…that exports the report") is behaviour, and stays with the Agent.
+// ONE NEW ELEMENT (Gate 4, spec §102): "add Settings button", "add a divider under the header" — a short request for a single piece of UI beside what…
 const ADD_UI_RE = /\b(add|insert|put|place)\s+(an?\s+|one\s+|another\s+|the\s+)?([\w-]+\s+){0,2}(button|link|label|icon|heading|title|divider|separator|badge|chip|tooltip|toggle|checkbox|switch|menu item|tab|caption|subtitle|spacer)s?\b/i;
 const BEHAVIOUR_RE = /\b(that|which|to|so (it|that))\s+(\w+\s+){0,2}(opens?|calls?|sends?|fetch(es)?|saves?|loads?|exports?|imports?|authenticat\w*|logs? (in|out)|submits?|triggers?|runs?|navigates?|deletes?|uploads?|downloads?|syncs?)\b/i;
 
 function rank(c) { return ORDER.indexOf(c); }
 function higher(a, b) { return rank(a) >= rank(b) ? a : b; }
 
-/**
- * THE DETERMINISTIC CLASS of a request.
- * @param {string} text
- * @param {object} ctx  { selection: bool (an element or a code selection), fromPreview: bool, files: number (pinned/named) }
- * @returns {{ class, reasons: string[], confidence: 'high'|'medium'|'low', floor: string|null }}
- */
+/** THE DETERMINISTIC CLASS of a request. */
 function classify(text, ctx = {}) {
   const t = String(text || '').trim();
   const reasons = [];
@@ -89,11 +57,7 @@ function classify(text, ctx = {}) {
   return { class: higher(CLASS.AGENT, floor || CLASS.DIRECT), reasons, confidence: 'low', floor };
 }
 
-/**
- * THE CLASS, WITH JEV WHEN ONE IS RECRUITED. Jev is asked only when the deterministic answer is not certain and a
- * model passed the `change_class` gate (workers.binding); its label can only raise the class, never lower it or
- * cross the safety floor. `infer` is the recruited model's one inference — absent in a build with none.
- */
+/** THE CLASS, WITH JEV WHEN ONE IS RECRUITED. */
 async function decide(app, text, ctx = {}, { infer = null } = {}) {
   const det = classify(text, ctx);
   const w = require('./workers');
@@ -153,11 +117,7 @@ function begin(app, text, { fromPreview = false, via = null } = {}) {
   return r;
 }
 
-/**
- * EVERY SURFACE, ONE CLASS: called for each native turn (jobrunner.turnOptions). A continuation (goal/phase/auto-resume,
- * a subagent) keeps the class of the task it continues; a class a Harness route set for this same text a moment ago is
- * kept; otherwise the request is classified here. The BOT and the Chat view are never classified (they do not edit).
- */
+/** EVERY SURFACE, ONE CLASS: called for each native turn (jobrunner.turnOptions). */
 const AUTOMATIC_FROM = /^(goal-continue|phase-continue|auto-resume|provider-restart|subagent|wake|recovery|continue)/;
 function ensure(app, text, { from = null } = {}) {
   const s = app && app.session;

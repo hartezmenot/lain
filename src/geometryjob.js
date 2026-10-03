@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * GEOMETRY JOBS — Core owns the numbers; the flagship owns the semantics
- * (2026-09-24).
- *
- *     NUMERICAL CONSEQUENCE     → this deterministic solver (Violetto, the
- *                                  specialist once measured against it, was
- *                                  RETIRED on 2026-09-24)
- *     VISUAL STATE ↔ SOURCE     → the GUG (gug.js), Core-owned
- *     REFERENT CORRELATION      → Laya (selection_resolver, SHADOW today)
- *     SEMANTIC / UX TRADEOFF    → the flagship
- *
- * `parse` turns a request into a GEOMETRY_JOB — target, dimension, requested
- * delta — or null when the request is not a bounded UI geometry change. It
- * decides nothing about which component the user meant beyond the words.
- *
- * THE DIRECT PATH. When the job is explicit (a number: "10% smaller", "4px
- * taller") and the project has EXACTLY ONE implementation binding for the
- * named target (a `--submit-size` custom property, or one rule whose selector
- * names it), Core solves it by arithmetic, writes it through the ordinary
- * gated edit door (permissions, read-only, leases, the mutation lifecycle),
- * re-reads the file to verify, and the turn ends there — no flagship request,
- * no worker, no migration_plan. Multiplying 40 × 0.9 does not need
- * a model. Anything short of that — no number, no binding, two bindings, a
- * square binding asked to change one side — goes to the flagship with the
- * partial job attached as ordinary evidence, never as a specialist to call.
- */
+/** GEOMETRY JOBS — Core owns the numbers; the flagship owns the semantics (2026-09-24). */
 
 const fs = require('fs');
 const path = require('path');
@@ -48,10 +23,7 @@ function dimensionOf(s) {
   return 'both';
 }
 
-/**
- * THE GEOMETRY_JOB, or null. `explicit` means the delta is a number — then
- * arithmetic answers it once the current value is known.
- */
+/** THE GEOMETRY_JOB, or null. */
 function parse(text) {
   const s = String(text || '').replace(/\s+/g, ' ').trim();
   if (!s || s.length > 400) return null;
@@ -83,10 +55,7 @@ function parse(text) {
 
 // ---- THE SOLVER ------------------------------------------------------------
 
-/**
- * GEOMETRY_RESULT for one value. Deterministic, exact, microseconds — 6/6 on
- * the geometry gate where the retired specialist scored 3/6.
- */
+/** GEOMETRY_RESULT for one value. */
 function solveValue(value, delta) {
   if (!delta || !Number.isFinite(value)) return null;
   const v = delta.kind === 'scale' ? value * delta.scale : delta.kind === 'px' ? value + delta.px : null;
@@ -94,11 +63,7 @@ function solveValue(value, delta) {
   return Math.round(v * 100) / 100;
 }
 
-/**
- * THE RECT SOLVER (bench/specialist-workers/geometry/gug.js, promoted): resize
- * one node and re-solve its relations to its parent.
- *   rel: { square, centerY, centerX, rightInset, leftInset }
- */
+/** THE RECT SOLVER (bench/specialist-workers/geometry/gug.js, promoted): resize one node and re-solve its relations to its parent. */
 function solveRect(node, parent, { scale = 1 } = {}) {
   const rel = node.rel || {};
   const n = { x: node.x, y: node.y, w: +(node.w * scale).toFixed(4), h: 0 };
@@ -136,11 +101,7 @@ function styleFiles(root) {
 
 const PROPS = { width: ['width'], height: ['height'], both: ['width', 'height'] };
 
-/**
- * Every place in the project's stylesheets that sets the target's size in px:
- * a custom property named for it (`--submit-size: 40px`) or a rule whose
- * selector names it. Grouped per property / per rule.
- */
+/** Every place in the project's stylesheets that sets the target's size in px: a custom property named for it (`--submit-size: 40px`) or a rule whose… */
 function bindings(root, job) {
   const terms = (job && job.terms) || [];
   if (!terms.length) return [];
@@ -179,11 +140,7 @@ function bindings(root, job) {
   return out;
 }
 
-/**
- * THE ONE BINDING THE JOB CAN BE APPLIED TO, or why not. A custom property
- * wins over a rule that only consumes it; two candidates are ambiguity, and
- * ambiguity is the flagship's.
- */
+/** THE ONE BINDING THE JOB CAN BE APPLIED TO, or why not. */
 function bind(root, job) {
   if (!job || !job.explicit) return { ok: false, why: 'no numeric delta — the size change is a judgement, not arithmetic' };
   const all = bindings(root, job);
@@ -246,11 +203,7 @@ function mayWrite(app, verdict) {
   return { yes: true };
 }
 
-/**
- * The direct turn. Yields turn.js's own event vocabulary, closes the record
- * through turnclose like every other turn. A plan that carries its own
- * runner (selectionjob.js: an AST rename) runs that instead.
- */
+/** The direct turn. Yields turn.js's own event vocabulary, closes the record through turnclose like every other turn. A plan that carries its own runner… */
 async function* run(app, text, verdict, { from = null, typed = false, plan = null } = {}) {
   if (plan && typeof plan.run === 'function') { yield* plan.run(app, text, verdict, { from, typed, plan }); return; }
   const session = app.session;
@@ -314,17 +267,12 @@ async function* run(app, text, verdict, { from = null, typed = false, plan = nul
     });
   } catch { /* telemetry only */ }
   // THE USER'S OWN EDIT, as a Harness fact: the GUG generation and the recent-actions ledger follow it.
-  // (The generation, the GUG and the recent-actions ledger follow this edit
-  // inside the mutation transaction — actor CORE — see mutation.js.)
   yield { type: 'text', chunk: reply };
   turnclose.close(session, session.lifecycle || null, record);
   yield { type: 'done', record };
 }
 
-/**
- * THE PARTIAL JOB, AS ORDINARY EVIDENCE for the flagship when Core could not
- * finish it. Never names a specialist.
- */
+/** THE PARTIAL JOB, AS ORDINARY EVIDENCE for the flagship when Core could not finish it. */
 function evidence(session) {
   const d = session && session.dispatch;
   const g = d && d.cls === 'UI_GEOMETRY' ? d.geometry : null;

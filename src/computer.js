@@ -1,65 +1,11 @@
 'use strict';
 
-/**
- * LAIN'S OWN COMPUTER OPERATIONS — the ownership correction, in one file.
- *
- * WHAT WAS WRONG. Every operation on the machine was `LAIN → Probe → capability`
- * and nothing else: the model named a FOREIGN operation string
- * (`input.mouse.click`), LAIN forwarded it, and a foreign result came back. So
- * the Probe was not a companion providing a bridge — it was the owner of
- * clicking, typing, focusing and seeing, and LAIN was a pipe. and of the
- * brief say that is backwards.
- *
- * WHAT LAIN OWNS NOW, and it is everything except the syscall:
- *
- *     the OPERATION      `click`, not `input.mouse.click` — one vocabulary
- *     the AIM            which window, and whether it is really in front
- *     the ORDER          permission, then aim, then verify, then act
- *     the LIFECYCLE      every stage named; see capability.STAGE
- *     the EVIDENCE       what is known, and what merely returned
- *     the REFUSAL        it declines rather than acting unaimed
- *
- * WHAT A TRANSPORT OWNS. One thing: performing the syscall. The desktop bridge
- * is the carrier now (the Probe transport was removed from LAIN CLI in
- * 2026-09), and it decides nothing about how or whether the operation happens.
- * That is what makes this "LAIN → capability, with a bridge underneath" rather
- * than "LAIN → Probe → capability".
- *
- * THE ASYMMETRY THAT DRIVES ALL OF IT, measured rather than assumed:
- *
- *     a KEYSTROKE goes to whatever holds the foreground at that instant
- *     a CLICK goes to whatever pixel is at that coordinate
- *
- * They therefore need different aiming and different verification, and merging
- * them into "input" is what let a click succeed while a keystroke went nowhere
- * and both reported ok. See keyboarddelivery.js, which owns the keyboard half
- * and is called from here rather than duplicated.
- *
- * SEEING IS NOT DOING. `screenshot` and `ocr` are reads: they need no foreground
- * and endanger nothing. Keeping them in the same tool as the input operations is
- * what lets a model take a picture, look at it, and act — without learning two
- * vocabularies for one machine.
- *
- * BUT A READ STILL NEEDS AIMING, which this file said for a long time that it
- * did not. "They need no aiming" was true about SAFETY and false about
- * USEFULNESS, and the gap produced a real failure: asked what a game window
- * showed, LAIN captured the entire desktop — its own panels included — and then
- * had to guess which of the text belonged to the target. Naming a `window` on a
- * read now resolves to that window's rectangle; see regionOf.
- */
+/** LAIN'S OWN COMPUTER OPERATIONS — the ownership correction, in one file. */
 
 const cap = require('./capability');
 const kbd = require('./keyboarddelivery');
 
-/**
- * THE OPERATIONS, in LAIN's words.
- *
- * Each names what it DOES, not which library performs it. `aim` decides what
- * must be true before it may run at all, and it is the whole of the safety
- * argument: FOCUS operations refuse without a verified foreground, SCREEN
- * operations say plainly that a coordinate is not a window, and NONE operations
- * are reads that endanger nothing.
- */
+/** THE OPERATIONS, in LAIN's words. */
 const OPS = Object.freeze({
   windows: { aim: 'NONE', reads: true, what: 'list the visible windows, with titles and rectangles' },
   focus: { aim: 'NONE', reads: false, what: 'bring a window to the foreground and VERIFY that it came' },
@@ -74,38 +20,7 @@ const OPS = Object.freeze({
 
 const NAMES = Object.freeze(Object.keys(OPS));
 
-/**
- * WHERE TO LOOK — a window title resolved to the rectangle it occupies.
- *
- * ------------------------------------------------------------------------
- * THE REPORTED BEHAVIOUR THIS EXISTS TO END, in LAIN's own words during a live
- * investigation:
- *
- *     "OCR keeps reading the whole desktop — the game window is partly covered
- *      by LAIN panels. Memory correlation is the stronger evidence anyway, so
- *      let me narrow the scan scope to loaded modules…"
- *
- * Two failures in one sentence. The first is mechanical: `ocr` with no region
- * reads the entire screen, so the answer to "what does the game say" was the
- * game's text mixed with LAIN's own panels, a browser and whatever else was
- * open. The second is worse — having found the visual channel awkward, LAIN
- * talked itself out of visual evidence entirely and declared another source
- * "stronger" before comparing them. That is a conclusion reached from
- * inconvenience, and the design forbids exactly it.
- *
- * The mechanical half is fixable here, and this is the smallest change that
- * does it. `window.list` ALREADY returns rectangles — the aiming information
- * was there the whole time and nothing was asking for it. So: name a window,
- * get its bounds, look at those bounds. LAIN decides where to look; the
- * transport is handed a rectangle and performs the capture.
- *
- * NOTHING MOVES INTO THE TRANSPORT. The bridge is not taught what a game window
- * is or which text matters — it is asked for a region, which is a syscall
- * argument. The decision about WHERE to look stays with LAIN, which is the
- * whole ownership rule.
- *
- * @returns {{ok:boolean, region?:object, title?:string, why?:string}}
- */
+/** WHERE TO LOOK — a window title resolved to the rectangle it occupies. */
 /** `needle` appears in `haystack` bounded by something that is not a letter or digit. */
 function wordMatch(haystack, needle) {
   const hay = String(haystack || '').toLowerCase();
@@ -129,11 +44,7 @@ async function regionOf(app, wanted) {
   const rows = (listed.result && (listed.result.windows || listed.result.list || listed.result)) || [];
   const all = Array.isArray(rows) ? rows : [];
   const needle = want.toLowerCase();
-  // EXACT TITLE FIRST, then a WHOLE-WORD match. A game called "Client" must not
-  // lose to a browser tab whose title happens to mention it — and a plain
-  // substring is not enough for that: measured on a real desktop, "Open" found
-  // a window called "Welcome back - OpenAI", because "open" is inside "openai".
-  // The same rule is enforced in the Computer MCP bridge (MatchTitle).
+  // EXACT TITLE FIRST, then a WHOLE-WORD match.
   const hit = all.find((w) => String((w && w.title) || '').toLowerCase() === needle)
     || all.find((w) => wordMatch(String((w && w.title) || ''), want));
   if (!hit) {
@@ -156,14 +67,7 @@ async function regionOf(app, wanted) {
   return { ok: true, region: { x, y, width, height }, title: String(hit.title || want) };
 }
 
-/**
- * HOW EACH OPERATION IS SPELT ON EACH TRANSPORT.
- *
- * The two dialects exist because two different projects grew them; this is the
- * one place that knows both, so nothing above it ever sees a foreign name. A
- * `null` means that transport genuinely cannot do it — which is a real answer
- * and is reported as one, never silently substituted with something similar.
- */
+/** HOW EACH OPERATION IS SPELT ON EACH TRANSPORT. */
 const DIALECT = Object.freeze({
   probe: {
     windows: 'window.list',
@@ -189,20 +93,7 @@ const DIALECT = Object.freeze({
   },
 });
 
-/**
- * WHICH TRANSPORTS CAN BE AIMED AT A RECTANGLE.
- *
- * A CAPABILITY, DECLARED, because the alternative is the failure the design names
- * exactly: "do NOT silently substitute whole-desktop OCR". Passing a region to
- * a transport that ignores it produces a whole-desktop capture wearing the
- * label of a window capture — an answer about the wrong thing, indistinguishable
- * from the right one, which is worse than a refusal.
- *
- * `false` here is a real answer and is reported as a capability limitation. The
- * Probe's `vision.ocr` has taken a region all along (see paramsFor); the
- * desktop bridge's `screen.capture` has no region parameter at all, so aiming
- * it is declined rather than faked.
- */
+/** WHICH TRANSPORTS CAN BE AIMED AT A RECTANGLE. */
 const REGIONS = Object.freeze({
   probe: { screenshot: true, ocr: true },
   desktop: { screenshot: false, ocr: false },
@@ -214,20 +105,7 @@ function capabilityFor(op, kind) {
   return name ? cap.capabilityOf(name) : null;
 }
 
-/**
- * WHICH TRANSPORTS ARE AVAILABLE, best first.
- *
- * The desktop bridge is the carrier. (The Probe transport that used to be
- * preferred here — it could do strictly more, OCR and the press/release pair a
- * hold is built from — was removed from LAIN CLI with the Probe integration in
- * 2026-09. The dialect it spoke is still in DIALECT below: the keyboard
- * sequence and the capability fallback in the envelope speak it, and the day a
- * transport that can verify the foreground reappears, the FOCUS branch below
- * becomes live again without being rewritten.)
- *
- * Returns [] when nothing is connected — which the caller reports as
- * BRIDGE_LOST rather than as a failure of the operation.
- */
+/** WHICH TRANSPORTS ARE AVAILABLE, best first. */
 function transports(app) {
   const out = [];
   if (app && typeof app.desktop === 'function') {
@@ -260,28 +138,7 @@ function pick(app, op) {
   };
 }
 
-/**
- * CAN LAIN ACTUALLY LOOK AT THE SCREEN RIGHT NOW?
- *
- * A different question from "is a bridge configured", and the one that decides
- * whether a UI change can be visually VERIFIED or merely made.
- *
- * ---- WHY IT MOVED HERE, from inspection.js -------------------------------
- *
- * It asked `app.desktop().bridge.status()` and nothing else, so on a machine
- * with a Probe running and no MCP bridge it answered "no desktop bridge is
- * configured, so nothing can look at the screen" — while `computer{op:
- * "screenshot"}` was working perfectly through the Probe. It was answering
- * about ONE transport in a program that has two, which is exactly the ownership
- * error is about: the question is LAIN's, and only LAIN knows both.
- *
- * It also had to learn about refusals. A granted, connected bridge whose SCREEN
- * channel the user has since denied cannot look at anything, and reporting
- * POSSIBLE there would be the "it says CONNECTED, why did nothing happen"
- * complaint in its original form.
- *
- * @returns {{ok:boolean, why:string, state:string, transport:string}}
- */
+/** CAN LAIN ACTUALLY LOOK AT THE SCREEN RIGHT NOW? */
 function visualReadiness(app) {
   const ledger = channelsOf(app);
   const shut = ledger && ledger.check('screenshot');
@@ -293,46 +150,18 @@ function visualReadiness(app) {
   return { ok: true, state: 'CONNECTED', transport: chosen.transport.kind, why: '' };
 }
 
-/**
- * THE CHANNEL LEDGER FOR THIS SESSION, created on first use.
- *
- * On the app rather than in a module-level variable: two LAINs in one process
- * (the test harness runs several) must not share one user's refusals, and a
- * refusal must not outlive the session that was refused.
- */
+/** THE CHANNEL LEDGER FOR THIS SESSION, created on first use. */
 function channelsOf(app) {
   if (!app) return null;
   if (!app._channels) app._channels = new (require('./channels').Channels)();
   return app._channels;
 }
 
-/**
- * PERFORM ONE OPERATION, and report what is actually known about it.
- *
- * A THIN WRAPPER, and deliberately the only public one: every path out of the
- * attempt below — refusal, bridge lost, focus lost, sent — lands here, so the
- * channel ledger is written in ONE place rather than at each of the eight
- * returns. A ninth return added tomorrow is recorded without its author having
- * to remember that the ledger exists.
- *
- * @returns {{stage, trail, result, why, transport}}
- */
+/** PERFORM ONE OPERATION, and report what is actually known about it. */
 async function perform(app, op, params = {}, opts = {}) {
-  // ---- AIM A READ AT A WINDOW, IF ONE WAS NAMED -------------------------
-  //
-  // `screenshot` and `ocr` need no foreground and no permission to aim, so
-  // they were treated as needing no aiming at all — and read the whole desktop.
-  // Naming a window turns them into a region capture: the window is looked up,
-  // its rectangle becomes the region, and the transport is handed a rectangle.
-  //
-  // A NAMED WINDOW THAT CANNOT BE FOUND IS A REFUSAL, NOT A FALLBACK. Silently
-  // reading the whole desktop instead is how "what does the game show" came
-  // back as LAIN's own panels — the answer looked like an answer and was about
-  // something else entirely. See regionOf.
+  // AIM A READ AT A WINDOW, IF ONE WAS NAMED
   if ((op === 'screenshot' || op === 'ocr') && opts.window && !params.region) {
-    // CAN ANYTHING HERE ACTUALLY BE AIMED? Asked before the window is looked
-    // up, so a transport that cannot take a rectangle says so plainly instead
-    // of returning the whole desktop under a window's name.
+    // CAN ANYTHING HERE ACTUALLY BE AIMED?
     const chosen = pick(app, op);
     const capable = chosen.ok && REGIONS[chosen.transport.kind] && REGIONS[chosen.transport.kind][op];
     if (chosen.ok && !capable) {
@@ -363,16 +192,9 @@ async function perform(app, op, params = {}, opts = {}) {
   const ledger = channelsOf(app);
   const channel = ledger && require('./channels').OP_CHANNEL[op];
   if (ledger && channel) {
-    // ONLY THE USER CLOSES A CHANNEL. A transport that broke, a window that
-    // could not be focused, an operation that failed — none of those are
-    // decisions, and recording them as DENIED would suppress a retry that
-    // might well work. REFUSED is the only stage that means somebody said no.
+    // ONLY THE USER CLOSES A CHANNEL.
     if (outcome.stage === cap.STAGE.REFUSED && !outcome.channel) {
-      // THE REASON, NOT THE WHOLE SENTENCE. The refusal text already ends with
-      // its own advice ("Nothing was done. Do not ask again."), and storing that
-      // produced a second-refusal message with two full stops in the middle and
-      // the same instruction twice. The ledger keeps the FACT; the wording
-      // around it belongs to whoever is reporting at the time.
+      // THE REASON, NOT THE WHOLE SENTENCE.
       ledger.deny(channel, 'the user did not allow it');
     } else if (outcome.stage === cap.STAGE.SUCCEEDED || outcome.stage === cap.STAGE.SENT_UNCONFIRMED) {
       ledger.open(channel);
@@ -388,17 +210,7 @@ async function attempt(app, op, params = {}, { window = '', why = '' } = {}) {
     return { stage: cap.STAGE.FAILED, trail: [], result: null, why: `there is no operation "${op}"` };
   }
 
-  // ---- A CLOSED CHANNEL IS ANSWERED HERE, WITHOUT ASKING ANYONE -----------
-  //
-  // The user's decision is already on record, so contacting the transport
-  // would put a permission prompt back on their screen for a question they
-  // have answered — and prompts that reappear are prompts people learn to
-  // dismiss without reading. It is also the difference between one refusal and
-  // a model spending a request per attempt rediscovering the same no.
-  //
-  // The reply carries the FALLBACK, so what comes back is a changed plan
-  // rather than a failure: KEYBOARD closed means "ask the user to press it",
-  // not "this task cannot continue". See channels.js and.
+  // A CLOSED CHANNEL IS ANSWERED HERE, WITHOUT ASKING ANYONE
   const ledger = channelsOf(app);
   if (ledger) {
     const allowed = ledger.check(op);
@@ -426,11 +238,7 @@ async function attempt(app, op, params = {}, { window = '', why = '' } = {}) {
   }
   const { transport, name } = chosen;
 
-  // ---- THE KEYBOARD HALF IS keyboarddelivery.js, not a copy of it ----------
-  //
-  // Permission first, then aim, then re-verify, then inject — and nothing sent
-  // if the foreground could not be held. That sequence was measured into
-  // existence and there must be exactly one of it.
+  // THE KEYBOARD HALF IS keyboarddelivery.js, not a copy of it
   if (spec.aim === 'FOCUS') {
     const kbdOp = DIALECT.probe[op];      // the sequence speaks the Probe dialect
     if (transport.kind !== 'probe') {
@@ -494,9 +302,7 @@ async function attempt(app, op, params = {}, { window = '', why = '' } = {}) {
       why: `${op} failed: ${(r && r.error) || 'no answer'}` };
   }
 
-  // A READ SUCCEEDS OR IT DOES NOT — there is nothing unconfirmed about the
-  // text that came back. AN INJECTED CLICK IS DIFFERENT: the OS accepted a
-  // coordinate, and nothing observed which window was under it.
+  // A READ SUCCEEDS OR IT DOES NOT — there is nothing unconfirmed about the text that came back.
   const stage = spec.reads ? cap.STAGE.SUCCEEDED : cap.STAGE.SENT_UNCONFIRMED;
   trail.push(kbd.step(stage, name));
   return { stage, trail, result: r.result, why: '', transport: transport.kind };

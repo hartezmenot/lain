@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE ASSISTANT'S HOUSE DOORS — how the BOT's model reaches the one task store
- * when the deterministic door (intent.js) did not already handle the sentence.
- * Same store, same validation, same channel permissions: a door is not a
- * second path around them.
- *
- *   assistant.list      read    reminders, schedules, watches, recent activity
- *   assistant.schedule  change  create a task (structured args), or a sentence
- *                               intent.js understands (args.text)
- *   assistant.cancel    change  cancel one task by id
- *   assistant.open      navigate  BOT › Assistant
- *
- * COST SAFEGUARD: a recurring task that runs a MODEL is not saved from here —
- * the person confirms its policy in Chat › Schedules, which the door opens.
- * FROM TELEGRAM the channel's scopes apply exactly as they do to intent.js.
- */
+/** THE ASSISTANT'S HOUSE DOORS — how the BOT's model reaches the one task store when the deterministic door (intent.js) did not already handle the… */
 
 function fromOf(app) { const s = app && app.session; return (s && s.inflight && s.inflight.from) || null; }
 

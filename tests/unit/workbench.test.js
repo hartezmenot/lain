@@ -169,26 +169,6 @@ module.exports = async function () {
     assert.strictEqual(wb.of(app.session).pendingProfile, null);
   });
 
-  await test('QUOTA: a limit pauses the task resumably; ▶ Continue re-checks NOW (ignores the stale 4h prediction) and resumes the same task', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const app = mk();
-    seedPlan(app, ['p1', 'p2']);
-    app.session.thread = 'coding';
-    const later = Date.now() + 4 * 3600e3;
-    await require('../../src/submitclose').after(app, record({ stopReason: 'rate-limited', providerFailure: { kind: 'RATE_LIMITED', provider: 'anthropic', connectionId: 'lain:x', resumeAt: later } }), 'go');
-    assert.strictEqual(wb.of(app.session).quota.state, 'QUOTA_PAUSED');
-    assert.strictEqual(app.session.plan.steps.length, 2, 'the plan is kept');
-    const cleared = [];
-    app.availability = { retry: (id) => cleared.push(id) };
-    const sent = [];
-    const r = await require('../../src/quotapause').resume(app, { submitFn: async (t) => { sent.push(t); } });
-    assert.strictEqual(r.ok, true);
-    assert.strictEqual(r.ignoredPrediction, true);
-    assert.deepStrictEqual(cleared, ['lain:x']);
-    assert.strictEqual(sent.length, 1, 'resumed immediately');
-    await new Promise((x) => setImmediate(x));
-    assert.strictEqual(wb.of(app.session).quota, null, 'running again');
-  }));
-
   await test('SEND TO CODING AGENT: needs a project; then the SAME session runs the approved plan, seeded as its phases', async () => {
     const app = mk();
     process.env.LAIN_PROVIDER = 'mock';
@@ -212,25 +192,6 @@ module.exports = async function () {
       for (let i = 0; i < 100 && app.abort; i++) await new Promise((x) => setTimeout(x, 30));
     } finally { delete process.env.LAIN_PROVIDER; delete process.env.LAIN_MOCK_SCRIPT; }
   });
-
-  await test('FINDINGS: report_finding is structured Core state; Discuss switches to Chat with it; Use this fix steers the Agent', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const app = mk();
-    const tools = require('../../src/tools');
-    const out = await tools.execute('report_finding', { severity: 'major', summary: 'Two owners write the model selection', evidence: ['src/cli.js:120'], affected: ['phase 3'], possible_fix: 'keep the project value only as a default', blocking: true }, { session: app.session, cwd: app.session.cwd });
-    assert.ok(!out.isError, out.output);
-    const f = sup.openFindings(app.session)[0];
-    assert.deepStrictEqual([f.severity, f.blocking, f.evidence[0]], ['major', true, 'src/cli.js:120']);
-    await call(app, '/api/workbench/finding', { id: f.id, action: 'discuss' });
-    assert.strictEqual(require('../../src/sessionviews').views(app.session).active, 'chat');
-    assert.match(sup.chatContext(app), /DISCUSS this finding/);
-    let steered = null;
-    app.session.thread = 'coding'; app.abort = new AbortController();
-    app.queueSteer = (t) => { steered = t; };
-    const use = await call(app, '/api/workbench/finding', { id: f.id, action: 'use-fix' });
-    assert.strictEqual(use.code, 200);
-    assert.match(steered, /keep the project value only as a default/);
-    app.abort = null;
-  }));
 
   await test('PERSISTENCE: strategy, steers, findings and phases survive save and resume', async () => {
     const app = mk();

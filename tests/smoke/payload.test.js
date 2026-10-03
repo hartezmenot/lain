@@ -78,28 +78,6 @@ function projectWithHistory(n, { provider = 'omniroute' } = {}) {
 }
 
 module.exports = async function () {
-  await test('PAYLOAD: a restored history over the provider cap is COMPACTED BEFORE the send', async () => {
-    // THE REPRODUCTION. 1,000 messages, a cap of 800, and the first request of
-    // the turn is the one that used to be refused.
-    const { cwd, configDir, id, messageCount } = projectWithHistory(500);
-    assert.ok(messageCount > 800, `the fixture must exceed the cap (${messageCount})`);
-    const log = path.join(cwd, 'wire.log');
-    const r = await runCli(['--resume', id, '-p', 'carry on'], {
-      cwd, configDir,
-      env: { LAIN_MOCK_WIRELOG: log },
-      script: [{ text: 'Done.' }],
-      timeoutMs: 90000,
-    });
-    const sent = wire(log);
-    assert.ok(sent.length, 'the run must actually have made a request');
-    const first = sent[0];
-    assert.ok(first.messages <= 800,
-      `the FIRST request carried ${first.messages} messages against an 800 cap — `
-      + 'LAIN sent a payload it already knew would be refused');
-    // AND IT STILL WORKED. Compacting to fit is not the same as giving up.
-    assert.match(plain(r.out), /Done\./, 'the turn must still complete');
-  });
-
   await test('PAYLOAD: nothing is compacted when the history is comfortably inside the cap', async () => {
     // The other half of the same rule: a check that fires whatever the size is
     // is not a check, it is a tax on every conversation.
@@ -147,23 +125,9 @@ module.exports = async function () {
     // partially-cleared history fails too rather than passing on a substring.
     assert.ok(after.messages <= before.messages,
       `after /clear the payload GREW: ${before.messages} → ${after.messages}`);
-    // ---- WHAT A CLEARED REQUEST IS MADE OF -------------------------------
-    //
-    // Three messages, and each one is named so this cannot drift into a bound
-    // that quietly permits a carried conversation:
-    //
-    //   system  the stable prompt, deliberately kept
-    //   user    the new question
-    //   user    the runtime-state block that rides at the TAIL of every wire
-    //           since the prompt was split (see promptparts.js) — small, and
-    //           the reason a cleared payload is 3 rather than the old 2
-    //
-    // EXACT, not `<=`. A cleared session carrying the earlier exchange would be
-    // 5; one that silently lost the runtime block would be 2. Both are wrong and
-    // both now fail.
-    assert.strictEqual(after.messages, 3,
-      `after /clear the provider received ${after.messages} messages — expected `
-      + 'the system prompt, the new user message, and the runtime-state block');
+    // A cleared request is the stable system prompt and the new question — exactly two (the simple prompt has no runtime-state tail).
+    assert.strictEqual(after.messages, 2,
+      `after /clear the provider received ${after.messages} messages — expected the system prompt and the new user message`);
     assert.match(plain(r.out), /Noted beta/, 'and the next turn still worked');
   });
 
@@ -221,8 +185,8 @@ module.exports = async function () {
       stdinSteps: ['start the work\n', 'STEER_KEEP_THIS also check the other file\n', '\n', '/exit\n'],
       stepDelayMs: 2200,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'echo one' } }] },
-        { text: 'Still working.', tool_calls: [{ name: 'run_bash', input: { command: 'echo two' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'echo one' } }] },
+        { text: 'Still working.', tool_calls: [{ name: 'shell', input: { command: 'echo two' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 120000,

@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * LAIN AS A LOCAL MODEL SERVER — `lain --serve` (Phase 8.1).
- *
- *     external client (Cursor, Continue, a script …)
- *        │  OpenAI-compatible  POST /v1/chat/completions · GET /v1/models
- *        │  Anthropic-compatible POST /v1/messages (text and tools)
- *        ▼
- *     this server ── provider.chat ── modelrequest (the ONE envelope: trace,
- *        │                           usage receipt, origin "serve")
- *        ▼
- *     the LAIN connection / account / runtime the alias names
- *
- * THE PROVIDER'S SECRETS NEVER LEAVE LAIN. A client authenticates to LAIN with
- * a LOCAL LAIN access token (kept in the Windows secret store); the upstream
- * key is resolved inside LAIN at send time and is never in a response, a
- * header or a log.
- *
- * LOOPBACK BY DEFAULT (127.0.0.1). Listening on any other address needs
- * `server.allowRemote` set explicitly, and says so.
- *
- * LOGICAL ROUTES (Phase 8.3): `lain/<provider>/<model>` — `lain/codex/gpt-6-sol`,
- * `lain/claude/opus` — for every model of every provider family in LAIN's one
- * intelligence fabric (or only those in `server.expose`). The provider family's
- * ACCOUNT POLICY chooses the backing account underneath, exactly as it does for a
- * session; a client never names, and is never shown, an OAuth identity. With
- * `server.pinnable: true` an advanced client may append `@<account alias>` to use
- * one named backing account. The older `lain/<model>` aliases still resolve.
- * An OpenAI `reasoning_effort` is honoured only when the model declares that level.
- *
- * NOT A SECOND ROUTER AND NOT A STATE OWNER: no sessions, no tools of LAIN's
- * are run for the client; a request in is one model request out, recorded.
- */
+/** LAIN AS A LOCAL MODEL SERVER — `lain --serve` (Phase 8.1). */
 
 const http = require('http');
 const crypto = require('crypto');
@@ -95,10 +64,7 @@ function aliases(app) {
   const legacy = cat.models.filter((m) => !exposeList || exposeList.has(`lain/${m.id}`) || exposeList.has(m.id)).map((m) => ({ alias: `lain/${m.id}`, model: m.id, context: m.ctx || null }));
   return [...familyAliases(app), ...legacy];
 }
-/**
- * AN ALIAS → the provider request. A logical route resolves through the family's
- * policy (the same resolver a session uses); `effort` must be a level the model declares.
- */
+/** AN ALIAS → the provider request. */
 function resolveAlias(app, name, { effort = null } = {}) {
   const raw = String(name || '');
   const [route, pin] = raw.split('@');

@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * `recall_evidence` — an earlier deterministic result, by its id.
- *
- * The focus packet and other deterministic research name their results
- * (`evidence:e14 lsp.references … 7 reference(s) in 4 file(s)`) instead of
- * pasting them. This returns the body — if, and only if, it is still true of
- * the project: an entry whose files changed since its generation is refused,
- * with what changed, so the model re-asks the owner instead of reasoning from
- * an old answer. See evidencerefs.js.
- */
+/** `recall_evidence` — an earlier deterministic result, by its id. */
 
 const tools = {
   recall_evidence: {

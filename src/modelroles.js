@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * WHICH ROLE MAY USE WHICH SOURCE — the one capability policy every model
- * picker, setter and resolver asks before a choice is accepted.
- *
- *     CHAT            the CHAT view's model: a conversation, nothing more
- *     BOT             LAIN's own assistant: channels, planning, deciding
- *     AGENT           the Coding Agent: reads, writes, runs, settles
- *     AUX             auxiliary workers (summaries, classification)
- *     LAYA            the context worker
- *     RESEARCH        research workers
- *     ORCHESTRATION   orchestration workers
- *     FALLBACK        a model a failed request may fall back to
- *     FOCUS           the /focus Agent selector
- *
- * ------------------------------------------------------------------------
- * CHATGPT CHAT IS CHAT ONLY. The signed-in chatgpt.com website session is a
- * conversation surface: it cannot call a tool, cannot read the project and
- * reports no billed usage. It may answer in the CHAT view and nowhere else —
- * not as the BOT, not as the Coding Agent, not as any worker or fallback. That
- * is a hard rule, not a preference: `allowed` says no, every setter calls
- * `check`, and tests/unit/chatonly.test.js walks every entry point.
- *
- * Its LAIN alias, `luna-chat-xhigh`, is a LAIN route name for that source —
- * NOT an OpenAI model identifier. It resolves only in the CHAT lane.
- *
- * ------------------------------------------------------------------------
- * LOCAL AND RUNTIME MODELS are not granted AGENT by generating text. A local
- * model is AGENT only after its compatibility test passed for this exact file,
- * runtime version and configuration (localagent.js); a runtime model is AGENT
- * only when its runtime executes agent work (runtimeadapters.js).
- */
+/** WHICH ROLE MAY USE WHICH SOURCE — the one capability policy every model picker, setter and resolver asks before a choice is accepted. */
 
 const ROLE = Object.freeze({
   CHAT: 'CHAT', BOT: 'BOT', AGENT: 'AGENT', AUX: 'AUX', LAYA: 'LAYA',
@@ -64,11 +34,7 @@ function isChatOnly({ source = null, modelId = null } = {}) {
   return isWebSource(source) || isChatAlias(modelId);
 }
 
-/**
- * MAY `role` USE this row? A row is { source, modelId, capabilities?, roles? }.
- * Web sources: CHAT only. Everything else: the row's own declared roles when it
- * has them (local and runtime rows do), otherwise the API default (all roles).
- */
+/** MAY `role` USE this row? */
 function allowed(row, role) {
   const r = String(role || '').toUpperCase();
   if (!ROLES.includes(r)) return false;

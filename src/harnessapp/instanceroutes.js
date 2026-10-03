@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * ACCOUNT INSTANCES, FOR THE WINDOW — accountinstances.js over POST.
- *
- * Nothing here returns a secret, because nothing here can reach one: runtime
- * accounts keep their sign-in in their own home, and API accounts are
- * projected by credential REFERENCE (credentials.js `describe`). The routes
- * that take a key are accountops' (`/api/accounts/addkey`), unchanged.
- */
+/** ACCOUNT INSTANCES, FOR THE WINDOW — accountinstances.js over POST. */
 
 const ai = require('../accountinstances');
 
@@ -15,12 +8,7 @@ function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, why: String(why || 'refused'), ...extra } }; }
 function reply(r) { return r && r.ok ? ok(r) : bad(r && r.why, 409, r || {}); }
 
-/**
- * SOURCES THAT ARE NOT MODEL ROUTES, kept apart by what they are:
- *   ChatGPT Website   a signed-in chatgpt.com page — CHAT only. Not the Codex
- *                     subscription, not the OpenAI API, and not "free".
- *   ChatGPT identity  Sign in with ChatGPT — who you are. No model access.
- */
+/** SOURCES THAT ARE NOT MODEL ROUTES, kept apart by what they are: ChatGPT Website a signed-in chatgpt.com page — CHAT only. */
 async function otherSources(app) {
   const out = [];
   try {

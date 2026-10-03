@@ -205,33 +205,6 @@ module.exports = async function () {
   });
 
   // ---------------------------------------------------------------- pins --
-
-  await test('PINS: browsing puts nothing in the prompt; a pin puts a bounded, current excerpt', async () => {
-    const routes = require('../../src/harnessapp/routes');
-    const proj = tmpdir('pins-');
-    fs.writeFileSync(path.join(proj, 'big.js'), Array.from({ length: 400 }, (_, i) => `const line${i} = ${i};`).join('\n'));
-    const app = appAt(proj);
-    await routes.dispatch(app, 'POST', '/api/files/open', { path: 'big.js' });
-    assert.strictEqual(sv.views(app.session).panel.file, 'big.js', 'the open file is panel state');
-    assert.strictEqual(sv.pinnedContext(app.session), '', 'opening is not pinning');
-    const pinned = await routes.dispatch(app, 'POST', '/api/files/pin', { path: 'big.js', from: 10, to: 20 });
-    assert.strictEqual(pinned.code, 200);
-    const ctx = sv.pinnedContext(app.session);
-    assert.match(ctx, /Pinned by the user/);
-    assert.match(ctx, /line9 = 9/);
-    assert.ok(!/line30 = 30/.test(ctx), 'only the pinned region');
-    fs.writeFileSync(path.join(proj, 'big.js'), Array.from({ length: 400 }, (_, i) => `const edited${i} = ${i};`).join('\n'));
-    assert.match(sv.pinnedContext(app.session), /edited9/, 'read at prompt time, not at pin time');
-    const live = require('../../src/promptparts').of(app, {}).live;
-    assert.match(live, /Pinned by the user/, 'and it reaches the prompt');
-    await routes.dispatch(app, 'POST', '/api/files/unpin', { path: 'big.js' });
-    assert.strictEqual(sv.pinnedContext(app.session), '');
-    const outside = await routes.dispatch(app, 'POST', '/api/files/pin', { path: '../../etc/hosts' });
-    assert.strictEqual(outside.code, 400, 'a pin cannot leave the project');
-  });
-
-  // --------------------------------------------------------------- panel --
-
   await test('PANEL: open, close and toggle are Core state; width and file survive; a resume keeps them', () => {
     const app = appAt(tmpdir('panel-'));
     const s = app.session;

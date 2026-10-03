@@ -1,49 +1,13 @@
 'use strict';
 
-/**
- * USAGE — what was consumed, kept per request, readable by any dimension.
- *
- * ------------------------------------------------------------------------
- * TWO DIFFERENT QUESTIONS, NEVER ONE NUMBER.
- *
- *   CONSUMPTION   what LAIN's requests used — tokens in/out, cache read/write,
- *                 reasoning, latency, tool calls, tool schema, fixed prompt.
- *                 From the receipts below. Keyed by account INSTANCE.
- *   LIMITS        how much of a provider's window is used — the provider's own
- *                 figures (accountinstances.js / usagewindows.js). Shown per
- *                 window; never derived from token counts, never averaged.
- *
- * ------------------------------------------------------------------------
- * A USAGE RECEIPT is one finished request (modelrequest.close → record):
- *
- *   id, at, source         'lain' for LAIN's own requests; 'runtime:<kind>' for
- *                          usage a runtime reported about its own work (imported,
- *                          never double counted — a different id space)
- *   dimensions             project, session, task, model, provider, account, role
- *   tokens                 as the provider reported them; a figure it did not
- *                          report is null ("not reported"), never 0
- *   cost                   costUsd only when the PROVIDER stated it (actual).
- *                          An estimate is computed at read time, only from prices
- *                          the person configured (usage.prices), and says so.
- *
- * NO PROMPT, NO REPLY, NO KEY. Identity and accounting only.
- *
- * Kept in <configDir>/usage/receipts-YYYY-MM.jsonl; read back deduplicated by id,
- * through usageindex.js (Phase 8.1): each file is parsed once per process and then
- * only its appended tail; hourly aggregates are kept in usage/index-v1.json.
- */
+/** USAGE — what was consumed, kept per request, readable by any dimension. */
 
 const fs = require('fs');
 const path = require('path');
 
 const DIMS = Object.freeze(['project', 'session', 'task', 'model', 'provider', 'account', 'role', 'day', 'source', 'via', 'origin']);
 
-/**
- * WHAT STARTED A REQUEST (the Origin filter): a person in Chat, the BOT, the
- * Coding Agent, a scheduled / recurring assistant task, a watch, or Telegram.
- * Explicit when the caller knows it (modelrequest `origin`); otherwise read
- * from the role — never from a model name.
- */
+/** WHAT STARTED A REQUEST (the Origin filter): a person in Chat, the BOT, the Coding Agent, a scheduled / recurring assistant task, a watch, or Telegram. */
 const ORIGIN = Object.freeze({ chat: 'Interactive Chat', bot: 'BOT', agent: 'Agent', scheduled: 'Scheduled', recurring: 'Recurring', watch: 'Watch', telegram: 'Telegram', serve: 'LAIN Server (external app)', machinery: 'LAIN machinery' });
 function originOf(rec, role) {
   if (rec.origin && ORIGIN[rec.origin]) return ORIGIN[rec.origin];
@@ -53,11 +17,7 @@ function originOf(rec, role) {
   return ORIGIN.agent;
 }
 
-/**
- * WHERE A REQUEST WENT, as a person names it (the Source filter): an API, a
- * local runtime, an agent runtime or a website session. Derived from the
- * transport and runtime on the record — never from a model name.
- */
+/** WHERE A REQUEST WENT, as a person names it (the Source filter): an API, a local runtime, an agent runtime or a website session. */
 function viaOf(rec) {
   const rt = rec.runtime || (rec.receipt && rec.receipt.runtime && rec.receipt.runtime.id) || null;
   if (rec.transport === 'local') return rt === 'ollama' ? 'Local · Ollama' : 'Local · llama.cpp';
@@ -120,11 +80,7 @@ function record(rec) {
   return append(fromRecord(rec));
 }
 
-/**
- * USAGE A RUNTIME REPORTED about work it did itself (a Codex thread's token
- * usage). Its own id space (`<source>:<id>`), so it can never be counted
- * twice against a LAIN request, and importing the same report again is a no-op.
- */
+/** USAGE A RUNTIME REPORTED about work it did itself (a Codex thread's token usage). */
 function importRuntime(source, rows = []) {
   if (!/^runtime:[a-z0-9_-]+$/.test(String(source))) throw new Error('a runtime source is runtime:<kind>');
   const seen = new Set(read({}).map((r) => r.id));
@@ -253,14 +209,7 @@ function aggregate(rows, dim, cfg) {
   return [...groups.entries()].map(([key, rs]) => ({ key, ...sum(rs, cfg) })).sort((a, b) => (b.input + b.output) - (a.input + a.output));
 }
 
-/**
- * CONTEXT EFFICIENCY — LAIN's own reuse, apart from the provider's cache.
- *   provider cache   what the provider said it served from cache (receipts)
- *   fixed prompt     the system prompt re-sent on every request
- *   tool schema      what the offered tools cost per request (funnel or not)
- * The provider's cache and LAIN's reuse are different mechanisms and are
- * reported in different rows.
- */
+/** CONTEXT EFFICIENCY — LAIN's own reuse, apart from the provider's cache. */
 function efficiency(rows) {
   const api = rows.filter((r) => r.source === 'lain' && r.transport === 'api');
   const cache = { reportedRows: 0, cachedTokens: 0, totalInput: 0 };

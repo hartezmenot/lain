@@ -1,54 +1,10 @@
 'use strict';
 
-/**
- * HOW THE PARTS ARE WIRED — typed, persistent, and not recoverable from imports.
- *
- * ------------------------------------------------------------------------
- * WHY THE IMPORT GRAPH IS NOT ENOUGH, which is the whole argument for this file.
- *
- * `projectindex.js` already knows every `require` in the tree, and that answers
- * exactly one question: which file would fail to load without which other file.
- * It cannot answer any of these, and these are the questions people ask:
- *
- *     what WAKES the turn loop?              nothing imports a wake-up
- *     who READS the credential store?        a reader may import nothing
- *     what BLOCKS on the model request?      blocking is not a symbol
- *     what RECOVERS a dead session?          recovery is a relationship
- *                                            between two components that may
- *                                            never mention each other
- *     the frontend talks to the backend      over HTTP. There is no import.
- *
- * Every one of those is a real edge in the running system and INVISIBLE to a
- * parser. A model asked "what happens when a job finishes" therefore reads its
- * way across the tree, guessing, at ~65,000 input tokens a request — to
- * rediscover something that was known and could have been written down once.
- *
- * ------------------------------------------------------------------------
- * TYPED, BECAUSE AN UNTYPED EDGE IS A RUMOUR. "A relates to B" is not worth
- * storing. `RUST_GATE --WAKES--> TURN_ENGINE` is a fact somebody can act on,
- * and it is queryable in the direction that matters: given a component, what
- * wakes it, what blocks on it, what would recover it.
- *
- * ------------------------------------------------------------------------
- * IT REFERS TO ARCHITECTURE NODES, NOT TO FILES. An edge between two files dies
- * with the files. An edge between two COMPONENTS survives them, which is the
- * same invariant architecture.js exists for — see the note there about a lost
- * `guardian.rs`. An endpoint that names no node is still allowed (an external
- * system has no node), and is marked as external rather than silently dropped.
- *
- * ------------------------------------------------------------------------
- * SMALL AND QUERYABLE, on purpose. Nothing here ships the whole graph into a
- * prompt: a caller asks about one node and gets that node's edges. A hundred
- * components produce a graph that renders in a dozen lines per query, and the
- * cost of the answer does not grow with the project.
- */
+/** HOW THE PARTS ARE WIRED — typed, persistent, and not recoverable from imports. */
 
 const lainstore = require('./lainstore');
 
-/**
- * THE VERBS. A closed list — an open one degenerates into prose, and prose is
- * what this replaces. Each is a different question somebody actually asks.
- */
+/** THE VERBS. A closed list — an open one degenerates into prose, and prose is what this replaces. Each is a different question somebody actually asks. */
 const REL = Object.freeze({
   /** Invokes it directly, in-process. */
   CALLS: 'CALLS',
@@ -147,14 +103,7 @@ function save(root, graph) {
   return lainstore.write(root, 'wiring', { edges: graph.edges, updatedAt: graph.updatedAt });
 }
 
-/**
- * RECORD AN EDGE.
- *
- * `via` is the mechanism — "HTTP /api/session", "unix socket", "supervisor
- * event" — and it is the field that makes an edge useful rather than merely
- * true. Two components that SEND to each other over three different channels
- * are three facts, and collapsing them loses the one somebody is debugging.
- */
+/** RECORD AN EDGE. */
 function connect(graph, { from, to, rel, via = '', note = '', at = Date.now() } = {}) {
   const f = String(from || '').trim();
   const t = String(to || '').trim();
@@ -204,13 +153,7 @@ function around(graph, id) {
   return { out: outgoing(graph, id), in: incoming(graph, id) };
 }
 
-/**
- * A PATH BETWEEN TWO COMPONENTS, if there is one.
- *
- * Breadth-first, so the answer is the SHORTEST chain — which is the one a
- * person means by "how does the user's keystroke reach the model". Direction
- * matters: a path is a route traffic could actually take.
- */
+/** A PATH BETWEEN TWO COMPONENTS, if there is one. */
 function path(graph, from, to, { maxHops = 8 } = {}) {
   if (from === to) return [];
   const queue = [[from, []]];
@@ -228,12 +171,7 @@ function path(graph, from, to, { maxHops = 8 } = {}) {
   return null;
 }
 
-/**
- * WHICH NODES EXIST ONLY AS ENDPOINTS. An edge may name something the
- * architecture has no node for — an external service, a provider, the user —
- * and that is legitimate. Reported so a reader can tell a deliberate external
- * endpoint from a typo in a node id.
- */
+/** WHICH NODES EXIST ONLY AS ENDPOINTS. */
 function dangling(graph, model) {
   const known = new Set(Object.keys((model && model.nodes) || {}));
   const out = new Set();
@@ -258,13 +196,7 @@ function sayEdge(e, { model = null, reverse = false } = {}) {
   return `${subject} ${verb} ${object}${via}${note}`;
 }
 
-/**
- * ONE NODE'S WIRING, as a person reads it.
- *
- * Both directions, because half a picture is the thing that sends somebody
- * reading source: knowing what a component calls tells you nothing about what
- * calls it, and "what breaks if I change this" is the second question.
- */
+/** ONE NODE'S WIRING, as a person reads it. */
 function render(graph, id, { model = null } = {}) {
   const { out, in: incom } = around(graph, id);
   if (!out.length && !incom.length) {
@@ -283,13 +215,7 @@ function render(graph, id, { model = null } = {}) {
   return lines.join('\n');
 }
 
-/**
- * THE WHOLE GRAPH AS A FLOW, when it is small enough to be worth drawing.
- *
- * Grouped by verb rather than by node, because the useful reading of a whole
- * graph is "what talks to what over HTTP" — a per-node dump of a whole graph is
- * the context cost this module exists to avoid, so it is capped and says so.
- */
+/** THE WHOLE GRAPH AS A FLOW, when it is small enough to be worth drawing. */
 function summary(graph, { model = null, max = 40 } = {}) {
   if (!graph.edges.length) {
     return 'No wiring has been recorded for this project yet.\n'

@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * THE TWO TEST QUESTIONS, AS TWO TOOLS.
- *
- * `discover_tests` answers WHAT EXISTS. It reads files, spawns nothing, costs
- * nothing, and its answer can never be "they pass" — the only two states it can
- * return are NO_TESTS_FOUND and TESTS_FOUND_NOT_RUN.
- *
- * `run_tests` answers WHAT HAPPENED. It can only be reached by actually
- * spawning a runner, and it returns a classified state that distinguishes a
- * genuine failure from a blocked one.
- *
- * WHY THIS IS NOT `run_powershell "npm test"`. It is, underneath — the shell is
- * unrestricted and the model may still do exactly that. What these add is the
- * two things a raw shell cannot give it:
- *
- *   A SEARCH IT DID NOT HAVE TO INVENT. "Are there tests?" was previously
- *     answered by whatever the model happened to `ls`, which is how a tree with
- *     179 test files in it got reported as having none.
- *
- *   A VERDICT THAT SEPARATES LAYERS. `npm test` exits 1 when an assertion fails
- *     and exits 1 when the provider rate-limits the suite, and only one of those
- *     is a reason to change code. See testing.js BLOCKED_SIGNS.
- *
- * NEITHER TOOL EVER SUMMARISES OPTIMISTICALLY. Every result leads with the
- * state word, and the state word is derived from the run, never from the shape
- * of the request.
- */
+/** THE TWO TEST QUESTIONS, AS TWO TOOLS. */
 
 const path = require('path');
 
@@ -38,58 +12,13 @@ const environment = require('../environment');
 /** A suite gets longer than an ordinary command: a real one takes minutes. */
 const DEFAULT_TIMEOUT_MS = 600000;
 
-/**
- * A GREEN SUITE'S PER-TEST LINES ARE NOT EVIDENCE.
- *
- * ------------------------------------------------------------------------
- * THE MEASUREMENT. A passing run of this project's own unit tier prints
- * 137,234 characters — 2,122 lines, all but a handful of them one `✓` and the
- * name of a test that did what it was written to do. Capped by shell.js at
- * 100,000, that is roughly 27,800 estimated tokens handed back for a result the
- * classifier above has ALREADY reduced to its decision-relevant form:
- *
- *     TESTS_PASSED
- *       counts: 1974 passed, 0 failed
- *
- * Verification is the most repeated step in a coding loop — the prompt tells
- * the model to run something that would fail if it were wrong, after every
- * change — so this is not one large result, it is a large result per fix.
- *
- * ------------------------------------------------------------------------
- * WHAT IS DROPPED, AND WHY IT COSTS NOTHING TO DROP IT.
- *
- * ONLY on TESTS_PASSED, which by construction means nothing failed and nothing
- * was skipped — a skip makes it TESTS_PARTIAL, a failure TESTS_FAILED, and a
- * blocker TESTS_BLOCKED. On those three, every byte is returned untouched:
- * failure output is the single most valuable evidence this tool can produce and
- * is never abbreviated.
- *
- * And only lines that are THEMSELVES a passing-test marker. Everything else
- * survives — headers, blank lines, deprecation warnings, the runner's own
- * summary, anything unrecognised. That is the safe direction: a pattern that
- * fails to match keeps a line that could have gone, while the reverse would
- * hide something nobody chose to hide. Under-eliding is recoverable; eliding
- * something that mattered is not.
- *
- * THIS IS NOT A CONTEXT CAP. It removes confirmations of success that the
- * counts state exactly, and it says how many it removed.
- */
+/** A GREEN SUITE'S PER-TEST LINES ARE NOT EVIDENCE. */
 const QUIET_PASS_MIN_CHARS = 4000;
 const QUIET_PASS_MIN_LINES = 40;
-/**
- * One line that says one test passed, across the runners a project is likely to
- * use: ✓/✔/√ (mocha, vitest, jest, this repo), TAP `ok 12 - name`, pytest's
- * `path::test_x PASSED`, and unittest's `test_x (...) ... ok`.
- *
- * Deliberately anchored and narrow. `ok` alone would match prose; a bare `PASS`
- * would match a jest per-FILE line, which is a summary worth keeping.
- */
+/** One line that says one test passed, across the runners a project is likely to use: ✓/✔/√ (mocha, vitest, jest, this repo), TAP `ok 12 - name`… */
 const PASS_LINE = /^\s*(?:[✓✔√]\s|ok\s+\d+\s|.+\s\.{3}\s+ok\s*$|\S+::\S+\s+PASSED\b)/u;
 
-/**
- * Drop the per-test confirmations from an output that already passed.
- * Returns the text unchanged whenever there is nothing worth doing.
- */
+/** Drop the per-test confirmations from an output that already passed. */
 function quietPass(output) {
   const text = String(output == null ? '' : output);
   if (text.length < QUIET_PASS_MIN_CHARS) return { text, dropped: 0 };
@@ -147,9 +76,7 @@ const tools = {
   },
 
   run_tests: {
-    // A suite runs the project's own code, which may write anything. Treated as
-    // mutating for the same reason the shell is: what it does is not knowable
-    // from the command line.
+    // A suite runs the project's own code, which may write anything.
     mutates: true,
     schema: {
       name: 'run_tests',
@@ -177,19 +104,7 @@ const tools = {
     async run(input, ctx) {
       const cwd = resolveCwd(ctx, input);
 
-      // ---- THE CHEAP CHECK GOES FIRST ------------------------------------
-      //
-      // A suite run is minutes; a linter is milliseconds. Discovering
-      // `NameError: name 'pirnt' is not defined` from a stack trace costs the
-      // run AND the model request that reads it - measured at ~65,000 input
-      // tokens to learn something ruff already knew.
-      //
-      // IT ONLY EVER STOPS ON A REAL ERROR in a file this session changed, and
-      // `force: true` runs the suite anyway. A clean check is NOT treated as
-      // proof the code works: when nothing is found, everything below runs
-      // exactly as it did before. See src/pretest.js.
-      // ADVISORY (2026-10-02): the finding rides along with the run; it no longer refuses it. A checker can be
-      // wrong (JSX was misparsed for months) and a useful check must never wait on a cheaper one's opinion.
+      // THE CHEAP CHECK GOES FIRST
       const gate = await require('../pretest').guard(ctx, cwd, input);
       const advisory = gate.advisory ? `${gate.advisory}\n\n` : '';
 
@@ -204,9 +119,7 @@ const tools = {
           ? report.suites.find((s) => s.kind === testing.KIND.SMOKE) || testing.primary(report)
           : testing.primary(report);
         if (!chosen) {
-          // NOT A FAILURE OF THE TOOL, and the difference matters: the model
-          // asked a reasonable question and the honest answer is that this tree
-          // does not say how to run anything.
+          // NOT A FAILURE OF THE TOOL, and the difference matters: the model asked a reasonable question and the honest answer is that this tree does not say how…
           return {
             output: testing.lines(report).join('\n')
               + '\n\nNothing was run — no command was given and none could be discovered.',
@@ -231,9 +144,7 @@ const tools = {
       if (r.interrupted) return { output: r.output, isError: true, meta: { testState: null } };
       if (r.detached) return { output: r.output, meta: { testState: null, detached: true, jobId: r.jobId } };
 
-      // `r` already carries `exitCode`, which is the field execution.classify
-      // reads. Adding a second name for it here would be a spare copy that a
-      // later edit could set and this one would go on ignoring.
+      // `r` already carries `exitCode`, which is the field execution.classify reads.
       const { text, verdict } = execution.annotate({ ...r, shell: sh, cwd, command });
       const v = testing.classifyRun({
         output: r.output,
@@ -252,12 +163,7 @@ const tools = {
             + (v.counts.skipped ? `, ${v.counts.skipped} skipped` : '')
           : '  counts: the runner printed none',
       ];
-      // KEYED ON THE LAYER, NOT ON THE STATE. TESTS_PARTIAL has two causes: a
-      // blocker beside real results, which names a layer, and an ordinary run
-      // with skips, which names nothing. Keying on the state printed "the layer
-      // that stopped it is null" for the second one — a sentence that is worse
-      // than silence, because it invites the model to go looking for a layer
-      // that does not exist.
+      // KEYED ON THE LAYER, NOT ON THE STATE.
       if (v.layer) {
         head.push(`  THIS IS NOT A CODE FAILURE — the layer that stopped it is ${v.layer}.`);
         head.push('  Do not change code to "fix" it. Say what is blocked and why.');
@@ -271,13 +177,7 @@ const tools = {
       if (v.state === testing.STATE.TESTS_PASSED) {
         const q = quietPass(r.output);
         if (q.dropped) {
-          // THE ADVICE HERE IS THE TARGETED ONE, deliberately. An earlier
-          // version said "re-run `<command>` with run_bash and grep it" —
-          // which teaches the model to spend a SECOND FULL SUITE RUN (minutes,
-          // and another request to read) to answer a question the first run
-          // already settled. The counts above ARE the complete verdict; a
-          // single test's line is recoverable with the runner's own filter,
-          // which costs one flag, not one re-run of everything.
+          // THE ADVICE HERE IS THE TARGETED ONE, deliberately.
           body = `${q.text}\n\n[${q.dropped} individually passing test line(s) removed from this result — `
             + `the counts above are the complete verdict. To see one test by name, run the suite `
             + `with the runner's own filter for it (e.g. \`-t\`/\`--filter\`/\`-k\`) rather than `
@@ -285,9 +185,7 @@ const tools = {
         }
       }
 
-      // THE RUN IS VERIFICATION EVIDENCE, recorded against the contract with the
-      // evidence state its runner earns (a unit tier is FIXTURE, not LIVE). A
-      // BLOCKED run is not recorded as a failure of the code. See verifycontract.js.
+      // THE RUN IS VERIFICATION EVIDENCE, recorded against the contract with the evidence state its runner earns (a unit tier is FIXTURE, not LIVE).
       if (v.state !== testing.STATE.TESTS_BLOCKED && ctx && ctx.session) {
         try {
           const contract = require('../verifycontract');

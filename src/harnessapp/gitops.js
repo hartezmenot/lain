@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * SOURCE CONTROL FOR THE IDE — status, diff, stage, unstage, commit, branch.
- *
- * ------------------------------------------------------------------------
- * GIT IS THE AUTHORITY; THIS ONLY ASKS IT. Every answer is git's own output in
- * its machine-readable form (`--porcelain=v1 -z`, `--numstat`), run through
- * tools/exec.js — the same runner gitsense.js uses — with an ARGUMENT LIST,
- * never a command string, so a file name cannot become a command.
- *
- * DELIBERATELY SMALL. No push, pull, rebase, stash, or history rewriting: those
- * talk to other people's copies or destroy work, and a click in a side panel
- * is the wrong place to do either. The terminal is one keystroke away.
- */
+/** SOURCE CONTROL FOR THE IDE — status, diff, stage, unstage, commit, branch. */
 
 const path = require('path');
 const { execute } = require('../tools/exec');
@@ -30,16 +18,10 @@ function mapCode(x, y) {
   return { M: 'modified', A: 'added', D: 'deleted', R: 'renamed', C: 'copied', T: 'modified' }[one] || 'modified';
 }
 
-/**
- * THE WORKING TREE. `-z` so a path with spaces or quotes arrives intact.
- * Paths come back relative to the PROJECT (not the repository root).
- */
+/** THE WORKING TREE. `-z` so a path with spaces or quotes arrives intact. Paths come back relative to the PROJECT (not the repository root). */
 async function status(app) {
   const cwd = app.session.cwd;
-  // THE PROJECT'S PLACE IN THE REPOSITORY, as git spells it. Porcelain paths
-  // are repository-relative; stripping this prefix makes them project-relative
-  // without comparing filesystem spellings (a short 8.3 name and its long name
-  // are the same folder and different strings).
+  // THE PROJECT'S PLACE IN THE REPOSITORY, as git spells it.
   const pre = await git(cwd, ['rev-parse', '--show-prefix']);
   if (!pre.ok) return { ok: true, repo: false, why: 'this project is not a git repository' };
   const prefix = pre.out.trim();
@@ -126,11 +108,7 @@ async function commit(app, message) {
   return { ok: true, commit: head.ok ? head.out.trim() : null, summary: r.out.trim().split('\n')[0] };
 }
 
-/**
- * A FILE AS GIT HAS IT — at HEAD, or as staged (`:`). For the side-by-side
- * diff. An added file has nothing at HEAD, which is an empty original, not an
- * error.
- */
+/** A FILE AS GIT HAS IT — at HEAD, or as staged (`:`). */
 async function show(app, rel, { ref = 'HEAD' } = {}) {
   const at = require('./source').locate(app, rel);
   if (!at.ok) return at;
@@ -151,10 +129,7 @@ async function branches(app) {
 async function checkout(app, name) {
   const b = String(name || '').trim();
   if (!b || b.startsWith('-')) return { ok: false, why: 'name a branch' };
-  // A SWITCH REWRITES THE WORKING TREE: the files that differ between the two
-  // branches are the targets, known before it runs, and the switch goes through
-  // the one mutation transaction (actor TOOL, origin git) so provenance, the
-  // project generation and the GUG follow the new tree.
+  // A SWITCH REWRITES THE WORKING TREE: the files that differ between the two branches are the targets, known before it runs, and the switch goes through…
   const d = await git(app.session.cwd, ['diff', '--name-only', 'HEAD', b, '--']);
   const targets = d.ok ? d.out.split(/\r?\n/).filter(Boolean).map((f) => require('path').join(app.session.cwd, f)) : [];
   let out = null;

@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * THE DEBUGGER — Debug Adapter Protocol sessions for /focus (2026-09-25).
- *
- *     IDE Debug panel ─┐                      ┌─ debugpy (Python)
- *     house door ──────┼─ this manager ─ DAP ─┼─ any configured adapter
- *     (debug.context)  ┘                      └─ (dap.adapters in config)
- *
- * WHAT IT DOES: launch a program under an adapter, set breakpoints, continue,
- * step over / into / out, pause, read the call stack, scopes and variables,
- * evaluate watch and debug-console expressions, collect the program's output,
- * and terminate.
- *
- * ADAPTERS ARE FOUND, NOT DOWNLOADED. Python uses debugpy when the project's
- * Python (dap.python, or `python` on PATH) can import it; anything else is a
- * configured adapter `{ id, name, command, args, types, extensions, launch }`
- * that speaks DAP over stdio. Node's js-debug speaks DAP over a TCP port, not
- * stdio, and is not wired: a .js launch says so instead of pretending.
- *
- * OWNED AND ISOLATED. Every adapter process is recorded in runtimeregistry.js
- * (purpose 'debug-adapter', stopped with its owner and its project). An adapter
- * that crashes ends its session with the reason; LAIN and the editor carry on.
- *
- * DEBUG CONTEXT IS ASKED FOR, NEVER INJECTED. `context()` is the compact paused
- * state — the stop reason, the frame and location, the top of the stack, the
- * frame's variables, a few source lines — served through the `debug.context`
- * house door when the BOT or the person asks ("why is this null here?"). No
- * model turn receives debug state it did not request.
- */
+/** THE DEBUGGER — Debug Adapter Protocol sessions for /focus (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');
@@ -48,12 +21,7 @@ function project(app) {
 
 const pyCache = new Map();
 const pyChecking = new Set();
-/**
- * Is debugpy importable? `wait: false` (a status read — the Harness asks with every state poll) never blocks: the
- * first ask starts the check in the background and answers `checking`; the answer is cached when it lands. Starting a
- * debugger (`wait: true`) still needs the real answer and waits for it (2026-10-01: a blocking ~280 ms Python spawn
- * inside the first /api/state).
- */
+/** Is debugpy importable? */
 function debugpyFor(python, { wait = true } = {}) {
   if (pyCache.has(python)) return pyCache.get(python);
   if (!wait) {
@@ -368,11 +336,7 @@ function status(app) {
   return { adapters: adapters(app, { wait: false }).map((a) => ({ id: a.id, name: a.name, available: a.available, why: a.why, configured: a.configured, extensions: a.extensions, types: a.types })), session: view(rec), breakpoints: listBreakpoints(app) };
 }
 
-/**
- * THE PAUSED STATE, COMPACT — for "why is this null here?". Only what a
- * question about the current stop needs: why it stopped, where, the frames above
- * it, the frame's variables and the lines around the stop. Bounded.
- */
+/** THE PAUSED STATE, COMPACT — for "why is this null here?". */
 function context(app) {
   const rec = current(app);
   if (!rec) return { ok: true, paused: false, text: 'No debug session is running.' };

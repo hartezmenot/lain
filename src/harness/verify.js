@@ -1,57 +1,6 @@
 'use strict';
 
-/**
- * THE VERIFICATION ENGINE — the only thing in LAIN that may say a task passed.
- *
- * ------------------------------------------------------------------------
- * THE SENTENCE THIS FILE EXISTS TO MAKE FALSE:
- *
- *     "I've fixed the authentication redirect."
- *
- * That is a CLAIM. It has never been evidence, and every harness that treats it
- * as evidence produces the same failure — work reported as finished that was
- * never checked, discovered by the person, hours later, in production.
- *
- * A VERIFICATION CONTRACT is the claim rewritten as something falsifiable:
- *
- *     REQUIREMENT   the authentication redirect works
- *     EVIDENCE      the build passes
- *                   the auth tests pass
- *                   POST /login answers 302
- *                   the browser flow reaches /dashboard
- *                   the browser console has no errors from that flow
- *
- * Each line is run. Each produces PASSED, FAILED or INCONCLUSIVE. The task's
- * verdict is arithmetic over those, and arithmetic has no opinions.
- *
- * ------------------------------------------------------------------------
- * THE ARITHMETIC, AND WHY IT IS IN THIS ORDER.
- *
- *     any REQUIRED requirement FAILED           -> FAILED
- *     every REQUIRED requirement PASSED         -> PASSED
- *     otherwise (something required is MISSING) -> INCONCLUSIVE
- *
- * FAILED is checked FIRST and that ordering is load-bearing. A contract with
- * one red test and one browser check that never ran is FAILED, not
- * INCONCLUSIVE: something was proved wrong, and the missing evidence does not
- * soften it. The reverse ordering would let any task hide a real failure behind
- * an unrunnable check.
- *
- * OPTIONAL REQUIREMENTS ARE RUN AND REPORTED AND CANNOT CHANGE THE VERDICT.
- * They exist because "the lint is clean" is worth knowing and is not worth
- * failing a bug fix over. A contract with no required requirements at all is
- * INCONCLUSIVE by construction — nothing was required, so nothing was proved.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS ENGINE IS NOT ALLOWED TO DO.
- *
- * It does not read the transcript. It does not ask a model. It does not weigh
- * "the model sounded confident" against a red check. It does not retry a failed
- * check hoping for a different answer — a flaky check is a fact about the
- * project, and hiding it here is how a harness stops being trustworthy. Recovery
- * is a decision made ABOVE this file, by recovery.js, with this file's report in
- * hand.
- */
+/** THE VERIFICATION ENGINE — the only thing in LAIN that may say a task passed. */
 
 const checks = require('./checks');
 const { VERDICT } = checks;
@@ -60,15 +9,7 @@ const { VERDICT } = checks;
 const MAX_REQUIREMENTS = 24;
 const MAX_CHECKS_PER_REQUIREMENT = 12;
 
-/**
- * Normalise whatever the caller wrote into a contract.
- *
- * DELIBERATELY FORGIVING ABOUT SHAPE AND STRICT ABOUT MEANING. A requirement
- * may be written as a string ("the tests pass") with its checks inline, or as a
- * full object. What is never inferred is whether it is REQUIRED: the default is
- * true, because a contract whose requirements quietly default to optional is a
- * contract that always passes.
- */
+/** Normalise whatever the caller wrote into a contract. */
 function contract(spec = {}) {
   const raw = Array.isArray(spec) ? spec : (spec.requirements || []);
   const requirements = [];
@@ -91,14 +32,7 @@ function contract(spec = {}) {
   };
 }
 
-/**
- * ROLL UP THE CHECKS OF ONE REQUIREMENT.
- *
- * EVERY check of a requirement must pass for the requirement to pass. There is
- * no "two out of three" — a requirement whose evidence is partly missing has
- * not been established, and the alternative is a threshold, which is an opinion
- * with a number in front of it.
- */
+/** ROLL UP THE CHECKS OF ONE REQUIREMENT. */
 function rollUpRequirement(results) {
   if (!results.length) {
     return { verdict: VERDICT.INCONCLUSIVE, why: 'no evidence was named for this requirement' };
@@ -137,19 +71,7 @@ function rollUpContract(requirements) {
   return { verdict: VERDICT.PASSED, why: `all ${required.length} required requirements passed` };
 }
 
-/**
- * RUN A CONTRACT.
- *
- * @param {object} spec     the contract, in any of the shapes `contract()` takes
- * @param {object} ctx      {cwd, taskId, processes, browser, observer, signal, runtime}
- * @returns {Promise<object>} the report — verdict, counts, per-requirement detail
- *
- * CHECKS RUN IN ORDER AND NOTHING SHORT-CIRCUITS. A contract that stopped at
- * the first red check would produce a report saying one thing was wrong when
- * four were, and the second run — after the first was fixed — would then
- * "discover" the next one. The whole report, every time, is what makes a
- * recovery loop converge instead of crawling.
- */
+/** RUN A CONTRACT. */
 const reports = new WeakSet();
 function freeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -196,13 +118,7 @@ async function run(spec, ctx = {}) {
   return freeze(report);
 }
 
-/**
- * THE REPORT A PERSON READS, and the one kept as an artifact.
- *
- * Plain text on purpose. It is written into `.lain/tasks/<id>/verification/`,
- * shown by `/verify`, and pasted into issues by people. Every one of those
- * wants something greppable rather than a colour.
- */
+/** THE REPORT A PERSON READS, and the one kept as an artifact. */
 function render(report) {
   const mark = (v) => (v === VERDICT.PASSED ? 'PASS' : v === VERDICT.FAILED ? 'FAIL' : 'INCONCLUSIVE');
   const lines = [];

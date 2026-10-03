@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * CLAUDE CODE — the real `claude` program, driven through its documented
- * non-interactive mode. LAIN never speaks Anthropic's HTTP API on Claude Code's
- * behalf: the runtime does the work and signs its own requests.
- *
- *   discovery   `claude` on PATH (or configured), `claude --version`
- *   telemetry   `claude auth status` (signed in? how? which plan? — the
- *               runtime's own documented status; the address is masked)
- *               + the usage windows Claude Code itself streams
- *               (`rate_limit_event`: five-hour and seven-day utilization and
- *               reset times) recorded from the last run
- *   execution   `claude -p --output-format stream-json --verbose`
- *                 BOT (chat)   --tools "" --strict-mcp-config --system-prompt …
- *                 AGENT        the runtime's own tools, in the project folder,
- *                              with the permission mode LAIN is configured for
- *               cancel stops the registered process tree
- *
- * MODELS are the aliases Claude Code documents for `--model` (it resolves each
- * to its latest model); the resolved model name is read from the stream.
- *
- * COST: `total_cost_usd` in Claude Code's result is Claude Code's own figure.
- * On a subscription it is an API-equivalent number, not a charge — it is
- * recorded as reported and labelled so, never presented as billed.
- */
+/** CLAUDE CODE — the real `claude` program, driven through its documented non-interactive mode. */
 
 const fs = require('fs');
 const path = require('path');
@@ -98,12 +75,7 @@ function execution(app, tele) {
   return { chat: { ok: true, how: 'claude -p (no tools)' }, agent: { ok: true, how: 'claude -p with its own tools, in the project folder' } };
 }
 
-/**
- * Claude Code's `rate_limit_event` → provider windows (as reported, never averaged). Two shapes exist (Claude Code
- * 2.1.286 schema): `unifiedWindows` { five_hour, seven_day, … } when the response carried every unified header, else
- * ONE window — `rateLimitType` with its own `utilization` and `resetsAt`. Utilization arrives as a fraction (0–1);
- * a value above 1 is already a percentage.
- */
+/** Claude Code's `rate_limit_event` → provider windows (as reported, never averaged). */
 const LIMIT_LABEL = Object.freeze({ five_hour: '5-hour', seven_day: '7-day', seven_day_opus: '7-day (Opus)', seven_day_sonnet: '7-day (Sonnet)', seven_day_overage_included: '7-day (overage)' });
 const pctOf = (u) => (Number.isFinite(u) ? Math.round((u <= 1 ? u * 100 : u) * 10) / 10 : null);
 const secMs = (t) => (Number.isFinite(t) ? (t < 1e11 ? t * 1000 : t) : null);
@@ -130,11 +102,7 @@ function mergeLimits(prev, next) {
 /** The instance a runtime route names: runtime:claude-code:<id>, else null (the person's own default profile). */
 function instanceOf(pc) { const m = /^runtime:claude-code:(.+)$/.exec(String((pc && (pc.instanceId || pc.connectionId)) || '')); return m ? m[1] : (pc && pc.instanceId) || null; }
 
-/**
- * THE ENVIRONMENT OF A RUN — an account's OWN configuration directory, and nothing borrowed from another. A run
- * for an instance that no longer exists is refused: it must never fall back to the default profile, which is
- * some other account's sign-in.
- */
+/** THE ENVIRONMENT OF A RUN — an account's OWN configuration directory, and nothing borrowed from another. */
 function envFor(app, instanceId) {
   if (!instanceId) return {};
   const h = require('../accountinstances').handle(app, instanceId);

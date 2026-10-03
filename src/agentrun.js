@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * THE `Agent` TOOL (Simplify S6). `Agent({description, prompt, type, background?})` runs a helper in a fresh session in
- * the same project: its context is its type's instructions, LAIN.md and the prompt — never the parent's conversation.
- * It runs the ordinary loop with its type's tools and returns only its final message; its transcript is saved
- * (viewable with `/agents`), never sent to the parent. Several Agent calls in one response run together
- * (toolstep.prefetch). `background: true` returns an id at once and the result rejoins the session like a job's.
- * Agents do not start agents and get no computer tool. Types: agenttypes.js.
- */
+/** THE `Agent` TOOL (Simplify S6). */
 
 const MAX_RESULT = 6000;
 

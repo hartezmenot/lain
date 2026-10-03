@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * REMOVING AN ACCOUNT FROM LAIN (Phase 8.4.1) — every kind of account, one place, three different acts.
- *
- *   detach          LAIN forgets the account. Nothing is signed out anywhere and nothing is deleted. For an account
- *                   that is the person's own (an external/native profile, the default Claude profile) this is the
- *                   ONLY thing LAIN will ever do to it.
- *   sign-out        the provider's own sign-out, in THAT account's directory only, for a LAIN-OWNED account.
- *                   (The account leaves LAIN with it: an account that is signed out is not capacity.)
- *   remove-profile  sign out AND delete the profile directory LAIN made for it.
- *
- * NONE OF THEM RUNS UNDER A REQUEST THAT IS WORKING THROUGH THE ACCOUNT (accountwork.js): the answer is "in use",
- * with what is using it, so the person can Stop that task on purpose. This file never stops anything.
- *
- * What an "account" is here: a connected AccountInstance (Codex, Claude, Antigravity), the person's default runtime
- * profile (`runtime:claude-code`, `runtime:zcode`, `runtime:opencode` — it stops being OFFERED by LAIN; the runtime and
- * its sign-in are untouched), or an entry waiting under Finish setup (an imported pool, a migrated placeholder).
- */
+/** REMOVING AN ACCOUNT FROM LAIN (Phase 8.4.1) — every kind of account, one place, three different acts. */
 
 const store = require('./store');
 
@@ -32,10 +16,6 @@ function refresh(app) {
 function inUse(accountId) { try { return require('../accountwork').busyAccount(accountId).map((w) => ({ kind: w.kind || 'request' })); } catch { return []; } }
 const usedBy = (w) => (w.some((x) => x.kind === 'agent') ? 'Coding Agent' : 'Chat');
 
-/**
- * @param acct  { id, instanceId, ownership, name, family } — a connected account view
- * @param mode  detach | sign-out | remove-profile
- */
 async function one(app, acct, mode = 'detach') {
   const id = acct.id;
   const working = inUse(id);
@@ -70,10 +50,7 @@ async function setupEntry(app, entry) {
   return { ok: false, id: entry.id, name: entry.name, why: 'unknown setup entry' };
 }
 
-/**
- * DETACH ALL (or sign out all LAIN-owned) for one provider. Accounts in use are SKIPPED and reported — the rest go.
- * `signOut` acts ONLY on LAIN-owned accounts (sign out, then remove the profile LAIN made); an external profile is left exactly as it is.
- */
+/** DETACH ALL (or sign out all LAIN-owned) for one provider. */
 async function all(app, familyId, { signOut = false, includeSetup = true } = {}) {
   const f = require('./index').family(app, familyId);
   if (!f) return { ok: false, why: 'no such provider' };

@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * `/troubleshoot` — A WORKFLOW YOU CAN SEE, not just a differently-worded prompt.
- *
- * Typing `/troubleshoot there are 8 errors silently dropped` used to do one
- * thing: set the TROUBLESHOOT mode paragraph and hand the sentence to the model.
- * The model then investigated perfectly well — and the user watched a hundred
- * lines of tool chatter scroll past with no structure to read it by. The
- * workflow existed; nothing about it was visible.
- *
- * So this frames the work, twice:
- *
- *   BEFORE  the PROBLEM as stated, and the EVIDENCE a local scan can already
- *           see — which files mention the user's own words, and which of LAIN's
- *           unfinished-work markers are relevant. Deterministic, costs nothing,
- *           and it is on screen before the model has said anything.
- *   AFTER   the INVESTIGATION that actually ran (the real tool calls, in order),
- *           and the model's FINDING, LIKELY CAUSE, RECOMMENDED FIX and
- *           VERIFICATION.
- *
- * WHAT IT WILL NOT DO IS INVENT THE CONCLUSION. The closing sections are parsed
- * out of what the model genuinely said. If it did not state a cause, the report
- * says "not stated" rather than promoting a plausible sentence into a finding —
- * which is the exact failure the TROUBLESHOOT workflow exists to prevent.
- *
- * The detailed tool log is untouched and stays in the ACTIVITY view. This is the
- * summary you can read without it, not a replacement for it.
- */
+/** `/troubleshoot` — A WORKFLOW YOU CAN SEE, not just a differently-worded prompt. */
 
 const { scanDir } = require('./projecttree');
 const { MARKERS } = require('./audit');
@@ -70,10 +44,7 @@ function relevantMarkers(problem) {
   return out;
 }
 
-/**
- * WHAT CAN BE SEEN WITHOUT ASKING ANYONE. One bounded pass over the tree,
- * counting the user's own words and the relevant markers per file.
- */
+/** WHAT CAN BE SEEN WITHOUT ASKING ANYONE. */
 async function gather(root, problem) {
   const tree = scanDir(root);
   const want = terms(problem);
@@ -93,10 +64,7 @@ async function gather(root, problem) {
     let score = 0;
     const matched = [];
     for (const w of want) {
-      // THE PATH COUNTS TOO. "the dashboard is dropping errors" points straight
-      // at dashboard.py, and a content-only search finds nothing there because
-      // the file does not say its own name. A name match is worth several
-      // mentions — it is what a person would look at first.
+      // THE PATH COUNTS TOO.
       const inName = name.includes(w);
       const n = low.split(w).length - 1;
       if (inName) { score += 5; matched.push(w); }
@@ -133,13 +101,7 @@ const HEADS = [
   ['verification', /^\W*(?:\*\*)?\s*(?:verification|how to verify|to verify|verified by)\b\s*(?:\*\*)?\s*[:\-—]?\s*/i],
 ];
 
-/**
- * Pull the four closing sections out of what the model said.
- *
- * Nothing is inferred. A section the model did not write comes back empty, and
- * the report shows it as "not stated" — a gap the user can see is worth more
- * than a sentence promoted to a conclusion it never claimed to be.
- */
+/** Pull the four closing sections out of what the model said. */
 function conclusions(text) {
   const out = { finding: [], cause: [], fix: [], verification: [], rest: [] };
   let current = 'rest';
@@ -171,10 +133,7 @@ async function begin(app, problem) {
   return report;
 }
 
-/**
- * Close a report with what ACTUALLY happened: the real tool calls of the turn,
- * in order, and whatever the model concluded.
- */
+/** Close a report with what ACTUALLY happened: the real tool calls of the turn, in order, and whatever the model concluded. */
 function conclude(app, record) {
   const report = app._troubleshoot;
   if (!report) return null;
@@ -256,10 +215,7 @@ function reportLines(r, width = 80) {
     for (const l of c.rest.slice(0, 12)) wrapped(l, P.meta);
   }
 
-  // THE SECOND OPINION, kept visibly separate. An external reviewer's
-  // hypothesis rendered as LAIN's own finding is the one failure a two-model
-  // loop must not have, so every line it produced is labelled EXTERNAL, painted
-  // in the external colour, and grouped under the round it came from.
+  // THE SECOND OPINION, kept visibly separate.
   if (Array.isArray(r.rounds) && r.rounds.length) {
     head('EXTERNAL REVIEW');
     body.push('  ' + P.external('EXTERNAL') + P.meta(`  ${(r.external && r.external.model) || 'second model'}`));
@@ -308,19 +264,6 @@ async function runCommand(app, { rest }, { C } = {}) {
     return;
   }
 
-  // (A RELAY BRANCH STOOD HERE. With an external actor configured this became
-  // LAIN → reviewer → LAIN → reviewer, bounded, through investigation.js. It
-  // went with `/external` in this pass, and it had already been unreachable
-  // since `/troubleshoot` was removed from the command registry — recorded as
-  // orphaned in docs/STATUS.md, and confirmed before removing it: the only
-  // caller of `investigation.relay` was this line, and nothing registered
-  // reached it.
-  //
-  // A SECOND OPINION IS STILL AVAILABLE and is better placed: selecting
-  // ChatGPT.com or Gemini.google.com as the session's chat source sends the next
-  // question there, in the same session history, with provenance on the answer.
-  // See src/modelsource and `/source`. What is gone is a second consultation
-  // system reachable only from one workflow.)
 
   // THE EVIDENCE PASS RUNS FIRST, and is on screen before the model is asked
   // anything. It is local, deterministic and free.
@@ -339,9 +282,7 @@ async function runCommand(app, { rest }, { C } = {}) {
     conclude(app, record);
     app.render.write('\n');
     for (const l of reportLines(report, app.render.width)) app.render.write(l + '\n');
-    // ONE OPINION IS SAID OUT LOUD TO BE ONE. Silence here would leave "did a
-    // second model look at this?" unanswerable, which is how a single opinion
-    // gets mistaken for a reviewed one.
+    // ONE OPINION IS SAID OUT LOUD TO BE ONE.
     app.render.write('\n  ' + col.dim('SECOND OPINION  ') + col.yellow('✕ NONE')
       + col.dim('  — local investigation only. /account and /model choose another model to consult.\n'));
     app.render.write(col.dim('  The full tool log is in the ACTIVITY view. /copy troubleshoot takes this report.\n'));

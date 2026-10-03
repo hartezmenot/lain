@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * `/provenance` — §19's runtime-provenance surface, in its own module so the
- * command registry stays below the architecture guard (see tokencommand.js,
- * laincommand.js, compactcommand.js for the same reason).
- */
+/** `/provenance` — §19's runtime-provenance surface, in its own module so the command registry stays below the architecture guard */
 
 function register({ define, C }) {
   define('/provenance', {

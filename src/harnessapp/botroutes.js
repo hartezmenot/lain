@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE BOT VIEW'S ROUTES — connection state and the Telegram setup flow.
- *
- * All of it is src/botconnect.js, which is a projection and a flow over the
- * supervisor's credential authority and Astra's gateway. Every route is a POST:
- * reading connection state may start LAIN's runtime (the supervisor holds the
- * Telegram credential), and a poll must never do that.
- *
- * THE TOKEN IS IN ONE REQUEST BODY AND NOWHERE ELSE. It is not echoed, not put
- * in any response, not stored by this file, and `connectTelegram` registers it
- * with redact.js before it goes anywhere.
- */
+/** THE BOT VIEW'S ROUTES — connection state and the Telegram setup flow. */
 
 const bcLazy = () => require('../botconnect');   // the Telegram gateway (frozen, S9) loads on its first route
 const bc = new Proxy({}, { get: (_, k) => bcLazy()[k] });

@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * MOUSE AND KEYBOARD — the fallback when UI Automation cannot name the thing (a canvas, a game, a custom-drawn app).
- * Phase CU, 2026-10-02. Prefer `computer` (click_control, type_into): a named control can be verified; a pixel cannot.
- *
- *   computer_mouse_move   {x,y} absolute, or {dx,dy[,steps]} relative (what a raw-input reader sees)
- *   computer_click        {x?,y?, button?, count?}           at a point, or where the pointer is
- *   computer_mouse_button {button, action: down|up}          press or release, for a held drag
- *   computer_key          {key}                              one key
- *   computer_hotkey       {keys: [...]}                      a chord, e.g. ["ctrl","s"]
- *   computer_type         {text}                             text (raw-input targets get real key strokes)
- *   computer_hold_key     {key, ms}                          hold (≤ 5 s; the kill switch cuts it short)
- *   computer_drag         {fromX,fromY,toX,toY} or {dx,dy}
- *   computer_scroll       {clicks, x?, y?}
- *   computer_capture      {window?}                          ONE frame on demand — never a stream
- *   computer_sequence     {steps: [{tool, input}] ≤ 20}      bounded; stops at the first refusal
- *
- * EVERY CALL goes through computermcp.call → computercontrol.admit (on, tier, target lock, sensitive surfaces) →
- * the bridge (kill switch, the person's input wins, focus lock). Input is DELIVERED, not verified: the result says
- * INCONCLUSIVE until something is observed (computer_capture, or `computer` read/find).
- */
+/** MOUSE AND KEYBOARD — the fallback when UI Automation cannot name the thing (a canvas, a game, a custom-drawn app). */
 
 const MAX_TEXT = 2000;
 const MAX_STEPS = 20;

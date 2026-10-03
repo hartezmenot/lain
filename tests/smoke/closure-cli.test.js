@@ -44,7 +44,7 @@ module.exports = async function () {
     cols: 110, rows: 32,
     script: [
       { text: 'Writing part one.', tool_calls: [{ name: 'write_file', input: { path: 'part1.txt', content: 'part one\n' } }] },
-      { text: 'Running the long check.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 40' } }] },
+      { text: 'Running the long check.', tool_calls: [{ name: 'shell', input: { command: 'sleep 40' } }] },
       { text: 'Done.' },
     ],
     steps: [
@@ -72,7 +72,7 @@ module.exports = async function () {
     assert.ok(g1.hardkilled && !g1.hardkillError, `the driver killed it: ${g1.hardkillError || ''}`);
     const s = sessions(g1.configDir)[0];
     assert.ok(s.inflight, 'in-flight record present after the kill');
-    assert.strictEqual(s.inflight.tool && s.inflight.tool.name, 'run_bash');
+    assert.strictEqual(s.inflight.tool && s.inflight.tool.name, 'shell');
   });
   const sid = sessions(g1.configDir)[0].id;
   const g2 = await tty.runTty({
@@ -86,7 +86,7 @@ module.exports = async function () {
     const resumed = vis(g2.byName.resumed);
     // The line names the step and the lost command (inflight.js); a fresh Coding crash now resumes by itself
     // (autocontinue.scheduleRecovery), so it no longer asks for `continue`.
-    assert.match(resumed, /recovered · cut off at step 2 · run_bash (unknown, )?not re-run/i, `the recovery is said:\n${resumed}`);
+    assert.match(resumed, /recovered · cut off at step 2 · shell (unknown, )?not re-run/i, `the recovery is said:\n${resumed}`);
     assert.match(vis(g2.byName.goal), /quarterly report/, 'the goal came back');
     const s = sessions(g1.configDir)[0];
     assert.strictEqual(s.inflight, null, 'repaired and saved');
@@ -112,20 +112,19 @@ module.exports = async function () {
       { until: 'Ask LAIN', timeout: 30000 },
       { send: 'generate the table\r' },
       { until: 'Writing', timeout: 20000 }, { snap: 'streaming', settle: 600 },
-      { until: 'Preparing tool', timeout: 30000 }, { snap: 'preparing', settle: 1500 },
+      { until: 'write_file call', timeout: 30000 }, { snap: 'preparing', settle: 1500 },
       { until: 'Wrote the table', timeout: 30000 }, { snap: 'done', settle: 2500 },
     ],
   });
   await test('CLI L1: while words stream, the ONE activity line says Writing and the box quotes the model\'s own words', () => {
     const s = vis(l.byName.streaming);
-    assert.match(s, /Writing\s+\d\d:\d\d:\d\d/);
+    assert.match(s, /Writing · \d+s · /);
     assert.ok(!/STREAMING · /.test(s), 'the state is not drawn twice');
     assert.match(s, /tracing|recovery state/, `commentary visible:\n${s}`);
   });
-  await test('CLI L2: a large tool call streaming reads Preparing tool · write_file · <size> — never STALLED', () => {
+  await test('CLI L2: a large tool call streaming reads Writing · write_file call · <size> — never STALLED', () => {
     const s = vis(l.byName.preparing);
-    assert.match(s, /Preparing tool/);
-    assert.match(s, /write_file · \d+(\.\d)? (KB|B)/, s);
+    assert.match(s, /Writing · write_file call · \d+(\.\d)? (KB|B)/, s);
     assert.ok(!/STALLED/.test(s));
   });
   await test('CLI D1: the Diff is in the feed unasked, and survives the end of the turn; the activity box is gone', () => {
@@ -196,7 +195,7 @@ module.exports = async function () {
     cols: 120, rows: 36,
     script: [
       { text: 'Running the listing now, streaming slowly so the running footer is visible.', chunkDelayMs: 90,
-        tool_calls: [{ name: 'run_bash', input: { command: 'node -e "for (let i = 1; i <= 7; i++) console.log(\'line \' + i)"' } }] },
+        tool_calls: [{ name: 'shell', input: { command: 'node -e "for (let i = 1; i <= 7; i++) console.log(\'line \' + i)"' } }] },
       { text: 'Done footer.', delayMs: 2000 },   // the shell now returns in ~20 ms: keep the turn running long enough to see its footer
     ],
     steps: [
@@ -208,12 +207,10 @@ module.exports = async function () {
   });
   await test('CLI U3: `› cmd`, (N earlier lines), the output tail, the completion; a footer of live key hints', () => {
     const d = vis(sh.byName.done);
-    assert.match(d, /› node -e/, d);
-    assert.match(d, /\(3 earlier lines\)\s*\n[│\s]*line 4\s*\n[│\s]*line 5\s*\n[│\s]*line 6\s*\n[│\s]*line 7/, `the tail under the command:\n${d}`);
-    assert.match(d, /Command completed in \d+(\.\d)?s · exit code 0/);
+    assert.match(d, /Commands: node -e [^\n]*\(exit 0, \d+(\.\d)?s\)/, `the fact footer names the command and its exit:\n${d}`);
     const last = (snap) => snap.text.filter((t) => t.trim()).pop() || '';
     assert.match(last(sh.byName.idle), /\/ commands · @ files · shift\+tab mode\s*$/, `idle footer: ${last(sh.byName.idle)}`);
-    assert.match(last(sh.byName.busy), /ctrl\+c interrupt · ctrl\+o activity · shift\+tab mode\s*$/, `running footer: ${last(sh.byName.busy)}`);
+    assert.match(last(sh.byName.busy), /esc interrupt · ctrl\+o activity · shift\+tab mode\s*$/, `running footer: ${last(sh.byName.busy)}`);
     assert.match(last(sh.byName.done), /\/ commands/, 'idle again once the turn ends');
   });
 

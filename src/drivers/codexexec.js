@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * A NATIVE CODEX ACCOUNT AS A LAIN ROUTE (Phase 8.2) — Chat answered by the
- * account's own Codex, so "Codex · Account 3 › GPT-6 Sol" is exactly that
- * ChatGPT sign-in, not whichever one a router picks.
- *
- *   codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config
- *              --sandbox read-only --cd <an empty folder> --model <model> -
- *   with CODEX_HOME = that account's home (codexhome.js)
- *
- * WHY IT IS LEGITIMATE: the request is made BY Codex, AS the account signed in
- * to that home. LAIN never reads, copies or replays a token; it runs the
- * official CLI the way a person would, and reads its JSON event stream.
- *
- * WHY IT IS SAFE: the Chat lane asks, it does not act. The run is ephemeral (no
- * session written into the person's history), ignores the user's config (no
- * MCP servers, no profile), is sandboxed read-only, and its working folder is
- * an empty directory LAIN owns — Codex has nothing of the project to touch.
- * LAIN's own Coding Agent does not run here: it needs tool calls a CLI agent
- * does not hand back (roles CHAT/BOT only — runtimeconnections.js).
- *
- * OWNED like every runtime process: registered with runtimeregistry.js,
- * cancelled by its own handle, never by name.
- */
+/** A NATIVE CODEX ACCOUNT AS A LAIN ROUTE (Phase 8.2) — Chat answered by the account's own Codex, so "Codex · Account 3 › GPT-6 Sol" is exactly that… */
 
 const fs = require('fs');
 const os = require('os');
@@ -48,12 +26,7 @@ function argsFor(model, effort = null) {
   return a;
 }
 
-/**
- * One line of Codex's JSONL event stream → LAIN's event vocabulary (or null).
- * Text is `{ type: 'text', chunk }` like every other transport. Only a COMPLETED
- * agent message is text: an `item.updated` carries the message so far, and
- * yielding both would say it twice.
- */
+/** One line of Codex's JSONL event stream → LAIN's event vocabulary (or null). */
 function mapEvent(m) {
   if (!m || typeof m !== 'object') return null;
   const item = m.item || (m.msg && m.msg.item) || null;

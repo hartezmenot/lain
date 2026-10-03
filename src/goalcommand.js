@@ -1,52 +1,11 @@
 'use strict';
 
-/**
- * `/goal` — WHAT THE USER IS TRYING TO ACHIEVE.
- *
- * ------------------------------------------------------------------------
- * THE ONE BEHAVIOUR THAT MAKES IT WORTH HAVING.
- *
- * `/goal` with a goal already set does NOT print it read-only. It copies it
- * back into the composer:
- *
- *     GOAL › Stabilize LAIN CLI and finish Harness_
- *
- * so it can be edited — words deleted, detail appended, the whole thing
- * rewritten — and committed with Enter. A read-only panel would make every
- * revision a retype from memory, and a goal that is annoying to revise is a
- * goal that goes stale and then gets ignored.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT MACHINERY, so it does not go to the command panel.
- *
- * A goal is a statement about the WORK, in the record of the work — the same
- * argument `/plan` already makes for itself in commands.js. Routed to the panel
- * it would sit in a box that closes on Esc.
- *
- * ------------------------------------------------------------------------
- * WITHOUT A LINE EDITOR — a pipe, `-p`, a test — there is no composer to open.
- * `/goal <text>` still works and is the form a script uses; bare `/goal` prints
- * the goal, because printing is the only thing a surface with no keyboard can
- * usefully do.
- */
+/** `/goal` — WHAT THE USER IS TRYING TO ACHIEVE. */
 
 const goal = require('./goal');
 const compose = require('./composemode');
 
-/**
- * THE SEMANTICS (2026-09-23 — a goal is set in order to be WORKED ON):
- *
- *   /goal <text>     set the durable goal, then execute it — one USER turn
- *   /goal            capture mode: the next submitted line (a multi-line paste
- *                    included) becomes the goal and executes the same way
- *   /goal show       show it (the Continue · Edit · New · Delete shelf on a TTY)
- *   /goal continue   resume the active — or most recent paused — goal
- *   /goal clear      clear it
- *
- * Before, `/goal <text>` and the capture composer stored the goal and stopped,
- * so a pasted task needed a second `/goal continue` to start. The text runs as
- * the person's own message (drawn once, as USER), never as a paraphrase.
- */
+/** THE SEMANTICS (2026-09-23 — a goal is set in order to be WORKED ON) */
 const SUB = Object.freeze({ clear: 'clear', none: 'clear', show: 'show', continue: 'continue', resume: 'continue' });
 
 function register({ define, C }) {
@@ -68,11 +27,6 @@ function register({ define, C }) {
       }
 
       // `input.isTTY`, not `ui.enabled` — see plan.js for the whole reasoning.
-      // The short version: UI ENABLED is a fact about output, and
-      // `LAIN_FORCE_TUI=1` draws real frames over a pipe. Opening the composer
-      // there is worse than the plan case rather than better: nothing blocks,
-      // so the composer stays open and EATS the following piped lines as its
-      // own text instead of running them.
       const interactive = Boolean(app.ui && app.ui.enabled && app.input && app.input.isTTY);
 
       if (sub === 'continue') {
@@ -100,23 +54,13 @@ function register({ define, C }) {
         else w(C.dim('  No goal set. /goal <what you are trying to achieve>\n'));
         return;
       }
-      // `GOAL › _` is the whole interface: the composer's label says what the
-      // line is for, so nothing is written into the conversation. ALWAYS EMPTY:
-      // prefilling the current goal would glue a pasted task onto it. Editing an
-      // existing goal is `/goal show` → Edit.
+      // `GOAL › _` is the whole interface: the composer's label says what the line is for, so nothing is written into the conversation.
       compose.open(app, compose.KIND.GOAL, { prefill: '', intent: 'new' });
     },
   });
 }
 
-/**
- * SET THE GOAL AND RUN IT — the direct form and a captured line end here.
- *
- * The text goes through `App.handle` as the person's own message: the input
- * gateway still decides whether it can reach a model now (a rate-limited route
- * holds it), and the interactive loop gets its prompt back at once. `asText`
- * keeps a goal that happens to begin with `/` from being run as a command.
- */
+/** SET THE GOAL AND RUN IT — the direct form and a captured line end here. */
 function execute(app, text) {
   goal.create(app.session, text);
   try { app.session.save(); } catch { /* the change still holds for this run */ }
@@ -131,13 +75,7 @@ function execute(app, text) {
   return app.handle(text, { background, asText: true });
 }
 
-/**
- * THE GOAL SHELF — Continue · Edit · New · Delete, on the goal(s) that exist.
- *
- * One goal: it is the context line. Several: they are choices (the active one
- * first, marked), and the action applies to the one selected. No narration is
- * printed either way; the shelf closes and the composer or the prompt is back.
- */
+/** THE GOAL SHELF — Continue · Edit · New · Delete, on the goal(s) that exist. */
 async function shelfFor(app, goals) {
   const { shelf } = require('./ui/shelf');
   const single = goals.length === 1;
@@ -161,14 +99,7 @@ async function shelfFor(app, goals) {
   const target = goals.find((g) => g.id === targetId) || goals[0];
   const save = () => { try { app.session.save(); } catch { /* the change still holds for this run */ } };
   switch (picked.action) {
-    // ---- CONTINUE MEANS CONTINUE THE WORK -------------------------------
-    //
-    // It used to mean `goal.activate` and nothing else: the goal became the
-    // active one and LAIN sat there until the person typed "continue" at it.
-    // The button says Continue, so it continues — resolving the plan, the
-    // step in hand and what has already landed, and starting the turn. See
-    // src/continueactions.js, and note the three Continue buttons in this
-    // product are three NAMED actions rather than one generic one.
+    // CONTINUE MEANS CONTINUE THE WORK
     case 'continue': {
       const cont = require('./continueactions');
       const r = await cont.goalContinue(app, target.id);

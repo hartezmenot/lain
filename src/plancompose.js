@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * TURNING A TYPED LINE INTO PLAN STEPS — and the ONE owner that does it.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS ITS OWN FILE AND NOT A BRANCH IN composemode.js.
- *
- * composemode.js knows about the INPUT LINE — prefill, capture, cancel — and
- * nothing about what a plan is. plan.js owns what a plan is and never reads a
- * keystroke. This is the seam between them, and putting it in either would have
- * given that file a second subject.
- *
- * ------------------------------------------------------------------------
- * ONE PLAN STORE. `session.plan` is a `Plan` (src/plan.js) and remains the only
- * one. This file constructs steps THROUGH `Plan.addSteps` and `Plan.steer`; it
- * keeps no list of its own, so there is no second notion of what a step is or
- * what order they are in.
- *
- * ------------------------------------------------------------------------
- * HOW A LINE BECOMES STEPS, deterministically and with no model call.
- *
- * People write plans as arrows or as separators — "inspect router → patch retry
- * → run smoke". Splitting on those is what makes the composer feel like a plan
- * editor rather than a single-step box. Splitting on FULL STOPS is deliberately
- * NOT done: a step is routinely a sentence with a path or a version in it, and
- * "patch v1.2 handling" is one step and not two.
- */
+/** TURNING A TYPED LINE INTO PLAN STEPS — and the ONE owner that does it. */
 
 /** How a typed plan line is broken into steps. Arrows and explicit separators. */
 const SEPARATORS = /\s*(?:→|->|;|\n|\s\|\s)\s*/;
@@ -44,24 +19,13 @@ function split(line) {
     .slice(0, MAX_STEPS);
 }
 
-/**
- * THE CURRENT PLAN AS A LINE, for the composer to prefill with.
- *
- * ONLY THE WORK THAT IS STILL AHEAD. A plan half-done reads back as its
- * REMAINING steps, because that is what a person is editing when they reopen
- * it — offering finished work for rewriting invites exactly the redo loop
- * `Plan.steer` refuses to allow, and the completed steps are evidence.
- */
+/** THE CURRENT PLAN AS A LINE, for the composer to prefill with. */
 function asLine(plan) {
   if (!plan || !plan.steps || !plan.steps.length) return '';
   return plan.remaining.map((s) => s.text).join(' → ');
 }
 
-/**
- * COMMIT A COMPOSED PLAN LINE.
- *
- * @param {'replace'|'add'} mode
- */
+/** COMMIT A COMPOSED PLAN LINE. */
 function commit(app, mode, line) {
   const { Plan } = require('./plan');
   const session = app && app.session;
@@ -69,9 +33,7 @@ function commit(app, mode, line) {
   const steps = split(line);
   if (!steps.length) return null;
 
-  // NEW: the plan in hand MOVES to `planHistory`, unmutated — its
-  // completed steps are evidence about work that happened, and a new strategy
-  // must not rewrite them.
+  // NEW: the plan in hand MOVES to `planHistory`, unmutated — its completed steps are evidence about work that happened, and a new strategy must not…
   if (mode === 'new' && session.plan) {
     session.planHistory = (session.planHistory || []).concat(session.plan).slice(-5);   // moved, NOT retired: superseded is not completed (goalplan guard)
     session.plan = null;
@@ -82,13 +44,7 @@ function commit(app, mode, line) {
   const plan = session.plan;
 
   if (mode === 'replace') {
-    // ---- REPLACE MEANS THE STRATEGY, NOT THE HISTORY --------------------
-    //
-    // The steps still to do are dropped and the new ones take their place.
-    // COMPLETED STEPS SURVIVE UNTOUCHED, and that is `Plan.steer`'s own rule
-    // rather than a decision made here: a finished step is evidence of work
-    // that really happened, and rewriting it is how a model is invited to do
-    // it again. So "replace the plan" replaces the FUTURE.
+    // REPLACE MEANS THE STRATEGY, NOT THE HISTORY
     const drop = plan.remaining.map((s) => s.n);
     plan.steer(`plan replaced by the user: ${line}`.slice(0, 200), { drop });
     plan.addSteps(steps, { origin: 'user' });

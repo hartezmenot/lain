@@ -56,11 +56,11 @@ const MECHANICS = [
   {
     text: 'Checking them now.',
     tool_calls: [
-      { name: 'run_bash', input: { command: 'python -c "import ast"' } },
-      { name: 'run_bash', input: { command: 'python -c "import json, tempfile"' } },
+      { name: 'shell', input: { command: 'python -c "import ast"' } },
+      { name: 'shell', input: { command: 'python -c "import json, tempfile"' } },
       { name: 'read_file', input: { path: 'a.py' } },
       { name: 'read_file', input: { path: 'b.py' } },
-      { name: 'run_bash', input: { command: 'python -m py_compile a.py' } },
+      { name: 'shell', input: { command: 'python -m py_compile a.py' } },
     ],
   },
   { text: 'All fine.' },
@@ -85,8 +85,9 @@ module.exports = async function () {
 
     // AND NONE OF THE MECHANICS. These five rows used to accumulate upward
     // through the transcript and stay there for the rest of the session.
-    assertNotIncludes(screen, 'import ast', 'a mechanics command was left behind');
-    assertNotIncludes(screen, 'import json', 'and another');
+    const rows = screen.replace(/Commands:[^\n]*(\n[^\n✓]*)?/g, '');   // the fact footer names the commands (S4); the transcript itself does not
+    assertNotIncludes(rows, 'import ast', 'a mechanics command was left behind');
+    assertNotIncludes(rows, 'import json', 'and another');
     assertNotIncludes(screen, 'Read a.py', 'and the reads');
     assertNotIncludes(screen, 'Read b.py');
     // NOR THE SHELL STAMP, which is addressed to the model and carried an
@@ -227,7 +228,7 @@ module.exports = async function () {
       }
       // AND THE MECHANICS ARE STILL GONE — narrowing the terminal must not
       // change which rows the transcript keeps.
-      assertNotIncludes(rows.join(NL), 'import ast', 'mechanics came back at ' + cols);
+      assertNotIncludes(rows.join(NL).replace(/Commands:[^\n]*(\n[^\n✓]*)?/g, ''), 'import ast', 'mechanics came back at ' + cols);
       // THE CONTENT FRAME STILL AGREES WITH ITSELF where there is room for one.
       const said = rows.find((l) => l.includes('All fine'));
       if (said && cols >= 48) {

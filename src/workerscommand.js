@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * `/workers` — THE DIAGNOSTIC SURFACE for specialist workers. Normal work never
- * asks for one by name; policy picks (workerruntime.uses). This is where a
- * person sees what policy is doing and can switch it:
- *
- *   /workers [status]          what is installed, switched, gated, running
- *   /workers auto | off        every specialist at once
- *   /workers locate on | off   the file shortlist (opt-in: no measured saving yet)
- *   /workers laya [auto|on|off]  one worker: auto = only where its gate passed,
- *                              on = forced (for an experiment), off
- *
- * Switches are written to the person's config (cfg.workers), never the repo.
- */
+/** `/workers` — THE DIAGNOSTIC SURFACE for specialist workers. */
 
 function save(app) { try { require('./config').save(app.cfg); } catch { /* applies in memory */ } }
 
@@ -83,11 +71,7 @@ function run(app, args, { C, gateResults = () => [] }) {
   return hostBlock(app, w, C);
 }
 
-/**
- * WHAT EACH ROLE ACTUALLY DID this session: Core-dispatched job rows
- * (dispatch.js ledger, awaited on a turn = critical path unless SHADOW) and
- * background Harness jobs (layacontext.js, never on the critical path).
- */
+/** WHAT EACH ROLE ACTUALLY DID this session: Core-dispatched job rows (dispatch.js ledger, awaited on a turn = critical path unless SHADOW) and… */
 function roleCounts(app) {
   const out = {};
   const add = (k, f) => { const o = out[k] = out[k] || { invoked: 0, background: 0, critical: 0 }; f(o); };
@@ -105,11 +89,7 @@ function roleCounts(app) {
   return out;
 }
 
-/**
- * THE WORKER HOST, when one is running: each model's residency, apart from
- * the per-session numbers above. HOT_IDLE is memory held, not work done.
- * Asked of a host that is already there — `/workers` never starts one.
- */
+/** THE WORKER HOST, when one is running: each model's residency, apart from the per-session numbers above. */
 async function hostBlock(app, w, C) {
   const rt = require('./workerruntime');
   let s = null;
@@ -126,10 +106,7 @@ async function hostBlock(app, w, C) {
   }
 }
 
-/**
- * One worker's readiness for one project, both axes and the verdict:
- *   model HOT_IDLE · project index READY 82 files · generation 76ea06… · ready for task YES
- */
+/** One worker's readiness for one project, both axes and the verdict: model HOT_IDLE · project index READY 82 files · generation 76ea06… · ready for… */
 function projectLines(v, p) {
   const ago = (t) => (t ? `${Math.max(0, Math.round((Date.now() - t) / 1000))} s ago` : '—');
   const index = p.progress ? `${p.state} ${p.progress.done}/${p.progress.total}` : `${p.state}${p.files ? ` · ${p.files} files` : ''}`;

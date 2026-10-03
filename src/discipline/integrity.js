@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * TEST INTEGRITY (Execution Discipline §29) — a change that makes a check pass by changing the CHECK.
- *
- * Unexpected test edits are not forbidden: a wrong assertion is fixed by changing it. But each one is CLASSIFIED and
- * must be DISCLOSED before a check it touched may count as verification, and before the task is DONE. Detected from
- * the real before/after content of a transacted write (mutation.js), never from the model's description of it:
- *
- *   ASSERTION_REMOVED · ASSERTION_WEAKENED · SKIP_ADDED · XFAIL_ADDED · TIMEOUT_INFLATED · SNAPSHOT_UPDATED ·
- *   FIXTURE_CHANGED · TEST_ONLY_BRANCH (in production code) · MOCK_ADDED (a real dependency replaced)
- */
+/** TEST INTEGRITY (Execution Discipline §29) — a change that makes a check pass by changing the CHECK. */
 
 const TEST_FILE = /(^|\/)(tests?|spec|specs|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^/]+\.py$|_test\.(py|go)$|Tests?\.cs$/i;
 const SNAPSHOT = /\.snap$|(^|\/)__snapshots__\//i;

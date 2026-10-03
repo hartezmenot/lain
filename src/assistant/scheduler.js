@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * THE ASSISTANT SCHEDULER — timers and condition checks inside LAIN's Core
- * process. It is not a model and keeps no model loaded: it sleeps until the
- * next due task (at most a minute, for watches), runs what is due through
- * actions.js, delivers through delivery.js, and writes one activity row per run.
- *
- * ONE SCHEDULER PER LAIN HOME. A lease file (<configDir>/assistant/scheduler.lease:
- * pid + that pid's start time, runtimeregistry identity) makes a second LAIN
- * process a reader, never a second clock — so a task fires once. A lease whose
- * holder is provably gone is taken over.
- *
- * MISSED RUNS (LAIN was not running when a task was due), per the task's policy:
- *   deliver_late   run it now and say it was missed ("Missed at 08:00")
- *   run_once       run it now (once, however many were missed)
- *   skip           record the miss, move on to the next occurrence
- *
- * QUIET HOURS (cfg.assistant.quietHours { enabled, start, end }): a delivery
- * that falls inside them is DEFERRED to their end, never discarded — except an
- * urgent task, or an exact reminder when cfg.assistant.quietExactReminders is
- * 'deliver' (the default).
- */
+/** THE ASSISTANT SCHEDULER — timers and condition checks inside LAIN's Core process. */
 
 const fs = require('fs');
 const path = require('path');
@@ -138,15 +118,7 @@ async function tick(app, { now = Date.now(), startup = false, deliverFn } = {}) 
   return ran;
 }
 
-/**
- * START the clock for this LAIN process (if it holds the lease). Idempotent.
- *
- * NOT ON THE FIRST PROMPT'S PATH (Phase 8.2): the lease records this process's OS
- * identity, and on Windows that answer is a PowerShell start (~250 ms) that ran
- * synchronously in every CLI launch before the prompt appeared. It is asked
- * without blocking; the clock starts when it is known (the lease logic itself is
- * unchanged, and finds the identity already there).
- */
+/** START the clock for this LAIN process (if it holds the lease). */
 function start(app) {
   const r = root(app);
   if (r._assistantScheduler) return r._assistantScheduler.status();

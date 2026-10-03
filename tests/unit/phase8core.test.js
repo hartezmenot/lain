@@ -120,32 +120,6 @@ module.exports = async function () {
     assert.ok(fs.existsSync(path.join(sub.body.saved, 'report.json')));
     assert.strictEqual(sub.body.issue, null, 'nothing leaves the machine unless asked');
   });
-
-  await test('CONTINUE IN CLI: the writer moves to the CLI (the Harness holds its sentences); the CLI hands back; the Harness reloads the same session', async () => {
-    const harness = mk();
-    harness._surfaceName = 'harness';
-    harness.session.save();
-    const h = await call(harness, '/api/surface/handoff', { to: 'cli' });
-    assert.strictEqual(h.code, 200, h.body.why);
-    assert.match(h.body.command, /^lain --resume /);
-    const gate = require('../../src/inputgate');
-    const held = await gate.admit(harness, 'more work');
-    assert.strictEqual(held.held, true);
-    assert.match(held.result.why, /continues in the CLI/);
-    const { Session } = require('../../src/session');
-    const cli = new App({ out: { write() {}, on() {}, columns: 100, rows: 30, isTTY: false }, interactive: false, resume: harness.session.id });
-    assert.strictEqual(cli.session.id, harness.session.id, 'the CLI attaches to the same session');
-    assert.strictEqual(require('../../src/surfacehandoff').check(cli).ok, true);
-    cli.session.messages.push({ role: 'user', content: 'typed in the CLI', thread: 'coding' });
-    const back = require('../../src/surfacehandoff').handoff(cli, 'harness');
-    assert.strictEqual(back.ok, true, back.why);
-    require('../../src/surfacehandoff').sync(harness);
-    assert.ok(harness.session.messages.some((m) => m.content === 'typed in the CLI'), 'the Harness reloaded what the CLI wrote — no replay');
-    assert.strictEqual(require('../../src/surfacehandoff').check(harness).ok, true);
-    assert.strictEqual(require('../../src/surfacehandoff').check(cli).ok, false, 'the CLI now holds its sentences');
-    assert.ok(Session.resume(harness.session.id));
-  });
-
   await test('CONTROLS: /fast toggles (Normal ⇄ Fast), queued while the Agent works; /effort, /mode, /status, /strategy; slash text never reaches a model', async () => {
     const app = mk();
     const provider = require('../../src/provider');

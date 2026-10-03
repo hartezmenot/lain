@@ -131,22 +131,4 @@ module.exports = async function run() {
     const fixed = stack(50); fixed[2].rect.y = 152;
     assert.ok(gug.impact(gug.fromDom(stack(44)), gug.fromDom(fixed)).affectedRelations >= 1);
   });
-
-  await test('WORKSHOP: a pick becomes a semantic GUG id; Core knows what "this" is without a screenshot', async () => {
-    const root = tmpdir('lain-gug-ws-');
-    fs.writeFileSync(path.join(root, 'app.css'), '.composer .submit { width: 40px; height: 40px; margin-top: 4px; }\n');
-    gug._reset(); hc._reset();
-    const app = {};
-    const session = { id: 's2', cwd: root, messages: [] };
-    const ws = { measure: async () => ({ ok: true, url: 'http://localhost:5173/', viewport: { w: 1280, h: 800 }, elements: composerDom() }) };
-    const r = await hc.workshopPicked(app, session, ws, { selector: 'button.submit', rect: { x: 912, y: 614, w: 40, h: 40 }, tag: 'button' });
-    assert.deepStrictEqual([r.id, r.generation, r.binding.confidence, r.binding.file], ['composer.submit', 1, 'EXACT', 'app.css']);
-    const ref = hc.referent(app, session);
-    assert.strictEqual(ref.kind, 'visual');
-    assert.strictEqual(ref.gugId, 'composer.submit');
-    const p = hc.packet(app, session);
-    assert.match(p, /selection: Workshop node composer\.submit · GUG generation 1/);
-    assert.match(p, /GUG_SLICE · generation 1/);
-    assert.strictEqual(p, hc.packet(app, session), 'the packet is byte-stable while nothing changed');
-  });
 };

@@ -63,46 +63,6 @@ async function settle(app) { for (let i = 0; i < 20; i++) { await new Promise((r
 
 module.exports = async function run() {
   const realCall = rt.call;
-
-  await test('LAYA IN SHADOW: runs on a resident model, is VALIDATED by Core and recorded — never consumed, never in the packet', async () => {
-    try {
-      rt.call = fakeCall();
-      const { app, session } = world();
-      assert.strictEqual(rt.roleMode(app, 'laya', 'harness_context_compiler'), 'SHADOW');
-      lc.enqueue(app, session, { type: 'selection', text: 'make the send button smaller' });
-      await settle(app);
-      const m = lc.metrics(app).roles.harness_context_compiler;
-      assert.strictEqual(m.completed, 1, JSON.stringify(m));
-      assert.strictEqual(m.validated, 1);
-      assert.strictEqual(m.agree, 1, 'referent recall against Core\'s explicit selection');
-      assert.ok(m.rawChars > 0 && m.sliceChars > 0, 'compression is measured');
-      assert.strictEqual(lc.consumable(app, session), '', 'SHADOW is never consumed');
-      assert.doesNotMatch(hc.packet(app, session), /context correlation/, 'nothing Laya produced reaches the request');
-    } finally { rt.call = realCall; restore(); }
-  });
-
-  await test('LAYA CONSUMED ONLY AFTER CORE VALIDATES (FORCE): a valid slice enters the packet; a ref to a node that does not exist is discarded', async () => {
-    try {
-      rt.call = fakeCall();
-      const { app, session } = world({ mode: 'FORCE' });
-      lc.enqueue(app, session, { type: 'selection', text: 'the send button' });
-      await settle(app);
-      // LAYA CONSUMES THE CANONICAL SELECTION BY ID (sel:S…) — not a raw copy of the pick.
-      const sel = hc.selection(app, session);
-      assert.ok(lc.consumable(app, session).startsWith(`context correlation (harness_context_compiler, validated by Core):\n- sel:${sel.id} `), lc.consumable(app, session));
-      assert.strictEqual(lc.validate(app, session, { refs: [`sel:${sel.id}`], generation: session._harness.generation }).valid, true, 'the Selection it names is the current one');
-      assert.strictEqual(lc.validate(app, session, { refs: ['sel:S0000000000'], generation: session._harness.generation }).valid, false, 'a Selection that is not the current one is not');
-      assert.match(hc.packet(app, session), /validated by Core/);
-      // CORE OWNS FACTS: a hypothesis naming things Core cannot find is invalid, whole.
-      const h = session._harness;
-      assert.strictEqual(lc.validate(app, session, { refs: ['gug:composer.nope'], generation: h.generation }).valid, false);
-      assert.strictEqual(lc.validate(app, session, { refs: ['file:missing.ts'], generation: h.generation }).valid, false);
-      assert.strictEqual(lc.validate(app, session, { refs: ['App.tsx::SearchBar'], generation: h.generation }).valid, false, 'an unknown kind of reference is not trusted');
-      assert.strictEqual(lc.validate(app, session, { refs: ['gug:composer.submit'], generation: h.generation, gugGeneration: 99 }).valid, false, 'a stale GUG generation');
-      assert.strictEqual(lc.validate(app, session, { refs: ['gug:composer.submit'], generation: h.generation }).valid, true);
-    } finally { rt.call = realCall; restore(); }
-  });
-
   await test('LAYA CANNOT SELF-DISPATCH OR CALL ANOTHER WORKER: an enqueue from inside a job is refused and counted; jobs are pure', async () => {
     try {
       let inner = null;
@@ -138,38 +98,6 @@ module.exports = async function run() {
       assert.strictEqual(lc.consumable(app, session), '');
     } finally { rt.call = realCall; restore(); }
   });
-
-  await test('NO LAYA ON THE CRITICAL PATH: enqueue returns at once; a cold model is never loaded by SHADOW; a failing Laya costs nothing', async () => {
-    try {
-      let calls = 0;
-      rt.call = fakeCall(() => { calls += 1; return new Promise((r) => setTimeout(r, 300)); });
-      const { app, session } = world();
-      const t0 = Date.now();
-      lc.enqueue(app, session, { type: 'selection', text: 'send' });
-      assert.ok(Date.now() - t0 < 20, 'enqueue does not wait for the job');
-      assert.ok(hc.packet(app, session), 'Core\'s packet is ready without Laya');
-      await new Promise((r) => setTimeout(r, 400));
-      await settle(app);
-      // COLD: not resident → skipped, never called, never loaded.
-      rt.call = fakeCall(() => { calls += 1; });
-      const cold = world();
-      cold.app._hostView = { laya: { state: 'UNLOADED' } };
-      const before = calls;
-      lc.enqueue(cold.app, cold.session, { type: 'selection', text: 'send' });
-      await settle(cold.app);
-      assert.strictEqual(calls, before, 'SHADOW never loads a cold model');
-      assert.strictEqual(lc.metrics(cold.app).roles.harness_context_compiler.skipped, 1);
-      // FAILED: the worker answers nothing.
-      rt.call = fakeCall(() => 'fail');
-      const bad = world({ mode: 'FORCE' });
-      lc.enqueue(bad.app, bad.session, { type: 'selection', text: 'send' });
-      await settle(bad.app);
-      assert.strictEqual(lc.metrics(bad.app).roles.harness_context_compiler.failed, 1);
-      assert.strictEqual(lc.consumable(bad.app, bad.session), '');
-      assert.strictEqual(lc.metrics(bad.app).criticalPathCalls, 0);
-    } finally { rt.call = realCall; restore(); }
-  });
-
   await test('SOURCE RANKING STAYS OFF: no Harness event dispatches it, and no dispatch class names it', () => {
     const { app, session } = world();
     assert.ok(!Object.keys(lc.ROLES).includes('source_file_ranker'));

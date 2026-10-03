@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * MODELS, PROVIDERS AND ACCOUNTS — the one projection the window's MODEL view,
- * its quota popover and the BOT's own answers about LAIN all read.
- *
- * ------------------------------------------------------------------------
- * IT RESHAPES OWNERS; IT OWNS NOTHING.
- *
- *   connections, readiness       appcatalog.connections (connections.js)
- *   catalog discovery verdict    catalogstate.js
- *   route health, rate limits    app.availability (availability.js)
- *   usage percentages            usagewindows.js — the provider's own headers
- *   website sources              modelsource/registry.js overview (opens nothing)
- *   per-view model choice        modelinventory.js selections
- *   defaults for new sessions    the config the Settings schema already edits
- *
- * NOT POLLED. Reading connections touches the catalog cache on disk, so this is
- * a POST the window makes on start, on refresh and after work ends — the
- * polled `/api/state` carries only the in-memory `usage` summary.
- *
- * NO SECRET LEAVES. A connection record carries its credential in memory;
- * nothing below copies `apiKey`, a header or a URL query. The base URL is
- * reduced to its host, which is what a person recognises anyway.
- */
+/** MODELS, PROVIDERS AND ACCOUNTS — the one projection the window's MODEL view, its quota popover and the BOT's own answers about LAIN all read. */
 
 function hostOf(url) {
   try { return new URL(String(url)).host; } catch { return ''; }
@@ -85,12 +63,7 @@ async function sources(app) {
   } catch { return []; }
 }
 
-/**
- * THE ROLES a model is assigned to, as LAIN actually has them. Two exist:
- * the BOT's conversational model (the Chat selection) and the Coding Agent's
- * (the Coding selection). Each has a session choice and a default for new
- * sessions. Nothing here invents a third role LAIN does not route.
- */
+/** THE ROLES a model is assigned to, as LAIN actually has them. */
 function roles(app) {
   const inv = require('../modelinventory');
   const cfg = (app._sibling || app).cfg || {};
@@ -117,18 +90,12 @@ async function read(app) {
     sources: await sources(app),
     roles: roles(app),
     usage: require('./stateviews').usage(app),
-    // HOW WORK IS SPLIT ACROSS MODELS. One model per role is what this build
-    // routes; the field exists so a router or a team can be reported here the
-    // day one exists, instead of a second screen being bolted on.
+    // HOW WORK IS SPLIT ACROSS MODELS.
     orchestration: { mode: 'SINGLE_PER_ROLE', available: ['SINGLE_PER_ROLE'] },
   };
 }
 
-/**
- * REFRESH: re-discover what every configured route serves. A network
- * operation, bounded, and only ever asked for explicitly — at startup (without
- * blocking the window) and from the Refresh control.
- */
+/** REFRESH: re-discover what every configured route serves. */
 async function refresh(app, { force = false, timeoutMs = 45_000 } = {}) {
   const started = Date.now();
   const work = (async () => {

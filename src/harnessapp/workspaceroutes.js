@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * THE WORKSPACE SHELL'S ROUTES — accounts, tools, and opening a project.
- *
- * The LAIN window is one workspace with a Model view, Settings › MCP and
- * Skills, and an IDE that opens a folder. Each route here reads or calls the
- * owner that already exists; none of them keeps state of its own.
- *
- *   POST /api/accounts            providers, routes, usage, roles  (accounts.js)
- *   POST /api/accounts/refresh    re-discover every route's catalog, bounded
- *   POST /api/mcp/servers         Computer MCP and the configured servers (mcp.js)
- *   POST /api/skills              what the skill loader reports — none exists yet
- *   POST /api/project/open        attach here, or a new session on that folder
- *   POST /api/project/create      make the folder, then open it
- *
- * NOT POLLED. Every one of these is reached because a person opened a view or
- * pressed something; `/api/state` stays the only thing on a timer.
- */
+/** THE WORKSPACE SHELL'S ROUTES — accounts, tools, and opening a project. */
 
 const fs = require('fs');
 const path = require('path');
@@ -37,16 +21,7 @@ function untouched(app) {
   return !said && !(s.turns || []).length && !edits;
 }
 
-/**
- * OPEN A FOLDER AS THE IDE'S PROJECT.
- *
- * The existing verbs decide everything: the SAME project already attached is
- * a no-op; an untouched engineering session attaches it in place
- * (`/api/project/attach`); anything else — a conversation with history, a
- * Cowork session, a different project — gets a NEW engineering session on
- * that folder (`/api/session/new`), because mixing two projects into one
- * conversation is exactly what attach refuses.
- */
+/** OPEN A FOLDER AS THE IDE'S PROJECT. */
 async function openProject(app, dir) {
   const sv = require('../sessionviews');
   const chk = sv.checkRoot(dir);
@@ -92,9 +67,7 @@ function mcpServers(app) {
     why: st ? st.why : (process.platform === 'win32' ? 'starts when LAIN is asked to use the computer' : 'Windows only'),
     authorized: st ? Boolean(st.authorized) : false,
     tools: st ? (st.capabilities || []) : [],
-    // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's
-    // and the Coding Agent's alike — while this transport is live. See
-    // tools/index.js `active`.
+    // WHO CAN CALL IT: the `computer` tool is offered to any turn — the BOT's and the Coding Agent's alike — while this transport is live.
     usedBy: st && st.connected ? ['BOT', 'Coding Agent'] : [],
   });
   const cfg = cfgOf(app);

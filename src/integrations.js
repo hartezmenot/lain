@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * MCP & SKILLS (Phase 8.1) — how LAIN is extended to other applications
- * (Godot, Unreal, Blender, OBS, a database, a company tool) without that
- * application's knowledge being hard-coded into Core.
- *
- * ------------------------------------------------------------------------
- * MCP SERVERS  cfg.integrations.mcp[id] = { name, transport: 'stdio' | 'http',
- *              command: [...], cwd, url, env: {K: value | {ref}}, headers: {K: value | {ref}},
- *              enabled, addedAt, source }
- *   A secret (an API token in an env var or header) is stored in the Windows
- *   secret store (credentials.js) and only its reference is kept; it is
- *   resolved when the server starts or a request is sent, never shown, never
- *   put in model context.
- *   Connected servers' tools are offered to the model as
- *   `mcp__<server>__<tool>`; a tool the server does not mark read-only asks the
- *   person before it runs (gate.js EXTERNAL effect).
- *
- * SKILLS       cfg.integrations.skills[id] = { name, description, path, source: 'folder' | 'git',
- *              repo, enabled, validated }
- *   A skill is a folder with SKILL.md (front matter: name, description). It is
- *   VALIDATED before it can be enabled; scripts inside it are listed and never
- *   run by LAIN on its own. An enabled skill is announced to the model by name,
- *   description and path — the model reads SKILL.md when the task needs it.
- *
- * NOTHING INSTALLS ITSELF. "Available" and a project's recommendations are
- * suggestions with the exact command shown; adding one is the person's action.
- *
- * The older desktop-bridge seam (cfg.mcp, mcp.js) and Computer MCP are
- * unchanged; they appear in the list as built-ins.
- */
+/** MCP & SKILLS (Phase 8.1) — how LAIN is extended to other applications (Godot, Unreal, Blender, OBS, a database, a company tool) without that… */
 
 const fs = require('fs');
 const path = require('path');
@@ -173,10 +144,7 @@ function removeMcp(app, id) {
 
 function listMcp(app) { return Object.keys(store(app).mcp).map((id) => describeMcp(app, id)); }
 
-/**
- * Connected servers' tools described NATIVELY this turn (tools/index.js) — a small set or pinned servers only; the
- * rest are reached through search_capabilities + mcp_call. Trust, health and the lazy rule: mcpreg.js.
- */
+/** Connected servers' tools described NATIVELY this turn (tools/index.js) — a small set or pinned servers only; the rest are reached through… */
 function toolDefs(app) { return require('./mcpreg').toolDefs(app); }
 
 // ---- skills --------------------------------------------------------------------------

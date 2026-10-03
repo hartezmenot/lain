@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * WHERE ONE CODEX ACCOUNT LIVES — two layouts, both with one Codex binary.
- *
- *   direct    the instance has its own CODEX_HOME (one LAIN creates under
- *             <configDir>/accounts/codex/<id>/home, or one the person names).
- *             Nothing shared: its sessions are its own.
- *
- *   overlay   the instance shares a Codex home (normally ~/.codex) for
- *             everything EXCEPT who it is signed in as. A shadow home links the
- *             shared entries (sessions, archived_sessions, sqlite, skills,
- *             plugins, config.toml …) and keeps these PRIVATE, never linked,
- *             never copied:
- *
- *                auth.json          the account's own login (written by Codex's
- *                                   own login flow into THIS shadow home)
- *                models_cache.json  what THIS account may use
- *                log, memories, tmp local scratch
- *
- *             So a native Codex session started under one account is visible
- *             to the others (same shared `sessions`), and each account signs in
- *             separately. Nothing is copied from the shared home — not its auth,
- *             not its sessions.
- *
- * SESSION STORE: two instances can hand a thread to each other only when they
- * read the same session store — `codex:home:<shared or direct home>`.
- *
- * Learned from T3 Code's CodexHomeLayout (lesson, not code).
- */
+/** WHERE ONE CODEX ACCOUNT LIVES — two layouts, both with one Codex binary. */
 
 const fs = require('fs');
 const os = require('os');
@@ -60,11 +33,7 @@ function layout(id, config = {}) {
 
 function lstat(p) { try { return fs.lstatSync(p); } catch { return null; } }
 
-/**
- * Build (or repair) a shadow home. Directories are junctions on Windows (no
- * privilege needed); files are symlinks, or hard links where symlinks are not
- * permitted, or reported as not shared. Returns what it did, honestly.
- */
+/** Build (or repair) a shadow home. */
 function materialize(l) {
   const report = { linked: [], unshared: [], privateFixed: [] };
   fs.mkdirSync(l.home, { recursive: true });
@@ -123,11 +92,7 @@ function authIsPrivate(l) {
   return !st || (st.isFile() && !st.isSymbolicLink() && st.nlink === 1);
 }
 
-/**
- * Remove what LAIN created for an instance: the shadow's links and its private
- * files, or a LAIN-created direct home. A home the person named is never
- * deleted. Links are unlinked, not followed — the shared home is untouched.
- */
+/** Remove what LAIN created for an instance: the shadow's links and its private files, or a LAIN-created direct home. */
 function removeOwned(l) {
   if (!l.lainOwned) return { removed: false, why: 'the person named this home; LAIN does not delete it' };
   const dir = path.dirname(l.home);

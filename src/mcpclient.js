@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * A MODEL CONTEXT PROTOCOL CLIENT (Phase 8.1) — JSON-RPC 2.0, two transports:
- *
- *   stdio   a local program; one JSON-RPC message per line on stdin/stdout
- *           (MCP's stdio transport). The process is LAIN's: registered with
- *           runtimeregistry (stopped with its owner) and killed on close.
- *   http    Streamable HTTP: each request is a POST whose answer is JSON or an
- *           SSE stream carrying it; the server's Mcp-Session-Id is echoed back.
- *
- *   connect()        initialize → notifications/initialized → list tools,
- *                    resources and prompts the server says it has
- *   call(tool, args) tools/call
- *   close()
- *
- * NOTHING IS INHERITED BY DEFAULT: a stdio server gets PATH/SYSTEMROOT-level
- * basics and the env its configuration names, never LAIN's whole environment
- * (tokens included). Secrets named by reference are resolved here, immediately
- * before the process starts or the request is sent, and never logged.
- */
+/** A MODEL CONTEXT PROTOCOL CLIENT (Phase 8.1) — JSON-RPC 2.0, two transports */
 
 const { spawn } = require('child_process');
 
@@ -27,9 +9,6 @@ const TIMEOUT_MS = 20000;
 const BASE_ENV = ['PATH', 'Path', 'PATHEXT', 'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'COMSPEC', 'NODE_OPTIONS_UNSET'];
 
 class McpClient {
-  /**
-   * @param {object} spec { id, transport: 'stdio'|'http', command: [..], cwd, env: {k: v|{ref}}, url, headers: {k: v|{ref}} }
-   */
   constructor(spec, { resolve = null } = {}) {
     this.spec = spec;
     this.resolve = resolve || ((ref) => require('./credentials').resolve(ref));

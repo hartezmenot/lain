@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * `/source` — WHICH MODEL ANSWERS A CHAT TURN.
- *
- * ------------------------------------------------------------------------
- * THIS IS A DIAGNOSTIC SURFACE, NOT THE PRODUCT.
- *
- * The real picker is the Harness application's, and it is not this pass's to
- * build. What is here is the smallest thing that makes the backend provable by
- * hand: list the sources, connect one, see what models the logged-in account
- * actually has, choose one, and see where the next chat turn would go.
- *
- * It follows the conventions the other machinery commands already follow —
- * `surface: true`, so it draws on the command surface rather than into the
- * conversation, and it says NOT CONFIGURED out loud rather than guessing.
- *
- * ------------------------------------------------------------------------
- * IT REPLACES `/external`, AND IT IS NOT A RENAME OF IT.
- *
- * `/external` was a DRAFT-AND-DISPATCH command: it composed a packet, showed it,
- * asked, sent it once, printed the answer and handed it back as advice. Every
- * one of those steps was that command's own machinery, and a person who wanted
- * a second opinion had to remember a command to get one.
- *
- * A chat source is not a command. Once ChatGPT.com is the selected source, the
- * next ordinary sentence goes to it and the answer lands in the same session
- * history as everything else. There is nothing to type but the question, which
- * is why the useful half of `/external` comes back as a SELECTION rather than as
- * a verb.
- */
+/** `/source` — WHICH MODEL ANSWERS A CHAT TURN. */
 
 const registry = require('./modelsource/registry');
 const webprofile = require('./modelsource/webprofile');
@@ -68,9 +40,7 @@ function register({ define, C }) {
         }
         // (the ChatGPT and Gemini website sources were retired — an account or a runtime answers instead)
         w(C.dim('\n  Another answerer is an account: /account  ·  /model to choose its model\n'));
-        // WHERE THE NEXT TURN WOULD GO, said plainly. It is the one thing a
-        // person actually wants to know and the one thing that is not obvious
-        // from the list — a coding sentence goes to LAIN whatever is selected.
+        // WHERE THE NEXT TURN WOULD GO, said plainly.
         w(C.dim('  A coding request always runs on LAIN\'s runtime, whatever is selected here.\n'));
         return;
       }
@@ -94,9 +64,7 @@ function register({ define, C }) {
         const st = await src.connect();
         w('  ' + paint(C, st.state) + (st.why ? C.dim(`  ${st.why}`) : '') + '\n');
         if (st.state === CONNECTION.AUTH_REQUIRED) {
-          // AUTHENTICATION IS THE PERSON'S. LAIN opened the window; it does not
-          // type a password, answer an MFA prompt or solve a CAPTCHA, and it
-          // never will. See webmodel.js.
+          // AUTHENTICATION IS THE PERSON'S.
           w(C.dim('    Log in in the browser window LAIN opened, then /source models.\n'));
         }
         return;

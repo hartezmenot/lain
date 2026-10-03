@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * LAIN, DESCRIBING ITSELF — so the BOT can answer questions about the
- * workspace from the same state the window draws.
- *
- * "Which model is my coding agent using?", "what percentage is my Claude
- * account at?", "where are the MCP settings?" are questions about LAIN, not
- * about the project, and the only honest answer is a READ of the owners the
- * window already reads: modelinventory for the roles, usagewindows for what a
- * provider said about usage, availability for rate limits, mcp.js for the
- * servers, the bot config for the channels. harnessapp/accounts.js is the one
- * projection; this tool renders it as text.
- *
- * `open` asks the window to show a view. It is NAVIGATION, recorded on the
- * shared root App as `_uiNavigate` and applied once by the window — it runs
- * nothing, changes no setting and grants nothing, which is why the tool does
- * not mutate and is allowed in the Chat view.
- */
+/** LAIN, DESCRIBING ITSELF — so the BOT can answer questions about the workspace from the same state the window draws. */
 
 const SURFACES = Object.freeze({
   home: 'Home',

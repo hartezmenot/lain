@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * THE FIXED TOOL SET (Simplify S2) — what a simple-mode session is described, unchanged for its whole life:
- *
- *   read_file grep glob list_dir edit_file write_file apply_patch   files (their own modules)
- *   shell                one command tool; the shell is this host's (execution.js), `background` makes it a job
- *   job_status job_stop  the jobs `shell { background }` started
- *   web_fetch ask_user   the web, the person
- *   todo_write           the model's own checklist — optional, shown to the person, never a gate
- *   Agent                a fresh-context helper that returns its final message (S6 completes it)
- *   Skill                one installed skill's instructions
- *   tool_search          every other capability — LAIN's deferred tools, skills, MCP tools — by name or need
- *   call_tool            runs what tool_search found, through the same door and gates as any tool
- *
- * Computer Control and the Preview join the set when the person enabled them (tools/index.js).
- */
+/** THE FIXED TOOL SET (Simplify S2) — what a simple-mode session is described, unchanged for its whole life */
 
 const path = require('path');
 

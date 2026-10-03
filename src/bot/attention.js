@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE BOT SIDE OF "LAIN NEEDS YOU" (§39–40, §78).
- *
- * Runs inside the bot service. It watches the LAIN home for:
- *
- *   Core decisions (decisions.js) — sent to the owner's Telegram chat with one
- *     button per option; a press resolves the SAME record the CLI is showing
- *     (first valid answer wins; the CLI panel closes). When another surface
- *     answers first, a one-line follow-up says where it was answered.
- *   attention events (notify.attention) — BLOCKED, BACKGROUND_COMPLETE,
- *     TASK_COMPLETE, FAILED: one plain message each, then removed.
- *
- * Nothing routine is ever sent: tool calls, steps and reads never reach here.
- * It also refreshes the heartbeat that tells a LAIN asking a question that a
- * remote surface can answer it.
- */
+/** THE BOT SIDE OF "LAIN NEEDS YOU" (§39–40, §78). */
 
 const fs = require('fs');
 const path = require('path');

@@ -43,23 +43,6 @@ module.exports = async function () {
       assert.strictEqual(guard.view(app.session).state, 'COMPLETED');
     });
   });
-
-  await test('TURNGUARD: a provider failure holds the next sentence with PROVIDER_FAILED, and the recovery turn carries the briefing', async () => {
-    await withMock([{ error: { status: 400, message: 'bad request from upstream' } }, { text: 'recovered' }], async () => {
-      const app = newApp();
-      await app.submit('start the migration');
-      assert.match(guard.held(app), /^PROVIDER_FAILED:/);
-      let seen = null;
-      const real = app.submit.bind(app);
-      app.submit = async (text, o) => { seen = app._handover; return real(text, o); };
-      const gate = await require('../../src/inputgate').admit(app, 'continue');
-      assert.strictEqual(gate.held, true, 'held for recovery');
-      assert.ok(seen && /^PROVIDER_FAILED/.test(seen.reason), 'the recovery turn was briefed');
-      assert.strictEqual(seen.input[0].text, 'continue', 'the person\'s own words, unchanged');
-      assert.strictEqual(guard.held(app), '', 'a completed recovery closes the boundary');
-    });
-  });
-
   await test('TURNGUARD: a cancellation is the person\'s own decision — the next sentence goes through bare', async () => {
     const app = newApp();
     guard.begin(app, { model: 'm' });

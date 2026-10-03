@@ -43,10 +43,7 @@ class Store {
     if (this.data.accounts[key] && this.data.accounts[key] !== identity) throw new Error('bot account changed; configure a new accountId');
     if (!this.data.accounts[key]) { this.data.accounts[key] = identity; this.save(); }
   }
-  // A PERSON ASKING TO BE ALLOWED, recorded and nothing else. A Telegram private
-  // `/start` from a sender the allowlist does not name lands here so the local
-  // owner can approve that exact ID from LAIN Desktop. It grants nothing: the
-  // allowlist in config remains the only authority, and approval is a local act.
+  // A PERSON ASKING TO BE ALLOWED, recorded and nothing else.
   candidate(e) {
     this.data.candidates ||= {};
     const key = `${e.platform}:${e.accountId}:${e.senderId}`;

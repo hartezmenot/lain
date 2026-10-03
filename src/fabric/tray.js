@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * THE TRAY — current intelligence health and quota, at a glance (Phase 8.3).
- *
- *   hover   LAIN
- *           Codex
- *           Personal   5h 74% · Weekly 52%
- *           Work       5h 91% · Weekly 67%
- *           Backup     Limited · Weekly 84%
- *           Claude Pro 5h 63% · Weekly 41%
- *           Antigravity Monthly 72%
- *           OpenCode   Ready
- *   click   a compact menu: those lines, then Open LAIN · Models & Accounts ·
- *           Usage · Active Tasks · Pause/Continue task · Exit
- *
- * ONLY REPORTED WINDOWS. A percentage is the provider's "used" figure for a
- * window it reported (runtime telemetry, a response's limit headers, Codex's
- * own rate-limit read). Nothing is estimated from LAIN's token counts — those
- * are observed usage, a different fact, shown on USAGE.
- *
- * EVENT-DRIVEN, NEVER POLLED. The summary is built from the fabric index (a
- * lookup) and pushed to the native host only when it CHANGES: after a request's
- * receipt, an account change, a fallback, a manual refresh, when a window
- * connects — and once more at the next KNOWN reset (one timer, unref'd). An
- * idle LAIN does no tray work at all.
- */
+/** THE TRAY — current intelligence health and quota, at a glance (Phase 8.3). */
 
 const store = require('./store');
 
@@ -101,10 +77,7 @@ function nextReset(app) {
   return Number.isFinite(t) ? t : null;
 }
 
-/**
- * SOMETHING THAT FEEDS THE TRAY MAY HAVE CHANGED. Builds the summary (lookups
- * only) and sends it to the host when it differs from what the host has.
- */
+/** SOMETHING THAT FEEDS THE TRAY MAY HAVE CHANGED. */
 function changed(app, { force = false } = {}) {
   if (!app) return { ok: false, why: 'no app' };
   let s;

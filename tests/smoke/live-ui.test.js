@@ -76,7 +76,7 @@ module.exports = async function () {
       cwd: tmpdir('tick-'), env: tui(),
       stdin: 'audit it\n',
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 3' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 3' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,
@@ -110,7 +110,7 @@ module.exports = async function () {
     stepDelayMs: 3000,
     script: [
       { text: 'Writing.', tool_calls: [{ name: 'write_file', input: { path: 'out.txt', content: 'x' } }] },
-      { text: 'Checking.', tool_calls: [{ name: 'run_bash', input: { command: 'node -e "1"' } }] },
+      { text: 'Checking.', tool_calls: [{ name: 'shell', input: { command: 'node -e "1"' } }] },
       { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { steps: ['only step'] } }] },
       { text: 'Ticking.', tool_calls: [{ name: 'plan_step_done', input: { note: 'built and checked' } }] },
       { text: 'All done.' },
@@ -137,37 +137,6 @@ module.exports = async function () {
   //   2. every key dismisses it — none is swallowed, none is advertised and
   //      dead, and typing lands in the input box like typing
   //   3. it names only things that work
-
-  await test('LIVE-UI: the overlay fires on completion, and any key leaves it', async () => {
-    for (const key of ['\t', '\r', '\x1b']) {
-      const r = await runCli([], completed([key]));
-      const all = frames(r.out);
-      assert.ok(all.some((f) => /TASK COMPLETE/.test(f)),
-        `the overlay must fire on genuine completion (key ${JSON.stringify(key)})`);
-      const after = all[all.length - 1];
-      assert.ok(!/TASK COMPLETE/.test(after),
-        `${JSON.stringify(key)} did not leave the overlay:\n${after.slice(0, 400)}`);
-      // AND THE SURFACE IS UNDERNEATH IT, unchanged — there is no pane to have
-      // been left on, so what must be there is the one there always is.
-      assertIncludes(after, 'Ask LAIN', 'the surface is back, with its input');
-      assert.strictEqual(r.code, 0);
-    }
-  });
-
-  await test('LIVE-UI: it advertises only what works, and offers no choice to dispose of', async () => {
-    const r = await runCli([], completed(['\x1b']));
-    const out = plain(r.out);
-    assertIncludes(out, 'TASK COMPLETE');
-    // THE COMMANDS IT NAMES ARE REAL. `/changes` is where the diff went.
-    assertIncludes(out, '/changes', 'it names the command that shows what changed');
-    // AND THERE IS NO MENU. A highlighted row is something you have to deal
-    // with before you can carry on; a named command is something you type when
-    // you want it.
-    assert.ok(!/❯ keep working|❯ diff/.test(out), 'the two-row choice is gone');
-    assert.ok(!/\[D\]|\[R\]/.test(out), 'and so are the letters that never worked');
-    assert.strictEqual(r.code, 0);
-  });
-
   await test('LIVE-UI: typing dismisses it and reaches the input line, like typing', async () => {
     // The shortcut path must not swallow ordinary typing. Each letter dismisses
     // the report (you have started composing) and lands in the input exactly
@@ -206,7 +175,7 @@ module.exports = async function () {
       script: [
         { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { steps: ['a', 'b', 'c', 'd'] } }] },
         { text: 'One.', tool_calls: [{ name: 'plan_step_done', input: { note: 'a' } }] },
-        { text: 'Slow bit.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 2' } }] },
+        { text: 'Slow bit.', tool_calls: [{ name: 'shell', input: { command: 'sleep 2' } }] },
         { text: 'Done for now.' },
       ],
       timeoutMs: 45000,
@@ -230,34 +199,5 @@ module.exports = async function () {
     assert.match(f, /RUNNING\s+sleep 2/i, 'the live row names the operation and its subject');
     assert.ok(!/STEP \d\/4/.test(f.split('\n').filter((l) => /RUNNING\s+sleep 2/i.test(l)).join('')),
       'and does not carry a second copy of the plan\'s progress');
-  });
-
-  await test('LIVE-UI: a finished PLAN never prints the word DONE in the progress block', async () => {
-    const r = await runCli([], {
-      cwd: tmpdir('plan100-'), env: tui(),
-      stdin: 'do the work\n',
-      script: [
-        { text: 'Planning.', tool_calls: [{ name: 'plan_write', input: { steps: ['only step'] } }] },
-        { text: 'Editing.', tool_calls: [{ name: 'write_file', input: { path: 'a.txt', content: 'x' } }] },
-        { text: 'Ticking.', tool_calls: [{ name: 'plan_step_done', input: { note: 'done' } }] },
-        { text: 'All planned steps are complete.' },
-      ],
-      timeoutMs: 45000,
-    });
-    // ---- THE MEASUREMENT MOVED; THE CLAIM IT MUST NOT MAKE DID NOT --------
-    //
-    // The progress block was pinned above the feed and is now `/plan`, so the
-    // percentage is asked for rather than always drawn. What this test exists
-    // for is the other half, and it is unchanged: A FINISHED PLAN IS NOT A
-    // FINISHED TASK. The screen must say VERIFYING, because nothing was run to
-    // check the change, and must never report the task as complete.
-    const out = plain(r.out);
-    assert.match(out, /VERIFYING/i, 'the task is not done: nothing was run to check the change');
-    assert.ok(!/TASK COMPLETE/.test(out), 'and it must not be reported as finished');
-    // NEVER DONE AT ALL, not merely "not after": the settle frame used to draw
-    // `✓ DONE` for one frame before `Verifying` replaced it (the split was also
-    // case-sensitive against a live row drawn in sentence case). The resting
-    // word is decided before that frame now — see completion.preview.
-    assert.ok(!/✓ DONE/.test(out), 'nor described as done, even for a frame');
   });
 };

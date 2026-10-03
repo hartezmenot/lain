@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * SELECTION JOBS — "this" is known, so simple work stays deterministic
- * (2026-09-24).
- *
- * The Harness recorded what the person pointed at (harnesscontext.js). When the
- * request is a bounded operation on it, Core finishes the turn itself:
- *
- *   "rename this to ButtonFix"   an identifier selected in the IDE → the AST
- *                                rename (rename.js, token-based), only when a
- *                                dry run is clean: no string / comment / member
- *                                sites (shorthand is rewritten consistently
- *                                with its importers), the new name unused, the
- *                                scan not truncated
- *   "move this down 6px"         a Workshop node → its EXACT GUG binding
- *                                (gug.js) → the one px declaration that moves
- *                                it (top for a positioned box, else margin-top)
- *   "make this 10% smaller"      a Workshop node → its width/height px
- *
- * Anything short of that — an ambiguous binding, a shorthand, a qualitative
- * "a bit", a rename with textual sites — goes to the flagship with the Harness
- * context packet (selection, GUG slice) as ordinary evidence. No Laya, no
- * flagship, no migration_plan on the deterministic path; every write passes the
- * ordinary gated tool door and is verified by reading it back.
- */
+/** SELECTION JOBS — "this" is known, so simple work stays deterministic (2026-09-24). */
 
 const fs = require('fs');
 const path = require('path');
@@ -35,9 +12,7 @@ const MOVE = /\bmove\s+(?:this|it|that)(?:\s+\w+)?\s+(up|down|left|right)\s*(?:b
 // "change this variable from fixButton to ButtonFix", "rename fixButton to ButtonFix":
 // the other ways people say it, parsed HERE so no second parser exists (focuspacket.js reads this).
 const RENAME_FROM = /\b(?:rename|change|replace)\b[^.\n]*?\bfrom\s+[`'"]?([A-Za-z_$][A-Za-z0-9_$]*)[`'"]?\s+(?:to|into|->)\s+[`'"]?([A-Za-z_$][A-Za-z0-9_$]*)[`'"]?/i;
-// "change this to ButtonFix including…", "rename this ButtonFix", "call it FixButton": the
-// target must END a clause and — unless the verb is "rename" — look like an identifier
-// (a capital, an underscore or a digit), so "change this to use async" is not a rename.
+// "change this to ButtonFix including…", "rename this ButtonFix", "call it FixButton": the target must END a clause and — unless the verb is "rename"…
 const RENAME_THIS = /\b(rename|change|call)\s+(?:this|it|that)(?:\s+(?:name|function|variable|symbol|method|class|component|const|identifier))?\s+(?:(?:to|as|into)\s+)?[`'"]?([A-Za-z_$][A-Za-z0-9_$]*)[`'"]?(?=\s*(?:$|[.,;:!?]|\s+(?:including|and|everywhere|across|throughout|with|in|plus)\b))/i;
 const RENAME_NAMED = /\brename\s+[`'"]?([A-Za-z_$][A-Za-z0-9_$]*)[`'"]?\s+(?:to|into|->)\s+[`'"]?([A-Za-z_$][A-Za-z0-9_$]*)[`'"]?/i;
 
@@ -56,12 +31,7 @@ function parse(text) {
   return null;
 }
 
-/**
- * MAY CORE FINISH THIS SELECTION INPUT ITSELF? `{ yes, plan }` or
- * `{ yes: false, why }` — synchronous, because the direct door is decided on
- * the input's own tick (app.js). A "no" is recorded and the flagship takes the
- * turn with the Harness context packet.
- */
+/** MAY CORE FINISH THIS SELECTION INPUT ITSELF? */
 function routes(app) {
   const r = decide(app);
   try { const d = app.session.dispatch; if (d) d.selection = { direct: Boolean(r.yes), why: r.why || '', kind: r.plan ? (r.plan.kind || 'style') : null }; } catch { /* telemetry only */ }
@@ -185,11 +155,7 @@ function scalePlan(app, ref, job) {
 
 // ---- the AST rename ---------------------------------------------------------------------
 
-/**
- * THE DIRECT RENAME. `routes` already found the dry run clean (a dirty one
- * went to the flagship). Applied through the gated `rename_symbol` tool and
- * verified by a second scan finding no identifier left.
- */
+/** THE DIRECT RENAME. `routes` already found the dry run clean (a dirty one went to the flagship). Applied through the gated `rename_symbol` tool and… */
 async function* runRename(app, text, verdict, { from = null, typed = false, plan = null } = {}) {
   const session = app.session;
   const { newRecord } = require('./turnrecord');

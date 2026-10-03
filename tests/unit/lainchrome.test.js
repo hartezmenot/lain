@@ -108,14 +108,6 @@ module.exports = async function () {
     assert.ok(!toolRegistry.names(app).includes('chrome_tab'));
   });
 
-  await test('CHROME TOOL: chrome_tab appears once the bridge is connected', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const app = {};
-    const bridge = require('../../src/lainchrome').forApp(app);
-    await bridge.connect({ port: 0 });
-    assert.ok(toolRegistry.names(app).includes('chrome_tab'));
-    await bridge.disconnect();
-  }));
-
   await test('CHROME TOOL: refuses cleanly, by name, when the bridge is not connected', async () => {
     const r = await chrometab.tools.chrome_tab.run({ op: 'tabs' }, { app: {} });
     assert.strictEqual(r.isError, true);

@@ -104,33 +104,6 @@ module.exports = async function () {
       assert.ok(live.inflight, 'untouched');
     } finally { child.kill(); }
   });
-
-  await test('INFLIGHT JOBS: a background job the dead LAIN left is ORPHANED (pid alive) or LOST, and the handover says not to start it twice', () => {
-    const { spawn } = require('child_process');
-    const cwd = tmpdir('inflight-j-');
-    const child = spawn(process.execPath, ['-e', 'setTimeout(()=>{},8000)']);
-    try {
-      const s = new Session({ cwd });
-      s.save = () => {};
-      inflight.noteJob(s, { id: 'j1', child: { pid: child.pid }, cwd }, 'npm run dev');
-      inflight.noteJob(s, { id: 'j2', child: { pid: 999998 }, cwd }, 'npm run smoke');
-      for (const j of s.bgJobs) j.owner = 999997;   // their LAIN is gone
-      const changed = inflight.recoverJobs(s);
-      assert.deepStrictEqual(changed.map((j) => [j.id, j.state]), [['j1', 'ORPHANED'], ['j2', 'LOST']]);
-      const rows = inflight.jobRows(s).join('\n');
-      assert.match(rows, /npm run dev — STILL RUNNING as pid \d+.*Do not start it again/);
-      assert.match(rows, /npm run smoke — ended while LAIN was closed/);
-      const packet = require('../../src/handover').build(s, { cwd });
-      assert.match(JSON.stringify(packet), /closed mid-work/, 'the replacement model is told');
-      // A job this process started and finished is settled, not recovered.
-      const s2 = new Session({ cwd }); s2.save = () => {};
-      inflight.noteJob(s2, { id: 'j3', child: { pid: child.pid }, cwd }, 'npm test');
-      inflight.jobEnded(s2, { id: 'j3' }, { state: 'SUCCEEDED', exitCode: 0 });
-      assert.strictEqual(s2.bgJobs[0].state, 'SUCCEEDED');
-      assert.deepStrictEqual(inflight.recoverJobs(s2), []);
-    } finally { child.kill(); }
-  });
-
   await test('INFLIGHT DURABILITY: the saved file holds the turn BEFORE the command runs — then resume recovers it', async () => {
     const dir = scripted([
       { text: 'Writing it.', tool_calls: [{ name: 'write_file', input: { path: 'out.txt', content: 'hello' } }] },

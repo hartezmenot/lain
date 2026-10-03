@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * DISCOVERED ON THIS PC (Phase 8.4) — native provider homes LAIN found and has
- * not yet been asked to use.
- *
- * THREE DIFFERENT THINGS, never one screen:
- *
- *   DISCOVER   find an account that already exists here: a Codex home someone
- *              signed in to (~/.codex, $CODEX_HOME). Existence only — no file
- *              inside another program's home is opened or read, no model is
- *              asked, no quota is spent. Happens whenever Accounts is opened and
- *              on Refresh; the answer is cached briefly (runtimediscovery.js).
- *   CONNECT    add a NEW account by the provider's own sign-in.
- *   IMPORT     carry account metadata over from another product (migrate.js).
- *
- * A discovered home is offered as "Use in LAIN". One click registers it as an
- * account instance in direct mode — the runtime keeps using its own home, and
- * LAIN copies nothing and moves no token — then asks the runtime who it is and
- * what its limits are. Nothing is enabled behind the person's back.
- *
- * WHAT IS NOT OFFERED: a home whose runtime is not installed (LAIN could not
- * use it), a home nobody signed in to, one already registered, and — for the
- * runtimes that ARE their own sign-in (Claude Code, OpenCode) — a home whose
- * family already has a connected account.
- */
+/** DISCOVERED ON THIS PC (Phase 8.4) — native provider homes LAIN found and has not yet been asked to use. */
 
 const os = require('os');
 const path = require('path');
@@ -55,10 +32,7 @@ function discovered(app, { force = false } = {}) {
   return out;
 }
 
-/**
- * USE A DISCOVERED HOME. The `key` names a row `discovered()` just listed —
- * nothing else can be adopted through here (no path is taken from a caller).
- */
+/** USE A DISCOVERED HOME. */
 async function use(app, key, { force = false } = {}) {
   const row = discovered(app, { force }).find((d) => d.key === String(key || ''));
   if (!row) return { ok: false, why: 'that profile is no longer here — Refresh' };

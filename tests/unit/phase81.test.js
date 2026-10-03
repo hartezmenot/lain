@@ -134,44 +134,6 @@ module.exports = async function () {
     assert.match(rs.body.note, /not revoked/);
     assert.ok(!app.cfg.connections['lain:env']);
   });
-
-  await test('MCP: a fixture server connects, lists capabilities, its tools reach the model (read-only vs asking), disable / enable / remove; a secret env value is kept out of the config', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const app = mk();
-    const connsBefore = JSON.stringify(app.cfg.connections || {});
-    const log = path.join(tmpdir('mcp-log-'), 'log.txt');
-    const server = path.join(__dirname, '..', 'fixtures', 'mcp', 'fakemcp.js');
-    const add = await call(app, '/api/integrations/mcp/add', { name: 'Godot MCP', transport: 'stdio', command: [process.execPath, server], env: { FAKE_MCP_LOG: log, FAKE_TOKEN: 'godot-secret-123456' }, secretEnv: ['FAKE_TOKEN'] });
-    assert.strictEqual(add.code, 200, JSON.stringify(add.body));
-    const id = add.body.id;
-    const cfgText = JSON.stringify(app.cfg.integrations);
-    assert.ok(!cfgText.includes('godot-secret-123456'), 'the secret is not in the config');
-    assert.strictEqual(add.body.server.env.FAKE_TOKEN.secret, true);
-    const c = await call(app, '/api/integrations/mcp/connect', { id });
-    assert.strictEqual(c.code, 200, JSON.stringify(c.body));
-    assert.deepStrictEqual(c.body.server.capabilities.tools.map((t) => [t.name, t.readOnly]), [['echo', true], ['scene_add', false]]);
-    assert.strictEqual(c.body.server.capabilities.resources[0].uri, 'godot://project');
-    const tools = require('../../src/tools');
-    const names = tools.names(app);
-    const echo = names.find((n) => /__echo$/.test(n)); const add2 = names.find((n) => /__scene_add$/.test(n));
-    assert.ok(echo && add2, names.filter((n) => n.startsWith('mcp__')).join(','));
-    assert.strictEqual(tools.effect(echo, app), null, 'a read-only tool runs without asking');
-    assert.strictEqual(tools.effect(add2, app), 'EXTERNAL', 'a tool that changes things asks first');
-    const ran = await require('../../src/integrations').toolDefs(app)[echo].run({ text: 'hi' });
-    assert.match(ran.output, /echo: \{"text":"hi"\} env=token-present/, 'the secret reached the server process, not the model');
-    const dis = await call(app, '/api/integrations/mcp/enable', { id, enabled: false });
-    assert.strictEqual(dis.body.server.state, 'DISABLED');
-    assert.ok(!tools.names(app).some((n) => n.startsWith('mcp__')), 'a disabled server offers nothing');
-    await call(app, '/api/integrations/mcp/enable', { id, enabled: true });
-    const again = await call(app, '/api/integrations/mcp/connect', { id });
-    assert.strictEqual(again.body.server.state, 'CONNECTED');
-    const rm = await call(app, '/api/integrations/mcp/remove', { id });
-    assert.strictEqual(rm.code, 200);
-    assert.deepStrictEqual((await call(app, '/api/integrations/state')).body.mcp, []);
-    assert.ok(!tools.names(app).some((n) => n.startsWith('mcp__')));
-    assert.ok(fs.readFileSync(log, 'utf8').includes('tools/list'));
-    assert.strictEqual(JSON.stringify(app.cfg.connections || {}), connsBefore, 'no model/provider state was touched');
-  }));
-
   await test('SKILLS: validated before use, added disabled, enabled explicitly, announced to the model by name and path, removed', async () => {
     const app = mk();
     const dir = tmpdir('skill-');
@@ -196,11 +158,12 @@ module.exports = async function () {
     // PHASE CAP (2026-10-02): the prompt names the skill; its body is read on demand (use_skill), so no path is sent.
     assert.match(p, /use_skill\(name\)|the Skill tool/);
     assert.ok(['use_skill', 'Skill'].some((n) => require('../../src/tools').names(app).includes(n)), 'the skill tool exists once a skill is enabled');
-    assert.match(require('../../src/promptparts').durable(app, app.session).agents, /# Skills/);
+    assert.match(require('../../src/simpleprompt').of(app, { session: app.session }).stable, /# Skills/);
     await call(app, '/api/integrations/skill/remove', { id: a.body.id });
     assert.deepStrictEqual((await call(app, '/api/skills')).body.skills, []);
     assert.ok(fs.existsSync(path.join(dir, 'SKILL.md')), 'a local folder is never deleted');
   });
+
 
   await test('GITHUB SYNC: fast-forwards a clean clone; never overwrites local changes; leaves a conflict for the person (Abort restores); never resets', async () => {
     const { spawnSync } = require('child_process');

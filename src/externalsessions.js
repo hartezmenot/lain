@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * EXTERNAL SESSIONS — native sessions other runtimes own, seen and never taken.
- *
- * An ExternalSessionRef is NON-OWNING: { origin: 'external:<runtime>:<id>',
- * runtime, id, title, cwd, updatedAt, store, compatibleAccounts, adapter }.
- * The runtime keeps the session; LAIN does not write to it because it can see it.
- *
- *   Resume Original    the runtime's own resume, in the account the person picks
- *                      (`codex resume <id>` with that account's CODEX_HOME). The
- *                      original continues where it lives.
- *   Continue in LAIN   a NEW LAIN session seeded from a read-only import of the
- *                      thread (Codex `thread/read`), origin external:codex:<id>.
- *                      The original is untouched; the two now diverge.
- *
- * ADAPTERS, and how sure each is:
- *   codex        the app-server protocol (thread/list, thread/read) — supported
- *   opencode     OpenCode's own server (opencode serve: GET /api/session, /message),
- *                per project directory — supported; resume is `opencode --session <id>`
- *   claude-code  Claude Code keeps sessions as files under its config dir; that
- *                layout is not a published API, so it is an OPTIONAL adapter,
- *                listed only (id, project, time) and labelled unofficial
- *   cursor, vscode   no documented session interface — UNSUPPORTED, said so
- */
+/** EXTERNAL SESSIONS — native sessions other runtimes own, seen and never taken. */
 
 const fs = require('fs');
 const path = require('path');
@@ -117,10 +95,7 @@ function textOf(item) {
   return '';
 }
 
-/**
- * CONTINUE IN LAIN: a new session, seeded by a read-only import. Nothing is
- * written to the original; the new session says where it came from.
- */
+/** CONTINUE IN LAIN: a new session, seeded by a read-only import. */
 async function continueInLain(app, { origin, account, cwd = null, maxChars = 24000 } = {}) {
   const oc = /^external:opencode:(.+)$/.exec(String(origin || ''));
   if (oc) return continueOpenCode(app, oc[1], cwd || (app.session && app.session.cwd) || null, maxChars);

@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * ASSISTANT TASKS — the one Core record for everything the BOT does later.
- *
- *   reminder     at a time: tell the person something            (no model)
- *   scheduled    at a time: DO something, then report            (a capability; a model only if the policy says)
- *   recurring    on a cadence: do or tell something              (same)
- *   watch        when a deterministic condition becomes true     (no model — state, not guesses)
- *
- * CHAT's Schedules, BOT › Assistant, Telegram and the desktop all read and
- * write THIS store; none keeps its own. A task is created by the person
- * (a form, or a sentence the BOT understood deterministically) and can be
- * paused, resumed, cancelled or run now. Every run appends one activity row
- * with its canonical delivery receipts (activity.jsonl) — one task, one history.
- *
- * <configDir>/assistant/tasks.json      { version, tasks: { id: task } }
- * <configDir>/assistant/activity.jsonl  one row per run, delivery receipts included
- */
+/** ASSISTANT TASKS — the one Core record for everything the BOT does later. */
 
 const fs = require('fs');
 const path = require('path');

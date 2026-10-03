@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * RUNNING A RUNTIME'S OWN PROGRAM — owned, streamed, cancellable.
- *
- * The one way runtime adapters start a runtime process for work:
- *
- *   - NO SHELL. An npm `.cmd` shim is read to find the program it launches
- *     (a native .exe, or a .js run by node), and that program is started
- *     directly — so the pid LAIN registers IS the runtime, and stopping it
- *     stops the runtime, not a cmd.exe in front of it.
- *   - OWNED. Every process is registered in runtimeregistry.js (pid + start
- *     time, stopped with its owner). Cancel stops exactly that registered
- *     process tree; nothing is ever found or killed by name.
- *   - STREAMED. stdout is split into lines as they arrive; the caller parses
- *     them (stream-json, NDJSON, JSON-RPC). stderr is kept as a short tail for
- *     the error a person reads.
- *   - REDACTED. Anything returned for display passes through redact.js.
- */
+/** RUNNING A RUNTIME'S OWN PROGRAM — owned, streamed, cancellable. */
 
 const fs = require('fs');
 const path = require('path');
@@ -36,10 +20,7 @@ function resolveShim(bin) {
   return { command: node, prefix: [target] };
 }
 
-/**
- * START a runtime process. Returns { child, lines (async iterator), done (promise
- * of { code, stderr }), cancel() }. `onLine` may be used instead of iterating.
- */
+/** START a runtime process. */
 function start(bin, args, { cwd = process.cwd(), env = {}, stdin = null, signal = null, purpose = 'runtime', label = null, spawnFn = spawn } = {}) {
   const r = resolveShim(bin);
   if (r.shim) throw new Error(`cannot start ${path.basename(bin)} without a shell`);

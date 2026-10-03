@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * A DECLARED READ-ONLY TASK — THE CAPABILITY MASK.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT THIS CLOSES (Toralink, 2026-09-24).
- *
- * "READ-ONLY PROJECT INSPECTION. Do not modify any file…" was, to LAIN, a
- * paragraph of advisory prompt text and nothing else. Nothing in the runtime
- * knew the task was read-only: the write tools were offered, the hidden
- * wake-up told the model "the request asks for a change… make the change",
- * and the model — caught between the person's words and LAIN's — REFUSED the
- * investigation it had been asked for. Read-only was a sentence to argue with,
- * not a fact about what the task could do.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS.
- *
- *     WRITE DENIED  !=  TASK DENIED.
- *
- * A mask on CAPABILITIES, never on the task. Every read, search, symbol
- * lookup, index/architecture/wiring READ, git inspection, browser or desktop
- * observation and process observation stays available; what changes files,
- * installs, formats, commits or records project intelligence is refused at the
- * one door every tool call goes through (tools/index.js `execute`), and the
- * pure file writers are not even offered. A refusal names what is still
- * possible, so the model continues the investigation instead of stopping.
- *
- * ------------------------------------------------------------------------
- * WHEN IT IS ON.
- *
- * ONLY when the person DECLARED it (mode.declaresReadOnly) — never from a
- * keyword guess. mode.js is advisory by design: "compare these approaches"
- * reads as AUDIT, and a hard mask hung on that guess would block a task
- * somebody actually wanted done. A declaration is not a guess.
- *
- * TASK-SCOPED: a new task starts with the mask its own words set; "continue"
- * and a paste that joins the task keep it; a typed instruction that asks for a
- * change ("now fix it") lifts it, because the person has now said so.
- *
- * `.lain/` IS PART OF THE PROJECT. While the mask is on, the project's `.lain/`
- * is HELD (lainstore.hold): no task record, no index cache, no scratch file,
- * no architecture/wiring/vocabulary document is written — intelligence derived
- * during the inspection stays in memory, OBSERVED, and is not persisted.
- */
+/** A DECLARED READ-ONLY TASK — THE CAPABILITY MASK. */
 
 const KIND = 'READ_ONLY';
 
@@ -54,10 +11,7 @@ const HIDDEN = new Set([
   'migration_activate', 'integrate_candidate', 'download_file',
 ]);
 
-/**
- * OPERATIONS THAT RECORD PROJECT INTELLIGENCE. These tools are not `mutates`
- * (their reads are ordinary reads), so the mask works per operation.
- */
+/** OPERATIONS THAT RECORD PROJECT INTELLIGENCE. */
 const WRITE_OPS = {
   concept: new Set(['define', 'forget']),
   architecture: new Set(['declare', 'verify', 'seed']),
@@ -68,12 +22,7 @@ const WRITE_OPS = {
 /** Mutating tools that stay usable for OBSERVATION, gated per call below. */
 const SHELLS = new Set(['run_bash', 'run_powershell', 'run_cmd']);
 
-/**
- * A SHELL COMMAND THAT ONLY LOOKS. Deliberately a small allowlist: every
- * segment of a pipeline must start with one of these, no redirection into a
- * file, no command substitution. Anything else is refused with the reason —
- * the model can still read, search and inspect with the dedicated tools.
- */
+/** A SHELL COMMAND THAT ONLY LOOKS. */
 const LOOK = new RegExp('^(?:'
   + 'git\\s+(?:status|log|diff|show|blame|ls-files|ls-tree|rev-parse|describe|shortlog|cat-file|grep|branch(?:\\s+(?:-a|-r|--list|-v|-vv|--show-current))*\\s*$|remote(?:\\s+-v)?\\s*$|tag(?:\\s+(?:-l|--list))?\\s*$|config\\s+(?:--get|--list|-l)\\b)'
   + '|ls|dir|pwd|cat|type|head|tail|wc|tree|file|stat|du|df|which|where|whoami|hostname|uname|echo'
@@ -99,11 +48,7 @@ function looksOnly(command) {
 function of(session) { return (session && session.capabilityMask) || null; }
 function active(session) { const m = of(session); return Boolean(m && m.kind === KIND); }
 
-/**
- * Settle the mask for the input that just arrived (identify.js, once per input).
- * @param {object} verdict      task.js verdict (sameTask, kind) with `.mode`
- * @param {object} modeVerdict  mode.js verdict (declaredReadOnly)
- */
+/** Settle the mask for the input that just arrived (identify.js, once per input). */
 function apply(app, verdict, modeVerdict, text) {
   const s = app && app.session;
   if (!s) return null;
@@ -129,10 +74,7 @@ function restore(session) { if (active(session)) hold(session, true); }
 
 // ---- the gate --------------------------------------------------------------------
 
-/**
- * May this call run under the session's mask? Returns null when it may, or
- * the refusal to hand back as the tool result.
- */
+/** May this call run under the session's mask? */
 function denies(name, input, session, isMutating) {
   if (!active(session)) return null;
   const op = String((input && input.op) || '');

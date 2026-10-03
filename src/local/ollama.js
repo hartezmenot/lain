@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * OLLAMA — a local runtime reached through its own documented HTTP API.
- *
- *   endpoint    cfg.local.ollama.endpoint, else OLLAMA_HOST, else
- *               http://127.0.0.1:11434 — a configured endpoint is used as
- *               given, never swapped for localhost
- *   installed   the `ollama` binary on PATH or in its Windows install folder
- *   running     GET /api/version answers
- *   models      GET /api/tags (+ POST /api/show per model for context and the
- *               capabilities Ollama itself reports) — only what it states
- *   requests    POST /api/chat, streamed, so the runtime's own counters come
- *               back: prompt_eval_count, eval_count, and the load / prompt /
- *               generation / total durations. Nothing provider-style (no cache
- *               figures) is invented; Ollama reports none.
- *
- * LAIN does not start, stop or restart an Ollama service it did not start.
- */
+/** OLLAMA — a local runtime reached through its own documented HTTP API. */
 
 const fs = require('fs');
 const os = require('os');
@@ -137,10 +121,7 @@ function metricsFrom(j) {
   };
 }
 
-/**
- * ONE REQUEST, streamed (provider.js event vocabulary). `pc.model` is the
- * catalog id (`ollama/<name>`); the name after the prefix is what Ollama serves.
- */
+/** ONE REQUEST, streamed (provider.js event vocabulary). */
 async function* chat(pc, messages, opts = {}) {
   const name = String(pc.model || '').replace(/^ollama\//, '');
   const body = { model: name, messages: toOllama(messages), stream: true };

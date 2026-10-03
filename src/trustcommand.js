@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * `/trust` and `/permissions` — what LAIN may touch, and what it was refused.
- *
- * Two commands rather than one because they answer two questions a person asks
- * at different moments: "what is this session allowed to do" (a standing
- * setting) and "what did it just try that I stopped" (a review). Merging them
- * produced a screen that was half configuration and half history, and the thing
- * you came to do was always in the other half.
- *
- * Registered into the ONE command registry from commands.js, like every other
- * command file. Both are `surface: true` — this is machinery, not the work —
- * and neither auto-closes, because both are read rather than glanced at.
- */
+/** `/trust` and `/permissions` — what LAIN may touch, and what it was refused. */
 
 const path = require('path');
 
@@ -20,15 +8,7 @@ const config = require('./config');
 const trust = require('./trust');
 const rejected = require('./rejected');
 
-/**
- * How the filesystem gate is behaving right now, in one word.
- *
- * READ FROM trust.js, NOT COMPUTED HERE. This used to translate the old boolean
- * into its own vocabulary — STRICT / AUTO — while the gate read the boolean
- * directly, so there were two descriptions of one setting and only one of them
- * could name the third state. `/permissions` now shows exactly what the gate
- * enforces because it is the same function.
- */
+/** How the filesystem gate is behaving right now, in one word. */
 function modeOf(cfg) {
   return trust.modeOf(cfg || {});
 }
@@ -41,10 +21,7 @@ const MODE_WORDS = {
   off: trust.MODE.DENY, none: trust.MODE.DENY, no: trust.MODE.DENY,
 };
 
-/**
- * Apply a mode and say what it now means. ONE writer for the setting, so
- * `/trust strict` and `/permissions mode ask` cannot record different things.
- */
+/** Apply a mode and say what it now means. */
 function setMode(app, word, w, C) {
   const mode = MODE_WORDS[String(word || '').toLowerCase()];
   if (!mode) {
@@ -55,10 +32,7 @@ function setMode(app, word, w, C) {
     return false;
   }
   app.cfg.permissionMode = mode;
-  // THE OLD BOOLEAN IS REMOVED, not left beside the new field. Two settings
-  // that can disagree about what is allowed is the bug this replaces, and a
-  // stale `autoOutsideProject` in a config file read by an older LAIN would be
-  // exactly that.
+  // THE OLD BOOLEAN IS REMOVED, not left beside the new field.
   delete app.cfg.autoOutsideProject;
   config.save(app.cfg);
   w('  ' + C.green(`✓ ${mode.toLowerCase()}`) + C.dim(` — ${trust.MODE_MEANS[mode]}\n`));
@@ -69,9 +43,7 @@ function setMode(app, word, w, C) {
 }
 
 function register({ define, C }) {
-  /**
-   * `/trust` — the standing decision about this directory.
-   */
+  /** `/trust` — the standing decision about this directory. */
   define('/trust', {
     surface: true,
     flashMs: 0,
@@ -100,14 +72,7 @@ function register({ define, C }) {
         w('  ' + C.yellow('✓ untrusted') + C.dim(' — this directory is no longer decided about\n'));
         return;
       }
-      // STRICT AND AUTO ARE ABOUT OUTSIDE THE PROJECT, not about this
-      // directory. Named here because they are the same subject — what may be
-      // touched — and a second command for one boolean is a command too many.
-      // `strict` and `auto` are two of the three modes under older names, and
-      // they go through the SAME setter as `/permissions mode` so the two
-      // commands cannot record different things. `deny` is reachable here too:
-      // refusing to accept a word the other command accepts would be a puzzle
-      // with no upside.
+      // STRICT AND AUTO ARE ABOUT OUTSIDE THE PROJECT, not about this directory.
       if (sub === 'strict' || sub === 'auto' || sub === 'ask' || sub === 'deny') {
         setMode(app, sub, w, C);
         return;
@@ -133,9 +98,7 @@ function register({ define, C }) {
     },
   });
 
-  /**
-   * `/permissions` — what was refused, and the chance to change your mind.
-   */
+  /** `/permissions` — what was refused, and the chance to change your mind. */
   define('/permissions', {
     surface: true,
     flashMs: 0,
@@ -146,11 +109,7 @@ function register({ define, C }) {
       const list = rejected.all(app);
       const sub = String(args[0] || '').toLowerCase();
 
-      // ---- THE MODE, WHICH IS THE SETTING THIS COMMAND WAS MISSING --------
-      //
-      // There was no way to say "never ask me, just refuse it". On an
-      // unattended run the gate would put a prompt on a screen nobody is
-      // looking at and wait for an answer that was never coming.
+      // THE MODE, WHICH IS THE SETTING THIS COMMAND WAS MISSING
       if (sub === 'mode') { setMode(app, args[1], w, C); return; }
       if (MODE_WORDS[sub]) { setMode(app, sub, w, C); return; }
 

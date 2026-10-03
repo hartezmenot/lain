@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE TRANSIENT ACTIVITY BOX (§5–6).
- *
- *     ┌ ACTIVITY ────────────────────────────────┐
- *     │ READING · src/auth · 5 files             │
- *     └──────────────────────────────────────────┘
- *
- * WHAT IT SAYS is derived ONLY from runtime state — the loop's phase, the tool
- * in flight, the targets this turn touched, the wire progress of the open
- * request. It never shows the model's reasoning, hidden or otherwise — only a
- * SIZE of it; the commentary rows quote the visible answer text alone.
- *
- *   READING   LOCATING   THINKING   WRITING   EXECUTING   TESTING
- *   VERIFYING   WAITING   BACKGROUND   BLOCKED   RATE LIMITED
- *   and, while a request is open (streamprogress.js): WAITING · THINKING ·
- *   STREAMING · PREPARING TOOL · STALLED, with the request clock, plus up to
- *   two rows of the model's OWN visible words (never its reasoning).
- *
- * WHEN IT IS THERE: only while a turn is working and there is something worth
- * a line; it closes the instant the turn ends (no minimum lifetime, nothing
- * waits on it) and it never enters the transcript. Ctrl+O expands it to the
- * last few operations and collapses it again.
- */
+/** THE TRANSIENT ACTIVITY BOX (§5–6). */
 
 const T = require('./text');
 const { P } = require('./paint');
@@ -57,10 +35,7 @@ function commonDir(targets) {
   return prefix.join('/');
 }
 
-/**
- * The box's content for this frame, or null when it should not be open.
- * @returns {{kind:string, line:string, detail:string[]}|null}
- */
+/** The box's content for this frame, or null when it should not be open. */
 /** RUNNING SUBAGENTS, from the job registry — never counted from narration. */
 function agentsOf(state) {
   return (Array.isArray(state && state.jobs) ? state.jobs : []).filter((j) => j && j.kind === 'subagent' && j.state === 'RUNNING');
@@ -94,10 +69,7 @@ function summaryOf(state, now = Date.now()) {
     const secs = phase.resumeAt ? Math.max(0, Math.ceil((phase.resumeAt - now) / 1000)) : null;
     return { kind: phase.rateLimited ? 'RATE LIMITED' : 'WAITING', line: `${phase.rateLimited ? 'provider limit' : 'provider'}${secs != null ? ` · retry in ${secs}s` : ''}`, detail };
   }
-  // ---- A REQUEST IS OPEN: say what the WIRE says (streamprogress.js) -------
-  // WAITING (no data yet) · THINKING (reasoning arriving) · STREAMING (the
-  // answer) · PREPARING TOOL (arguments arriving, with their size) · STALLED.
-  // Before this every open request was THINKING, however it was behaving.
+  // A REQUEST IS OPEN: say what the WIRE says (streamprogress.js) WAITING (no data yet) · THINKING (reasoning arriving) · STREAMING (the answer) ·…
   if (phase && (phase.phase === 'WAITING_MODEL' || phase.phase === 'RECEIVING') && phase.live) {
     const progress = require('../streamprogress');
     const st = progress.state(phase.live, now);
@@ -127,30 +99,12 @@ function summaryOf(state, now = Date.now()) {
   return null;
 }
 
-/**
- * THE RECTANGLE IS FOR THE MODEL; EVERYTHING ELSE IS ONE LINE.
- *
- * While the model is working out what to do, nothing else on screen says so,
- * and the box earns its rows:
- *
- *     ░ THINKING                          ░
- *     ░ after 3 steps                     ░
- *
- * The moment something else is PRIMARY — a tool acting, a diff arriving in the
- * feed, a check running — the box MINIMIZES to `READING · src/a.js`: the work
- * is still visibly alive and the rows go to the thing that is happening.
- * Ctrl+O still expands it to the last few operations, whatever the phase.
- */
+/** THE RECTANGLE IS FOR THE MODEL; EVERYTHING ELSE IS ONE LINE. */
 const COMMENTARY_ROWS = 2;
 const THOUGHT_ROWS = 4;
 const THOUGHT_WIDTH = 68;
 
-/**
- * ONLY WHAT THE LIVE ROW CANNOT SAY (2026-10-01). The box used to open with `WAITING · 00:01 / for the first response
- * from the model` directly above the status strip saying `◒ Waiting  for the first response from the model` — one
- * state, drawn twice, with two clocks. The strip (ui/status.js) is now THE activity line; the box carries only the
- * model's own visible words, the agents tree and the Ctrl+O detail, and takes no rows when it has none of them.
- */
+/** ONLY WHAT THE LIVE ROW CANNOT SAY (2026-10-01). */
 function rows(state, room = 99, now = Date.now(), { minimal = false } = {}) {
   const s = summary(state, now);
   if (!s || room < 1) return 0;
@@ -183,8 +137,6 @@ function draw(state, width = 80, height = 0, now = Date.now()) {
   const s = summary(state, now);
   if (!s) return new Array(height).fill(T.fit('', width));
   // An open request that has not answered yet is not a warning — only STALLED is.
-  // THE PALETTE (2026-09-23): the model working is VIOLET; a tool acting is
-  // CYAN; STALLED / BLOCKED / RATE LIMITED keep their semantic tones.
   const paint = P[TONE[s.kind] && !(s.model && s.kind === 'WAITING') ? TONE[s.kind] : s.model ? 'violet' : 'cmd'] || P.plain;
   if (height < 2) {
     const only = (s.agents && s.agents[0]) || (s.commentary ? require('../streamprogress').commentaryLine({ commentary: s.commentary }) : '') || '';

@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * SELECTION FRAMES — real time, renderer-local (Phase 6, 2026-10-02).
- *
- * A selection move (↑↓ in a picker, a drag across the feed or the input) changes RENDERER state only: the panel's
- * highlighted row, the screen's text selection. So its frame does not re-project Core (`ui.refresh` → snapshot): it
- * redraws the last projection with the new selection — `screen.draw()` keeps the state it was last given, and reads
- * the panel and the selection live.
- *
- * AND IT IS PACED, not queued: a drag reports a motion per mouse sample (hundreds a second); every one of them used to
- * be a full projection and a full frame. Now the first move of a burst is drawn at once, later ones within FRAME_MS
- * are folded into one trailing frame — so the newest selection is on screen within 16 ms of the event that made it,
- * and never more than one frame is spent per 16 ms.
- *
- * Measured before the change (120×40, 3 000-line feed): ↓ p95 1.4 ms, drag p95 0.9 ms per event — already inside the
- * budget on a quiet screen; this makes the budget hold under bursts and a heavy projection.
- */
+/** SELECTION FRAMES — real time, renderer-local (Phase 6, 2026-10-02). */
 
 const FRAME_MS = 16;
 

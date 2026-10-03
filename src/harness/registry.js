@@ -1,48 +1,6 @@
 'use strict';
 
-/**
- * THE CAPABILITY REGISTRY — one description of everything LAIN can do, whoever
- * provides it.
- *
- * ------------------------------------------------------------------------
- * THE PROBLEM IT SOLVES, WHICH IS NOT "WE NEED A REGISTRY".
- *
- * LAIN's tools, the desktop bridge's operations and whatever an MCP server
- * offers are three vocabularies with three shapes. A person asking "what can
- * this thing do to my machine, and what will it ask me before doing?" had to
- * read three different lists and know which was which. Worse, only one of them
- * carried the answer at all: `mutates: true` on a LAIN tool says a file might
- * change, and says nothing about whether the action reaches the network,
- * whether it is reversible, or whether it touches an account somewhere.
- *
- * So this normalises. Every capability, wherever it comes from, is described
- * with the same six facts, and one of them is the one that matters most:
- * WHAT KIND OF EFFECT DOES THIS HAVE ON THE WORLD.
- *
- * ------------------------------------------------------------------------
- * IT DESCRIBES AND ADVISES. IT DOES NOT ENFORCE.
- *
- * Enforcement already exists and is good: `gate.js` is the single door every
- * tool call passes through, `trust.js` decides which directories are ours to
- * work in, and `permissions.js` decides whether the screen may be seen, asking
- * on every call rather than once. A registry that also enforced would be a
- * second gate, and on the day the two disagreed the weaker one would win —
- * which is the failure mode of every security layer ever added beside another.
- *
- * What this adds is the vocabulary those gates never had, and a POLICY: which
- * side effects need a person to say yes. `gate.js` keeps the door; this says
- * what is written on it.
- *
- * ------------------------------------------------------------------------
- * WHY THE POLICY IS NOT "ASK ABOUT EVERYTHING".
- *
- * A harness that asks before every write is a harness nobody leaves running,
- * and a person who has clicked yes forty times is not consenting any more —
- * they are clearing a dialog. Reading source, running tests and editing files
- * in a trusted directory are the WORK, and they proceed. What is worth
- * interrupting somebody for is the small set that is hard to undo or reaches
- * outside this machine.
- */
+/** THE CAPABILITY REGISTRY — one description of everything LAIN can do, whoever provides it. */
 
 const SIDE_EFFECT = Object.freeze({
   READ: 'READ',
@@ -68,17 +26,7 @@ const APPROVAL = Object.freeze({
   REQUIRED: 'REQUIRED',
 });
 
-/**
- * THE POLICY — the whole of it, in one readable table.
- *
- * DESTRUCTIVE and EXTERNAL require approval. Everything else proceeds.
- *
- * NETWORK IS DELIBERATELY AUTOMATIC and that deserves defending: `web_fetch` is
- * a plain GET with no profile and no cookies, and a question whose answer is in
- * a changelog should never have to be answered from a training cut-off. What
- * needs consent is not reading the internet, it is CHANGING something out
- * there — and that is EXTERNAL, which is not automatic.
- */
+/** THE POLICY — the whole of it, in one readable table. */
 const POLICY = Object.freeze({
   [SIDE_EFFECT.READ]: APPROVAL.AUTOMATIC,
   [SIDE_EFFECT.WRITE]: APPROVAL.AUTOMATIC,
@@ -91,15 +39,7 @@ const POLICY = Object.freeze({
 /** A capability that has not answered by now has stopped answering. */
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-/**
- * RETRY POLICY, and the rule behind the table.
- *
- * A retry is safe when the operation is IDEMPOTENT: reading a file twice is
- * reading a file. It is not safe when repeating it does the thing twice —
- * creating an issue, sending a message, deleting something that was already
- * deleted and now takes a different path. So writes retry (they overwrite the
- * same bytes), and anything DESTRUCTIVE or EXTERNAL never does.
- */
+/** RETRY POLICY, and the rule behind the table. */
 const RETRY = Object.freeze({
   [SIDE_EFFECT.READ]: 'IDEMPOTENT',
   [SIDE_EFFECT.WRITE]: 'IDEMPOTENT',
@@ -109,15 +49,7 @@ const RETRY = Object.freeze({
   [SIDE_EFFECT.EXTERNAL]: 'DISABLED',
 });
 
-/**
- * WHAT EACH LAIN TOOL ACTUALLY DOES, where `mutates` is not specific enough.
- *
- * Only the exceptions are listed. Everything else is derived: a tool that
- * mutates is WRITE, a tool that does not is READ. That derivation is what keeps
- * this table from becoming a second copy of the tool registry that drifts —
- * a tool added tomorrow gets a correct description without anybody editing this
- * file, and only a tool with an UNUSUAL effect needs a row.
- */
+/** WHAT EACH LAIN TOOL ACTUALLY DOES, where `mutates` is not specific enough. */
 const OVERRIDES = Object.freeze({
   run_bash: SIDE_EFFECT.EXECUTE,
   run_powershell: SIDE_EFFECT.EXECUTE,
@@ -148,9 +80,7 @@ function effectFor(name, { mutates = false } = {}) {
   return OVERRIDES[name] || (mutates ? SIDE_EFFECT.WRITE : SIDE_EFFECT.READ);
 }
 
-/**
- * DESCRIBE ONE CAPABILITY. The six facts, always the same six.
- */
+/** DESCRIBE ONE CAPABILITY. */
 function describe(name, { mutates = false, effect = null, description = '', provider = PROVIDER.TOOL, trust = TRUST.BUILT_IN, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const sideEffect = effect || effectFor(name, { mutates });
   return {
@@ -170,24 +100,14 @@ function describe(name, { mutates = false, effect = null, description = '', prov
   };
 }
 
-/**
- * EVERY CAPABILITY AVAILABLE RIGHT NOW.
- *
- * READ FROM THE LIVE TOOL REGISTRY rather than from a list kept here, because
- * a registry that can disagree with the thing it describes is worse than none —
- * the architecture guard already enforces that schemas and dispatch are one
- * list, and this rides on that guarantee instead of adding a third list to keep
- * in step.
- */
+/** EVERY CAPABILITY AVAILABLE RIGHT NOW. */
 function all(app = null) {
   const out = [];
   const cfg = (app && app.cfg) || require('../config').load();
   let tools;
   try { tools = require('../tools'); } catch { tools = null; }
   if (tools) {
-    // BUILT ONCE. `schemas()` re-derives the whole active vocabulary on every
-    // call, so asking it per tool made this quadratic in the tool count for no
-    // reason — and this runs on `/harness capabilities`, which a person waits on.
+    // BUILT ONCE. `schemas()` re-derives the whole active vocabulary on every call, so asking it per tool made this quadratic in the tool count for no…
     const byName = new Map(tools.schemas(app).map((x) => [x.name, x]));
     for (const name of tools.names(app)) {
       const schema = byName.get(name);
@@ -200,9 +120,7 @@ function all(app = null) {
       }));
     }
   }
-  // THE DESKTOP BRIDGE'S OWN OPERATIONS, named individually. `computer` is one
-  // tool and eight quite different powers, and a person reading a capability
-  // list deserves to see that `type` and `windows` are not the same risk.
+  // THE DESKTOP BRIDGE'S OWN OPERATIONS, named individually.
   try {
     const mcp = require('../mcp');
     if (mcp.configured(cfg)) {
@@ -258,13 +176,7 @@ function all(app = null) {
   return out;
 }
 
-/**
- * DOES THIS NEED SOMEBODY TO SAY YES?
- *
- * The answer a caller acts on. `gate.js` still runs; this tells a surface what
- * to expect and lets the harness raise `approval.required` BEFORE the call
- * rather than discovering it inside one.
- */
+/** DOES THIS NEED SOMEBODY TO SAY YES? */
 function needsApproval(name, opts = {}) {
   return describe(name, opts).approval === APPROVAL.REQUIRED;
 }

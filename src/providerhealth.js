@@ -1,26 +1,10 @@
 'use strict';
 
-/**
- * THE SEAM BETWEEN THIS PROCESS'S PROVIDER HEALTH AND THE DURABLE COPY.
- *
- *   availability.js   what is true about a route, answered SYNCHRONOUSLY just before a socket opens; it also owns the
- *                     rules for which durable facts are still true after a restart (hydrate)
- *   routehealth.js    the durable copy, a small file every LAIN process on this home reads (2026-10-02 — it used to
- *                     live in the Rust supervisor, which had to be running, or started, to keep a rate limit)
- *   THIS FILE         the wiring between the two
- *
- * PLAIN FUNCTIONS OVER `app`, never methods: an extraction that keeps a `this` becomes `undefined` in strict mode, in
- * whatever branch nothing routinely exercises — which for provider health is a real rate limit at four in the morning.
- */
+/** THE SEAM BETWEEN THIS PROCESS'S PROVIDER HEALTH AND THE DURABLE COPY. */
 
 const health = require('./routehealth');
 
-/**
- * WHAT WE LEARN ABOUT A ROUTE, KEPT FOR THE NEXT PROCESS. availability.js learns provider health from requests that
- * were happening anyway; this records it so the next LAIN does not have to buy the same fact again. A person's
- * decision (`/provider disable|maintenance`) is a SET, a `/provider retry` a CLEAR. Never throws (Availability._push
- * swallows whatever a sink does wrong).
- */
+/** WHAT WE LEARN ABOUT A ROUTE, KEPT FOR THE NEXT PROCESS. */
 function installSink(app) {
   if (!app || !app.availability) return;
   app.availability.sink = (id, ev) => {
@@ -43,11 +27,7 @@ function installSink(app) {
   };
 }
 
-/**
- * WHICH DOORS WERE SHUT WHILE THIS PROCESS DID NOT EXIST. A local file read: no process is started or asked.
- * `adopt` is true exactly once, at the start of the process — after that the in-memory copy has seen this session's
- * own requests and is the fresher of the two.
- */
+/** WHICH DOORS WERE SHUT WHILE THIS PROCESS DID NOT EXIST. */
 function refresh(app, { adopt = false } = {}) {
   if (!app) return undefined;
   let rows = [];

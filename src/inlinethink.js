@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * REASONING SENT INLINE IN `content`, separated back out.
- *
- * Live, 2026-09-18: kr/claude-sonnet-4.5-agentic through 9router streams its
- * working-out as `<thinking>…</thinking>` INSIDE `delta.content` — there is no
- * `reasoning_content` field on that route. provider.js already keeps reasoning
- * as its own event so it never enters the transcript as speech; this was the
- * one spelling it did not recognise, and the screen drew "I need to report this
- * clearly to the user. </thinking>" as the answer.
- *
- * A streaming state machine, because tags arrive split across chunks
- * (`<thin` + `king>`): a tail that could still become a tag is held back until
- * the next chunk decides it. Nothing is dropped — every character leaves as
- * either `text` or `reasoning`.
- */
+/** REASONING SENT INLINE IN `content`, separated back out. */
 
 const OPEN = ['<thinking>', '<think>'];
 const CLOSE = ['</thinking>', '</think>'];

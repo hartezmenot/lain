@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * THE FINAL SMOKE — ONE EXECUTOR of the verification contract, for the tiers that ask for broad proof.
- *
- * It is no longer a universal last ritual. verifycontract.requirement() — the single verification authority —
- * decides whether a change needs the project's broad suite (PROJECT / RELEASE level: a manifest, the runner, many
- * files, a release). Only then does this module's requirement apply: the final suite must have run AND passed after
- * the last mutation. A targeted fix, a UI nudge verified in the Preview, a one-file change nothing imports: the
- * contract asks for evidence that exercises the change, and the final smoke is NOT_REQUIRED. (`state` asks the
- * contract, so the arbiter, the idle wake-up, notifications and the prompt all agree.)
- *
- * WHICH SUITE IS FINAL: the project's smoke suite when it has one (discovered
- * by testing.js), otherwise its primary test suite, otherwise nothing — a tree
- * that does not say how to verify itself does not get a requirement invented
- * for it.
- *
- * A FAILED FINAL SMOKE REOPENS WORK, IT DOES NOT RESET IT. The failure output is
- * mapped to the plan step that owns the failing file (each step records the
- * files it changed — see `noteMutation`). That step goes back to ACTIVE, every
- * other completed step stays DONE, and the smoke step waits at the end to be
- * run again after the targeted regression. Ownership that cannot be decided
- * reopens nothing: the model gets the evidence for a bounded investigation.
- *
- * `/bg` ON THE SMOKE keeps the task open: the detached run is RUNNING until it
- * rejoins, and only then does it settle — pass → the completion validator,
- * fail → reopen + a self-started continuation (bgdetach.js).
- */
+/** THE FINAL SMOKE — ONE EXECUTOR of the verification contract, for the tiers that ask for broad proof. */
 
 const path = require('path');
 
@@ -68,14 +43,7 @@ function isFinal(cwd, name, input = {}) {
   return false;
 }
 
-/**
- * The task's final-smoke state from the lifecycle's record.
- *   NOT_REQUIRED  nothing changed, or no suite exists
- *   MISSING       changed since the last passing final run (or never run)
- *   RUNNING       detached with /bg, not rejoined yet
- *   FAILED        the latest final run after the last change failed
- *   PASSED        the latest final run is after the last change and passed
- */
+/** The task's final-smoke state from the lifecycle's record. */
 function state(life, cwd) {
   if (!life || !life.evidence || !life.evidence.filesChanged || !life.evidence.filesChanged.size) return 'NOT_REQUIRED';
   if (!suite(cwd)) return 'NOT_REQUIRED';
@@ -132,11 +100,7 @@ function ensureTerminal(plan, cwd) {
   return true;
 }
 
-/**
- * THE FINAL SMOKE FAILED: which earlier step owns it? The step whose changed
- * files appear in the failure (stack, assertion, path) — the most specific
- * match wins; none or a tie between different steps is "ambiguous".
- */
+/** THE FINAL SMOKE FAILED: which earlier step owns it? */
 function owner(plan, failureText) {
   if (!plan || !Array.isArray(plan.steps)) return null;
   const text = String(failureText || '');
@@ -160,10 +124,7 @@ function owner(plan, failureText) {
   return scored[0].step;
 }
 
-/**
- * Reopen the owning step: it becomes ACTIVE again, the smoke step waits, every
- * other completed step keeps its DONE. Returns a sentence for the model, or ''.
- */
+/** Reopen the owning step: it becomes ACTIVE again, the smoke step waits, every other completed step keeps its DONE. */
 function reopen(plan, failureText) {
   if (!plan || !Array.isArray(plan.steps)) return '';
   const step = owner(plan, failureText);
@@ -195,14 +156,7 @@ function guidance(life, cwd) {
   return head;
 }
 
-/**
- * A /bg-DETACHED FINAL SMOKE CAME BACK. Settle it without waiting for anyone:
- *   PASS → the lifecycle records the verdict, the smoke step is ticked, and the
- *          completion validator runs (it may now say DONE).
- *   FAIL → the owning step is reopened and a continuation starts on its own —
- *          or is queued behind a running turn — carrying the evidence.
- * Returns what happened, or null when the job was not the final smoke.
- */
+/** A /bg-DETACHED FINAL SMOKE CAME BACK. */
 function settleBackground(app, session, r) {
   const life = session && session.lifecycle;
   if (!life || !life.smoke || !life.smoke.running || !r || r.kind !== 'process') return null;
@@ -215,7 +169,7 @@ function settleBackground(app, session, r) {
   if (r.ok && current) {
     const rest = plan ? plan.steps.filter((x) => x !== smokeStep && x.status !== 'done' && x.status !== 'dropped') : [];
     if (smokeStep && !rest.length) { smokeStep.status = 'done'; smokeStep.completedAt = new Date().toISOString(); smokeStep.note = 'final smoke passed (background)'; }
-    if (!app.abort) { try { require('./completion').maybeComplete(app); } catch { /* the strip still reads the state */ } }
+    // (the completion screen is gone, S10: the strip reads the state)
     return { passed: true };
   }
   if (!current) return { stale: true };

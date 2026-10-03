@@ -1,56 +1,13 @@
 'use strict';
 
-/**
- * A BROWSER LAIN OWNS — pinned, installed on purpose, and never updated behind
- * a running verification.
- *
- * ------------------------------------------------------------------------
- * WHY A MANAGED BUILD RATHER THAN THE ONE ON THE MACHINE.
- *
- * "The tests pass on my machine" is usually a story about a dependency nobody
- * pinned, and a browser is the largest unpinned dependency a frontend
- * verification has. The person's Chrome updates itself every few weeks, without
- * asking, sometimes mid-suite. So a red verdict cannot be attributed: it could
- * be the code, or it could be that Chrome changed under it — and the evidence
- * from last week does not say which browser produced it.
- *
- * Chrome for Testing exists precisely for this. It is versioned, it is
- * archived, it does not auto-update, and a build downloaded today is the same
- * build in six months.
- *
- * ------------------------------------------------------------------------
- * INSTALLING IS AN EXPLICIT ACT AND WILL NEVER HAPPEN ON ITS OWN.
- *
- * Nothing in the launch path calls `install`. A verification that quietly
- * downloaded 160MB the first time somebody ran it would turn a two-second test
- * into a two-minute one for reasons the output does not explain, on a network
- * the person did not agree to use. `resolve()` reads the disk; this module is
- * reached only when a person asks — `/env chromium install`.
- *
- * That is also the whole of §14's "do not silently auto-update during a
- * verification run": there is no code path from a run to an install.
- *
- * ------------------------------------------------------------------------
- * IT REPORTS THE VERSION EVEN WHEN IT DID NOT INSTALL IT.
- *
- * `versionAt` works on a borrowed system browser too, because the evidence has
- * to say which browser produced a verdict whether or not LAIN chose it. An
- * unknown version is reported as unknown rather than as a plausible guess.
- */
+/** A BROWSER LAIN OWNS — pinned, installed on purpose, and never updated behind a running verification. */
 
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const os = require('os');
 
-/**
- * THE PINNED BUILD.
- *
- * A CONSTANT IN THE SOURCE, not a "latest" lookup, and that is the point: a
- * checkout of this tree at this commit installs this browser. Bumping it is a
- * commit somebody reviews, which is what makes a browser upgrade attributable
- * when a verdict changes the same week.
- */
+/** THE PINNED BUILD. */
 const PINNED = '141.0.7390.54';
 
 /** Where Chrome for Testing publishes what it has. Read only when installing. */
@@ -59,10 +16,7 @@ const DOWNLOAD_BASE = 'https://storage.googleapis.com/chrome-for-testing-public'
 
 const INSTALL_HINT = '/env chromium install — downloads the pinned Harness browser (~160MB, once)';
 
-/**
- * WHAT THIS PLATFORM IS CALLED IN THE DISTRIBUTION, and where the executable
- * sits inside the archive. Both come from the same table so they cannot drift.
- */
+/** WHAT THIS PLATFORM IS CALLED IN THE DISTRIBUTION, and where the executable sits inside the archive. */
 const PLATFORMS = {
   'win32-x64': { id: 'win64', exe: 'chrome.exe' },
   'win32-ia32': { id: 'win32', exe: 'chrome.exe' },
@@ -95,13 +49,7 @@ function exePath(version) {
   return path.join(dirFor(version), p.exe);
 }
 
-/**
- * IS THE PINNED BUILD INSTALLED?
- *
- * Checks the pinned version first and then any other version present, because
- * a person who pinned forward and back should not be told they have nothing.
- * The version actually used is always reported.
- */
+/** IS THE PINNED BUILD INSTALLED? */
 function installed({ version = PINNED } = {}) {
   const tried = [];
   const p = platform();
@@ -125,15 +73,7 @@ function installed({ version = PINNED } = {}) {
   return { ok: false, tried, why: `the pinned Harness browser (${version}) is not installed` };
 }
 
-/**
- * THE VERSION OF A BROWSER ON DISK, WITHOUT RUNNING IT.
- *
- * A managed build carries its version in its path. A system Chrome on Windows
- * keeps a sibling directory named for its version — the standard layout — which
- * is the cheapest reliable read there. Everywhere else this returns '' rather
- * than shelling out: the AUTHORITATIVE version comes from CDP once the browser
- * is up (see chromium.js), and this is only for a pre-flight display.
- */
+/** THE VERSION OF A BROWSER ON DISK, WITHOUT RUNNING IT. */
 function versionAt(exe) {
   const p = String(exe || '');
   if (!p) return '';
@@ -183,13 +123,7 @@ function get(url, { limit = 400 * 1024 * 1024, redirects = 5, onProgress = null 
   });
 }
 
-/**
- * WHAT AN INSTALL WOULD DO, WITHOUT DOING IT.
- *
- * Separate from `install` so `/env` can show the version, the URL and the
- * destination before anybody spends a download on it — and so a test can assert
- * the whole plan without touching the network.
- */
+/** WHAT AN INSTALL WOULD DO, WITHOUT DOING IT. */
 function plan({ version = PINNED } = {}) {
   const p = platform();
   if (!p) {
@@ -206,14 +140,7 @@ function plan({ version = PINNED } = {}) {
   };
 }
 
-/**
- * INSTALL THE PINNED BUILD. Only ever called because a person asked.
- *
- * EXTRACTED TO A TEMPORARY DIRECTORY AND THEN MOVED. A half-written install
- * directory looks exactly like a complete one to `installed()`, so a download
- * interrupted at 80% would leave a browser that resolves and does not run. The
- * rename is the commit point.
- */
+/** INSTALL THE PINNED BUILD. */
 async function install({ version = PINNED, onProgress = null, force = false } = {}) {
   const p = plan({ version });
   if (!p.ok) return p;

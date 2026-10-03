@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * `/ready` — IS LAIN READY? "Show me everything, so I understand what is going on."
- *
- * LAIN'S OWN readiness, and deliberately not the project's: `/health` answers
- * "is this codebase healthy?" and lives in projecthealth.js. RC here means
- * RELEASE CANDIDATE, never remote control.
- *
- * The rule that makes this honest: a state is read from EVIDENCE, never from a
- * green test count. A unit test passing does not make a subsystem STABLE — it
- * makes it wired. So this separates what is genuinely proven from what is merely
- * present, and it does NOT hide what is missing or excluded on purpose:
- *
- *   STABLE / VERIFIED   proven by a live probe right now (provider reachable,
- *                       config writable, the catalog has models)
- *   IMPLEMENTED         the code path exists and is wired, not runtime-proven
- *   PARTIAL             works, but with a known gap worth stating
- *   MISSING             a capability a person might expect that is not here
- *   EXCLUDED            deliberately left out (orchestra, lain-model) — not a gap
- *   INFO                a fact, not a verdict
- *
- * It reuses the environment probes in diagnose.js and the capability probe set
- * in capabilities.js rather than re-deriving either. Nothing here opens a socket
- * beyond what diagnose already does; it is safe to run whenever.
- */
+/** `/ready` — IS LAIN READY? */
 
 const fs = require('fs');
 const path = require('path');
@@ -55,10 +32,7 @@ async function hasCapability(id, tree) {
   return (await detect(tree, cap)).present;
 }
 
-/**
- * Assess the running LAIN into grouped rows. `app` supplies live state; the
- * source tree is read for what is present and what was deliberately dropped.
- */
+/** Assess the running LAIN into grouped rows. */
 async function assess(app) {
   const srcDir = __dirname;
   const groups = [];
@@ -89,20 +63,7 @@ async function assess(app) {
   const modeHas = (k) => { try { return Boolean(require('./mode').KIND[k]); } catch { return false; } };
   g('Workflows', [
     row('Task loop', STATE.IMPLEMENTED, 'model decides, tools execute, plan tracks steps'),
-    // ---- A WORKFLOW IS NOT A COMMAND -----------------------------------
-    //
-    // These two rows probed `commands.REGISTRY` for `/audit` and
-    // `/troubleshoot`, which were removed from the command surface in the
-    // 2026-09 UX subtraction pass. The probe then reported the WORKFLOWS as
-    // MISSING — and they are not missing: the audit reader, the evidence
-    // scan and the report renderer are all still here, and mode.js routes a
-    // plain-English problem report into TROUBLESHOOT without anyone naming
-    // a mode. Reporting them as gone because the door was removed is the
-    // precise confusion this view exists to prevent.
-    //
-    // So they are probed at the MODULE, which is where the capability
-    // actually lives, and named for what a person can do rather than for a
-    // command they can type.
+    // A WORKFLOW IS NOT A COMMAND
     row('Project reading', module_('./audit') ? STATE.IMPLEMENTED : STATE.MISSING,
       'evidence-based project reading — reached by asking, no command'),
     row('Troubleshooting', module_('./troubleshoot') && modeHas('TROUBLESHOOT') ? STATE.IMPLEMENTED : STATE.MISSING,
@@ -158,20 +119,7 @@ async function assess(app) {
   // to prevent. Detected from the tree, not assumed.
   const tree = { files: fs.existsSync(srcDir) ? fs.readdirSync(srcDir).map((f) => `src/${f}`) : [], read: (rel) => { try { return fs.readFileSync(path.join(srcDir, '..', rel), 'utf8'); } catch { return ''; } } };
   const crossRun = await hasCapability('cross-run-learning', tree);
-  // THE SECOND MODEL, and whether it can actually be reached. A configured name
-  // that no connection serves is NOT configured for any useful purpose, so the
-  // route is resolved rather than the setting being read back.
-  // ---- WHICH MODEL ANSWERS A CHAT TURN ---------------------------------
-  //
-  // This replaced an `External model` group that reported a configured reviewer
-  // and the bounded LAIN → external → LAIN relay. Both went with `/external`;
-  // see routecommands.js for the argument. What is reported now is the thing
-  // that actually exists: the chat SOURCE the session has selected.
-  //
-  // NOTHING IS OPENED TO ANSWER THIS. A health view that launched a browser to
-  // check whether somebody is still logged in to ChatGPT would be a report with
-  // a side effect, so the row says what the session has chosen and says plainly
-  // that liveness is `/source connect`'s question.
+  // THE SECOND MODEL, and whether it can actually be reached.
   let chat = { label: 'LAIN', model: null, web: false };
   try {
     const reg = require('./modelsource/registry');
@@ -191,10 +139,7 @@ async function assess(app) {
       'always LAIN\'s runtime — a consulted website never reads this filesystem, runs a command or settles a task'),
   ]);
 
-  // THE DESKTOP SEAM, read from the LIVE bridge — never from the presence of a
-  // source file. "mcp.js exists" and "a bridge is connected" are different
-  // facts, and reporting the first as the second is exactly the claim this view
-  // exists to prevent.
+  // THE DESKTOP SEAM, read from the LIVE bridge — never from the presence of a source file.
   const mcpMod = require('./mcp');
   let bridge = { state: mcpMod.STATE.NOT_CONFIGURED, reason: 'no bridge command in config', permissions: { active: false } };
   try { bridge = app.desktop().bridge.status(); } catch { /* keep the honest default */ }
@@ -216,9 +161,7 @@ async function assess(app) {
   g('Known gaps', [
     row('Cross-run learning', crossRun ? STATE.IMPLEMENTED : STATE.MISSING,
       crossRun ? 'a learning store is present' : 'no memory of past runs — each session starts cold'),
-    // The AREA column is 22 wide; a longer label is truncated, and a row that
-    // reads "Remote dashboard (/da…" is a worse answer than one that puts the
-    // command in the evidence where there is room for it.
+    // The AREA column is 22 wide; a longer label is truncated, and a row that reads "Remote dashboard
     row('Remote dashboard', dash ? STATE.IMPLEMENTED : STATE.MISSING,
       dash ? '/dash — localhost by default; LAN only when explicitly asked for' : 'no web dashboard configured'),
     hasModule('mcp.js') ? null : row('Desktop seam', STATE.MISSING, 'no bridge seam in the tree'),
@@ -259,10 +202,7 @@ function renderHealth(app, a, { C } = {}) {
   w(col.dim('  This reflects live probes and the source tree, not the test count. Run /audit for the project itself.\n'));
 }
 
-// NO WORKSPACE PANE HERE. The HEALTH tab shows the PROJECT's health
-// (projecthealth.js); this is a question about the tool, asked deliberately
-// before a release rather than kept on screen while working. A second layout
-// function for it would have been a second surface with no reader.
+// NO WORKSPACE PANE HERE.
 
 // ----------------------------------------------------------------- command ---
 

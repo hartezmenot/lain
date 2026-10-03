@@ -1,16 +1,7 @@
 'use strict';
 
-/**
- * `/mcp computer` — connect Computer MCP, and authorize it for this session.
- *
- * Its own file because commands.js is a REGISTRY, and this is a subsystem's
- * surface: what it says, what it offers, and the one question it asks. The
- * capability itself is src/computermcp.js; nothing here decides anything.
- */
+/** `/mcp computer` — connect Computer MCP, and authorize it for this session. */
 
-/**
- * @param {string[]} args  everything after `/mcp computer`
- */
 async function run(app, args, { C }) {
   const computer = require('./computermcp').forApp(app);
   const w = (s) => app.render.write(s);

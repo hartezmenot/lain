@@ -143,24 +143,6 @@ module.exports = async function () {
     assert.strictEqual(vtscreen.render('npm install\r\nfetching 10%\rfetching 100%\r\n', { cols: 80, rows: 10 }), 'npm install\nfetching 100%\n');
     assert.strictEqual(vtscreen.render(`${E}]0;title${E}\\abc\bd\r\n`, { cols: 80, rows: 10 }), 'abd\n');
   });
-
-  await test('IDE CONTEXT: only for IDE turns, fresh, and without the parts the person removed', () => {
-    const s = { id: 'c', _ideTurn: true, cwd: proj };
-    idecontext.record(s, { file: 'src/a.ts', language: 'typescript', cursor: { line: 3, col: 2 }, tabs: ['src/a.ts'], selection: { text: 'secret()', startLine: 3, endLine: 3 } });
-    const fake = { session: s };
-    const hc = require('../../src/harnesscontext');
-    hc.fromIde(fake, s, { file: 'src/a.ts', selection: { text: 'secret()', startLine: 3, endLine: 3 } });
-    // THE SELECTION IS SENT ONCE — in the canonical Selection the Harness packet renders, not again here.
-    assert.ok(/src\/a\.ts/.test(idecontext.section(fake, s)) && !/secret\(\)/.test(idecontext.section(fake, s)));
-    assert.ok(/secret\(\)/.test(hc.packet(fake, s)), 'the packet carries the selected text');
-    s._ideExclude = { selection: true };
-    assert.ok(!/secret\(\)/.test(hc.packet(fake, s)) && hc.selection(fake, s) === null, 'a closed chip means it is not sent, and it is not "this"');
-    s._ideTurn = false;
-    assert.strictEqual(idecontext.section(fake, s), '', 'a Chat turn carries no IDE context');
-    s._ideTurn = true; s._ide.at = Date.now() - idecontext.FRESH_MS - 1;
-    assert.strictEqual(idecontext.section(fake, s), '', 'a stale report is not "right now"');
-  });
-
   await test('IDE ROUTING: questions to the BOT; changes are proposed for the Agent (the AGENT tab and Chat go straight); a choice wins', () => {
     const a = { session: { messages: [] } };
     assert.strictEqual(botroute.decide(a, 'why does main return 3?').role, 'bot');

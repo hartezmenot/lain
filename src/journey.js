@@ -1,40 +1,6 @@
 'use strict';
 
-/**
- * THE SESSION JOURNEY — which room the window is in, and the path the work took.
- *
- * ------------------------------------------------------------------------
- * WHAT THIS IS, AFTER CONSOLIDATION (2026-09-25). It was called "the Spine",
- * and it is not: the shared authority of LAIN is the Core owners themselves,
- * one per truth —
- *
- *   project mutations and their consequences   mutation.js (one transaction)
- *   the one project generation                 projectgen.current
- *   the canonical Selection                    harnesscontext.selection
- *   UI → source binding                        gug.sourceBinding
- *   what a request means, who takes it         mode.js → dispatch.route
- *   every model request                        modelrequest.js
- *   work changing hands                        planhandoff.js (the transfer)
- *   the task and its identity                  task.js
- *   who changed which lines                    editledger.js
- *
- * This file owns only what none of those do — the JOURNEY of one working
- * session:
- *
- *   surface     which room the window is in (in memory, on the root App)
- *   path        the transitions: Chat → Agent → IDE → a manual edit → BOT →
- *               Agent — as events carrying the task id, so a session reads as
- *               one piece of work (persisted with the session)
- *   agentTask   a pointer to the task the Coding Agent carries, as task.js
- *               serialises it, so its next turn is re-seated on it if a
- *               read-only aside ever replaced it
- *   proposal    the journey's name for a waiting "move to Agent?" — the record
- *               itself is a transfer in planhandoff.js; nothing is kept here
- *
- * The Focus workspace (open tabs, cursor) is presentation and lives in the
- * window. `project(app)` is this journey's projection; /api/state carries it
- * as `journey`.
- */
+/** THE SESSION JOURNEY — which room the window is in, and the path the work took. */
 
 const crypto = require('crypto');
 const path = require('path');
@@ -83,10 +49,7 @@ function projectId(root) {
   return `P${crypto.createHash('sha256').update(path.resolve(String(root)).toLowerCase()).digest('hex').slice(0, 12)}`;
 }
 
-/**
- * ONE EVENT ON THE PATH. The task id is read from the owner at the moment it
- * happens — never passed in by a caller that might hold a stale one.
- */
+/** ONE EVENT ON THE PATH. */
 function note(session, kind, fields = {}) {
   if (!session || !Object.values(EVENT).includes(kind)) return null;
   const v = of(session);
@@ -100,10 +63,7 @@ function note(session, kind, fields = {}) {
   return e;
 }
 
-/**
- * THE WINDOW SAYS WHICH ROOM IT IS IN. Only a CHANGE is a path event — the
- * window reports on every navigation and a repeat would bury the real steps.
- */
+/** THE WINDOW SAYS WHICH ROOM IT IS IN. */
 function surface(app, { surface: name, pane = null } = {}) {
   const want = String(name || '').toLowerCase();
   if (!SURFACES.includes(want)) return { ok: false, why: `surface must be one of ${SURFACES.join(', ')}` };
@@ -149,12 +109,7 @@ function agentEnded(app, { outcome = '' } = {}) {
   note(s, EVENT.AGENT_END, { outcome: outcome || undefined });
 }
 
-/**
- * BEFORE AN AGENT TURN: make sure the task in hand is the one the Agent was
- * carrying. The aside rule keeps a read-only question from replacing it, so in
- * ordinary use this finds nothing to do; it exists so continuity does not
- * depend on every other path remembering that rule.
- */
+/** BEFORE AN AGENT TURN: make sure the task in hand is the one the Agent was carrying. */
 function reseat(app) {
   const s = app.session;
   const saved = s && of(s).agentTask;

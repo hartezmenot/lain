@@ -75,9 +75,7 @@ function duplicateOf(app, s, identity) {
   return null;
 }
 
-/**
- * THE PROVIDER'S OWN ANSWER, read from the new profile: signed in, and as whom. Then — and only then — CONNECTED.
- */
+/** THE PROVIDER'S OWN ANSWER, read from the new profile: signed in, and as whom. */
 async function verify(app, s) {
   s.state = STATE.VERIFYING;
   const r = await ai().refresh(app, s.target);
@@ -91,10 +89,7 @@ async function verify(app, s) {
   s.state = STATE.CONNECTED; s.endedAt = Date.now(); s.why = null;
 }
 
-/**
- * "SIGN IN AGAIN" for an account that lost its sign-in: the SAME account's OWN LAIN-made directory, and only that one,
- * only when no request is running through it. Returns the instance record, or a refusal.
- */
+/** "SIGN IN AGAIN" for an account that lost its sign-in: the SAME account's OWN LAIN-made directory, and only that one, only when no request is running… */
 function reuseOf(app, s, driverId, reuse) {
   const rec = ai().record(String(reuse));
   if (!rec || rec.driver_id !== driverId) return { why: 'no such account' };
@@ -147,9 +142,7 @@ async function startClaude(app, s, opts = {}) {
   setTimeout(() => { if (s.state === STATE.STARTING) s.state = STATE.AWAITING_BROWSER; }, URL_WAIT_MS).unref();
 }
 
-// ---- CODEX: a NEW account instance in its own home (an overlay — its own auth.json), Codex's own login ----------------
-// The instance is created for THIS sign-in; another account's home is never the login's target. Codex tells the instance's
-// own app-server when the browser step is done; then the account is asked who it is.
+// CODEX: a NEW account instance in its own home (an overlay — its own auth.json), Codex's own login The instance is created for THIS sign-in; another…
 async function startCodex(app, s, opts = {}) {
   const added = ai().add(app, { driver_id: 'codex', display_name: s.name || '', config: {} });
   if (!added.ok) { fail(s, added.why); return; }
@@ -169,16 +162,9 @@ async function startCodex(app, s, opts = {}) {
   if (s.poll.unref) s.poll.unref();
 }
 
-// ---- ANTIGRAVITY: Google sign-in through the ACP server, in a NEW private profile ------------------------------------------
-// GEMINI_HOME is the new profile; credentials are a file in it; the browser URL is captured for the person. The server
-// answers `authenticate` only when THAT sign-in completes; then the profile itself says who signed in.
+// ANTIGRAVITY: Google sign-in through the ACP server, in a NEW private profile GEMINI_HOME is the new profile; credentials are a file in it; the…
 const AGY_AUTH_PREFIX = /Open the following link to authenticate[^:]*:\s*(https?:\/\/\S+)/i;
-/**
- * ANTIGRAVITY OVER HTTPS (2026-10-01) — the default for every NEW account. Google's installed-app OAuth with a loopback
- * redirect (drivers/antigravityapi.js): no runtime, no 468 MB download. The token is stored under the NEW account's own
- * credential reference; the account is CONNECTED only after Google itself answers who it is (verify → refresh →
- * userinfo / loadCodeAssist). Re-signing in an older ACP-profile account still goes through its own server.
- */
+/** ANTIGRAVITY OVER HTTPS (2026-10-01) — the default for every NEW account. */
 async function startAntigravityHttps(app, s, opts = {}) {
   const api = require('./drivers/antigravityapi');
   const credentials = require('./credentials');
@@ -264,9 +250,7 @@ async function startAntigravity(app, s, opts = {}) {
   setTimeout(() => { if (s.state === STATE.STARTING) s.state = STATE.AWAITING_BROWSER; }, URL_WAIT_MS).unref();
 }
 
-// ---- Z.AI IS API-ONLY IN LAIN (2026-09-29) -----------------------------------------------------------------------------
-// LAIN integrates Z.ai through its API (MODEL › API › Z.ai API). It does not launch ZCode to sign in, does not act as
-// ZCode's desktop host, and creates no Z.ai account instance. (ZCode itself may offer account-based plans; LAIN does not use them.)
+// Z.AI IS API-ONLY IN LAIN (2026-09-29) LAIN integrates Z.ai through its API (MODEL › API › Z.ai API).
 const API_ONLY = Object.freeze({ zai: 'LAIN integrates Z.ai through its API. Add your Z.ai API key under MODEL › API (Z.ai API), or run /api add zai.' });
 
 const STRATEGIES = { claude: startClaude, codex: startCodex, antigravity: startAntigravity };

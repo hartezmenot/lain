@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * CLAUDE ACCOUNTS — one AccountInstance per Claude sign-in, each with its OWN
- * configuration directory (Phase 8.4 hotfix).
- *
- * ------------------------------------------------------------------------
- * THE INVARIANT this file exists to keep:
- *
- *   Adding or authenticating another account NEVER mutates the configuration or
- *   authentication of an account that is already connected, and NEVER touches a
- *   process that is doing work.
- *
- * Claude Code keeps its sign-in in ITS CONFIG DIRECTORY (`CLAUDE_CONFIG_DIR`,
- * else `~/.claude`). So an account is exactly a directory:
- *
- *   external_native   the person's own normal profile (the default directory).
- *                     LAIN may RUN Claude through it; it is never moved, copied,
- *                     signed out, or written to by "Add account", and "Detach"
- *                     removes LAIN's reference only.
- *   lain              a directory LAIN allocated under <config>/accounts/claude/<id>.
- *                     The SAME directory is used for `claude auth login`, for
- *                     `claude auth status`, and for every run. LAIN may sign it
- *                     out and delete it — it made it.
- *
- * A LAIN-owned account can never be pointed at the default profile (validate),
- * and no directory is shared: two accounts on one directory would be one sign-in
- * with two names. HOME is never used as a substitute, and no existing profile is
- * copied into a new one — a new account starts from an empty directory.
- *
- * Nothing here holds a process. Login is an AuthSession (authsession.js), run
- * separately from every execution; status is a short read-only command.
- */
+/** CLAUDE ACCOUNTS — one AccountInstance per Claude sign-in, each with its OWN configuration directory (Phase 8.4 hotfix). */
 
 const fs = require('fs');
 const os = require('os');
@@ -137,12 +107,7 @@ const driver = Object.freeze({
       return a;
     }
     function limits() { try { const t = require('../runtimeadapters').cachedTelemetry(telemetryId); return t && t.limits ? t.limits : null; } catch { return null; } }
-    /**
-     * THIS ACCOUNT'S QUOTA, NOW — without a model request (2026-10-02). Claude Code's own `get_usage` (claudecontrol.js),
-     * asked in this account's directory: the same for a profile LAIN made and for the person's own, because Claude
-     * Code reads — and renews — its own sign-in and LAIN reads none. A reading younger than QUOTA_TTL_MS is served
-     * from the cache unless `force`; ordinary traffic also refreshes it (rate_limit_event, claudecode.js).
-     */
+    /** THIS ACCOUNT'S QUOTA, NOW — without a model request (2026-10-02). */
     async function refreshQuota({ force = false } = {}) {
       const cached = limits();
       const t = (() => { try { return require('../runtimeadapters').cachedTelemetry(telemetryId) || {}; } catch { return {}; } })();

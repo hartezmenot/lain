@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * ACCOUNT POLICY (Phase 8.3) — which backing account serves a family's
- * logical model, and what happens when that account hits a limit.
- *
- *   Automatic fallback   the first healthy account, in the family's priority
- *                        order, that serves the SAME model at the SAME effort.
- *                        On a limit LAIN moves to the next one — session, task,
- *                        model, effort, execution, plan and phase unchanged —
- *                        and says so (tray, account detail). Nothing else moves.
- *   Use one account only the pinned account, always. On a limit LAIN stops and
- *                        asks: Switch account · Wait · Choose another model.
- *   Ask before switching LAIN finds the next eligible account and ASKS; no
- *                        request goes through it until the person says Switch.
- *
- * NEVER A SEMANTIC CHANGE. If no other account serves this model at this
- * effort, the answer is a question, never another model or a lower effort:
- * "no Codex account offers GPT-6 Sol at XHigh". Choosing another model is the
- * person's act.
- *
- * Decided from the eligibility index (fabric/index.js) and the limits the
- * providers reported (fabric/store.js) — never by probing a model.
- */
+/** ACCOUNT POLICY (Phase 8.3) — which backing account serves a family's logical model, and what happens when that account hits a limit. */
 
 const store = require('./store');
 const idx = require('./index');
@@ -31,12 +10,7 @@ const DECISION = Object.freeze({
   KEEP: 'keep', SWITCHED: 'switched', ASK: 'ask', PINNED: 'pinned', INCOMPATIBLE: 'incompatible', NONE: 'none',
 });
 
-/**
- * THE BACKING ACCOUNT for (family, model, effort) under the family's policy.
- *   current   the account the lane runs on now (kept while it is eligible and healthy)
- *   exclude   accounts known to be limited this moment (the one that just refused)
- * → { ok, account, switched, decision, candidates, why }
- */
+/** THE BACKING ACCOUNT for (family, model, effort) under the family's policy. */
 function resolve(app, { family, model, effort = null, current = null, exclude = [], policy = null, pinned = null } = {}) {
   const f0 = idx.family(app, family);
   if (!f0) return { ok: false, decision: DECISION.NONE, why: `no provider family "${family}"` };
@@ -77,12 +51,7 @@ function resolve(app, { family, model, effort = null, current = null, exclude = 
 
 function nameOf(f, id) { const a = f && f.accounts.find((x) => x.id === id); return a ? a.name : (id || 'this account'); }
 
-/**
- * A LIMIT JUST HAPPENED on `accountId`. Record it (the tray and every surface
- * read it) and decide what the lane does next. Nothing is switched here — the
- * caller applies a SWITCHED decision; ASK / PINNED / INCOMPATIBLE become the
- * question the person answers.
- */
+/** A LIMIT JUST HAPPENED on `accountId`. */
 function onLimit(app, { family, model, effort = null, accountId, resetAt = null, reason = 'rate limited' } = {}) {
   if (accountId) {
     store.recordQuota(accountId, { limited: { until: resetAt || (Date.now() + 5 * 60 * 1000), reason } });

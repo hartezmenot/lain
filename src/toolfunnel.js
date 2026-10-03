@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * THE PER-TURN TOOL FUNNEL — the turn is SHOWN the capabilities its task needs
- * (2026-09-25).
- *
- * The registry (tools/index.js) stays the one source of what exists and what a
- * call may do. What changes is what a request DESCRIBES: 59 schemas, ~55 KB,
- * were sent on every request of every turn, whether the question was "what does
- * this function do?" or "rename this and update callers". A model told about
- * `download_file`, `delegate` and `service_start` while explaining one function
- * pays for them on every step and is invited to wander.
- *
- * So Core builds the set from the TASK'S STRUCTURE, which it already resolved:
- *
- *   explain      a question about the Selection     read · symbols · evidence · ask
- *   rename       "rename this to X"                 read · semantic edit · diagnostics · tests · plan
- *   geometry     "move this down" on a picked       read · edit · verify · plan
- *                element
- *   symbol-edit  a change to the selected symbol    read · edit · tests · plan
- *
- * and anything without such a structure gets the whole registry, as before.
- *
- * IT IS EXPOSURE, NOT PERMISSION. A registered tool the funnel did not show still
- * runs if the model calls it (tools/index.js `execute` reads the full active
- * set); the call is counted as a MISS. A funnel that is too narrow shows up in
- * the metrics as misses — it never shows up as a refused action.
- *
- * CACHE-STABLE (2026-09-26, prompt audit F3). The tool list is part of the
- * prompt prefix a provider caches; changing it re-bills everything after it.
- *   · NO MID-TURN WIDENING: a miss is counted, and its family joins from the
- *     NEXT turn — never between two steps of one turn.
- *   · STICKY PER SESSION: a session's funnel only grows (the union of every
- *     shape it used, plus its misses), and a turn that needed the whole
- *     registry keeps the whole registry. Narrowing again would change the
- *     prefix just as widening does. So the list converges and then stays put.
- *   · ORDER is the registry's (filter keeps it), whatever order families join.
- */
+/** THE PER-TURN TOOL FUNNEL — the turn is SHOWN the capabilities its task needs (2026-09-25). */
 
 const FAMILIES = Object.freeze({
   // CORE (2026-10-02): what nearly every coding turn uses — read, search, edit, run, ask, finish.
@@ -82,9 +47,7 @@ const SHAPES = Object.freeze({
   chat: ['read', 'ask', 'web', 'lain', 'contract', 'mcp', 'computer'],
 });
 
-/**
- * PACKS A REQUEST'S OWN WORDS ASK FOR — plain signals, never a model call. Added on top of the class's set.
- */
+/** PACKS A REQUEST'S OWN WORDS ASK FOR — plain signals, never a model call. */
 const SIGNALS = [
   [/\bhttps?:\/\/|\b(docs?|documentation|changelog|release notes|latest version|on the web|search (?:the )?(?:web|online|internet)|look (?:it )?up online|npm page|github issue)\b/i, ['web']],
   [/\b(release|publish|package|installer|ship it|distribut\w+|version bump)\b/i, ['jobs', 'plan', 'web']],
@@ -96,13 +59,7 @@ const SIGNALS = [
   [/\b(computer|desktop|window|click on|type into|screen(?:shot)?)\b/i, ['reach']],
 ];
 
-/**
- * THE FAMILIES FOR ONE TURN — the class's pack plus what the request's words ask for. `null` = the whole registry
- * (a PHASED task: a migration, a new architecture, a long project).
- *   cls       DIRECT | NARROW | AGENT | PHASED (changeclass.js) — null when unclassified (the Coding Agent default)
- *   thread    'chat' for the Chat view
- *   effort    LAIN execution effort for a model with no native effort: low narrows, max widens
- */
+/** THE FAMILIES FOR ONE TURN — the class's pack plus what the request's words ask for. */
 function packsFor({ cls = null, thread = null, text = '', effort = null } = {}) {
   if (thread === 'chat') return [...SHAPES.chat];
   if (cls === 'PHASED' || effort === 'max') return null;
@@ -112,10 +69,7 @@ function packsFor({ cls = null, thread = null, text = '', effort = null } = {}) 
   return [...fams];
 }
 
-/**
- * OPEN THE FUNNEL FOR A NEW TURN — once per classified request, never between two steps of one turn. Sticky: the set
- * a session has used only grows (cache-stable prefix), and a PHASED turn keeps the whole registry from then on.
- */
+/** OPEN THE FUNNEL FOR A NEW TURN — once per classified request, never between two steps of one turn. */
 function openForTurn(session, { cls = null, thread = null, text = '', effort = null, key = null } = {}) {
   if (!session) return null;
   if (key && session._funnelKey === key && session._toolFunnel) return session._toolFunnel;
@@ -126,10 +80,7 @@ function openForTurn(session, { cls = null, thread = null, text = '', effort = n
   return openFamilies(session, name, fams, { why: `${cls || thread || 'unclassified'} — core + packs` });
 }
 
-/**
- * A SUBAGENT'S TOOLS ARE ITS ROLE'S (2026-10-02). Measured: every SCOUT was described the parent's whole registry
- * (~74 KB per request) — read-only scouts carrying write, delegation and desktop tools they can never use.
- */
+/** A SUBAGENT'S TOOLS ARE ITS ROLE'S (2026-10-02). */
 const ROLE_PACKS = Object.freeze({
   SCOUT: ['read', 'intel'],
   RESEARCHER: ['read', 'intel', 'web'],
@@ -166,11 +117,7 @@ function familyOf(name) {
   return null;
 }
 
-/**
- * SET THE FUNNEL FOR THIS TURN. `shape` is one of SHAPES or null. Tools the
- * registry gates on its own (migration, the BOT's handoff, computer, Chrome,
- * cowork) are left to that gating and always pass the funnel when active.
- */
+/** SET THE FUNNEL FOR THIS TURN. */
 function open(session, shape, { why = '' } = {}) {
   if (!session) return null;
   const fams = shape && SHAPES[shape] ? SHAPES[shape] : null;
@@ -188,11 +135,7 @@ function open(session, shape, { why = '' } = {}) {
   return session._toolFunnel;
 }
 
-/**
- * Between turns. The funnel's families stay (sticky); only the per-turn record
- * ends. With no funnel open, tools/index.js shows the whole registry — which is
- * what a session that never had a focused turn has always had.
- */
+/** Between turns. The funnel's families stay (sticky); only the per-turn record ends. With no funnel open, tools/index.js shows the whole registry… */
 function close(session) { if (session) session._toolFunnel = null; }
 
 /** What a turn with no focused shape shows: the sticky set, if the session has one. */

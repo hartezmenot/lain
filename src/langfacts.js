@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * LANGUAGE FACTS FOR THE CANONICAL SELECTION — what the language server knows,
- * asked once, kept as addressable evidence (2026-09-25).
- *
- *     canonical Selection (harnesscontext.selection)
- *            │  file · line · column of the selected identifier
- *            ▼
- *     language server (lsp/manager.js)          ── in parallel ──
- *       definition · references · implementations · type (hover)
- *       document symbols · diagnostics · prepareRename
- *            │
- *            ▼
- *     evidencerefs  (evidence:e14 lsp.references, generation 91, …)
- *            │
- *            ▼
- *     focuspacket (the Agent) · layacontext (relevance) · house (the BOT)
- *
- * THE RULE (§27): if the language server knows, the model is told — it does
- * not rediscover. Only when no server covers the language does this fall back
- * to the project index's own scan (harnesscontext.symbolSites, already on the
- * Selection), and every answer says which it was: `via: 'lsp' | 'index'`.
- *
- * NEVER ON THE CRITICAL PATH FOREVER. A server that has not answered by the
- * deadline is left to finish in the background; what arrived is used, what did
- * not is reported as missing, not invented. A server that is not installed is
- * reported as that — never as "no references".
- *
- * CACHED BY THE PROJECT GENERATION, through evidencerefs: the same Selection at
- * the same (or an untouched later) generation is answered from the entries
- * already computed, with no request to the server at all.
- */
+/** LANGUAGE FACTS FOR THE CANONICAL SELECTION — what the language server knows, asked once, kept as addressable evidence (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');
@@ -54,11 +24,7 @@ function columnOf(root, file, line, name, col = null) {
   return m ? m.index + m[1].length + 1 : (col || 1);
 }
 
-/**
- * WHERE TO ASK: the selected identifier's own position. A selection that is an
- * identifier but whose line does not contain it (a stale report) is asked at
- * its declaration instead.
- */
+/** WHERE TO ASK: the selected identifier's own position. */
 function positionOf(root, sel) {
   if (!sel || !sel.source || !sel.source.file) return null;
   const name = sel.symbol && sel.symbol.name;
@@ -85,13 +51,7 @@ function byFile(locs) {
   return [...m.entries()].map(([file, lines]) => ({ file, lines: [...new Set(lines)].sort((a, b) => a - b) }));
 }
 
-/**
- * THE FACTS FOR A SELECTION. Returns
- *   { via, server, position, definition, references, implementations, type,
- *     symbols, diagnostics, rename, ops: {op: {ok, ms, cached, why}}, evidence: {op: id} }
- * `via` is 'lsp' when a server answered, 'index' when none covers the language,
- * 'none' when there is nothing to ask about.
- */
+/** THE FACTS FOR A SELECTION. */
 async function forSelection(app, session, sel, { deadlineMs = DEADLINE_MS } = {}) {
   const root = (session && session.cwd) || process.cwd();
   const out = { via: 'none', server: null, position: null, definition: [], references: [], implementations: [], type: '', symbols: [], diagnostics: [], rename: null, ops: {}, evidence: {} };
@@ -115,9 +75,7 @@ async function forSelection(app, session, sel, { deadlineMs = DEADLINE_MS } = {}
   }
   out.via = 'lsp';
   out.server = cov.id;
-  // A SERVER THAT HAS NOT LOADED THE FILES answers references from what it has
-  // open: the files the Selection already knows mention the name are opened
-  // first (bounded), the same rule semantic rename follows.
+  // A SERVER THAT HAS NOT LOADED THE FILES answers references from what it has open: the files the Selection already knows mention the name are opened…
   try { await within(lsp().prime(app, [at.file, ...(sel.symbol ? (sel.symbol.files || []).map((f) => f.file) : [])], { max: 60 }), deadlineMs); } catch { /* the answer may be partial; the ops say so */ }
   const words = at.name ? [at.name] : [];
   const keyOf = (op) => `lsp.${op}:${sel.id}:${at.file}:${at.line}:${at.col}`;
@@ -167,10 +125,7 @@ async function forSelection(app, session, sel, { deadlineMs = DEADLINE_MS } = {}
   return out;
 }
 
-/**
- * THE FILES A SELECTION'S LANGUAGE FACTS NAME, by role — for the packet, for
- * Laya, for narrowing. Declaration first, then the file in front, then the rest.
- */
+/** THE FILES A SELECTION'S LANGUAGE FACTS NAME, by role — for the packet, for Laya, for narrowing. */
 function relevantFiles(facts, sel) {
   if (!facts) return [];
   const decl = facts.definition.map((l) => l.path);

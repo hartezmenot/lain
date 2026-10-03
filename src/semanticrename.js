@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * SEMANTIC RENAME THROUGH THE LANGUAGE SERVER — any language whose server
- * renames (2026-09-25).
- *
- *     canonical Selection  (or an explicit file:line:col, or the one declaration)
- *            │
- *     prepareRename        the server says whether, and exactly what
- *            │
- *     textDocument/rename  the server's WorkspaceEdit — declaration, references,
- *            │             imports, implementations; never a string or comment
- *     checked               every edit must replace exactly the old identifier
- *            │             (a shorthand `{ fixButton }` may keep its key:
- *            │             `fixButton: ButtonFix`) — anything else refuses the
- *            │             whole rename, nothing written
- *     written               inside the caller's mutation transaction (the tool
- *            │             door: actor MODEL; provenance, generation, GUG follow)
- *     diagnostics           the server's own, for the files it changed
- *
- * WIRE NAMES STAY. The server renames the SYMBOL; `"fix_button"` and
- * `/api/fix_button` are strings, and the report lists every string and comment
- * still mentioning the old name so each one is decided on purpose.
- *
- * When no server covers the language — or it cannot rename — `used: false` and
- * the caller falls back to rename.js's token rename (JavaScript), saying which
- * ran.
- */
+/** SEMANTIC RENAME THROUGH THE LANGUAGE SERVER — any language whose server renames (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');
@@ -76,11 +51,7 @@ function check(root, plan, from, to) {
   return odd;
 }
 
-/**
- * RENAME `from` → `to` with the language server. Returns
- *   { used: false, why }                         — the caller falls back
- *   { used: true, ok, dryRun, server, files, count, mutated, strings, wire, diagnostics, text }
- */
+/** RENAME `from` → `to` with the language server. */
 async function rename(app, session, { from, to, at = null, dryRun = false }) {
   if (!app || !session || !session.cwd) return { used: false, why: 'no project' };
   const root = session.cwd;

@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * WHO IS LISTENING ON THIS PORT — AND IS IT THE PROCESS LAIN STARTED? (Phase 8.2)
- *
- * A dev server was declared RUNNING because *something* answered on its port.
- * Measured on this machine (2026-09-28): another application (a media server)
- * held 0.0.0.0:5300; the Workshop chose 5300, saw that application answer, and
- * showed it as the project's preview. An HTTP 200 proves a server, not OUR
- * server. So before a preview trusts a port it asks the operating system which
- * process is listening there and whether that process descends from the one
- * LAIN started.
- *
- *   ownerOf(port)          { pid } of the listener, or null when the OS will not say
- *   tree(rootPid)          every pid descended from rootPid (itself included)
- *   verify(rootPid, port)  { ok: true } · { ok: false, owner, why } · { ok: null } (cannot tell)
- *
- * Read-only: netstat / lsof and one process listing. It kills nothing.
- * Asked once when a dev server comes up, never on a poll.
- */
+/** WHO IS LISTENING ON THIS PORT — AND IS IT THE PROCESS LAIN STARTED? */
 
 const { execFile } = require('child_process');
 
@@ -80,10 +63,7 @@ async function tree(rootPid) {
   return out;
 }
 
-/**
- * DOES THE PROCESS LISTENING ON `port` BELONG TO THE TREE LAIN STARTED AT `rootPid`?
- * `ok: null` means the OS would not say — the caller keeps its other evidence.
- */
+/** DOES THE PROCESS LISTENING ON `port` BELONG TO THE TREE LAIN STARTED AT `rootPid`? */
 async function verify(rootPid, port) {
   const owner = await ownerOf(port);
   if (!owner) return { ok: null, why: 'the operating system did not name the listener' };

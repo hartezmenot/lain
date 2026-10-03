@@ -79,7 +79,7 @@ module.exports = async function () {
         'account instances': require('../../src/accountinstances').list(app),
         'window: accounts': await require('../../src/harnessapp/accounts').read(app),
         'route: /api/instances': (await require('../../src/harnessapp/instanceroutes').ROUTES['POST /api/instances'](app, {})).body,
-        'system prompt': app.systemPrompt(),
+        'system prompt': JSON.stringify(require('../../src/simpleprompt').of(app, { session: app.session })),
         'tool schemas': require('../../src/tools').schemas(app),
         'self-knowledge: providers': await require('../../src/tools').execute('lain_workspace', { action: 'describe', topic: 'all' }, { app, session: app.session, cwd: app.session.cwd }),
         'harness state': await require('../../src/harnessapp/state').read(app),

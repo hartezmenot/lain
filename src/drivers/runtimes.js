@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * RUNTIME DRIVERS WITHOUT A SESSION PROTOCOL (yet) — Claude Code, OpenCode,
- * ZCode, Cursor Agent. Each is what its runtime can honestly say:
- *
- *   installed?   its binary on PATH, and `--version`
- *   where        its config home (a path; its files are NOT read)
- *   signed in?   only through the runtime's own status command where one is
- *                documented (`opencode auth list` names providers, never keys).
- *                Otherwise UNKNOWN — the runtime keeps its sign-in.
- *   models       only where the runtime lists them (`opencode models`)
- *   limits       only where the runtime reports them — never estimated.
- *
- * NOTHING HERE extracts a credential, calls a runtime's private backend, or
- * uses a runtime-bound free model outside that runtime.
- */
+/** RUNTIME DRIVERS WITHOUT A SESSION PROTOCOL (yet) — Claude Code, OpenCode, ZCode, Cursor Agent. */
 
 const { spawn } = require('child_process');
 const fs = require('fs');

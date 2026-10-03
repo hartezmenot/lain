@@ -1,19 +1,6 @@
 'use strict';
 
-/**
- * EDIT THE LATEST MESSAGE, OR RETRY IT — a new branch, never a rewritten history (2026-10-02).
- *
- *   the latest user message of a thread (Chat or Coding) and everything after it in THAT thread
- *     → moved to a kept branch record (workbench.branches: the old wording, its replies, its turn records)
- *     → the new wording is submitted as an ordinary turn
- *
- * WHAT IS NOT PRETENDED:
- *   · the old request's turn records leave the live history with it — no record of the new branch claims work the
- *     old request asked for (its task and contract are cleared when the old wording started them);
- *   · files the replaced turns CHANGED are not silently left or silently reverted: in the Coding lane the person
- *     chooses — undo them first (LAIN's checkpoints, refused if a file changed since) or keep them;
- *   · the other thread's messages are untouched, and nothing older than the latest message is editable here.
- */
+/** EDIT THE LATEST MESSAGE, OR RETRY IT — a new branch, never a rewritten history (2026-10-02). */
 
 const MAX_BRANCHES = 10;
 
@@ -41,10 +28,7 @@ function plan(app, view = 'chat') {
   return { ok: true, index: at, text, firstTurn, turnIds: [...turnIds], files };
 }
 
-/**
- * MAKE THE BRANCH. `files`: 'undo' | 'keep' (Coding: required when the replaced turns changed files).
- * @returns {{ok:true, replaced, undone:[], kept:[]}|{ok:false, why, needsChoice?, files?}}
- */
+/** MAKE THE BRANCH. `files`: 'undo' | 'keep' (Coding: required when the replaced turns changed files). @returns {{ok:true, replaced, undone:[]… */
 function branch(app, { view = 'chat', files = null } = {}) {
   const s = app.session;
   if (app.abort && !app.abort.signal.aborted) return { ok: false, why: 'a turn is running — stop it, or edit when it ends' };

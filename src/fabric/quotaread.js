@@ -1,34 +1,6 @@
 'use strict';
 
-/**
- * PROVIDER QUOTA, READ — never inferred, never paid for (2026-09-29).
- *
- *   Claude   asked of Claude Code itself (drivers/claudecontrol.js, `get_usage`) — LAIN reads no Claude token
- *   Z.ai     GET <origin>/api/monitor/usage/quota/limit
- *            the API key LAIN holds for the Z.ai API source
- *   Codex    `account/rateLimits/read` through the account's own app-server —
- *            already a status read (accountinstances.refresh), unchanged
- *
- * Every one is a MANAGEMENT read: no model runs, no quota is spent, nothing is
- * refreshed on the provider's behalf (an expired Claude token is left for
- * Claude Code's own next run to renew).
- *
- * PROVENANCE. The contracts are adapted from the person's own router
- * (E:\AI\router, src/subscription-management.ts — "verified live"), which
- * studied 9Router, OmniRoute and the Z.ai usage tooling:
- *   Claude   headers `anthropic-version: 2023-06-01`, `anthropic-beta:
- *            oauth-2025-04-20`; windows at the ROOT (five_hour, seven_day,
- *            seven_day_opus, seven_day_sonnet) with `utilization` = percent
- *            USED and `resets_at` (ISO); identity from /api/claude_cli/bootstrap
- *   Z.ai     `{ code: 200, data: { limits: [{ type, unit, number, usage,
- *            currentValue, remaining, percentage, nextResetTime }] } }` —
- *            percentage = percent CONSUMED; unit 3 × 5 = the 5-hour window,
- *            unit 6 × 1 = weekly; TIME_LIMIT = the monthly MCP allowance; the
- *            monitor takes the raw key, else `Bearer` (both are deployed)
- *
- * ORIENTATION IS RESOLVED HERE: every window leaves as `usedPercent`; the
- * fabric derives what remains (fabric/index.js normWindow).
- */
+/** PROVIDER QUOTA, READ — never inferred, never paid for (2026-09-29). */
 
 const fs = require('fs');
 const path = require('path');
@@ -60,10 +32,7 @@ function zaiWindowOf(item) {
   return null;
 }
 
-/**
- * Z.AI: the API key's windows, from the monitor endpoint at the API's ORIGIN (never appended to /api/coding/paas/v4).
- * Z.ai wraps errors in an HTTP 200 body — `code` is the truth.
- */
+/** Z.AI: the API key's windows, from the monitor endpoint at the API's ORIGIN (never appended to /api/coding/paas/v4). */
 async function zaiQuota(baseUrl, key, { fetchImpl } = {}) {
   if (!key) return { ok: false, why: 'no API key' };
   let origin;
@@ -97,10 +66,7 @@ async function zaiQuota(baseUrl, key, { fetchImpl } = {}) {
 /** Is this API source Z.ai's (global or BigModel)? A connection may also say so itself (`provider: zai`). */
 function isZai(baseUrl, provider = '') { if (String(provider).toLowerCase() === 'zai') return true; try { return /(^|\.)z\.ai$|(^|\.)bigmodel\.cn$/i.test(new URL(String(baseUrl)).hostname); } catch { return false; } }
 
-/**
- * THE API SOURCES WHOSE PROVIDER ANSWERS QUOTA WITHOUT A MODEL CALL — today, Z.ai's monitor. Each reading is kept as
- * the account's reported windows (fabric/store.recordQuota), which every surface then states as what remains.
- */
+/** THE API SOURCES WHOSE PROVIDER ANSWERS QUOTA WITHOUT A MODEL CALL — today, Z.ai's monitor. */
 async function refreshApi(app) {
   const r = (app && app._sibling) || app;
   let conns = [];

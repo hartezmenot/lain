@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * WHAT A SESSION IS DOING — ONE AUTHORITATIVE ANSWER, EIGHT WORDS.
- *
- *     IDLE · RUNNING · WAITING · QUEUED · NEEDS_INPUT · VERIFYING · DONE · FAILED
- *
- * ------------------------------------------------------------------------
- * A PROJECTION OF OWNERS, NOT A SECOND LIFECYCLE.
- *
- * Nothing here is stored as "the status". Every word is read, at the moment it
- * is asked, from the authority that already holds the fact:
- *
- *   running          app.abort — the turn's own controller (sessionpool.running)
- *   needs input      the Harness port's open question, the terminal's
- *                    pendingAsk, a background job parked on a question, or the
- *                    lifecycle saying NEEDS_USER / NEEDS_AUTH
- *   waiting          the turn loop's RETRYING phase (a provider backoff or rate
- *                    limit) or the terminal's own rate-limit wait
- *   queued           a sentence admitted by `handle` whose turn has not begun
- *   verifying        the Harness task record in VERIFYING, or a verification
- *                    tool running, while the turn is live
- *   failed           the last turn's provider failure, a FAILED lifecycle, or
- *                    a FAILED Harness task
- *   done / idle      the last turn exists / there has been none
- *
- * The frontend never infers any of these: it renders `state` and the
- * `summary` beside it. `startedAt` and `elapsed` come from the execution clock
- * that already exists — the terminal's work clock when there is a terminal, and
- * otherwise the turn-start stamp turnauthority.begin records at the same moment
- * the Guardian is told a turn began. No second timer is started here.
- *
- * ------------------------------------------------------------------------
- * LIVE IN THE BACKGROUND. `touch` is called from the places a status can move
- * — every turn phase, every turn end, a question opening or being answered —
- * and emits `session.status` to the window when the word changed, so a rail row
- * for a session nobody is looking at changes the moment its work does.
- */
+/** WHAT A SESSION IS DOING — ONE AUTHORITATIVE ANSWER, EIGHT WORDS. */
 
 const STATE = Object.freeze({
   IDLE: 'IDLE',
@@ -85,10 +50,7 @@ function question(app) {
   return null;
 }
 
-/**
- * THE STATUS OF ONE LIVE SESSION.
- * @returns {{state, startedAt, elapsed, activeTurnId, taskId, summary, needsUserAction, view}}
- */
+/** THE STATUS OF ONE LIVE SESSION. */
 function of(app, { running = null, now = Date.now() } = {}) {
   const s = app && app.session;
   const live = running == null ? isRunning(app) : Boolean(running);
@@ -148,10 +110,7 @@ function of(app, { running = null, now = Date.now() } = {}) {
   return out(STATE.IDLE);
 }
 
-/**
- * A STATUS MAY HAVE MOVED. Record the phase, wake the window, and emit
- * `session.status` when the word or its summary changed.
- */
+/** A STATUS MAY HAVE MOVED. */
 function touch(app, { phase, ended = false } = {}) {
   if (!app) return null;
   if (phase !== undefined) app._phase = phase && phase.phase === 'ENDED' ? null : phase;

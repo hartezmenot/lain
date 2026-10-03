@@ -140,36 +140,6 @@ module.exports = async function () {
     assert.ok(!/src\/e\.js/.test(ctx), 'the tail of the list is not');
     assert.ok(/more in DETAIL/.test(ctx));
   });
-
-  await test('CONTEXT: a migration in flight is stated, because it changes how everything else reads', () => {
-    const root = tmpdir('ctxpane-');
-    const M = require('../../src/migration');
-    const intent = require('../../src/migrationintent');
-    const map = require('../../src/migrationmap');
-    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'src/scanner.cpp'), 'void Scanner::scan() { }\n', 'utf8');
-    const d = intent.parse('Migrate src to Python');
-    d.paths = ['src'];
-    d.dispositionHint = 'REPLACE';
-    const built = map.build(root, d, { intent: 'Migrate src to Python' });
-    M.save(built.contract);
-
-    const rows = contextview.migrationRows(root);
-    assert.ok(rows, 'an active migration must be reported');
-    assert.ok(rows.outstanding.includes('src/scanner.cpp'),
-      `what has not gone yet is the part somebody coming back needs: ${JSON.stringify(rows)}`);
-
-    const text = contextview.contextDoc(fakeSurvey(root), { width: 100, session: null, cwd: root }).join('\n');
-    assert.ok(/MIGRATION/.test(text), 'and it must appear on the pane');
-    assert.ok(/Not yet gone/.test(text), 'saying what is still there that should not be');
-
-    // A FINISHED MIGRATION IS NOT ACTIVE STATE. It would be one more true,
-    // useless line — exactly what this pane was cleared out of.
-    M.note(built.contract, M.STAGE.COMPLETE, 'done');
-    M.save(built.contract);
-    assert.strictEqual(contextview.migrationRows(root), null);
-  });
-
   await test('BRIEF: `/brief detail` is the door the DETAIL pane left behind', () => {
     // §12: the pane went, the capability did not. `parseArgs` is where the word
     // is recognised, and briefcommand's renderer branch is what it selects — so

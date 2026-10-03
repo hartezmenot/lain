@@ -243,7 +243,7 @@ function pathFacts(root, sessionCwd) {
   let hasCwdParam = false;
   try {
     const tools = require('../../src/tools');
-    const s = tools.schemas().find((x) => x.name === 'run_bash');
+    const s = tools.schemas().find((x) => x.name === 'shell');
     hasCwdParam = Boolean(s && s.parameters && s.parameters.properties && s.parameters.properties.cwd);
   } catch { hasCwdParam = false; }
   out.push(F.make({
@@ -252,13 +252,13 @@ function pathFacts(root, sessionCwd) {
     value: hasCwdParam ? 'pass cwd as a tool parameter' : REPR.UNKNOWN,
     confidence: hasCwdParam ? CONFIDENCE.PROVEN : CONFIDENCE.UNVERIFIED,
     via: VIA.SCHEMA,
-    examples: hasCwdParam ? ['run_bash { command: "node t.js", cwd: "tests" }'] : [],
+    examples: hasCwdParam ? ['shell { command: "node t.js", cwd: "tests" }'] : [],
     counterExample: hasCwdParam ? 'cd tests && node t.js — takes on the shell\'s separator and quoting rules '
       + 'to express something the spawn accepts as an argument' : null,
     evidence: hasCwdParam
-      ? 'the advertised schema for run_bash declares a cwd property'
-      : 'run_bash advertises no cwd property in this build',
-    at: 'src/tools/shell.js',
+      ? 'the advertised schema for shell declares a cwd property'
+      : 'shell advertises no cwd property in this build',
+    at: 'src/tools/core.js',
     notes: hasCwdParam ? 'A bad directory is refused BEFORE anything is spawned, and the session directory is never mutated.' : null,
   }));
 

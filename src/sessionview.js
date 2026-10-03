@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * `/session` — every LAIN session on this machine that has been run, and what it is doing (2026-10-02).
- *
- * Read from the stores that own it: the session lease (sessionlease.js — who runs it, alive or not) and the session
- * journal (sessionjournal.js — its last turn). Sessions in OTHER terminals and in the Harness are listed too, because
- * both write the same files. No process is asked; nothing is started.
- *
- * A PERCENTAGE APPEARS ONLY WHERE SOMETHING COUNTED ONE: the plan's own steps, recorded in the journal's phase events.
- */
+/** `/session` — every LAIN session on this machine that has been run, and what it is doing (2026-10-02). */
 
 const path = require('path');
 

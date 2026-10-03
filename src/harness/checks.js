@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * THE CHECKS — the things that can produce evidence, one function each.
- *
- * ------------------------------------------------------------------------
- * THREE VERDICTS, AND THE THIRD ONE IS THE POINT.
- *
- *     PASSED         it was checked and it was right
- *     FAILED         it was checked and it was wrong
- *     INCONCLUSIVE   it was not checked
- *
- * Every check in this file must be able to return the third. A check that can
- * only pass or fail will report a browser that never started as a browser flow
- * that failed, and a test runner that is not installed as a red suite — and
- * both of those are lies with the same shape: an ABSENT observation reported as
- * a NEGATIVE one. This project already has a module that got this right for one
- * domain (`testing.js`: TESTS_BLOCKED is "it could not run, for a reason
- * outside the code") and this generalises that distinction rather than
- * inventing a second one.
- *
- * ------------------------------------------------------------------------
- * WHAT IS REUSED, AND WHY NONE OF IT IS RE-IMPLEMENTED HERE.
- *
- *   testing.js       classifies a test run. Its BLOCKED/PARTIAL/PASSED/FAILED
- *                    vocabulary is older than this file and better than
- *                    anything a fresh regex would produce, so `tests` is a
- *                    thin mapping onto it and owns no opinion of its own.
- *   execution.js     classifies a failed command — COMMAND_NOT_FOUND,
- *                    DEPENDENCY_MISSING and the rest. That is what turns "exit
- *                    code 127" into INCONCLUSIVE rather than FAILED.
- *   processes.js     already knows how to probe a port and an HTTP endpoint.
- *
- * A CHECK NEVER THROWS. It returns a verdict. Everything a check does is
- * hostile — spawning, connecting, reading a file somebody deleted — and a
- * verification run that dies half way through produces no evidence at all,
- * which is the worst of the three answers.
- */
+/** THE CHECKS — the things that can produce evidence, one function each. */
 
 const fs = require('fs');
 const path = require('path');
@@ -62,15 +27,7 @@ function clip(s, n = MAX_OUTPUT) {
   return t.length > n ? `${t.slice(0, n)}\n… (${t.length - n} more characters kept as an artifact)` : t;
 }
 
-/**
- * Run a command line and come back with everything needed to judge it.
- *
- * A SHELL, on purpose: build and test commands are shell lines (`npm test`,
- * `cargo build --release 2>&1`), and a check that could not express one would
- * be refused by every real project. The command comes from a verification
- * contract, which is written by the person or by the model in the same breath
- * as the work — it is not user input arriving from a network.
- */
+/** Run a command line and come back with everything needed to judge it. */
 function runCommand(command, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal = null } = {}) {
   return new Promise((resolve) => {
     if (signal && signal.aborted) return resolve({ interrupted: true, stdout: '', stderr: '', exitCode: null, ms: 0 });
@@ -110,27 +67,13 @@ function runCommand(command, { cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal = nul
   });
 }
 
-/**
- * A COMMAND THAT DID NOT RUN IS NOT A COMMAND THAT FAILED.
- *
- * This is where the distinction is actually made, and it leans entirely on
- * execution.js: `COMMAND_NOT_FOUND` (the tool is not installed),
- * `DEPENDENCY_MISSING` (its imports are not installed), a timeout and an
- * interruption all mean nothing was learned about the code. Anything else with
- * a non-zero exit really is a failure.
- */
+/** A COMMAND THAT DID NOT RUN IS NOT A COMMAND THAT FAILED. */
 function verdictForRun(r, { expectExit = 0, command = '' } = {}) {
   if (r.interrupted) return { verdict: VERDICT.INCONCLUSIVE, why: 'the check was interrupted before it finished' };
   if (r.timedOut) return { verdict: VERDICT.INCONCLUSIVE, why: 'the check timed out before it finished' };
   if (r.startFailed) return { verdict: VERDICT.INCONCLUSIVE, why: `the command could not start: ${r.error}` };
   if (!Number.isInteger(r.exitCode)) return { verdict: VERDICT.INCONCLUSIVE, why: 'the command produced no exit status' };
-  // THE SHELL MUST BE NAMED OR HALF THE CLASSIFICATION IS SKIPPED, and this
-  // cost a wrong verdict in its first test run: execution.js consults a
-  // per-shell sign list, so with `shell: ''` a missing binary's own message —
-  // "is not recognized as an internal or external command" — was never
-  // matched, and a command that could not run was reported as a command that
-  // failed. `spawn(cmd, {shell:true})` uses COMSPEC on Windows and /bin/sh
-  // elsewhere; classify() maps `sh` onto its bash sign list.
+  // THE SHELL MUST BE NAMED OR HALF THE CLASSIFICATION IS SKIPPED, and this cost a wrong verdict in its first test run: execution.js consults a per-shell…
   const note = execution.annotate({
     exitCode: r.exitCode, stderr: r.stderr, stdout: r.stdout,
     shell: SHELL, command: String(command || ''), cwd: '',
@@ -167,13 +110,7 @@ const RUNNERS = {
     return RUNNERS.command({ ...spec, kind: 'command' }, ctx);
   },
 
-  /**
-   * A TEST SUITE, classified by testing.js.
-   *
-   * With no command given, the project's own primary suite is discovered — so a
-   * contract can say "the tests pass" without the author having to know what
-   * this project's tests are called.
-   */
+  /** A TEST SUITE, classified by testing.js. */
   async tests(spec, ctx) {
     let command = String(spec.command || '').trim();
     if (!command) {
@@ -197,9 +134,7 @@ const RUNNERS = {
       interrupted: r.interrupted,
       classification: note && note.verdict && note.verdict.class,
     });
-    // THE MAPPING, and it is the whole reason testing.js is reused rather than
-    // re-derived: BLOCKED is INCONCLUSIVE, which is the honest answer that a
-    // pass/fail check cannot give.
+    // THE MAPPING, and it is the whole reason testing.js is reused rather than re-derived: BLOCKED is INCONCLUSIVE, which is the honest answer that a…
     let verdict = VERDICT.INCONCLUSIVE;
     if (classified.state === testing.STATE.TESTS_PASSED) verdict = VERDICT.PASSED;
     else if (classified.state === testing.STATE.TESTS_FAILED) verdict = VERDICT.FAILED;
@@ -241,9 +176,7 @@ const RUNNERS = {
     let text = null;
     let exists = false;
     try { text = fs.readFileSync(p, 'utf8'); exists = true; } catch (e) {
-      // A DIRECTORY, OR AN UNREADABLE FILE, IS NOT AN ABSENT ONE. Reading the
-      // errno rather than assuming keeps "it is not there" apart from "it is
-      // there and I could not look", which are different answers.
+      // A DIRECTORY, OR AN UNREADABLE FILE, IS NOT AN ABSENT ONE.
       if (e && e.code && e.code !== 'ENOENT') {
         return { verdict: VERDICT.INCONCLUSIVE, why: `${spec.path} could not be read: ${e.code}` };
       }
@@ -276,22 +209,13 @@ const RUNNERS = {
     return { verdict: VERDICT.INCONCLUSIVE, why: `${p.name}: ${r.why}` };
   },
 
-  /**
-   * A BROWSER FLOW. Delegated whole to the browser harness.
-   *
-   * With no browser available this is INCONCLUSIVE with the reason attached —
-   * never FAILED, and never quietly PASSED. See harness/browser.js for what
-   * "available" actually means on this machine.
-   */
+  /** A BROWSER FLOW. Delegated whole to the browser harness. */
   async browser(spec, ctx) {
     if (!ctx.browser) return { verdict: VERDICT.INCONCLUSIVE, why: 'no browser harness in this context' };
     return ctx.browser.verify(spec, ctx);
   },
 
-  /**
-   * AN OBSERVATION, ROUTED. "Is the button disabled?" without the caller having
-   * to know whether that is answered by the DOM, by a screenshot or not at all.
-   */
+  /** AN OBSERVATION, ROUTED. */
   async observation(spec, ctx) {
     if (!ctx.observer) return { verdict: VERDICT.INCONCLUSIVE, why: 'no observation plane in this context' };
     const o = await ctx.observer.observe(spec.goal || spec.about, spec, ctx);
@@ -308,11 +232,7 @@ const RUNNERS = {
 
 const KINDS = Object.freeze(Object.keys(RUNNERS));
 
-/**
- * RUN ONE CHECK. Never throws — a runner that blows up becomes INCONCLUSIVE
- * with the exception as the reason, because "the check crashed" is genuinely a
- * thing that was not checked.
- */
+/** RUN ONE CHECK. Never throws — a runner that blows up becomes INCONCLUSIVE with the exception as the reason, because "the check crashed" is genuinely… */
 async function run(spec, ctx = {}) {
   const kind = String((spec && spec.kind) || '');
   const label = String((spec && spec.label) || kind || 'check');

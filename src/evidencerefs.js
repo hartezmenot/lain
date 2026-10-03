@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * ADDRESSABLE EVIDENCE — a deterministic result, computed once, named, and
- * reused while it is still true (2026-09-25).
- *
- *     evidence:e14   lsp.references   generation 91   "fixButton: 7 references in 4 files"
- *     evidence:e15   gug.slice        generation 91   "SearchBar ← SearchPanel …"
- *     evidence:e16   git.diff         generation 91   "2 files, +4 −1"
- *     evidence:e17   focus.artifact   generation 91   the packet built from e14–e16
- *
- * WHY. A large tool result used to be pasted into the conversation, ride every
- * later request, and — once compaction folded it — be re-run to be seen again.
- * An entry here is the result itself, stored once on the session with what it
- * was computed from; a prompt carries its id and a one-line summary, and
- * `recall_evidence` returns the body when the model actually needs it.
- *
- * VALIDITY IS THE PROJECT GENERATION, NOT A CLOCK. Every entry records the
- * generation it was computed at, the files it read (`deps`) and the words whose
- * appearance anywhere would change it (`words` — a new reference to a symbol can
- * land in any file). When the generation moves:
- *
- *   exact     same generation                          → reuse
- *   carried   the changed files touch neither deps     → reuse, re-stamped
- *             nor words
- *   stale     one of them did                          → refused; named, never served
- *
- * So one edit in an unrelated file invalidates nothing, and an edit to the style
- * owner invalidates exactly the entries that read it. The model is never handed
- * evidence whose source generation no longer matches.
- *
- * `key` makes an entry a CACHE SLOT as well: `focus:S3f…` is the focus artifact
- * for that Selection, `lsp.refs:src/a.ts:12:7` the references at a position.
- * put() with a key whose entry is still valid returns the existing entry.
- *
- * Kept on the session (bounded, persisted with it), so a CLI resuming the
- * session can name the same `evidence:e14` the Harness produced.
- */
+/** ADDRESSABLE EVIDENCE — a deterministic result, computed once, named, and reused while it is still true (2026-09-25). */
 
 const fs = require('fs');
 const path = require('path');
@@ -59,10 +24,7 @@ function readSmall(abs) {
   try { const s = fs.statSync(abs); if (!s.isFile() || s.size > 400000) return null; return fs.readFileSync(abs, 'utf8'); } catch { return null; }
 }
 
-/**
- * DID THE CHANGES SINCE `generation` TOUCH SOMETHING WITH THESE DEPS / WORDS?
- * The one rule, shared with the canonical Selection's carry-forward.
- */
+/** DID THE CHANGES SINCE `generation` TOUCH SOMETHING WITH THESE DEPS / WORDS? */
 function touched(root, { generation, deps = [], words = [] }, { exhaustive = false } = {}) {
   let changes = [];
   try { changes = require('./projectgen').since(root, generation); } catch { changes = []; }
@@ -97,10 +59,7 @@ function standing(session, e) {
   return { state: 'carried' };
 }
 
-/**
- * RECORD A RESULT. With a `key` whose entry is still valid, the existing entry
- * is returned instead (and counted as reused).
- */
+/** RECORD A RESULT. With a `key` whose entry is still valid, the existing entry is returned instead (and counted as reused). */
 function put(session, { kind, key = null, source = '', summary = '', content = '', deps = [], words = [], data = null } = {}) {
   const st = storeOf(session);
   if (!st) return null;

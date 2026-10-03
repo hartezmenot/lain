@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * `/diff` — THE PERSISTENT DIFF INSPECTOR.
- *
- * ------------------------------------------------------------------------
- * WHAT IT IS. An INSPECTOR (ui/panel.js KIND.INSPECTOR): it opens, it stays,
- * and it closes only when the person closes it. A timer, a streaming reply, a
- * patch landing, a resize, a finished task or a background job does not close
- * it — each of those only makes it redraw, and a redraw re-reads the real patch
- * state, so its counters move when the files do and never otherwise.
- *
- *     OVERVIEW                                   DETAIL
- *
- *     3 files changed  +217 −131                 src/provider.js   MODIFIED  +75 −40
- *                                                  118   const route = pick(cfg);
- *     ❯ ● newprovider.js      +142               119 - const retry = 3;
- *       ● provider.js         +75 −40            119 + const retry = policy.retries;
- *       ● oldprovider.js      −91                120   return send(route, retry);
- *
- * TWO SEMANTICS, KEPT APART: the dot is the FILE's state — blue new, green
- * modified, red removed — and a diff line's colour is the LINE's — green added,
- * red removed, neutral context. A modified file is green in the overview and
- * its removed lines are still red in the detail.
- *
- * KEYS.  ↑↓ select or scroll · PgUp/PgDn page · ←/→ previous/next file ·
- *        Enter open a file · Esc back to the overview, then close.
- *
- * THE SOURCE OF TRUTH is the one byte-snapshot system: checkpoint.js holds the
- * bytes before LAIN's first write to each file, and the file on disk holds the
- * bytes now (ui/panes.js `changedFiles`). There is no second record of what
- * changed.
- */
+/** `/diff` — THE PERSISTENT DIFF INSPECTOR. */
 
 const { KIND, MODE } = require('./panel');
 const { P } = require('./paint');
@@ -43,10 +13,7 @@ const STATE_PAINT = {
 };
 const STATE_WORD = { added: 'NEW', modified: 'MODIFIED', deleted: 'REMOVED' };
 
-/**
- * Paint `+n` green and `−n` red in the COUNTS COLUMN only — everything after the
- * last two-space gap. A file called `retry-2.js` must not have its name painted.
- */
+/** Paint `+n` green and `−n` red in the COUNTS COLUMN only — everything after the last two-space gap. */
 function paintCounts(body) {
   const trimmed = body.replace(/\s+$/, '');
   const gap = trimmed.lastIndexOf('  ');
@@ -56,11 +23,7 @@ function paintCounts(body) {
   return head + tail;
 }
 
-/**
- * The files, re-read only when something could have changed: a new checkpoint,
- * or a file's size or mtime moving. Every frame asks; almost every frame is a
- * cache hit, because a redraw at 60Hz is not a change to the tree.
- */
+/** The files, re-read only when something could have changed: a new checkpoint, or a file's size or mtime moving. */
 function source(app) {
   const fs = require('fs');
   let cache = { key: '', files: [] };
@@ -126,11 +89,7 @@ function detailFrame(state, files, index) {
   };
 }
 
-/**
- * THE INSPECTOR, as an adapter for the one panel.
- *
- * @param {object} app  anything with `checkpoints` and `session.cwd`
- */
+/** THE INSPECTOR, as an adapter for the one panel. */
 function inspector(app) {
   const files = source(app);
   const state = { index: 0 };

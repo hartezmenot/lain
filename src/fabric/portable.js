@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * A SIGN-IN THAT CAN MOVE — migration's PORTABLE_AUTH, per provider (2026-09-29).
- *
- * ------------------------------------------------------------------------
- * WHY THIS EXISTS. Every imported OAuth account used to become "Sign in again
- * to finish migration", even when the source held a complete sign-in in the
- * provider's own format — one the provider's own CLI accepts from any home.
- * That made people sign in to accounts they had already signed in to.
- *
- * So an exported credential is ASSESSED against the one format each official
- * CLI reads, and only then installed:
- *
- *   Codex    `auth.json` (tokens.id_token / access_token / refresh_token /
- *            account_id). Portable when it can be renewed (a refresh token)
- *            and it was issued to the Codex CLI's own public OAuth client —
- *            the client the Codex binary LAIN runs is. A token issued to
- *            another application's client stays that application's.
- *   Claude   Claude Code's `.credentials.json` (claudeAiOauth with a refresh
- *            token). Portable into a Claude Code configuration directory.
- *   Google   (Antigravity) — never portable: a Google refresh token is bound
- *            to the OAuth client that requested it, and Antigravity signs in
- *            with its own.
- *
- * ------------------------------------------------------------------------
- * INSTALLING NEVER TOUCHES AN EXISTING PROFILE (the auth-isolation invariant).
- * A portable sign-in goes into a NEW LAIN-owned directory — a fresh Codex home
- * or a fresh Claude configuration directory under LAIN's accounts folder —
- * written by this process with the user-only permissions of LAIN's config
- * home. Then the PROVIDER is asked who it is (a status read, never a model
- * request). Only an answer that names a signed-in account makes it CONNECTED;
- * anything else removes the directory LAIN just made and leaves the account
- * waiting for a fresh sign-in, with the provider's refusal as the reason.
- *
- * Nothing here reads another program's credential store. The credential comes
- * from an export the person chose (migrate.js fromExport).
- */
+/** A SIGN-IN THAT CAN MOVE — migration's PORTABLE_AUTH, per provider (2026-09-29). */
 
 const fs = require('fs');
 const path = require('path');
@@ -67,10 +32,7 @@ const REASON = Object.freeze({
 });
 function reasonText(r) { const f = REASON[r && r.reason]; return f ? f(r) : String((r && r.reason) || ''); }
 
-/**
- * CAN THIS EXPORTED CREDENTIAL MOVE AS IT IS? Pure.
- * @returns {{ portable: true } | { portable: false, reason: string, client?: string }}
- */
+/** CAN THIS EXPORTED CREDENTIAL MOVE AS IT IS? */
 function assess(family, cred) {
   if (!cred || typeof cred !== 'object') return { portable: false, reason: 'metadata' };
   if (cred.encrypted || cred.appBound) return { portable: false, reason: 'app-bound' };
@@ -108,10 +70,7 @@ function writePrivate(file, body) {
   fs.renameSync(tmp, file);
 }
 
-/**
- * INSTALL A PORTABLE SIGN-IN into a NEW LAIN-owned profile and verify it with the provider (no inference).
- * @returns {{ ok: true, id, identity } | { ok: false, reason: 'rejected', why }}
- */
+/** INSTALL A PORTABLE SIGN-IN into a NEW LAIN-owned profile and verify it with the provider (no inference). */
 async function install(app, family, cred, { name = '' } = {}) {
   const ai = require('../accountinstances');
   let id = null;

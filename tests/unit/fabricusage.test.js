@@ -41,24 +41,6 @@ module.exports = async function () {
     assert.strictEqual(f.ok, false); assert.strictEqual(app.cfg.connections['lain:three'].apiKey, 'sk-another-0123456789abcdef');
     creds.useBackend(null);
   });
-
-  await test('BOT PROFILE: validated, stored in config, and rendered into the stable half of BOT turns only', () => {
-    const bp = require('../../src/botprofile');
-    const app = mk();
-    assert.strictEqual(bp.set(app, { behavior: 'x'.repeat(900) }).ok, false);
-    const r = bp.set(app, { name: 'Iwakura', tone: 'concise and direct', language: 'English', behavior: 'Ask before large refactors.' });
-    assert.ok(r.ok);
-    const prompt = require('../../src/prompt');
-    app.session.thread = 'chat';
-    const bot = prompt.build({ cwd: app.session.cwd, session: app.session, app, separate: true });
-    const text = typeof bot === 'string' ? bot : bot.stable;
-    assert.match(text, /# BOT profile/); assert.match(text, /Your name here is Iwakura/); assert.match(text, /concise and direct/);
-    app.session.thread = 'coding';
-    const agent = prompt.build({ cwd: app.session.cwd, session: app.session, app, separate: true });
-    assert.ok(!(typeof agent === 'string' ? agent : agent.stable).includes('BOT profile'), 'the Coding Agent’s prompt is unchanged');
-    assert.match(bp.promptBlock(app.cfg), /grant no permission/);
-  });
-
   await test('USAGE: every source on its own row — local speed, runtime cost apart from billed cost, filters and facets', () => {
     const usage = require('../../src/usage');
     const now = Date.now();

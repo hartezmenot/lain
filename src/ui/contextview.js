@@ -1,44 +1,6 @@
 'use strict';
 
-/**
- * CONTEXT IS WHAT YOU NEED TO KNOW. DETAIL IS EVERYTHING THAT WAS FOUND.
- *
- * ------------------------------------------------------------------------
- * THE MISTAKE THIS CORRECTS.
- *
- * The survey behind these panes reads the tree, the git state, the toolchain,
- * the findings, the environment and the test run. Every one of those is worth
- * having. It does not follow that every one of them is worth being the first
- * thing on screen — and the pane was showing all of it, because it was
- * rendered from the survey with nothing deciding what a person actually needed
- * at a glance.
- *
- * "It was discovered, so it is context" is the wrong rule. Discovery produces
- * a lot of true, low-value information: how many files were scanned, which
- * axes were not measured, the wording of every warning. A pane that leads with
- * that is a pane people stop reading, and then the ONE line that mattered —
- * the build is broken, the migration left the old implementation running — is
- * lost inside it.
- *
- *     CONTEXT   identity, structure, what is being worked on, what state it
- *               is in, the migration in flight, what to run, what to do next.
- *               Counts and pointers where the detail lives.
- *
- *     DETAIL    the findings themselves, the file-by-file changes, the
- *               verification evidence, the environment, what was NOT measured.
- *
- * NOT DUPLICATED. Where CONTEXT names a count — "3 errors" — DETAIL carries
- * the rows behind it, and only DETAIL carries them. Two panes showing the same
- * list is two places to read the same thing and one place for them to
- * disagree.
- * ------------------------------------------------------------------------
- *
- * ONE SURVEY, TWO RENDERINGS. Nothing here computes anything: both functions
- * read the survey ui/reports.js already produced, and the helpers come from
- * briefview.js rather than being written a second time. A second analysis
- * would be a second answer to "what is this project", which is exactly the
- * failure the pane and `/brief` were kept on one survey to avoid.
- */
+/** CONTEXT IS WHAT YOU NEED TO KNOW. */
 
 const path = require('path');
 
@@ -76,20 +38,7 @@ function severities(survey) {
   return counts;
 }
 
-/**
- * THE MIGRATION IN FLIGHT, if there is one.
- *
- * This belongs in CONTEXT above almost everything else, and it is the clearest
- * case for the whole split. A migration is a claim about the project's FINAL
- * SHAPE that is only half true while it is running: the new implementation
- * exists and the old one has not gone yet. Somebody returning to the project —
- * or a model picking the task up — that does not know this is in progress will
- * read the duplicate implementations as a defect and "fix" one of them.
- *
- * Deliberately three lines at most. What is being migrated, how far along, and
- * what has not gone yet. The contract itself is a document, and this is not
- * the place to reprint it.
- */
+/** THE MIGRATION IN FLIGHT, if there is one. */
 function migrationRows(cwd) {
   try {
     const M = require('../migration');
@@ -106,17 +55,7 @@ function migrationRows(cwd) {
   } catch { return null; }
 }
 
-/**
- * THE LONG PARAGRAPHS ACTIVITY FOLDED, in the order they were said.
- *
- * Read from the session rather than from anything the feed kept, so what is
- * shown here is exactly what the model wrote — the fold is a DRAWING decision
- * and never touches the record. A turn recorded before folding existed simply
- * has nothing that qualifies.
- *
- * Bounded, like every other list in this file: past a point a pane of reasoning
- * is not read either.
- */
+/** THE LONG PARAGRAPHS ACTIVITY FOLDED, in the order they were said. */
 const MAX_DETAIL_REASONING = 12;
 function foldedProse(session) {
   const turns = (session && session.turns) || [];
@@ -143,9 +82,7 @@ function contextDoc(survey, { width, session, cwd, reading = false }) {
   const root = (survey && survey.root) || cwd || process.cwd();
   const H = (survey && survey.health) || {};
 
-  // `reading…` sits in the corner while a NEWER pass is in flight, over the
-  // report that is already up. The old behaviour — take the report away and
-  // show a placeholder — answered a question nobody asked with nothing.
+  // `reading…` sits in the corner while a NEWER pass is in flight, over the report that is already up.
   d.title('context', reading ? `${path.basename(root)}  · re-reading` : path.basename(root));
   d.subtitle('What is true about this project right now');
 
@@ -156,32 +93,13 @@ function contextDoc(survey, { width, session, cwd, reading = false }) {
   if (stack.length) d.field('Stack', stack.join(', '));
   const env = survey && survey.environment;
   if (env && env.packageManager) d.field('Tooling', env.packageManager);
-  // ---- THE MACHINE, NOT JUST THE PROJECT --------------------------------
-  //
-  // Which OS and which shell decide whether a command in this pane can be
-  // pasted as written, and they are the first thing anybody returning to a
-  // project has to re-establish. The model is already told (src/prompt.js
-  // reads the same detector); the person reading CONTEXT was not.
-  //
-  // From the real detector, never from `process.platform` alone: "Windows" and
-  // "powershell, also cmd, bash" are different facts, and only the second one
-  // tells you what `&&` will do.
+  // THE MACHINE, NOT JUST THE PROJECT
   try {
     const machine = require('../environment').detect(root);
     d.field('System', `${machine.os} · ${machine.shell.preferred}`);
   } catch { /* the pane is still worth drawing without it */ }
 
-  // ---- WHAT IS BEING WORKED ON ------------------------------------------
-  //
-  // THE OBJECTIVE IS NOT HERE, and that is not an omission. The PINNED banner
-  // above this pane already carries it and the plan progress, and never
-  // scrolls (ui/layout.js bannerLines). Printing it again put the same sentence
-  // on screen twice, which is the thing `PHASE A: the objective is on screen
-  // ONCE` exists to stop — and it cost rows in the pane that has least to
-  // spare.
-  //
-  // What the banner does NOT say is which STEP is being worked on, so that is
-  // the one line worth adding under it.
+  // WHAT IS BEING WORKED ON
   const plan = session && session.plan;
   const steps = (plan && plan.steps) || [];
   const active = steps.find((s) => s.status === 'active');
@@ -227,11 +145,7 @@ function contextDoc(survey, { width, session, cwd, reading = false }) {
     d.field('Working tree', 'clean', { tone: P.ok });
   }
 
-  // ---- HOW DO I RUN IT ---------------------------------------------------
-  //
-  // Kept in CONTEXT despite the trimming: it is short, it is actionable, and
-  // it is the single thing most often wanted from a project you have not
-  // touched in a week.
+  // HOW DO I RUN IT
   const cmds = briefview.runCommands(root, survey);
   if (cmds.length) {
     d.section('run');
@@ -332,17 +246,7 @@ function detailDoc(survey, { width, cwd, session = null }) {
     for (const c of cmds) d.field(c.label, c.cmd, { tone: P.cmd });
   }
 
-  // ---- THE REASONING ACTIVITY FOLDED AWAY -------------------------------
-  //
-  // ACTIVITY shows the actionable part of a long analytical paragraph and a
-  // pointer here (ui/condense.js `fold`, ui/feed.js). This is where the
-  // pointer points. Without it the fold would be a quiet deletion wearing a
-  // promise, which is the one thing the fold must not be.
-  //
-  // ONLY WHAT WAS ACTUALLY FOLDED. A paragraph short enough to have been
-  // drawn whole in ACTIVITY is already on screen, and repeating it here
-  // would make this pane a second transcript — which is what CONTEXT and
-  // DETAIL were split apart to stop being.
+  // THE REASONING ACTIVITY FOLDED AWAY
   const folded = foldedProse(session);
   if (folded.length) {
     d.section('reasoning', `${folded.length}`);
@@ -355,16 +259,7 @@ function detailDoc(survey, { width, cwd, session = null }) {
 
 // ------------------------------------------------------------- pending -----
 
-/**
- * What a pane shows before the full survey has landed.
- *
- * NOT A PLACEHOLDER WHEREVER IT CAN AVOID BEING ONE. Four lines of "reading the
- * tree…" in an otherwise empty pane is the state a person complained about, and
- * it was wrong twice over: it is not information, and most of what the pane
- * exists to say does not need the expensive survey at all. `quick` is the
- * twenty-millisecond half (see ui/reports.js quickFacts) and it goes up
- * immediately; the rest fills in behind it.
- */
+/** What a pane shows before the full survey has landed. */
 function pending(view, width, why = '', quick = null) {
   const d = doc();
   const isDetail = view === 'detail';
@@ -373,9 +268,7 @@ function pending(view, width, why = '', quick = null) {
     ? 'The evidence behind CONTEXT'
     : 'What is true about this project right now');
   if (why) {
-    // A PANE THAT CANNOT READ THE TREE SAYS SO. It used to sit on "reading…"
-    // for the rest of the session, which is indistinguishable from a hang and
-    // is how a hard error in this path stayed invisible.
+    // A PANE THAT CANNOT READ THE TREE SAYS SO.
     d.section('unavailable');
     d.text(`The project survey could not be produced: ${why}`);
     d.note('Everything else still works. /brief runs the same survey from the command line.');
@@ -405,17 +298,7 @@ function pending(view, width, why = '', quick = null) {
     }
   }
 
-  // ---- THE "STILL READING" LINE GOES LAST, AND IS ONE LINE ---------------
-  //
-  // It was a SECTION, with a heading and a sentence, sitting in the middle of
-  // the pane — so the notice that the pane was not finished took more room
-  // than several of the facts it was waiting on. Nobody needs a paragraph
-  // about a one-second read.
-  //
-  // The corner of the title already says `reading…`, which is where a status
-  // belongs. This is the footnote under the content, not a section competing
-  // with it — and when there is nothing else yet it is the only thing here,
-  // which is the one case where it should be.
+  // THE "STILL READING" LINE GOES LAST, AND IS ONE LINE
   if (quick && quick.root) d.note('still reading the git state, the toolchain and the findings');
   else {
     d.section('reading');
@@ -425,12 +308,7 @@ function pending(view, width, why = '', quick = null) {
   return d.render(width);
 }
 
-/**
- * The pane, whichever of the two it is.
- *
- * ONE ENTRY POINT so layout.js has one case for both and cannot end up with
- * two different notions of when a survey counts as present.
- */
+/** The pane, whichever of the two it is. */
 function render(view, survey, { width = 80, session = null, cwd = '', failed = '', quick = null, reading = false } = {}) {
   if (!survey || typeof survey !== 'object') return pending(view, width, failed, quick);
   try {
@@ -439,9 +317,7 @@ function render(view, survey, { width = 80, session = null, cwd = '', failed = '
       : contextDoc(survey, { width, session, cwd, reading });
     return lines;
   } catch (e) {
-    // MALFORMED OR PARTIAL SURVEY DATA MUST NOT TAKE THE SCREEN DOWN. The pane
-    // is drawn on every redraw, so a field this does not expect would otherwise
-    // crash the session on every frame rather than once.
+    // MALFORMED OR PARTIAL SURVEY DATA MUST NOT TAKE THE SCREEN DOWN.
     return pending(view, width, `the survey could not be rendered (${(e && e.message) || e})`, quick);
   }
 }

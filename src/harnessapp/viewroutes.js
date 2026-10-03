@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * THE ENGINEERING SESSION'S CONTRACT ROUTES — views, plan handoff, models,
- * workspace panel, project attachment and pins.
- *
- * Every route here delegates: sessionviews.js owns views, threads, panel, pins
- * and attachment; planhandoff.js owns plan states and the handoff;
- * modelinventory.js owns search and per-view selection. This file adds an
- * envelope and the one sequencing rule a turn from a view needs (`submit`).
- */
+/** THE ENGINEERING SESSION'S CONTRACT ROUTES — views, plan handoff, models, workspace panel, project attachment and pins. */
 
 const sv = require('../sessionviews');
 const plans = require('../planhandoff');
@@ -18,21 +10,7 @@ function bad(why, code = 400, extra = {}) { return { code, body: { ok: false, wh
 
 function save(app) { try { app.session.save(); } catch { /* the state still holds for this run */ } }
 
-/**
- * A TURN FROM A VIEW.
- *
- *   · into a session already working IN THE SAME VIEW, it is a steer — the
- *     long-standing contract (routes.js `POST /api/turn`);
- *   · into a session working in the OTHER view it is refused with `busy`,
- *     because a Chat sentence steering a Coding turn would put discussion into
- *     implementation. One writer per session is unchanged;
- *   · Coding needs an attached project — a Coding turn in LAIN's own folder or
- *     the empty placeholder is refused with `projectRequired`;
- *   · Chat runs read-only (EXPLAIN on LAIN's runtime; mutating tools are refused
- *     in tools/index.js) and, when it ends, a plan in its reply becomes a DRAFT.
- *
- * NOT AWAITED: the reply arrives through /api/state and `session.status`.
- */
+/** A TURN FROM A VIEW. */
 function submit(app, body = {}) {
   const text = String(body.text || '').trim();
   if (!text) return bad('nothing was asked');
@@ -42,9 +20,7 @@ function submit(app, body = {}) {
   const running = Boolean(app.abort && !app.abort.signal.aborted);
   if (running) {
     const busy = sv.current(s);
-    // CHAT WHILE THE CODING AGENT WORKS: supervised, never raced (supervision.js). A status
-    // question is answered from Core; "stop doing X" is put to the person as Steer now /
-    // Wait; anything else becomes a pending steer for the next checkpoint. No model call.
+    // CHAT WHILE THE CODING AGENT WORKS: supervised, never raced (supervision.js).
     if (busy === 'coding' && view === 'chat') {
       const r = require('../supervision').chatWhileRunning(app, text);
       save(app);
@@ -61,17 +37,13 @@ function submit(app, body = {}) {
     if (!p.attached) return bad('Coding requires a project folder. Add an existing project or create a project to continue.', 409, { projectRequired: true });
     if (p.missing) return bad(`this session's project is no longer at ${s.cwd}`, 409, { projectMissing: true });
     // A BROAD REQUEST is offered planning first — LAIN's workflow decision, no model call.
-    // `direct: true` is the person's answer "Implement directly" (or a plan already approved).
-    // A PHASED change (changeclass.js: a migration, a new architecture) gets the same offer.
     const cc = require('../changeclass').classify(String(body.classText || text), { selection: require('../changeclass').selectionOf(app), fromPreview: Boolean(body.fromPreview) });
     if (!body.direct && body.from !== 'ide' && (require('../supervision').isBroad(text) || cc.class === 'PHASED')) {
       const o = require('../supervision').planFirstOffer(s, text);
       save(app);
       return ok({ accepted: false, offer: o, view });
     }
-    // THE IDE'S BOT DECIDES WHO ANSWERS: itself, or the Coding Agent. A caller
-    // that names neither (the terminal, an older window) keeps the old
-    // behaviour — the whole turn on the Coding model. See botroute.js.
+    // THE IDE'S BOT DECIDES WHO ANSWERS: itself, or the Coding Agent.
     if (body.from === 'ide') {
       // WHAT THE PERSON TOOK OUT of the BOT's view for this turn — a context
       // chip they removed. idecontext.js leaves those parts out of the prompt.
@@ -83,11 +55,7 @@ function submit(app, body = {}) {
       return br.start(app, text, route);
     }
   }
-  // CHAT PLANS; THE CODING AGENT IMPLEMENTS (Phase 8). Chat stays read-only and
-  // does NOT hand work to the Agent on its own any more: a plan made in Chat is
-  // sent with "Send to Coding Agent" (POST /api/plan/send), and the person talks
-  // to the Agent directly in its lane. A caller may still ask for the old
-  // routing explicitly (`agent: true`) — the CLI-era journey behaviour.
+  // CHAT PLANS; THE CODING AGENT IMPLEMENTS (Phase 8).
   if (view === 'chat' && body.agent === true) {
     const p = sv.project(s);
     const br = require('./botroute');
@@ -127,11 +95,7 @@ function submit(app, body = {}) {
 }
 
 const ROUTES = {
-  /**
-   * EDIT & RESEND / RETRY THE LATEST MESSAGE (turnedit.js): the old wording and its replies become a kept branch, the
-   * new wording is an ordinary turn. In the Coding lane, files the replaced turns changed need a choice first
-   * (`files: 'undo' | 'keep'`) — the answer without it is `needsChoice`, and nothing has moved.
-   */
+  /** EDIT & RESEND / RETRY THE LATEST MESSAGE (turnedit.js): the old wording and its replies become a kept branch, the new wording is an ordinary turn. */
   'POST /api/turn/edit': async (app, body = {}) => {
     const view = body.view === 'coding' ? 'coding' : 'chat';
     const text = String(body.text == null ? '' : body.text).trim();
@@ -247,9 +211,7 @@ const ROUTES = {
       return bad(`this session already changed files in ${current.root}; start a new session for ${chk.root}`, 409);
     }
     if (app.abort && !app.abort.signal.aborted) return bad('a turn is running in this session', 409);
-    // EVERYTHING BOUND TO THE OLD DIRECTORY IS REBUILT FOR THE NEW ONE: the
-    // checkpoint store (refused above if it held edits), the project brief, and
-    // a Harness whose workspace was the placeholder.
+    // EVERYTHING BOUND TO THE OLD DIRECTORY IS REBUILT FOR THE NEW ONE: the checkpoint store (refused above if it held edits), the project brief, and a…
     if (app._harness) {
       try { await require('../harnesslink').shutdown(app); } catch { /* nothing it owned was project work */ }
       app._harness = null;
@@ -267,11 +229,7 @@ const ROUTES = {
     return ok({ project: projectState(app) });
   },
 
-  /**
-   * REMOVE PROJECT — the Chat session becomes Unassigned again (Coding Agent
-   * disabled). Refused once the Agent changed files there: that work belongs to
-   * the project, and the session is its record.
-   */
+  /** REMOVE PROJECT — the Chat session becomes Unassigned again (Coding Agent disabled). */
   'POST /api/project/detach': async (app) => {
     const s = app.session;
     if (s.cowork) return bad('a Cowork session has no project', 409);
@@ -298,9 +256,7 @@ const ROUTES = {
     let rows = [];
     try { rows = require('../sessionindex').summaries({ limit: 200 }) || []; } catch { rows = []; }
     const seen = new Map();
-    // NOT A PROJECT: LAIN's own folders, and the empty placeholder a session
-    // with no project sits in — offering that as a "recent project" would
-    // attach nothing to nothing.
+    // NOT A PROJECT: LAIN's own folders, and the empty placeholder a session with no project sits in — offering that as a "recent project" would attach…
     const own = [...sv.lainOwnDirs(), require('path').resolve(sv.unattachedDir()).toLowerCase()];
     for (const r of rows) {
       if (!r.cwd || seen.has(r.cwd.toLowerCase())) continue;

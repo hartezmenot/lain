@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * TELLING SOMEBODY SOMETHING FINISHED, WHEN THEY ARE NOT LOOKING.
- *
- * ------------------------------------------------------------------------
- * THIS ONLY BECAME WORTH HAVING WHEN THE WINDOW STOPPED BEING THE APPLICATION.
- *
- * While LAIN was a window you had open, a finished turn was on screen. Now X
- * sends LAIN to the tray and work carries on without it — so "the thing you
- * asked for twenty minutes ago is done" has nowhere to land unless something
- * says so.
- *
- * ------------------------------------------------------------------------
- * THE RULE THAT KEEPS THIS FROM BECOMING NOISE, AND IT IS THE WHOLE FILE.
- *
- * A notification channel is spent the first time it is wasted. So:
- *
- *   NOTIFIED   a task ended — verified, failed, or waiting on the person
- *   NOT        a tool call, a file write, a step, a provider request, a poll,
- *              a turn that is part of work still going on
- *
- * And nothing is sent while the window is in front: the host drops those (see
- * native/host.cs `Notify`), because being told what you are already reading is
- * the fastest way to teach somebody to ignore the tray.
- *
- * ONE LINE OF TEXT, NAMING THE PROJECT. "toradb — verification passed" is a
- * sentence a person can act on from a corner of the screen. There is no body,
- * no actions and no detail: the application is one click away and it is where
- * detail belongs.
- *
- * IT DECIDES NOTHING. The words come from what the lifecycle and the
- * verification already concluded; this reports them.
- */
+/** TELLING SOMEBODY SOMETHING FINISHED, WHEN THEY ARE NOT LOOKING. */
 
 const path = require('path');
 
@@ -56,17 +25,7 @@ function sentenceFor(app, record) {
   return null;
 }
 
-/**
- * A TURN ENDED. Say so, if it is worth saying.
- *
- * Called from the one place a turn's ending is classified, so there is no
- * second notion of "finished" to drift from the first.
- *
- * SILENT WHEN THERE IS NO WINDOW. A notification with nowhere to appear is not
- * an error, and a CLI user did not ask for balloons.
- *
- * @returns {{sent: boolean, why?: string, text?: string}}
- */
+/** A TURN ENDED. Say so, if it is worth saying. */
 function turnEnded(app, record) {
   try {
     if (!app || !app.session) return { sent: false, why: 'no session' };
@@ -91,22 +50,13 @@ function kindOf(text) {
   return 'completion';
 }
 
-/**
- * THE MOMENTS THAT GENUINELY NEED THE PERSON, for remote surfaces (§39).
- *
- * Written to the LAIN home as one small file each; the bot bridge
- * (bot/attention.js) delivers and removes them. ASK_USER and
- * PERMISSION_REQUEST travel as Core decisions (decisions.js) instead, so a
- * button can answer them. Nothing routine is ever written here.
- */
+/** THE MOMENTS THAT GENUINELY NEED THE PERSON, for remote surfaces (§39). */
 const ATTENTION = new Set(['BLOCKED', 'BACKGROUND_COMPLETE', 'TASK_COMPLETE', 'FAILED']);
 
 function attentionKind(app, record) {
   if (record && record.stopReason === 'aborted') return null;           // the person stopped it; they know
   if (record && record.providerFailure) return 'FAILED';
-  // A TURN THAT DID NOT END NATURALLY IS NOT A FINISHED TASK: a length cut, a
-  // refusal, a step limit, no progress. It used to fall through to
-  // TASK_COMPLETE, so a remote surface could say DONE for a CUT OFF reply.
+  // A TURN THAT DID NOT END NATURALLY IS NOT A FINISHED TASK: a length cut, a refusal, a step limit, no progress.
   if (record && record.stopReason && record.stopReason !== 'end') return 'BLOCKED';
   if (record && require('./wakeup').statesBlocker(record.text)) return 'BLOCKED';
   const v = app.session && app.session.verification;

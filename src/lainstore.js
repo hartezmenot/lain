@@ -1,85 +1,15 @@
 'use strict';
 
-/**
- * `<project>/.lain/` — ONE AUTHORITY FOR WHERE PROJECT INTELLIGENCE LIVES.
- *
- * ------------------------------------------------------------------------
- * WHY A PATH AUTHORITY IS WORTH A FILE OF ITS OWN.
- *
- * Three modules already wanted to write inside `.lain/`, and each of them knew
- * its own filename. That is exactly how a directory acquires two index formats,
- * a `graph.json` and a `graph/` that disagree, and a cleanup routine that
- * deletes something another module still reads. The rule this file exists to
- * hold is:
- *
- *     NOTHING OUTSIDE THIS MODULE JOINS A PATH INSIDE `.lain/`.
- *
- * A caller names a SLOT — `architecture`, `wiring`, `concepts` — and gets a
- * document. Where that document sits is this file's business and may change
- * without anybody else noticing.
- *
- * ------------------------------------------------------------------------
- * THE TWO STATE DOMAINS, AND WHICH ONE THIS IS.
- *
- *     ~/.lain-v2/               THE RUNTIME'S. Identity, credentials, which
- *                               machines opened what, supervisor bookkeeping.
- *                               Rust owns it. It outlives every CLI process.
- *
- *     <project>/.lain/          THIS. What the PROJECT is: its architecture,
- *                               its symbols, its vocabulary, its wiring. It
- *                               travels with the checkout because it describes
- *                               the checkout.
- *
- * Neither is a copy of the other. A symbol table in the runtime home would be a
- * second copy of the project's own, and a record of which machines opened a
- * project has no business in a directory somebody clones.
- *
- * ------------------------------------------------------------------------
- * THE INVARIANT THAT DECIDES WHAT MAY BE STORED HERE.
- *
- *     `.lain/` MUST SURVIVE a model restart, a model switch, a compaction and
- *     a frontend restart — AND IT MUST STILL BE USEFUL IF THE SOURCE FILES ARE
- *     GONE.
- *
- * That last clause is the sharp one, and it is what separates this from a
- * cache. A cache of file contents is worthless once the files vanish. A record
- * that a component called "Rust Guardian" was INTENDED, lives at
- * `rust/lain-supervisor/src/guardian.rs`, owns the input gate, and was last
- * VERIFIED on a given day, is worth *more* once the file vanishes — it is the
- * only thing that can say what was lost. See architecture.js.
- *
- * ------------------------------------------------------------------------
- * WHAT MAY NOT GO IN. No transcript, no model output, no conversation, no
- * credential. `.lain/` is machine state ABOUT THE PROJECT, and it is never sent
- * to a model wholesale — a caller asks it a question and gets an answer.
- * Shipping it into a prompt would recreate the cost it exists to remove.
- *
- * ------------------------------------------------------------------------
- * A PROJECT THAT CANNOT BE WRITTEN TO STILL WORKS. Every write returns a
- * boolean and every read has a fallback; a read-only checkout degrades to
- * per-session intelligence rather than to an error. That trade is the same one
- * projectindex.js makes, for the same reason.
- */
+/** `<project>/.lain/` — ONE AUTHORITY FOR WHERE PROJECT INTELLIGENCE LIVES. */
 
 const fs = require('fs');
 const path = require('path');
 
-/**
- * The directory, inside the project being worked on: `.lain/` — or `.noema/` for a project the Noema era opened
- * (projectmeta.js decides, per project; `lain project migrate` moves it). DIR is the name a NEW project gets.
- */
+/** The directory, inside the project being worked on: `.lain/` — or `.noema/` for a project the Noema era opened */
 const meta = require('./projectmeta');
 const DIR = meta.CANON;
 
-/**
- * THE SLOTS. A closed list, because an open one is how a second authority
- * arrives: a module that can invent a filename will, and then two modules own
- * overlapping state and neither knows it.
- *
- * `index` is the file projectindex.js has always written. It is named here so
- * that this module is genuinely the whole map of the directory — a path
- * authority with a hole in it is not one.
- */
+/** THE SLOTS. A closed list, because an open one is how a second authority arrives: a module that can invent a filename will, and then two modules own… */
 const SLOTS = Object.freeze({
   /** The INTENDED architecture: what this project is meant to be. */
   architecture: 'architecture/skeleton.json',
@@ -102,22 +32,7 @@ const SLOTS = Object.freeze({
 /** Directories that exist because something writes into them per-session. */
 const SCRATCH = 'scratch';
 
-/**
- * WHERE A TASK'S EVIDENCE LIVES — one directory per task, under `.lain/tasks/`.
- *
- * HERE, AND NOT IN THE ARTIFACT STORE, because of the rule at the top of this
- * file: nothing outside this module joins a path inside `.lain/`. The artifact
- * store (src/harness/artifacts.js) is the thing that decides WHAT is worth
- * keeping and in what shape; where the bytes sit is this file's business, and
- * the day `.lain/` is reorganised there must be exactly one place to change.
- *
- * A TASK DIRECTORY IS NOT A SLOT, and cannot be. Slots are a closed list with
- * one document each — the whole reason the list is closed is that a module able
- * to invent a filename will invent two. A task directory is unbounded by
- * nature: one per task, with logs, screenshots and per-check output inside it.
- * So it gets its own authority function with its own sanitiser, rather than
- * being smuggled in as a slot with a wildcard in it.
- */
+/** WHERE A TASK'S EVIDENCE LIVES — one directory per task, under `.lain/tasks/`. */
 const TASKS = 'tasks';
 
 /** Bumped when an envelope's shape changes, so an old document is discarded. */
@@ -125,10 +40,7 @@ const VERSION = 1;
 
 function dirFor(root) { return meta.dir(String(root)); }
 
-/**
- * The absolute path of a slot. THE ONLY PATH JOIN IN THE PROJECT for anything
- * under `.lain/`, which is the whole point of the module.
- */
+/** The absolute path of a slot. */
 function pathOf(root, slot) {
   const rel = SLOTS[slot];
   if (!rel) throw new Error(`unknown .lain slot "${slot}" — the slot list is closed on purpose`);
@@ -146,28 +58,13 @@ function scratchRoot(root) { return path.join(dirFor(root), SCRATCH); }
 /** Every task directory, whoever wrote it. */
 function tasksRoot(root) { return path.join(dirFor(root), TASKS); }
 
-/**
- * One task's evidence directory.
- *
- * The id is sanitised the same way a scratch id is, and for the same reason: an
- * id is a string somebody else chose, and a `..` in it is a path traversal out
- * of the project. Refusing is not an option here — the caller has a task and
- * needs somewhere to put its receipts — so it is neutralised instead.
- */
+/** One task's evidence directory. */
 function taskDir(root, taskId) {
   const safe = String(taskId || 'unknown').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 64) || 'unknown';
   return path.join(tasksRoot(root), /^\.+$/.test(safe) ? 'unknown' : safe);
 }
 
-/**
- * A file inside one task's directory, in a named sub-area.
- *
- * The AREAS are a closed list for the same reason SLOTS is: the CLI, the
- * dashboard and a future remote client all list a task's evidence, and they can
- * only agree on what they are looking at if the shape is fixed. `name` is a
- * plain file name and is sanitised — it never contributes a directory
- * separator, so no caller can write outside the area it asked for.
- */
+/** A file inside one task's directory, in a named sub-area. */
 const AREAS = Object.freeze(['logs', 'tests', 'browser', 'screenshots', 'observations', 'verification', 'diff', 'reports']);
 
 function taskFile(root, taskId, area, name) {
@@ -177,14 +74,7 @@ function taskFile(root, taskId, area, name) {
   return path.join(taskDir(root, taskId), a, safe);
 }
 
-/**
- * READ A SLOT, or the fallback.
- *
- * A CORRUPT OR OLD DOCUMENT IS AN ABSENT ONE, never an error and never a
- * partial read. Half-trusting a file that did not parse is the class of bug
- * this directory is built to avoid — see projectindex.js, which learned it
- * first.
- */
+/** READ A SLOT, or the fallback. */
 /** The schema is brought current before the first read or write of a project. */
 function schemaFirst(root) {
   try { require('./lainschema').ensure(root); } catch { /* documents are still readable as they are */ }
@@ -201,17 +91,7 @@ function read(root, slot, fallback = null) {
   return doc.body === undefined ? fallback : doc.body;
 }
 
-/**
- * WRITE A SLOT, atomically.
- *
- * Temp file then rename, because the failure this prevents actually happened to
- * this repository: a process died between opening a file for writing and
- * writing to it, and left 900 lines at zero bytes. A rename is the only write
- * that has no such window.
- *
- * @returns {boolean} whether it landed. NEVER THROWS: a read-only project is a
- *   state, not an exception.
- */
+/** WRITE A SLOT, atomically. */
 function write(root, slot, body) {
   if (held(root)) return false;
   const file = pathOf(root, slot);
@@ -242,13 +122,7 @@ function has(root, slot) {
   try { return fs.statSync(pathOf(root, slot)).isFile(); } catch { return false; }
 }
 
-/**
- * WHAT THIS PROJECT REMEMBERS, as a fact rather than an impression.
- *
- * Deliberately CHEAP — stats, no parses — because it is called to decide
- * whether a more expensive read is worth doing, and a survey that costs as much
- * as the thing it surveys is not a survey.
- */
+/** WHAT THIS PROJECT REMEMBERS, as a fact rather than an impression. */
 function survey(root) {
   const out = { dir: dirFor(root), exists: false, slots: {}, scratch: [] };
   try { out.exists = fs.statSync(out.dir).isDirectory(); } catch { return out; }
@@ -266,26 +140,13 @@ function survey(root) {
   return out;
 }
 
-/**
- * PERMANENTLY FORGET ONE SLOT. Used by the tests that prove a document can be
- * rebuilt, and by nothing else — there is no "clear .lain" verb, because a
- * directory that can be emptied by a passing caller is not memory.
- */
+/** PERMANENTLY FORGET ONE SLOT. */
 function forget(root, slot) {
   if (held(root)) return false;
   try { fs.unlinkSync(pathOf(root, slot)); return true; } catch { return false; }
 }
 
-// ---- A HELD PROJECT IS NOT WRITTEN -------------------------------------------
-//
-// A person who declared a task read-only said "do not write to .lain" as much
-// as "do not modify any file" (readonly.js). While any session holds a project,
-// every door into its `.lain/` — this module's `write`, the project index
-// cache, scratch manifests, the schema stamp, task records — returns what it
-// returns for a checkout that cannot be written: false, and the caller carries
-// on with what it has in memory. That degrade path already existed; the hold
-// only chooses it. Keyed by project AND session so one session's read-only task
-// ends its own hold and nobody else's.
+// A HELD PROJECT IS NOT WRITTEN
 const holds = new Map();
 const keyOf = (root) => path.resolve(String(root || '.')).toLowerCase();
 function hold(root, sessionId, on) {

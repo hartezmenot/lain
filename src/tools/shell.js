@@ -1,29 +1,6 @@
 'use strict';
 
-/**
- * SHELL. Deliberately unrestricted.
- *
- * There is no command classifier standing between the model and the machine,
- * and no "is this command safe" heuristic. The model may run git, curl, npm,
- * pytest, Get-Process, a project's own scripts — anything the user's own shell
- * would run. LAIN's job is to execute it faithfully and report exactly what
- * happened.
- *
- * V1 additionally REWROTE the model's shell command into a different tool on
- * Windows (`cat x` -> read_file). That silently broke `cat x | head -20`, whose
- * whole pipeline became a filename. V2 does not touch the command string. If the
- * model wants a shell, it gets a shell.
- *
- * Three explicit tools rather than one `run_shell` with a mode flag, because the
- * model choosing PowerShell should be a different call from the model choosing
- * bash — not a parameter it can get wrong silently.
- *
- * WHAT CHANGED, AND WHY IT IS NOT A RESTRICTION. Which interpreter ran the
- * command, which directory it ran in, and what KIND of failure came back are now
- * stated on the result by execution.js. None of that alters what runs. It ends
- * the loop where a model re-runs one command under three shells to discover a
- * fact the machine had before the first attempt — see execution.js.
- */
+/** SHELL. Deliberately unrestricted. */
 
 const { via, KIND } = require('./via');
 const execution = require('../execution');
@@ -31,53 +8,18 @@ const attemptsMod = require('../attempts');
 
 const MAX_OUTPUT = 100_000; // characters returned to the model
 
-/**
- * HOW LONG A FOREGROUND COMMAND MAY RUN — was two minutes, and two minutes is
- * shorter than a great many ordinary commands.
- *
- * Reported from real use as work being cut off at 120s. A test suite, an
- * install, a build, a container pull: all of them routinely pass two minutes on
- * a real project, and every one of them was being KILLED and handed back as a
- * failure. The model then has to guess whether the command was wrong, and the
- * usual guess is to try it again.
- *
- * Ten minutes, and overridable per call with `timeout_ms` and per machine with
- * LAIN_SHELL_TIMEOUT_MS. It is still bounded, because a FOREGROUND command
- * holds the turn: something that runs longer than this is not a command to wait
- * on, it is a job — which is what `run_background` is for, and which the
- * timeout message now says. See execution.js CLASS.TIMED_OUT for that sentence
- * and why it had to exist.
- */
+/** HOW LONG A FOREGROUND COMMAND MAY RUN — was two minutes, and two minutes is shorter than a great many ordinary commands. */
 const DEFAULT_TIMEOUT_MS = Number(process.env.LAIN_SHELL_TIMEOUT_MS) || 600_000;
 
-/**
- * SHELL IDENTITY LIVES IN execution.js — one definition, shared by the
- * foreground tools here, background jobs, and the environment summary in the
- * system prompt. These are re-exported rather than reimplemented so that every
- * caller resolves the same bash and spawns with the same prefix.
- */
+/** SHELL IDENTITY LIVES IN execution.js — one definition, shared by the foreground tools here, background jobs, and the environment summary in the… */
 const { findBash, isWslShim, shellPrefix } = execution;
 
-/**
- * End a command AND whatever it started.
- *
- * `child.kill()` ends the shell; the thing the shell launched is a grandchild
- * that inherits the pipes and keeps running. On Windows `taskkill /T` walks the
- * tree; elsewhere the owned command has its own process group. The request
- * starts immediately; finish awaits bounded cleanup and reports any failure.
- */
+/** End a command AND whatever it started. */
 function killTree(child) {
   require('../harness/processes').stopTree(child).catch(() => { /* finish reports cleanup failure */ });
 }
 
-/**
- * TOOLS WHOSE EXIT 1 MEANS "NOTHING MATCHED", not "something went wrong".
- *
- * POSIX defines it for `grep`; ripgrep, ack, ag, git-grep and findstr all copy
- * it. Only the LAST command decides the status of a pipeline, so that is the
- * one inspected — `rg foo | head` exits as `head` does, and `ls | grep foo`
- * exits as the grep does.
- */
+/** TOOLS WHOSE EXIT 1 MEANS "NOTHING MATCHED", not "something went wrong". */
 const SEARCH_LIKE = /^(?:sudo\s+)?(?:git\s+grep|grep|egrep|fgrep|zgrep|rg|ripgrep|ag|ack|ack-grep|findstr)\b/i;
 
 function searchLike(command) {
@@ -99,10 +41,7 @@ function run(command, opts) {
 
 function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, detach = null, env = null }) {
   return new Promise((resolve) => {
-    // ALREADY CANCELLED. `addEventListener('abort')` never fires on a signal
-    // that has already fired, so without this an interrupt arriving between the
-    // model's tool call and the spawn started a process nobody was waiting for
-    // and then waited for it anyway.
+    // ALREADY CANCELLED. `addEventListener('abort')` never fires on a signal that has already fired, so without this an interrupt arriving between the…
     if (signal && signal.aborted) {
       return resolve({ output: '[interrupted by the user]', isError: true, exitCode: null, interrupted: true });
     }
@@ -115,11 +54,7 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
 
     let child;
     try {
-      // Referenced IPC owns a detached guardian; it survives caller death long
-      // enough to terminate the command tree, while normal calls await it.
-      // Node's Windows shell launch supplies cmd.exe's verbatim /s /c quoting.
-      // Treating its command text as a normal argv item escapes embedded quotes
-      // and makes quoted file paths reach programs with literal quote characters.
+      // Referenced IPC owns a detached guardian; it survives caller death long enough to terminate the command tree, while normal calls await it.
       child = require('../harness/processes').spawnOwned(process.platform === 'win32' && shell === 'cmd'
         ? { command, cwd, shell: file, eof: nonce, ...(env ? { env } : {}) }
         : { command: file, args, cwd, eof: nonce, ...(env ? { env } : {}) });
@@ -131,10 +66,7 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
     }
 
     let out = '';
-    // stderr is ALSO kept on its own, while the merged stream stays exactly as
-    // it was for display. Classification reads stderr only: a shell reports its
-    // parse errors there, and a test suite prints its failures to stdout, so
-    // judging the merged stream would classify a failing test as a shell fault.
+    // stderr is ALSO kept on its own, while the merged stream stays exactly as it was for display.
     let err = '';
     let truncated = false;
     const append = (buf) => {
@@ -191,21 +123,7 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
 
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMs);
 
-    /**
-     * CTRL+C MUST LAND NOW.
-     *
-     * Two separate problems, both measured by pressing Ctrl+C during
-     * `run_bash sleep 30` and watching the screen:
-     *
-     *   1. `child.kill()` kills the SHELL, not what the shell started. The
-     *      grandchild inherits the pipes, so `close` does not fire until it
-     *      finishes on its own — the screen sat on "Interrupting…" for the
-     *      remaining 24 seconds. `killTree` ends the whole group.
-     *   2. Even a clean kill is a race we do not need to win. The user has
-     *      already said stop, so the result is settled HERE rather than waiting
-     *      for the process to be reaped. A grandchild that somehow survives can
-     *      no longer hold the interface hostage.
-     */
+    /** CTRL+C MUST LAND NOW. */
     const onAbort = () => {
       killTree(child);
       finish({ output: '[interrupted by the user]', isError: true, exitCode: null, interrupted: true });
@@ -231,18 +149,14 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
     }
 
     child.on('error', (e) => {
-      // Naming the executable turns "bash failed" into something the model can
-      // actually route around — it can see that the shell itself is missing and
-      // reach for run_powershell or run_cmd instead of retrying the command.
+      // Naming the executable turns "bash failed" into something the model can actually route around — it can see that the shell itself is missing and reach…
       finish({
         output: `could not start ${shell} (${file}): ${e.message}`,
         isError: true, exitCode: null, startFailed: true, stderr: e.message,
       });
     });
 
-    // EARLY COMPLETION: every byte is in (both markers) and the exit code is known — the result goes back now and
-    // the tree is cleaned up behind it (processes.deferStop). Without the markers (a background grandchild still
-    // holds a pipe) nothing changes: the result waits for `close`, as it always did.
+    // EARLY COMPLETION: every byte is in (both markers) and the exit code is known — the result goes back now and the tree is cleaned up behind it…
     function maybeEarly() {
       // A /bg-DETACHED command is `settled` for the turn but still owes its job the result (detachedDone).
       if ((settled && !detachedDone) || !ended.out || !ended.err) return;
@@ -261,27 +175,11 @@ function runNow(command, { shell, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, signal, d
       if (result && result.error) return finish({ output: `could not start ${shell} (${file}): ${result.error}`, isError: true, exitCode: null, startFailed: true, stderr: result.error });
       if (result) code = result.code;
       const parts = [];
-      // WHICH MECHANISM RAN THIS, AND WHERE. The vocabulary for the stamp lives
-      // in via.js because three tools say it and two of them used to spell it
-      // differently; the shell-and-directory detail comes from execution.js for
-      // the same reason.
+      // WHICH MECHANISM RAN THIS, AND WHERE.
       parts.push(via(KIND.SHELL, execution.contextLine({ shell, cwd })));
       if (out) parts.push(truncated ? out + '\n[output truncated]' : out);
       if (timedOut) parts.push(`[timed out after ${Math.round(timeoutMs / 1000)}s]`);
-      // ---- A SEARCH THAT FOUND NOTHING IS AN ANSWER, NOT A FAULT ----------
-      //
-      // `grep` exits 1 to mean NO MATCH. Reported as an error it reads to the
-      // model as "that command broke", and the reply to a broken command is to
-      // try the same question another way — sed, a wider grep, then reading the
-      // whole file. Observed in a real session: a `grep` exit 1 sitting in the
-      // middle of a reread loop over regions that were already settled.
-      //
-      // So for tools whose exit 1 is defined as "no match", exit 1 is a clean
-      // result that SAYS it found nothing. Exit 2 and above stay errors,
-      // because for these tools that really is a fault.
-      // ZERO FILES SEARCHED IS NOT "NO MATCH" (2026-09-18). ripgrep says so on
-      // stderr when its glob/type filter selected nothing; that result says
-      // nothing about whether the text exists anywhere.
+      // A SEARCH THAT FOUND NOTHING IS AN ANSWER, NOT A FAULT
       const noneSearched = code === 1 && searchLike(command) && /No files were searched/i.test(err);
       const noMatch = code === 1 && searchLike(command) && !noneSearched;
       if (noneSearched) parts.push('[NO FILES SEARCHED — the filter selected nothing; this says nothing about whether the text exists]');
@@ -306,16 +204,7 @@ const SHELLS = [
   ['run_cmd', 'cmd', 'Run a command with cmd.exe (Windows).'],
 ];
 
-/**
- * WHERE DOES THIS RUN — asked once per call, answered explicitly.
- *
- * `cwd` is a parameter rather than something the model arranges with `cd`,
- * because `cd` inside a shell command changes the directory of a process that
- * exits one line later. A model that wants a command to run in `tests/` and
- * writes `cd tests && node run.js` has taken on the shell's separator rules, its
- * quoting and its error handling to express one fact the spawn already accepts
- * as an argument. The session's own directory is never mutated by this.
- */
+/** WHERE DOES THIS RUN — asked once per call, answered explicitly. */
 function resolveCwd(ctx, input) {
   const base = ctx.cwd || process.cwd();
   const want = input && input.cwd ? String(input.cwd).trim() : '';
@@ -377,28 +266,14 @@ for (const [name, shell, desc] of SHELLS) {
         r.meta = { ...(r.meta || {}), rerouted: { from: shell, to: runIn, why: mm.why } };
       }
 
-      // An interrupt is the user's decision, not a failure of the command, and
-      // annotating it would put a CLASSIFICATION on something nobody ran. A
-      // detach (/bg) is the same: the command is still running elsewhere.
+      // An interrupt is the user's decision, not a failure of the command, and annotating it would put a CLASSIFICATION on something nobody ran.
       if (r.interrupted || r.detached) return r;
 
       const { text, verdict } = execution.annotate(
         { ...r, shell: runIn, cwd: where.cwd, command },
         { attempts: attemptsMod.forSession(ctx.session) },
       );
-      // ---- THE ONE PLACE A REAL TEST RESULT EXISTS ------------------------
-      //
-      // "Is it done?" asked from a phone deserves an answer with evidence under
-      // it, and the only evidence LAIN ever holds is a runner stating its own
-      // counts. This is where that text is, so this is where it is reported —
-      // to the runtime, which keeps it, so a SECOND window can see a result
-      // this process observed.
-      //
-      // `seen` IS THE WHOLE GUARD. testing.counts sets it only when a real
-      // summary line was parsed; a build log with the word "passed" in it, or a
-      // command that is not a test run at all, sets nothing and reports nothing.
-      // Inventing a `0 passed` for every shell command would be worse than
-      // silence, because a screen would then show it.
+      // THE ONE PLACE A REAL TEST RESULT EXISTS
       try { noteVerified(ctx, command, r.output); } catch { /* never fail a tool over telemetry */ }
       return {
         ...r,
@@ -409,14 +284,7 @@ for (const [name, shell, desc] of SHELLS) {
   };
 }
 
-/**
- * A TEST RUN THAT STATED ITS OWN NUMBERS, reported to the runtime.
- *
- * Extracted rather than inlined so it can be tested directly, and so the tool
- * path reads as one line. Reports NOTHING unless the runner actually printed a
- * summary — see `seen` in testing.js — because a fabricated zero on a status
- * screen is worse than a screen that says nothing was checked.
- */
+/** A TEST RUN THAT STATED ITS OWN NUMBERS, reported to the runtime. */
 function noteVerified(ctx, command, output) {
   const session = ctx && ctx.session;
   if (!session || !session.id) return false;

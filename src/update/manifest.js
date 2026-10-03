@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * THE UPDATE MANIFEST — what a release says about itself, and how LAIN decides to believe it.
- *
- *   manifest-<channel>.json        the release, as bytes
- *   manifest-<channel>.json.sig    an Ed25519 signature over exactly those bytes (base64)
- *
- * The manifest is believed only when the signature verifies against a key LAIN was BUILT with (trust.js); every
- * asset it names is then believed only when its SHA-256 matches. HTTPS, a mirror or a filesystem path is transport,
- * never trust. A manifest carries no secret and names no local path.
- *
- * {
- *   "schema": 1, "product": "lain", "channel": "stable",          (the Noema-era "noema" is accepted too)
- *   "version": "0.2.0", "released": "2026-10-01T00:00:00Z",
- *   "minimumCompatible": "0.1.0",               // the oldest installed version that may update to this directly
- *   "protocol": 1, "minimumCli": "0.1.0", "minimumHarness": "0.1.0",
- *   "mandatory": false, "security": false,
- *   "notes": "https://…/releases/tag/v0.2.0", "summary": ["…"],
- *   "assets": [{ "arch": "x64", "kind": "app", "name": "lain-0.2.0-win-x64.zip", "url": "…", "size": 123, "sha256": "…" }]
- * }
- */
+/** THE UPDATE MANIFEST — what a release says about itself, and how LAIN decides to believe it. */
 
 const crypto = require('crypto');
 

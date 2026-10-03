@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE ADMISSION TRACE — where a typed line went, decision by decision.
- *
- * Off unless `LAIN_TRACE_ADMISSION` names a file. When on, every decision on
- * the path from Enter to a started turn appends one JSON line with the state
- * that decided it: the open panel, the abort controller, the dispatch counter,
- * the primary job, the steer queue, the composer. A line that never becomes a
- * turn then says exactly which gate it stopped at, instead of "nothing happened".
- *
- * Never throws and never changes behaviour; a trace that could fail a submit
- * would be a second way to lose the line it exists to find.
- */
+/** THE ADMISSION TRACE — where a typed line went, decision by decision. */
 
 const fs = require('fs');
 

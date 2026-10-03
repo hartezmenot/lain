@@ -1,18 +1,6 @@
 'use strict';
 
-/**
- * CLAIM PROVENANCE (Execution Discipline §28) — a completion report is a set of TYPED claims, and LAIN checks each
- * against what it actually observed:
- *
- *   CHANGED       something was modified          → the mutation ledger must show it
- *   VERIFIED(id)  something was checked and held   → a current check (or Preview observation) must support it
- *   INFERRED      reasoned, not observed          → accepted as stated
- *   NOT_CHECKED   explicitly not verified         → accepted as stated
- *
- * A VERIFIED claim with no supporting evidence is DOWNGRADED, never silently kept: "Windows package verified" with no
- * packaging run on record becomes NOT_CHECKED, and the person is told. Domain words need domain evidence — a passing
- * unit suite does not verify an installer, a build, or a button on screen.
- */
+/** CLAIM PROVENANCE (Execution Discipline §28) — a completion report is a set of TYPED claims, and LAIN checks each against what it actually observed */
 
 const TYPES = Object.freeze(['CHANGED', 'VERIFIED', 'INFERRED', 'NOT_CHECKED']);
 const VERIFY_WORDS = /\b(verified|confirmed|tested|tests? (?:now )?pass(?:es|ed)?|(?:is|are) passing|passes|works(?: correctly| as expected)?|is (?:now )?working|builds? (?:cleanly|successfully)|built successfully|green)\b/i;
@@ -41,10 +29,7 @@ function extract(text) {
   return out.slice(0, 20);
 }
 
-/**
- * CROSS-CHECK. `ledger` is the task's CheckLedger, `gen` the current generation, `changed` the files the task wrote.
- * @returns claims with { accepted, as, why, checkIds }
- */
+/** CROSS-CHECK. `ledger` is the task's CheckLedger, `gen` the current generation, `changed` the files the task wrote. @returns claims with { accepted… */
 function crossCheck(claims, { ledger, gen = 0, changed = [] } = {}) {
   const checks = ledger ? ledger.all() : [];
   const current = checks.filter((c) => c.latest && c.latest.gen === gen && ['PASS', 'OBSERVED'].includes(c.latest.state));

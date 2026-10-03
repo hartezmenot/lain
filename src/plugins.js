@@ -1,46 +1,6 @@
 'use strict';
 
-/**
- * LAIN PLUGINS — packages written FOR LAIN, distinct from the three things
- * they are easily confused with:
- *
- *   Extensions   VS Code-format packages (.vsix); LAIN uses their declarative
- *                parts and never runs their code (extensions.js)
- *   Skills       instructions a model reads
- *   MCP servers  tool servers LAIN connects to (Settings › MCP)
- *
- * A plugin is a folder with `lain-plugin.json`:
- *
- *   {
- *     "id": "acme.review", "name": "Review", "version": "1.0.0",
- *     "permissions": ["write", "shell"],            what its commands may do
- *     "commands": [{ "id": "review", "title": "Review this file",
- *                    "prompt": "Review {{file}}, focusing on {{selection}}" }],
- *     "skills": [{ "name": "house style", "path": "skills/style.md" }],
- *     "mcp": [{ "name": "acme-db", "command": "npx", "args": ["acme-mcp"] }],
- *     "bot": { "capabilities": ["reviews code against the house style"] },
- *     "hooks": [{ "event": "afterSave", "command": "…" }]
- *   }
- *
- * ------------------------------------------------------------------------
- * PERMISSIONS ARE ENFORCED, NOT DISPLAYED. A plugin command runs as an ordinary
- * turn in the IDE with a GRANT on the session; tools/index.js refuses any tool
- * outside it, whatever the model asks:
- *
- *   read      reading and searching the project — always allowed
- *   write     changing project files
- *   shell     running commands and processes
- *   network   fetching from the web, opening a browser
- *   computer  screen and input control
- *
- * A newly installed plugin is DISABLED; enabling it means granting exactly the
- * permissions it lists, and the person sees that list first.
- *
- * WHAT IS DECLARED BUT NOT RUN in this build, and said so wherever it shows:
- * hooks (a plugin's own commands on editor events would be unsandboxed code),
- * MCP dependencies (listed, and added to Settings › MCP only by the person),
- * skills (shown and readable; LAIN has no skill loader yet).
- */
+/** LAIN PLUGINS — packages written FOR LAIN, distinct from the three things they are easily confused with */
 
 const fs = require('fs');
 const path = require('path');

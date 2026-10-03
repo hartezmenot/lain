@@ -1,70 +1,6 @@
 'use strict';
 
-/**
- * THE ONE CHROMIUM AUTHORITY — which binary, whose profile, which port, who
- * cleans it up.
- *
- * ------------------------------------------------------------------------
- * WHAT WAS ACTUALLY WRONG, MEASURED RATHER THAN ASSUMED.
- *
- * Three modules launched browsers: harness/browserharness.js (verification),
- * workshop/index.js (the preview) and modelsource/webbrowser.js (the logged-in
- * web models). All three called `browser.findBrowser()`, and all three then
- * repeated the same fifty lines — build args, spawn, poll `DevToolsActivePort`,
- * open a CDP endpoint — with small divergences nobody had decided on:
- * verification passed `--disable-extensions` and the other two did not, two
- * deleted the stale port file before launching and one did not, one went
- * through the ProcessManager and two spawned directly.
- *
- * Some of those differences are REAL and deliberate (see purpose.js). Others
- * were drift. Splitting the difference is impossible while the code is copied,
- * which is the argument for this file: the real differences become DATA, and
- * the drift disappears because there is only one launcher left.
- *
- * ------------------------------------------------------------------------
- * IT NEVER SILENTLY ATTACHES TO A BROWSER SOMEBODY ELSE STARTED.
- *
- * `browserharness._session()` probed port 9222 BEFORE deciding to launch:
- *
- *     let live = await cdp.endpoint(this.port);
- *     if (!live.ok && launch) { ...launch our own... }
- *
- * 9222 is the DevTools convention. A person who has ever started Chrome with
- * `--remote-debugging-port=9222` — for their own debugging, for an extension,
- * for another tool — hands LAIN their REAL browser: their cookies, their
- * logged-in sessions, their open tabs. And it would then create tabs and
- * navigate in it. Nothing announced this; the failure mode was silent adoption
- * of the one browser that must never be touched.
- *
- * So there is no attach path here at all. `launch` launches. Reaching a browser
- * this runtime did not start is a different verb, needs a person to ask for it,
- * and belongs to Computer MCP — see the note on `PURPOSE` in purpose.js.
- *
- * ------------------------------------------------------------------------
- * OWNED, BORROWED, AND WHY BOTH EXIST.
- *
- * The brief asks for a browser LAIN owns rather than "whichever Chrome the user
- * happened to install". That is right, and the managed install
- * (chromiuminstall.js) is how it is met: a pinned Chrome for Testing build
- * under LAIN's own config directory, whose version goes into the evidence.
- *
- * But a managed build is ~160MB that has to be fetched, and refusing to work
- * until it has been would make every existing verification fail on a machine
- * that has a perfectly good browser on it. So the fallback stays and is
- * LABELLED: a borrowed binary reports `owned: false`, and every piece of
- * evidence says which it was. The important boundary is not the executable —
- * it is the PROFILE, and a borrowed binary is still launched against a
- * Harness-owned profile, never the person's.
- *
- * `policy: 'managed'` turns the fallback off for anyone who wants the stricter
- * rule, and certification uses it.
- *
- * ------------------------------------------------------------------------
- * NO AUTO-UPDATE DURING A RUN. `resolve()` reads what is on disk. It never
- * downloads, because a verification that silently upgraded its browser
- * mid-suite would produce two runs that are not comparable and no record of
- * why. Installing is an explicit, separate act — see chromiuminstall.js.
- */
+/** THE ONE CHROMIUM AUTHORITY — which binary, whose profile, which port, who cleans it up. */
 
 const fs = require('fs');
 const path = require('path');
@@ -75,10 +11,7 @@ const failures = require('./failures');
 const install = require('./chromiuminstall');
 const { SCRATCH_PREFIXES, SCRATCH_RE } = require('../harness/processcleanup');
 
-/**
- * The scratch-profile prefix, taken from the module that VALIDATES it.
- * See `profileFor` for why this is not a literal.
- */
+/** The scratch-profile prefix, taken from the module that VALIDATES it. */
 const VERIFY_PREFIX = SCRATCH_PREFIXES[SCRATCH_PREFIXES.length - 1];
 if (!SCRATCH_RE.test(`${VERIFY_PREFIX}aA0`)) {
   // A prefix the cleaner would refuse must never reach `mkdtemp`. Failing at
@@ -96,23 +29,12 @@ const POLL_MS = 60;
 /** How long a stopped browser gets to actually exit before its profile is removed. */
 const STOP_TIMEOUT_MS = 8000;
 
-/**
- * WHERE A BORROWED BROWSER MIGHT BE. Unchanged from harness/browser.js, which
- * remains the owner of this list — importing it keeps ONE answer to "where do
- * browsers live on this machine" rather than starting a second.
- */
+/** WHERE A BORROWED BROWSER MIGHT BE. */
 function systemCandidates() {
   return require('../harness/browser').findBrowser();
 }
 
-/**
- * WHICH BROWSER, AND IS IT OURS?
- *
- * Order is deliberate and each step is a different kind of authority:
- *   1. LAIN_CHROMIUM     an operator said so explicitly. Nothing outranks that.
- *   2. the managed build  LAIN installed it and knows its version exactly.
- *   3. a system browser   borrowed, labelled, and only when policy allows.
- */
+/** WHICH BROWSER, AND IS IT OURS? */
 function resolve({ policy = 'prefer-managed', explicit = null } = {}) {
   const tried = [];
   const want = explicit || process.env.LAIN_CHROMIUM || null;
@@ -165,19 +87,11 @@ function resolve({ policy = 'prefer-managed', explicit = null } = {}) {
   };
 }
 
-/**
- * THE LAUNCH FLAGS FOR ONE PURPOSE.
- *
- * The differences between the three used to be scattered across three files as
- * whatever each author happened to type. Here they are one table, next to the
- * reason.
- */
+/** THE LAUNCH FLAGS FOR ONE PURPOSE. */
 function argsFor(kind, profileDir, { headless }) {
   const t = purpose.traits(kind);
   const args = [
-    // PORT ZERO, ALWAYS. A fixed port is how two Harness browsers collide, and
-    // 9222 in particular is how one adopts somebody else's. The browser picks a
-    // free port and writes it to DevToolsActivePort; nothing here guesses.
+    // PORT ZERO, ALWAYS. A fixed port is how two Harness browsers collide, and 9222 in particular is how one adopts somebody else's. The browser picks a…
     '--remote-debugging-port=0',
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
@@ -192,20 +106,7 @@ function argsFor(kind, profileDir, { headless }) {
   return args;
 }
 
-/**
- * THE APPLICATION-WINDOW FLAGS. `--app=<url>` is the whole trick.
- *
- * It gives a Chromium window with NO tab strip, NO address bar and its OWN
- * taskbar entry and icon — which is the difference between "a page in a
- * browser" and "an application a person can alt-tab to". It is the same
- * mechanism a PWA install uses.
- *
- * WHAT IT IS NOT: a native shell. There is still a Chromium process, the window
- * decorations are the platform's default, and there is no menu bar, tray icon,
- * file-association or auto-update. LAIN HAS a native shell now (native/host.cs)
- * and the Harness runs in it, so what is left here serves the Workshop preview
- * and the website model surfaces — which really are browsers.
- */
+/** THE APPLICATION-WINDOW FLAGS. */
 function appWindowArgs(url, profileDir, { width = 1440, height = 900 } = {}) {
   return [
     `--app=${url}`,
@@ -218,20 +119,7 @@ function appWindowArgs(url, profileDir, { width = 1440, height = 900 } = {}) {
   ];
 }
 
-/**
- * ONE RUNNING BROWSER THIS RUNTIME STARTED.
- *
- * `owner` records HOW it will die, and the two answers are genuinely different
- * rather than an implementation detail:
- *
- *   'task'     started through the ProcessManager, so it is owned by a task and
- *              cleaned up with it — correct for VERIFY, whose whole point is
- *              that nothing survives the verdict.
- *   'session'  a plain child this module holds, because closing a person's
- *              preview (or logging them out of ChatGPT) when a verification
- *              finishes is the behaviour the purpose separation exists to
- *              prevent.
- */
+/** ONE RUNNING BROWSER THIS RUNTIME STARTED. */
 class Instance {
   constructor(fields) { Object.assign(this, fields); this.startedAt = Date.now(); }
   get alive() {
@@ -242,12 +130,7 @@ class Instance {
 }
 
 class ChromiumRuntime {
-  /**
-   * @param {object} deps  `processes` is the Harness ProcessManager — absent in
-   *                       a test or a headless projection, which is why every
-   *                       task-owned launch checks for it and says so rather
-   *                       than starting something nothing will clean up.
-   */
+  /** a test or a headless projection, which is why every task-owned launch checks for it and says so rather than starting something nothing will clean up. */
   constructor({ processes = null, events = null, policy = null } = {}) {
     this.processes = processes;
     this.events = events;
@@ -269,32 +152,14 @@ class ChromiumRuntime {
       case PURPOSE.WEBMODEL:
         return require('../modelsource/webprofile').ensure(sourceId || 'default');
       case PURPOSE.VERIFY:
-        // DISPOSABLE, AND A NEW ONE EVERY TIME. Reusing one directory across
-        // verifications would quietly reintroduce exactly the shared state the
-        // purpose exists to exclude.
-        //
-        // THE PREFIX COMES FROM THE REMOVER, NOT FROM HERE. harness/
-        // processcleanup.js runs detached after a hard owner death and deletes
-        // recursively, so it only accepts directory names matching a fixed
-        // pattern — a real safety boundary. When that pattern was an inline
-        // literal there and the prefix an inline literal here, the two agreed
-        // only by coincidence, and renaming this one broke it: the cleaner
-        // refused the path as invalid and a whole Chromium profile survived
-        // every crash, silently. Taking the name from the validator makes a
-        // directory that can be created one that can be removed.
+        // DISPOSABLE, AND A NEW ONE EVERY TIME.
         return fs.mkdtempSync(path.join(os.tmpdir(), VERIFY_PREFIX));
       default:
         throw new Error(`unknown browser purpose: ${kind}`);
     }
   }
 
-  /**
-   * START A BROWSER FOR ONE PURPOSE.
-   *
-   * `environment` is HOST or a VM id. A VM launch is delegated to the guest
-   * bridge, which runs THIS SAME contract inside the guest — the caller does
-   * not learn where the browser is, which is the property §6 asks for.
-   */
+  /** START A BROWSER FOR ONE PURPOSE. */
   async launch(kind, {
     environment = 'host', projectPath = null, sourceId = null, taskId = null,
     headless = null, signal = null,
@@ -318,20 +183,14 @@ class ChromiumRuntime {
     try { profileDir = this.profileFor(kind, { projectPath, sourceId }); } catch (e) {
       return failures.fail(CODE.CHROMIUM_FAILED, `no profile for ${kind}: ${(e && e.message) || e}`);
     }
-    // THE BOUNDARY IS CHECKED AT LAUNCH, not only at construction. This is the
-    // last moment before a real browser is pointed at a real directory, and a
-    // refactor that crossed the purposes would arrive here as a passing test
-    // and a leaked login.
+    // THE BOUNDARY IS CHECKED AT LAUNCH, not only at construction.
     const guard = this._checkIsolation(kind, profileDir);
     if (!guard.ok) return await this._abandon(null, profileDir, t, failures.fail(CODE.CHROMIUM_FAILED, guard.why));
 
     const head = headless == null ? t.headless : Boolean(headless);
     const args = argsFor(kind, profileDir, { headless: head });
 
-    // A REUSED PROFILE STILL HOLDS THE PREVIOUS RUN'S PORT FILE. Reading it
-    // would hand back a port nothing is listening on, and the failure would
-    // point at the wrong thing. Two of the three launchers did this; one did
-    // not, and that one was the flaky one.
+    // A REUSED PROFILE STILL HOLDS THE PREVIOUS RUN'S PORT FILE.
     const portFile = path.join(profileDir, 'DevToolsActivePort');
     try { fs.rmSync(portFile, { force: true }); } catch { /* first run */ }
 
@@ -371,9 +230,7 @@ class ChromiumRuntime {
     try {
       const proc = this.processes.start({
         taskId, name: 'browser', command, args,
-        // ONLY A DISPOSABLE PROFILE IS DELETED. Handing a project or web-model
-        // profile to cleanup would erase a person's preview state or their
-        // login the first time a task ended.
+        // ONLY A DISPOSABLE PROFILE IS DELETED.
         cleanupPaths: disposable ? [profileDir] : [],
       });
       return { ok: true, proc };
@@ -420,35 +277,9 @@ class ChromiumRuntime {
     return failures.fail(CODE.CHROMIUM_FAILED, `the browser did not announce a debug port within ${LAUNCH_TIMEOUT_MS}ms`);
   }
 
-  /**
-   * A LAUNCH THAT FAILED MUST NOT LEAVE ITS PROFILE BEHIND.
-   *
-   * ------------------------------------------------------------------------
-   * FOUND BY tests/integration/harness-browser-lifecycle.js, WHICH WAS RIGHT.
-   *
-   * Cleanup used to be split: this module created the scratch profile, and
-   * browserharness.js registered it in `_launches` BEFORE waiting for the
-   * port, so its own `_disposeKeys` removed the directory when the launch went
-   * wrong. Moving the launcher here broke that arrangement without replacing
-   * it — a failed launch (cancelled mid-start, or a binary that never opens a
-   * debug port) returned early, registered nothing, and left a whole profile
-   * directory on disk with nobody responsible for it.
-   *
-   * THE RULE THAT AVOIDS THE WHOLE CLASS: whoever CREATES the profile removes
-   * it when the thing it was for does not exist. That is this module, on every
-   * failure path, which is why they all route through here.
-   *
-   * ONLY A DISPOSABLE PROFILE IS REMOVED. A Workshop or web-model launch that
-   * fails must leave the person's preview state and their login exactly where
-   * they were — the profile was not created by this call and is not its to
-   * delete.
-   */
+  /** A LAUNCH THAT FAILED MUST NOT LEAVE ITS PROFILE BEHIND. */
   async _abandon(started, profileDir, traits, result) {
-    // THE KILL IS AWAITED, AND THAT IS THE WHOLE FIX FOR THE CANCELLATION
-    // CASE. A browser that is still running holds its profile open, so
-    // removing the directory beneath it fails on Windows — and the `catch`
-    // that absorbs the EBUSY is what makes the leak silent. Same defect as
-    // `stop()` had, in a second place, which is why both now wait.
+    // THE KILL IS AWAITED, AND THAT IS THE WHOLE FIX FOR THE CANCELLATION CASE.
     if (started) await this._kill(started);
     if (traits && traits.disposable && profileDir) {
       try { fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch { /* the owner task cleanup is the backstop */ }
@@ -499,47 +330,12 @@ class ChromiumRuntime {
   /** Every instance this runtime started, for `/env`. */
   list() { return [...this._instances.values()].map((i) => this.status(i)); }
 
-  /**
-   * STOP ONE, AND ACTUALLY WAIT FOR IT.
-   *
-   * ------------------------------------------------------------------------
-   * THE PROFILE OUTLIVED THE BROWSER, AND THE LIVE ACCEPTANCE CAUGHT IT.
-   *
-   * This used to fire `child.kill()`, call `processes.stop()` WITHOUT AWAITING
-   * IT, and delete the profile directory immediately. On Windows a killed
-   * process has not released its file handles by the time `kill` returns, so
-   * the delete raced the exit and lost — and the `catch {}` swallowed the
-   * EBUSY, which is why the leak was silent. Every verification run left a
-   * whole Chromium profile behind in the temp directory.
-   *
-   * So: stop, WAIT for the process to be gone, and only then remove. The wait
-   * is bounded, and a profile that still cannot be removed after it is
-   * REPORTED rather than swallowed — a cleanup failure nobody hears about is
-   * how a disk fills up over a week.
-   */
+  /** STOP ONE, AND ACTUALLY WAIT FOR IT. */
   async stop(instance) {
     const i = instance && typeof instance === 'string' ? this._instances.get(instance) : instance;
     if (!i) return { ok: true, stopped: false };
 
-    // ---- ASK IT TO CLOSE ITSELF FIRST -----------------------------------
-    //
-    // A CHROMIUM IS A PROCESS TREE: one browser process plus a renderer, a GPU
-    // process and several utility processes — nine of them for an idle page,
-    // measured on this machine.
-    //
-    // KILLING THE PARENT IS ENOUGH TO END THE TREE, and that was checked
-    // rather than assumed: with the graceful path disabled and only
-    // `child.kill()` firing, the count of processes on our profile went 9 → 0
-    // in both headless and headful modes. Chromium puts its children in a job
-    // object that dies with the browser. So this is NOT here to prevent an
-    // orphan; there was no orphan.
-    //
-    // It is here because a KILLED browser and a CLOSED one leave the profile
-    // in different states. `Browser.close` lets Chromium flush and release its
-    // file handles, which is what the profile removal below actually needs —
-    // the leak this fixed was a disposable profile surviving every run, not a
-    // process. The tree kill underneath is the fallback for a browser that
-    // will not answer.
+    // ASK IT TO CLOSE ITSELF FIRST
     if (i.port) {
       try {
         const live = await cdp.endpoint(i.port);
@@ -559,10 +355,7 @@ class ChromiumRuntime {
       }
     }
 
-    // A DETACHED CHILD NEEDS THE TREE KILLED, and processes.js already owns
-    // how to do that per platform (`taskkill /T /F`, or a process-group
-    // SIGKILL). Reusing it keeps ONE answer to "how is a tree ended" rather
-    // than a second, weaker one here.
+    // A DETACHED CHILD NEEDS THE TREE KILLED, and processes.js already owns how to do that per platform (`taskkill /T /F`, or a process-group SIGKILL).
     try {
       if (i.child && i.alive) await require('../harness/processes').stopTree(i.child);
     } catch { /* already gone, or refused to die — reported below */ }
@@ -596,13 +389,7 @@ class ChromiumRuntime {
     return { ok: true, stopped: all.length };
   }
 
-  /**
-   * CAN A BROWSER RUN AT ALL, AND WHICH ONE WOULD IT BE?
-   *
-   * Cheap and side-effect free — it stats files and checks for a WebSocket
-   * client. It launches nothing and downloads nothing, so `/env` and a
-   * pre-flight check can both call it freely.
-   */
+  /** CAN A BROWSER RUN AT ALL, AND WHICH ONE WOULD IT BE? */
   health() {
     const client = cdp.clientAvailable();
     const found = resolve({ policy: this.policy() });
@@ -634,14 +421,7 @@ function forApp(app) {
   return rt;
 }
 
-/**
- * THE SIGN-IN WINDOW'S FLAGS — an ORDINARY browser window on a website
- * source's own LAIN profile, for a person to sign in by hand
- * (modelsource/signin.js). Deliberately NOT argsFor(WEBMODEL): no debugging
- * port, no automation of any kind, extensions allowed (a password manager is
- * part of logging in). A password page is never open in a window another
- * program is driving; LAIN attaches only after the person closes it.
- */
+/** THE SIGN-IN WINDOW'S FLAGS — an ORDINARY browser window on a website source's own LAIN profile, for a person to sign in by hand… */
 function signInWindowArgs(url, profileDir) {
   return [
     `--user-data-dir=${profileDir}`,

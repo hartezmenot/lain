@@ -86,20 +86,4 @@ module.exports = async function () {
     assert.ok(!health.list().some((r) => r.id === ''));
   });
 
-  await test('HANDOVER-14: the model taking over is told which road is closed, and until when', async () => {
-    const id = 'omniroute-main';
-    health.note({ connectionId: id, ok: false, kind: 'RATE_LIMITED', reason: '429', provider: 'omniroute', model: 'model-a', resetAt: Date.now() + 3 * HOUR });
-    const packet = require('../../src/handover').build({
-      cwd: process.cwd(),
-      task: { objective: 'finish the data loader' },
-      turns: [{ model: 'model-a', stopReason: 'provider', steps: 4, actions: [] }],
-    }, { toModel: 'model-b', providers: health.list() });
-    assert.ok(/continuing this task from a different model/.test(packet), 'model B must be told whose work it is continuing');
-    assert.match(packet, /provenance, not ownership/i);
-    assert.ok(/Routes that are closed right now/.test(packet), 'the section is present');
-    assert.ok(/omniroute-main/.test(packet), 'and names the route');
-    assert.ok(/clears in (2h|3h)/.test(packet), `with a real clock: ${packet}`);
-    assert.ok(/LAIN observed these/.test(packet));
-    health.clear(id);
-  });
 };

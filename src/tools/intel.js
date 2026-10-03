@@ -1,56 +1,12 @@
 'use strict';
 
-/**
- * PROJECT INTELLIGENCE — the questions a model should not have to read its way to.
- *
- * ------------------------------------------------------------------------
- * WHY THESE TWO ARE A FAMILY, and why they left search.js.
- *
- * `grep`, `glob`, `symbols` and `dependents` are PRIMITIVES: each answers one
- * narrow question and leaves the composing to the caller. These two do the
- * composing, and that is a different job:
- *
- *     understand   what is this project?      -> served from `.lain/`
- *     locate       where is this, and what    -> one walk, four answers
- *                  touches it?
- *
- * The measured reason they exist at all: a request in this codebase carries
- * ~65,000 input tokens and returns a ~36-token tool call. A model that has to
- * chain `symbols` -> `read_symbol` -> `dependents` pays that four times to
- * learn four facts one pass already knows. Composing in the runtime turns four
- * requests into one.
- *
- * BOTH REFRESH AGAINST THE DISK BEFORE THEY ANSWER, and neither replaces the
- * primitives — when the curated answer is not enough, `read_symbol`, `grep` and
- * `read_file` are still there, and the output says so where a cap bit.
- */
+/** PROJECT INTELLIGENCE — the questions a model should not have to read its way to. */
 
 const path = require('path');
 
 const tools = {};
 
-/**
- * ONE CALL FOR THE WHOLE QUESTION.
- *
- * ---- THE ROUND TRIPS THIS REPLACES -------------------------------------
- *
- * `symbols` says where a name is. `read_symbol` says what it does. `dependents`
- * says what breaks if it changes. Each of those is a separate model request,
- * and a request in this codebase carries about 65,000 input tokens to return a
- * 36-token tool call. Four hops to learn four facts that one pass over the tree
- * already knows is the shape of the measured incident: 815 requests, 59.2M
- * input, 202K output.
- *
- * So the composition happens in the runtime. This is not a new index and not a
- * replacement for the tools above - it USES them (the same walk, the same
- * definition classification, the same import matching, plus codemodel for the
- * body) and returns the four answers together. It also costs ONE traversal
- * where asking `symbols` and `dependents` separately costs two.
- *
- * THE OTHER TOOLS REMAIN. This is the cheapest sufficient answer, not a wall:
- * when it is not enough, `read_symbol`, `grep` and `read_file` are still there
- * and the output says so where a cap bit.
- */
+/** ONE CALL FOR THE WHOLE QUESTION. */
 tools.locate = {
   mutates: false,
   schema: {
@@ -82,24 +38,7 @@ tools.locate = {
   },
 };
 
-/**
- * WHAT IS THIS PROJECT? - answered from `.lain/`, not by reading it again.
- *
- * ---- THE FOUR REQUESTS THIS REPLACES -----------------------------------
- *
- * A model opening an unfamiliar tree reads the README, lists the directories,
- * greps for an entry point and opens a handful of files - four or more requests
- * at ~65,000 input tokens each, to learn things an index already holds.
- *
- * This returns a PROJECTION of that index: counts, the modules with the most
- * declarations, and what changed since last time. Never the index itself -
- * shipping the whole thing into a prompt would recreate the cost it removes.
- *
- * IT IS REFRESHED AGAINST THE DISK BEFORE IT ANSWERS. See projectindex.js: a
- * stat pass, and a re-scan of whatever moved. V1 kept an index that aged
- * silently and answered confidently from stale data; this one cannot, because
- * there is no accessor that returns what was written last time.
- */
+/** WHAT IS THIS PROJECT? */
 tools.understand = {
   mutates: false,
   schema: {
@@ -116,12 +55,7 @@ tools.understand = {
   async run(input, ctx) {
     const root = path.resolve(ctx.cwd || process.cwd());
     const pi = require('../projectindex');
-    // ---- THE WORKER READS, THE RUNTIME REMEMBERS -------------------------
-    //
-    // `projectsync` refreshes `<project>/.lain` and tells the runtime what it
-    // found, so the answer can say "unchanged since the last session" - which
-    // is a fact only the runtime holds. The index alone can say that nothing
-    // moved since the last stat, which is a weaker and different claim.
+    // THE WORKER READS, THE RUNTIME REMEMBERS
     let sync;
     try { sync = await require('../projectsync').open(root); } catch (e) {
       return { output: `the project index could not be built: ${(e && e.message) || e}`, isError: true };
@@ -140,14 +74,7 @@ tools.understand = {
         + 'older entry. Ask again to continue indexing.');
     }
     const NL = String.fromCharCode(10);
-    // ---- WHAT THE PROJECT ITSELF HAS RECORDED -------------------------------
-    //
-    // The durable layer (.lain) is part of orientation when it has content:
-    // counts only, never the documents — the point of `understand` is to say
-    // what EXISTS cheaply, and a reader who needs the architecture branch asks
-    // `architecture show`; one who needs a word asks `concept`. An empty layer
-    // says so in one line rather than silence, so the model knows the door is
-    // there and simply unpopulated (seed exists for exactly that).
+    // WHAT THE PROJECT ITSELF HAS RECORDED
     const lain = [];
     try {
       const lainstore = require('../lainstore');

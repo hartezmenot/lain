@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * SCRATCH — where a turn keeps its working notes, and why it is not memory.
- *
- * ------------------------------------------------------------------------
- * TWO KINDS OF THING, AND CONFUSING THEM IS THE FAILURE.
- *
- *     SCRATCH      what THIS turn is finding out. Half-checked, superseded
- *                  every few minutes, worthless in a week. Deleted when the
- *                  turn completes.
- *
- *     MEMORY       what is durably true about the project. Survives every
- *                  restart, and is read by models that were not here.
- *
- * A system that promotes everything accumulates a memory full of half-truths
- * from abandoned attempts, and then answers confidently from them. A system
- * that promotes nothing rediscovers the same fact every session. So promotion
- * is a DELIBERATE ACT WITH EVIDENCE ATTACHED — `promote()` refuses a fact that
- * cannot say what established it.
- *
- * ------------------------------------------------------------------------
- * THE INTERRUPTION CASE, which is the whole reason scratch is on disk.
- *
- *     turn opens        scratch created
- *     workers run       findings written as they are found
- *     TURN DIES         rate limit, crash, the user hits Ctrl-C, a model
- *                       switch mid-task
- *     handover          READS THE SCRATCH THAT IS STILL THERE
- *     new model         continues from findings instead of from nothing
- *     turn completes    scratch removed
- *
- * If scratch were in memory it would die with the process that made it, and the
- * replacement model would start from the transcript — which is a record of what
- * the DEAD model believed, and is exactly what handover.js exists to avoid.
- *
- * So: it is deleted on COMPLETION, never on failure. An orphaned scratch
- * directory is not a leak, it is the evidence of an unfinished turn, and
- * `orphans()` is how the next session finds it.
- *
- * ------------------------------------------------------------------------
- * IT IS NOT A TRANSCRIPT. Nothing here stores model prose, a conversation, or a
- * tool's raw output. A scratch entry is a short named finding — "the socket
- * listens on 127.0.0.1 only", "tests/unit/foo.test.js covers this" — and the
- * cap below is what stops it becoming a log.
- */
+/** SCRATCH — where a turn keeps its working notes, and why it is not memory. */
 
 const fs = require('fs');
 const path = require('path');
@@ -65,9 +22,7 @@ function dirOf(root, sessionId) { return lainstore.scratchDir(root, sessionId); 
 
 function manifestPath(root, sessionId) { return path.join(dirOf(root, sessionId), MANIFEST); }
 
-// A HELD project (a declared read-only task — lainstore.hold) keeps its
-// scratch manifest here, in this process, instead of in `.lain/scratch/`:
-// notes still work for the turn; nothing is written to the project.
+// A HELD project (a declared read-only task — lainstore.hold) keeps its scratch manifest here, in this process, instead of in `.lain/scratch/`: notes…
 const heldManifests = new Map();
 const heldKey = (root, sessionId) => `${path.resolve(String(root)).toLowerCase()}|${sessionId}`;
 
@@ -97,13 +52,7 @@ function writeManifest(root, sessionId, m) {
   }
 }
 
-/**
- * OPEN A SCRATCH for this turn. Idempotent: reopening keeps what is there.
- *
- * IDEMPOTENT ON PURPOSE. A turn that resumes after an interruption calls this
- * again, and wiping the findings at that moment would destroy exactly the thing
- * the directory exists to preserve.
- */
+/** OPEN A SCRATCH for this turn. */
 function open(root, sessionId, { goal = '', turn = 0 } = {}) {
   const existing = readManifest(root, sessionId);
   const m = existing || { session: String(sessionId), openedAt: Date.now(), goal: '', turn: 0, notes: [] };
@@ -114,13 +63,7 @@ function open(root, sessionId, { goal = '', turn = 0 } = {}) {
   return { ok, dir: dirOf(root, sessionId), manifest: m, resumed: Boolean(existing) };
 }
 
-/**
- * RECORD A FINDING.
- *
- * `by` is which worker found it, and it is not decoration: at handover time the
- * difference between "the test runner said this" and "the model thought this"
- * decides whether the next model re-checks it.
- */
+/** RECORD A FINDING. */
 function note(root, sessionId, { text, by = '', kind = 'finding' } = {}) {
   const t = String(text || '').trim();
   if (!t) return { ok: false, error: 'a note needs text' };
@@ -155,26 +98,14 @@ function file(root, sessionId, name) {
   return path.join(dir, safe);
 }
 
-// ---------------------------------------------------------------------------
 // PROMOTION — the one door from scratch into memory
-// ---------------------------------------------------------------------------
 
 function facts(root) {
   const body = lainstore.read(root, 'memory', null);
   return body && Array.isArray(body.facts) ? body.facts : [];
 }
 
-/**
- * PROMOTE A FINDING TO A DURABLE FACT.
- *
- * REFUSES WITHOUT EVIDENCE, and this is the load-bearing rule. `.lain/memory`
- * is read by models that were not present and cannot re-derive where a claim
- * came from; a fact with no provenance there is indistinguishable from a
- * confident guess, and it will be believed.
- *
- * `evidence` is what ESTABLISHED it — a command that ran, a test that passed, a
- * file that was read — not an argument that it is probably true.
- */
+/** PROMOTE A FINDING TO A DURABLE FACT. */
 function promote(root, sessionId, { text, evidence, by = 'lain' } = {}) {
   const t = String(text || '').trim();
   const e = String(evidence || '').trim();
@@ -211,26 +142,14 @@ function remembered(root, { max = 20 } = {}) {
   return facts(root).slice(-max);
 }
 
-// ---------------------------------------------------------------------------
 // LIFECYCLE
-// ---------------------------------------------------------------------------
 
-/**
- * THE TURN FINISHED. Remove the scratch.
- *
- * ONLY ON COMPLETION. There is no `close on failure`, and that omission is the
- * design: a failed turn's findings are precisely what the next model needs.
- */
+/** THE TURN FINISHED. Remove the scratch. */
 function close(root, sessionId) {
   const dir = dirOf(root, sessionId);
   try {
     fs.rmSync(dir, { recursive: true, force: true });
-    // LEAVE NO SCAFFOLDING. A turn that opened a scratch and completed having
-    // noted nothing must leave the working tree exactly as it found it — a
-    // `.lain/` directory appearing because a request was retried is a side
-    // effect the user never asked for (and a smoke test asserts is absent).
-    // The empty parents go only when they are empty: `.lain/` holding the
-    // project's index or architecture is not scratch's to remove.
+    // LEAVE NO SCAFFOLDING.
     for (const parent of [lainstore.scratchRoot(root), lainstore.dirFor(root)]) {
       try { fs.rmdirSync(parent); } catch { /* not empty, or already gone */ }
     }
@@ -240,13 +159,7 @@ function close(root, sessionId) {
   }
 }
 
-/**
- * SCRATCHES FROM TURNS THAT NEVER COMPLETED.
- *
- * The handover's input, and the only way an interrupted turn's findings reach
- * the model that replaces it. Ordered oldest first so a caller cleaning up
- * removes the stalest.
- */
+/** SCRATCHES FROM TURNS THAT NEVER COMPLETED. */
 function orphans(root, { exclude = '', olderThanMs = 0 } = {}) {
   const out = [];
   let names = [];
@@ -269,13 +182,7 @@ function orphans(root, { exclude = '', olderThanMs = 0 } = {}) {
   return out.sort((a, b) => (a.touchedAt || 0) - (b.touchedAt || 0));
 }
 
-/**
- * WHAT AN INTERRUPTED TURN LEFT, in the words a handover carries.
- *
- * Findings only, newest first, capped. A handover rides a request that is
- * trying to recover, and a recovery that costs more than the work it saves is
- * not one.
- */
+/** WHAT AN INTERRUPTED TURN LEFT, in the words a handover carries. */
 function say(entry, { max = 8 } = {}) {
   if (!entry || !entry.notes || !entry.notes.length) return '';
   const rows = entry.notes.slice(-max).reverse()

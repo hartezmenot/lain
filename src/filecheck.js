@@ -52,12 +52,7 @@ const path = require('path');
 
 const { execute, onPath, findPython } = require('./tools/exec');
 
-/**
- * A file-scoped linter that has not answered in this long is not the cheap rung
- * any more. Short on purpose: the alternative to a slow answer here is not a
- * wrong answer, it is the model running the tests, which it was going to do
- * anyway.
- */
+/** A file-scoped linter that has not answered in this long is not the cheap rung any more. */
 const TIMEOUT_MS = 6000;
 /** Rows one file may contribute. A linter's opinion, not its collected works. */
 const MAX_ROWS = 12;
@@ -65,14 +60,7 @@ const MAX_ROWS = 12;
 const PY = /\.py$/i;
 const JS = /\.(?:js|cjs|mjs|jsx|ts|tsx|mts|cts)$/i;
 
-/**
- * Availability is asked ONCE per root per language, and the answer is kept.
- *
- * Probing costs a directory walk of PATH, and the edit path may run a dozen
- * times in a turn. The cache is per process, so installing a linter is picked up
- * by the next LAIN rather than the next keystroke — which is the right trade for
- * something consulted this often.
- */
+/** Availability is asked ONCE per root per language, and the answer is kept. */
 const found = new Map();
 
 function exists(p) { try { return fs.existsSync(p); } catch { return false; } }
@@ -101,19 +89,9 @@ function hasEslintConfig(root) {
   } catch { return false; }
 }
 
-/**
- * WHICH CHECKER, IF ANY, FOR THIS FILE.
- *
- * Returns `{ tool, file, args }` or null. Ordered strongest-first within a
- * language, and every entry is file-scoped and fast — see the three rules above.
- */
+/** WHICH CHECKER, IF ANY, FOR THIS FILE. */
 function checkerFor(abs, root) {
-  // THE KEY IS A JSON PAIR, not two strings glued together. A separator has
-  // to be a character a filesystem path cannot contain, which on the way to
-  // being correct means a raw control byte in a source file — invisible in
-  // every editor and diff, and banned by the architecture guard for that
-  // reason. (It caught the first draft of this line.) A pair is unambiguous
-  // without needing a byte nobody can see.
+  // THE KEY IS A JSON PAIR, not two strings glued together.
   const key = JSON.stringify([root, PY.test(abs) ? 'py' : JS.test(abs) ? 'js' : 'other']);
   if (!found.has(key)) found.set(key, probe(abs, root));
   const c = found.get(key);
@@ -122,10 +100,7 @@ function checkerFor(abs, root) {
 
 function probe(abs, root) {
   if (PY.test(abs)) {
-    // RUFF FIRST. It is the only widely available Python tool that is both fast
-    // enough for this path (single-digit milliseconds) and able to answer the
-    // question that matters here — F821, a name that resolves to nothing, which
-    // is the `pirnt` case exactly.
+    // RUFF FIRST. It is the only widely available Python tool that is both fast enough for this path (single-digit milliseconds) and able to answer the…
     const local = localBin(root, 'ruff');
     if (local) {
       return {
@@ -143,10 +118,7 @@ function probe(abs, root) {
         parse: parseRuff,
       };
     }
-    // PYFLAKES IS THE SAME QUESTION, ASKED BY AN OLDER TOOL. Reached through
-    // `-m` rather than a binary because that is how it is usually present, and
-    // because it works whether it was installed globally or into a venv this
-    // interpreter is already inside.
+    // PYFLAKES IS THE SAME QUESTION, ASKED BY AN OLDER TOOL.
     const py = findPython();
     if (py.ok) {
       return {
@@ -154,10 +126,7 @@ function probe(abs, root) {
         file: py.exe,
         argsFor: (f) => ['-m', 'pyflakes', f],
         parse: parsePyflakes,
-        // A MISSING MODULE IS NOT A CLEAN FILE. `python -m pyflakes` on a
-        // machine without it exits non-zero saying so, and reporting that as a
-        // finding would put "No module named pyflakes" in the model's lap as
-        // though it were a defect in the file it just wrote.
+        // A MISSING MODULE IS NOT A CLEAN FILE.
         absent: /No module named/i,
       };
     }
@@ -183,12 +152,7 @@ function probe(abs, root) {
   return null;
 }
 
-// ------------------------------------------------------------------ parsers --
-//
-// Each returns `{ rows }` or `{ inconclusive: true }`. Output a parser does not
-// recognise is inconclusive, NEVER an empty list: "the tool said something I
-// could not read" and "the file is clean" are different facts, and collapsing
-// them is how a checker starts silently passing everything.
+// parsers --
 
 function parseRuff(r) {
   const text = String(r.stdout || '').trim();
@@ -228,9 +192,7 @@ function parseEslint(r) {
   const rows = [];
   for (const f of j) {
     for (const m of f.messages || []) {
-      // ERRORS ONLY. A warning is a style opinion the project has explicitly
-      // declined to enforce, and putting one in front of a model mid-edit is
-      // asking it to spend a turn on something nobody wanted stopped for.
+      // ERRORS ONLY. A warning is a style opinion the project has explicitly declined to enforce, and putting one in front of a model mid-edit is asking it…
       if (m.severity !== 2) continue;
       rows.push({
         line: m.line || null,
@@ -243,12 +205,7 @@ function parseEslint(r) {
   return { rows };
 }
 
-/**
- * RUN THE CHECKER FOR ONE FILE.
- *
- * @returns {Promise<{tool, rows}|{inconclusive:true}>} — `rows: []` means the
- *   checker ran and found nothing, which is the only clean result there is.
- */
+/** RUN THE CHECKER FOR ONE FILE. */
 async function check(abs, cwd) {
   const root = cwd || process.cwd();
   let c;
@@ -270,16 +227,7 @@ async function check(abs, cwd) {
   return { tool: c.tool, rows: parsed.rows.slice(0, MAX_ROWS), truncated: parsed.rows.length > MAX_ROWS };
 }
 
-/**
- * PHRASE IT FOR THE MODEL — the same contract diagnostics.reportFor has.
- *
- * A STRING appended to the tool's own output, never an error: the write really
- * happened and the file really is on disk, and reporting a lint finding as a
- * failed call would be untrue. What changed is where the model learns about it.
- *
- * '' when there is nothing to say, which includes every case where nothing could
- * be asked.
- */
+/** PHRASE IT FOR THE MODEL — the same contract diagnostics.reportFor has. */
 async function reportFor(paths, cwd) {
   if (!Array.isArray(paths) || !paths.length) return '';
   const byTool = new Map();
@@ -297,9 +245,7 @@ async function reportFor(paths, cwd) {
   if (!byTool.size) return '';
   const blocks = [];
   for (const [tool, rows] of byTool) {
-    // THE TOOL IS NAMED. "ruff says F821" and "LAIN thinks this looks wrong" are
-    // different claims with different weights, and a model deciding whether to
-    // act on a finding is entitled to know which one it is reading.
+    // THE TOOL IS NAMED. "ruff says F821" and "LAIN thinks this looks wrong" are different claims with different weights, and a model deciding whether to…
     blocks.push(`${tool.toUpperCase()} — the file was written; ${tool} reports:\n${rows.join('\n')}`);
   }
   return `\n\n${blocks.join('\n\n')}`;

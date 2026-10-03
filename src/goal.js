@@ -1,71 +1,13 @@
 'use strict';
 
-/**
- * THE GOAL — what the user is trying to achieve.
- *
- * ------------------------------------------------------------------------
- * FOUR CONCEPTS, AND THEY MUST NOT COLLAPSE INTO EACH OTHER.
- *
- *   GOAL       what the user is trying to achieve.        Durable. Theirs.
- *   PLAN       the current strategy for reaching it.      Revisable.
- *   PLAN_STEP  the execution steps being worked through.  Runtime's.
- *   STEER      a correction to work already in flight.    Momentary.
- *
- * A task objective is NOT a goal. `task.objective` is whatever sentence started
- * the current unit of work — "fix the checkout race" — and it is replaced the
- * moment a person asks for something else. A goal outlives that: "stabilise the
- * CLI and finish the Harness" is true across a dozen tasks, and it is the thing
- * that says which of them were worth doing.
- *
- * A plan is not a goal either. A plan is one strategy, and it can be wrong,
- * replaced or abandoned while the goal is untouched.
- *
- * ------------------------------------------------------------------------
- * IT CHANGES ONLY WHEN THE PERSON CHANGES IT.
- *
- * Nothing in a turn writes here — not the model, not the runtime, not a
- * completion, not a failure. `/goal` is the only door, which is what makes it
- * safe to leave on screen and safe to carry into a resumed session. A goal that
- * a turn could quietly rewrite would be a second task objective wearing a
- * different label.
- *
- * ------------------------------------------------------------------------
- * ONE STORE. It lives on the session, is written by the session file, and is
- * read by everything else. There is deliberately no project-level goal file, no
- * config key and no `.lain` record of it: a second store is a second answer to
- * "what am I trying to do", and the day they disagreed neither would be
- * trustworthy.
- */
+/** THE GOAL — what the user is trying to achieve. */
 
 const crypto = require('crypto');
 
 /** A goal is a direction, not a specification. Bounded like every other input. */
 const MAX_GOAL = 2000;
 
-/**
- * ------------------------------------------------------------------------
- * HOW A NEW REQUEST RELATES TO THE STANDING GOAL.
- *
- * THIS MODULE STILL HAS EXACTLY ONE DOOR, AND THIS IS NOT IT. `relate()`
- * reports a relationship; it never writes one. That distinction is the whole
- * reason it is safe to have here: the invariant at the top of this file is that
- * only `/goal` changes the goal, and a classifier that could act on its own
- * verdict would be the turn quietly rewriting the goal — the exact failure the
- * invariant exists to prevent.
- *
- * WHY CLASSIFY AT ALL, THEN. Because the projection that orients a worker has to
- * say whether the sentence it is carrying serves the standing goal or argues with
- * it, and because a request that plainly supersedes the direction should be
- * SURFACED to the person rather than silently executed under a goal it
- * contradicts.
- *
- * THE DEFAULT IS `CONTINUES_GOAL`, AND IT HAS TO BE. Almost everything a person
- * types during a project is another task under the same direction — "also fix
- * the timer", "check that test too", "implement the next step". A classifier
- * that treated those as new directions would ask for confirmation constantly,
- * and a surface that asks constantly is one people stop reading. So supersession
- * is recognised only from language that says so outright.
- */
+/** HOW A NEW REQUEST RELATES TO THE STANDING GOAL. */
 const RELATION = Object.freeze({
   /** Another task under the same direction. The ordinary case, and the default. */
   CONTINUES_GOAL: 'CONTINUES_GOAL',
@@ -81,15 +23,7 @@ const RELATION = Object.freeze({
   NO_GOAL: 'NO_GOAL',
 });
 
-/**
- * Language that CALLS OFF a direction. Deliberately narrow and deliberately
- * explicit: each of these is a person saying, in words, that the thing they
- * asked for before is no longer what they want.
- *
- * `instead` is required to carry a scope word ("instead focus", "instead work
- * on") because a bare "instead" is ordinary mid-task English — "use a map
- * instead" adjusts an implementation and changes no direction at all.
- */
+/** Language that CALLS OFF a direction. */
 const SUPERSEDE_RE = /\b(?:stop working on|forget (?:the )?(?:previous|earlier|old)|abandon (?:the )?(?:previous|earlier|old)|(?:the )?new goal is|change (?:of )?direction|drop (?:the )?(?:previous|current|old)|instead (?:focus|work on|do)|scrap (?:the )?(?:previous|current|old))\b/i;
 
 /** Language that RESTATES the direction rather than replacing it. */
@@ -98,16 +32,7 @@ const REFINE_RE = /\b(?:refine (?:the )?goal|narrow (?:the )?goal|broaden (?:the
 /** Language that explicitly carves a piece out of the standing direction. */
 const CHILD_RE = /\b(?:as part of (?:the|this) goal|under (?:the|this) goal|(?:the )?(?:first|next|last) step (?:of|towards|toward))\b/i;
 
-/**
- * HOW DOES THIS SENTENCE STAND TO THE STANDING GOAL?
- *
- * @returns {{relation, consequential:boolean, ambiguous:boolean, why:string}}
- *   `consequential` — acting on this would change what the work is FOR, which is
- *     the only case worth interrupting a person about.
- *   `ambiguous` — it reads as superseding but does not name a replacement, so
- *     LAIN genuinely cannot tell what the new direction is. §4: ask then, and
- *     only then.
- */
+/** HOW DOES THIS SENTENCE STAND TO THE STANDING GOAL? */
 function relate(session, text) {
   const t = String(text == null ? '' : text).trim();
   const current = get(session);
@@ -118,9 +43,7 @@ function relate(session, text) {
     return { relation: RELATION.CONTINUES_GOAL, consequential: false, ambiguous: false, why: 'nothing was said' };
   }
   if (SUPERSEDE_RE.test(t)) {
-    // A REPLACEMENT NAMED, OR A DIRECTION MERELY CANCELLED? "the new goal is X"
-    // says what to do next; "stop working on X" does not, and LAIN must not
-    // invent the successor. That is the one case §4 wants a question for.
+    // A REPLACEMENT NAMED, OR A DIRECTION MERELY CANCELLED?
     const names = /\b(?:new goal is|instead (?:focus|work on|do))\b/i.test(t);
     return {
       relation: RELATION.SUPERSEDES_GOAL,
@@ -143,17 +66,7 @@ function relate(session, text) {
   };
 }
 
-/**
- * A STABLE HANDLE FOR ONE GOAL, so a fork, a work order and a resumed session
- * can all say they are serving the SAME direction rather than an equal-looking
- * one.
- *
- * DERIVED, NOT RANDOM, and that is what makes it work for records written before
- * ids existed: the same text set at the same moment is the same goal, so a
- * legacy row gets the id it would have been given. A random id would have made
- * every old session's goal unidentifiable, and §14's "same goal identity" test
- * unanswerable for them.
- */
+/** A STABLE HANDLE FOR ONE GOAL, so a fork, a work order and a resumed session can all say they are serving the SAME direction rather than an… */
 function idFor(text, setAt) {
   return 'G' + crypto.createHash('sha256')
     .update(String(text || '') + '|' + String(setAt || ''))
@@ -175,24 +88,14 @@ function text(session) {
   return g ? g.text : '';
 }
 
-/**
- * Its stable id, or ''. Recovered for a goal that predates ids, so no caller has
- * to care whether the session file was written before or after this existed.
- */
+/** Its stable id, or ''. */
 function id(session) {
   const g = get(session);
   if (!g) return '';
   return g.id || idFor(g.text, g.setAt || null);
 }
 
-/**
- * SET IT. The only mutation, and it is reached only from `/goal`.
- *
- * The previous goal is kept in `history` rather than overwritten in place. A
- * person who rewrites a goal mid-project is making a decision, and losing what
- * it replaced makes the session unable to say what changed or when — which is
- * exactly the question a resumed session is asked.
- */
+/** SET IT. The only mutation, and it is reached only from `/goal`. */
 function set(session, value) {
   if (!session) return null;
   const t = String(value == null ? '' : value).trim().slice(0, MAX_GOAL);
@@ -201,10 +104,7 @@ function set(session, value) {
   const now = new Date().toISOString();
   const history = (session.goal && Array.isArray(session.goal.history)) ? session.goal.history.slice(-9) : [];
   if (prev && prev.text !== t) history.push({ text: prev.text, until: now });
-  // THE SAME TEXT RE-ENTERED IS THE SAME GOAL, and keeps its id and its
-  // timestamp. Someone re-typing their own direction has not changed it, and a
-  // new id there would make every work order issued before the re-entry look
-  // like it served a different direction.
+  // THE SAME TEXT RE-ENTERED IS THE SAME GOAL, and keeps its id and its timestamp.
   if (prev && prev.text === t) return session.goal;
   session.goal = { id: idFor(t, now), text: t, setAt: now, history };
   return session.goal;
@@ -217,14 +117,7 @@ function clear(session) {
   return null;
 }
 
-/**
- * WHAT THE SYSTEM PROMPT IS TOLD, or ''.
- *
- * SHORT, AND MARKED AS DIRECTION RATHER THAN AS THE TASK. A model handed a goal
- * as though it were the request will start working on the goal — and the goal
- * is usually far larger than the sentence the person actually just typed. It is
- * context for judging what matters, not an instruction to act on.
- */
+/** WHAT THE SYSTEM PROMPT IS TOLD, or ''. */
 function forPrompt(session) {
   const t = text(session);
   if (!t) return '';
@@ -244,20 +137,13 @@ function toJSON(session) {
   };
 }
 
-/**
- * Put it back on a resumed session.
- *
- * A session saved before goals existed has none, and that is the true answer
- * for it rather than a fallback.
- */
+/** Put it back on a resumed session. */
 function from(data) {
   if (!data || typeof data !== 'object' || !data.text) return null;
   const text_ = String(data.text).slice(0, MAX_GOAL);
   const setAt = data.setAt || null;
   return {
     // A RECORD WRITTEN BEFORE IDS EXISTED STILL GETS THE ID IT WOULD HAVE HAD.
-    // `idFor` is a function of the text and the moment, so this is recovery
-    // rather than invention — see its header.
     id: typeof data.id === 'string' && data.id ? data.id : idFor(text_, setAt),
     text: text_,
     setAt,
@@ -266,16 +152,7 @@ function from(data) {
   };
 }
 
-// ---------------------------------------------------------------- continuity --
-//
-// GOALS ARE RESUMABLE, AND STILL LIGHTWEIGHT. A person can hold more than one
-// direction across a project — "finish the Harness", then "fix the release
-// blocker", then back. `session.goal` stays the ONE ACTIVE goal every consumer
-// reads (the prompt, the authority chain, background forks); the others wait in
-// `session.pausedGoals`. There are exactly two states because there are exactly
-// two behaviours: ACTIVE is the direction the work serves, PAUSED is kept and
-// serves nothing. No completion state: nothing here can observe that a goal was
-// achieved, and a state no code sets is a promise, not a fact.
+// continuity --
 
 const STATE = Object.freeze({ ACTIVE: 'ACTIVE', PAUSED: 'PAUSED' });
 const MAX_PAUSED = 12;
@@ -344,13 +221,7 @@ function edit(session, goalId, value) {
   return p;
 }
 
-/**
- * DELETE: remove one goal. Removing the ACTIVE one leaves no active goal — the
- * next direction is chosen by a person, never promoted from the paused list
- * behind their back. The work order and the prompt read the goal through
- * `authority.project()`, which is rebuilt from the session, so nothing is left
- * pointing at a goal that no longer exists.
- */
+/** DELETE: remove one goal. */
 function remove(session, goalId) {
   if (!session || !goalId) return false;
   if (goalId === id(session)) { clear(session); return true; }

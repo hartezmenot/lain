@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * SURGICAL EDITS — change a few lines without reading and rewriting a file.
- *
- * THE COST THIS EXISTS TO REMOVE. With only `read_file` and `write_file`, a
- * one-line change costs: read 2,000 lines in, hold them, emit 2,000 lines back
- * out. The input is paid for once and the OUTPUT is paid for at several times
- * the rate — so the cheapest possible edit was the most expensive thing the
- * model could do. Worse, every rewrite is a chance to silently drop a line the
- * model was not thinking about, and the diff then shows a 2,000-line change
- * where one line was meant.
- *
- * So these tools all share one shape: say WHERE, say WHAT, and the file is
- * spliced. Nothing here asks the model to reproduce content it is not changing.
- *
- * THE RULE THAT MAKES THEM SAFE TO USE BLIND:
- *
- *     AN EDIT THAT DOES NOT MATCH IS REJECTED, NEVER GUESSED.
- *
- * `apply_patch` states the lines it expects to replace and they are compared
- * byte for byte first. If the file has moved on — someone else edited it, the
- * model misremembered, an earlier patch already landed — the patch is refused
- * with the reason and the text that is actually there. That is the difference
- * between a tool a model can use without re-reading and a tool that quietly
- * corrupts a file when its memory is stale.
- *
- * Everything reports what it did in LINES, so the model learns from the result
- * that small edits are the normal size of an edit.
- */
+/** SURGICAL EDITS — change a few lines without reading and rewriting a file. */
 
 const fs = require('fs');
 const path = require('path');
@@ -38,13 +11,7 @@ const MAX_CONTEXT_LINES = 12;
 /** One resolver for every file tool — including the `/tmp/…` a Windows shell wrote (pathmap.js). */
 function resolve(cwd, p) { return require('./pathmap').resolve(cwd, p); }
 
-/**
- * Read a file, preserving what kind of line endings it had.
- *
- * A tool that splices LF into a CRLF file rewrites every line as far as git is
- * concerned, which turns a one-line patch into a whole-file diff — exactly the
- * outcome these tools exist to avoid, arrived at from the other direction.
- */
+/** Read a file, preserving what kind of line endings it had. */
 function readLines(abs) {
   const text = fs.readFileSync(abs, 'utf8');
   const crlf = /\r\n/.test(text);
@@ -65,19 +32,7 @@ function at(cwd, abs, line) {
   return line ? `${r}:${line}` : r;
 }
 
-/**
- * WHICH LINE DID THEY PROBABLY MEAN?
- *
- * A rejected patch is only useful if it points at the real text. Looking for a
- * line CONTAINING the expected one cannot work — if it contained it the patch
- * would have applied — so the miss is almost always a small difference inside
- * an otherwise familiar line: `const y = 9;` against `const y = 2;`.
- *
- * Word overlap finds that, and finds nothing when there is genuinely nothing
- * close, which is the honest answer. Deliberately crude: this only has to beat
- * "no idea", and a real diff algorithm here would be a second implementation of
- * something ui/panes.js already owns for a different purpose.
- */
+/** WHICH LINE DID THEY PROBABLY MEAN? */
 function closestLine(lines, want) {
   const words = (s) => new Set(String(s).toLowerCase().match(/[a-z0-9_]+/g) || []);
   const target = words(want);
@@ -103,61 +58,8 @@ function around(lines, index, span = 4) {
   return lines.slice(from, to).map((l, i) => `${String(from + i + 1).padStart(5)}  ${l}`).join('\n');
 }
 
-/**
- * WHY `expect` WAS NOT FOUND — answered, never guessed.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT WAS THE MESSAGE, NOT THE SAFETY.
- *
- * `apply_patch` re-reads the file at patch time and compares CONTENT, so a
- * target that changed underneath it already fails rather than corrupting
- * anything. That part was right, and it is a stronger guarantee than any
- * timestamp: it is about the bytes being replaced rather than about the file's
- * age. What the rejection then SAID was
- *
- *     REASON: the expected text is not in the file.
- *
- * which is the symptom restated. Handed that, a model does the only thing it
- * can — it speculates ("probably whitespace") and then either retries blind or
- * falls back to rewriting the whole file, which is the one operation that can
- * lose an edit LAIN never saw. A mutation system that cannot say WHY it refused
- * turns every refusal into a guess.
- *
- * So the causes are TESTED, most consequential first, and every one of them is
- * a fact about these exact bytes rather than a hypothesis:
- *
- *   CHANGED SINCE READ   the ledger holds this file's size and mtime from when
- *                        it was read whole, and LAIN's own writes clear that
- *                        entry — so a mismatch means something ELSE edited it.
- *                        This is the concurrent-session case, named.
- *   WHITESPACE           it matches once runs of whitespace are collapsed. The
- *                        kind is then named: tabs against spaces, or spacing
- *                        inside the line.
- *   A LONE CARRIAGE RETURN   CRLF is already normalised; a bare CR is not, and
- *                        it is invisible in any diff a person would look at.
- *   UNICODE FORM         it matches after NFC. A composed and a decomposed
- *                        accent are the same character and different bytes.
- *   INVISIBLE CHARACTERS a non-breaking space, a zero-width mark, a BOM, a
- *                        bidi override. Named with the code point, because that
- *                        is the only form anybody can act on.
- *
- * If none of them fires, the text genuinely is not there, and the closest-line
- * report the caller falls back to is the right answer.
- *
- * NOTHING HERE MUTATES OR RETRIES. It explains a refusal that has already
- * happened; the decision to refuse was made on the content, above.
- *
- * @returns {string|null} the reason, ready to print, or null for "not present"
- */
-/**
- * THE CHARACTERS YOU CANNOT SEE, BUILT FROM CODE POINTS.
- *
- * Written as escapes rather than as the characters themselves, and that is not
- * a style choice: two of them (U+2028, U+2029) ARE line terminators to a
- * JavaScript parser, so a literal class containing them splits this file in
- * half. The project's control-byte guard exists for the same family of
- * accident. A pattern about invisible characters must not contain any.
- */
+/** WHY `expect` WAS NOT FOUND — answered, never guessed. */
+/** THE CHARACTERS YOU CANNOT SEE, BUILT FROM CODE POINTS. */
 const INVISIBLE = new RegExp('['
   + String.fromCharCode(0x00a0)                                  // no-break space
   + String.fromCharCode(0x200b) + '-' + String.fromCharCode(0x200f)  // zero-width, marks
@@ -232,50 +134,7 @@ function whyNotFound(hay, needle, ctx, abs) {
   return null;
 }
 
-/**
- * A DESTRUCTIVE MUTATION MUST KNOW WHAT IT IS DESTROYING.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT, reproduced on a real file before this was written.
- *
- * `delete_range` addresses lines by NUMBER and verified nothing. An agent read
- * a file, something else prepended two lines, and the agent then asked to
- * delete lines 2..3:
- *
- *     wanted:   DELETE ME A / DELETE ME B
- *     deleted:  ALSO INSERTED / keep 1        <- somebody else's line, and a keeper
- *     survived: DELETE ME A / DELETE ME B     <- the actual targets
- *     reported: "deleted 2 line(s)"  isError: false
- *
- * Line numbers are the single most perishable way to name a piece of a file,
- * and they were the one addressing mode with no check at all. `apply_patch` and
- * `edit_file` are safe by construction because they match CONTENT; `write_file`
- * has a staleness guard. These three had neither.
- *
- * ------------------------------------------------------------------------
- * THREE QUESTIONS, ASKED IN THIS ORDER, and they catch different things.
- *
- *   DID IT CHANGE SINCE WE READ IT?   `staleness` — our own ledger against the
- *                                     file. Catches the case where this session
- *                                     has evidence and the evidence is old.
- *   DID SOMEBODY ELSE WRITE IT?       `foreignWrite` — the cross-session note.
- *                                     Catches the case where this session has
- *                                     NO evidence at all, which is the one a
- *                                     per-session ledger cannot see.
- *   DID WE READ IT AT ALL?            `noInspection` — the entry that never
- *                                     existed. Catches the case with no fact to
- *                                     check: the file is on disk, we hold
- *                                     nothing about it, and `write_file` would
- *                                     replace bytes nobody here has seen.
- *
- * None is a lock. All are questions about bytes, answered from records that
- * already existed; the mutation either proceeds or refuses with a reason.
- *
- * `anchored` waives the third question for a caller whose mutation IS its own
- * inspection — `delete_range` with `expect` quotes the exact bytes it removes,
- * the same guarantee `apply_patch` has by construction. See evidence.js
- * `noInspection` for every exemption stated.
- */
+/** A DESTRUCTIVE MUTATION MUST KNOW WHAT IT IS DESTROYING. */
 function refuseIfUnsafe(ctx, abs, what, { anchored = false } = {}) {
   const NL = String.fromCharCode(10);
   const { staleness, ledgerOf, foreignWrite, noInspection, sessionIdOf } = require('../evidence');
@@ -326,13 +185,7 @@ function refuseIfUnsafe(ctx, abs, what, { anchored = false } = {}) {
 }
 
 const tools = {
-  /**
-   * THE IMPORTANT ONE.
-   *
-   * Replace an exact block of lines, having first proved those lines are what
-   * the model thinks they are. `expect` is the current content; `replace` is
-   * what it becomes. Deleting is `replace: ""`.
-   */
+  /** THE IMPORTANT ONE. */
   apply_patch: {
     mutates: true,
     schema: {
@@ -376,11 +229,7 @@ const tools = {
       const first = hay.indexOf(needle);
 
       if (first < 0) {
-        // WHY IT WAS REFUSED, with what is actually there. A rejection the model
-        // cannot act on just becomes a whole-file rewrite on the next turn - and a
-        // whole-file rewrite is the one operation that can lose an edit LAIN never
-        // saw. `whyNotFound` names the cause when the cause is knowable; the
-        // closest-line report is what 'it is genuinely not there' looks like.
+        // WHY IT WAS REFUSED, with what is actually there.
         const NL = String.fromCharCode(10);
         const lines = hay.split(NL);
         const near = closestLine(lines, needle.split(NL)[0]);
@@ -416,10 +265,7 @@ const tools = {
     },
   },
 
-  /**
-   * ADD TO THE END. "Append this" should cost the size of the addition, not the
-   * size of the file.
-   */
+  /** ADD TO THE END. "Append this" should cost the size of the addition, not the size of the file. */
   append_file: {
     mutates: true,
     schema: {
@@ -456,10 +302,7 @@ const tools = {
     },
   },
 
-  /**
-   * PUT SOMETHING NEXT TO SOMETHING ELSE — an import beside the imports, a route
-   * beside the routes — without reproducing the file to say where.
-   */
+  /** PUT SOMETHING NEXT TO SOMETHING ELSE — an import beside the imports, a route beside the routes — without reproducing the file to say where. */
   insert_at: {
     mutates: true,
     schema: {
@@ -548,21 +391,13 @@ const tools = {
       if (from > f.lines.length) {
         return { output: `delete_range: ${at(ctx.cwd, abs)} has ${f.lines.length} lines; ${from} is past the end`, isError: true };
       }
-      // ---- THE LINES MUST STILL BE THE LINES YOU SAW ---------------------
-      // `expect` IS an inspection of the range: quoting the exact bytes about to
-      // be removed carries the same guarantee apply_patch's match carries, so
-      // its presence anchors the call and waives the never-read-it question.
+      // THE LINES MUST STILL BE THE LINES YOU SAW `expect` IS an inspection of the range: quoting the exact bytes about to be removed carries the same…
       const unsafe = refuseIfUnsafe(ctx, abs, 'DELETE',
         { anchored: Boolean(typeof input.expect === 'string' && input.expect.length) });
       if (unsafe) return unsafe;
-      // AND, WHEN OFFERED, THE TEXT ITSELF. A targeted read (offset/limit) is
-      // deliberately not recorded as whole-file evidence, so an agent can hold
-      // line numbers with nothing in the ledger to go stale. `expect` is the
-      // only check that covers that, which is why the schema asks for it.
+      // AND, WHEN OFFERED, THE TEXT ITSELF.
       if (typeof input.expect === 'string' && input.expect.length) {
-        // Compared with line endings normalised and trailing blanks ignored,
-        // for the same reason apply_patch does: a CRLF file must not reject a
-        // correct expectation over bytes nobody can see.
+        // Compared with line endings normalised and trailing blanks ignored, for the same reason apply_patch does: a CRLF file must not reject a correct…
         const NLC = String.fromCharCode(10);
         const norm = (x) => String(x).split(String.fromCharCode(13) + NLC).join(NLC)
           .split(NLC).map((l) => l.replace(/[ 	]+$/, '')).join(NLC).trim();
@@ -633,10 +468,7 @@ const tools = {
       let st;
       try { st = fs.statSync(abs); } catch { return { output: require('./pathmap').missing(input.path), isError: true }; }
       if (st.isDirectory()) return { output: `${input.path} is a directory — delete_file only removes one file`, isError: true };
-      // DELETING A FILE SOMEBODY ELSE JUST WROTE is the most complete way to
-      // lose work nobody saw. A checkpoint can put it back; nothing puts back
-      // the knowledge that it mattered.
-      // `_anchorSha1`: the caller names the exact bytes it deletes (candidates.js).
+      // DELETING A FILE SOMEBODY ELSE JUST WROTE is the most complete way to lose work nobody saw.
       let anchored = false;
       if (typeof input._anchorSha1 === 'string' && input._anchorSha1) {
         try { anchored = require('crypto').createHash('sha1').update(fs.readFileSync(abs)).digest('hex') === input._anchorSha1; } catch { anchored = false; }
@@ -648,13 +480,7 @@ const tools = {
     },
   },
 
-  /**
-   * HOW BIG IS IT, before deciding how to read it.
-   *
-   * The cheapest call in the set, and the one that stops the expensive mistake:
-   * a model that knows a file is 4,000 lines reaches for a range instead of the
-   * whole thing.
-   */
+  /** HOW BIG IS IT, before deciding how to read it. */
   file_info: {
     mutates: false,
     schema: {

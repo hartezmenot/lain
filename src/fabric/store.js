@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * THE INTELLIGENCE FABRIC'S OWN STATE (Phase 8.3) — one file every LAIN
- * process reads, so the Harness, the CLI, Telegram and `lain --serve` see one
- * registry. A change written by any of them is seen by the others on their
- * next read (memoised on the file's mtime + size — a stat, not a parse).
- *
- *   <configDir>/fabric.json
- *   {
- *     version: 1,
- *     families:     { <family>: { policy: 'auto'|'pinned'|'ask', pinned: <accountId>|null, order: [accountId…] } },
- *     aliases:      { <accountId>: 'Personal' }            display names — identity is never changed
- *     disabled:     { <accountId>: { at } }                kept, signed in, never routed (2026-10-02)
- *     placeholders: { <id>: { family, label, identityHint, provenance, state, note, discoveredAt } }
- *     quota:        { <accountId>: { windows: [...], limited: {until, reason}|null, at } }
- *     defaults:     { <role>: { family, model, effort, execution, policy, pinned } }
- *     events:       [ { at, type, ... } ]                   the last 60 — fallback, source-added, migration
- *   }
- *
- * NOTHING SECRET IS EVER HERE. Credentials stay in the secret store
- * (credentials.js) or in a runtime's own home; this file holds names,
- * orderings, reported quota and what happened.
- */
+/** THE INTELLIGENCE FABRIC'S OWN STATE (Phase 8.3) — one file every LAIN process reads, so the Harness, the CLI, Telegram and `lain --serve` see one… */
 
 const fs = require('fs');
 const path = require('path');
@@ -122,11 +101,7 @@ function setOrder(family, order) {
   return { ok: true };
 }
 
-/**
- * WHEN AN ACCOUNT BECAME CAPACITY (a sign-in completing). Accounts the person has not ordered are kept
- * in the order they were connected, so a new account joins at the END of its provider's list and never
- * jumps ahead of one that was already there.
- */
+/** WHEN AN ACCOUNT BECAME CAPACITY (a sign-in completing). */
 function stampSeen(accountId, at = Date.now()) { update((d) => { if (!d.seen[accountId]) d.seen[accountId] = at; return d; }); return { ok: true }; }
 function seenAt(accountId) { return read().seen[String(accountId || '')] || 0; }
 
@@ -137,12 +112,7 @@ function setAlias(accountId, name) {
   return { ok: true };
 }
 
-/**
- * ENABLED / DISABLED (2026-10-02). A disabled account keeps its sign-in, its quota history, its models and its place
- * in the priority order — it is simply never chosen for a NEW request and never used as a fallback. Different from
- * Detach (forget it), Sign out (end the sign-in) and Delete (remove what LAIN made). A request already running on it
- * finishes there: disabling changes the next choice, never the one in flight.
- */
+/** ENABLED / DISABLED (2026-10-02). */
 function isEnabled(accountId) { return !read().disabled[String(accountId || '')]; }
 function setEnabled(accountId, enabled) {
   const id = String(accountId || '');
@@ -153,10 +123,7 @@ function setEnabled(accountId, enabled) {
 
 // ----------------------------------------------------------------- quota --
 
-/**
- * What a provider REPORTED about an account's windows, and a limit it hit.
- * Only reported windows are kept — nothing is estimated from token counts.
- */
+/** What a provider REPORTED about an account's windows, and a limit it hit. */
 function quotaOf(accountId) { return read().quota[String(accountId || '')] || null; }
 function recordQuota(accountId, { windows = undefined, limited = undefined, source = null } = {}) {
   const id = String(accountId || '');

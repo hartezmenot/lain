@@ -1,38 +1,6 @@
 'use strict';
 
-/**
- * THE INTELLIGENCE FABRIC (Phase 8.3) — one Core-owned registry that the
- * Harness, the CLI, Telegram and `lain --serve` all project.
- *
- *     PROVIDER FAMILY  ─▶  LOGICAL MODEL  ─▶  EFFORT      (what the person chooses)
- *            │
- *            └─ backing accounts, under an ACCOUNT POLICY  (what LAIN manages)
- *
- * A PROVIDER FAMILY appears once — "Codex", "Claude Pro", "OpenCode", "Local",
- * one per API source — however many authenticated accounts stand behind it.
- * A BACKING ACCOUNT is capacity: a native Codex home, Claude Code's sign-in, a
- * runtime. It has a stable id, an alias the person may give it, a masked
- * identity, reported quota and a priority. It is never a model name: there is
- * no "Codex Account 3 › GPT-6 Sol" route — there is Codex › GPT-6 Sol, served
- * by whichever eligible account the family's policy chooses.
- *
- * ------------------------------------------------------------------------
- * AN INDEX, NOT A QUERY. Everything a picker, a status line or the tray needs
- * is built ONCE per generation of its inputs:
- *
- *   accountcatalog.list   the backing accounts and their catalog routes
- *   app.catalog()         the canonical models and every route to each
- *   fabric.json           policies, aliases, priorities, placeholders, quota
- *
- * and then read. Opening a picker, searching, drawing the tray and deciding a
- * fallback are lookups; nothing here fetches, probes a model or re-normalises a
- * provider catalog. (Refreshing a catalog is connections.js's job, on its own
- * schedule; it bumps the generation and the next read rebuilds.)
- *
- * THE ELIGIBILITY INDEX: for every family, logical model → the backing
- * accounts that serve it, each with the route and the effort levels THAT
- * account offers for it. A fallback is decided from this, never by trying.
- */
+/** THE INTELLIGENCE FABRIC (Phase 8.3) — one Core-owned registry that the Harness, the CLI, Telegram and `lain --serve` all project. */
 
 const store = require('./store');
 const caps = require('./effortcaps');
@@ -41,34 +9,12 @@ function root(app) { return (app && app._sibling) || app; }
 
 /** KINDS, by where a family is managed in the Model Dashboard. */
 const KIND = Object.freeze({ OAUTH: 'oauth', RUNTIME: 'runtime', API: 'api', LOCAL: 'local' });
-/**
- * THE LIFECYCLE OF AN ACCOUNT (Phase 8.4) — five states that are never mixed in one list:
- *
- *   CONNECTED               LAIN can send through it: a signed-in Codex home, Claude Code's sign-in, a
- *                           runtime, an API key, a local server. ONLY these are capacity, are routed,
- *                           fall back, report quota and appear in a provider's account list.
- *   DISCOVERED              a native provider home LAIN found on this machine and has not been asked to
- *                           use (fabric/discover.js). Existence only — nothing read, nothing routed.
- *   IMPORTED_PENDING_AUTH   metadata carried over from another tool (an imported router pool, a migrated
- *                           account). Never routable, never counted, never Ready — it waits for LAIN's
- *                           own supported sign-in and then becomes CONNECTED.
- *   DISCONNECTED            it was connected and its sign-in is gone ("Sign-in needed").
- *   ERROR                   its runtime is missing or unreachable.
- */
+/** THE LIFECYCLE OF AN ACCOUNT (Phase 8.4) — five states that are never mixed in one list */
 const LIFECYCLE = Object.freeze({ CONNECTED: 'CONNECTED', DISCOVERED: 'DISCOVERED', IMPORTED_PENDING_AUTH: 'IMPORTED_PENDING_AUTH', DISCONNECTED: 'DISCONNECTED', ERROR: 'ERROR' });
 
 const FAMILY_LABEL = Object.freeze({ codex: 'Codex', claude: 'Claude', antigravity: 'Antigravity', zai: 'Z.ai', opencode: 'OpenCode', local: 'Local', copilot: 'GitHub Copilot', kiro: 'Kiro', cursor: 'Cursor', qwen: 'Qwen' });
 
-/**
- * THE PROVIDER FAMILY ABOVE THE SOURCES (2026-09-30): one brand — OpenAI, Anthropic, Google… — may be reached
- * several ways, each its own source with its own models and its own limits:
- *
- *     OpenAI ─┬─ subscription  Codex (ChatGPT sign-in; 5-hour / weekly windows)
- *             └─ api           OpenAI API key (billed per token; the API's own rate limits)
- *
- * The grouping is for PEOPLE (MODEL shows them together); routing, quota and billing stay per source and are
- * never merged — a subscription's windows are never shown on an API key, API billing never as subscription quota.
- */
+/** THE PROVIDER FAMILY ABOVE THE SOURCES (2026-09-30): one brand — OpenAI, Anthropic, Google… — may be reached several ways, each its own source with… */
 const BRAND_LABEL = Object.freeze({ openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', zai: 'Z.ai', opencode: 'OpenCode', github: 'GitHub', deepseek: 'DeepSeek', openrouter: 'OpenRouter', mistral: 'Mistral', groq: 'Groq', xai: 'xAI', moonshot: 'Moonshot', alibaba: 'Alibaba', aws: 'Amazon', cursor: 'Cursor', local: 'Local', custom: 'Custom endpoints' });
 const FAMILY_BRAND = Object.freeze({ codex: 'openai', claude: 'anthropic', antigravity: 'google', zai: 'zai', opencode: 'opencode', copilot: 'github', kiro: 'aws', cursor: 'cursor', qwen: 'alibaba', local: 'local' });
 const API_HOSTS = [
@@ -98,16 +44,8 @@ function mask(email) {
   return `${e.slice(0, Math.min(2, at))}•••${e.slice(at)}`;
 }
 
-/**
- * THE FAMILY A BACKING ACCOUNT BELONGS TO. Pure.
- *   runtime Codex / Claude Code / OpenCode / ZCode   their provider family
- *   local servers                                   'local'
- *   an API key, or a local router endpoint LAIN holds a key for   one API family per endpoint
- */
-/**
- * ONE GOOGLE CODING ACCOUNT FAMILY (8.4.1): Google's individual coding CLI moved from Gemini CLI to Antigravity, so a
- * Gemini OAuth record is an Antigravity account. (Gemini stays a MODEL family and an API source.)
- */
+/** THE FAMILY A BACKING ACCOUNT BELONGS TO. */
+/** ONE GOOGLE CODING ACCOUNT FAMILY (8.4.1): Google's individual coding CLI moved from Gemini CLI to Antigravity, so a Gemini OAuth record is an… */
 const FAMILY_ALIAS = Object.freeze({ gemini: 'antigravity' });
 const realFamily = (f) => FAMILY_ALIAS[f] || f;
 
@@ -173,12 +111,7 @@ function familyLabel(id, accounts, apiName) {
   return FAMILY_LABEL[id] || id;
 }
 
-/**
- * WHERE AN ACCOUNT STANDS. A router pool imported earlier holds no sign-in of LAIN's: it is metadata
- * until LAIN's own sign-in replaces it. An OAuth or runtime account that lost its sign-in, or whose
- * runtime is gone, is not capacity either. An API key or a local server keeps its status ("Unreachable")
- * as a status — it is still the source the person added.
- */
+/** WHERE AN ACCOUNT STANDS. */
 function lifecycleOf(a, famKind) {
   if (a.kind === 'oauth') return LIFECYCLE.IMPORTED_PENDING_AUTH;
   if (famKind === KIND.OAUTH || famKind === KIND.RUNTIME) {
@@ -194,11 +127,7 @@ const ID_LIKE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*-[0-9a-f]{6}$/i;
 const isId = (s) => ID_LIKE.test(String(s || ''));
 function friendly(name, famId) { return isId(name) || !name ? (FAMILY_LABEL[famId] ? `${FAMILY_LABEL[famId]} account` : 'Account') : String(name); }
 
-/**
- * A QUOTA WINDOW, with its meaning stated (8.4.1). Every source reports how much is USED; a window that natively
- * reports what REMAINS is kept as it is. Both figures are then carried, derived from the one the provider gave —
- * never guessed — so a surface can say "26% remaining" and be right.
- */
+/** A QUOTA WINDOW, with its meaning stated (8.4.1). */
 function normWindow(w) {
   const used = w.usedPercent == null ? null : Math.max(0, Math.min(100, Number(w.usedPercent)));
   const rem = w.remainingPercent == null ? null : Math.max(0, Math.min(100, Number(w.remainingPercent)));
@@ -401,11 +330,7 @@ function familyOfAccount(app, accountId) {
 }
 function model(app, familyId, modelId) { const f = family(app, familyId); return f ? f.byModel.get(String(modelId || '')) || null : null; }
 
-/**
- * THE PROVIDER FAMILIES (§61): each brand once, with the sources it is reached by, by kind of connection —
- *   { id: 'openai', label: 'OpenAI', subscription: ['codex'], api: ['api:lain:openai'], runtime: [], local: [] }
- * Ids only: each source keeps its own accounts, models and limits in its own family entry.
- */
+/** THE PROVIDER FAMILIES (§61): each brand once, with the sources it is reached by, by kind of connection — { id: 'openai', label: 'OpenAI'… */
 function providerFamilies(app) {
   const groups = new Map();
   for (const f of families(app)) {
@@ -418,10 +343,7 @@ function providerFamilies(app) {
 /** A family that offers `modelId` — the one whose index holds it, preferring a subscription family. */
 function familiesOffering(app, modelId) { return families(app).filter((f) => f.byModel.has(String(modelId || ''))); }
 
-/**
- * THE ACCOUNTS THAT CAN SERVE (model, effort) in this family, in priority
- * order — the eligibility index, read. `effort` null means the model's default.
- */
+/** THE ACCOUNTS THAT CAN SERVE (model, effort) in this family, in priority order — the eligibility index, read. */
 function eligible(app, familyId, modelId, effort = null) {
   const f = family(app, familyId);
   const m = f && f.byModel.get(String(modelId || ''));
@@ -432,11 +354,7 @@ function eligible(app, familyId, modelId, effort = null) {
     .map(({ a, x }) => ({ account: a, route: x.route, levels: x.levels, limited: a.limited }));
 }
 
-/**
- * SEARCH THE INDEX — the model picker's and the Models tab's one query.
- * Filters: provider (family id), kind (oauth|runtime|api|local), capability
- * (chat|coding), effort (supports configurable effort), available.
- */
+/** SEARCH THE INDEX — the model picker's and the Models tab's one query. */
 function search(app, { query = '', family: fam = null, kind = null, capability = null, effort = null, available = false, lane = null, limit = 200 } = {}) {
   const q = String(query || '').trim().toLowerCase();
   const words = q ? q.split(/\s+/) : [];

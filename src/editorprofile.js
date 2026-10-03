@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * THE IDE EDITOR'S PROFILE — settings, keybindings and snippets, owned by Core.
- *
- * One file in LAIN's config directory (`editor.json`), read by the window's
- * Monaco adapter at start. It exists so an import from VS Code or Cursor lands
- * somewhere real: every value here is one Monaco applies (an editor option, a
- * keybinding rule, a snippet completion), validated on the way in, so the file
- * cannot carry a setting LAIN would silently ignore.
- *
- * NOT THE PERSON'S VS CODE FILES. Those are read by vscodeimport.js and never
- * written. This is LAIN's own copy of what LAIN can honour.
- */
+/** THE IDE EDITOR'S PROFILE — settings, keybindings and snippets, owned by Core. */
 
 const fs = require('fs');
 const path = require('path');

@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * ANTIGRAVITY OVER HTTPS — account management and execution WITHOUT Google's 468 MB ACP server (2026-10-01).
- *
- * ------------------------------------------------------------------------
- * WHY. The first Antigravity integration (drivers/antigravity.js) ran every act — sign-in, identity, models — through
- * Google's `agy_acp_server`, a 468 MB download, because that program performs the login and writes the profile
- * LAIN then read. Nothing about OAuth, identity, quota or models needs it: they are plain HTTPS calls, and the
- * reference routers (9Router, OmniRoute, E:\AI\router — read-only references, never a dependency) have made them
- * live since 2026-09-16. Proven here, not assumed:
- *
- *   sign-in   Google installed-app OAuth (RFC 8252): browser → loopback redirect → code → token, with PKCE. The
- *             client id/secret are the PUBLIC installed-app constants every copy of the official app carries; they
- *             identify the program, protect nothing, and RFC 8252 says so.
- *   refresh   oauth2.googleapis.com/token, grant_type=refresh_token
- *   identity  googleapis.com/oauth2/v1/userinfo
- *   project   cloudcode-pa v1internal:loadCodeAssist (onboardUser when the account has none yet)
- *   models    v1internal:fetchAvailableModels {project}
- *   quota     v1internal:retrieveUserQuotaSummary {project} → per-family buckets {window, remainingFraction, resetTime}
- *             (daily-cloudcode-pa first, cloudcode-pa second — the references pin that order)
- *   execute   v1internal:generateContent — the Gemini structured surface: contents/parts, functionDeclarations,
- *             functionCall/functionResponse, thinkingConfig
- *
- * ISOLATION (the auth invariant, intelligence-fabric): one sign-in = one NEW AccountInstance with its own token under
- * its own credential reference (DPAPI, credentials.js). Nothing is read from ~/.gemini or any other program's store,
- * no existing account is touched, nothing is copied.
- *
- * TEST SEAM: LAIN_ANTIGRAVITY_BASE points every endpoint (auth, token, userinfo, cloudcode) at one fake server.
- */
+/** ANTIGRAVITY OVER HTTPS — account management and execution WITHOUT Google's 468 MB ACP server (2026-10-01). */
 
 const crypto = require('crypto');
 const http = require('http');
@@ -57,11 +30,7 @@ function b64url(buf) { return Buffer.from(buf).toString('base64').replace(/=+$/,
 
 // ---- SIGN-IN -----------------------------------------------------------------------------------------------------
 
-/**
- * Start a sign-in: a loopback listener on 127.0.0.1 (a fresh port), and the URL the person opens.
- * Returns { url, done: Promise<tokens>, cancel() }. `done` resolves once Google redirects back with a code and the code
- * is exchanged; it rejects on a wrong `state`, a denial, or after `timeoutMs`.
- */
+/** Start a sign-in: a loopback listener on 127.0.0.1 (a fresh port), and the URL the person opens. */
 function beginLogin({ timeoutMs = 10 * 60 * 1000 } = {}) {
   const state = b64url(crypto.randomBytes(16));
   const verifier = b64url(crypto.randomBytes(32));
@@ -196,11 +165,7 @@ function windowOf(b) {
   return raw ? { key: raw.replace(/[^a-z0-9]+/g, '_'), label: raw } : null;
 }
 
-/**
- * QUOTA AS THE PROVIDER STATES IT — retrieveUserQuotaSummary, per family and window. `remainingFraction` is REMAINING
- * (0..1); a bucket with no fraction was NOT reported and is left out (absent ≠ exhausted); 0 is genuinely exhausted.
- * Families never merge ("Gemini Models" and "Claude and GPT models" are separate pools).
- */
+/** QUOTA AS THE PROVIDER STATES IT — retrieveUserQuotaSummary, per family and window. */
 function parseQuota(raw) {
   const root = raw || {};
   const groups = Array.isArray(root.groups) ? root.groups : (root.quotaSummary && Array.isArray(root.quotaSummary.groups) ? root.quotaSummary.groups : []);

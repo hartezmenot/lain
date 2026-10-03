@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * ZCODE — Z.ai's ZCode, reached through the runtime it ships: its bundled CLI
- * (`resources/glm/zcode.cjs`), run by ZCode's own Electron build as node, speaking
- * the documented "ZCode Protocol" over stdio (`zcode app-server`).
- *
- *   discovery   the installed app (ZCode.exe) and its bundled CLI; `version`
- *   telemetry   usage/stats        the runtime's own token accounting by model
- *                                  (input, output, cache read, requests, tools)
- *               session/list       its sessions
- *               session/create     (deferred, never persisted) → the models
- *                                  this runtime can serve right now
- *               Start Plan status  as ZCode last recorded it (entry status and
- *                                  reason from its plan-status cache — no
- *                                  credential, no balance, read-only)
- *   execution   workspace/generateText, for the models the runtime lists
- *
- * THE START PLAN, HONESTLY. The Start Plan (and the Coding Plan) are account
- * plans. ZCode serves them only when its DESKTOP HOST supplies the account
- * configuration and the sign-in headers for each request. A standalone ZCode
- * runtime started by LAIN has no such host, so it does not list the plan models
- * and cannot run GLM-5.3-Flash on the Start Plan. LAIN will not act as that host:
- * doing so needs ZCode's OAuth tokens. So: plan telemetry as ZCode recorded it,
- * "Open ZCode" for balance and claiming, and execution only for what the
- * runtime itself lists. Balance and expiry are not exposed by the protocol and
- * are therefore not shown.
- */
+/** ZCODE — Z.ai's ZCode, reached through the runtime it ships: its bundled CLI (`resources/glm/zcode.cjs`), run by ZCode's own Electron build as node… */
 
 const fs = require('fs');
 const os = require('os');
@@ -63,11 +38,7 @@ async function discover(app) {
   return { installed: true, binary: i.exe, cli: i.cli, version: v, why: r.ok ? null : String(r.stderr || '').trim().split('\n')[0] };
 }
 
-/**
- * ONE app-server process, request/response over stdio. The server's own
- * requests to its host (permissions, runtime preferences, provider sign-in
- * headers) are answered "not supported" — LAIN is not ZCode's host.
- */
+/** ONE app-server process, request/response over stdio. */
 function openServer(app, { cwd = process.cwd(), signal = null, spawnFn } = {}) {
   const i = install(app);
   if (!i) throw new Error('ZCode is not installed');
@@ -127,13 +98,7 @@ function planStatus() {
   };
 }
 
-/**
- * WHICH MODELS EACH ACCOUNT PLAN INCLUDES — from the provider configuration ZCode
- * itself synced (~/.zcode/v2/runtime/provider/<platform>/<version>/endpoint-*
- * /zcode-builtin.json, highest revision). A public model catalogue, not a
- * credential; read only. What a plan INCLUDES is not what this account may USE:
- * the entitlement is ZCode's, behind its own sign-in.
- */
+/** WHICH MODELS EACH ACCOUNT PLAN INCLUDES — from the provider configuration ZCode itself synced… */
 function planModels() {
   const root = path.join(process.env.ZCODE_DATA_BASE_DIR || os.homedir(), '.zcode', 'v2', 'runtime', 'provider');
   let best = null;

@@ -1,34 +1,11 @@
 'use strict';
 
-/**
- * "SAY SOMETHING TO CHANGE…" — the preview's own command surface (Phase 8.1).
- *
- * Not a chat: a visual-edit request, scoped by what the preview shows.
- *
- *   an element is selected   the request targets THAT element and the source
- *                            that owns it (the canonical Selection's
- *                            sourceBinding: component, then style owner) —
- *                            "move this down slightly and make it wider"
- *   nothing is selected      the request targets the page currently in the
- *                            preview (its path) — "make these cards flatter"
- *                            applies to Settings when Settings is showing, not
- *                            to Home because Home is in the same bundle
- *
- * The request becomes a narrow Coding Agent task on the SAME session (the same
- * entry a person's Coding message uses): no new session, no new agent. The
- * detached preview window calls this route too — one Core, one Selection.
- *
- *   POST /api/preview/change { text, selector? }
- *   POST /api/preview/scope  { selector? }   what the request would target (no model call)
- */
+/** "SAY SOMETHING TO CHANGE…" — the preview's own command surface (Phase 8.1). */
 
 const ok = (b = {}) => ({ code: 200, body: { ok: true, ...b } });
 const bad = (why, code = 400, extra = {}) => ({ code, body: { ok: false, why: String(why), ...extra } });
 
-/**
- * THE FRAME PREVIEW'S SCOPE: the window already holds what it shows — the element the bridge described and the page
- * the frame is on — so nothing is read back from a browser. The owners are the canonical Selection's.
- */
+/** THE FRAME PREVIEW'S SCOPE: the window already holds what it shows — the element the bridge described and the page the frame is on — so nothing is… */
 function frameScope(app, fs, element, pageUrl) {
   let page = null;
   const live = pageUrl || fs.url;

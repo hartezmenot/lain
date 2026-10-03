@@ -1,39 +1,6 @@
 'use strict';
 
-/**
- * LIFECYCLE HOOKS — and the two rules that stop them becoming a hidden program.
- *
- * ------------------------------------------------------------------------
- * WHY THIS IS SMALL, AND MUST STAY SMALL.
- *
- * A hook system is the easiest thing in a harness to over-build and the easiest
- * to regret. The regret has a shape: work starts happening that nobody can see
- * in the record, at times nobody chose, attributed to nothing. Then a task
- * fails for a reason that is in none of its evidence, because a hook did it.
- *
- * So there are exactly two rules here, and everything else follows:
- *
- *   1. A HOOK IS ON THE TIMELINE. Every run emits `hook.ran` against the task
- *      it ran for, with its name, its point and how long it took. A hook that
- *      cannot be seen in the flight recorder is a hook that does not run.
- *
- *   2. A HOOK MAY NOT DECIDE. It is handed a frozen snapshot and its return
- *      value is ignored. It cannot move a task's state, fail a verification,
- *      cancel anything or answer a question. It observes, and it may cause
- *      effects OUTSIDE the harness — write a file, ping something, start a
- *      recording — which is the whole legitimate use.
- *
- * A HOOK THAT THROWS IS DROPPED, exactly like an event subscriber. The work is
- * not a convenience; the hook is.
- *
- * ------------------------------------------------------------------------
- * WHY THE POINTS ARE A CLOSED LIST.
- *
- * The same reason the event vocabulary is: a hook registered at a point nobody
- * fires is silently dead, and that is indistinguishable from the feature not
- * working. Registering at an unknown point is REFUSED, loudly, at registration
- * time rather than never.
- */
+/** LIFECYCLE HOOKS — and the two rules that stop them becoming a hidden program. */
 
 const POINT = Object.freeze({
   TASK_CREATED: 'task.created',
@@ -59,11 +26,7 @@ class Hooks {
     this.failures = [];
   }
 
-  /**
-   * Register. Returns an unregister function.
-   *
-   * @throws if the point is not in the closed list — see the header.
-   */
+  /** Register. Returns an unregister function. */
   on(point, name, fn) {
     const p = String(point);
     if (!KNOWN.has(p)) {
@@ -88,18 +51,7 @@ class Hooks {
     return n;
   }
 
-  /**
-   * Fire one point.
-   *
-   * `report` is called once per hook with `{name, point, ms, ok, error}` — the
-   * runtime passes an emitter here, which is how rule 1 is actually enforced
-   * rather than merely stated. Nothing is returned to the caller: rule 2.
-   *
-   * SYNCHRONOUS ON PURPOSE. An async hook whose promise nobody awaits runs at
-   * an unpredictable point in some later turn and lands on the timeline in the
-   * wrong place, which is precisely the "work at times nobody chose" failure.
-   * A hook that needs to do something slow starts it and returns.
-   */
+  /** Fire one point. */
   fire(point, snapshot, report = null) {
     const list = this._at.get(String(point)) || [];
     for (const entry of list) {

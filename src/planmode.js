@@ -1,11 +1,6 @@
 'use strict';
 
-/**
- * LEAVING PLAN MODE (Simplify S5): exit_plan saves the plan to `.lain/plans/<slug>.md` and shows it — the CLI offers
- * Approve / Edit ($EDITOR) / Keep planning; the Harness opens it as an editable document with Build. Approval reads
- * the file back, switches to Accept edits (or the mode before Plan) and seeds the todo list from its checklist. After
- * that the plan is only a map; nothing checks its steps off.
- */
+/** LEAVING PLAN MODE (Simplify S5): exit_plan saves the plan to `.lain/plans/<slug>.md` and shows it — the CLI offers Approve / Edit ($EDITOR) / Keep… */
 
 const fs = require('fs');
 const path = require('path');

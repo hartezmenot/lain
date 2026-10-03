@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * A STATIC PREVIEW SERVER for a project that is plain files (Phase 8.2) — an
- * index.html and no package.json. Started through the ProcessManager like any
- * dev server (so it is owned, visible and stopped with the preview); it serves
- * the project folder on 127.0.0.1 only, read-only, no directory listing.
- *
- *   node staticserve.js <root>        (PORT from the environment)
- */
+/** A STATIC PREVIEW SERVER for a project that is plain files (Phase 8.2) — an index.html and no package.json. */
 
 const http = require('http');
 const fs = require('fs');

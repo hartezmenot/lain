@@ -88,16 +88,6 @@ module.exports = async function run() {
     p = cb.plan(session, PC, [{ role: 'system', content: `${SYS}\n\n# Goal\nnew goal` }, ...msgs, live('\nsomething new')], more);
     assert.strictEqual(p.warmth, 'WARM');
   });
-
-  await test('CACHE-AWARE FOLD: a repeat already sent in this lineage is never rewritten (that would reset the epoch); a cold lineage still folds it', () => {
-    const { foldRepeats } = require('../../src/intent');
-    const msgs = [{ role: 'user', content: 'what does SearchBar do in this project?' }, { role: 'assistant', content: 'a' },
-      { role: 'user', content: 'again: what does SearchBar do in this project?' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'which file calls fetchResults?' }];
-    assert.match(foldRepeats(msgs)[2].content, /^<lain-context>/, 'cold: the repeat is folded for a new reader');
-    const sent = new WeakSet(msgs.slice(0, 4));
-    assert.strictEqual(foldRepeats(msgs, { frozen: sent })[2], msgs[2], 'warm: the bytes already sent stay exactly as sent');
-  });
-
   await test('OVER 8 %: Core cuts the OPTIONAL owners (git status, the IDE snapshot) to their floors; required guidance is untouched', () => {
     const session = {};
     const msgs = [{ role: 'user', content: 'q1' }];

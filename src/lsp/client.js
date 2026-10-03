@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * ONE LANGUAGE SERVER, SPOKEN TO OVER THE LANGUAGE SERVER PROTOCOL.
- *
- * JSON-RPC 2.0 over stdio with Content-Length framing — the transport every
- * server speaks — and nothing language-specific. The manager (manager.js)
- * decides which server a file belongs to; this only talks to one.
- *
- * Positions here are the protocol's: zero-based lines and UTF-16 columns.
- */
+/** ONE LANGUAGE SERVER, SPOKEN TO OVER THE LANGUAGE SERVER PROTOCOL. */
 
 const { spawn } = require('child_process');
 const { pathToFileURL, fileURLToPath } = require('url');

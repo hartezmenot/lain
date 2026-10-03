@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * THE ONE ACTIVITY LINE — the words it is built from (2026-10-01).
- *
- * The CLI used to say one state in three places at once: the activity box (`WAITING · 00:01 / for the first
- * response from the model`), the status strip (`◒ Waiting  for the first response from the model  00:00:01`) and
- * the header (`RUNNING · 00:01`). One canonical line now carries it (ui/status.js), fed by one normalised state
- * (streamprogress.state → status.liveState); this file holds the small vocabulary that line and the end-of-turn
- * receipt share:
- *
- *   background(app)   what is running besides the model: `1 shell · 1 monitor · 2 agents` — never `job_wait`
- *   estTokens(chars)  `~1.2k tok` for a figure measured in characters, ALWAYS marked as an estimate
- *   receipt(usage)    `in 18.2k · reasoning 7.4k · out 1.1k · cache 12.8k` — only the fields a provider stated
- *
- * It shows ACTIVITY, never reasoning: nothing here reads what the model thought, only how much of it arrived.
- */
+/** THE ONE ACTIVITY LINE — the words it is built from (2026-10-01). */
 
 /** 812 · 9.6k · 1.2M — a token count, short. */
 function tok(n) {
@@ -59,11 +45,7 @@ function backgroundLabel(counts) {
   return KINDS.filter((k) => counts[k] > 0).map((k) => `${counts[k]} ${counts[k] === 1 ? k : PLURAL[k]}`).join(' · ');
 }
 
-/**
- * THE RECEIPT, compact: `in 18.2k · reasoning 7.4k · out 1.1k · cache 12.8k`. Only what was STATED — a field the
- * provider did not report is left out rather than drawn as 0. Reasoning appears only as the provider's own token
- * count (`reasoningTokens`); a character count is never relabelled as tokens.
- */
+/** THE RECEIPT, compact: `in 18.2k · reasoning 7.4k · out 1.1k · cache 12.8k`. */
 function receipt(u) {
   if (!u) return '';
   const parts = [];

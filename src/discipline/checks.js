@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * CHECK STATE — what LAIN has actually observed, as named, comparable checks (Execution Discipline §22–§25).
- *
- * Completion used to read one field: `lastCommand.ok`. That is a measurement of whatever ran last, not of the
- * requested outcome — an unrelated suite passing last made a broken change look finished, and an expected failure
- * ran last made a finished one look broken. Here every check keeps its own state across the task:
- *
- *     id            K1, K2 … (commands)  P1, P2 … (Preview observations)
- *     baseline      its state BEFORE the task changed anything (FAIL / PASS / UNKNOWN)
- *     latest        its most recent state, and the GENERATION (mutation count) it was observed at
- *     realism       how close to reality the observation is: CLAIMED < INFERRED < STATIC < FIXTURE < INTEGRATION
- *                   < RUNTIME < USER_CONFIRMED — a fixture never carries runtime authority
- *     discrimination would this evidence differ if the claim were false?  HIGH: failed before, passes after ·
- *                   MODERATE: a targeted check of the changed path, current · LOW: passing, but unrelated or it
- *                   passed before anything changed · NIL: stale or unverifying
- *     classification of a failure: TASK_CAUSED · PREEXISTING · ENVIRONMENT · TRANSIENT · INVOCATION · UNKNOWN
- *
- * Tests are evidence about the goal, never the goal: GREEN ≠ DONE and RED ≠ "the implementation is wrong".
- */
+/** CHECK STATE — what LAIN has actually observed, as named, comparable checks (Execution Discipline §22–§25). */
 
 const REALISM = Object.freeze(['CLAIMED', 'INFERRED', 'STATIC', 'FIXTURE', 'INTEGRATION', 'RUNTIME', 'USER_CONFIRMED']);
 const DISCRIMINATION = Object.freeze(['NIL', 'LOW', 'MODERATE', 'HIGH']);
@@ -64,10 +46,7 @@ class CheckLedger {
     return c;
   }
 
-  /**
-   * A COMMAND RAN. `gen` is the task's mutation count at the time: generation 0 is "nothing changed yet", which is
-   * what makes a result a BASELINE.
-   */
+  /** A COMMAND RAN. `gen` is the task's mutation count at the time: generation 0 is "nothing changed yet", which is what makes a result a BASELINE. */
   command({ command, ok, exitCode = null, output = '', gen = 0, changed = [] }) {
     const key = `cmd:${keyOf(command)}`;
     const c = this.byKey.has(key) ? this.byId.get(this.byKey.get(key)) : this._new('K', key, { kind: 'COMMAND', command: String(command || '').slice(0, 200), realism: realismOfCommand(command) });
@@ -84,11 +63,7 @@ class CheckLedger {
     return c;
   }
 
-  /**
-   * A STATIC CHECK OF A CHANGED FILE — the parse the edit path runs after every write (diagnostics.js). Recorded as a
-   * command-kind check so a later failure of the same file is the same check; marked `static` so it never stands in
-   * for behavioural proof (see discrimination).
-   */
+  /** A STATIC CHECK OF A CHANGED FILE — the parse the edit path runs after every write (diagnostics.js). */
   parse({ rel, ok, message = '', gen = 0 }) {
     const c = this.command({ command: `parse ${rel}`, ok, output: message, gen, changed: [rel] });
     c.static = true; c.realism = 'STATIC'; c.targeted = true;
@@ -123,12 +98,7 @@ class CheckLedger {
     return 'LOW';                                                  // passed, but would also have passed before
   }
 
-  /**
-   * The failures at the current generation that are CONTRADICTIONS until explained. A failure the environment or a
-   * transient fault caused is information, not a verdict on the work; a check the model DECLARED unrelated (with a
-   * reason, recorded and reported — task_contract `checks`) is set aside. A pre-existing failure still counts: a
-   * task that leaves a red check behind has not shown its outcome unless that check is shown to be unrelated.
-   */
+  /** The failures at the current generation that are CONTRADICTIONS until explained. */
   contradictions(gen) {
     return this.commands().filter((c) => c.latest && c.latest.state === 'FAIL' && c.latest.gen === gen && !explained(c));
   }

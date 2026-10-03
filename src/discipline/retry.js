@@ -1,19 +1,9 @@
 'use strict';
 
-/**
- * NO BLIND RETRIES (Execution Discipline §46). The same command, failing, with nothing changed since, is the same
- * observation again — it costs a run and teaches nothing. Before it runs a second time LAIN returns the evidence it
- * already has, and names the ways forward: change an input, observe something different, or — for a failure
- * classified TRANSIENT — retry, which is allowed a bounded number of times.
- *
- * "Nothing changed" is measured, not guessed: the task's mutation generation is the same as when it failed.
- */
+/** NO BLIND RETRIES (Execution Discipline §46). */
 
 const TRANSIENT_RETRIES = 2;
 
-/**
- * @returns {null|string} a contextual refusal, or null when the command may run
- */
 function check(life, name, input) {
   const d = life && life.discipline;
   if (!d || !/^run_/.test(String(name))) return null;

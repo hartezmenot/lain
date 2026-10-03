@@ -1,25 +1,6 @@
 'use strict';
 
-/**
- * ONE WRITER PER EXTERNAL THREAD.
- *
- * A native Codex thread in a shared session store is visible to every account
- * instance that reads that store. Two app-servers both resumed on it would both
- * write turns into it — interleaved, and each believing it owns the history.
- * So exactly one instance holds a thread at a time, and moving it is a handoff:
- *
- *   1. both are blocked         the record says `handoff`
- *   2. detach                   the holder unsubscribes (thread/unsubscribe)
- *   3. confirm released         the holder's runtime no longer lists it loaded
- *   4. attach                   the new instance resumes it (thread/resume)
- *
- * If 3 cannot be confirmed, nothing moves and the holder keeps it. If 4 fails,
- * the old holder is re-attached. A handoff is only possible between instances
- * of the same driver that read the same store (same session-store key).
- *
- * HELD IN MEMORY, MIRRORED TO DISK so another LAIN process sees who holds what.
- * A record from a process that is gone is stale and can be taken over.
- */
+/** ONE WRITER PER EXTERNAL THREAD. */
 
 const fs = require('fs');
 const path = require('path');
@@ -62,11 +43,7 @@ function release(threadId, inst) {
   return false;
 }
 
-/**
- * Move a thread from one instance to another. `from`/`to` are
- * { id, driver, storeKey, handle } where handle has detachThread,
- * loaded and attachThread (the Codex instance handle does).
- */
+/** Move a thread from one instance to another. */
 async function handoff(threadId, from, to, { confirmMs = 5000 } = {}) {
   if (from.driver !== to.driver) return { ok: false, why: 'a thread moves only between accounts of the same runtime' };
   if (from.storeKey !== to.storeKey) return { ok: false, why: 'these accounts do not read the same session store; the thread cannot continue there' };

@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * SESSIONS AND QUESTIONS, FROM THE APPLICATION WINDOW.
- *
- * ------------------------------------------------------------------------
- * NAVIGATION IS NOT EXECUTION. This file used to say otherwise.
- *
- * Opening another conversation, or starting a new one, was refused while a turn
- * was running — "a turn is running — stop it or let it finish first". That was
- * wrong, and wrong in an instructive way: the check asked `app.abort`, which is
- * a fact about the PROCESS, in order to answer a question about a SESSION. One
- * variable was doing two jobs, so looking at session B was treated as a
- * mutation of session A's work.
- *
- * A session is now made LIVE rather than switched INTO (src/sessionpool.js).
- * The window holds a VIEW; Core holds one App per live conversation; a running
- * turn belongs to its own. Selecting, creating and closing therefore never
- * consult anything that is executing, and they cannot fail because something
- * else is busy.
- *
- * WHAT IS STILL GOVERNED is a second turn in the SAME session, and that was
- * never this file's job: `inputgate.js` admits or holds, and the steer contract
- * decides whether a sentence typed into working session lands now or after. See
- * `POST /api/turn` in routes.js.
- *
- * A NEW Cowork session is an empty session bound to Cowork through Astra's own
- * binding (`cowork/sessionstate.js`); this file decides nothing about what a
- * Cowork session may do, and creating one never waits on engineering work.
- *
- * ------------------------------------------------------------------------
- * A QUESTION ASKED DURING A TURN THE WINDOW STARTED IS ASKED IN THE WINDOW.
- *
- * `interaction.js` is the presentation seam every approval and `ask_user` goes
- * through. A turn started from the Harness runs inside a Harness PORT, so its
- * questions are projected into `/api/state` and answered with
- * `/api/ask/answer` — never silently refused for want of a terminal, and never
- * surfaced in a terminal nobody is watching. The port presents; gate.js,
- * trust.js and permissions.js still decide what the answer permits.
- */
+/** SESSIONS AND QUESTIONS, FROM THE APPLICATION WINDOW. */
 
 function ok(body = {}) { return { code: 200, body: { ok: true, ...body } }; }
 function bad(why, code = 400) { return { code, body: { ok: false, why: String(why || 'refused') } }; }
@@ -84,13 +47,7 @@ function pendingAsk(app) {
   return q ? { id: q.id, title: q.title, question: q.question, options: q.options, plan: q.plan ? { text: q.plan.text } : null } : null;
 }
 
-/**
- * OPEN A SESSION AND MAKE IT THE VIEW.
- *
- * NOTHING ABOUT WHAT IS RUNNING IS CONSULTED. That is the fix. A session that
- * does not exist is a 404, which is a fact about the request; there is no
- * longer any state of the machine that can refuse this.
- */
+/** OPEN A SESSION AND MAKE IT THE VIEW. */
 function selectSession(app, body) {
   const id = String(body.id || '');
   if (!id) return bad('which session?');
@@ -113,13 +70,7 @@ const ROUTES = {
    */
   'POST /api/session/new': async (app, body = {}) => {
     const lane = body.lane === 'cowork' ? 'cowork' : 'engineering';
-    // ---- WHICH PROJECT, STATED — never LAIN's own folder by accident --------
-    //
-    // `project` names one explicitly. Otherwise an engineering session inherits
-    // the project of the session being viewed ONLY when that one is attached;
-    // with nothing attached it starts with NO project (an empty placeholder
-    // directory) and Project Files offers Add project. `inherit: false` asks
-    // for a blank one on purpose.
+    // WHICH PROJECT, STATED — never LAIN's own folder by accident
     const sv = require('../sessionviews');
     let cwd = null;
     let attached = false;
@@ -153,24 +104,11 @@ const ROUTES = {
     return ok({ id: r.id, lane, project: lane === 'engineering' ? sv.project(r.app.session) : null });
   },
 
-  /**
-   * LOOK AT A CONVERSATION. Live if it already is, resumed from disk if not.
-   *
-   * `resume` is the name the frontend has always called; `select` is the name
-   * that says what it does. Both are this, because the operation is the same
-   * one and a second entry point would be a second set of rules.
-   */
+  /** LOOK AT A CONVERSATION. */
   'POST /api/session/select': async (app, body = {}) => selectSession(app, body),
   'POST /api/session/resume': async (app, body = {}) => selectSession(app, body),
 
-  /**
-   * CLOSE THE VIEW — NOT the conversation.
-   *
-   * The session stays on disk, stays in `/resume`, and keeps whatever it was
-   * doing. Closing the tab you were watching work in has never been an
-   * instruction to stop the work, and this route is deliberately incapable of
-   * deleting anything: see `POST /api/session/delete` for the action that can.
-   */
+  /** CLOSE THE VIEW — NOT the conversation. */
   /** RENAME the current session — a person-given title (sessionindex.headline prefers it). */
   'POST /api/session/rename': async (app, body = {}) => {
     const t = String(body.title || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
@@ -185,9 +123,7 @@ const ROUTES = {
     return ok({ id, closed: true, stillRunning: r.stillRunning, view: pool.viewId });
   },
 
-  /**
-   * DELETE A CONVERSATION. Explicit, named, and never what a close button does.
-   */
+  /** DELETE A CONVERSATION. */
   'POST /api/session/delete': async (app, body = {}) => {
     const id = String(body.id || '');
     if (!id) return bad('which session?');
@@ -201,11 +137,7 @@ const ROUTES = {
     return ok({ id, deleted: true });
   },
 
-  /**
-   * SEE WHAT LAIN SEES. A screenshot of the window it is working in, or of the
-   * screen when it is not aimed at one. It is a READ and takes the same grant
-   * every other observation does.
-   */
+  /** SEE WHAT LAIN SEES. A screenshot of the window it is working in, or of the screen when it is not aimed at one. It is a READ and takes the same grant… */
   'POST /api/computer/view': async (app, body = {}) => {
     const c = require('../computermcp').existing(app);
     if (!c || !c.connected) return bad('the computer is not connected', 409);

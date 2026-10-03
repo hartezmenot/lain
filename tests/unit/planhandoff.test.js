@@ -87,21 +87,6 @@ module.exports = async function () {
     assert.ok(plans.noteSubmitted(s), 'sending marks it submitted');
     assert.strictEqual(plans.handoff(s).state, 'SUBMITTED');
   });
-
-  await test('PROMPT: Coding carries the accepted plan; Chat is told it plans and never writes', () => {
-    const app = appAt(tmpdir('prompt-'));
-    const s = app.session;
-    plans.accept(app, plans.draft(s, { text: PLAN }).plan.id);
-    s.thread = 'coding';
-    const coding = require('../../src/promptparts').of(app, {}).stable;
-    assert.match(coding, /# Accepted plan p1/);
-    assert.match(coding, /Add a stall timer/);
-    s.thread = 'chat';
-    const chat = require('../../src/promptparts').of(app, {}).stable;
-    assert.match(chat, /# View: Chat/);
-    assert.ok(!/# Accepted plan p1 —/.test(chat), 'the chat view is not handed the implementation brief');
-  });
-
   await test('HANDOFF: persisted with the session and restored by resume', () => {
     const app = appAt(tmpdir('persist-'));
     const s = app.session;

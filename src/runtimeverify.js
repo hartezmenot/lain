@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * IS THIS RUNTIME MODEL A BOT? AN AGENT? — measured, per model, through the
- * real runtime (the RuntimeBridge), never assumed from a model list.
- *
- *   chat    one short instruction ("reply with exactly READY") through the
- *           BOT path — the model must answer, and answer that
- *   agent   a small, real piece of work in a scratch folder through the Agent
- *           path: create notes.txt containing a given word — the file must
- *           exist afterwards with that word. The runtime uses its own tools.
- *
- * Results are kept with the runtime's telemetry (`verified[modelId]`), keyed by
- * the runtime's version, and read by runtimeadapters.servableModels: a runtime
- * model is offered as the Coding Agent ONLY after its agent probe passed, and
- * is withdrawn from BOT/CHAT if its chat probe failed. Small by design: two
- * short requests per model.
- */
+/** IS THIS RUNTIME MODEL A BOT? */
 
 const fs = require('fs');
 const os = require('os');

@@ -1,32 +1,6 @@
 'use strict';
 
-/**
- * A RATE LIMIT THAT LASTS HOURS IS NOT A RETRY — it is a decision.
- *
- * The bounded retry in turn.js is right for a limit that clears in seconds:
- * wait, try again, get on with it. It is wrong for the one this exists for.
- * Measured against a real router: `retry in 4 hours`. Sitting inside the retry
- * for that means a LAIN that looks alive, answers nothing, and holds the
- * session hostage to a number nobody was shown — and the retry budget is spent
- * long before the limit clears, so the ending is a failure either way.
- *
- * There are only two useful answers, and both belong to the person:
- *
- *   WAIT          the model is worth the wait. LAIN says so plainly, counts
- *                 down, and picks the work up by itself when the clock runs
- *                 out. No `continue` typed by hand.
- *   CHANGE MODEL  the work matters more than the route. The model picker
- *                 opens, and the turn is retried on whatever is chosen.
- *
- * ------------------------------------------------------------------------
- * WHY THE THRESHOLD, AND WHY IT IS THIS SIDE OF A MINUTE.
- *
- * Being asked a question is an interruption, and a question about a
- * twenty-second wait costs more attention than the wait does. Below the
- * threshold the existing retry handles it silently, which is what it is good
- * at. Above it, the wait is long enough that a person would want to know — and
- * long enough that they might reasonably choose the other model.
- */
+/** A RATE LIMIT THAT LASTS HOURS IS NOT A RETRY — it is a decision. */
 
 /** Longer than this and it is worth asking rather than sitting through. */
 const ASK_ABOVE_MS = 90_000;
@@ -40,26 +14,11 @@ function worthAsking(failure) {
   return Number(failure.retryAfterMs) > ASK_ABOVE_MS;
 }
 
-/**
- * `4h 12m`, `12m 30s`, `45s` — a duration at the scale a person reads it.
- *
- * NEVER "0s" WHILE TIME REMAINS. A countdown that reads zero and keeps counting
- * is a clock nobody believes; anything under a second rounds up to one.
- */
+/** `4h 12m`, `12m 30s`, `45s` — a duration at the scale a person reads it. */
 function human(ms) {
   const n = Math.max(0, Number(ms) || 0);
   if (n <= 0) return 'now';
   // WHOLE SECONDS FIRST, THEN SPLIT INTO FIELDS.
-  //
-  // Rounding each field on its own produced durations that do not exist: with
-  // 3,599,500ms remaining the minutes floored to 59 while the seconds ceiled to
-  // 60, and the panel read "59m 60s". It also made a test flaky rather than
-  // wrong — `resumeAt = now + 1h` is a fraction of a millisecond short of an
-  // hour by the time it is formatted, so the label came out "1h 0m" or
-  // "59m 60s" depending on how busy the machine was, and the suite disagreed
-  // with itself between runs. Ceiling the total ONCE cannot disagree with
-  // itself, and rounding up keeps the promise above: a countdown never reads
-  // zero while there is still time left to wait.
   const total = Math.ceil(n / 1000);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -88,37 +47,15 @@ function at(resumeAt) {
   } catch { return '—'; }
 }
 
-/**
- * What LAIN sends itself when the clock runs out.
- *
- * IT NAMES WHAT HAPPENED. Without that the model receives a bare "continue"
- * after an unexplained gap and quite reasonably re-plans, or asks what it was
- * doing — which is the whole cost of resuming badly. Everything it needs is
- * still in the conversation; this only says why there is a gap in it.
- */
+/** What LAIN sends itself when the clock runs out. */
 const RESUME_PROMPT = 'The rate limit has reset. Nothing changed while it was waiting and nothing '
   + 'was lost. Continue from exactly where you stopped — do not start again, and do not repeat '
   + 'work you have already done. If you were in fact finished, say so and say what you concluded.';
 
-/**
- * The answers, as the panel's values.
- *
- * FAILOVER WAS ADDED FIRST IN THE LIST AND FIRST IN IMPORTANCE. "This model is
- * rate limited, would you like a different MODEL" was the only offer, and it is
- * the wrong one whenever the same model is configured on a second connection:
- * the model was never the problem, the road to it was. Changing model changes
- * the answers, the tool behaviour, the context size and the cost, in the middle
- * of a task the user picked that model for. Changing provider changes none of
- * them. See failover.js.
- */
+/** The answers, as the panel's values. */
 const CHOICE = Object.freeze({ WAIT: 'WAIT', CHANGE: 'CHANGE', FAILOVER: 'FAILOVER' });
 
-/**
- * The question itself, as an adapter for the ONE interaction panel.
- *
- * No bespoke prompt: it is the same surface `/model` and every confirmation
- * uses, so a question about a rate limit looks like every other question.
- */
+/** The question itself, as an adapter for the ONE interaction panel. */
 function adapter({ provider, resumeAt, model, alternative = null, exhausted = false, routes = 0 }) {
   const left = Math.max(0, resumeAt - Date.now());
   const { KIND, MODE } = require('./ui/panel');
@@ -129,9 +66,7 @@ function adapter({ provider, resumeAt, model, alternative = null, exhausted = fa
     { label: `It clears in ${human(left)} — around ${at(resumeAt)}.`, selectable: false },
   ];
   if (exhausted && routes > 1) {
-    // THE HONEST SENTENCE FOR THE CASE WITH NO WAY OUT. Not "the model is
-    // unavailable" — every road to it is closed at once, which is a different
-    // fact and has a different fix.
+    // THE HONEST SENTENCE FOR THE CASE WITH NO WAY OUT.
     items.push({ label: `All ${routes} configured providers for this model are rate limited.`, selectable: false });
   }
   items.push({ label: '', selectable: false });
@@ -155,38 +90,12 @@ function adapter({ provider, resumeAt, model, alternative = null, exhausted = fa
   };
 }
 
-/**
- * ASK WHAT TO DO ABOUT A LONG LIMIT, THEN DO IT.
- *
- * Lifted out of app.js when that file crossed the god-object guard, and it
- * belongs here: everything it consults — the threshold, the question, the
- * resume prompt — was already in this module, and the flow was the only part
- * of the subject living somewhere else.
- *
- * A PLAIN FUNCTION OVER `app`, never a method, and it uses no `this`. See the
- * architecture guard: these extractions are exactly where a surviving `this`
- * becomes `undefined` in strict mode and takes a turn down with it.
- *
- * @param {object} app     the running app
- * @param {object} record  the turn that stopped
- * @param {string} text    the original request, to retry on the new route
- */
+/** ASK WHAT TO DO ABOUT A LONG LIMIT, THEN DO IT. */
 async function handle(app, record, text) {
   const f = record.providerFailure;
   const resumeAt = f.resumeAt || (Date.now() + (f.retryAfterMs || 0));
 
-  // ---- THE EXECUTOR IS BLOCKED. THE TASK IS NOT. --------------------------
-  //
-  // Recorded FIRST, before the user is asked anything, because it is true
-  // whatever they answer and it must survive a process that dies while the
-  // question is still on screen. See src/task.js STATE: this used to be
-  // recorded — where it was recorded at all — as the task failing, and that
-  // single conflation is what made a returning model restate the objective and
-  // throw away the evidence of work that was nearly finished.
-  //
-  // `blockExecutor` deliberately does not touch `task.state`. A weekly cap is a
-  // fact about a provider; whether the account backend still needs writing is a
-  // different question with a different answer.
+  // THE EXECUTOR IS BLOCKED.
   try {
     if (app.session && app.session.task) {
       app.session.task.blockExecutor(
@@ -197,9 +106,7 @@ async function handle(app, record, text) {
   // NOBODY TO ASK is not a reason to invent an answer. Off a TTY it reports
   // the limit and stops, exactly as any other provider failure would.
   if (!app.ui.enabled) {
-    // NOBODY TO ASK still means saying which of the two facts is true — the
-    // report is the only thing a scripted run gets, so "one route is limited"
-    // and "every route is limited" must not read identically.
+    // NOBODY TO ASK still means saying which of the two facts is true — the report is the only thing a scripted run gets, so "one route is limited" and…
     const alt = require('./failover').pick(app, { model: app.cfg.model, exclude: [f.connectionId] });
     const tail = alt.ok
       ? ` The same model is available on ${alt.route.connectionId} — /steer to ${alt.route.connectionId}.`
@@ -209,13 +116,7 @@ async function handle(app, record, text) {
     return record;
   }
 
-  // ---- IS THE MODEL RATE LIMITED, OR IS ONE ROAD TO IT? ----------------
-  //
-  // These are different facts and only one of them was ever reported. A model
-  // configured on three connections is not unavailable because one of them
-  // said no — and offering "change model" there asks the user to give up the
-  // thing they chose in order to fix something that was never wrong with it.
-  // See failover.js.
+  // IS THE MODEL RATE LIMITED, OR IS ONE ROAD TO IT?
   const failover = require('./failover');
   const alt = failover.pick(app, { model: app.cfg.model, exclude: [f.connectionId] });
 
@@ -226,11 +127,7 @@ async function handle(app, record, text) {
     routes: alt.routes.length,
   }));
 
-  // ---- SAME MODEL, DIFFERENT PROVIDER ----------------------------------
-  //
-  // A FAILOVER, not a model change: `cfg.model` is not touched, and it is not
-  // written to the config either. This is a detour for one session, and
-  // persisting it would quietly make the user's route change permanent.
+  // SAME MODEL, DIFFERENT PROVIDER
   if (choice === CHOICE.FAILOVER && alt.ok) {
     const moved = failover.apply(app, alt.route);
     app.transient('info', `${moved.kind} — ${app.cfg.model} via ${alt.route.connectionId}`);
@@ -241,16 +138,10 @@ async function handle(app, record, text) {
   if (choice === CHOICE.CHANGE) {
     const before = `${app.cfg.model}::${app.cfg.connection}`;
     await require('./modelcommand').pickCommand(app, { args: [], rest: '' }, {
-      // REQUIRED HERE, not inherited. In app.js `config` was a module-level
-      // import; carried across as a bare name it was simply undefined, and the
-      // only way to find out was for a user to pick "change model" during a
-      // real rate limit — the same shape of bug as the CONTEXT crash, in the
-      // one branch nothing routinely exercises.
+      // REQUIRED HERE, not inherited.
       C: require('./render').C, config: require('./config'), refreshCatalog: () => {},
     });
-    // ONLY RETRY IF SOMETHING ACTUALLY CHANGED. Escaping out of the picker
-    // means "no" — retrying on the same rate-limited route would produce the
-    // identical refusal and look like LAIN ignoring the answer.
+    // ONLY RETRY IF SOMETHING ACTUALLY CHANGED.
     if (`${app.cfg.model}::${app.cfg.connection}` === before) {
       app.transient('info', 'unchanged — still rate limited');
       return record;
@@ -258,18 +149,7 @@ async function handle(app, record, text) {
     return await app.submit(text, { sameTask: true, from: 'rate-limit-switch' });
   }
 
-  // ---- WAIT (also what Escape means) -----------------------------------
-  //
-  // ESCAPE FALLS HERE ON PURPOSE. Cancelling the question is not a decision
-  // to abandon the task; waiting is the answer that changes nothing, so it is
-  // the safe default for a keypress that means "not now".
-  //
-  // A FRESH CONTROLLER: `submit`'s `finally` already nulled `app.abort` by
-  // the time this runs, so the signal `waitForReset` listens on (its own
-  // comment: "through the same abort signal everything else is cancelled
-  // by") never existed — Escape and Ctrl+C were both wired to a wait with no
-  // way out (found live, against a real multi-hour reset). Cleared the same
-  // way `submit` clears its own, once the wait ends.
+  // WAIT (also what Escape means)
   app.abort = new AbortController();
   let ok;
   try {
@@ -285,28 +165,7 @@ async function handle(app, record, text) {
   if (!ok) { app.transient('info', 'stopped waiting — the prompt is yours'); return record; }
   if (app.ui.enabled) app.ui.noteActor('note', 'the rate limit reset — carrying on');
 
-  // ---- THE ONE PLACE LAIN STILL COMPOSES A PROMPT, AND WHY -------------
-  //
-  // This is a synthetic continuation prompt, which is exactly the shape that
-  // was removed with `carryon`. It survives for one reason and it is not a
-  // loophole: THE USER CHOSE IT, in a question, knowing what it does. The
-  // panel above offered "wait for the reset — LAIN carries on by itself in
-  // 3h 59m" against "change model", and they picked the first.
-  //
-  // The difference from carry-on is who decided. Carry-on had LAIN conclude
-  // that the model did not mean to stop and act on that conclusion, four
-  // times, unasked. Here a person was shown the cost and the alternative and
-  // said yes — once, for one continuation, at a moment they chose. Escaping
-  // the wait cancels it, and nothing resumes if they do.
-  //
-  // If this ever becomes automatic — resuming without the question, or
-  // resuming more than the once that was authorised — it has become carry-on
-  // again under a different name.
-  // `from` IS WHAT KEEPS THIS OUT OF THE TRANSCRIPT AS A FAKE USER MESSAGE, and
-  // the key has to match the one ui/phrasing.js knows: it was `rate-limit-wait`
-  // against a table holding `rate-limit-resume`, so the caption fell through to the
-  // generic `carrying on (rate-limit-wait)` — which named an internal identifier at
-  // the user. See SELF_ASKED.
+  // THE ONE PLACE LAIN STILL COMPOSES A PROMPT, AND WHY
   return await app.submit(RESUME_PROMPT, { sameTask: true, from: 'rate-limit-resume' });
 }
 

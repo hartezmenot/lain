@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * THE ONE OWNER OF CONTEXT TRANSITIONS.
- *
- * Session.compact remains a pure conversation primitive. This class decides
- * WHEN it may run, against WHICH provider profile, and how many times may be
- * attempted for one epoch. Nothing else in LAIN is allowed to compact.
- *
- * ------------------------------------------------------------------------
- * THE LIFECYCLE. Compaction is a state machine, not scattered boolean logic:
- *
- *     NORMAL ─near─► NEAR_LIMIT ─over─► COMPACTING ─ok─►
- *     COMPACTION_VALIDATED ─► NORMAL
- *
- * Failure is a state for the rest of the epoch, never a reason to re-enter:
- *
- *     COMPACTING ─threw / grew the context─► COMPACTION_FAILED
- *     COMPACTING ─changed nothing, still over─► CONTEXT_UNSATISFIABLE
- *
- * `touch()` — a change to canonical conversation state — is the only thing
- * that starts a new epoch and re-arms the attempt budget. Within one epoch
- * that budget is bounded (MAX_ATTEMPTS_PER_EPOCH), a compaction that changes
- * NOTHING while over budget ends the epoch as UNSATISFIABLE with evidence
- * instead of being retried on identical state, and a completion carrying an
- * id from another epoch is ignored.
- *
- * ------------------------------------------------------------------------
- * EDGE-TRIGGERED, NOT LEVEL-TRIGGERED. Any caller may ask "does this need
- * compaction?" on every request. A check that finds no pressure consumes
- * nothing — no attempt, no run of Session.compact — so asking repeatedly
- * cannot spend the epoch's budget merely by asking. This is the difference
- * between a caller that reports CONTEXT_PRESSURE and one that quietly
- * starts compacting: callers report, this class transitions.
- *
- * ------------------------------------------------------------------------
- * COMPACTION IS NOT CLEAR. `clearContext` empties the conversation the model
- * is sent, explicitly, and never compacts and never reads a provider
- * profile. Compaction transforms; clear drops. Neither calls the other.
- */
+/** THE ONE OWNER OF CONTEXT TRANSITIONS. */
 
 const crypto = require('crypto');
 const contextbudget = require('./contextbudget');
@@ -62,12 +25,7 @@ const NEAR_RATIO = 0.8;
 /** The event timeline is a diagnostic, not a log. Bounded, like everything. */
 const MAX_TIMELINE = 64;
 
-/**
- * THE CONTEXT LIFECYCLE, AS NAMED EVENTS.
- *
- * Every entry carries enough identity to correlate a failure without guessing:
- * session, epoch, compaction id, provider and model ride on every event.
- */
+/** THE CONTEXT LIFECYCLE, AS NAMED EVENTS. */
 const EVENT = Object.freeze({
   CONTEXT_PRESSURE: 'CONTEXT_PRESSURE',
   COMPACTION_REQUESTED: 'COMPACTION_REQUESTED',
@@ -117,24 +75,13 @@ class ContextAuthority {
     this.touch();
   }
 
-  /**
-   * Canonical mutations start a new epoch and invalidate the model projection.
-   *
-   * EVERY touch re-arms the attempt budget, because every touch follows a real
-   * change to canonical state — the user's input, a step's tool results, a
-   * model switch, an explicit clear. A new epoch with a spent budget would be
-   * a session permanently over budget whose only recourse is sending
-   * overweight requests; the bound is per EPOCH, and the epoch is the state.
-   */
+  /** Canonical mutations start a new epoch and invalidate the model projection. */
   touch({ reason = 'canonical-state-changed' } = {}) {
     this.epoch += 1;
     this.state = STATE.NORMAL;
     this.attempts = 0;
     this.reason = reason;
-    // A NEW EPOCH RETIRES ANY OPERATION IN FLIGHT. A completion that arrives
-    // for the previous epoch is stale by id alone: `touch` cleared the id, so
-    // it can neither validate against state it was not issued for nor start
-    // another compaction of it. This is the epoch guard.
+    // A NEW EPOCH RETIRES ANY OPERATION IN FLIGHT.
     this.compactionId = '';
     this.unsatisfiable = null;
     this._project = null;
@@ -155,15 +102,7 @@ class ContextAuthority {
     return next;
   }
 
-  /**
-   * MEASURED PRESSURE, WITHOUT TRANSITIONING.
-   *
-   * Both budgets a payload must pass — characters and message count, which are
-   * unrelated quantities (providerlimits.js) — measured against THIS provider
-   * profile. `over` is the edge that may trigger compaction; `near` is the
-   * watch state below it. Calling this changes nothing: pressure is a fact to
-   * report, and the transition belongs to `compact` alone.
-   */
+  /** MEASURED PRESSURE, WITHOUT TRANSITIONING. */
   pressure(pc, cfg = {}) {
     const budget = contextbudget.charsFor(pc, cfg);
     const chars = this.session.contextChars();
@@ -184,11 +123,7 @@ class ContextAuthority {
     };
   }
 
-  /**
-   * STATE A FACT ON THE TIMELINE. Identity rides on every entry — session,
-   * epoch, compaction id, provider, model — so the next failure can be
-   * correlated from the record rather than reconstructed from prose.
-   */
+  /** STATE A FACT ON THE TIMELINE. */
   note(type, fields = {}) {
     const ev = {
       type,
@@ -205,14 +140,7 @@ class ContextAuthority {
     return ev;
   }
 
-  /**
-   * THE EVIDENCE AN UNSATISFIABLE EPOCH CARRIES.
-   *
-   * "Compaction cannot make this fit" is a claim about specific numbers
-   * against a specific provider profile. Reporting the claim without the
-   * numbers is what made the original loop undiagnosable: every retry looked
-   * like the first one.
-   */
+  /** THE EVIDENCE AN UNSATISFIABLE EPOCH CARRIES. */
   evidence(pc, cfg = {}, pressure) {
     const profile = profileFor(pc);
     return {
@@ -240,10 +168,7 @@ class ContextAuthority {
       this.state = STATE.CONTEXT_UNSATISFIABLE;
       return null;
     }
-    // The edge fires: pressure was reported and this call is taking the
-    // transition. REQUIRED is transient by design — the operation begins in
-    // the same synchronous call — but the machine's transitions are explicit
-    // in the code that owns them, not implied.
+    // The edge fires: pressure was reported and this call is taking the transition.
     this.state = STATE.COMPACTION_REQUIRED;
     this.attempts += 1;
     this.reason = reason;
@@ -254,9 +179,7 @@ class ContextAuthority {
   }
 
   finishCompaction(id) {
-    // STALE BY ID ALONE. An id from another epoch was cleared by `touch`; an
-    // id from another operation was replaced by `beginCompaction`. Either way
-    // it validates nothing and compacts nothing.
+    // STALE BY ID ALONE. An id from another epoch was cleared by `touch`; an id from another operation was replaced by `beginCompaction`. Either way it…
     if (!id || id !== this.compactionId) {
       if (id) return { stale: true, ignored: true, result: null };
       return { stale: false, ignored: true, result: null };
@@ -279,28 +202,12 @@ class ContextAuthority {
     return false;
   }
 
-  /**
-   * THE ONE TRANSITION INTO COMPACTION.
-   *
-   * Edge-triggered: no pressure means no attempt, no run of Session.compact.
-   * Bounded: at most MAX_ATTEMPTS_PER_EPOCH productive attempts per epoch, and
-   * a no-progress attempt while over budget ends the epoch immediately with
-   * evidence. Validated: a compaction that threw, or that GREW the context,
-   * is COMPACTION_FAILED — `compact() returned` is never taken as proof.
-   *
-   * @param {object}    pc    the resolved provider (its profile is the budget)
-   * @param {object}    cfg   the loaded config (budget overrides, provider limits)
-   * @param {object}    o     { reason, force } — `force` skips the pressure
-   *                          gate for a manual /compact, never the bounds
-   */
+  /** THE ONE TRANSITION INTO COMPACTION. */
   compact(pc, cfg = {}, { reason = 'context-pressure', force = false } = {}) {
     const profile = this.profile(pc);
     const pressure = this.pressure(pc, cfg);
 
-    // ---- EDGE-TRIGGERED, NOT LEVEL-TRIGGERED ------------------------------
-    // A check that finds no pressure consumes nothing — no attempt, no
-    // compaction — so a caller that asks on every step cannot spend the
-    // epoch's budget by asking. NEAR_LIMIT is the watch state, not a trigger.
+    // EDGE-TRIGGERED, NOT LEVEL-TRIGGERED A check that finds no pressure consumes nothing — no attempt, no compaction — so a caller that asks on every step…
     if (!pressure.over && !force) {
       if (this.state === STATE.NORMAL || this.state === STATE.NEAR_LIMIT || this.state === STATE.COMPACTION_VALIDATED) {
         this.state = pressure.near ? STATE.NEAR_LIMIT : STATE.NORMAL;
@@ -318,18 +225,11 @@ class ContextAuthority {
     }
 
     if (pressure.over) this.note(EVENT.CONTEXT_PRESSURE, { reason, ...pressure });
-    // NOTE: no state is assigned here. `beginCompaction` owns the
-    // REQUIRED→COMPACTING edge, so a refusal leaves whatever state refused
-    // it — COMPACTING stays COMPACTING, FAILED stays FAILED — instead of
-    // being clobbered to REQUIRED by the very check that was refused.
+    // NOTE: no state is assigned here.
 
     const id = this.beginCompaction({ reason: pressure.why || reason });
     if (!id) {
-      // Refused: already COMPACTING, already FAILED, or the epoch's budget is
-      // spent. The state says which; nothing here recurses. Evidence is
-      // noted ONCE per epoch — when the verdict is first reached — so a
-      // caller that asks on every step cannot fill the timeline with the
-      // same verdict repeated.
+      // Refused: already COMPACTING, already FAILED, or the epoch's budget is spent.
       if (this.state === STATE.CONTEXT_UNSATISFIABLE && !this.unsatisfiable) {
         this.unsatisfiable = this.evidence(pc, cfg, pressure);
         this.note(EVENT.CONTEXT_UNSATISFIABLE, this.unsatisfiable);
@@ -352,9 +252,7 @@ class ContextAuthority {
     try {
       result = this.session.compact({ budgetChars: room, maxMessages: target });
     } catch (e) {
-      // A compaction that threw leaves the machine FAILED for the rest of
-      // this epoch. It is NOT retried inside the same lifecycle — that is
-      // the loop this class exists to make impossible.
+      // A compaction that threw leaves the machine FAILED for the rest of this epoch.
       this.state = STATE.COMPACTION_FAILED;
       this.compactionId = '';
       this.reason = 'compaction-threw';
@@ -366,12 +264,7 @@ class ContextAuthority {
       };
     }
 
-    // ---- VALIDATED, NOT TRUSTED -------------------------------------------
-    // `compact() returned` is not proof. The result is checked against the
-    // state it claims about. A compaction that GREW the characters while
-    // removing no messages made the pressure worse and is a failure; one that
-    // shrank EITHER dimension did real work, because char pressure and
-    // message-count pressure are different walls (providerlimits.js).
+    // VALIDATED, NOT TRUSTED `compact() returned` is not proof.
     const before = Number(result && result.before) || 0;
     const after = Number(result && result.after) || 0;
     const beforeMessages = Number(result && result.beforeMessages) || 0;
@@ -395,11 +288,7 @@ class ContextAuthority {
       afterMessages: (result && result.afterMessages) || 0,
     });
     try { require('./capgate').compacted(this.session, { reason, before, after }); } catch { /* the Compact hook is optional */ }
-    // ---- STILL OVER, ACROSS EPOCHS -----------------------------------------
-    // A compaction that ends over budget means the NEXT step compacts again
-    // and stubs whatever was just read — the reread loop, which the per-epoch
-    // bound cannot see because every step starts a new epoch. The streak and
-    // the floor make it visible on the timeline, with the work it happened in.
+    // STILL OVER, ACROSS EPOCHS A compaction that ends over budget means the NEXT step compacts again and stubs whatever was just read — the reread loop…
     const afterPressure = this.pressure(pc, cfg);
     this.overStreak = afterPressure.over ? (this.overStreak || 0) + 1 : 0;
     const task = this.session.task;
@@ -415,13 +304,7 @@ class ContextAuthority {
     });
     this.normalize();
 
-    // ---- STILL OVER?  DIAGNOSE, DO NOT RECURSE -----------------------------
-    // Compaction ran and the context is still over budget. The causes are
-    // named in the evidence, and the response is bounded: an attempt that
-    // CHANGED NOTHING while over budget proves folding cannot help this
-    // state — the epoch ends UNSATISFIABLE now, without spending a second
-    // attempt on identical state. A productive attempt leaves one more, and
-    // only if the budget still has room for it.
+    // STILL OVER? DIAGNOSE, DO NOT RECURSE Compaction ran and the context is still over budget. The causes are named in the evidence, and the response is…
     if (afterPressure.over) {
       const productive = Boolean(result && result.compacted);
       if (!productive || this.attempts >= MAX_ATTEMPTS_PER_EPOCH) {
@@ -435,16 +318,7 @@ class ContextAuthority {
     return { attempted: true, stale: false, ignored: false, result, reason, id, pressure, profile };
   }
 
-  /**
-   * THE MODEL CONTEXT PROJECTION, cached per (epoch, profile, shape).
-   *
-   * The same compacted state is not re-read or re-built for every request:
-   * the projection is reused while the epoch, the provider profile, the
-   * message count, the character count and the tool set are unchanged, and
-   * rebuilt only when one of them materially changes. A model switch
-   * produces a NEW projection for the NEW profile — never universal-context
-   * reuse, and never a compaction it did not need.
-   */
+  /** THE MODEL CONTEXT PROJECTION, cached per (epoch, profile, shape). */
   project(pc, build, { stable = '', live = '', tools = 0 } = {}) {
     const profile = this.profile(pc);
     const projectionHash = fingerprint({
@@ -462,15 +336,7 @@ class ContextAuthority {
     return this._project;
   }
 
-  /**
-   * EXPLICIT CLEAR — a different lifecycle operation, never a compaction.
-   *
-   * Empties the conversation the model is sent. Reads no provider profile,
-   * consumes no attempt, runs no Session.compact, and can never see
-   * "context too large" and start one. The persistent session state — task,
-   * plan, evidence ledger, actors — is untouched; those are the work's
-   * record, not the transcript of it.
-   */
+  /** EXPLICIT CLEAR — a different lifecycle operation, never a compaction. */
   clearContext() {
     const removed = this.session ? this.session.messages.length : 0;
     const chars = this.session ? this.session.contextChars() : 0;

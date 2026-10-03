@@ -1,26 +1,6 @@
 'use strict';
 
-/**
- * THE MCP REGISTRY — trust, health and lazy schemas over the servers integrations.js keeps (Phase CAP, 2026-10-02).
- *
- * TRUST IS THE PERSON'S. cfg.integrations.mcp[id].trust, set only in Settings › MCP or `/mcp trust` — never by a
- * server, a project file or a model:
- *   DISABLED   not offered, not callable
- *   READ_ONLY  tools the server annotates read-only run; every other tool is refused (not asked)
- *   ASK        (default) read-only tools run; every other tool asks the person first (an EXTERNAL effect)
- *   TRUSTED    every tool runs without asking
- * A server's annotations are ADVISORY: they can make a tool ask more (destructiveHint never skips a question), never
- * less than the person's level allows. A per-tool override (`tools: { name: 'allow'|'ask'|'deny' }`) wins over both.
- *
- * HEALTH, said as the model and the page see it: READY (connected), IDLE (enabled, not started — starts on first
- * use), UNAVAILABLE (failed: "capability unavailable: <why>"), DISABLED.
- *
- * LAZY SCHEMAS. Every tool of every server described on every request is what made twenty servers unusable. The
- * catalog (name, description, input schema) of each server is cached in <home>/mcp-catalog.json when it connects;
- * `search_capabilities` reads that, without starting anything, and `mcp_call` starts a server on first use. Only a
- * SMALL connected set (≤ EAGER_TOOLS tools and ≤ EAGER_BYTES of schema), or a server the person pinned, is described
- * natively. cfg.integrations.mcpSchemas = 'auto' (default) | 'eager' | 'lazy'.
- */
+/** THE MCP REGISTRY — trust, health and lazy schemas over the servers integrations.js keeps (Phase CAP, 2026-10-02). */
 
 const fs = require('fs');
 const path = require('path');
@@ -142,10 +122,7 @@ async function ensureConnected(app, id) {
   return r && r.ok ? { ok: true } : { ok: false, why: (r && r.why) || 'it did not start' };
 }
 
-/**
- * CALL ONE TOOL — the one path native tools and mcp_call share. `checked` = the gate already asked (native tools
- * carry their policy as effect/approval); mcp_call asks here, through the same approval door.
- */
+/** CALL ONE TOOL — the one path native tools and mcp_call share. */
 async function call(app, id, toolName, input, { checked = false, ctx = null } = {}) {
   const s = store(app).mcp;
   const e = s[id];

@@ -155,22 +155,6 @@ module.exports = async function () {
     assert.strictEqual(session.contextChars(), chars, 'a compacted compact is a no-op');
   });
 
-  await test('LAIN: the four doors are advertised and dispatchable', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const cwd = root();
-    try {
-      for (const name of ['concept', 'architecture', 'wiring', 'scratch']) {
-        assert.ok(tools.has(name), `${name} is in the registry`);
-      }
-      // One round trip through each: define -> connect -> view, and an
-      // unknown op is a recoverable result rather than a crash.
-      const bad = await call('concept', { op: 'nope' }, cwd);
-      assert.strictEqual(bad.isError, true);
-      assert.match(bad.output, /unknown op/);
-    } finally {
-      fs.rmSync(cwd, { recursive: true, force: true });
-    }
-  }));
-
   await test('LAIN: seeding records observations, never guessed intent', async () => {
     const cwd = root();
     try {

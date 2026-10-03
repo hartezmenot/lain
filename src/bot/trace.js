@@ -1,23 +1,6 @@
 'use strict';
 
-/**
- * WHERE A MESSAGE STOPPED — one receipt per stage of a messaging turn.
- *
- *   inbound → authorize → dispatch → model → outbound
- *
- * Every stage of one inbound message shares its receipt id (`m-` + the first
- * characters of the event key), so the channel view can say exactly which
- * stage a message reached and why it went no further. The adapter's own
- * failures (a poll that could not reach LAIN's runtime, a lost lease) land as
- * `adapter` rows with no message id.
- *
- * WHAT A RECEIPT CARRIES: platform, account, stage, outcome, a short reason,
- * sizes and ids. NEVER message text, never a token, never a model prompt. The
- * reason strings pass through redact.js on the way in.
- *
- * Persisted beside transport.json so a gateway running in another process
- * (`lain --bot`) is readable from the window too. Bounded; oldest first out.
- */
+/** WHERE A MESSAGE STOPPED — one receipt per stage of a messaging turn. */
 
 const fs = require('fs');
 const path = require('path');
@@ -63,10 +46,7 @@ function read(dir) {
   try { const d = JSON.parse(fs.readFileSync(file(dir), 'utf8')); return Array.isArray(d.rows) ? d.rows : []; } catch { return []; }
 }
 
-/**
- * THE LAST OF EACH STAGE for one platform account, plus the last message's
- * path through the stages — "where did it stop" in one object.
- */
+/** THE LAST OF EACH STAGE for one platform account, plus the last message's path through the stages — "where did it stop" in one object. */
 function summary(rows, platform, accountId = 'default') {
   const mine = rows.filter((r) => r.platform === platform && (!r.accountId || r.accountId === accountId));
   const last = {};

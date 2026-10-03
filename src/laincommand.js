@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * `/lain` — WHAT THE PROJECT REMEMBERS ABOUT ITSELF.
- *
- * The `.lain/` directory is the layer that survives compaction, clears, model
- * switches and restarts: the intended architecture, the wiring, the
- * vocabulary, the verified facts, the scratches of turns that never finished.
- * Everything in it got there through the `concept`, `architecture`, `wiring`
- * and `scratch` tools — this command is the human's read of all of it at once,
- * and the one place an interrupted turn's leftover findings are surfaced
- * without a model having to look for them.
- *
- * It changes nothing. Reading reconciles the architecture against the disk
- * (that is a read of the disk, not a write of intent), and says plainly when
- * something recorded as IMPLEMENTED is no longer there.
- */
+/** `/lain` — WHAT THE PROJECT REMEMBERS ABOUT ITSELF. */
 
 function register({ define, C }) {
   // `/lain`, and `/noema` — its name in the Noema era — as the same command.

@@ -1,47 +1,6 @@
 'use strict';
 
-/**
- * THE RUNTIME REGISTRY — every long-running process LAIN starts, with an owner.
- *
- * ------------------------------------------------------------------------
- * WHY IT EXISTS (2026-09-25). 83 `lain-supervisor.exe` processes were found
- * running against deleted test homes. Each had been started by a test run that
- * was killed before its teardown, and the ownership that would have stopped it
- * lived only in that run's memory. The tempting "fix" — stop every process
- * named lain-supervisor, or every one whose command line mentions a temp
- * folder — is exactly how somebody's real session, or an unrelated program,
- * gets killed. So ownership is made DURABLE and IDENTITY-EXACT instead:
- *
- *   owner          who started it: `lain:<pid>`, `harness-test:<run>`, and the
- *                  purpose-specific owners below it (terminal:<session>,
- *                  extension-host:<workspace>, language-server:<project>,
- *                  debugger:<task>)
- *   identity       pid AND the OS start time of that pid. A pid alone is
- *                  reused by Windows within minutes; pid + start time is one
- *                  process, once
- *   lease          the owner's own pid + start time. An owner whose lease no
- *                  longer matches a live process has DIED
- *   policy         what the owner decided when it started the process:
- *                    onOwnerExit  'stop' | 'keep'
- *                    onProjectClose / onTaskEnd  true | false
- *                    restartOnCrash  true | false
- *
- * THE RULES.
- *   - An owner may stop what it started, verified by identity.
- *   - A process whose owner DIED is stopped only if its recorded policy says
- *     `onOwnerExit: 'stop'`, and only after its identity is re-verified. Nothing
- *     else is ever reaped: not by executable name, not by window title, not by
- *     a folder name in a command line.
- *   - A process whose start time cannot be read (another user's, elevated) is
- *     never stopped automatically.
- *   - The person may stop any LAIN-owned process from the runtime view; that is
- *     an explicit action on one verified record.
- *
- * WHERE. One file per owner lease under `LAIN_RUNTIME_DIR` (default:
- * %LOCALAPPDATA%\LAIN\runtime, ~/.cache/lain/runtime elsewhere). Tests set
- * their own directory (tests/harness/isolation.js), so a test can never read
- * or reap the real registry.
- */
+/** THE RUNTIME REGISTRY — every long-running process LAIN starts, with an owner. */
 
 const fs = require('fs');
 const os = require('os');
@@ -64,20 +23,10 @@ function leaseFile(owner) { return path.join(dir(), `${keyOf(owner)}.json`); }
 
 // ---- process identity --------------------------------------------------------------
 
-/**
- * START TIMES for a set of pids: { pid: 'identity' | null }. One OS call for
- * the lot. `null` means "cannot tell" — never "dead", never "safe to stop".
- */
+/** START TIMES for a set of pids: { pid: 'identity' | null }. */
 // THIS process's own identity never changes while it runs: asked once, not on
 // every lease check (each Windows answer is a PowerShell start, ~250 ms). Phase 8.1.
-/**
- * THE SPAWN CLOCK (2026-10-01). On Windows a start time costs a PowerShell launch (~250–400 ms of CPU), and
- * `register` asked for one on EVERY child — so every shell tool call paid a hidden PowerShell (bench/latency: a
- * 21 ms `cmd /c echo` took ~345 ms between model steps). A process WE just spawned is identified by the clock at
- * spawn instead (`s<epoch ms>`), and this process by its own boot time; the OS is asked only when an identity is
- * VERIFIED (reaping after an owner died, an explicit stop) — and `same` accepts an OS start time within
- * SPAWN_TOLERANCE_MS of the spawn clock. A reused pid starts minutes or hours later, never inside that window.
- */
+/** THE SPAWN CLOCK (2026-10-01). */
 const SPAWN_TOLERANCE_MS = 3000;
 const TICKS_AT_EPOCH = 621355968000000000n;
 function clockIdentity(ms) { return `s${Math.round(ms)}`; }
@@ -188,11 +137,7 @@ function mutate(owner, fn) {
 
 const live = new Map();   // id -> child, for processes this process started
 
-/**
- * RECORD A PROCESS WE STARTED. `child` is a ChildProcess (its exit removes the
- * record) or `{ pid }`. Returns the record id. Never throws: a registry
- * failure must not cost the process it describes.
- */
+/** RECORD A PROCESS WE STARTED. */
 function register(child, { purpose, label = null, owner = defaultOwner(), session = null, project = null, command = null, policy = {}, spawnedAt = null } = {}) {
   try {
     const pid = child && child.pid;
@@ -206,10 +151,7 @@ function register(child, { purpose, label = null, owner = defaultOwner(), sessio
       command: command ? String(command).slice(0, 300) : null,
       policy: { ...DEFAULT_POLICY, ...policy }, at: Date.now(),
     };
-    // RECORDED AT ONCE, IDENTIFIED A MOMENT LATER: reading a start time costs
-    // an OS call, and the caller (a terminal opening, a server starting) must
-    // not wait for it. Until it lands the record cannot be verified, and an
-    // unverifiable record is never reaped — the safe direction.
+    // RECORDED AT ONCE, IDENTIFIED A MOMENT LATER: reading a start time costs an OS call, and the caller (a terminal opening, a server starting) must not…
     if (fresh && !selfIdentity) selfIdentity = ownStart;
     mutate(owner, (cur) => { cur.lease = cur.lease && cur.lease.start ? cur.lease : { pid: process.pid, start: selfIdentity }; cur.processes = cur.processes.filter((p) => p.pid !== pid).concat(rec); return cur; });
     if (!fresh) startTimesAsync([pid, process.pid]).then((t) => {
@@ -240,10 +182,7 @@ function allLeases() {
   return names.map((n) => ({ file: path.join(dir(), n), data: readFile(path.join(dir(), n)) })).filter((x) => x.data && Array.isArray(x.data.processes));
 }
 
-/**
- * WHAT IS RUNNING. Every record, with whether it is still the same process
- * (`alive`), whether its owner is alive, and whether it is ours.
- */
+/** WHAT IS RUNNING. Every record, with whether it is still the same process (`alive`), whether its owner is alive, and whether it is ours. */
 function list({ owner = null, ownerPrefix = null, project = null } = {}) {
   const leases = allLeases().filter((l) => (!owner || l.data.owner === owner) && (!ownerPrefix || String(l.data.owner).startsWith(ownerPrefix)));
   const pids = [];
@@ -269,11 +208,7 @@ function killTree(pid) {
   }
 }
 
-/**
- * STOP ONE RECORDED PROCESS, after proving it is still that process. `by` is
- * the owner asking; a stop by anyone but the owner needs `explicit: true` (a
- * person pressed Stop on that row).
- */
+/** STOP ONE RECORDED PROCESS, after proving it is still that process. */
 function stop(id, { by = defaultOwner(), explicit = false } = {}) {
   const rec = list().find((r) => r.id === id);
   if (!rec) return { ok: false, why: 'no such process record' };
@@ -299,12 +234,7 @@ function stopOwned(owner = defaultOwner()) {
   return { stopped: res.filter((r) => r.ok && !r.already).length, records: mine.length };
 }
 
-/**
- * REAP WHAT DEAD OWNERS ASKED TO HAVE STOPPED. Only leases whose holder is
- * provably gone (identity mismatch), only records whose policy says
- * `onOwnerExit: 'stop'`, only processes whose identity still matches. Records
- * that cannot be verified are left alone and reported.
- */
+/** REAP WHAT DEAD OWNERS ASKED TO HAVE STOPPED. */
 function reapStale({ ownerPrefix = null } = {}) {
   const report = { reaped: [], kept: [], leases: 0 };
   for (const l of allLeases()) {

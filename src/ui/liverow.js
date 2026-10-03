@@ -11,11 +11,7 @@ function shortCommand(cmd) {
   return c.length > 48 ? `${c.slice(0, 47)}…` : c;
 }
 
-/**
- * THE LIVE ROW WHILE A REQUEST IS OPEN (S5.1): `◐ <state> · <what> · <step time> · ↓<tokens> · esc to interrupt`, the
- * state being `Waiting for <model>` (no byte yet), `Thinking`, or `Writing`. Thirty seconds without data says so —
- * information only, it stops nothing.
- */
+/** THE LIVE ROW WHILE A REQUEST IS OPEN (S5.1): `◐ <state> · <what> · <step time> · ↓<tokens> · esc to interrupt`, the state being `Waiting for <model>`… */
 function modelRow(phase, now, steerQueued, actor) {
   const live = phase.live;
   const model = live.model ? require('../catalog').displayName(live.model) : 'the model';

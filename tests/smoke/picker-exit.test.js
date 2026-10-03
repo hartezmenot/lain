@@ -100,7 +100,7 @@ module.exports = async function () {
       cwd: tmpdir('pick-'), env: tui,
       stdinSteps: ['audit it\n', ETX], stepDelayMs: 1200,
       script: [
-        { text: 'Working.', tool_calls: [{ name: 'run_bash', input: { command: 'sleep 6' } }] },
+        { text: 'Working.', tool_calls: [{ name: 'shell', input: { command: 'sleep 6' } }] },
         { text: 'Done.' },
       ],
       timeoutMs: 45000,

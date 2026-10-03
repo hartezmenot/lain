@@ -1,27 +1,6 @@
 'use strict';
 
-/**
- * A PATH A SHELL WROTE, READ BY A FILE TOOL — one resolver for every file tool.
- *
- * ------------------------------------------------------------------------
- * THE DEFECT (2026-09-29, a live Coding Agent transcript). On Windows the
- * Agent ran `cargo test > /tmp/p45.log` through run_bash, then asked
- * file_info for `/tmp/p45.log` and was told "no such file". Both were right
- * about their own world: Git Bash maps `/tmp` to the user's temp directory
- * (%TEMP%), and Node resolves a root-relative `/tmp/p45.log` against the
- * CURRENT DRIVE — `D:\tmp\p45.log`. The failure then ended the turn and the
- * task sat paused on a file that existed the whole time.
- *
- * So a file tool resolves the spellings a POSIX shell on Windows produces —
- * `/tmp/…`, `/c/…` (a drive), `~/…` — to where that shell actually put the
- * file, but ONLY when the literal Windows reading does not exist: a project
- * that really has `D:\tmp` keeps it.
- *
- * AND OUTPUT A TASK DEPENDS ON LIVES WITH THE TASK. `$LAIN_SCRATCH` (set on
- * every shell command, see shell.js) is `<project>/.lain/tasks/<task>/logs`:
- * it survives the model's turn, a process restart and a model switch, where
- * `/tmp` survives none of them reliably.
- */
+/** A PATH A SHELL WROTE, READ BY A FILE TOOL — one resolver for every file tool. */
 
 const fs = require('fs');
 const os = require('os');
@@ -51,10 +30,7 @@ function resolve(cwd, p) {
   return literal;
 }
 
-/**
- * "no such file" with the one fact that explains it, for a POSIX temp spelling on Windows:
- * where that path was looked for, and where task output belongs instead.
- */
+/** "no such file" with the one fact that explains it, for a POSIX temp spelling on Windows: where that path was looked for, and where task output… */
 function missing(p) {
   const s = String(p || '');
   const mapped = posixOnWindows(s);

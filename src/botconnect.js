@@ -1,65 +1,6 @@
 'use strict';
 
-/**
- * MESSAGING CONNECTIONS FOR LAIN DESKTOP — a projection and a setup flow over
- * authorities that already exist. NOT another Telegram client.
- *
- * ------------------------------------------------------------------------
- * WHO OWNS WHAT, and none of it moves here.
- *
- *   the Telegram credential   the Rust supervisor (remote.rs): proved against
- *                             `getMe` before it is stored, never returned by any op
- *   the Telegram poller       the Rust supervisor, in gateway mode
- *   the gateway / adapters    src/bot/gateway.js + src/bot/{telegram,discord,whatsapp}.js
- *   who may talk to the bot   `cfg.bot.platforms.<p>.allowUsers` (contract.authorized)
- *   Discord / WhatsApp keys   environment variables named in config (docs/BOT.md)
- *
- * ------------------------------------------------------------------------
- * THE TELEGRAM FLOW, with no CLI:
- *
- *   1. token typed into the window → `connectTelegram(token)` → the supervisor's
- *      `remote_gateway_attach` VERIFIES it against Telegram and stores it, and
- *      the lease is released at once. A rejected token stores nothing.
- *   2. the window is shown the bot's PUBLIC identity (@username, name) — never
- *      the token, which lives in this process only for the length of the call
- *      and is registered with redact.js first.
- *   3. config gains `telegram.enabled` (no secret), and the gateway starts in
- *      Core, so a `/start` reaches it.
- *   4. an unauthorized private `/start` is recorded as a CANDIDATE by the
- *      gateway (bot/store.js `candidate`) — sender ID, chat ID, when.
- *   5. the person approves that exact ID → it is added to `allowUsers`, in
- *      place, so the running gateway authorizes it on the next message.
- *
- * ------------------------------------------------------------------------
- * STATES are the five the window renders — NOT_CONNECTED, CONNECTING,
- * CONNECTED, AUTH_REQUIRED, FAILED — with `configured` and `running` beside
- * them, because "a bot is set up and messaging is not running" is its own fact.
- *
- * ------------------------------------------------------------------------
- * CHANNEL STATUS (`status`) is the finer, honest reading every channel shares:
- *
- *   CONFIGURED    a credential is held, but nothing is polling: messages wait at
- *                 the platform. Verifying a token proves THIS much and no more.
- *   CONNECTING    the token is being checked, or the adapter is starting.
- *   LISTENING     the gateway holds the runtime's mailbox lease and is polling.
- *   OPERATIONAL   listening AND a reply the platform acknowledged since then —
- *                 a real round trip, the only thing that earns the word.
- *   DEGRADED      listening, but the last poll or delivery failed.
- *   ERROR         the runtime did not answer, the platform rejected the token,
- *                 or the adapter could not start.
- *   DISCONNECTED  no credential; if the person disconnected, when.
- *
- * WHERE A MESSAGE STOPPED is read from bot/trace.js: one receipt per stage
- * (inbound → authorize → dispatch → model → outbound) under one message id.
- *
- * THE P0 THIS FIXED: with gateway mode on, the runtime (remote.rs `can_poll`)
- * polls Telegram ONLY while a gateway holds the mailbox lease. The gateway was
- * started by `connectTelegram` and by `/bot start` and by nothing else, so
- * after any restart of LAIN a connected bot was silent: the token verified, the
- * runtime said LISTENING, and no one was reading. `resume` below restarts it
- * at launch — ONLY for a channel the person connected (`enabled`), which is the
- * intent the old "never autostart" rule was protecting.
- */
+/** MESSAGING CONNECTIONS FOR LAIN DESKTOP — a projection and a setup flow over authorities that already exist. */
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -220,10 +161,7 @@ async function envPlatform(app, platform, report) {
   return {
     platform,
     supported: true,
-    // HONEST ABOUT SETUP: these adapters read their secrets from environment
-    // variables named in config. The window shows what is missing; it does not
-    // collect a Discord or WhatsApp secret, because no credential store exists
-    // for them to go into.
+    // HONEST ABOUT SETUP: these adapters read their secrets from environment variables named in config.
     setup: 'environment',
     state,
     summary,
@@ -284,13 +222,7 @@ async function stopService(app) {
   return { ok: true, already: true };
 }
 
-/**
- * AT LAUNCH: bring back the messaging a person connected. Only channels with
- * `enabled` (set by an explicit connect, cleared by disconnect) and, for
- * Telegram, a credential the runtime still holds. A gateway already running
- * elsewhere (`lain --bot`) is left alone. Never throws; the outcome is kept
- * for the channel view.
- */
+/** AT LAUNCH: bring back the messaging a person connected. */
 async function resume(app) {
   const r = root(app);
   const enabled = PLATFORMS.filter((p) => (settings(app, p) || {}).enabled);
@@ -307,11 +239,7 @@ async function resume(app) {
   return r._botResume;
 }
 
-/**
- * SEND TEST: one message, to one approved person, through the same delivery
- * path a reply takes — and its outbound receipt, so the round trip's second
- * half can be proved without waiting for a model.
- */
+/** SEND TEST: one message, to one approved person, through the same delivery path a reply takes — and its outbound receipt, so the round trip's second… */
 async function sendTest(app, { to } = {}) {
   const s = settings(app, 'telegram') || {};
   const allowed = (s.allowUsers || []).map(String);
@@ -402,19 +330,7 @@ function revokeTelegram(app, senderId) {
   return { ok: true, allowedUsers: s.allowUsers.map(String) };
 }
 
-/**
- * GONE MEANS GONE — as far as LAIN can make it:
- *
- *   1. polling stops           the gateway (and its Telegram adapter's lease) stops
- *   2. the channel's runtime   every conversation runtime the gateway owned closes with it
- *   3. BOT routing             `enabled` is cleared, so no restart re-adds the adapter
- *   4. the credential          LAIN's runtime deletes the token it held (`remote_disconnect`)
- *   5. approvals / candidates  cleared, so a reconnect starts from nobody
- *   6. marked DISCONNECTED     with when
- *
- * WHAT IT IS NOT: a revocation. The token is still valid at Telegram until the
- * owner revokes it with @BotFather (/revoke); the result says so.
- */
+/** GONE MEANS GONE — as far as LAIN can make it */
 async function disconnectTelegram(app) {
   const svc = await service(app);
   if (svc.owner === 'external') return { ok: false, why: 'messaging is running in another LAIN process (lain --bot); stop it there first' };

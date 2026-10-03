@@ -1,14 +1,6 @@
 'use strict';
 
-/**
- * SETTINGS › STORAGE — the Harness's door to cachecare.js (Gate 3 §77–80). Measuring and clearing both take
- * seconds (gigabytes of temp leftovers), so each runs as ONE job in Core and the page polls its state; nothing
- * blocks a request, and a second click joins the job already running.
- *
- *   POST /api/cache/inspect   start measuring (or return the result from the last minute) — `refresh` forces it
- *   POST /api/cache/clear     start clearing {ids, confirmAdvanced}; advanced categories need the person's yes
- *   POST /api/cache/state     where both jobs are: running, partial categories, the last result
- */
+/** SETTINGS › STORAGE — the Harness's door to cachecare.js (Gate 3 §77–80). */
 
 const care = require('../cachecare');
 

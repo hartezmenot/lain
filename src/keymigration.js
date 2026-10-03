@@ -1,17 +1,6 @@
 'use strict';
 
-/**
- * LEGACY KEYS — API keys still written in config.json as plain text, moved
- * into the Windows secret store on the person's request.
- *
- *   count    how many connections still hold a plaintext `apiKey` (masked; the
- *            key itself is never returned)
- *   migrate  for each: read the value internally → store it under a fresh
- *            credential reference → read it back and compare (VERIFY) → only
- *            then replace the config value with the reference and save. A key
- *            that fails verification is left exactly where it was and its new
- *            blob removed. No model, prompt or log ever sees a key.
- */
+/** LEGACY KEYS — API keys still written in config.json as plain text, moved into the Windows secret store on the person's request. */
 
 const crypto = require('crypto');
 

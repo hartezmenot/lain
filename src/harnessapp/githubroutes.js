@@ -1,31 +1,6 @@
 'use strict';
 
-/**
- * GITHUB ROUTES — GitHub as a source of LAIN projects (github.js).
- *
- *   /api/github/status        connected? via gh / device / token, and as whom
- *   /api/github/repos         repositories this identity may see, with local state
- *   /api/github/connect-token a fine-grained token → DPAPI (never echoed)
- *   /api/github/disconnect
- *   /api/github/assign        bind the session to owner/repo; attaches at once when
- *                             a local clone exists, else Coding stays disabled
- *                             until "Clone project"
- *   /api/github/clone         clone → register → (attach to this session)
- *   /api/github/project       the attached project's git/GitHub state
- *   /api/github/action        pull · branch · commit · push · pr-create · pr-view ·
- *                             issue-view · issue-create — writes need `confirm`
- *
- * SEVERAL ACCOUNTS (github.js): every identity LAIN may act as, LAIN's active one,
- * and the account each repository belongs to. Never a token in an answer.
- *   /api/github/accounts      the list (and the active one)
- *   /api/github/switch        LAIN's active account — gh's own is untouched
- *   /api/github/rename        a name for one account, shown instead of the login
- *   /api/github/disconnect    forget ONE account ({id}; the active one if none)
- *   /api/github/restore       show a hidden GitHub CLI account again
- *   /api/github/device/start  GitHub's device flow (the person's own OAuth App) —
- *   /api/github/device/poll   scopes chosen explicitly: read · public · private
- *   /api/github/bind          the account a repository's writes go out as
- */
+/** GITHUB ROUTES — GitHub as a source of LAIN projects (github.js). */
 
 const gh = require('../github');
 const sv = require('../sessionviews');

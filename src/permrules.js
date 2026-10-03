@@ -1,11 +1,6 @@
 'use strict';
 
-/**
- * ALLOW / DENY RULES (Simplify S5). The person's rules live in their config (`permissions: {allow, deny,
- * defaultMode}`); a project's `.lain/settings.json` may only narrow them: its `deny` rules are added, a stricter
- * `defaultMode` is honoured, and its `allow` rules are ignored. A rule is `Tool` or `Tool(spec)`: for a shell the
- * spec is the command (`*` matches anything, `npm run:*` a prefix); for a file tool it is a path glob.
- */
+/** ALLOW / DENY RULES (Simplify S5). */
 
 const fs = require('fs');
 const path = require('path');

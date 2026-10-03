@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * USAGE PER PROVIDER RESET WINDOW — the provider's window, and what LAIN itself
- * observed being spent inside it. Two different numbers, never merged:
- *
- *   PROVIDER   "72% remaining" — the provider said it (Claude Code's
- *              rate_limit_event, a Codex account's rate-limit snapshot, a
- *              route's rate-limit headers). Covers ALL use of the account,
- *              including use outside LAIN.
- *   OBSERVED   input / output / reasoning / cache read / cache write / requests
- *              (and cost, only where a source reported one) from LAIN's own
- *              receipts (usage.js) whose time falls inside [start, reset).
- *              Only what went through LAIN; never claimed to equal the quota,
- *              unless the provider's quota is itself token-denominated.
- *
- * A window is only placed in time when its length is known: Claude Code names
- * its windows (five_hour, seven_day…), Codex states `windowDurationMins`, a
- * header names its unit (5h, 7d). Otherwise it is listed with its reset only
- * and LAIN says it cannot bound it — nothing is guessed.
- *
- * PROVIDER LABELS ARE KEPT ("5-hour" stays "5-hour"); the category
- * (SHORT_TERM / DAILY / WEEKLY / MONTHLY / CREDITS / EXPIRY) is for grouping.
- *
- * PREVIOUS WINDOW: the same length ending at this window's start. LAIN's own
- * receipts cover it exactly; the provider's percentage for it is whatever LAIN
- * last saw before that reset (window-snapshots.json) — or "not recorded".
- *
- * ESTIMATED EFFECTIVE CAPACITY (2026-09-30): each time the provider's % moves,
- * the snapshot keeps a paired reading — the % and the tokens LAIN observed in
- * the window at that moment. Where the % rose AND LAIN saw tokens in between,
- * the ratio says how many LAIN-observed tokens one percent has meant; summed,
- * "~N equivalent tokens" for the whole window. It is labelled an estimate, with
- * a confidence (High / Medium / Low) from how many readings agree and how far
- * the % travelled — and "Insufficient data" until there are enough. A reading
- * that moved with nothing seen by LAIN is use outside LAIN: excluded, and it
- * lowers the confidence. Never a provider figure; never used to block a run.
- */
+/** USAGE PER PROVIDER RESET WINDOW — the provider's window, and what LAIN itself observed being spent inside it. */
 
 const fs = require('fs');
 const path = require('path');
@@ -54,11 +19,7 @@ function category(mins) {
 const SERIES_MAX = 24;       // paired readings kept per window instance
 const INSTANCES_MAX = 6;     // the most recent window instances an estimate draws on (plans change)
 
-/**
- * THE ESTIMATE from paired readings (`series`: [at, usedPercent, observedTokens]) across a window's recent
- * instances. A step is a rise of the provider's % with LAIN tokens seen since the last rise; readings where the
- * % held still carry their tokens into the next rise (providers report whole percents).
- */
+/** THE ESTIMATE from paired readings (`series`: [at, usedPercent, observedTokens]) across a window's recent instances. */
 function capacity(instances) {
   const steps = [];
   let outside = 0;
@@ -143,13 +104,8 @@ function group(rows, by, app) {
     .sort((a, b) => b.tokens - a.tokens);
 }
 
-/**
- * THE WINDOWS, each with its observed consumption (current and previous).
- * `by` adds a breakdown (project | session | model | account) to each.
- */
-// RESULT CACHE (Phase 8.1): the windows are recomputed only when the receipts
-// grew (usageindex generation), a provider reported something new (the sources'
-// own figures), the breakdown changed, or a minute passed — not on every render.
+/** THE WINDOWS, each with its observed consumption (current and previous). */
+// RESULT CACHE (Phase 8.1): the windows are recomputed only when the receipts grew (usageindex generation), a provider reported something new
 let memo = null;
 function windows(app, opts = {}) {
   const now = opts.now || Date.now();
@@ -176,11 +132,7 @@ function windowsUncached(app, { now = Date.now(), by = null } = {}) {
     const mine = all.filter(s.match);
     for (const w of s.windows) {
       const key = `${s.id}|${w.id}|${w.resetsAt || 0}`;
-      // THE RESET BOUNDARY ROLLS LAIN'S OWN BUCKET (2026-10-01). Past the provider's reset, and with the window's length
-      // known, the window in force is the next one: its end is PROJECTED from the reported reset plus whole windows, its
-      // observed usage starts again, the one that just closed becomes "previous" (with the % last seen before it reset),
-      // and the provider's percentage is "not reported since the reset" until it is read again. LAIN never resets a
-      // provider's quota; it only stops attributing new use to a window that is over.
+      // THE RESET BOUNDARY ROLLS LAIN'S OWN BUCKET (2026-10-01).
       let reset = w.resetsAt || null; let rolled = false;
       if (w.mins && reset && now >= reset) { const len = w.mins * MIN; reset += (Math.floor((now - reset) / len) + 1) * len; rolled = true; }
       const used = rolled ? null : w.usedPercent;

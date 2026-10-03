@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * LAIN'S OWN CONTEXT EFFICIENCY, over a time range — apart from any provider
- * cache. Read from what LAIN already records per FocusPacket
- * (<configDir>/metrics/focus.jsonl, counts only, written by focuspacket.js):
- *
- *   FocusPacket       packets built, their average size
- *   Selection reuse   packets served from the canonical Selection
- *   Evidence reuse    packets whose research artifact was reused, not rebuilt
- *   GUG reuse         UI-graph lookups answered from the graph
- *   LSP cache         language-server answers served from cache
- *   project graph     scans reused vs files rescanned
- *   full reads avoided  project files not sent because the packet chose fewer
- *
- * A figure LAIN does not record is null ("not measured"), never 0.
- */
+/** LAIN'S OWN CONTEXT EFFICIENCY, over a time range — apart from any provider cache. */
 
 const fs = require('fs');
 const path = require('path');

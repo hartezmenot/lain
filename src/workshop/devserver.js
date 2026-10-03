@@ -1,49 +1,6 @@
 'use strict';
 
-/**
- * THE PROJECT'S DEV SERVER — detected from what the project DECLARES, started
- * through the process authority that already exists, IN THE PROJECT ROOT.
- *
- * ------------------------------------------------------------------------
- * IT NEVER INVENTS A COMMAND.
- *
- * Every command below is copied out of the project's own manifest, run by the
- * package manager the project's own lockfile names. No script, no dev server,
- * and the Workshop says so — see harness/profile.js, which applies the same
- * rule to verification contracts.
- *
- * ------------------------------------------------------------------------
- * IT STARTS NOTHING ITSELF. `ProcessManager.start` owns spawning, ownership,
- * logs and cleanup. The one thing passed that matters most is `cwd`: the
- * PROJECT ROOT, never LAIN's install folder, Core's working directory or the
- * desktop executable's — pinned by tests/unit/devserver.test.js.
- *
- * ------------------------------------------------------------------------
- * A PORT ANSWERING IS NOT THIS PROJECT. THIS COST A REAL BUG.
- *
- * Probing conventional ports once attached the Workshop to an unrelated
- * application on :4000 and verified somebody else's page. So a URL is accepted
- * only on IDENTITY, from one of three sources:
- *
- *   1. THE PROJECT DECLARED THE PORT — `vite --port 4321` in its script, or
- *      `server.port` in its own vite config. The project said so.
- *   2. LAIN STARTED IT and forced the port with PORT=… (a server that honours
- *      PORT, as most Node servers and Next do).
- *   3. LAIN STARTED IT and the process ANNOUNCED its URL on its own output
- *      ("Local: http://localhost:5183/"). Measured 2026-09-16 on toradb: Vite
- *      ignores PORT, falls through 5180→5183 when ports are taken, and says
- *      where it landed. Waiting only on the forced port waited forever.
- *
- * ------------------------------------------------------------------------
- * `localhost` IS NOT `127.0.0.1`. Measured on the same run: Vite on Node 24
- * binds `::1` only, so every IPv4 probe of a healthy server was refused and
- * the Workshop reported "did not open" over a page that was serving. Every
- * readiness and adoption probe asks both loopbacks.
- *
- * A START THAT FAILS STOPS WHAT IT STARTED. The same measurement found three
- * dev servers from earlier attempts still listening hours later, each started by
- * a Workshop open that timed out and walked away from its process.
- */
+/** THE PROJECT'S DEV SERVER — detected from what the project DECLARES, started through the process authority that already exists, IN THE PROJECT ROOT. */
 
 const fs = require('fs');
 const net = require('net');
@@ -104,24 +61,13 @@ function scriptText(scripts, name) {
   return [line, ...refs].join(' ');
 }
 
-/**
- * THE PROJECT ROOT, CANONICAL. An 8.3 short path (`C:\Users\HARTEZ~1\…`, which
- * os.tmpdir() returns on many machines) is a working directory Vite's file
- * watcher cannot use: measured 2026-09-16, it aborts with a libuv assertion in
- * `win/fs-event.c` the moment it starts watching. The long form is the same
- * directory, so it is what a dev server is started in.
- */
+/** THE PROJECT ROOT, CANONICAL. */
 function canonical(dir) {
   const abs = path.resolve(dir || process.cwd());
   try { return fs.realpathSync.native(abs); } catch { return abs; }
 }
 
-/**
- * WHAT THIS PROJECT DECLARES, or a stated reason there is nothing to run.
- *
- * `declaredPort` is the only port this module will ever ADOPT without having
- * started the process itself, because it is the only one the project vouched for.
- */
+/** WHAT THIS PROJECT DECLARES, or a stated reason there is nothing to run. */
 function detect(cwd) {
   const root = canonical(cwd);
   // A COMMAND THE PERSON CONFIGURED for this project's preview (Preview › Configure) outranks detection.
@@ -132,10 +78,7 @@ function detect(cwd) {
     const port = Number(conf.port) || null;
     return { ok: true, root, script: 'configured', scriptLine: conf.command.trim(), packageManager: null, command: conf.command.trim(), why: `${conf.command.trim()} (configured for this project)`, declaredPort: port, declaredBy: port ? confRel : null, configured: true };
   }
-  // A FRONTEND THAT IS FILES BESIDE ITS OWN SERVER (Gate 4, CineFlex): "static": "public" serves that folder
-  // with LAIN's static server, so the project's server — its backend — stays dormant. "mount" adds paths the
-  // server used to map from elsewhere in the project ("/vendor/x.js": "node_modules/x/dist/x.js"). Both stay
-  // inside the project; a path that climbs out is not served.
+  // A FRONTEND THAT IS FILES BESIDE ITS OWN SERVER (Gate 4, CineFlex): "static": "public" serves that folder with LAIN's static server, so the project's…
   if (conf && typeof conf.static === 'string' && conf.static.trim()) {
     const within = (rel) => { const full = path.resolve(root, String(rel)); return (full + path.sep).toLowerCase().startsWith((root + path.sep).toLowerCase()) ? full : null; };
     const serveRoot = within(conf.static.trim());
@@ -171,9 +114,7 @@ function detect(cwd) {
   const line = scriptText(scripts, name);
   const flag = /--port[= ](\d{2,5})/.exec(line) || /(?:^|\s)-p\s+(\d{2,5})\b/.exec(line) || /\bPORT=(\d{2,5})\b/.exec(line);
   const vite = /\bvite\b/.test(line) ? viteConfigPort(root) : null;
-  // A PORT= INSIDE A SUB-SCRIPT THAT IS NOT THE WEB SERVER (toradb's
-  // `dev:server` sets PORT=4100 for its API) is not the page's port. When a
-  // Vite config names one, the config wins, because it is the page.
+  // A PORT= INSIDE A SUB-SCRIPT THAT IS NOT THE WEB SERVER (toradb's `dev:server` sets PORT=4100 for its API) is not the page's port.
   const declaredPort = vite ? vite.port : (flag ? Number(flag[1]) : null);
   return {
     ok: true,
@@ -213,10 +154,7 @@ async function pickPort() {
   return 0;
 }
 
-/**
- * IS ANYTHING LISTENING ON THIS PORT ON EITHER LOOPBACK? Returns the URL host
- * that answered — `127.0.0.1`, or `localhost` for an IPv6-only listener.
- */
+/** IS ANYTHING LISTENING ON THIS PORT ON EITHER LOOPBACK? */
 async function listening(port) {
   if (!port) return null;
   if (await portOpen(port, '127.0.0.1')) return '127.0.0.1';
@@ -228,11 +166,7 @@ async function listening(port) {
 const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
 const LOOPBACK_URL = /\bhttps?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(?::(\d{2,5}))\/?/i;
 
-/**
- * THE URL A PROCESS LAIN STARTED ANNOUNCED, from its own output. A `Local:` line
- * (Vite, Next, Astro, CRA) outranks any other loopback URL printed — an API
- * server in the same `concurrently` run may print its own.
- */
+/** THE URL A PROCESS LAIN STARTED ANNOUNCED, from its own output. */
 function announced(log) {
   const lines = String(log || '').replace(ANSI, '').split(/\r?\n/);
   const local = lines.filter((l) => /\bLocal\b\s*:/i.test(l)).map((l) => LOOPBACK_URL.exec(l)).find(Boolean);
@@ -240,9 +174,7 @@ function announced(log) {
   return any ? { port: Number(any[1]), url: any[0].replace('0.0.0.0', 'localhost').replace(/\/?$/, '/') } : null;
 }
 
-/**
- * IS THIS PROJECT ALREADY BEING SERVED, on evidence?
- */
+/** IS THIS PROJECT ALREADY BEING SERVED, on evidence? */
 async function adoptable(cwd, declaredPort, { processes = null } = {}) {
   if (processes && typeof processes.list === 'function') {
     try {
@@ -265,13 +197,7 @@ async function adoptable(cwd, declaredPort, { processes = null } = {}) {
   return { ok: false };
 }
 
-/**
- * GET A URL TO PREVIEW.
- *
- * @param {function} onStart  told the process record the moment one exists, so
- *   a dev-server record can say STARTING with a PID rather than guessing.
- * @returns {{ok, url, port, processId, pid, adopted, command, cwd, why, log}}
- */
+/** GET A URL TO PREVIEW. */
 async function ensure(cwd, { processes = null, taskId = null, timeoutMs = 60_000, onStart = null } = {}) {
   const root = canonical(cwd);
   const found = detect(root);
@@ -336,12 +262,7 @@ async function ensure(cwd, { processes = null, taskId = null, timeoutMs = 60_000
   return fail(`${found.why} did not open ${port ? `:${port}` : 'a port'} or announce a URL within ${Math.round(timeoutMs / 1000)}s`);
 }
 
-/**
- * CONFIGURE PREVIEW (Phase 8.2): the command (and port) that serves this project,
- * kept with it in `.lain/preview.json` — a file in the project, so it is written
- * through the transaction like any other project edit (mutation.js). An empty
- * command removes it (detection decides again).
- */
+/** CONFIGURE PREVIEW (Phase 8.2): the command (and port) that serves this project, kept with it in `.lain/preview.json` — a file in the project, so it… */
 async function configure(app, root, { command = '', port = null } = {}) {
   const file = require('../projectmeta').file(root, 'preview.json');
   const cmd = String(command || '').trim().slice(0, 400);

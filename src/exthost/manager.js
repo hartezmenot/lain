@@ -1,39 +1,6 @@
 'use strict';
 
-/**
- * THE EXTENSION HOST SUPERVISOR — Core's side of every running extension.
- *
- *     LAIN Core ── manager.js ──IPC── host.js (one Node process per extension)
- *                     │                 └─ the extension's own code
- *                     └─ permission bridge: every workspace read/write, file
- *                        search and edit the extension asks for is checked
- *                        against its GRANT here, inside the workspace only
- *
- * ------------------------------------------------------------------------
- * PERMISSIONS, AND ONLY THE ENFORCEABLE ONES (extensions.js stores the grant):
- *
- *   read       the extension may read project files (vscode.workspace.fs /
- *              openTextDocument, and Node's own fs via --allow-fs-read)
- *   write      it may change project files (applyEdit, fs.writeFile — and
- *              --allow-fs-write on the workspace). Its edits are recorded in
- *              the provenance ledger as EXTENSION.
- *   processes  it may start programs (--allow-child-process) — what a language
- *              server or a formatter binary needs
- *
- * The open documents it is told about need no grant: they are what is on
- * screen. NETWORK CANNOT BE RESTRICTED by the Node runtime LAIN ships with, so
- * it is not offered as a permission; the Extensions view says plainly that
- * extension code can reach the network.
- *
- * ------------------------------------------------------------------------
- * CRASHES AND HANGS stay inside the host. An exit is a CRASHED state with a
- * restart (at most 3 in 2 minutes, then STOPPED with the reason); a command
- * that does not answer in COMMAND_TIMEOUT_MS is a HUNG host, which is stopped
- * and restarted. LAIN itself never waits on an extension.
- *
- * OWNERSHIP: every host is recorded in runtimeregistry.js (purpose
- * 'extension-host', stopped when LAIN exits), never found by process name.
- */
+/** THE EXTENSION HOST SUPERVISOR — Core's side of every running extension. */
 
 const fs = require('fs');
 const path = require('path');
@@ -75,11 +42,7 @@ function grantOf(entry) {
 }
 
 /** What an extension could use in LAIN, from its manifest — before it runs. */
-/**
- * HOW MUCH OF THIS EXTENSION WORKS IN LAIN — FULL, PARTIAL or UNSUPPORTED, with
- * the rows that decide it. `scan` is surface.scanExtension: the vscode APIs its
- * code references that LAIN does not provide are listed by name, before it runs.
- */
+/** HOW MUCH OF THIS EXTENSION WORKS IN LAIN — FULL, PARTIAL or UNSUPPORTED, with the rows that decide it. */
 function compatibility(pkg, record = null, scan = null) {
   const c = (pkg && pkg.contributes) || {};
   const rows = [];

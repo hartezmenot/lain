@@ -1,43 +1,6 @@
 'use strict';
 
-/**
- * ONE ENGINEERING SESSION, TWO VIEWS — Chat and Coding.
- *
- * ------------------------------------------------------------------------
- * THEY ARE NOT TWO SESSIONS.
- *
- *     EngineeringSession
- *     ├── project, goal, accepted plan, evidence, project intelligence   (shared)
- *     ├── Chat thread    — its own model/source, never mutates
- *     └── Coding thread  — its own model, governed by the usual authority
- *
- * The session file is still one file with one `messages` array. Each message
- * carries `thread`, and the WIRE for a turn is that thread's messages only
- * (contextfit.buildWire). That is how a Chat model on ChatGPT.com and a Coding
- * model on GLM share a project without the Coding model being handed the whole
- * Chat transcript: what crosses between them is the DURABLE state — goal,
- * accepted plan, pins, evidence — never the other thread's conversation.
- *
- * UNTAGGED MEANS CODING. Every message written before views existed, and every
- * message a terminal turn writes, is engineering history, and that is the
- * thread it has always been. `settle` tags a message the first time a wire is
- * built after it was written, with the thread the running turn belongs to, so
- * no push site in turn.js or chatdispatch.js has to know views exist.
- *
- * ------------------------------------------------------------------------
- * WHAT ELSE LIVES HERE, because each is a fact about THIS session's views and
- * nothing else owns it:
- *
- *   active     which view the session was last shown in
- *   coding     the Coding model, when it differs from the process default.
- *              The Chat model is modelsource/sessionstate's (chatSource +
- *              sourceSelections) and is not duplicated here.
- *   panel      the contextual workspace panel: which one is open, its width,
- *              and the file Project Files was showing
- *   pins       files the person pinned to context (browsing is not pinning)
- *   project    whether a project is ATTACHED, as opposed to a cwd inherited
- *              from wherever LAIN happened to be started
- */
+/** ONE ENGINEERING SESSION, TWO VIEWS — Chat and Coding. */
 
 const fs = require('fs');
 const os = require('os');
@@ -152,17 +115,10 @@ function settle(session, thread = current(session)) {
   }
 }
 
-/**
- * THE MESSAGES A TURN'S WIRE CARRIES — its own thread's.
- *
- * A tool call and its result are always written by the same turn, so a thread
- * filter can never split a call from its result.
- */
+/** THE MESSAGES A TURN'S WIRE CARRIES — its own thread's. */
 function wireMessages(session) {
   const msgs = (session && session.messages) || [];
-  // A SESSION THAT HAS NEVER HAD A CHAT TURN IS UNTOUCHED — no tags written,
-  // no filter applied — so a terminal-only session behaves bit-for-bit as it
-  // always did.
+  // A SESSION THAT HAS NEVER HAD A CHAT TURN IS UNTOUCHED — no tags written, no filter applied — so a terminal-only session behaves bit-for-bit as it…
   if (!msgs.some((m) => m && m.thread === VIEW.CHAT) && current(session) === VIEW.CODING) return msgs;
   settle(session);
   const want = current(session);
@@ -171,31 +127,17 @@ function wireMessages(session) {
 
 // -------------------------------------------------------------- models --
 
-/**
- * THE CONFIG A TURN RUNS WITH — the process config, with this view's model.
- *
- * The process config is shared by every live session (sessionpool.js), so a
- * per-view model can never be written into it; it is overlaid here, per turn,
- * on a copy. Chat on LAIN's runtime uses the runtime selection the Chat source
- * picker stored; Coding uses its own. Neither changes the other.
- */
+/** THE CONFIG A TURN RUNS WITH — the process config, with this view's model. */
 function turnCfg(app, session) {
   const cfg = { ...app.cfg, _evidence: app.connectionEvidence };
   const s = session || app.session;
   // THE EXECUTION PROFILE rides the turn config: the context budget reads it (profile.js).
   cfg.executionProfile = require('./profile').of(s, app.cfg);
   if (!s) return cfg;
-  // THE BOT'S TURN IN THE IDE runs on the BOT's model — the same runtime pick
-  // the Chat view uses — so a question never spends the Coding model. When the
-  // BOT is a website account, `_botOwnModel` is false and the Coding model
-  // answers read-only instead (harnessapp/botroute.js).
-  // PROJECT DEFAULTS AND THE SESSION'S REASONING (sessionintel.js), under the view's own pick.
+  // THE BOT'S TURN IN THE IDE runs on the BOT's model — the same runtime pick the Chat view uses — so a question never spends the Coding model.
   const intel = require('./sessionintel');
   intel.overlay(app, s, cfg);
-  // ACCOUNT FIRST (Phase 8.2): the lane's account and model, resolved to the
-  // EXACT route that account offers the model on — never the first route a
-  // model name happens to reach. A lane that cannot name its account sends
-  // nothing and says why (provider.resolve reads `_refusal`).
+  // ACCOUNT FIRST (Phase 8.2): the lane's account and model, resolved to the EXACT route that account offers the model on — never the first route a model…
   const which = current(s) === VIEW.CHAT || (s._botTurn && s._botOwnModel) ? 'chat' : 'coding';
   const rc = intel.routeCfg(app, s, which);
   if (rc.ok) {
@@ -211,13 +153,7 @@ function turnCfg(app, session) {
 
 // ------------------------------------------------------------ projects --
 
-/**
- * DIRECTORIES THAT ARE LAIN, NOT A PROJECT.
- *
- * A session inheriting one of these as its cwd — because LAIN Harness.exe was started
- * from its install folder — is a session with NO project, and Project Files
- * must say so rather than offering LAIN's own tree as "the source".
- */
+/** DIRECTORIES THAT ARE LAIN, NOT A PROJECT. */
 function lainOwnDirs() {
   const out = [path.join(__dirname, '..'), os.homedir()];
   try { out.push(require('./config').configDir()); } catch { /* none */ }
@@ -232,12 +168,7 @@ function unattachedDir() {
   return dir;
 }
 
-/**
- * IS A PROJECT ATTACHED?
- *
- * Explicit wins. A session from before views existed is attached when its cwd
- * is a directory that is not LAIN's own and not the placeholder.
- */
+/** IS A PROJECT ATTACHED? */
 function project(session) {
   const v = views(session);
   const root = session.cwd || '';
@@ -291,10 +222,7 @@ function unpin(session, rel) {
   return { ok: true, removed: before - v.pins.length, pins: v.pins };
 }
 
-/**
- * THE PINNED EXCERPTS, bounded — what "emphasized" means on the wire.
- * Read at prompt time from disk, so an edit since pinning is what is sent.
- */
+/** THE PINNED EXCERPTS, bounded — what "emphasized" means on the wire. */
 function pinnedContext(session) {
   const v = views(session);
   if (!v.pins.length || !session.cwd) return '';
@@ -316,10 +244,7 @@ function pinnedContext(session) {
 
 // --------------------------------------------------------------- panel --
 
-/**
- * OPEN, CLOSE OR TOGGLE THE WORKSPACE PANEL. Pure state: nothing is launched,
- * navigated or stopped because a panel changed.
- */
+/** OPEN, CLOSE OR TOGGLE THE WORKSPACE PANEL. */
 function panel(session, { action = 'toggle', panel: which = null, width = null, file } = {}) {
   const v = views(session);
   const want = which && PANEL[which] ? which : null;

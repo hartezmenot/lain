@@ -1,37 +1,6 @@
 'use strict';
 
-/**
- * WHAT ACTUALLY HAPPENED TO AN EXTERNAL REQUEST.
- *
- * THE PROBLEM THIS EXISTS TO END. The relay had one notion of external state —
- * did the whole run stop, and why — and no notion at all of what happened to an
- * individual call. So "external" was a single boolean-ish mood, and the two
- * questions that matter could not be asked separately:
- *
- *     Did the provider actually receive it?
- *     Was its answer actually used?
- *
- * A call that was dispatched and timed out, a call that came back and was
- * discarded, and a call that was never made at all are three completely
- * different events. Reported as "external didn't work" they are
- * indistinguishable, and the fix for each is different.
- *
- * ------------------------------------------------------------------------
- * THE RULE THIS FILE ENFORCES: RESPONDED REQUIRES A RESPONSE.
- *
- * An adapter returning an object is not an answer. The transition into
- * RESPONDED is refused unless there is actual text, so "the call completed" can
- * never be manufactured by a well-formed empty result — which is exactly how a
- * broken external path comes to look like a working one.
- *
- * Every terminal state is reached deliberately and carries its reason. There is
- * no default success.
- * ------------------------------------------------------------------------
- *
- * ONE RECORD PER CALL, keyed by its own id, so two providers running at once
- * cannot overwrite each other's status — the thing a shared `last` variable
- * does silently.
- */
+/** WHAT ACTUALLY HAPPENED TO AN EXTERNAL REQUEST. */
 
 /** The lifecycle. Every one of these is a distinguishable, reportable event. */
 const STATE = Object.freeze({
@@ -70,13 +39,7 @@ const ANSWERED = new Set([
 
 let _seq = 0;
 
-/**
- * One external call, from request to outcome.
- *
- * Timestamps are recorded at every transition rather than at the end, because
- * "it was dispatched at 12:04 and nothing came back" is the report that
- * distinguishes a slow provider from one that never received anything.
- */
+/** One external call, from request to outcome. */
 class ExternalCall {
   constructor({ provider, kind = null, prompt = '', now = () => Date.now() }) {
     _seq += 1;
@@ -112,14 +75,7 @@ class ExternalCall {
     return this._to(STATE.EXTERNAL_DISPATCHED, { how, attachments: this.attachments.length });
   }
 
-  /**
-   * A real answer arrived.
-   *
-   * REFUSED WITHOUT TEXT. This is the guard the whole file exists for: an
-   * adapter that returns `{ ok: true }` with nothing in it must not be able to
-   * produce a RESPONDED state. An empty answer is a failure of the capture, and
-   * is recorded as one.
-   */
+  /** A real answer arrived. */
   respond(text) {
     const s = String(text == null ? '' : text).trim();
     if (!s) {
@@ -177,13 +133,7 @@ class ExternalCall {
   }
 }
 
-/**
- * Every external call in a session, kept apart.
- *
- * Held on the session, never at module scope — the same rule the attempt and
- * finding ledgers follow, for the same reason: two sessions in one process must
- * not share state.
- */
+/** Every external call in a session, kept apart. */
 class ExternalLedger {
   constructor() { this.calls = []; }
 
@@ -197,13 +147,7 @@ class ExternalLedger {
   answered() { return this.calls.filter((c) => c.answered); }
   failed() { return this.calls.filter((c) => c.failed); }
 
-  /**
-   * The state of the WHOLE external attempt, from the calls that make it up.
-   *
-   * Deliberately conservative: it reports success only when something was
-   * actually used. Everything answering and nothing being taken is a real and
-   * different outcome, and it is reported as itself.
-   */
+  /** The state of the WHOLE external attempt, from the calls that make it up. */
   overall() {
     if (!this.calls.length) return STATE.NOT_REQUESTED;
     if (this.calls.some((c) => c.state === STATE.EXTERNAL_RESULT_USED)) return STATE.EXTERNAL_RESULT_USED;
@@ -218,22 +162,7 @@ class ExternalLedger {
   /** The audit trail, one line per call. */
   lines() { return this.calls.map((c) => c.summary()); }
 
-  /**
-   * WHAT SURVIVES THE SESSION FILE — and deliberately not the packet.
-   *
-   * THE GAP THIS CLOSES. The ledger is the only record that something left this
-   * machine: who it went to, when, and whether it came back. It lived on
-   * `session.external` as a class instance, and `Session.toJSON` is an
-   * allowlist, so it was dropped on every save. A resumed session could not say
-   * that anything had ever been sent anywhere.
-   *
-   * THE PROMPT IS NOT KEPT. It is the packet — the project path, the changed
-   * files, the last command, the user's own words — and writing a second copy
-   * of it into the session file would put more of that on disk than the run
-   * itself needs. What matters for an audit is that a call happened, to whom,
-   * and how it ended. The advice that came back is already in `session.messages`
-   * inside the brief, where the model saw it.
-   */
+  /** WHAT SURVIVES THE SESSION FILE — and deliberately not the packet. */
   toJSON() {
     return this.calls.map((c) => ({
       id: c.id,
@@ -251,12 +180,7 @@ class ExternalLedger {
     }));
   }
 
-  /**
-   * Rebuild a ledger from what was saved. The restored calls are RECORDS rather
-   * than live calls — a call whose transitions already happened cannot be
-   * transitioned again, and pretending otherwise would let a resumed session
-   * dispatch something that was dispatched an hour ago.
-   */
+  /** Rebuild a ledger from what was saved. */
   static from(data) {
     const led = new ExternalLedger();
     if (!Array.isArray(data)) return led;

@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * CORE ASSIGNS; CAPABILITIES DO NOT VOLUNTEER (2026-09-24).
- *
- * ------------------------------------------------------------------------
- * THE DEFECT. Specialist capabilities appeared because they existed:
- * `migration_plan` was on every request and its trigger fired on "move the
- * button to the right", Laya ranked files nobody asked it to, a geometry
- * specialist (Violetto, retired 2026-09-24) was handed work outside geometry,
- * and the flagship was shown machinery it did not need to understand.
- *
- * THE RULE. Once per input, Core classifies the request deterministically and
- * decides which owner may take part — normal tools, the migration planner,
- * a Laya role, the flagship. A capability never decides it is relevant; a
- * specialist receives a bounded job from here, returns one result to Core, and
- * cannot summon another specialist (workers.js has no code path that could).
- *
- *     installed ≠ needed · available ≠ invoke · warm ≠ participate
- *     complex ≠ migration · UI task ≠ a worker · project task ≠ Laya
- *
- * This is the whole of it: an assignment on the session, read by the tool
- * vocabulary (tools/index.js), the prompt (prompt.js) and the Core hooks
- * (geometryjob.js, gugedit.js, layacontext.js, layaevidence.js), plus a
- * telemetry row per input. It is not an orchestrator and it plans nothing.
- * ------------------------------------------------------------------------
- */
+/** CORE ASSIGNS; CAPABILITIES DO NOT VOLUNTEER (2026-09-24). */
 
 const intent = require('./migrationintent');
 const tech = require('./tech');
@@ -90,15 +66,7 @@ function result(eligible, trigger, fields = {}) {
     boundary: fields.boundary || '', compatibility: Boolean(fields.compatibility), why: fields.why || '' };
 }
 
-/**
- * DOES THIS REQUEST DESCRIBE A REAL OLD STATE → NEW STATE TRANSITION?
- *
- * Eligible only when Core can name the current representation (or the user
- * named the migration outright and the tree will say what it is), the target
- * representation, and the boundary. A multi-step, multi-file or complicated
- * request is not one; neither is a value change ("the padding to 8px", "the
- * button to the right", "the theme to dark") however it is phrased.
- */
+/** DOES THIS REQUEST DESCRIBE A REAL OLD STATE → NEW STATE TRANSITION? */
 function migrationTransition(text) {
   const s = String(text || '').replace(/\s+/g, ' ').trim();
   if (!s || !TRANSITION_VERB.test(s)) return result(false, 'none', { why: 'no transition verb' });
@@ -149,10 +117,7 @@ function migrationTransition(text) {
 
 // ---- THE ASSIGNMENT --------------------------------------------------------
 
-/**
- * WHAT KIND OF WORK THIS IS, FOR DISPATCH. Deterministic and cheap; mode.js's
- * verdict is an input, never re-derived.
- */
+/** WHAT KIND OF WORK THIS IS, FOR DISPATCH. */
 /** "this", "that one", "the one here", "this dropdown": the words point, and the Harness knows at what. */
 const DEICTIC = /\b(?:this|that|these|those|it|here|the one (?:here|there|i (?:selected|clicked|picked)))\b/i;
 
@@ -183,10 +148,7 @@ function migrationInFlight(cwd) {
 
 const LEDGER_MAX = 100;
 
-/**
- * ONE ASSIGNMENT PER INPUT (identify.js). Kept on the session for the tool
- * vocabulary and the hooks to read, and appended to `dispatchLedger`.
- */
+/** ONE ASSIGNMENT PER INPUT (identify.js). */
 function assign(app, text, { mode = null } = {}) {
   const session = app && app.session;
   const migration = migrationTransition(text);
@@ -217,19 +179,13 @@ function assign(app, text, { mode = null } = {}) {
     const l = session.dispatchLedger = Array.isArray(session.dispatchLedger) ? session.dispatchLedger : [];
     l.push(d);
     if (l.length > LEDGER_MAX) l.splice(0, l.length - LEDGER_MAX);
-    // THE ROLES THIS ASSIGNMENT NAMES may prepare context IN THE BACKGROUND
-    // (layacontext.js): enqueued, never awaited — optional worker delay never
-    // becomes user delay.
+    // THE ROLES THIS ASSIGNMENT NAMES may prepare context IN THE BACKGROUND (layacontext.js): enqueued, never awaited — optional worker delay never becomes…
     try { require('./layacontext').enqueue(app, session, { type: 'input', text }); } catch { /* background only */ }
   }
   return d;
 }
 
-/**
- * The owners Core allows for a class, cheapest first. A Laya role named here
- * may be DISPATCHED (in its mode: SHADOW records, AUTO/FORCE consume after
- * Core validates); it is never the one that decides it is relevant.
- */
+/** The owners Core allows for a class, cheapest first. */
 function owners(cls, migration, geometry, referent = null) {
   switch (cls) {
     case 'MIGRATION': return ['deterministic', 'migration_planner', 'flagship'];
@@ -263,11 +219,7 @@ function job(session, row) {
   return r;
 }
 
-/**
- * SETTLE THE ASSIGNMENT when the turn closes (turnclose.js), from the turn's
- * own record: was migration_plan invoked, did it answer, and was its output
- * acted on — verified, activated, or code changed after it.
- */
+/** SETTLE THE ASSIGNMENT when the turn closes (turnclose.js), from the turn's own record: was migration_plan invoked, did it answer, and was its output… */
 function settle(session, record) {
   const d = session && session.dispatch;
   if (!d || !d.migration || !record) return null;
@@ -303,24 +255,7 @@ function summary(session) {
   return out;
 }
 
-/**
- * WHO TAKES THIS REQUEST — the conversation (BOT / Chat), the Coding Agent, or
- * "ask first" — decided ONCE, in Core, from mode.js's verdict (its mode AND its
- * intent signals) and what the surface supplies. The surface supplies FACTS
- * and PREFERENCES only:
- *
- *   surface        'ide' | 'chat'
- *   pane           the IDE sub-tab the words were typed in ('bot' | 'agent')
- *   preferred      the person's chosen route ('bot' | 'agent' | null)
- *   explicitAgent  the person asked for the Agent by name (a button)
- *
- * and never its own opinion of what the words mean (2026-09-25: the Harness
- * had grown a second classifier, and the two disagreed about "plan how to fix
- * X"). The verdict is kept on the session so identify.js consumes it for the
- * same input instead of classifying twice.
- *
- * Returns { executor: 'conversation' | 'agent' | 'propose', reason, verdict }.
- */
+/** WHO TAKES THIS REQUEST — the conversation (BOT / Chat), the Coding Agent, or "ask first" — decided ONCE, in Core, from mode.js's verdict */
 function route(app, text, { surface = 'ide', pane = null, preferred = null, explicitAgent = false } = {}) {
   const session = app && app.session;
   const done = (executor, reason, verdict = null) => ({ executor, reason, verdict });

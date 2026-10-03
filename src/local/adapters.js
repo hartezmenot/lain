@@ -1,13 +1,6 @@
 'use strict';
 
-/**
- * THE TWO LOCAL RUNTIMES in the runtime-adapter contract (runtimeadapters.js):
- * llama.cpp (LAIN starts and owns llama-server) and Ollama (a service the
- * person runs; LAIN only talks to it).
- *
- * A local model has NO PROVIDER QUOTA. Its measurements are runtime health,
- * tokens, speed, latency, memory and context — never a "% remaining".
- */
+/** THE TWO LOCAL RUNTIMES in the runtime-adapter contract (runtimeadapters.js): llama.cpp (LAIN starts and owns llama-server) and Ollama */
 
 const path = require('path');
 const llamacpp = require('./llamacpp');

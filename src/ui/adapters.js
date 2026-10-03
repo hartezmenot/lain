@@ -1,21 +1,6 @@
 'use strict';
 
-/**
- * THE PANEL ADAPTERS — DATA, never drawing code.
- *
- * Split out of ui/panel.js, which had grown past the god-object guard. The seam
- * is the one that file's own header already draws: the panel is a pure state
- * machine over `{ items, cursor, scroll }`, and an adapter is a description of
- * WHAT TO OFFER. They change for entirely different reasons — a new picker is a
- * change here and nowhere else; a change to how selection works is a change
- * there and nowhere else.
- *
- * Every function here reads state that already exists and returns a plain
- * object. Nothing here draws, and nothing here does I/O, which is what keeps
- * every picker in the program testable without a terminal.
- *
- * panel.js re-exports all of these, so no caller had to move with them.
- */
+/** THE PANEL ADAPTERS — DATA, never drawing code. */
 
 const { KIND, MODE, pad, clip } = require('./panel');
 
@@ -23,10 +8,7 @@ const { KIND, MODE, pad, clip } = require('./panel');
 // Adapters are DATA. They read existing application state and never draw.
 
 /** `/effort` — one owner; `auto` clears the pin. */
-/**
- * THE MODEL'S OWN LEVELS, and nothing else (Phase 8.3): a model that offers High and XHigh
- * shows exactly those — no generic list, no invented 'auto'. A model with none has no panel.
- */
+/** THE MODEL'S OWN LEVELS, and nothing else (Phase 8.3): a model that offers High and XHigh shows exactly those — no generic list, no invented 'auto'. */
 function effortAdapter({ available = [], current = null }) {
   const caps = require('../fabric/effortcaps');
   const levels = caps.order(available);
@@ -44,10 +26,7 @@ function effortAdapter({ available = [], current = null }) {
 
 /** `/models` — MODEL-CENTRIC. One row per identity; routes on drill-down. */
 function modelsAdapter({ catalog, current = null, currentConnection = null, onPickRoute = null, readinessOf = null, availabilityOf = null, availabilityRaw = null, filter = '', isNew = null, externalSources = [], sourceIssues = [] }) {
-  // ---- FILTERS: All · Free · Paid · Local · External (§55) --------------
-  // Typed as `free:` `paid:` `local:` `external:` in the search. External lists
-  // the website SOURCES as secondary rows — sources are never flattened into
-  // the model list.
+  // FILTERS: All · Free · Paid · Local · External (§55) Typed as `free:` `paid:` `local:` `external:` in the search.
   const fm = /(?:^|\s)(free|paid|local|external):(?=\s|$)/i.exec(String(filter || ''));
   const kind = fm ? fm[1].toLowerCase() : null;
   if (kind === 'external') {
@@ -59,18 +38,13 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
       onSelect(item) { return item && item.source ? { close: { source: item.source } } : undefined; },
     };
   }
-  // THE SAME SEARCH THE COMMAND USES. This used to be a second, stricter
-  // filter — `includes()` on one contiguous string — so `/models qwen free`
-  // found a model and typing `qwen free` into the picker found nothing. One
-  // implementation, one answer.
+  // THE SAME SEARCH THE COMMAND USES.
   const q = String(filter || '').replace(/(?:^|\s)(free|paid|local|external):(?=\s|$)/ig, ' ').trim();
   const searched = q ? require('../catalog').search(catalog, q, 400) : catalog.models;
   const wants = (m) => !kind || m.connections.some((c) => (kind === 'local' ? c.local : c.tier === kind));
   const models = searched.filter(wants);
   const items = models.map((m) => {
-    // WHAT HELPS SOMEONE CHOOSE, and nothing else. A route count is only worth
-    // a person's attention when there is actually a choice in it; effort levels
-    // likewise. One provider name is orientation, not diagnostics.
+    // WHAT HELPS SOMEONE CHOOSE, and nothing else.
     const routes = m.connections.length;
     const efforts = (m.connections[0] && m.connections[0].efforts) || [];
     const idShown = String(m.displayName || '').toLowerCase() !== String(m.id).toLowerCase() ? m.id : null;
@@ -81,9 +55,7 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
     // The mark goes in FRONT of the name, where a person looks for it, not in a
     // column after it.
     const mark = m.id === current ? '● ' : '  ';
-    // NEW, for the models the LAST refresh actually brought in. It leads the
-    // name because that is the thing you are scanning a thousand rows for; it is
-    // never claimed for a model that was already known (see newmodels.js).
+    // NEW, for the models the LAST refresh actually brought in.
     const fresh = isNew && isNew.has && isNew.has(m.id) ? 'NEW ' : '    ';
     return {
       label: `${mark}${fresh}${pad(clip(m.displayName, 40), 42)}${meta}`,
@@ -93,9 +65,7 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
   });
   if (!items.length) items.push({ label: `no model matches "${filter}"`, selectable: false });
   const at = models.findIndex((m) => m.id === current);
-  // THE CURRENT MODEL NEVER SILENTLY DISAPPEARS. Filtering can hide the row
-  // carrying the ● mark, and then the picker shows no current state at all —
-  // so the title carries it when the list cannot.
+  // THE CURRENT MODEL NEVER SILENTLY DISAPPEARS.
   const currentModel = current && catalog.models.find((m) => m.id === current);
   const currentShown = at >= 0;
   // A SOURCE THAT CANNOT LIST ITS MODELS IS SAID HERE, restrained, as its state
@@ -113,20 +83,7 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
     items,
     cursor: at > 0 ? at : 0,
     footer: '↑↓ select · Enter use · → routes · filter: free: paid: local: external: · Esc cancel',
-    /**
-     * ENTER MEANS "USE THIS MODEL".
-     *
-     * It used to mean "show me this model's routes", which is a different
-     * question and one almost nobody was asking: measured on the live catalog,
-     * 882 of 975 models have exactly ONE route. Picking one of those cost three
-     * Enters — model, route, "use this route" — through two screens that
-     * offered no choice at all. That is the whole of "Enter doesn't select the
-     * model": Enter did something, just never the thing it was pressed for.
-     *
-     * So Enter commits as soon as there is nothing left to decide, and only
-     * drills in when there genuinely is. `→` still opens the routes for a model
-     * with one route, for anyone who wants to look before committing.
-     */
+    /** ENTER MEANS "USE THIS MODEL". */
     onSelect(item, { key } = {}) {
       const m = item.model;
       if (!m) return undefined;
@@ -136,9 +93,7 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
         return { push: modelRoutesAdapter({ model: m, onPickRoute, readinessOf, availabilityOf, availabilityRaw, currentConnection }) };
       }
       const c = routes[0];
-      // NEVER SHOW A SCREEN THAT HAS ONE ANSWER ON IT. One route with SEVERAL
-      // effort levels is a real decision and gets asked; one route with one
-      // level, or none, is not, and is resolved here.
+      // NEVER SHOW A SCREEN THAT HAS ONE ANSWER ON IT.
       if (c.efforts.length > 1) {
         return { push: routeDetailAdapter({ model: m, connection: c, onPickRoute, readinessOf, availabilityOf }) };
       }
@@ -149,33 +104,8 @@ function modelsAdapter({ catalog, current = null, currentConnection = null, onPi
   };
 }
 
-/**
- * MODEL → PROVIDER / CONNECTION.
- *
- * Level two of three. Each route is ONE row plus its effort summary, so a model
- * served twenty ways is twenty pairs of lines rather than a hundred and sixty.
- * The previous version printed eight labelled fields per route inline, which
- * turned "which route should I use?" into a scroll through a data dump.
- *
- * The detail is not lost — it moves to level three, where it is being asked for.
- */
-/**
- * CAN I CALL THIS ROUTE RIGHT NOW — as a colour and a sentence.
- *
- * THE COLOUR MEANS WHAT YOU CAN DO ABOUT IT, which is the only distinction that
- * helps while you are choosing:
- *
- *   GREEN   callable. Go.
- *   YELLOW  temporary — rate limited, too many calls, try again later. It will
- *           clear ON ITS OWN, and the countdown says when, so waiting is a real
- *           option rather than a guess.
- *   RED     it will NOT clear on its own. A missing credential, a refused key,
- *           a route that is down. Something has to be done.
- *   DIM     nobody has called it yet, so nothing is known. Not a claim.
- *
- * The distinction that matters most is yellow against red: both are "it did not
- * work", and only one of them is worth waiting for.
- */
+/** MODEL → PROVIDER / CONNECTION. */
+/** CAN I CALL THIS ROUTE RIGHT NOW — as a colour and a sentence. */
 function routeHealth(c, { readinessOf, availabilityOf, availabilityRaw } = {}) {
   const avail = availabilityOf ? String(availabilityOf(c) || '') : '';
   const ready = readinessOf ? String(readinessOf(c) || '') : '';
@@ -210,9 +140,7 @@ function modelRoutesAdapter({ model, onPickRoute = null, readinessOf = null, ava
     const name = [c.provider, c.route && c.route !== c.provider ? c.route : null].filter(Boolean).join(' · ');
     const health = routeHealth(c, { readinessOf, availabilityOf, availabilityRaw });
     items.push({
-      // WHICH ROUTE, AND WHETHER IT WILL ANSWER, on the row you choose from —
-      // rather than one level deeper, which is where it used to be. Choosing a
-      // model is exactly the moment "can I actually call this" matters.
+      // WHICH ROUTE, AND WHETHER IT WILL ANSWER, on the row you choose from — rather than one level deeper, which is where it used to be.
       label: `${here ? '● ' : '  '}${(name || c.connectionId).padEnd(28)}${health.text}`,
       tone: health.tone,
       value: c, connection: c,
@@ -237,17 +165,7 @@ function modelRoutesAdapter({ model, onPickRoute = null, readinessOf = null, ava
   };
 }
 
-/**
- * MODEL → ROUTE → EFFORT. Level three.
- *
- * Identity, provider, connection, credential, readiness, availability and
- * effort stay SEPARATE fields — never flattened into one string, because
- * "the server is down", "you are not logged in" and "you disabled it" are
- * different problems with different fixes.
- *
- * Choosing an effort here selects the route AND the level in one act, which is
- * the thing the user actually came to do.
- */
+/** MODEL → ROUTE → EFFORT. */
 function routeDetailAdapter({ model, connection, onPickRoute = null, readinessOf = null, availabilityOf = null }) {
   const c = connection;
   const items = [
@@ -299,14 +217,7 @@ function providerAdapter({ connections = [], availabilityOf = () => 'UNKNOWN' })
   return { title: 'PROVIDERS', kind: KIND.PROVIDER_SELECTION, mode: MODE.EXPANDED, items, footer: '↑↓ select · Enter select · Esc close' };
 }
 
-/**
- * `/config` — reads the EXISTING config store; there is no second one.
- *
- * Enter EDITS. It used to say so in the footer and then merely close, which is
- * the worst kind of UI promise. Each row declares how it is edited, and the
- * editors are the same adapters the matching commands already use — choosing a
- * model here and choosing one from `/models` run the identical code.
- */
+/** `/config` — reads the EXISTING config store; there is no second one. */
 function configAdapter({ cfg, keys = null, editors = {} }) {
   const shown = keys || ['model', 'connection', 'effort', 'maxSteps', 'stream'];
   return {
@@ -337,53 +248,21 @@ function fmt(v) {
   return String(v);
 }
 
-/**
- * `ask_user` / MCQ — choices rendered deterministically from the tool input.
- *
- * THE QUESTION IS ONE ITEM PER LINE. It used to be a single item, which the
- * panel clips to one row — so a multi-line question showed its first sentence
- * and an ellipsis. That is merely unhelpful for an ordinary question and
- * genuinely unsafe for the desktop permission request, where the lines being
- * eaten were the LIST OF CAPABILITIES: the user was being asked to grant
- * control of their machine without being shown what they were granting.
- */
+/** `ask_user` / MCQ — choices rendered deterministically from the tool input. */
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /** How much of an option is a CHOICE, and how much is its explanation. */
 function splitOption(text) {
-  // WHAT A ROW SAYS is ui/answer.js's question, not this one. An option that
-  // arrived as an object — `{ label, description }`, which models send freely
-  // whatever the schema asks for — is normalised there into `label — why`,
-  // which is precisely the shape the split below then takes apart. Coercing
-  // with `String()` here instead is what put `[object Object]` on every row.
+  // WHAT A ROW SAYS is ui/answer.js's question, not this one.
   const s = require('./answer').optionText(text).replace(/\s+/g, ' ').trim();
-  // A model writes `Left panel — keeps the toolbar clear, but hides it on
-  // mobile`: the part before the dash is the choice, the rest is why. Splitting
-  // on it is what lets the compact list stay one row per option while the
-  // reasoning survives intact one level down.
+  // A model writes `Left panel — keeps the toolbar clear, but hides it on mobile`: the part before the dash is the choice, the rest is why.
   const m = /^(.{1,60}?)\s+[—–-]\s+(.+)$/.exec(s);
   if (m) return { choice: m[1].trim(), why: m[2].trim() };
   if (s.length <= 60) return { choice: s, why: '' };
   return { choice: s.slice(0, 57).trimEnd() + '…', why: s };
 }
 
-/**
- * `ask_user` — TWO LEVELS, because a question and its reasoning are different
- * sizes.
- *
- * The panel clips every row to one line, so a model that explained its options
- * — which is exactly what a good question does — produced a list of truncated
- * sentences with the reasoning cut off mid-word. Worse, the one key a person
- * presses when they want to know more (Escape) CANCELLED the question.
- *
- * So: the choices stay compact and lettered, one row each, and Escape opens the
- * explanations rather than throwing the question away. Escape again returns to
- * the choices, with the highlighted option preserved (see panel.push/back).
- *
- * The answer still comes back through the ONE `ask()` promise and, for free
- * text, the ONE `pendingAsk` slot. This is a second SCREEN, never a second
- * ask_user system.
- */
+/** `ask_user` — TWO LEVELS, because a question and its reasoning are different sizes. */
 
 function confirmAdapter({ question, yes = 'Yes', no = 'No' }) {
   return {
@@ -400,26 +279,8 @@ function confirmAdapter({ question, yes = 'Yes', no = 'No' }) {
   };
 }
 
-/**
- * `/` — the command palette.
- *
- * The list comes from the command REGISTRY the dispatcher itself uses, passed in
- * by the caller. There is no second command list to drift out of date: a command
- * that is not registered cannot appear here, and one that is registered cannot
- * be missing. `/effort` appears exactly once because it is defined exactly once.
- */
-/**
- * A `token  description` row, columns aligned — and a real gap even when the
- * token overruns the column.
- *
- * `padEnd` alone leaves NO gap once the left side reaches the column width, so
- * `/mcp [status|connect|revoke|disconnect]` ran directly into its own
- * description with not even a space between them. That is not just a spacing
- * defect: ui/panel.js `accentRow` finds the boundary between the command and
- * its explanation by looking for the two-space gap the row is built with, so
- * a row with none drew as one uncoloured sentence instead of an accented
- * token beside a dim description — the one row that most needed the gap.
- */
+/** `/` — the command palette. */
+/** A `token description` row, columns aligned — and a real gap even when the token overruns the column. */
 function twoCol(left, desc, col) {
   const l = String(left == null ? '' : left);
   const gap = l.length + 2 <= col ? col - l.length : 2;
@@ -429,17 +290,7 @@ function twoCol(left, desc, col) {
 function commandPaletteAdapter({ commands = [], filter = '' }) {
   const f = String(filter || '').toLowerCase();
   const matches = commands.filter((c) => c.name.startsWith(f));
-  // ---- WHAT YOU TYPED IN FULL IS WHAT YOU MEANT --------------------------
-  //
-  // THE DEFECT THIS FIXES: `/session` and `/sessions` both start with
-  // `/session`, and the palette listed them in registry order — so typing the
-  // whole of `/session` and pressing Enter ran `/sessions`, a different command
-  // about a different subject. The user had typed a complete, unambiguous name
-  // and been given something else.
-  //
-  // A COMPLETE NAME OUTRANKS A LONGER ONE. Everything else keeps the order it
-  // had, so this changes nothing for any other prefix: `/mod` still offers
-  // `/model` and `/models` exactly as before.
+  // WHAT YOU TYPED IN FULL IS WHAT YOU MEANT
   matches.sort((a, b) => Number(b.name === f) - Number(a.name === f));
   const items = matches.map((c) => ({
     label: twoCol(c.name + (c.args ? ' ' + c.args : ''), c.desc || '', 30),
@@ -456,13 +307,7 @@ function commandPaletteAdapter({ commands = [], filter = '' }) {
   };
 }
 
-/**
- * `@` — project-relative path completion.
- *
- * Entries are supplied already listed and bounded by the caller; this only
- * arranges them. Choosing a directory re-lists one level deeper, so a path is
- * walked a segment at a time and nothing is ever read into the prompt.
- */
+/** `@` — project-relative path completion. */
 function fileCompletionAdapter({ entries = [], filter = '' }) {
   const items = entries.map((e) => ({
     label: e.isDir ? e.path : '  ' + e.path,
@@ -479,24 +324,7 @@ function fileCompletionAdapter({ entries = [], filter = '' }) {
   };
 }
 
-// ------------------------------------------------------------------------
 // `changedFilesAdapter` AND `planStepsAdapter` STOOD HERE, and both are gone.
-//
-// They were the two pickers the WORKSPACE opened on an empty Enter: "which
-// changed file to show in the DIFF pane" and "which plan step to expand". The
-// argument for them was a good one and is worth keeping — the workspace stayed
-// a read-only rendering of state, and SELECTION went through the one panel, so
-// no pane needed a cursor of its own or a second key-handling path.
-//
-// There are no panes. `/changes` prints every changed file's diff in full (a
-// diff view whose default state contains no diff is a table of contents), and
-// `/plan` prints every step with the note and files behind it (see views.js
-// `planView` and its `detail` flag). Neither needs to be asked WHICH, because
-// neither is showing one at a time.
-//
-// The panel is untouched and still has exactly one selection path; it simply
-// has two fewer things to be asked about.
-// ------------------------------------------------------------------------
 
 function helpAdapter({ commands = [] }) {
   return {
@@ -508,37 +336,15 @@ function helpAdapter({ commands = [] }) {
 }
 
 
-/**
- * WHAT A COMMAND SAID — `/status`, `/dash`, `/effort`, a compaction notice.
- *
- * THE PANEL IS THE PLACE, and the first attempt at this got it wrong. Command
- * output was polluting Context, so it was moved out — into a NEW region drawn
- * just above the input. That fixed the pollution and introduced a second window
- * in the same corner of the screen: `/` opens the command palette here, `/model`
- * opens the model list here, and `/status` opened something else that looked
- * almost, but not quite, like them and overlapped the same band.
- *
- * ONE SURFACE ANSWERS "LAIN IS SHOWING YOU SOMETHING". This is that surface, and
- * the output of a command is no more special than the list of commands.
- *
- * NOTHING IS SELECTABLE. Every row is text, so no row takes the cursor and Enter
- * has nothing to commit. `Esc close` is the whole contract — the same Esc that
- * closes the palette and the model list, which is the point.
- */
+/** WHAT A COMMAND SAID — `/status`, `/dash`, `/effort`, a compaction notice. */
 function outputAdapter({ title = '', lines = [] }) {
   return {
     title: String(title || '').trim().toUpperCase(),
     mode: MODE.EXPANDED,
     kind: KIND.OUTPUT,
-    // WRAPPED, NOT CLIPPED. These rows are sentences and paths, not choices, so
-    // a long one continues on the next line instead of being cut. Clipping took
-    // "Chat history exceeds the 800-message limit" and left
-    // "…exceeds the 800-mes…" — it announced that a limit had been reached and
-    // then removed the number, which is the one fact in the sentence.
+    // WRAPPED, NOT CLIPPED.
     wrap: true,
-    // Blank rows are dropped: a command that opens with `\n` to separate itself
-    // from a prompt is padding for a scrolling terminal, and this is a box with
-    // a title bar that already does that job.
+    // Blank rows are dropped: a command that opens with `\n` to separate itself from a prompt is padding for a scrolling terminal, and this is a box with a…
     items: lines
       .map((l) => String(l == null ? '' : l).replace(/\s+$/, ''))
       .filter((l) => l.trim())
@@ -550,8 +356,5 @@ function outputAdapter({ title = '', lines = [] }) {
 module.exports = { routeHealth, effortAdapter, modelsAdapter, modelRoutesAdapter, routeDetailAdapter, providerAdapter, configAdapter, fmt, LETTERS, splitOption, confirmAdapter, commandPaletteAdapter, fileCompletionAdapter, helpAdapter, outputAdapter };
 
 
-// THE QUESTION FRAMES LIVE IN ui/askframes.js — see its header for why. Required
-// HERE, at the bottom, so this file's own exports (splitOption) already exist
-// when that one destructures them. Re-exported so every existing caller keeps
-// its single import.
+// THE QUESTION FRAMES LIVE IN ui/askframes.js — see its header for why.
 Object.assign(module.exports, require('./askframes'));

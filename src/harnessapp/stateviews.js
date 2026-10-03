@@ -1,12 +1,6 @@
 'use strict';
 
-/**
- * THE ENGINEERING SESSION'S HALF OF /api/state — cheap, polled, opens nothing.
- *
- * Reshapes what sessionstatus, sessionviews, planhandoff, modelinventory and
- * the Workshop's dev-server records already hold. Decides nothing, launches
- * nothing, contacts nothing. See state.js for the rules this shares.
- */
+/** THE ENGINEERING SESSION'S HALF OF /api/state — cheap, polled, opens nothing. */
 
 /** The session header: title, project path, status, clock, what can be done. */
 function header(app, S = null) {
@@ -66,12 +60,7 @@ function panels(app, S) {
   };
 }
 
-/**
- * WHAT EACH ROLE'S ACCOUNT HAS USED — in-memory readings only, so it is cheap
- * enough to poll. The percentage is whatever the provider's own headers said
- * on the last response through that route (usagewindows.js); a route that has
- * said nothing is `reading: null`, and the window shows "not reported".
- */
+/** WHAT EACH ROLE'S ACCOUNT HAS USED — in-memory readings only, so it is cheap enough to poll. */
 function usage(app) {
   const uw = require('../usagewindows');
   const inv = require('../modelinventory');

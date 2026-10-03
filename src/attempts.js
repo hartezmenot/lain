@@ -1,46 +1,12 @@
 'use strict';
 
-/**
- * THE ATTEMPT LEDGER — what this command has already done, here, today.
- *
- * A model cannot see its own loop. Each tool result arrives on its own, the
- * failure looks fresh every time, and the fourth identical attempt reads exactly
- * like the first. The transcript holds the history, but reading four thousand
- * tokens back to notice "I have run this twice already" is precisely the work
- * that does not happen.
- *
- * So the harness keeps the count. This is a small, per-session record of every
- * command that has been executed, keyed by the command itself, holding which
- * shell ran it, in which directory, and how it was classified. When a command
- * that has failed before comes round again, the result carries what happened
- * last time.
- *
- * THE MEASUREMENT THAT MATTERS MOST is whether the CLASSIFICATION changed. Three
- * attempts at one command across three shells, all classified
- * COMMAND_NOT_FOUND, is proof that the shell was never the cause — the program
- * is not installed, and no fourth shell will find it. That is a conclusion the
- * machine can reach with a string comparison and a model reaches by spending a
- * request on it.
- *
- * IT NEVER REFUSES. Nothing here blocks a call, and nothing phrases itself as a
- * prohibition; repeating a command is often exactly right — after an install,
- * after an edit, after a service starts. The ledger reports what is on the
- * record and the model decides what that means, which is the same contract the
- * evidence ledger has.
- */
+/** THE ATTEMPT LEDGER — what this command has already done, here, today. */
 
 /** Enough to cover a long turn; old entries fall off the front. */
 const MAX_COMMANDS = 60;
 const MAX_ATTEMPTS_PER_COMMAND = 8;
 
-/**
- * The key a command is remembered by.
- *
- * Whitespace is collapsed so that a re-typed command with different spacing is
- * recognised as the same command — which it is. Nothing else is normalised:
- * case matters on a POSIX filesystem, and quoting differences are real
- * differences.
- */
+/** The key a command is remembered by. */
 function keyOf(command) {
   return String(command == null ? '' : command).trim().replace(/\s+/g, ' ');
 }
@@ -61,14 +27,7 @@ class AttemptLog {
     this._now = now;
   }
 
-  /**
-   * Put one finished execution on the record.
-   *
-   * Successes are recorded too, and that is not waste: "this exact command
-   * succeeded four minutes ago in this directory" is the fact that makes a
-   * re-run either redundant or deliberate, and only the record can tell them
-   * apart.
-   */
+  /** Put one finished execution on the record. */
   record({ command, shell = '', cwd = '', classification = '', exitCode = null } = {}) {
     const key = keyOf(command);
     if (!key) return;
@@ -91,19 +50,7 @@ class AttemptLog {
     return this.byCommand.get(keyOf(command)) || [];
   }
 
-  /**
-   * WHAT THE RECORD SAYS about a command that has just failed again.
-   *
-   * `current` is THE ATTEMPT THAT JUST HAPPENED, and passing it in is the
-   * difference between a useful note and a note that is always one attempt
-   * behind. Asked without it, the third attempt — the first one under a second
-   * shell — could only see two PowerShell failures and reported "nothing about
-   * the failure changed", when the fact worth having was that the shell had
-   * just been changed and the classification had not. The numbered list is
-   * still history only; the conclusions are drawn over history PLUS now.
-   *
-   * @returns {string} '' when there is nothing on the record worth saying
-   */
+  /** WHAT THE RECORD SAYS about a command that has just failed again. */
   note({ command, shell = '', cwd = '', current = null } = {}) {
     const prior = this.priorFor(command);
     if (!prior.length) return '';
@@ -123,11 +70,7 @@ class AttemptLog {
         + `${where ? ` — ${where}` : ''}, ${ago(this._now() - a.at)}`);
     }
 
-    // ---- THE CONCLUSION THE HISTORY SUPPORTS ------------------------------
-    //
-    // Stated only when the record actually establishes it. Failures that all
-    // read the same across two or more shells is not a hint — it is a
-    // measurement, and it eliminates the shell as the cause outright.
+    // THE CONCLUSION THE HISTORY SUPPORTS
     const all = current && current.classification && current.classification !== 'OK'
       ? [...past, { ...current, shell: current.shell || shell, cwd: current.cwd || cwd }]
       : past;
@@ -151,11 +94,7 @@ class AttemptLog {
     return out;
   }
 
-  /**
-   * The commands that failed more than once and never succeeded — the shape of
-   * a loop, in one list. Used by the turn summary so a session that burned four
-   * requests on one command says so.
-   */
+  /** The commands that failed more than once and never succeeded — the shape of a loop, in one list. */
   loops() {
     const out = [];
     for (const [command, attempts] of this.byCommand) {
@@ -173,13 +112,7 @@ class AttemptLog {
   }
 }
 
-/**
- * The ledger for a session, created on first use.
- *
- * Hung off the session rather than held at module scope: two sessions in one
- * process must not share a command history, and module-level session state is
- * exactly what the architecture guard forbids.
- */
+/** The ledger for a session, created on first use. */
 function forSession(session) {
   if (!session) return null;
   if (!session.attempts) session.attempts = new AttemptLog();

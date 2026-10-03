@@ -1,36 +1,6 @@
 'use strict';
 
-/**
- * LAYA · HARNESS CONTEXT & PERCEPTION — Core dispatches, Laya correlates, Core
- * validates (2026-09-24).
- *
- * Laya's question is no longer "which source file?" (REJECTED: both file gates
- * failed and the A/B was WORSE — `source_file_ranker` is OFF). It is:
- *
- *     WHAT IS THE PERSON LOOKING AT / TOUCHING / REFERRING TO, AND WHAT SMALL
- *     CONTEXT SHOULD CORE HAVE READY?
- *
- *   harness_context_compiler      compress the changing Harness context
- *   selection_resolver            "this dropdown" → one of Core's candidates
- *   cross_surface_correlator      a Workshop node ↔ an IDE symbol
- *   session_semantic_enrichment   recent actions related to project features
- *   (ui_evidence_narrower lives in layaevidence.js; source_file_ranker is OFF)
- *
- * THE FLOW, and never another:
- *
- *     Core facts (harnesscontext · gug · locate)  →  bounded job  →  Laya
- *     → hypothesis  →  Core VALIDATES against its own evidence at the current
- *     generation  →  (AUTO/FORCE only) a context line Core may put in the packet
- *
- * WHAT LAYA CANNOT DO, structurally: a job is a pure function of the facts it
- * is handed and ONE `embed` capability; it has no App, no session, no tools,
- * no dispatcher. A job that tries to enqueue another is refused and counted.
- * It cannot call another worker, write, plan, grant, complete or choose the
- * flagship. It never runs on the critical path: `enqueue` returns at once, a
- * SHADOW job runs only on a model that is ALREADY resident (it never loads
- * one), and a result that arrives after the context moved on is LATE —
- * discarded, counted, never appended.
- */
+/** LAYA · HARNESS CONTEXT & PERCEPTION — Core dispatches, Laya correlates, Core validates (2026-09-24). */
 
 const canonical = require('./canonical');
 
@@ -58,27 +28,7 @@ function statOf(app, role) {
 
 // ---- the facts Core hands a job (bounded) -------------------------------------------
 
-/**
- * CANDIDATE REFERENTS — CONSUMED FROM CORE'S CANONICAL STATE, never re-derived
- * (2026-09-25). Laya is RELEVANCE, not truth:
- *
- *   the Selection            harnesscontext.selection — by its id (sel:S…),
- *                            with the symbol and binding it already resolved
- *   what the language server evidencerefs — the Selection's own lsp.* entries
- *   said about it            (definition, references), by evidence id
- *   the UI neighbourhood     the GUG graph around the Selection's node
- *   provenance               the person's recent hand-edits (editledger via
- *                            the Selection)
- *   diagnostics              the language servers' published problems
- *   runtime references       LAIN-owned processes for this project
- *                            (runtimeregistry — never by process name)
- *   terminal evidence        the project shell's last output (pty store)
- *   recent actions           the Harness context's action list
- *
- * Every candidate carries an id Core can check afterwards (validate). Nothing
- * here reads the raw selection fields the Selection was resolved from — one
- * representation of "this", not two.
- */
+/** CANDIDATE REFERENTS — CONSUMED FROM CORE'S CANONICAL STATE, never re-derived (2026-09-25). */
 function candidates(app, session) {
   const hc = require('./harnesscontext');
   const h = session && session._harness;
@@ -135,10 +85,7 @@ function describeSelection(sel) {
   return `selected ${sel.kind}`;
 }
 
-// ---- the jobs: PURE functions of (facts, embed) --------------------------------------
-//
-// No require, no App, no session, no dispatcher inside a job — the isolation
-// test reads this block. A job returns a hypothesis; Core decides what it is worth.
+// the jobs: PURE functions of (facts, embed)
 
 const JOBS = {
   async harness_context_compiler(facts, embed) {
@@ -180,12 +127,7 @@ function dot(a, b) { let s = 0; for (let i = 0; i < Math.min(a.length, b.length)
 
 // ---- validation: CORE OWNS FACTS ---------------------------------------------------------
 
-/**
- * IS THIS HYPOTHESIS TRUE OF THE CURRENT STATE? Every ref must name something
- * Core can find at the generation the job started from: a GUG node in the
- * current graph, a selection that is still the selection, a file the project
- * still has. One failure invalidates the hypothesis; nothing is repaired.
- */
+/** IS THIS HYPOTHESIS TRUE OF THE CURRENT STATE? */
 function validate(app, session, hyp) {
   if (!hyp || !Array.isArray(hyp.refs)) return { valid: false, why: 'no hypothesis' };
   const h = session && session._harness;
@@ -217,10 +159,7 @@ function validate(app, session, hyp) {
 
 // ---- dispatch (Core's) -----------------------------------------------------------------
 
-/**
- * A HARNESS EVENT → the roles that listen to it, each in its own mode. Returns
- * at once; nothing here is awaited by any caller. Refused inside a job.
- */
+/** A HARNESS EVENT → the roles that listen to it, each in its own mode. */
 function enqueue(app, session, event = {}) {
   const st = stateOf(app);
   if (st.inJob) { st.selfDispatchRefused += 1; return false; }
@@ -317,11 +256,7 @@ function record(app, job, fields) {
   return r;
 }
 
-/**
- * WHAT CORE MAY PUT IN THE PACKET: the newest VALIDATED result of an AUTO or
- * FORCE role, for THIS session, at THIS context generation. SHADOW results are
- * never here. A late or stale result is discarded, not appended.
- */
+/** WHAT CORE MAY PUT IN THE PACKET: the newest VALIDATED result of an AUTO or FORCE role, for THIS session, at THIS context generation. */
 function consumable(app, session) {
   const st = stateOf(app);
   const h = session && session._harness;
@@ -350,12 +285,7 @@ function metrics(app) {
   return { roles: out, queued: st.queue.length, running: st.running, selfDispatchRefused: st.selfDispatchRefused, criticalPathCalls: st.criticalPathCalls };
 }
 
-/**
- * LOAD LAYA WHEN LAIN OPENS — only when a role will be consumed (AUTO/FORCE)
- * or the person explicitly asked for a SHADOW role (warm ≠ participate). Never
- * waited for. The rejected file ranker prepares its project index only when a
- * benchmark forced that role explicitly (locateassist.prewarm).
- */
+/** LOAD LAYA WHEN LAIN OPENS — only when a role will be consumed (AUTO/FORCE) or the person explicitly asked for a SHADOW role (warm ≠ participate). */
 function prewarm(app) {
   try {
     const s = app && app.session;

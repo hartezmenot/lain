@@ -142,11 +142,7 @@ async function main(argv) {
   if ((opts._.join(' ') === '/bot doctor' && opts.print === undefined) || opts.print?.trim() === '/bot doctor') return require('./bot/doctor').main();
   if (opts.bot) return require('./bot/service').foreground({ cwd: opts.cwd });
 
-  // ---- LAIN AS AN APPLICATION -------------------------------------------
-  //
-  // Before anything that would build a session: a direct launch may turn out to
-  // be a request to SHOW the LAIN that is already running, in which case this
-  // process must not construct an App at all. See src/desktoprun.js.
+  // LAIN AS AN APPLICATION
   if (opts.desktop) return require('./desktoprun').main({ cwd: opts.cwd, dev: opts.dev, open: opts.open || null, resume: opts.resume || null, continueSession: Boolean(opts.continueSession), afterUpdate: Boolean(opts.afterUpdate), startup: Boolean(opts.startup) });
   // WINDOWS' "OPEN WITH" (winassoc.js): the stable launcher is built/installed first, then offered — never made a default.
   if (opts.assoc) {
@@ -163,17 +159,7 @@ async function main(argv) {
   // LAIN AS A LOCAL MODEL SERVER (serve.js): LAIN's accounts for other applications, on loopback.
   if (opts.serve) return require('./serve').cli([...(opts.port ? ['--port', String(opts.port)] : []), ...(opts.host ? ['--host', String(opts.host)] : [])]);
 
-  // ---- THE POST-INSTALL VERIFICATION COMMAND ----------------------------
-  //
-  // A FLAG RATHER THAN ONLY `lain /harness doctor`, for one unglamorous reason:
-  // an argument beginning with `/` is rewritten into a Windows path by MSYS and
-  // Git Bash before node ever sees it, so the slash form needs quoting exactly
-  // where an installer is least able to guarantee it. `--doctor` is safe in
-  // cmd, PowerShell, bash, zsh and fish alike.
-  //
-  // It builds no session, reads no credential and contacts nothing. That is
-  // what makes it usable as an installation check on a machine that has not
-  // been configured yet — which is every machine, at the moment it is checked.
+  // THE POST-INSTALL VERIFICATION COMMAND
   if (opts.doctor) {
     const { Harness } = require('./harness');
     const h = new Harness({ workspace: opts.cwd || process.cwd(), persist: true });

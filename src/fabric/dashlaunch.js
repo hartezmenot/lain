@@ -1,28 +1,6 @@
 'use strict';
 
-/**
- * THE MODEL DASHBOARD, OPENED FROM THE TERMINAL (Phase 8.3).
- *
- *   /model manage · /account add · /api add
- *
- * The terminal is a SAFE CONTROL SURFACE, never a secret-entry surface: a key
- * or a sign-in is entered in the Model Dashboard window, never typed into the
- * terminal, its history or a conversation. So these commands open the window:
- *
- *   1. this LAIN already shows its window     → it navigates to MODEL (and comes to the front)
- *   2. another LAIN on this machine holds one → asked over the control pipe to open MODEL
- *   3. no window anywhere                     → this LAIN opens its own, at MODEL
- *   4. NO HARNESS (a CLI-only install), or its window would not open
- *                                             → Core's own account page (fabric/standalone.js), on
- *                                               loopback, in the default browser (§76: the CLI never
- *                                               REQUIRES the Harness)
- *
- * THE HANDOFF CARRIES A SECTION NAME ONLY — from a fixed list — never a
- * credential, an address or a session; the window's channel keeps its own
- * per-launch secret (harnessapp/ipc.js). The terminal learns what happened
- * from the registry's SAFE COMPLETION EVENTS (fabric/store.js): "source added",
- * an id, a display name, what it can do. Never the key.
- */
+/** THE MODEL DASHBOARD, OPENED FROM THE TERMINAL (Phase 8.3). */
 
 const SECTIONS = Object.freeze({ accounts: 'accts', accts: 'accts', models: 'mdl', mdl: 'mdl', api: 'api', local: 'local', defaults: 'defaults', import: 'import' });
 
@@ -84,11 +62,7 @@ function said(r, where = 'Accounts') {
   return `Opened the Model Dashboard at ${where}.`;
 }
 
-/**
- * TELL THE TERMINAL WHAT THE DASHBOARD DID — the registry's safe events since
- * `since`, until one arrives or `timeoutMs` passes. One stat per second while
- * waiting (the registry is a file every LAIN writes); nothing once it is done.
- */
+/** TELL THE TERMINAL WHAT THE DASHBOARD DID — the registry's safe events since `since`, until one arrives or `timeoutMs` passes. */
 function watch(since, onEvent, { timeoutMs = 15 * 60 * 1000, types = ['source-added', 'source-removed'] } = {}) {
   const store = require('./store');
   let gen = store.generation();

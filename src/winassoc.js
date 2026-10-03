@@ -1,35 +1,6 @@
 'use strict';
 
-/**
- * LAIN IN WINDOWS' "OPEN WITH" — an available handler, never a stolen default (2026-09-29; Noema-era names until 2026-10-02).
- *
- * ------------------------------------------------------------------------
- * WHAT IS WRITTEN, all per-user (HKCU\Software\Classes — no administrator, no
- * other account touched):
- *
- *   LAIN.Harness.File                 a ProgID: name, icon, `"<launcher>" "%1"`
- *   Applications\<launcher>.exe       the application: FriendlyAppName "LAIN",
- *                                     its open command, SupportedTypes (one
- *                                     value per development extension)
- *   .<ext>\OpenWithProgids            value `LAIN.Harness.File` — this is what puts LAIN
- *                                     in "Open with" for that type
- *   SystemFileAssociations\.<ext>\shell\LAIN.Harness.Open
- *                                     "Open with LAIN" on the right-click menu
- *   Directory\shell\LAIN.Harness.Open "Open folder in LAIN" on a folder
- *   Directory\Background\shell\LAIN.Harness.Open  … and inside an open folder
- *
- * WHAT IS NEVER WRITTEN: the `(Default)` of any `.<ext>` key and anything under
- * UserChoice — those decide which program OPENS a file on a double-click, and
- * that stays the person's choice ("Always" in the Open-with dialog). Removing
- * LAIN deletes exactly the keys and values above and nothing else.
- *
- * OLDER ENTRIES — the obsolete pre-cleanup LAIN's (LAIN.File, LAIN.Open, Applications\LAIN.exe) and the Noema era's
- * (Noema.File, Noema.Open, Applications\noemaw.exe / Noema Harness.exe) — are removed whenever LAIN registers or
- * unregisters, so Explorer never offers two entries for one program.
- *
- * The launcher it points at is `lainw.exe` (CLI-only installs: a LAIN CLI in that folder) or `LAIN Harness.exe`
- * (the Harness opens the project and the file) — see distribution/setup.cs and src/openpath.js.
- */
+/** LAIN IN WINDOWS' "OPEN WITH" — an available handler, never a stolen default (2026-09-29; Noema-era names until 2026-10-02). */
 
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -109,10 +80,7 @@ function notifyShell(exe) {
   try { spawnSync(exe, ['--assoc-changed'], { windowsHide: true, timeout: 10000 }); return true; } catch { return false; }
 }
 
-/**
- * REGISTER. @param o.exe the launcher; o.exec / o.hive for tests; o.files / o.folders to offer only one kind.
- * @returns {{ ok, written, failed: [{ args, err }] }}
- */
+/** REGISTER. @param o.exe the launcher; o.exec / o.hive for tests; o.files / o.folders to offer only one kind. @returns {{ ok, written, failed: [{ args… */
 function register({ exe, exec = defaultExec, hive = HIVE, extensions = EXTENSIONS, notify = true, files = true, folders = true } = {}) {
   if (process.platform !== 'win32' && exec === defaultExec) return { ok: false, why: 'Windows only' };
   if (!exe) return { ok: false, why: 'no launcher to register — run lain --desktop once' };

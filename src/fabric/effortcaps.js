@@ -32,12 +32,7 @@ function norm(e) {
 function order(list) { return [...new Set((list || []).map(norm).filter(Boolean))].sort((a, b) => LEVELS.indexOf(a) - LEVELS.indexOf(b)); }
 function label(e) { return LABEL[norm(e)] || (e ? String(e) : ''); }
 
-/**
- * DECLARED LEVELS for transports that take a level but do not list them per
- * model. Claude Code documents `--effort low|medium|high|xhigh|max`; the Opus
- * and Sonnet families honour it, Haiku has no configurable effort. The same
- * holds for the Anthropic API's `output_config.effort`.
- */
+/** DECLARED LEVELS for transports that take a level but do not list them per model. */
 const CLAUDE_DECLARED = [
   // Claude Code's model-config documentation (2026-10): 4.6 models take low/medium/high/max; Opus 4.7+, Sonnet 5+
   // and Opus 5+ add xhigh. Haiku has no configurable effort.
@@ -47,12 +42,7 @@ const CLAUDE_DECLARED = [
   [/(^|[/:-])sonnet/i, ['low', 'medium', 'high']],
 ];
 
-/**
- * GLM-5.3 (Z.ai's own documentation): reasoning is always on; `reasoning_effort` takes low | high | max and the
- * PROVIDER default is max. LAIN's default is HIGH (measured 2026-10-02: provider-default GLM steps reasoned ~8× more
- * than ZCode's and took 2–10× longer; low found the same bug in 1.8–2.5 s vs 6–15 s). Only Z.ai / BigModel endpoints
- * are known to honour the field — a router in between gets nothing invented.
- */
+/** GLM-5.3 (Z.ai's own documentation): reasoning is always on; `reasoning_effort` takes low | high | max and the PROVIDER default is max. */
 const GLM_RE = /(^|[/:-])glm-5\.3/i;
 const ZAI_HOST = /(^|\.)(z\.ai|bigmodel\.cn)(:|\/|$)/i;
 
@@ -67,13 +57,7 @@ function declared({ runtime = null, protocol = null, upstreamId = '', provider =
   return null;
 }
 
-/**
- * THE EFFORT A REQUEST CARRIES — chosen once, at send time, from what the route ACTUALLY supports.
- *   requested   the person's explicit level (or null / 'auto' for "the default")
- *   profile     FAST · NORMAL · ECO — FAST and ECO default to the LOWEST native level; NORMAL to the model's default
- * Returns { effort, source: 'provider' | 'lain', wire, levels, explicit }. With no native levels the effort is LAIN's
- * execution budget (lainEffort) and NOTHING is put on the wire.
- */
+/** THE EFFORT A REQUEST CARRIES — chosen once, at send time, from what the route ACTUALLY supports. */
 const LAIN_LEVELS = Object.freeze(['low', 'high', 'max']);
 function forRequest({ levels = [], defaultEffort = null, wire = null, requested = null, profile = 'NORMAL' } = {}) {
   const want = requested && requested !== 'auto' ? norm(requested) : null;
@@ -93,13 +77,7 @@ function forRequest({ levels = [], defaultEffort = null, wire = null, requested 
   return { effort: null, lainEffort, source: 'lain', wire: null, levels: [], explicit: Boolean(want) };
 }
 
-/**
- * THE PLAN FOR ONE REQUEST (provider.resolve, 2026-10-02). A FUSED variant route (gpt-5.5-high) already chose its
- * upstream id from the effort (catalog.resolve), and OpenAI's Responses API has its own native effort field — both keep
- * their paths (null). Otherwise a DECLARED transport (GLM on Z.ai, the Claude API, Claude Code) gets its native level
- * (explicit choice, else the execution profile's default), and a route with NO native effort gets LAIN execution
- * effort, with nothing on the wire. A runtime with no declaration keeps its own reported levels (null).
- */
+/** THE PLAN FOR ONE REQUEST (provider.resolve, 2026-10-02). */
 function planFor({ conn, route: r, cfg = {}, chat = 'chat' } = {}) {
   const fused = Boolean(r.effort) || (Array.isArray(r.efforts) && r.efforts.length > 1) || conn.protocol === 'responses';
   if (fused) return null;
@@ -108,10 +86,7 @@ function planFor({ conn, route: r, cfg = {}, chat = 'chat' } = {}) {
   return conn.runtime ? null : forRequest({ levels: [], requested: cfg.effort, profile: cfg.executionProfile });
 }
 
-/**
- * THE LEVELS ONE ROUTE OFFERS for one model.
- * `row` is a runtime/local row (runtimeconnections) or null; `route` the catalog route.
- */
+/** THE LEVELS ONE ROUTE OFFERS for one model. */
 function forRoute({ family, model, row = null, route = null, conn = null, overrides = null } = {}) {
   const ov = overrides && overrides[`${family}|${model}`];
   if (ov && Array.isArray(ov.levels)) return { levels: order(ov.levels), default: norm(ov.default) || null, source: 'your override' };
@@ -125,12 +100,7 @@ function forRoute({ family, model, row = null, route = null, conn = null, overri
 /** Is `effort` one of these levels? null (the model's default) always is. */
 function allowed(levels, effort) { const e = norm(effort); return !effort || effort === 'auto' || (e && (levels || []).includes(e)); }
 
-/**
- * THE TRANSPORT FORM of a level — the only place a level becomes wire syntax.
- *   codex (runtime)       -c model_reasoning_effort="<level>"
- *   claude-code (runtime) --effort <level>
- * API routes carry it as a request field (provider.js / responsesapi.js).
- */
+/** THE TRANSPORT FORM of a level — the only place a level becomes wire syntax. */
 function runtimeArgs(runtime, effort) {
   const e = norm(effort);
   if (!e) return [];

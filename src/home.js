@@ -1,24 +1,6 @@
 'use strict';
 
-/**
- * WHERE LAIN KEEPS ITS DATA — one answer, and the moves that led here.
- *
- *   %USERPROFILE%\.lain           canonical (sessions, settings, account references, usage, caches, logs)
- *   %USERPROFILE%\.noema          the home while the product was called Noema (2026-09-30 … 2026-10-02)
- *   %USERPROFILE%\.lain-v2        the older LAIN home (moved to ~/.noema on 2026-09-30)
- *
- * Every move is the same: ONE same-volume rename (a 10 GB home moves in milliseconds), never a copy, then a
- * DIRECTORY JUNCTION at the old path, so an older build — or a process still running — reaches the same files and can
- * never grow a second, independently written home. Recorded in <home>/migrations/home-from-<name>.json and verified
- * (the old path resolves to the new one).
- *
- * A HISTORICAL ~/.lain (a real folder from a much older LAIN) beside a real Noema-era home is not merged and not
- * deleted: it is renamed aside to ~/.lain-archived-<time> with a note, and the current home moves in.
- *
- * Overrides, most specific first: LAIN_CONFIG_DIR, LAIN_HOME, then the Noema-era NOEMA_CONFIG_DIR, NOEMA_HOME.
- * The move is made once, before anything reads the home (src/boot.js). When it cannot be made (the old home is in use
- * by a running process), LAIN keeps using the old home for that run — it never splits the data — and tries again.
- */
+/** WHERE LAIN KEEPS ITS DATA — one answer, and the moves that led here. */
 
 const fs = require('fs');
 const os = require('os');
@@ -51,11 +33,7 @@ function userHome() {
   return c;
 }
 
-/**
- * A ~/.lain THAT IS NOT THIS LAIN'S: a real folder left by a much older LAIN, sitting beside a real Noema-era home.
- * The current home carries a migrations/ note once it has been moved here; a real legacy home with data beside an
- * un-noted ~/.lain means the ~/.lain is the old one.
- */
+/** A ~/.lain THAT IS NOT THIS LAIN'S: a real folder left by a much older LAIN, sitting beside a real Noema-era home. */
 function looksHistorical(c) {
   if (!realDir(c)) return false;
   if (fs.existsSync(path.join(c, 'migrations', 'home-from-noema.json')) || fs.existsSync(path.join(c, 'migrations', 'home-from-lain-v2.json'))) return false;
@@ -82,9 +60,7 @@ function pendingMove() {
   return legacyHomes().find((l) => realDir(l)) || null;
 }
 
-/**
- * MOVE THE CURRENT HOME TO ~/.lain, once. { state: 'none'|'done'|'moved'|'deferred'|'overridden', why?, from?, to? }
- */
+/** MOVE THE CURRENT HOME TO ~/.lain, once. */
 function migrate({ now = Date.now(), version = null } = {}) {
   if (override()) return { state: 'overridden' };
   const c = canonical();

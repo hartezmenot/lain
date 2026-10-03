@@ -1,38 +1,6 @@
 'use strict';
 
-/**
- * CLEAR CACHE & TEMPORARY FILES (Gate 3 §77–80, 2026-09-30) — Settings › Storage, `lain cache inspect|clear`
- * and `/cache`: one owner, three doors.
- *
- * ------------------------------------------------------------------------
- * WHAT IT MAY TAKE. Only what a KNOWN OWNER says is disposable, found by rule, re-found at the moment of
- * clearing (never from a stale list), and removed only from inside the category's own roots:
- *
- *   SAFE — "Clear safe cache"
- *     Browser caches            the cache folders (Cache, Code Cache, GPU/shader caches, crash reports) of the
- *                               browser profiles LAIN runs — the window, Preview, the browser tool, web models.
- *                               Never a profile's cookies, storage, history or sign-ins.
- *     Old LAIN builds           host and terminal executables superseded by a newer build (content-stamped;
- *                               rebuilt on demand). The newest is kept; one in use cannot be removed and is skipped.
- *     Temporary & test files    `lain-*` entries in the system temp folder untouched for a day — runs, test homes,
- *                               probes. Never `lain-workspaces` (tempworkspaces.js owns it), never this LAIN's home.
- *     Old screenshots           the browser tool's screenshots older than a week
- *     Old diagnostic traces     provider request traces (reqtrace.js) older than two weeks
- *     Finished workspaces       whatever tempworkspaces.js's own rules say may go — it decides, not this
- *
- *   ADVANCED — only when named
- *     Model catalogs            rebuilt on the next refresh (the picker may show fewer models until then)
- *     Unused Preview profiles   Preview browser profiles untouched for 30 days (site sign-ins in them go too)
- *     Old undo history          file snapshots of sessions untouched for 30 days — those changes can no
- *                               longer be undone
- *     Usage history             LAIN's usage receipts — the Usage charts start again
- *
- *   NEVER — not by any door: sessions, handovers, compaction summaries, plans, checkpoints of project trees,
- *   evidence, accounts, OAuth profiles, API secrets, credentials, settings, installed skills and extensions,
- *   web-model and browser sign-ins, the supervisor's records, project files. None of them is in any root below.
- *
- * NOTHING HERE READS A FILE'S CONTENTS, and nothing is reported beyond names, counts and sizes.
- */
+/** CLEAR CACHE & TEMPORARY FILES (Gate 3 §77–80, 2026-09-30) — Settings › Storage, `lain cache inspect|clear` and `/cache`: one owner, three doors. */
 
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -63,14 +31,7 @@ function newestMtime(p) {
   return m;
 }
 
-/**
- * THE GUARDS, computed once per scan:
- *   whole     never removed, and nothing that CONTAINS them is: the user's home, this LAIN's home, the
- *             workspace root, the working directory, LAIN's own code
- *   interior  nothing INSIDE them is removed either: the durable parts of the LAIN home, the workspace root
- *             (tempworkspaces.js removes its own), LAIN's code, and the working directory when it is a project
- *             rather than an ancestor of the places cleaned
- */
+/** THE GUARDS, computed once per scan: whole never removed, and nothing that CONTAINS them is: the user's home, this LAIN's home, the workspace root… */
 function guards() {
   const h = home();
   const tempRoot = process.env.LAIN_TEMP_ROOT || path.join(os.tmpdir(), 'lain-workspaces');
@@ -164,9 +125,7 @@ const CATEGORIES = [
     sweep: (app) => { const tw = require('./tempworkspaces'); tw.reconcile(app); tw.sweep(app); },
   },
   {
-    // STALE PIDs (Gate 4, spec §109): a crash leaves `instances/<pid>.json` and a `core.json` naming a process that is
-    // gone. Their own modules decide — instances.js sweeps a record whose process is dead, corelock.js a lock whose
-    // Core is — so a running LAIN's record is never touched. Found real: ~130 of them in a lived-in home.
+    // STALE PIDs (Gate 4, spec §109): a crash leaves `instances/<pid>.json` and a `core.json` naming a process that is gone.
     id: 'stale-records', tier: 'safe', label: 'Stale process records',
     note: 'Records left by LAIN processes that are no longer running. A running LAIN\'s record is never touched.',
     delegate: true,
@@ -216,11 +175,7 @@ const SAFE = CATEGORIES.filter((c) => c.tier === 'safe').map((c) => c.id);
 
 // ------------------------------------------------------------------ size --
 
-/**
- * Bytes and files under `p`, without following links; bounded by `budget` (entries). CONCURRENT: directory
- * entries come typed from readdir, and files are sized in parallel batches — the walk is I/O latency, not CPU
- * (measured: 67 s sequential over ~8 GB of temp leftovers).
- */
+/** Bytes and files under `p`, without following links; bounded by `budget` (entries). */
 const DU_PARALLEL = 48;
 async function du(p, budget) {
   let bytes = 0; let files = 0;
@@ -275,10 +230,7 @@ async function inspect(app, { maxEntries = 400000, onProgress = null } = {}) {
   return { at: now, categories: out, approximate: budget.capped, never: NEVER_LABELS, safe: SAFE };
 }
 
-/**
- * CLEAR the named categories (default: the safe ones). An advanced one is taken only when named; `confirmAdvanced`
- * is the person's explicit yes for those. Returns what was freed, and what was left and why.
- */
+/** CLEAR the named categories (default: the safe ones). */
 async function clear(app, { ids = null, confirmAdvanced = false } = {}) {
   const want = (Array.isArray(ids) && ids.length ? ids : SAFE).filter((id) => BY_ID.has(id));
   const advanced = want.filter((id) => BY_ID.get(id).tier === 'advanced');

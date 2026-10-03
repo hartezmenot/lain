@@ -1,22 +1,6 @@
 'use strict';
 
-/**
- * WHAT A SESSION IS DOING, AS EVENTS — one stream, written by the process that holds the session (2026-10-02).
- *
- *   <sessions>/.journal/<id>.jsonl   { seq, at, turn, type, … }   append-only, bounded
- *
- * The SAME event goes two ways at once:
- *   · to the window over the desktop channel (harnessapp/ipc.js `emit`) — Chat streams from it as deltas, never by
- *     rebuilding the conversation;
- *   · to the file — so a surface in ANOTHER process (a Harness watching a session its CLI runs), the phone gateway and
- *     a crash investigation read the same account. This replaced the Rust Guardian's copy of turn state.
- *
- * WHAT IS RECORDED IS FACTUAL ACTIVITY: turn begin/end, phases, tool start/end (name, target, ok, duration, one line),
- * visible answer text, usage. Reasoning CONTENT is never recorded or sent — only that the model is thinking.
- *
- * The file is a journal, not the session: the session file stays the record of the conversation, and nothing here is
- * needed to resume one.
- */
+/** WHAT A SESSION IS DOING, AS EVENTS — one stream, written by the process that holds the session (2026-10-02). */
 
 const fs = require('fs');
 const path = require('path');
@@ -88,11 +72,7 @@ function oneLine(s) {
   return out;
 }
 
-/**
- * RECORD ONE EVENT for this session: to the window now, to the journal on the next tick.
- * @param {object} app
- * @param {{type:string}} ev   turn.begin · phase · thinking · text · tool.start · tool.end · usage · turn.end · notice
- */
+/** RECORD ONE EVENT for this session: to the window now, to the journal on the next tick. */
 function note(app, ev) {
   const s = app && app.session;
   if (!s || !s.id || !ev || !ev.type) return null;

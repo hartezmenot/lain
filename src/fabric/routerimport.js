@@ -1,30 +1,6 @@
 'use strict';
 
-/**
- * A ROUTER INSTALLED ON THIS PC — the migration source that holds real sign-ins.
- *
- *   9Router    %APPDATA%\9router\db\data.sqlite      table providerConnections
- *              (id, provider, authType, name, email, isActive, data — JSON with
- *              accessToken / refreshToken / idToken / apiKey / expiresAt / scope /
- *              providerSpecificData)
- *   OmniRoute  ~\.omniroute\storage.sqlite            table provider_connections
- *              (provider, auth_type, name, email, is_active, access_token,
- *              refresh_token, id_token, api_key, expires_at, token_expires_at,
- *              scope, provider_specific_data)
- *
- * The layouts, aliases and import rules follow the person's own router
- * (E:\AI\router, src/legacy-account-import.ts), which already imports from both.
- *
- * ------------------------------------------------------------------------
- * READ-ONLY, IN MEMORY, ONLY WHEN THE PERSON ASKS. This runs when "Import
- * accounts" is opened — never on a timer. The databases are opened read-only;
- * each row becomes a discovered account whose credential (if any) is shaped
- * into the ONE format its provider's own CLI reads (fabric/portable.js decides
- * whether it may move). The preview the window receives is the plan — class,
- * reason, masked identity — never a token (harnessapp/fabricintelroutes.js
- * keeps `found` in Core memory behind a one-time token). Nothing is written
- * back to the router, and after migration LAIN never reads it again.
- */
+/** A ROUTER INSTALLED ON THIS PC — the migration source that holds real sign-ins. */
 
 const fs = require('fs');
 const os = require('os');
@@ -57,11 +33,7 @@ const str = (v) => (typeof v === 'string' ? v.trim() : typeof v === 'number' && 
 const expiryMs = (v) => { if (v == null || v === '') return null; const n = Number(v); if (Number.isFinite(n)) return n > 1e12 ? n : n > 1e9 ? n * 1000 : null; const t = Date.parse(String(v)); return Number.isFinite(t) ? t : null; };
 const emailOf = (v) => { const s = str(v).toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : ''; };
 
-/**
- * THE CREDENTIAL IN ITS PROVIDER'S OWN FORMAT, or a shape portable.assess refuses with a reason.
- * A token that is not the provider's recognisable form (a JWT for Codex, `sk-ant-` for Claude) is treated as
- * encrypted to the router's own app — never guessed at.
- */
+/** THE CREDENTIAL IN ITS PROVIDER'S OWN FORMAT, or a shape portable.assess refuses with a reason. */
 function credentialOf(family, c) {
   if (!c.accessToken && !c.refreshToken) return null;
   if (family === 'codex') {

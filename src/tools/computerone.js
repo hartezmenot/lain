@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * ONE COMPUTER TOOL (Simplify S5.1): `computer({action, …})`, the shape of Anthropic's computer use, in place of twelve
- * `computer_*` tools. Every action runs the same guarded implementation as before (tools/computerinput.js →
- * computermcp.call → computercontrol.admit → the bridge): the exact-window lock, the person's input pausing, the kill
- * switch, password/credential/UAC refusal and the header indicator are untouched. The accessibility-tree tool is
- * `computer_ui`, found with tool_search.
- *
- * In Auto, `window` given as an exact window handle picks the target (after the same refusals, and never one of
- * LAIN's own windows); switching target is a new pick and says so on the activity line.
- */
+/** ONE COMPUTER TOOL (Simplify S5.1): `computer({action, …})`, the shape of Anthropic's computer use, in place of twelve `computer_*` tools. */
 
 const input = () => require('./computerinput').tools;
 

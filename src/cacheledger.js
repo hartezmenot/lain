@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * CACHE LEDGER — what every flagship request cost in UNCACHED input, measured
- * honestly (2026-09-24).
- *
- *     uncached_ratio = uncached_input_tokens / total_input_tokens
- *
- * TARGET ≤ 5 % and NORMAL CEILING ≤ 8 % — for WARM steady-state requests only.
- * A cold first request and a deliberate cache-epoch reset are counted apart:
- * a cold session cannot meet a warm SLO and is never reported as failing one.
- *
- * THE PROTOCOLS SAY DIFFERENT THINGS, so the receipt is normalised here:
- *   anthropic   input_tokens EXCLUDES cache reads and writes →
- *               total = input + cache_read + cache_creation
- *   chat / responses   prompt/input tokens INCLUDE cached →
- *               total = input, cached = cached_tokens
- * A receipt with no cache field is NOT REPORTED — its cached and uncached are
- * null, never zero, and it is left out of the distribution (counted as such).
- *
- * NOT GAMEABLE BY SIZE. Every row also keeps the absolute cached and uncached
- * tokens and the total prompt size, so a low ratio bought with a bloated
- * prefix shows as exactly that.
- *
- * THE EPOCH. Requests in one lineage (session × model × connection) share a
- * cache epoch while the request stays append-only behind a byte-identical
- * stable prefix. It advances ONLY when something actually rewrote the prefix:
- * the tool surface, the system prompt, history (a compaction), or the route —
- * and the reason is recorded. cachebudget.js computes it; this file keeps it.
- */
+/** CACHE LEDGER — what every flagship request cost in UNCACHED input, measured honestly (2026-09-24). */
 
 const MAX_ROWS = 400;
 const TARGET = 0.05;
@@ -58,11 +31,7 @@ function ledgerOf(session) {
   return session._cacheLedger;
 }
 
-/**
- * SETTLE ONE REQUEST: the plan Core made before sending (cachebudget.plan —
- * expected cached/uncached, warmth, epoch, owners) joined with what the
- * provider billed. Returns the row.
- */
+/** SETTLE ONE REQUEST: the plan Core made before sending (cachebudget.plan — expected cached/uncached, warmth, epoch, owners) joined with what the… */
 function settle(session, plan, receipt, pc = {}) {
   const l = ledgerOf(session);
   if (!l || !plan) return null;
@@ -90,11 +59,7 @@ function pct(sorted, p) {
   return sorted[i];
 }
 
-/**
- * THE DISTRIBUTION of WARM, REPORTED requests — median, p90 (only with ≥ 10
- * requests), worst normal (a request not carrying a justified exception), the
- * exceptions with their owners, and everything left out and why.
- */
+/** THE DISTRIBUTION of WARM, REPORTED requests — median, p90 (only with ≥ 10 requests), worst normal (a request not carrying a justified exception), the… */
 function summary(rows) {
   const all = Array.isArray(rows) ? rows : [];
   const warm = all.filter((x) => x.warmth === 'WARM' && x.actual && x.actual.reported);

@@ -1,41 +1,6 @@
 'use strict';
 
-/**
- * THE FRONTEND WORKSHOP — LAIN can see, drive and verify the frontend it edits.
- *
- * ------------------------------------------------------------------------
- * WHAT IT ADDS OVER THE BROWSER HARNESS, because "we already have CDP" is not
- * the same claim and it was worth being precise about.
- *
- * harness/browserharness.js runs a CONTRACT: a headless browser in a throwaway
- * profile executes a fixed list of actions and returns PASSED / FAILED /
- * INCONCLUSIVE. It is a judge. It has no notion of a preview somebody looks at,
- * of an element they point to, of a viewport they switch, or of a before that
- * gets compared with an after. Everything in this file is that missing half.
- *
- * They share the wire (harness/cdp.js) and the page primitives
- * (harness/browser.js BrowserSession) and NOTHING about identity or lifecycle —
- * see workshop/profile.js, which states the three-browser rule and asserts it.
- *
- * ------------------------------------------------------------------------
- * ONE SESSION PER PROJECT, HELD OPEN.
- *
- * A preview that closed when a task ended would lose its route, its scroll
- * position, its dev login and its console history every time LAIN finished
- * something — which is most of what makes a preview useful. So the Workshop
- * lives as long as the project is open, and the process it may have started is
- * owned by the ProcessManager exactly like any other managed service.
- *
- * ------------------------------------------------------------------------
- * IT SETTLES NOTHING.
- *
- * `verify()` gathers evidence and returns a report. It does not mark a task
- * complete, does not write a verdict and does not touch lifecycle state —
- * harness/verify.js and completion.js remain the only authorities that settle
- * anything, and they consume this as evidence like any other observation. A
- * Workshop that could declare a task done would be a second verification
- * system, which is the one thing this tree does not permit.
- */
+/** THE FRONTEND WORKSHOP — LAIN can see, drive and verify the frontend it edits. */
 
 const path = require('path');
 const cdp = require('../harness/cdp');
@@ -52,10 +17,7 @@ const NAV_TIMEOUT_MS = 30_000;
 /** How long a freshly launched preview browser gets to open its debug port. */
 const LAUNCH_TIMEOUT_MS = 25_000;
 
-/**
- * ONE WORKSHOP PER APP. Per-App and never module scope — the rule every other
- * piece of session-ish state in this tree follows, and for the same reason.
- */
+/** ONE WORKSHOP PER APP. */
 class Workshop {
   constructor({ app = null } = {}) {
     this.app = app;
@@ -69,16 +31,7 @@ class Workshop {
     this.devServers = new DevServers({ processes: () => this.processes });
   }
 
-  /**
-   * THE PROCESS AND ARTIFACT AUTHORITIES, and they are CREATED if absent.
-   *
-   * harnesslink.existing() deliberately never constructs a harness — it is for readers
-   * that must not cause one. The Workshop is not a reader: opening a preview
-   * genuinely needs a process manager to own the dev server and an artifact
-   * store to file the screenshots, and refusing to create one would make the
-   * Workshop work only in sessions that had already run a tool. Found by
-   * driving it: the first real run refused with "no process manager".
-   */
+  /** THE PROCESS AND ARTIFACT AUTHORITIES, and they are CREATED if absent. */
   get processes() {
     const h = this.app && require('../harnesslink').harnessFor(this.app);
     return (h && h.processes) || null;
@@ -97,20 +50,7 @@ class Workshop {
   }
 
   /** Can a Workshop run here at all, and if not, why not? Cheap, no launch. */
-  /**
-   * CAN A PREVIEW OPEN, AND IN WHICH BROWSER?
-   *
-   * Through env/chromium.js rather than `browser.findBrowser()`, so the
-   * Workshop reports the SAME browser it will actually launch — the
-   * Harness-owned build when one is installed, a labelled borrow when it is
-   * not. Asking the raw finder here would have said "launchable: your Chrome"
-   * while the launcher went and started the managed build.
-   *
-   * ENVIRONMENT IS PART OF THE ANSWER. §8: iterative frontend work stays on
-   * the HOST with a Harness-owned Chromium, because that is the fast loop;
-   * release verification is what goes to a VM. So this reports where the
-   * preview would open, and it is the host unless a task says otherwise.
-   */
+  /** CAN A PREVIEW OPEN, AND IN WHICH BROWSER? */
   availability({ environment = 'host' } = {}) {
     const client = cdp.clientAvailable();
     if (!client.ok) return { available: false, why: client.why, environment };
@@ -139,13 +79,7 @@ class Workshop {
     return held && held.session && held.session.open ? held : null;
   }
 
-  /**
-   * OPEN THE PREVIEW: get a dev server, get a browser, point one at the other.
-   *
-   * Concurrent callers share one open. Two of these racing would start two
-   * browsers on one profile directory, and Chromium answers that with a lock
-   * error on the second — which surfaces as a mystery.
-   */
+  /** OPEN THE PREVIEW: get a dev server, get a browser, point one at the other. */
   open(projectPath, opts = {}) {
     const key = path.resolve(projectPath);
     const live = this.existing(key);
@@ -168,10 +102,7 @@ class Workshop {
     if (!started.ok) { this.lastWhy = started.why; return { ok: false, why: started.why, devServer: started.devServer }; }
     const ds = started.devServer;
     const serve = { url: ds.url, port: ds.port, processId: ds.processId, adopted: ds.adopted, why: started.why || '' };
-    // ---- ASK THE PAGE ONCE BEFORE SHOWING IT -----------------------------
-    // A 500 here is structured evidence for the window (devstate.probe), and it
-    // does not stop the preview opening — the page and its console are how a
-    // person finds out what is behind the 500. Nothing restarts because of it.
+    // ASK THE PAGE ONCE BEFORE SHOWING IT A 500 here is structured evidence for the window (devstate.probe), and it does not stop the preview opening — the…
     const probed = await this.devServers.probe(key);
     const preview = probed.ok ? probed.preview : null;
 
@@ -182,9 +113,7 @@ class Workshop {
     }
     const launched = await this._launch(key, headless);
     if (!launched.ok) { this.lastWhy = launched.why; return launched; }
-    // OWNED BEFORE ANYTHING ELSE CAN FAIL. Registering only on full success is
-    // how a browser that started and then would not hand over a page becomes an
-    // orphan window with nothing holding it.
+    // OWNED BEFORE ANYTHING ELSE CAN FAIL.
     this._open.set(key, {
       session: null, child: launched.child, profile, url: serve.url, port: serve.port,
       processId: serve.processId, adopted: serve.adopted,
@@ -201,49 +130,23 @@ class Workshop {
 
     const session = new browser.BrowserSession(conn, { base: launched.base });
     session.targetId = tab.target.id || null;
-    // Page, Runtime, Log, Network, DOM — the same set the verification browser
-    // enables, because the console and network observations are the same
-    // observations. `enable` absorbs a domain a build refuses.
+    // Page, Runtime, Log, Network, DOM — the same set the verification browser enables, because the console and network observations are the same…
     await session.enable();
     const held = this._open.get(key);
     held.session = session;
 
     const nav = await session.navigate(serve.url, NAV_TIMEOUT_MS);
     if (!nav.ok) {
-      // A PREVIEW THAT WILL NOT LOAD IS STILL AN OPEN WORKSHOP. The browser and
-      // the server are up; saying so lets a person retry or read the console
-      // rather than starting the whole thing again.
+      // A PREVIEW THAT WILL NOT LOAD IS STILL AN OPEN WORKSHOP.
       return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: false, why: nav.why, preview, devServer: this.devServers.get(key) };
     }
     this._emit(EVENT.BROWSER_OBSERVED, { taskId: String(taskId || ''), what: 'preview', url: serve.url });
     return { ok: true, url: serve.url, port: serve.port, adopted: serve.adopted, loaded: true, why: serve.why, preview, devServer: this.devServers.get(key) };
   }
 
-  /**
-   * LAUNCH THE PREVIEW BROWSER.
-   *
-   * NOT through the ProcessManager, and that is a deliberate difference rather
-   * than an omission: a managed process is owned by a TASK and dies with it,
-   * and this browser must outlive every task in the project — closing the
-   * person's preview because a verification finished is the behaviour this
-   * whole module exists to avoid. The DEV SERVER is managed, because that
-   * genuinely is a project service. This is closed by `close()` and by exit.
-   */
+  /** LAUNCH THE PREVIEW BROWSER. */
   async _launch(projectPath, headless) {
-    // ---- THE LAUNCH IS env/chromium.js's, AND THE LIFETIME IS STILL OURS --
-    //
-    // This was fifty lines duplicated from browserharness.js and
-    // webbrowser.js, drifted apart on details nobody had decided (this copy
-    // deleted the stale DevToolsActivePort file; one of the others did not).
-    // The launcher is shared now; what stays different is the PURPOSE, and
-    // env/purpose.js holds those differences as data:
-    //
-    //   WORKSHOP is project-bound and lives as long as the person is working
-    //   on the project. That is why `traits.lifetime` is 'project' and the
-    //   runtime spawns it detached rather than handing it to the
-    //   ProcessManager — a managed process dies with a TASK, and closing
-    //   somebody's preview because a verification finished is the exact
-    //   behaviour this module exists to avoid.
+    // THE LAUNCH IS env/chromium.js's, AND THE LIFETIME IS STILL OURS --
     const rt = require('../env/chromium');
     const runtime = new rt.ChromiumRuntime({ processes: null, events: this.bus });
     const got = await runtime.launch(rt.PURPOSE.WORKSHOP, {
@@ -321,9 +224,7 @@ class Workshop {
   async navigate(projectPath, url) {
     const p = this._page(projectPath);
     if (!p.ok) return p;
-    // ONLY WITHIN THE PREVIEW'S OWN ORIGIN. A Workshop that followed a link to
-    // the public web would be the browsing capability this project removed, and
-    // it would do it in a browser holding the project's dev session.
+    // ONLY WITHIN THE PREVIEW'S OWN ORIGIN.
     const target = String(url || '');
     const base = p.held.url;
     const abs = target.startsWith('http') ? target : new URL(target, base).href;
@@ -346,10 +247,7 @@ class Workshop {
   async reload(projectPath) {
     const p = this._page(projectPath);
     if (!p.ok) return p;
-    // RELOADED FROM THE SERVER, AND FINISHED LOADING. A cached stylesheet made a
-    // reload after an edit show the page as it was, and a fixed 400ms guess could
-    // read the element before the new CSS applied. `navigate` waits for the load
-    // event, and the cache is bypassed for this one request.
+    // RELOADED FROM THE SERVER, AND FINISHED LOADING.
     const url = p.session.url || p.held.url;
     try { await p.session.conn.send('Network.setCacheDisabled', { cacheDisabled: true }); } catch { /* best effort */ }
     const r = await p.session.navigate(url);
@@ -362,14 +260,7 @@ class Workshop {
     return p.ok ? viewport.apply(p.session, name, opts) : p;
   }
 
-  /**
-   * FORGET WHAT EARLIER LOADS SAID.
-   *
-   * The buffers are the BrowserSession own arrays (harness/browser.js), which
-   * it fills from CDP events. Emptying them in place is what keeps one reader
-   * of them; a second buffer here would be a second answer to "what did the
-   * console say".
-   */
+  /** FORGET WHAT EARLIER LOADS SAID. */
   _resetLogs(session) {
     if (!session) return;
     if (Array.isArray(session.console)) session.console.length = 0;
@@ -379,18 +270,7 @@ class Workshop {
 
   // ------------------------------------------------------------ evidence --
 
-  /**
-   * A SCREENSHOT, KEPT AS A HARNESS ARTIFACT.
-   *
-   * `runtime.keep` is the existing artifact store — the same one verification
-   * screenshots and console dumps go to — so a Workshop capture is evidence of
-   * exactly the same kind, findable in the same place, cleaned up by the same
-   * rules. A second image store would be a second thing to find and a second
-   * thing to forget to clean.
-   *
-   * `as: 'before'` REMEMBERS it for the comparison. That is the whole of the
-   * before/after mechanism: two artifacts and a note saying which was which.
-   */
+  /** A SCREENSHOT, KEPT AS A HARNESS ARTIFACT. */
   async capture(projectPath, { as = null, taskId = null, name = null } = {}) {
     const p = this._page(projectPath);
     if (!p.ok) return p;
@@ -423,36 +303,13 @@ class Workshop {
     return this._before.get(`${path.resolve(projectPath)}:${vp}`) || null;
   }
 
-  /**
-   * VERIFY THE FRONTEND AT ONE OR MORE VIEWPORTS.
-   *
-   * ------------------------------------------------------------------------
-   * IT RETURNS EVIDENCE, NOT A VERDICT ABOUT THE TASK.
-   *
-   * Each viewport contributes four observations that are individually decidable
-   * — the page loaded, no console errors, no failed requests, no sideways
-   * overflow — plus a screenshot. `harness/verify.js` and completion.js remain
-   * the only things that settle a task; this is what they settle FROM.
-   *
-   * A FILE CHANGING IS NOT EVIDENCE OF ANYTHING, which is why nothing here
-   * consults the diff.
-   */
+  /** VERIFY THE FRONTEND AT ONE OR MORE VIEWPORTS. */
   async verify(projectPath, { viewports = ['desktop', 'mobile'], taskId = null, selector = null } = {}) {
     const p = this._page(projectPath);
     if (!p.ok) return { ok: false, why: p.why };
     const results = [];
     for (const name of viewports) {
-      // ---- EACH VIEWPORT IS JUDGED ON ITS OWN PAGE LOAD ----------------
-      //
-      // The session ACCUMULATES console and network entries from the moment it
-      // opens — which is right for a live preview and wrong for a verdict.
-      // Measured: desktop reported 5 console errors and mobile then reported 7,
-      // because mobile inherited desktops and added its own. Every viewport
-      // after the first would look worse than it is, and a repair could never
-      // show a clean run.
-      //
-      // Cleared immediately BEFORE the reload that  performs, so
-      // what each check counts is what THIS load produced.
+      // EACH VIEWPORT IS JUDGED ON ITS OWN PAGE LOAD
       this._resetLogs(p.session);
       // eslint-disable-next-line no-await-in-loop -- a viewport sweep is
       // ordered by definition: each one reloads the page under new metrics.
@@ -518,9 +375,6 @@ class Workshop {
     };
   }
 
-  // (The 8.2 screencast preview — frames of a headless page streamed to the window, with input sent back — was
-  // removed 2026-10-02: the Preview is the real frontend in the window (frameOpen below) and the model's input goes
-  // through the page's own bridge (previewinput.js). No pixels are streamed.)
 
   /** Where the page is now — the page a change request targets when nothing is selected. */
   async pageUrl(projectPath) {
@@ -534,15 +388,7 @@ class Workshop {
     return (s && s.url) || null;
   }
 
-  // ------------------------------------------------ the frame preview (2026-09-30) --
-  //
-  // THE PREVIEW THE WINDOW SHOWS: the project's real frontend in an iframe, through the
-  // proxy (proxy.js) — the dev server, the bridge, the capability broker. No browser is
-  // launched and nothing is streamed; the CDP Workshop above stays for evidence (capture,
-  // verify, the accessibility tree) and opens only when one of those is asked for.
-  //
-  // ONE PER PROJECT, SHARED: Chat, Coding Chat, the Coding Agent and the IDE all show the
-  // same URL, viewport, selection and capability state — Core's, read from `frameState`.
+  // the frame preview (2026-09-30) --
 
   async frameOpen(projectPath, { taskId = null } = {}) {
     const key = path.resolve(projectPath);
@@ -643,9 +489,7 @@ class Workshop {
       }
     } catch { /* closing is best effort; the kill below frees the port */ }
     try { if (held.child && held.child.pid) held.child.kill(); } catch { /* gone */ }
-    // THE DEV SERVER IS NOT KILLED HERE when it was ADOPTED — it was already
-    // running and belongs to whoever started it. One LAIN started goes down
-    // with its task through the ProcessManager, which owns that decision.
+    // THE DEV SERVER IS NOT KILLED HERE when it was ADOPTED — it was already running and belongs to whoever started it.
     if (!held.adopted && held.processId) {
       try { await this.devServers.stop(key); } catch { /* the manager reports its own failures */ }
     }

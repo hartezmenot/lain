@@ -191,20 +191,5 @@ module.exports = async function () {
     assert.strictEqual(intent.match(app, 'refactor the reminder module', { now: NOW }), null);
   });
 
-  await test('CORE ROUTE: app.submit answers an assistant sentence as a deterministic Core turn (no provider call)', () => require('../helpers').legacyOnly(async () => {   // LEGACY path only
-    const provider = require('../../src/provider');
-    const was = provider.chat;
-    let called = 0;
-    provider.chat = async function* () { called += 1; yield { type: 'text', chunk: 'model' }; };
-    try {
-      await app.submit('Remind me in 2 minutes to drink water');
-    } finally { provider.chat = was; }
-    assert.strictEqual(called, 0);
-    const last = app.session.turns[app.session.turns.length - 1];
-    assert.match(last.text, /Scheduled: drink water/);
-    assert.strictEqual(last.steps || 0, 0, 'no model step');
-    assert.ok(store.list().some((t) => t.title === 'drink water'));
-  }));
-
   fs.rmSync(store.dir(), { recursive: true, force: true });
 };

@@ -1,20 +1,6 @@
 'use strict';
 
-/**
- * GGUF METADATA — the header of a .gguf file, read without loading the model.
- *
- *     magic "GGUF" · version · tensor count · kv count · kv pairs · tensors…
- *
- * Only the key/value header is read, sequentially, in small chunks. Large
- * arrays (the tokenizer's vocabulary is ~150,000 strings) are SKIPPED — their
- * element lengths are read to step over them and nothing is kept but the count.
- * Reading stops at the end of the header; a 30 GB model costs a few megabytes
- * of reads and no RAM to speak of. Nothing here writes, copies or maps a file.
- *
- * WHAT IS REPORTED is what the header states. `quantization` comes from
- * `general.file_type` when present; otherwise from the file name, and then it
- * says so (`quantSource: 'file name'`). An absent key is absent — never a guess.
- */
+/** GGUF METADATA — the header of a .gguf file, read without loading the model. */
 
 const fs = require('fs');
 
@@ -70,10 +56,7 @@ class Reader {
 /** Keys whose values are kept even when they are arrays (short ones only). */
 const KEEP_ARRAY_MAX = 16;
 
-/**
- * READ THE HEADER. Returns { ok, version, tensors, kv: {key: value}, arrays: {key: count} }
- * or { ok: false, why }. Arrays longer than KEEP_ARRAY_MAX keep only their count.
- */
+/** READ THE HEADER. Returns { ok, version, tensors, kv: {key: value}, arrays: {key: count} } or { ok: false, why }. Arrays longer than KEEP_ARRAY_MAX… */
 function readHeader(file) {
   let fd;
   try { fd = fs.openSync(file, 'r'); } catch (e) { return { ok: false, why: e.message }; }
@@ -121,11 +104,7 @@ function quantization(kv, fileName) {
 /** Architectures whose name says they read images once a projector is attached. */
 const VISION_ARCH = /(?:vl|llava|gemma3|mllama|pixtral|minicpmv|idefics|smolvlm|internvl|glm4v|kimivl|mistral3)/i;
 
-/**
- * SUMMARISE for a person and for pairing. Every field is from the header or is
- * null; `kind` is 'text' (llama.cpp can serve it), 'projector' (an mmproj) or
- * 'other' (a GGUF that is not a text model — e.g. a diffusion model).
- */
+/** SUMMARISE for a person and for pairing. */
 function summarize(file, header, stat = null) {
   const path = require('path');
   const name = path.basename(file);

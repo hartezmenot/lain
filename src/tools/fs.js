@@ -1,15 +1,6 @@
 'use strict';
 
-/**
- * Filesystem tools.
- *
- * No "you must read before you write" rule, no forced ordering, no guard that
- * refuses a write because the model did not do something else first. V1 grew a
- * stack of those (empty-write guard, orphan-file guard, nest guard, rewrite
- * guard) and every one carries a comment about the infinite loop it later
- * caused. If the model wants to write a file, it writes the file; LAIN's job is
- * to make that reversible (phase 9), not to prevent it.
- */
+/** Filesystem tools. */
 
 const fs = require('fs');
 const path = require('path');
@@ -88,28 +79,13 @@ function tree(root, depth, max = 300) {
   return out.join('\n');
 }
 
-/**
- * BELOW THIS, A FILE IS SMALL ENOUGH THAT REWRITING IT WHOLE IS ORDINARY.
- *
- * A 200-byte config replaced by a 40-byte one is somebody editing a config. A
- * 30KB source file replaced by 2KB is somebody losing 28KB. The threshold is
- * where "rewrite the file" stops being the natural way to make a change.
- */
+/** BELOW THIS, A FILE IS SMALL ENOUGH THAT REWRITING IT WHOLE IS ORDINARY. */
 const TRUNCATION_FLOOR_BYTES = 2_000;
 
 /** A write keeping less than this share of the file is a collapse, not an edit. */
 const TRUNCATION_RATIO = 0.5;
 
-/**
- * Would this write destroy most of an existing file?
- *
- * Returns the sizes when it would, and null otherwise — including for a new
- * file, which cannot lose anything, and for a file that is already small.
- *
- * AN EMPTY WRITE TO A NON-EMPTY FILE ALWAYS COUNTS, whatever the size: nothing
- * about "replace this with nothing" is an edit, and it is the exact shape that
- * emptied a 900-line file.
- */
+/** Would this write destroy most of an existing file? */
 function truncationRisk(abs, content) {
   let was;
   try {
@@ -195,25 +171,7 @@ const tools = {
       const abs = resolve(ctx.cwd, input.path);
       if (!abs) return { output: 'write_file needs a path', isError: true };
       if (input.content == null) return { output: 'write_file needs content', isError: true };
-      // ---- THE ONE MUTATOR THAT CAN DESTROY SOMEBODY ELSE'S WORK ----------
-      //
-      // `apply_patch` and `edit_file` verify their target CONTENT before
-      // splicing, so a file that changed underneath them fails loudly and
-      // nothing is lost — the exact-text match is a stronger guarantee than any
-      // timestamp, because it is about the bytes being changed rather than
-      // about the file's age.
-      //
-      // `write_file` has no such anchor. It replaces the whole file with
-      // whatever the model composed from what it read, so if anything edited
-      // that file after the read, this silently throws those edits away and
-      // reports success. That is not a rejected patch; it is data loss with a
-      // green result line, and it is reachable whenever a second LAIN session,
-      // an editor or a build step touches the same tree.
-      //
-      // So this is the one place a timestamp check earns its keep. It fires
-      // ONLY when this session actually read the file whole and the file has
-      // changed since — see evidence.js `staleness`, and note that LAIN's own
-      // writes invalidate the entry, so its own edits can never trip it.
+      // THE ONE MUTATOR THAT CAN DESTROY SOMEBODY ELSE'S WORK
       const { staleness, ledgerOf } = require('../evidence');
       const conflict = staleness(ledgerOf(ctx), ctx.cwd, abs);
       if (conflict.stale) {
@@ -230,19 +188,9 @@ const tools = {
           ].join(String.fromCharCode(10)),
         };
       }
-      // ---- THE THIRD QUESTION: WAS THERE ANYTHING TO GO STALE? --------------
-      //
-      // `staleness` above guards a file we read that changed. It says nothing
-      // about the file we never read at all — which is the quieter failure:
-      // no stale bytes, just no bytes, with a whole existing file about to be
-      // replaced by ones composed from no evidence. Same refusal shape, same
-      // reason code, so the model has one move to make: read it first.
-      // Exemptions live in evidence.js `noInspection` — absent file (creation),
-      // session-less context, and OUR OWN previous write still standing.
+      // THE THIRD QUESTION: WAS THERE ANYTHING TO GO STALE?
       const { noInspection, sessionIdOf } = require('../evidence');   // `ledgerOf` is already in scope above
-      // AN ANCHORED WRITE IS ITS OWN INSPECTION — `_anchorSha1` is the hash of the
-      // exact bytes being replaced, checked here (candidates.js integration: the
-      // candidate was built on precisely those bytes). A wrong hash is no anchor.
+      // AN ANCHORED WRITE IS ITS OWN INSPECTION — `_anchorSha1` is the hash of the exact bytes being replaced, checked here
       let anchored = false;
       if (typeof input._anchorSha1 === 'string' && input._anchorSha1) {
         try { anchored = require('crypto').createHash('sha1').update(fs.readFileSync(abs)).digest('hex') === input._anchorSha1; } catch { anchored = false; }
@@ -260,23 +208,7 @@ const tools = {
           ].join(String.fromCharCode(10)),
         };
       }
-      // ---- AND THE OTHER WAY TO LOSE A FILE: WRITING LESS THAN IS THERE ----
-      //
-      // The staleness check above catches a file that MOVED under you. It does
-      // not catch the shape that actually happened: a large file replaced by a
-      // fraction of itself, with nothing stale about it. A 900-line source file
-      // went to 0 bytes that way - a small edit attempted as a whole-file
-      // rewrite, from an incomplete reconstruction - and the file was untracked,
-      // so there was nothing to restore it from.
-      //
-      // A COLLAPSE IS ALMOST NEVER WHAT SOMEBODY MEANT. Deleting most of a file
-      // is a real operation and it is rare; making a small change is common, and
-      // `apply_patch` and `edit_file` do it without putting the rest of the file
-      // at risk. So the collapse is REFUSED and named, with both the way to do
-      // it safely and the way to say you meant it.
-      //
-      // `truncate: true` is the acknowledgement. Not a force flag for every
-      // write - just for this one shape, so the ordinary case is unaffected.
+      // AND THE OTHER WAY TO LOSE A FILE: WRITING LESS THAN IS THERE
       const shrink = truncationRisk(abs, String(input.content));
       if (shrink && !input.truncate) {
         return {
@@ -348,11 +280,7 @@ const tools = {
     mutates: false,
     schema: {
       name: 'list_dir',
-      // WHEN, not merely what. "List entries in a directory" competes silently
-      // with `glob` and says nothing about which to reach for — so the cheap
-      // structural answer loses to the habit of listing a folder and then
-      // reading whatever it contained. A description that does not place a tool
-      // among its neighbours leaves that tool weak.
+      // WHEN, not merely what.
       description: 'List the entries of ONE directory. Use it to see what is immediately '
         + 'inside a folder. To find files by name across the tree use glob; to find where '
         + 'a name is defined and who uses it, symbols; for what imports a file, dependents '
@@ -364,10 +292,7 @@ const tools = {
       const abs = resolve(ctx.cwd, shown);
       let st = null;
       try { st = fs.statSync(abs); } catch { /* reported below */ }
-      // A FILE IS NOT A FOLDER, and saying which it is ends the guess. Live
-      // (Toralink, 2026-09-24): the root listing showed `web` — a 4 KB file,
-      // no trailing slash — the model listed it as a folder and got a bare
-      // ENOTDIR back, which says what failed and nothing about what is there.
+      // A FILE IS NOT A FOLDER, and saying which it is ends the guess.
       if (st && !st.isDirectory()) {
         return { output: `${shown} is a FILE (${st.size.toLocaleString('en-US')} bytes), not a directory — read it with read_file. In a listing, folders end with "/".`, isError: true };
       }

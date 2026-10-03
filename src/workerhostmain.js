@@ -1,57 +1,6 @@
 'use strict';
 
-/**
- * THE WORKER HOST — the process that keeps a specialist model HOT between
- * LAIN processes (2026-09-23).
- *
- * ------------------------------------------------------------------------
- * WHY IT EXISTS. Laya's cold load is 30–80 s and its warm ranking is about
- * 0.2 s. Before this file the model lived inside the LAIN process: every
- * `lain` start paid the cold load again, and the first turn WAITED for it (up
- * to 90 s, measured at 32 s and 85 s in the A/B runs). A local worker may
- * shorten the critical path; it may never lengthen it because it is loading.
- *
- * So the model lives here, in one detached process per LAIN home that LAIN
- * starts and nobody has to manage by hand:
- *
- *   LAIN (CLI / Core) ──named pipe──▶ worker host ──stdin/stdout──▶ Laya (python)
- *                                                └──loopback http──▶ a llama-server worker (none since 2026-09-24)
- *
- * - NO NETWORK PORT of its own: a named pipe on Windows, a unix socket elsewhere.
- * - A SINGLETON BY CONSTRUCTION: the pipe name is derived from the host
- *   directory, and a second host that cannot listen on it exits.
- * - IT HOLDS NO AUTHORITY. It loads, answers one bounded request at a time,
- *   and unloads. It never decides whether a worker is used — LAIN's policy
- *   (workerruntime.uses) does — and it never retries a request.
- *
- * ------------------------------------------------------------------------
- * STATES, per worker:  UNLOADED → LOADING → HOT_IDLE ⇄ INFERENCING
- *                                     └──▶ FAILED        HOT_IDLE → UNLOADING → UNLOADED
- *
- * HOT_IDLE ≠ GENERATING. A hot worker holds memory and runs nothing: zero
- * inference tokens, no inference CPU.
- *
- * ------------------------------------------------------------------------
- * LIFECYCLE POLICY — deterministic, and every input is recorded:
- *
- * - LEASES. Every LAIN process that uses the host registers its pid. While
- *   any leased pid is alive the host stays up and its models stay hot.
- * - GRACE after the last client. A crashed or restarted LAIN inside the grace
- *   window finds the model still hot. The window is DERIVED FROM THE MEASURED
- *   RELOAD COST, not picked: max(2 min, 3 × the slowest load this host has
- *   measured). `LAIN_WORKERHOST_GRACE_MS` overrides it.
- * - MEMORY PRESSURE. When free system memory falls below the floor
- *   (`LAIN_WORKERHOST_MIN_FREE_MB`, default 1024) a HOT_IDLE worker is
- *   unloaded — never one that is answering — and a new load is refused
- *   until memory is back.
- * - IDLE UNLOAD while clients are alive is OFF unless a load asks for it
- *   (`idleUnloadMs`), because no measurement yet says what it should be.
- *   Idle durations and reload counts are recorded so it can be set from data.
- * - FAILURE. A worker that dies is FAILED. The host never restarts it by
- *   itself; a later `load` may, at most 3 times in 10 minutes. No retry loop.
- *
- * Every transition goes to `<dir>/events.jsonl`.
- */
+/** THE WORKER HOST — the process that keeps a specialist model HOT between LAIN processes (2026-09-23). */
 
 const fs = require('fs');
 const net = require('net');
@@ -152,13 +101,7 @@ function startPython(w) {
   });
 }
 
-/**
- * ONE LINE TO THE PYTHON WORKER. The host's timeout ends the WAIT, not the
- * work: an abandoned request still finishes inside the worker (its embeddings
- * are then cached there), and its late answer is dropped. `pending` counts the
- * requests the worker is still working through, so the state stays
- * INFERENCING until the last one is done.
- */
+/** ONE LINE TO THE PYTHON WORKER. */
 function sendPython(w, req, timeoutMs) {
   const rid = ++w.seq;
   w.pending += 1;
@@ -214,10 +157,7 @@ async function callLlama(w, req, timeoutMs) {
   return run;
 }
 
-/**
- * START A LOAD, and return at once. The load finishes in the background; a
- * caller that must wait (a benchmark preparing an arm) asks `wait`.
- */
+/** START A LOAD, and return at once. */
 function load(id, spec, opts = {}) {
   const w = record(id);
   if (spec) w.spec = spec;
@@ -271,14 +211,7 @@ function unload(id, why = 'requested') {
   return { state: 'UNLOADED' };
 }
 
-/**
- * ONE BOUNDED REQUEST, with the FAST RULE in front of it.
- *
- * HOT_IDLE / INFERENCING → answered. LOADING → wait at most `availableWithinMs`
- * (small) for it to become hot, else BYPASS. UNLOADED / FAILED → BYPASS at
- * once (the client may start a load for the NEXT decision). A bypass is an
- * answer, not an error: the caller carries on with its deterministic owner.
- */
+/** ONE BOUNDED REQUEST, with the FAST RULE in front of it. */
 async function call(id, req, { timeoutMs = 20000, availableWithinMs = 0 } = {}) {
   const w = workers.get(id);
   if (!w || !['LOADING', 'HOT_IDLE', 'INFERENCING'].includes(w.state)) return { ok: false, bypass: true, state: w ? w.state : 'UNLOADED' };
@@ -317,21 +250,7 @@ function view(w) {
   };
 }
 
-// ---- the project index: the SECOND readiness axis (layaindex.js) --------------------
-//
-// MODEL HOT != PROJECT READY. A worker's model state (above) says whether its
-// weights are resident; a PROJECT's index state says whether that project's
-// files are already embedded:
-//
-//   ABSENT → BUILDING → READY ⇄ STALE_PARTIAL (a refresh of a usable index)
-//                   └──▶ FAILED
-//
-// READY FOR TASK = model HOT_IDLE/INFERENCING AND index READY (or STALE_PARTIAL
-// with no refresh running). The index is built HERE, in the background, when a
-// project is attached — never inside a task's deadline. A task's Laya inference
-// is then the QUERY embedding alone. While a build runs, the worker is busy and
-// every ranking is BYPASSED at once (FAST never waits for optional embedding);
-// the build carries on and the next task finds it ready.
+// the project index: the SECOND readiness axis (layaindex.js)
 
 const CACHE = layaindex.cacheRoot(DIR);
 const EMBED_BATCH = 16;
@@ -456,10 +375,7 @@ async function runIndex(w, p) {
   }
 }
 
-/**
- * ONE TASK RANKING: the query's embedding (the only inference), then cosine over
- * the prepared vectors of the candidates Core chose. Not READY → BYPASS at once.
- */
+/** ONE TASK RANKING: the query's embedding (the only inference), then cosine over the prepared vectors of the candidates Core chose. */
 async function rankProject(w, req, timeoutMs) {
   const p = w.projects.get(layaindex.projectKey(req.root || ''));
   const key = layaindex.embedKey(w.meta);

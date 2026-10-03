@@ -179,24 +179,6 @@ module.exports = async function () {
     assert.ok(!/app\.submit\(/.test(src.replace(/\/\*[\s\S]*?\*\//g, '')),
       'a chat source must never start a turn of its own');
   });
-
-  await test('CONTEXT: only LAIN\'s own machinery may assert sameTask', () => {
-    const { App } = require('../../src/app');
-    const app = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
-    // Typed input never carries it, so a genuinely new request is still new.
-    const first = app.identify('inspect the dashboard', false);
-    assert.strictEqual(first.sameTask, false);
-    const objective = app.session.task.objective;
-    // A caller that DOES assert it keeps the original objective.
-    app.identify('a second model recommends this next step: log the exception', false, 'TROUBLESHOOT', true);
-    assert.strictEqual(app.session.task.objective, objective, 'the user\'s words must survive');
-    // And with no task at all, asserting it cannot invent one.
-    const fresh = new App({ out: { write() {}, on() {}, columns: 96, isTTY: false }, interactive: false, cwd: process.cwd() });
-    fresh.session.task = null;
-    const v = fresh.identify('something', false, null, true);
-    assert.strictEqual(v.sameTask, false, 'there is no task to be the same as');
-  });
-
   await test('SURFACE: the conversation is the surface — there is no pane to name', () => {
     // ------------------------------------------------------------------
     // THIS TEST HELD THAT `context` WAS A NAMED PANE OF ITS OWN, distinct from

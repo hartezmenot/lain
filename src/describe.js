@@ -5,36 +5,14 @@ const fs = require('fs');
 /** A newline, as a value. */
 const NL = String.fromCharCode(10);
 
-/**
- * NAMING A TOOL CALL FOR A PERSON.
- *
- * Split out of turn.js, which had reached the god-object guard. The seam is a
- * real one: the turn loop RUNS calls, and this decides what to call them on a
- * screen. It is pure string work over arguments the caller already holds — it
- * reads nothing, asks nobody, and costs no token.
- *
- * It exists because a feed of bare tool names is unreadable. Ten rows of
- * , ,  in a row are indistinguishable from each other,
- * and the subject — WHICH file, WHICH pattern, WHICH operation — is the part a
- * person is actually scanning for.
- */
+/** NAMING A TOOL CALL FOR A PERSON. */
 
-/**
- * The one-line human subject of a tool call — "src/auth/login.js:41-83",
- * "npm test", "src". Pure string work over arguments the caller already has;
- * it reads nothing and asks nobody.
- */
+/** The one-line human subject of a tool call — "src/auth/login.js:41-83", "npm test", "src". */
 function describeTarget(name, input) {
   const i = input || {};
   // A background shell is named by its job id: `waited for shell · #3`.
   if (i.id && /^job_(wait|status|stop)$/.test(name)) return `#${String(i.id).replace(/^#/, '')}`;
-  // A DISPATCHED CALL IS ABOUT ITS OPERATION. `computer` carries the real
-  // subject in `op`, and none of the branches below look at it — so without
-  // this, every computer action in the feed and in the status strip reads as a
-  // bare "computer" with no subject, and thirty of them are indistinguishable
-  // from each other. (This line once missed the consolidation that replaced
-  // `desktop` with `computer`; the removed Probe tool's `op`-shaped calls were
-  // fixed out of the same bare-name problem.)
+  // A DISPATCHED CALL IS ABOUT ITS OPERATION.
   if (name === 'Agent') return `${i.type || 'general'} · ${String(i.description || i.prompt || '').replace(/\s+/g, ' ').slice(0, 50)}`;
   if (i.action && (name === 'computer' || name === 'preview')) {   // the one-tool surfaces (S5.1, S9) name their action
     const t = i.target || {};
@@ -45,11 +23,7 @@ function describeTarget(name, input) {
     const op = String(i.op).slice(0, 40);
     return i.target ? `${op} → ${String(i.target).slice(0, 30)}` : op;
   }
-  // A SEARCH IS ABOUT WHAT IT LOOKED FOR. `path` was tested first, so every
-  // grep in the feed read `Searched for "."` — the scope, which is almost
-  // always the whole project and therefore says nothing, in the place where
-  // the question belongs. Ten of those in a row are indistinguishable from
-  // each other, which is most of why a working turn read as noise.
+  // A SEARCH IS ABOUT WHAT IT LOOKED FOR.
   if (i.pattern && (name === 'grep' || name === 'glob')) {
     const pat = `/${String(i.pattern).slice(0, 40)}/`;
     const scope = i.path && String(i.path) !== '.' ? ` in ${String(i.path).replace(/\\/g, '/')}` : '';
@@ -62,20 +36,12 @@ function describeTarget(name, input) {
     return from ? `${p}:${from}${to ? '-' + to : '+'}` : p;
   }
   if (i.command) return String(i.command).replace(/\s+/g, ' ').slice(0, 60);
-  // A PROGRAM RUN DIRECTLY IS ABOUT THE PROGRAM. `process_run` names it in
-  // `program` rather than `command`, so it fell through every branch here and
-  // drew as a bare `process_run` — the same subject-less row `computer` was
-  // fixed out of.
+  // A PROGRAM RUN DIRECTLY IS ABOUT THE PROGRAM.
   if (i.program) {
     const args = Array.isArray(i.args) ? i.args.join(' ') : '';
     return `${String(i.program)}${args ? ` ${args}` : ''}`.replace(/\s+/g, ' ').slice(0, 60);
   }
-  // ---- LOOKING SOMETHING UP IS ABOUT WHAT WAS LOOKED UP ------------------
-  //
-  // Without these, a research call drew as a bare `web_fetch` with no subject —
-  // the same subject-less row `computer` and `process_run` each had to be fixed
-  // out of. A host is what a person recognises in a URL, so the host leads and
-  // the path follows it.
+  // LOOKING SOMETHING UP IS ABOUT WHAT WAS LOOKED UP
   if (i.url && name === 'web_fetch') {
     try {
       const u = new URL(String(i.url));
@@ -85,19 +51,7 @@ function describeTarget(name, input) {
   }
   if (i.pattern) return `/${String(i.pattern).slice(0, 40)}/`;
   if (i.question) return String(i.question).replace(/\s+/g, ' ').slice(0, 60);
-  // ---- THE HARNESS TOOLS NAME THEIR SUBJECT TOO --------------------------
-  //
-  // `verify_task`, `service_check` and `observe` carry no `path`, `command`,
-  // `pattern` or `question`, so every one of them fell through every branch
-  // above and drew as a bare, subject-less row — the same fault `computer`,
-  // `process_run` and `web_fetch` each had to be fixed out of, and the worst
-  // place to have it: the verification step is the one a person most wants
-  // named. `service_start` already reads through `i.command`.
-  //
-  // WHAT EACH IS ABOUT is the thing being proved, watched or looked at:
-  //   verify_task    what is being proved — the first requirement, and a count
-  //   service_check  which service, or all of them when none is named
-  //   observe        the question being asked of the world
+  // THE HARNESS TOOLS NAME THEIR SUBJECT TOO
   if (name === 'verify_task') {
     const reqs = Array.isArray(i.requirements) ? i.requirements : [];
     const first = reqs.find((r) => r && (r.what || r.name));
@@ -123,39 +77,13 @@ function describeTarget(name, input) {
 /** The first meaningful line of a tool result, bounded for display. */
 function firstLine(output) {
   const s = String(output == null ? '' : output);
-  // ---- THE `[via ...]` STAMP IS ADDRESSED TO THE MODEL, NOT TO A PERSON ----
-  //
-  // Every shell result opens with it - `[via shell: bash - cwd=<absolute temp
-  // path>]` - because the model genuinely cannot route around a failure it
-  // cannot tell apart, and which interpreter and which directory are the two
-  // facts it needs (src/execution.js). It is the FIRST line, so it became the
-  // note drawn under the row, and what the person saw under a command they had
-  // just watched succeed was an absolute temp path.
-  //
-  // SKIPPED, NOT STRIPPED FROM THE OUTPUT. The model still gets the stamp; this
-  // only declines to quote it at the user, and takes the command's own first
-  // line of output instead - which is what a note under a command is for.
+  // THE `[via ...]` STAMP IS ADDRESSED TO THE MODEL, NOT TO A PERSON
   const lines = s.split('\n').map((x) => x.trim()).filter(Boolean);
   const line = lines.find((x) => !/^\[via /.test(x)) || '';
   return line.slice(0, 100);
 }
 
-/**
- * WHAT A COMPLETELY SILENT TURN IS TOLD TO THE USER.
- *
- * Reported with a screenshot: the task banner, an empty Context and a green
- * DONE. The request had succeeded, the model had produced no answer, called no
- * tool and thought nothing aloud — and the screen was indistinguishable from
- * LAIN having lost the reply, which is what the user reasonably concluded.
- *
- * Naming the likeliest cause matters, because it is not a thing the user can
- * see: reasoning models behind OpenRouter-shaped gateways stream their prose as
- * `reasoning`, and a route whose output lands in a field the protocol does not
- * read looks exactly like this.
- *
- * It lives here because this file already owns how a turn is WORDED for a
- * person, and turn.js was over the god-object guard again.
- */
+/** WHAT A COMPLETELY SILENT TURN IS TOLD TO THE USER. */
 const EMPTY_ANSWER = 'the model returned no text and called no tools — the request '
   + 'succeeded and the answer was empty. Some models stream their prose as `reasoning`; '
   + 'if this route does that, its output is arriving in a field this provider protocol '
@@ -164,35 +92,7 @@ const EMPTY_ANSWER = 'the model returned no text and called no tools — the req
 /** Results at or under this length are messages to the user, not data. */
 const BRIEF_RESULT = 160;
 
-/**
- * HOW MANY LINES THIS CALL ADDED AND REMOVED, from its own checkpoint.
- *
- * ------------------------------------------------------------------------
- * THIS CHECKPOINT, NOT THE SESSION. `ui/panes.changedFiles` measures every
- * changed file against the EARLIEST bytes captured for it, which is the right
- * question for "what has this session done to the tree" and the wrong one here:
- * with three edits to one file it would hand each of them the running total, so
- * the third call would claim the first two.
- *
- * The entry captured for THIS call holds the bytes as they were immediately
- * before it, so the difference from what is on disk now is exactly what this
- * call did. `countChanges` is the same arithmetic the DIFF pane uses, so the two
- * cannot report different numbers for one change.
- *
- * ------------------------------------------------------------------------
- * WHY THE RECORD AND NOT THE LIVE FEED. The timeline card shows the counters
- * climbing and then takes them away with it; the turn record is what remains.
- * Patching the live copy instead (ui/story.js) put the numbers on screen for
- * the length of the turn and lost them the moment it ended — measured across
- * real captured frames: 24 rows with counts, 216 without. A number that
- * vanishes is worse than one that was never there.
- *
- * TOTAL. A call that touched no file, a checkpoint never taken, a file since
- * deleted — all of them are "no counts", which is what an absent field already
- * means to every reader.
- *
- * @returns {{added: number, removed: number}|{}}
- */
+/** HOW MANY LINES THIS CALL ADDED AND REMOVED, from its own checkpoint. */
 function editSize(checkpoints, checkpoint) {
   if (!checkpoints || !checkpoint) return {};
   const id = checkpoint.id || checkpoint;
@@ -216,19 +116,7 @@ function editSize(checkpoints, checkpoint) {
   return (added || removed) ? { added, removed } : {};
 }
 
-/**
- * ONE FINISHED CALL, as the ACTIVITY view needs it.
- *
- * Moved out of turn.js, which was at the god-object guard. The seam is a real
- * one rather than a place to put spare lines: this file already owns how a call
- * is WORDED for a person — `describeTarget` names its subject and `firstLine`
- * takes the readable head of its output — and this is the record built out of
- * exactly those two plus the outcome. The turn loop kept it only because that
- * is where the values happened to be in scope.
- *
- * It costs no tokens: every field is a description of something that has
- * already run.
- */
+/** ONE FINISHED CALL, as the ACTIVITY view needs it. */
 const SHELLISH = /^(?:run_(?:bash|powershell|cmd)|python_run|process_run)$/;
 const TAIL_LINES = 4;
 
@@ -254,30 +142,15 @@ function actionRecord(call, result, { step = 0, ms = 0, reused = false, added = 
     ms,
     exitCode: result && result.exitCode != null ? result.exitCode : null,   // a shell row says it (ui/feed.js)
     reused: Boolean(reused),
-    // In TTY mode raw tool output no longer streams to stdout (the Screen owns
-    // it), so without this a person could see THAT a tool ran but never what
-    // it said.
+    // In TTY mode raw tool output no longer streams to stdout (the Screen owns it), so without this a person could see THAT a tool ran but never what it…
     note: firstLine(result && result.output),
-    // A COMMAND'S LAST WORDS: the tail of its output and how many lines came
-    // before it, so the row can show what the command said at the end
-    // (ui/shellrow.js). Shell-like calls only; a file's contents never go here.
+    // A COMMAND'S LAST WORDS: the tail of its output and how many lines came before it, so the row can show what the command said at the end…
     ...(SHELLISH.test(call.name) ? outputTail(out) : {}),
-    // A SHORT result is a message to the user ("The user chose: Beta", "no such
-    // file"); a long one is data for the model (a file's contents). Only the
-    // first kind is worth putting on screen, and the length is the honest test
-    // — no list of special tool names.
+    // A SHORT result is a message to the user ("The user chose: Beta", "no such file"); a long one is data for the model (a file's contents).
     brief: out.length <= BRIEF_RESULT,
-    // A call that names a FILE already says what it acted on; its output is
-    // that file's data, which belongs in the model's context and not in the
-    // activity feed.
+    // A call that names a FILE already says what it acted on; its output is that file's data, which belongs in the model's context and not in the activity…
     file: Boolean(call.input && call.input.path),
-    // ---- AND WHICH FILE, because `file` is only whether ----------------
-    //
-    // The boolean above answers "should this call's output be drawn", which
-    // is all it was ever asked. A row saying `Read src/loader.js` could not
-    // say WHICH file it meant to anything downstream, so clicking it could
-    // not open anything. The path is already in hand here; carrying it is
-    // what makes the row navigable. See ui/feed.js `fileAt`.
+    // AND WHICH FILE, because `file` is only whether
     path: (call.input && call.input.path) || null,
     ...(result && result.meta && result.meta.job ? { job: String(result.meta.job) } : {}),   // started a background job
     // HOW BIG THE CHANGE WAS — see `editSize`. Zero for everything that did not
