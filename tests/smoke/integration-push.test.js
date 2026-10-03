@@ -125,7 +125,7 @@ module.exports = async function () {
     const out = plain(r.out);
     assertIncludes(out, '⚑ STEER', 'the user must see it was accepted');
     assertIncludes(out, 'queued for the next model turn', 'and when it will land');
-    assertIncludes(out, 'USER STEER delivered to the model', 'and that it actually landed');
+    assertIncludes(out, 'USER STEER · read the logs before editing', 'and that it landed — drawn as the person\'s own message (S12)');
     // It must not have started a second task or thrown the first one away.
     assertIncludes(out, 'audit the project', 'the original task survives a steer');
   });

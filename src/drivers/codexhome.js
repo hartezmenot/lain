@@ -40,11 +40,13 @@ function materialize(l) {
   if (l.mode !== 'overlay') return report;
   // THE SHARED HOME IS THE PERSON'S. Nothing is created, changed or removed in
   // it here — not even an empty directory. What it lacks is simply not shared.
-  if (!fs.existsSync(l.shared)) { report.unshared.push({ name: '*', why: 'the shared home does not exist' }); return report; }
-  // AN ISOLATED TEST RUN never links into the person's real Codex home.
+  // AN ISOLATED TEST RUN never links into the person's real Codex home — refused before anything is looked at, so the
+  // refusal does not depend on whether this machine happens to have a ~/.codex (S12e: it was checked after the
+  // existence test, and on a machine without one the guard was never reached).
   if (process.env.LAIN_ISOLATED === '1' && norm(l.shared) === norm(path.join(os.homedir(), '.codex'))) {
     throw new Error('refusing to overlay the real ~/.codex from an isolated test run');
   }
+  if (!fs.existsSync(l.shared)) { report.unshared.push({ name: '*', why: 'the shared home does not exist' }); return report; }
   let names = [];
   try { names = fs.readdirSync(l.shared); } catch { names = []; }
   const entries = new Set(KNOWN_SHARED);
