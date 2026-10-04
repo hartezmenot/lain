@@ -28,7 +28,7 @@ function allSources() {
   const out = [];
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      if (e.name === 'node_modules' || e.name === '.git' || e.name === 'bench') continue;   // the benches are recorded experiments
+      if (e.name === 'node_modules' || e.name === '.git' || e.name === '.next' || e.name === '.svelte-kit' || e.name === 'bench') continue;   // the benches are recorded experiments; .next/.svelte-kit are a Design fixture's build output
       const p = path.join(d, e.name);
       if (e.isDirectory()) { walk(p); continue; }
       if (/\.(?:js|cjs|mjs)$/.test(e.name)) out.push(p);

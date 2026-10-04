@@ -1,0 +1,1 @@
+  mResumedActivity: ActivityRecord{6c2e1d1 u0 com.example.chat/.MainActivity t42}

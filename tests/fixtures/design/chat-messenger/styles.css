@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #f6f7fb; color: #111827; }
+.topbar { position: relative; height: 64px; padding: 16px; background: #ffffff; }
+.screen-title { margin: 0; font-size: 22px; }
+.me-avatar { position: absolute; top: 12px; right: 16px; width: 40px; height: 40px; border-radius: 50%; }
+.friends { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 12px 16px; }
+.friend { display: flex; align-items: center; gap: 12px; padding: 8px; background: #ffffff; border-radius: 12px; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; }
+.name { font-weight: 600; }
+.number { margin-left: auto; color: #6b7280; font-size: 13px; }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; padding: 10px; background: #ffffff; }
+.tab { color: #374151; text-decoration: none; }
+.chip { padding: 6px 12px; border-radius: 999px; background: #eef2ff; color: #3730a3; }
+.shelf { display: flex; gap: 8px; padding: 16px; }
+.back { position: absolute; top: 22px; right: 16px; color: #4f46e5; text-decoration: none; }
+.card { margin: 16px; padding: 16px; background: #ffffff; border-radius: 16px; }
+.profile-card { display: flex; flex-direction: column; align-items: center; }
+.big-avatar { width: 96px; height: 96px; border-radius: 50%; }
+.profile-name { margin: 12px 0 0; font-size: 20px; font-weight: 600; }
+.profile-number { margin: 4px 0 0; color: #6b7280; }
+.settings-list { list-style: none; margin: 0; padding: 12px 16px; }
+.setting { padding: 14px 8px; border-bottom: 1px solid #e5e7eb; }

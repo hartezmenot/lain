@@ -382,7 +382,8 @@ Object.assign(ROUTES, require('./workspaceroutes').ROUTES);
 // The IDE: file operations, search, source control, editor context — ideroutes.js.
 Object.assign(ROUTES, require('./ideroutes').ROUTES);
 // Route modules with their quiet reads: the editor profile, VS Code / Cursor import and extensions (extroutes); the session journey, house doors…
-for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes'), require('./computerroutes')]) {   // + Computer Control (Phase CU)
+// LAIN Design's routes (designroutes.js) — each loads the Design engine only when Design is installed.
+for (const mod of [require('./extroutes'), require('./journeyroutes'), require('./devtoolroutes'), require('./cacheroutes'), require('./updateroutes'), require('./computerroutes'), require('./designroutes')]) {   // + Computer Control (Phase CU)
   Object.assign(ROUTES, mod.ROUTES);
   for (const q of mod.QUIET || []) QUIET_READS.add(q);
 }

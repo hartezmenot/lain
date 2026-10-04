@@ -1,4 +1,4 @@
-// THE SETUP WINDOW — install (components + integrations), or maintain an installed LAIN (add/remove the Harness,
+// THE SETUP WINDOW — install (components + integrations), or maintain an installed LAIN (add/remove the Harness or Design,
 // repair, upgrade, uninstall). Accounts and models are set up IN LAIN, where they can be tested.
 
 using System;
@@ -16,7 +16,7 @@ class Wizard : Form {
     o = options;
     Text = installed == null ? "Install LAIN " + PayloadInfo.Version() : "LAIN " + PayloadInfo.Version() + " — Setup";
     try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
-    Width = 640; Height = 470; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
+    Width = 640; Height = 494; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
     Font = new Font("Segoe UI", 9f);
     int y = 16;
     Label title = new Label { Text = installed == null ? "LAIN CLI is the base; LAIN Harness is optional." : "LAIN is installed at " + installed, Left = 16, Top = y, Width = 600, Height = 20, Font = new Font("Segoe UI Semibold", 10f) };
@@ -24,7 +24,9 @@ class Wizard : Form {
 
     var cli = new CheckBox { Text = "LAIN CLI — Core, CLI, Model Dashboard, Preview window (always installed)", Left = 16, Top = y, Width = 600, Checked = true, Enabled = false }; Controls.Add(cli); y += 24;
     bool hasHarness = installed != null && Components.Read(installed).Harness;
-    var harness = new CheckBox { Text = "LAIN Harness — the desktop environment (optional; can be added later)", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Harness : hasHarness }; Controls.Add(harness); y += 34;
+    var harness = new CheckBox { Text = "LAIN Harness — the desktop environment (optional; can be added later)", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Harness : hasHarness }; Controls.Add(harness); y += 24;
+    bool hasDesign = installed != null && Components.Read(installed).Design;
+    var design = new CheckBox { Text = "LAIN Design — visual editing of app screens, in the Harness (optional; can be added later)", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Design : hasDesign }; Controls.Add(design); y += 34;
 
     var path = new CheckBox { Text = "Add `lain` to PATH (your account only)", Left = 16, Top = y, Width = 600, Checked = o.Path }; Controls.Add(path); y += 24;
     var openWith = new CheckBox { Text = "Windows \"Open with LAIN\" for code and text files (never changes your default apps)", Left = 16, Top = y, Width = 600, Checked = o.OpenWith }; Controls.Add(openWith); y += 24;
@@ -39,12 +41,18 @@ class Wizard : Form {
     if (installed != null) {
       var repair = new Button { Text = "Repair" }; repair.SetBounds(296, y, 100, 30); Controls.Add(repair);
       var remove = new Button { Text = "Uninstall…" }; remove.SetBounds(402, y, 100, 30); Controls.Add(remove);
-      repair.Click += (s, e) => { o.Repair = true; o.Harness = harness.Checked; Run(); };
+      repair.Click += (s, e) => { o.Repair = true; o.Harness = harness.Checked; o.Design = design.Checked; Run(); };
       remove.Click += (s, e) => { Hide(); ExitCode = Uninstaller.Run(o, null); Close(); };
     }
     go.Click += (s, e) => {
-      o.Harness = harness.Checked; o.Path = path.Checked; o.OpenWith = openWith.Checked; o.Folder = folder.Checked; o.StartMenu = menu.Checked;
-      if (installed != null && harness.Checked != hasHarness && !o.Repair && PayloadInfo.Version() == Pointer.Read(installed, "current")) { ExitCode = Installer.SetHarness(o, harness.Checked, Say); Done(); return; }
+      o.Harness = harness.Checked; o.Design = design.Checked; o.Path = path.Checked; o.OpenWith = openWith.Checked; o.Folder = folder.Checked; o.StartMenu = menu.Checked;
+      if (installed != null && !o.Repair && PayloadInfo.Version() == Pointer.Read(installed, "current") && (harness.Checked != hasHarness || design.Checked != hasDesign)) {
+        // A COMPONENT ADDED OR REMOVED on the same version: no reinstall.
+        ExitCode = 0;
+        if (harness.Checked != hasHarness) ExitCode = Installer.SetHarness(o, harness.Checked, Say);
+        if (ExitCode == 0 && design.Checked != hasDesign) ExitCode = Installer.SetDesign(o, design.Checked, Say);
+        Done(); return;
+      }
       Run();
     };
   }

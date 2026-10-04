@@ -19,6 +19,9 @@
 // ---------------------------------------------------------------------------
 // COMPONENTS: LAIN CLI (Core, CLI, Model Dashboard, Preview window) is the base and always installed.
 // LAIN Harness is optional and can be added later (--add-harness / Modify) without touching Core state.
+// LAIN Design is optional (on by default) and separately versioned: its files ride in versions\<v>\app\design and
+// app\harness\design; components.json `"design"` is whether it is installed (Core reads it — src/design.js).
+// --design / --no-design at install; --add-design / --remove-design (or Modify) later.
 // ---------------------------------------------------------------------------
 // THE RENAME BACK TO LAIN (2026-10-02). Two older things share names with this one and are told apart by LAYOUT:
 //   * the OBSOLETE pre-cleanup LAIN (LAIN.exe without versions\ or components.json, C:\Program Files\LAIN, the
@@ -49,6 +52,7 @@ static class Setup {
     public string Dir; public bool Silent; public bool Harness; public bool Path = true; public bool OpenWith = true; public bool Folder = true;
     public bool StartMenu = true; public bool Uninstall; public bool RemoveData; public bool Repair; public bool AddHarness; public bool RemoveHarness;
     public bool NoRegister; public bool? HarnessExplicit; public bool IntegrationExplicit; public string Log;
+    public bool Design = true; public bool? DesignExplicit; public bool AddDesign; public bool RemoveDesign;
   }
 
   [STAThread]
@@ -70,6 +74,10 @@ static class Setup {
       else if (a == "--remove-data") o.RemoveData = true;
       else if (a == "--repair") o.Repair = true;
       else if (a == "--add-harness") o.AddHarness = true;
+      else if (a == "--design") { o.Design = true; o.DesignExplicit = true; }
+      else if (a == "--no-design") { o.Design = false; o.DesignExplicit = false; }
+      else if (a == "--add-design") o.AddDesign = true;
+      else if (a == "--remove-design") o.RemoveDesign = true;
       else if (a == "--remove-harness") o.RemoveHarness = true;
       else if (a == "--version") { Console.WriteLine("LAIN Setup " + PayloadInfo.Version()); return 0; }
     }
@@ -79,6 +87,7 @@ static class Setup {
     Action<string> console = s => { Console.WriteLine(s); if (o.Log != null) { try { File.AppendAllText(o.Log, s + Environment.NewLine); } catch { } } };
     if (o.Uninstall) return Uninstaller.Run(o, o.Silent ? console : null);
     if (o.AddHarness || o.RemoveHarness) return Installer.SetHarness(o, o.AddHarness, console);
+    if (o.AddDesign || o.RemoveDesign) return Installer.SetDesign(o, o.AddDesign, console);
     if (o.Silent) {
       // A REINSTALL, REPAIR OR UPGRADE OF THIS FOLDER keeps what was chosen before unless told otherwise.
       // …and an UPGRADE FROM NOEMA keeps what was chosen for the Noema install.
@@ -86,6 +95,7 @@ static class Setup {
       if (from != null) {
         var prior = Components.Read(from);
         if (o.HarnessExplicit == null) o.Harness = prior.Harness;
+        if (o.DesignExplicit == null) o.Design = prior.Design;   // an install from before Design: on (the default)
         if (!o.IntegrationExplicit) { o.Path = prior.Path; o.OpenWith = prior.OpenWith; o.Folder = prior.Folder; o.StartMenu = prior.StartMenu; }
         if (!prior.Registered) o.NoRegister = true;
       }
@@ -154,18 +164,20 @@ static class PayloadInfo {
 /// It is also what uninstall and a reinstall UNDO: only what this install recorded is ever removed from the system.
 class Components {
   public bool Harness; public bool Path; public bool OpenWith; public bool Folder; public bool StartMenu; public bool Registered;
+  public bool Design = true;
   public static Components Read(string dir) {
     var c = new Components();
     try {
       string j = File.ReadAllText(System.IO.Path.Combine(dir, "components.json"));
       c.Harness = j.Contains("\"harness\": true"); c.Path = j.Contains("\"path\": true"); c.OpenWith = j.Contains("\"openWith\": true");
       c.Folder = j.Contains("\"openFolder\": true"); c.StartMenu = j.Contains("\"startMenu\": true"); c.Registered = j.Contains("\"registered\": true");
+      c.Design = !j.Contains("\"design\": false");   // absent (an install from before Design) = on
     } catch { }
     return c;
   }
   public void Write(string dir) {
     File.WriteAllText(System.IO.Path.Combine(dir, "components.json"),
-      "{\n  \"cli\": true,\n  \"harness\": " + (Harness ? "true" : "false") + ",\n  \"path\": " + (Path ? "true" : "false")
+      "{\n  \"cli\": true,\n  \"harness\": " + (Harness ? "true" : "false") + ",\n  \"design\": " + (Design ? "true" : "false") + ",\n  \"path\": " + (Path ? "true" : "false")
       + ",\n  \"openWith\": " + (OpenWith ? "true" : "false") + ",\n  \"openFolder\": " + (Folder ? "true" : "false")
       + ",\n  \"startMenu\": " + (StartMenu ? "true" : "false") + ",\n  \"registered\": " + (Registered ? "true" : "false") + "\n}\n");
   }
@@ -224,7 +236,7 @@ static class Installer {
     try { File.WriteAllText(Path.Combine(dir, "noema.cmd"), NoemaShim); } catch (Exception e) { log("  (the noema command was not written: " + e.Message + ")"); }
     try { File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(dir, "Uninstall LAIN.exe"), true); } catch (Exception e) { log("  (no maintenance program was written: " + e.Message + ")"); }
     var prior = Components.Read(dir);
-    var c = new Components { Harness = o.Harness, Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Registered = !o.NoRegister || prior.Registered };
+    var c = new Components { Harness = o.Harness, Design = o.Design && Directory.Exists(Path.Combine(vdir, "app", "design")), Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Registered = !o.NoRegister || prior.Registered };
     c.Write(dir);
 
     // 6. INTEGRATION — each one optional, each one undone by uninstall, none changing a default application.
@@ -241,7 +253,7 @@ static class Installer {
     // 9. A NOEMA-ERA INSTALL IS RETIRED only now, with LAIN verified in its place.
     if (noema != null && !SameDir(noema, dir) && c.Registered) Retire.Noema(noema, log);
     log("");
-    log("LAIN " + version + " is installed" + (o.Harness ? " with LAIN Harness" : " (CLI — LAIN Harness can be added later)") + ".");
+    log("LAIN " + version + " is installed" + (o.Harness ? " with LAIN Harness" : " (CLI — LAIN Harness can be added later)") + (c.Design ? " and LAIN Design" : "") + ".");
     log("  lain                       the CLI" + (o.Path ? " (open a NEW terminal)" : " — " + Path.Combine(dir, "lain.exe")));
     if (o.Harness) log("  Start > LAIN Harness       the desktop environment");
     return 0;
@@ -251,6 +263,23 @@ static class Installer {
   const string NoemaShim = "@echo off\r\nsetlocal\r\nset \"LAIN_VIA=noema\"\r\n\"%~dp0lain.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n";
 
   public static bool SameDir(string a, string b) { try { return string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase); } catch { return false; } }
+
+  /// ADD OR REMOVE LAIN DESIGN without reinstalling Core or touching the person's data or projects. Its files stay in
+  /// the version folder either way (like the Harness's); components.json says whether it is installed.
+  public static int SetDesign(Setup.Options o, bool on, Action<string> log) {
+    string dir = o.Dir;
+    if (!File.Exists(Path.Combine(dir, "lain.exe"))) { log("LAIN is not installed at " + dir); return 3; }
+    var c = Components.Read(dir);
+    var prior = Components.Read(dir);
+    if (on && !File.Exists(Path.Combine(dir, "versions", Pointer.Read(dir, "current") ?? "", "app", "design", "package.json"))) {
+      log("This LAIN version does not carry LAIN Design — run a newer LAIN-Setup."); return 5;
+    }
+    c.Design = on;
+    c.Write(dir);
+    if (c.Registered) Register(dir, Pointer.Read(dir, "current"), c, log);
+    log(on ? "LAIN Design added. Open a project in LAIN Harness and choose Design." : "LAIN Design removed. Your projects keep every change made with it; LAIN and your data are unchanged.");
+    return 0;
+  }
 
   /// ADD OR REMOVE THE HARNESS without reinstalling Core or touching the person's data.
   public static int SetHarness(Setup.Options o, bool on, Action<string> log) {
@@ -313,7 +342,7 @@ static class Installer {
         k.SetValue("ModifyPath", "\"" + maint + "\"");
         k.SetValue("NoRepair", 0, RegistryValueKind.DWord);
         k.SetValue("EstimatedSize", (int)(DirSize(dir) / 1024), RegistryValueKind.DWord);
-        k.SetValue("LainComponents", c.Harness ? "cli,harness" : "cli");
+        k.SetValue("LainComponents", "cli" + (c.Harness ? ",harness" : "") + (c.Design ? ",design" : ""));
         k.SetValue("LainLayout", "versions");   // the current layout — what tells this install from the obsolete LAIN
       }
     } catch (Exception e) { log("  (not registered in Installed apps: " + e.Message + ")"); }

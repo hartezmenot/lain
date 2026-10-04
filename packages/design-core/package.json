@@ -1,0 +1,14 @@
+{
+  "name": "@lain/design-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LAIN Design — the optional design surface's engine: adapters, the deterministic AST edit engine, flows, animations, snapshots and the design_* tools. Loaded only by a Design session or a /api/design route, and only when installed.",
+  "license": "MIT",
+  "main": "src/index.js",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@babel/parser": "7.29.9",
+    "parse5": "7.3.0",
+    "postcss": "8.5.28"
+  }
+}

@@ -311,6 +311,8 @@ class Session {
       ...(this.title ? { title: this.title } : {}),
       // WHERE A CONTINUED SESSION CAME FROM (externalsessions.js): external:<runtime>:<id>.
       ...(this.origin ? { origin: this.origin } : {}),
+      // A DESIGN SESSION (design.js) is its own kind; an ordinary session writes nothing here.
+      ...(this.kind ? { kind: this.kind } : {}),
       execMode: this.execMode || null, focus: Boolean(this.focus), fast: Boolean(this.fast), profile: this.profile || null,
       decisions: Array.isArray(this.decisions) ? this.decisions.slice(-20) : [],
       bgResults: Array.isArray(this._bgResults) ? this._bgResults.slice(-20) : [],
@@ -388,6 +390,7 @@ class Session {
     s.planHistory = (Array.isArray(data.planHistory) ? data.planHistory : []).map((p) => require('./plan').Plan.from(p)).filter(Boolean).slice(-5);
     s.mode = data.mode || null; if (typeof data.title === 'string') s.title = data.title;
     if (data.origin && typeof data.origin === 'object') s.origin = data.origin;
+    if (data.kind === 'design') s.kind = 'design';
     s.execMode = data.execMode || null; s.focus = Boolean(data.focus); s.fast = Boolean(data.fast); s.profile = data.profile ? (require('./profile').normalize(data.profile) || null) : null;   // SLOW (retired) → ECO
     s.decisions = Array.isArray(data.decisions) ? data.decisions : [];
     s._bgResults = Array.isArray(data.bgResults) ? data.bgResults : [];
