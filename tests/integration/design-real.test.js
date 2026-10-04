@@ -150,6 +150,22 @@ module.exports = async function () {
       } finally { await b.close(); }
     });
 
+    await test('DESIGN UI 7: with the Design window open, design_interact runs on its canvas (the person watches) and reports back', async () => {
+      const b = await bench();
+      try {
+        const d = design.forProject(b.app, b.root);
+        await b.until('true'); await wait(1500);   // the window has polled the relay at least once
+        assert.ok(d.relay.attached(), 'the window is attached');
+        const T = design.load().tools;
+        const r = await T.run(d, 'design_interact', { screen: 'index.html', steps: [{ action: 'hover', target: { text: 'Ada' } }, { action: 'click', target: { selector: '#me' } }] });
+        assert.ok(!r.isError, r.output);
+        const lines = r.output.split('\n');
+        assert.match(lines[0], /^1\. hover .*: ok · \/index\.html/);
+        assert.match(lines[1], /^2\. click .*: ok · \/profile\.html \(navigated\)/);
+        assert.match(await b.eval('document.querySelector("#dzStatus").textContent'), /Canvas test passed/);
+      } finally { await b.close(); }
+    });
+
     await test('DESIGN UI 6: Flow shows the hand-written avatar → Profile navigation; a wire made in Design is still there after the surface reloads', async () => {
       const b = await bench();
       try {

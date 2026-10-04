@@ -48,7 +48,10 @@ function open(root, opts = {}) {
   const best = detect(abs)[0];
   if (!best) return new ReadOnlyProject(abs, 'Design edits plain HTML/CSS/JS, React with Vite, and Android (Jetpack Compose / XML) projects — this one is none of those, so it is shown read-only');
   const Ctor = adapters().find((a) => a.kind === best.kind).mod();
-  return new Ctor(abs, { snapshotsDir: opts.snapshotsDir || path.join(abs, '.lain', 'design', 'snapshots'), write: opts.write || null });
+  const p = new Ctor(abs, { snapshotsDir: opts.snapshotsDir || path.join(abs, '.lain', 'design', 'snapshots'), write: opts.write || null });
+  // AN ANDROID PROJECT WITHOUT XML LAYOUTS (Jetpack Compose): its screens are Kotlin code — shown read-only, said so.
+  if (p.kind === 'android' && !p.layouts().length) return new ReadOnlyProject(abs, 'this Android project has no XML layouts (Jetpack Compose screens are code) — Design edits XML layouts; ask the Agent for Compose changes');
+  return p;
 }
 
 /** One project's Design state: the adapter, the preview (lazy), the headless driver (lazy). */

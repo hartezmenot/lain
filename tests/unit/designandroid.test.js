@@ -97,6 +97,13 @@ module.exports = async function () {
     assert.strictEqual(r.ok, false); assert.match(r.why, /Vector Asset/);
   });
 
+  await test('ANDROID: a project with no XML layouts (Jetpack Compose) opens read-only and says why', () => {
+    const root = copy();
+    fs.rmSync(path.join(root, 'app/src/main/res/layout'), { recursive: true, force: true });
+    const p = design.load().open(root);
+    assert.ok(p.readOnly); assert.match(p.why, /Jetpack Compose/);
+  });
+
   await test('ANDROID ADB (recorded output, no device): a tap goes to the view\'s centre in device pixels; the step reports the new activity, view changes and a screenshot; layout comes back in dp', async () => {
     const root = copy();
     const rec = (f) => fs.readFileSync(path.join(FIX, 'recorded', f), 'utf8');

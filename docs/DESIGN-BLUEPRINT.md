@@ -32,7 +32,7 @@ list is computed. **Install**: `distribution/setupui.cs` (in lain-cli, not lain-
 | `packages/design-core` — adapters, AST edit engine, flow graph, animations, snapshots, `design_*` tools, the preview runtime, the Vite plugin | lain-cli | only by a Design session or a `/api/design/*` route, and only if installed |
 | `src/design.js` — locate/installed check, the Design session kind, the CDP driver for headless input | lain-cli Core | lazily, by the routes and the session |
 | `src/harnessapp/designroutes.js` — `/api/design/*` | lain-cli Core | registered always; `require`s design-core on first call |
-| `design/` — the Design tab UI (canvas, layers, inspector, flow overlay, prompt bar) | lain-harness | fetched by the page on first open (`/api/design/ui`) |
+| `design/` — the Design tab UI (canvas, layers, inspector, flow overlay, prompt bar) | lain-harness | fetched by the page on first open (served beside the page via `assetDirs`, only when `design/` is present) |
 | `page/shell/designentry.js` — the rail button (only if installed), Open in Design, the chip | lain-harness main page | always (a few hundred bytes; no Design logic) |
 
 **A Design session** is an ordinary session with `kind: 'design'`. Its tool list is the 17 core tools plus five
@@ -40,7 +40,8 @@ list is computed. **Install**: `distribution/setupui.cs` (in lain-cli, not lain-
 
 **Edits** are deterministic splices: parse (Babel for JS/JSX/TS, postcss for CSS, parse5 for HTML) only to find exact
 source offsets, then replace those bytes. Formatting outside the edited span is untouched by construction, and Undo
-restores bytes exactly. Every edit goes through the stale-edit guard (`fileguard`), writes a snapshot, then reloads.
+restores bytes exactly. Every edit is checked against the bytes it was computed from (the stale-edit guard), written
+inside Core's mutation transaction by a realpath-contained writer, snapshotted, then the preview reloads.
 
 **Click → source**: plain HTML is served through Design's own preview server, which adds `data-lain-id` (a hash of
 `file:line:col`, computed from parse5 source positions) to every element; React/Vite gets the same ids from a dev-only
@@ -62,8 +63,9 @@ plain navigation written by hand (`href`, `location.href`, `navigate()`, `<Link 
 4. **The installer lives in lain-cli** (`distribution/`). The Design checkbox goes there; installing it means putting
    `packages/design-core` with its `node_modules` into the payload. Building that payload offline needs the packages
    vendored at release time — **a release-host decision for the person** (no host is invented here).
-5. **Android**: no emulator or adb here; D7 is built against recorded `uiautomator` dumps and Compose sources and is
-   marked unverified on a device.
+5. **Android**: no emulator or adb here; D7 is built against XML layouts + Kotlin Activities and hand-assembled adb
+   output (`tests/fixtures/design/android-chat/recorded`), and is marked unverified on a device. Jetpack Compose is not
+   edited: an Android project with no XML layouts opens read-only and says so.
 6. The existing Preview's "Edit size → Apply" hands a draft to the Coding Agent. Design keeps that path untouched and
    adds the deterministic one beside it.
 
@@ -72,3 +74,16 @@ plain navigation written by hand (`href`, `location.href`, `navigate()`, `<Link 
 WebView2 rendering of the tab, drag/snap feel, the visible virtual cursor in the window, the installer (C#), and
 anything Android on a device. Headless tests cover the engine, adapters, routes, tool schemas, cache proofs and
 module-loading proofs, plus preview geometry and input in headless Chromium.
+
+## Built (D1–D8) — what landed, file by file
+
+| Piece | Files |
+|---|---|
+| Engine | `packages/design-core/src/` — `text` (splices, ids, hunk diffs), `html`, `css`, `jsx`, `xml` (parsers → offsets), `web` (HTML adapter, style planner, ops, commit/undo), `react` (React/Vite adapter + Vite plugin), `android` (layouts, Activities, adb), `layout` + `snap` (drag semantics, guides), `flow` + `animations` (wires, presets), `snapshots`, `server` (preview), `runtime` (in-page), `headless` (CDP driver), `tools` (design_*), `context` (prompt bar pack), `index` |
+| Core | `src/design.js` (the one door), `src/harnessapp/designroutes.js`, `src/tools/index.js` (Design session tools), `src/session.js` + `src/sessionpool.js` (`kind: 'design'`), `src/components.js` + `src/settings.js` (component, switch) |
+| Installer | `distribution/setup.cs`, `setupui.cs` (checkbox, `--design/--no-design/--add-design/--remove-design`), `release.js` + `designpayload.js` (staging) |
+| Harness | `page/shell/designentry.js` (the door), `design/design.js` + `design.css` (the surface), `shell.js` (`nav.register`), `client.js` (`onSent`), `webvendor.js` (serve `design/`), `native/host.cs` (image file picker) |
+| Tests | `tests/unit/design*.test.js`, `tests/integration/design-real.test.js`, `tests/designbench.js`, fixtures `chat-messenger`, `react-mini`, `android-chat` |
+
+Changes from the plan above: the surface is served by `assetDirs` (not a `/api/design/ui` route); `fileguard` is the
+engine's own byte check inside `mutation.transact/change`; the Android adapter edits XML layouts, not Compose.
