@@ -7,11 +7,12 @@ const path = require('path');
 
 function read() {
   const root = process.env.LAIN_INSTALL_ROOT;
-  if (!root) return { installed: false, cli: true, harness: true, root: null };
+  if (!root) return { installed: false, cli: true, harness: true, design: true, root: null };
   try {
     const c = JSON.parse(fs.readFileSync(path.join(root, 'components.json'), 'utf8')) || {};
-    return { installed: true, cli: true, harness: c.harness === true, root, path: c.path === true, openWith: c.openWith === true, openFolder: c.openFolder === true };
-  } catch { return { installed: true, cli: true, harness: false, root }; }
+    // LAIN DESIGN: on unless the person unchecked it (an install from before Design existed has no "design" key).
+    return { installed: true, cli: true, harness: c.harness === true, design: c.design !== false, root, path: c.path === true, openWith: c.openWith === true, openFolder: c.openFolder === true };
+  } catch { return { installed: true, cli: true, harness: false, design: true, root }; }
 }
 
 function harness() { return read().harness; }

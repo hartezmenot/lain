@@ -55,6 +55,13 @@ async function schema(app) {
           f('general.background', 'Work, background tasks and messaging continue while the window is hidden', 'boolean', true,
             { editable: false }),
           f('general.maxSteps', 'Tool-step budget per turn (0 = no limit)', 'integer', Number(cfg.maxSteps) || 0, { min: 0, max: 10000 }),
+          // LAIN DESIGN (optional component): shown or hidden here; added or removed with the installer. Reads two files.
+          ...(() => {
+            const d = require('./design');
+            const at = d.installed();
+            return [f('general.design.enabled', at.ok ? `LAIN Design ${at.version} — visual editing of app screens` : 'LAIN Design — visual editing of app screens', 'boolean', at.ok && d.enabled(app),
+              { group: 'Components', ...(at.ok ? {} : { editable: false, why: at.why }) })];
+          })(),
         ],
       },
       {
@@ -131,6 +138,13 @@ async function update(app, key, value) {
       save(app);
       const r = startup.sync(cfg);
       if (!r.ok) return refuse(key, `saved, but Windows was not updated: ${r.why}`);
+      break;
+    }
+    case 'general.design.enabled': {
+      if (typeof value !== 'boolean') return refuse(key, 'on or off');
+      if (value && !require('./design').installed().ok) return refuse(key, require('./design').NOT_INSTALLED);
+      cfg.design = { ...(cfg.design || {}), enabled: value };
+      save(app);
       break;
     }
     case 'general.maxSteps': {

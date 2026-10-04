@@ -170,6 +170,46 @@ module.exports = async function () {
     });
   }
 
+  if (haveUI) {
+    await test('DESIGN DOOR: installed → a Design room, "Open in Design" on the Preview, and the chip after two UI-change requests; not installed → nothing, and no Design file is fetched', async () => {
+      const { Headless } = require(path.join(at.dir, 'src', 'headless.js'));
+      const entry = require(path.join(path.dirname(benchMod.harnessDesignDir()), 'page', 'shell', 'designentry.js'));
+      const http = require('http');
+      const fetched = [];
+      const page = (installed) => `<!doctype html><html><body><nav id="tabs"><button id="tabChat">Chat</button></nav><main></main><div><button id="wsPick">pick</button></div>
+<script>
+  window.LAIN = { boots: [], sentFns: [], $: (id) => document.getElementById(id), el: (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; },
+    icon: () => document.createElement('i'), api: async (p) => (p === '/api/design/status' ? { ok: true, installed: ${installed}, enabled: true } : { ok: false }),
+    onBoot(fn) { this.boots.push(fn); }, onSent(fn) { this.sentFns.push(fn); }, hostCall: async () => null,
+    nav: { t: 'chat', go(t) { this.t = t; }, tab() { return this.t; }, onShow() {}, register(t) { window.__registered = t; } } };
+</script><script>${entry.js()}</script>
+<script>LAIN.boots.forEach((f) => f({}));</script></body></html>`;
+      const server = http.createServer((req, res) => { fetched.push(req.url); res.setHeader('content-type', 'text/html'); res.end(req.url.startsWith('/yes') ? page(true) : req.url.startsWith('/no') ? page(false) : ''); });
+      await new Promise((r) => server.listen(0, '127.0.0.1', r));
+      const base = `http://127.0.0.1:${server.address().port}`;
+      const h = await new Headless().launch({ width: 900, height: 600, dpr: 1, mobile: false });
+      try {
+        await h.goto(`${base}/yes`); await wait(300);
+        assert.ok(await h.page.eval('!!document.getElementById("tabDesign") && !!document.getElementById("vDesign") && window.__registered === "design"'), 'the room');
+        assert.ok(await h.page.eval('!!document.getElementById("wsDesign")'), 'Open in Design on the Preview');
+        await h.page.eval('LAIN.sentFns.forEach((f) => f("make the avatar bigger"))');
+        assert.ok(!(await h.page.eval('!!document.getElementById("dzChip")')), 'not after one');
+        await h.page.eval('LAIN.sentFns.forEach((f) => f("and move the button to the left"))');
+        assert.ok(await h.page.eval('!!document.getElementById("dzChip")'), 'after two UI-change requests in a row');
+        await h.page.eval('document.querySelector("#dzChip .dz-x").click()');
+        await h.page.eval('LAIN.sentFns.forEach((f) => { f("center the header"); f("bigger font"); })');
+        assert.ok(!(await h.page.eval('!!document.getElementById("dzChip")')), 'dismissed stays dismissed');
+        assert.ok(!fetched.some((u) => /design[/]/.test(u)), 'the surface is not fetched until the room opens');
+        fetched.length = 0;
+        await h.goto(`${base}/no`); await wait(300);
+        assert.ok(await h.page.eval('!document.getElementById("tabDesign") && !document.getElementById("wsDesign") && !document.getElementById("vDesign")'), 'nothing added');
+        await h.page.eval('LAIN.sentFns.forEach((f) => { f("move it left"); f("make it bigger"); })');
+        assert.ok(await h.page.eval('!document.getElementById("dzChip") && ![...document.scripts].some((s) => /design[/]/.test(s.src)) && !window.LAIN.designUI'), 'no chip, no Design script');
+        assert.deepStrictEqual(fetched.filter((u) => u !== '/no' && u !== '/favicon.ico'), [], 'no Design file requested');
+      } finally { h.close(); await new Promise((r) => server.close(r)); }
+    });
+  }
+
   await test('DESIGN 7: expand-from-element (avatar → Profile), slide-left and the dropdown reveal run in a real page with no console errors', async () => {
     const root = benchMod.project('chat-messenger');
     const d = new (design.load().Design)(root);

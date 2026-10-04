@@ -4,7 +4,7 @@
  * BUILD A LAIN RELEASE — the installer, the update package and the signed update feed.
  *
  *   node distribution/release.js [--version 0.1.1] [--channel stable|preview] [--out dist] [--feed <url>]
- *                                [--harness-dir ../lain-harness] [--unsigned]
+ *                                [--harness-dir ../lain-harness] [--unsigned] [--no-design]
  *
  * Produces in <out>/:
  *   LAIN-Setup-<v>.exe            one file: the setup program with the payload inside (per-user, no admin)
@@ -103,7 +103,12 @@ function releaseKey() {
   copyTree(path.join(ROOT, 'package.json'), path.join(app, 'package.json'));
   for (const extra of ['native/vendor']) { const s = path.join(ROOT, extra); if (fs.existsSync(s)) copyTree(s, path.join(app, extra)); }
   copyTree(harnessDir, path.join(app, 'harness'), (p) => !/[\\/](\.git|node_modules|tests?|docs)$/.test(p));
-  fs.writeFileSync(path.join(app, 'build-info.json'), JSON.stringify({ product: 'LAIN', version, channel, revision: revision(), built: new Date().toISOString(), feed }, null, 2));
+  // LAIN DESIGN (optional, its own version): the engine and its pinned runtime dependencies in app/design; the
+  // surface rides in app/harness/design. Installed or not is the person's choice at setup (components.json).
+  const designBuild = argv.includes('--no-design') ? null : require('./designpayload').stage(app);
+  if (!designBuild) fs.rmSync(path.join(app, 'harness', 'design'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(app, 'build-info.json'), JSON.stringify({ product: 'LAIN', version, channel, revision: revision(), built: new Date().toISOString(), feed, design: designBuild ? { version: designBuild.version, dependencies: designBuild.dependencies } : null }, null, 2));
+  say(designBuild ? `  LAIN Design ${designBuild.version} (${designBuild.dependencies.join(', ')})` : '  LAIN Design NOT included (--no-design)');
 
   // 2. PREBUILT NATIVE PIECES (no compiler on the person's machine).
   process.env.LAIN_HARNESS_DIR = path.join(app, 'harness');

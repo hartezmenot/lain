@@ -20,6 +20,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const KIND = 'design';
+const NOT_INSTALLED = 'LAIN Design is not installed. Add it with the LAIN installer (Settings › Apps › LAIN › Modify, or run LAIN-Setup again and tick "LAIN Design"). Everything else works without it.';
 
 function candidates() {
   if (process.env.LAIN_DESIGN_DIR) return [process.env.LAIN_DESIGN_DIR];
@@ -28,6 +29,8 @@ function candidates() {
 
 /** Is Design installed (and usable)? { ok, dir, version } or { ok:false, why }. Reads two small files; loads nothing. */
 function installed() {
+  // AN INSTALLED LAIN WHOSE PERSON UNCHECKED "LAIN Design" at setup: the files may be in the version folder; it is not installed.
+  try { const c = require('./components').read(); if (c.installed && c.design === false) return { ok: false, why: NOT_INSTALLED }; } catch { /* a source tree */ }
   for (const dir of candidates()) {
     let pkg = null;
     try { pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch { continue; }
@@ -36,7 +39,7 @@ function installed() {
     if (missing.length) return { ok: false, dir, why: `LAIN Design at ${dir} is missing ${missing.join(', ')} (reinstall the Design component)` };
     return { ok: true, dir: path.resolve(dir), version: pkg.version };
   }
-  return { ok: false, why: 'LAIN Design is not installed' };
+  return { ok: false, why: NOT_INSTALLED };
 }
 
 function enabled(app) {
@@ -222,4 +225,4 @@ function status(app) {
 
 function _reset() { engine = null; }
 
-module.exports = { sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };
+module.exports = { NOT_INSTALLED, sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };
