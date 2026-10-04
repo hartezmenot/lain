@@ -84,7 +84,7 @@ const STYLE = [
   'workbench/workshop', 'settings/bot', 'settings/assistant', 'model/local', 'model/model', 'usage/usage',
   'chat/sessions', 'settings/settings', 'chat/cowork', 'chat/image', 'shell/contextmenu',
   'shell/shell', 'shell/tracker', 'shell/update', 'shell/computer', 'chat/chat', 'chat/work', 'chat/plan', 'settings/prefs', 'settings/github', 'settings/storage', 'settings/feedback',
-  'mcp/mcp', 'settings/router', 'model/intel', 'model/dashboard', 'chat/stream', 'chat/live',
+  'mcp/mcp', 'settings/router', 'model/intel', 'model/dashboard', 'chat/stream', 'chat/live', 'shell/designentry',
 ];
 
 function css() {
@@ -101,7 +101,7 @@ const SCRIPTS = [
   'shell/quick', 'shell/house', 'workbench/provenance', 'workbench/editorprofile', 'workbench/extensions', 'workbench/extpage', 'chat/image', 'shell/contextmenu',
   'shell/search', 'home/home', 'workbench/ide', 'settings/assistant', 'chat/chat', 'settings/bot', 'model/local',
   'model/dashboard', 'model/model', 'usage/usage', 'mcp/mcp', 'chat/sessions', 'settings/prefs', 'settings/github', 'settings/storage', 'settings/feedback',
-  'settings/router', 'settings/settings',
+  'settings/router', 'settings/settings', 'shell/designentry',
 ];
 function scriptOf(name) { const m = mod(name); return m.js ? m.js() : (m.SCRIPT || ''); }
 

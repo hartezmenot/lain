@@ -206,6 +206,10 @@ function assetDirs() {
   if (m) out.push({ url: 'vendor/monaco', dir: m });
   const x = xtermDir();
   if (x) out.push({ url: 'vendor/xterm', dir: x });
+  // LAIN DESIGN'S SURFACE (design/), when that component is installed: served beside the page, loaded only when the
+  // Design room opens (page/shell/designentry.js).
+  const d = path.join(__dirname, 'design');
+  if (fs.existsSync(path.join(d, 'design.js'))) out.push({ url: 'design', dir: d });
   return out;
 }
 

@@ -129,6 +129,9 @@ function client() {
       desk.postMessage(msg);
     });
   }
+  /** WHAT THE PERSON SENT, for the window's own listeners (shell/designentry.js's chip) — never back to Core. */
+  var sent = [];
+  L.onSent = function (fn) { if (typeof fn === 'function') sent.push(fn); };
   async function api(path, body) {
     if (!desk) throw new Error('this page is not running inside LAIN Desktop');
     return post({ method: body === undefined ? 'GET' : 'POST', path: path, body: body || {} });
@@ -657,6 +660,7 @@ function client() {
     // (plan first?) — both land in the stream from Core state; the text is kept.
     if (r.offer || r.supervised) { if (textOverride == null) { $('ask').value = ''; $('ask').style.height = 'auto'; } poll(); return; }
     if (textOverride == null) { $('ask').value = ''; $('ask').style.height = 'auto'; }
+    sent.forEach(function (fn) { try { fn(t); } catch (e) { /* a listener never costs a send */ } });
     if (L.composer) L.composer.afterSend();
     poll();
   }

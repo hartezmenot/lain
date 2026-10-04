@@ -752,7 +752,9 @@ class Shell : Form {
       string kind = m.ContainsKey("kind") ? Convert.ToString(m["kind"], CultureInfo.InvariantCulture) : "";
       using (var dlg = new OpenFileDialog()) {
         dlg.Title = title;
-        dlg.Filter = kind == "vsix" ? "VS Code extension (*.vsix)|*.vsix" : "All files (*.*)|*.*";
+        dlg.Filter = kind == "vsix" ? "VS Code extension (*.vsix)|*.vsix"
+          : kind == "image" ? "Images (*.png;*.ico;*.svg;*.jpg;*.jpeg;*.gif;*.webp)|*.png;*.ico;*.svg;*.jpg;*.jpeg;*.gif;*.webp"
+          : "All files (*.*)|*.*";
         dlg.CheckFileExists = true;
         dlg.Multiselect = false;
         bool chosen = dlg.ShowDialog(this) == DialogResult.OK;

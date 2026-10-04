@@ -291,6 +291,8 @@ function client() {
     go: go,
     tab: function () { return tab; },
     onShow: function (t, fn) { (shows[t] = shows[t] || []).push(fn); },
+    /** An optional room added at runtime (LAIN Design, shell/designentry.js): its tab id and its name. */
+    register: function (t, name) { if (ALL.indexOf(t) < 0) ALL.push(t); NAMES[t] = name; },
   };
 
   // ---- THE ROOM'S OWN LIST IN THE RAIL (L.rail.room) --------------------------------------------------------
