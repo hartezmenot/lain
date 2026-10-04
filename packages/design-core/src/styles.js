@@ -156,6 +156,7 @@ class StyleOrigin {
       const b = banners.pop();
       if (b) rel = this.fileOf(b[1], header);
     }
+    if (!rel) rel = this.findInProject(text, range);
     if (!rel) return null;
     const file = fs.readFileSync(path.join(this.root, rel), 'utf8');
     if (text.replace(/\r\n/g, '\n').startsWith(file.replace(/\r\n/g, '\n').replace(/\s+$/, ''))) return { rel, line: range.startLine + 1, col: range.startColumn, via: 'identical' };
@@ -176,6 +177,19 @@ class StyleOrigin {
       if (pick != null) { const before = file.slice(0, pick); const line = before.split('\n').length; return { rel, line, col: pick - (before.lastIndexOf('\n') + 1), via: 'text' }; }
     }
     return { rel, line: null, col: null, via: 'file-only' };
+  }
+
+  /**
+   * A SHEET THAT NAMES NO FILE (a server-rendered <style>, an inlined bundle): the project's own style sources that hold
+   * this exact declaration text — accepted only when exactly one file does.
+   */
+  findInProject(text, range) {
+    const line = text.split('\n')[range.startLine] || '';
+    const snippet = line.slice(range.startColumn, range.endLine === range.startLine ? range.endColumn : undefined).trim().replace(/;$/, '');
+    if (!snippet || snippet.length < 4) return null;
+    if (!this._styleFiles) this._styleFiles = require('./routes').walk(this.root, '', 7).filter((f) => /\.(css|scss|sass|less|vue|svelte)$/.test(f));
+    const hits = this._styleFiles.filter((f) => { try { return fs.readFileSync(path.join(this.root, f), 'utf8').includes(snippet); } catch { return false; } });
+    return hits.length === 1 ? hits[0] : null;
   }
 
   /** How many elements a rule's selector matches on this page (a shared class asks before it is changed). */
@@ -227,8 +241,10 @@ function declAt(src, line, col, prop) {
 
 /** Insert `prop: value;` into the rule whose block starts at (line, col) — the `{` at or after it. */
 function addDecl(src, line, col, prop, value) {
-  let at = lineStart(src, line) + (col || 0);
-  while (at < src.length && src[at] !== '{') at += 1;
+  // THE POSITION IS INSIDE THE RULE'S BLOCK (CDP's style range starts after the `{`) or at its selector.
+  const pos = lineStart(src, line) + (col || 0);
+  let at = src.lastIndexOf('{', pos);
+  if (at < 0 || src.lastIndexOf('}', pos - 1) > at) { at = pos; while (at < src.length && src[at] !== '{') at += 1; }
   if (src[at] !== '{') return null;
   let depth = 0; let i = at;
   for (; i < src.length; i++) { if (src[i] === '{') depth += 1; else if (src[i] === '}') { depth -= 1; if (depth === 0) break; } }

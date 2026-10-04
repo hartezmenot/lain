@@ -185,7 +185,12 @@ function client() {
   function reactOwners(n) {
     var k = Object.keys(n).find(function (x) { return x.indexOf('__reactFiber$') === 0; }); if (!k) return [];
     var f = n[k]; var out = []; var guard = 0;
-    while (f && guard++ < 60) { var t = f.type; if (typeof t === 'function' && (t.displayName || t.name) && out.indexOf(t.displayName || t.name) < 0) out.push(t.displayName || t.name); f = f.return; }
+    while (f && guard++ < 60) {
+      var t = f.type; if (typeof t === 'function' && (t.displayName || t.name) && out.indexOf(t.displayName || t.name) < 0) out.push(t.displayName || t.name);
+      // REACT 19 SERVER COMPONENTS (Next app router) have no client fiber: their names ride in _debugInfo.
+      if (Array.isArray(f._debugInfo)) f._debugInfo.forEach(function (di) { if (di && di.name && out.indexOf(di.name) < 0 && /^[A-Z]/.test(di.name)) out.push(di.name); });
+      f = f.return;
+    }
     return out.slice(0, 8);
   }
   function describe(q) {
@@ -200,7 +205,8 @@ function client() {
     return {
       selector: pathOf(n), lainId: lid, tag: n.tagName.toLowerCase(), text: text, innerText: (n.innerText || '').trim().slice(0, 120), classes: Array.prototype.slice.call(n.classList), attrs: attrs,
       siblingIndex: p ? Array.prototype.indexOf.call(p.children, n) : 0, parent: chain, vueFile: vueFile, svelteMeta: sm, reactOwners: reactOwners(n),
-      count: lid ? document.querySelectorAll('[data-lain-id="' + lid + '"]').length : 1, rect: rectOf(n),
+      // RENDERED MANY TIMES: the same compile-time id, or (without ids) siblings of the same tag and classes.
+      count: lid ? document.querySelectorAll('[data-lain-id="' + lid + '"]').length : (p ? Array.prototype.filter.call(p.children, function (c) { return c.tagName === n.tagName && c.className === n.className; }).length : 1), rect: rectOf(n),
     };
   }
   /** The element at a point in the page (for a click from the window when ids are absent). */

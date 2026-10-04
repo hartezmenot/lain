@@ -49,7 +49,7 @@ html,body{height:100%;margin:0;background:#121216;font-family:system-ui,sans-ser
 <script>
 window.LAIN = {};
 window.__api = [];
-async function api(p, b) { window.__api.push(p); const r = await fetch('/bridge' + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b || {}) }); return r.json(); }
+async function api(p, b) { window.__api.push(p); const r = await fetch('/bridge' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-lain-window': '__SECRET__' }, body: JSON.stringify(b || {}) }); return r.json(); }
 </script>
 <script src="/design/design.js"></script>
 <script>
@@ -62,21 +62,27 @@ LAIN.designUI.show();
 </script></body></html>`;
 
 /** Start the bench: { url, page (Headless), app, root, eval, close, ... }. */
-async function start({ fixture = 'chat-messenger', width = 1440, height = 900 } = {}) {
+async function start({ fixture = 'chat-messenger', root: given = null, width = 1440, height = 900, onBridge = null } = {}) {
   const designDir = harnessDesignDir();
   if (!designDir) throw new Error(`no lain-harness design/ at ${HARNESS}`);
-  const root = project(fixture);
+  const root = given || project(fixture);
+  // THE WINDOW'S CHANNEL, AS CORE'S IS: only the window holds the secret (the real Harness talks over an authenticated
+  // named pipe; no page can reach it). A request without it is counted and refused.
+  const secret = require('crypto').randomBytes(16).toString('hex');
   const app = appFor(root);
   const routes = require('../src/harnessapp/routes');
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
-    if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE); return; }
+    if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE.replace('__SECRET__', secret)); return; }
     if (url.pathname.startsWith('/design/')) {
       const f = path.join(designDir, path.basename(url.pathname));
       if (!fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'content-type': f.endsWith('.css') ? 'text/css' : 'text/javascript' }); res.end(fs.readFileSync(f)); return;
     }
     if (url.pathname.startsWith('/bridge/')) {
+      const trusted = req.headers['x-lain-window'] === secret;
+      if (onBridge) onBridge({ path: url.pathname, trusted, origin: req.headers.origin || null });
+      if (!trusted) { res.writeHead(403); res.end(); return; }
       let body = ''; req.on('data', (c) => { body += c; });
       req.on('end', async () => {
         let b = {}; try { b = JSON.parse(body || '{}'); } catch { b = {}; }
@@ -91,6 +97,9 @@ async function start({ fixture = 'chat-messenger', width = 1440, height = 900 } 
   const url = `http://127.0.0.1:${server.address().port}/`;
   const { Headless } = require(path.join(require('../src/design').installed().dir, 'src', 'headless.js'));
   const h = await new Headless().launch({ width, height, dpr: 1, mobile: false });
+  // EVERY FRAME'S MAIN WORLD, so a test can read what the app's own script saw.
+  const contexts = new Map();
+  h.handlers.push((m) => { if (m.method === 'Runtime.executionContextCreated') { const c = m.params.context; if (c.auxData && c.auxData.isDefault) contexts.set(c.auxData.frameId, c.id); } });
   await h.goto(url);
   const ev = (expr) => h.page.eval(expr);
   const bench = {
@@ -119,12 +128,23 @@ async function start({ fixture = 'chat-messenger', width = 1440, height = 900 } 
     async frameBox(screen) {
       return ev(`(() => { const f = LAIN.designUI._state.frames.get(${JSON.stringify(screen)}); const r = f.iframe.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, zoom: LAIN.designUI._state.zoom }; })()`);
     },
+    /** Evaluate in the app's own page inside a canvas frame (its main world). */
+    async evalInFrame(screen, expr) {
+      const url = await ev(`LAIN.designUI._state.frames.get(${JSON.stringify(screen)}).iframe.src`);
+      const tree = await h.page.send('Page.getFrameTree');
+      const all = []; (function walk(n) { all.push(n.frame); (n.childFrames || []).forEach(walk); }(tree.frameTree));
+      const fr = all.find((f) => f.url.split('#')[0] === url || f.url.startsWith(url));
+      if (!fr) throw new Error(`no frame for ${url}`);
+      const r = await h.page.send('Runtime.evaluate', { expression: expr, contextId: contexts.get(fr.id), awaitPromise: true, returnByValue: true });
+      if (r.exceptionDetails) throw new Error(r.exceptionDetails.text);
+      return r.result.value;
+    },
     async shot(file) { fs.writeFileSync(file, await h.screenshot()); return file; },
     async close() {
       try { h.close(); } catch { /* gone */ }
       await new Promise((r) => server.close(() => r()));
       try { await require('../src/design').closeAll(); } catch { /* closing */ }
-      try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* the browser may hold it */ }
+      if (!given) { try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* the browser may hold it */ } }
     },
   };
   return bench;

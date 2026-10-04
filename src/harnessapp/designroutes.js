@@ -89,6 +89,7 @@ const ROUTES = {
     if (body.dryRun) { const r = f.design.project.applyEdit(op); return ok({ applied: false, preview: r.ok ? { summary: r.summary, diff: r.diff, files: r.files.map((x) => x.rel) } : null, needs: r.needs || null, why: r.why || null }); }
     // THE PROVEN PIPELINE (design-core pipeline.js): map, plan, write, measure; kept only if the canvas confirms it.
     const block = design().editBlock(app, f.root); if (block) return ok({ applied: false, why: block });
+    if (typeof op.device === 'string') op.device = DEVICES.find((x) => x.id === op.device) || null;
     const r = await f.design.edit(op, { commit: (res) => design().commit(app, f.design, res, { actor: 'USER' }), undo: () => design().undoProven(app, f.design), actor: 'person' });
     if (!r.ok) return ok({ applied: false, needs: r.needs || null, why: r.why || null, reverted: Boolean(r.reverted), alternatives: r.alternatives || null, route: r.route || null, tier: r.tier || null, stale: Boolean(r.stale) });
     if (r.noop) return ok({ applied: false, noop: true, why: r.summary });
@@ -238,7 +239,7 @@ Object.assign(ROUTES, {
     } catch { crop = null; }
     const html = await h.page.eval(`(() => { const e = document.querySelector(${JSON.stringify(d.selector)}); return e ? e.outerHTML.slice(0, 1200) : ''; })()`).catch(() => '');
     const best = require(require('path').join(design().installed().dir, 'src', 'mapper.js')).fuzzy(f.design.project, d, f.design.project.sources ? f.design.project.sources() : []).slice(0, 5).map((c) => `${c.file}:${c.line}`);
-    const prompt = [String(body.prompt || 'Where in the source is this element rendered?'), '', '[Design selection]', `Screen: ${screen}`, `Element: ${d.selector}`, `HTML: ${html}`, crop ? `Screenshot: ${crop}` : null, best.length ? `Candidate files: ${best.join(', ')}` : null, `To record it: design_inspect with map {selector: ${JSON.stringify(d.selector)}, file, line}`].filter(Boolean).join('\n');
+    const prompt = [String(body.prompt || 'Where in the source is this element rendered?'), '\u0000', '[Design selection]', `Screen: ${screen}`, `Element: ${d.selector}`, `HTML: ${html}`, crop ? `Screenshot: ${crop}` : null, best.length ? `Candidate files: ${best.join(', ')}` : null, `To record it: design_inspect with map {selector: ${JSON.stringify(d.selector)}, file, line}`].filter(Boolean).join('\n').replace('\u0000', '');
     return ROUTES['POST /api/design/prompt'](app, { ...body, prompt, raw: true });
   },
 
@@ -288,7 +289,7 @@ Object.assign(ROUTES, {
     if (a === 'comment') {
       const text = String(body.text || '').trim(); if (!text) return bad('nothing was said');
       cards.comment(card.id, text);
-      const prompt = [text, '', '[Design change card]', `Card: ${card.id} · ${card.actor} · ${card.summary}`, `Files: ${card.files.join(', ')}`, card.diff ? `Diff:\n${card.diff}` : null].filter(Boolean).join('\n');
+      const prompt = [text, '', ...['[Design change card]', `Card: ${card.id} · ${card.actor} · ${card.summary}`, `Files: ${card.files.join(', ')}`, card.diff ? `Diff:\n${card.diff}` : null].filter(Boolean)].join('\n');
       return ROUTES['POST /api/design/prompt'](app, { prompt, raw: true, screen: card.screen, node: card.node });
     }
     return bad(`unknown action ${a}`);

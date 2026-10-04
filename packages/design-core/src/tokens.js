@@ -120,6 +120,8 @@ class Tokens {
 
   /** The token form of `value` for a declaration in `file` (or null when no token has that value). */
   token(prop, value, file) {
+    // WHERE A TOKEN MEANS SOMETHING: colours, spacing (not positions), radii, type, shadows.
+    if (!(COLOR_PROPS.has(prop) || /^(margin|padding|gap|row-gap|column-gap)/.test(prop) || ['border-radius', 'font-size', 'box-shadow', 'line-height'].includes(prop))) return null;
     const v = COLOR_PROPS.has(prop) || COLOR.test(String(value)) ? normColor(value) : String(value).trim();
     const same = (x) => (COLOR.test(String(x)) ? normColor(x) === v : String(x).trim() === v);
     if (/\.s[ac]ss$/.test(file || '')) { const s = this.t.scss.find((x) => same(x.value)); if (s) return s.name; }

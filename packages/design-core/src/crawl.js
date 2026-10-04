@@ -6,7 +6,7 @@
  * route pattern (`/users/42` and `/users/7` are one screen, `/users/:id`). Each found page is a screen with its URL.
  */
 
-const pattern = (p) => p.split('/').map((s) => (/^\d+$|^[0-9a-f]{8,}$|^[0-9a-f-]{36}$/i.test(s) ? ':id' : s)).join('/') || '/';
+const pattern = (p) => p.replace(/\/index\.html?$/i, '/').split('/').map((s) => (/^\d+$|^[0-9a-f]{8,}$|^[0-9a-f-]{36}$/i.test(s) ? ':id' : s)).join('/') || '/';
 
 async function crawl(h, base, { start = '/', depth = 2, max = 20 } = {}) {
   const origin = new URL(base).origin;

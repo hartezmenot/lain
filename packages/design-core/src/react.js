@@ -183,7 +183,9 @@ class ReactProject extends WebProject {
       }
       const [pre, re] = TW[p];
       cls = cls.filter((c) => !re.test(c));
-      if (v != null && v !== '') cls.push(`${pre}-[${String(v).replace(/\s+/g, '_')}]`);
+      // THE PROJECT'S THEME FIRST (`text-brand`, `rounded-card`); an arbitrary value only when no token has it.
+      const named = v != null && this.tokens ? this.tokens.utility(p, v) : null;
+      if (named) cls.push(named); else if (v != null && v !== '') cls.push(`${pre}-[${String(v).replace(/\s+/g, '_')}]`);
     }
     return jsx.setAttr(src, el, 'className', cls.join(' '));
   }

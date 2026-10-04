@@ -100,7 +100,8 @@ const at = (c, tier, extra = {}) => ({ tier, node: c.id, file: c.file, line: c.l
 /** The ladder. `d` is the runtime's describe() of the element. */
 function map(project, d) {
   if (!d) return { tier: 'none', why: 'no element' };
-  const repeat = (node, file) => (d.count > 1 ? { count: d.count, component: path.basename(file || '').replace(/\.(vue|svelte|jsx|tsx|js|ts)$/, '') || null } : {});
+  // THE COMPONENT THAT RENDERS IT MANY TIMES: its own name when the framework says (React owner, Vue/Svelte file).
+  const repeat = (node, file) => (d.count > 1 ? { count: d.count, component: (d.reactOwners && d.reactOwners[0]) || path.basename(file || '').replace(/\.(vue|svelte|jsx|tsx|js|ts)$/, '') || null } : {});
   // 1. EXACT
   if (d.lainId) {
     const loc = project.locate(d.lainId);

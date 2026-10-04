@@ -258,7 +258,10 @@ class WebProject {
     const targets = [];
     const page = this.read(el.file || screen);
     screen = el.file || screen;
-    for (const { plan, props: ps } of groups.values()) {
+    // TOKENS: a value that matches the project's design language is written as its token (tokens.js).
+    const tok = (ps, rel) => (this.tokens ? Object.fromEntries(Object.entries(ps).map(([k, v]) => [k, v == null ? v : (this.tokens.token(k, v, rel) || v)])) : ps);
+    for (const { plan, props: raw } of groups.values()) {
+      const ps = tok(raw, plan.sheet || screen);
       if (plan.kind === 'inline') { add(screen, this._inlineEdit(page.src, el, ps)); targets.push('inline style'); continue; }
       if (plan.kind === 'tailwind') { add(screen, this._tailwindEdit(page.src, el, ps)); targets.push(`utilities on ${nameOf(el)}`); continue; }
       const sh = this.read(plan.sheet);

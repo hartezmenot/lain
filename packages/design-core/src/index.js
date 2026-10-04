@@ -97,6 +97,7 @@ class Design {
     this._previewing = null;
     this.headless = null;
     this.relay = opts.relay || null;   // the Design window, when one is attached: drives its own visible canvas
+    try { Object.defineProperty(this.project, 'tokens', { get: () => (this.project.readOnly ? null : this.tokens()), configurable: true }); } catch { /* read-only handle */ }
     excludeFromGit(this.root);
     this.project.onCommit = () => { if (this.preview) { try { this.preview.reload(); } catch { /* reload is a courtesy */ } } };
   }
