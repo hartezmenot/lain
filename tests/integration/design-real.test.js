@@ -96,6 +96,25 @@ module.exports = async function () {
       } finally { await b.close(); }
     });
 
+    await test('DESIGN UI 3: dragging a flex child offers Reorder / Offset / Make absolute; Reorder moves it in the markup', async () => {
+      const b = await bench();
+      try {
+        const { fb, n } = await selectLayer(b, 'index.html', (x) => x.tag === 'li' && x.rect.y > 180 && x.rect.y < 260);
+        const nodes = await b.inFrame('index.html');
+        const first = nodes.filter((x) => x.tag === 'li').sort((p, q) => p.rect.y - q.rect.y)[0];
+        const x0 = fb.x + n.rect.x + 6; const y0 = fb.y + n.rect.y + n.rect.h / 2;
+        await b.drag(x0, y0, x0, fb.y + first.rect.y + 4, 14);
+        await b.until('document.getElementById("dzChoice")', 8000);
+        const labels = await b.eval('[...document.querySelectorAll("#dzChoice button")].map(x => x.textContent + (x.classList.contains("primary") ? "*" : ""))');
+        assert.ok(labels[0].startsWith('Reorder') && labels[0].endsWith('*'), `Reorder is the default: ${labels}`);
+        assert.ok(labels.some((l) => l.startsWith('Offset')) && labels.some((l) => l.startsWith('Make absolute')));
+        await b.eval('document.querySelector("#dzChoice button.primary").click()');
+        await b.until('/moved to position 1/.test(document.querySelector("#dzStatus").textContent)', 10000);
+        const html = fs.readFileSync(path.join(b.root, 'index.html'), 'utf8');
+        assert.ok(html.indexOf('Linus') < html.indexOf('Ada'));
+      } finally { await b.close(); }
+    });
+
     await test('DESIGN UI 4: a change to a shared class asks "Change all N uses, or only this one?" before anything is written', async () => {
       const b = await bench();
       try {
@@ -112,6 +131,74 @@ module.exports = async function () {
       } finally { await b.close(); }
     });
 
+    await test('DESIGN UI 5: "+" adds a logout button with a .png, copied in and referenced, wired to Settings — and Flow reads the wire', async () => {
+      const b = await bench();
+      try {
+        const png = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lain-png-')), 'logout.png');
+        fs.writeFileSync(png, Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c20000000049454e44ae426082', 'hex'));
+        await selectLayer(b, 'profile.html', (x) => x.tag === 'section');
+        await b.eval('document.getElementById("dzAdd").click()');
+        await b.until('document.getElementById("dzAddBox")');
+        await b.eval(`(() => { const s = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input')); }; s('dzAddName', 'Logout'); s('dzAddText', 'Log out'); s('dzAddAsset', ${JSON.stringify(png)}); document.getElementById('dzAddKind').value = 'button'; document.getElementById('dzAddWire').value = 'settings.html'; document.getElementById('dzAddOk').click(); })()`);
+        await b.until('/wire logout click → navigate settings\\.html/.test(document.querySelector("#dzStatus").textContent)', 15000);
+        assert.ok(fs.existsSync(path.join(b.root, 'assets', 'logout.png')), 'the asset is in the project');
+        assert.match(fs.readFileSync(path.join(b.root, 'profile.html'), 'utf8'), /<button id="logout" type="button"><img src="assets\/logout.png" alt="">Log out<\/button>/);
+        const flows = design.load().open(b.root).scanFlows();
+        assert.ok(flows.some((w) => w.origin === 'design' && w.source.elementId === 'logout' && w.target === 'settings.html'));
+        await b.eval('document.getElementById("dzModeFlow").click()');
+        await b.until('document.querySelectorAll("#dzFlows path.design").length >= 1', 10000);
+      } finally { await b.close(); }
+    });
+
+    await test('DESIGN UI 6: Flow shows the hand-written avatar → Profile navigation; a wire made in Design is still there after the surface reloads', async () => {
+      const b = await bench();
+      try {
+        await b.eval('document.getElementById("dzModeFlow").click()');
+        await b.until('document.querySelectorAll("#dzFlows path.code").length >= 4', 10000);
+        const labels = await b.eval('[...document.querySelectorAll("#dzFlows text")].map(t => t.textContent)');
+        assert.ok(labels.length >= 4);
+        const d = design.forProject(b.app, b.root);
+        const tab = d.project.scanElements('library.html').find((e) => e.text === 'Settings');
+        const r = await b.eval(`fetch('/bridge/api/design/edit', { method: 'POST', body: JSON.stringify({ op: { op: 'addWire', node: ${JSON.stringify(tab.id)}, trigger: 'click', action: 'navigate', target: 'settings.html', transition: 'fade' } }) }).then(r => r.json())`);
+        assert.ok(r.applied, JSON.stringify(r));
+        await b.h.goto(b.url);
+        await b.until('LAIN.designUI._state.frames.size === 4 && [...LAIN.designUI._state.frames.values()].every(f => f.ready)', 25000);
+        await b.eval('document.getElementById("dzModeFlow").click()');
+        await b.until('document.querySelectorAll("#dzFlows path.design").length >= 1', 10000);
+        assert.ok((await b.eval('[...document.querySelectorAll("#dzFlows text")].map(t => t.textContent)')).some((t) => /fade/.test(t)));
+      } finally { await b.close(); }
+    });
   }
+
+  await test('DESIGN 7: expand-from-element (avatar → Profile), slide-left and the dropdown reveal run in a real page with no console errors', async () => {
+    const root = benchMod.project('chat-messenger');
+    const d = new (design.load().Design)(root);
+    try {
+      const T = design.load().tools;
+      const p = d.project;
+      const friend = p.scanElements('index.html').find((e) => e.text === 'Ada' && e.tag === 'span');
+      const li = p.scanElements('index.html').find((e) => e.id === friend.parent);
+      let r = p.applyEdit({ op: 'addWire', node: li.id, trigger: 'click', action: 'navigate', target: 'profile.html', transition: 'expand-from-element', duration: 280 });
+      assert.ok(r.ok, r.why); assert.ok(d.commit(r).ok);
+      const lib = p.scanElements('index.html').find((e) => e.text === 'Library' && e.tag === 'a');
+      r = p.applyEdit({ op: 'addWire', node: lib.id, trigger: 'click', action: 'navigate', target: 'library.html', transition: 'slide-left' });
+      assert.ok(r.ok, r.why); assert.ok(d.commit(r).ok);
+      const out = await T.run(d, 'design_interact', { screen: 'index.html', steps: [{ action: 'click', target: { text: 'Ada' } }, { action: 'wait', ms: 200 }, { action: 'goto', url: '/index.html' }, { action: 'click', target: { text: 'Library' } }], screenshots: 'none' });
+      assert.ok(!out.isError, out.output);
+      const lines = out.output.split('\n');
+      assert.match(lines[0], /click .*: ok · \/profile\.html \(navigated\)/);
+      assert.match(lines[3], /: ok · \/library\.html \(navigated\)/);
+      assert.ok(lines.every((l) => /no console errors/.test(l)), out.output);
+      // the dropdown reveal: the avatar opens a menu instead
+      const me = p.scanElements('index.html').find((e) => e.attrs.id === 'me');
+      r = p.applyEdit({ op: 'addWire', node: me.id, trigger: 'click', action: 'toggleDropdown', items: [{ label: 'Profile', target: 'profile.html' }, { label: 'Settings', target: 'settings.html' }] });
+      assert.ok(r.ok, r.why); assert.ok(d.commit(r).ok);
+      fs.writeFileSync(path.join(root, 'app.js'), fs.readFileSync(path.join(root, 'app.js'), 'utf8').replace("location.href = 'profile.html';", '/* now a menu */'));
+      const dd = await T.run(d, 'design_interact', { screen: 'index.html', steps: [{ action: 'goto', url: '/index.html' }, { action: 'click', target: { selector: '#me' } }], screenshots: 'none' });
+      assert.match(dd.output.split('\n')[1], /ok · \/index\.html · DOM \d+\+ \d+- [1-9]\d* attr · no console errors/, dd.output);
+      const shown = await d.headless.page.eval('!document.getElementById("me-menu").hasAttribute("hidden")');
+      assert.ok(shown, 'the menu is open');
+    } finally { await d.close(); }
+  });
 
 };
