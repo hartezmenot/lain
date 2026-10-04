@@ -12,6 +12,8 @@ and undo. Nothing about your app is stored anywhere else.
 - **Hide without removing:** Settings › General › Components › LAIN Design.
 - **From source:** `npm ci --omit=dev --prefix packages/design-core`.
 
+- **From a checkout (no installer):** Design is on once `packages/design-core` has its dependencies; there is no `components.json` without an install root, so nothing else is needed. Turn it off in Settings › General › Components, or for one run with `tools\dev\lain-desktop.cmd --no-design`.
+
 Without Design, LAIN loads none of its code. The rail has no Design room, the Preview has no "Open in Design" button,
 and ordinary sessions are exactly what they were before.
 
