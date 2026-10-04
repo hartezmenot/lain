@@ -1,0 +1,225 @@
+'use strict';
+
+/**
+ * LAIN DESIGN, FROM CORE — THE ONE DOOR (2026-10). Design is optional and separately installed (packages/design-core in
+ * a source tree, `design/` beside an installed app). Nothing in Core requires the engine except through `load()`, and
+ * nothing calls `load()` unless a Design session or a /api/design route is in use — a LAIN without Design never reads
+ * a line of it.
+ *
+ * A DESIGN SESSION IS ITS OWN KIND (`session.kind === 'design'`): the core tools plus the five design_* tools, fixed for
+ * the session. An ordinary session is never offered them, and its prompt, tools and cache prefix are exactly what they
+ * were before Design existed.
+ *
+ * Every write goes through Core's mutation transaction (provenance, checkpoint, receipt) and the engine's own stale-edit
+ * guard (each file's bytes are checked against what the edit was computed from); a project that is not trusted for
+ * edits is shown read-only, and the React preview — which runs the project's own Vite config — needs a trusted project.
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const KIND = 'design';
+
+function candidates() {
+  if (process.env.LAIN_DESIGN_DIR) return [process.env.LAIN_DESIGN_DIR];
+  return [path.join(ROOT, 'design'), path.join(ROOT, 'packages', 'design-core')];
+}
+
+/** Is Design installed (and usable)? { ok, dir, version } or { ok:false, why }. Reads two small files; loads nothing. */
+function installed() {
+  for (const dir of candidates()) {
+    let pkg = null;
+    try { pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')); } catch { continue; }
+    if (!pkg || pkg.name !== '@lain/design-core') continue;
+    const missing = Object.keys(pkg.dependencies || {}).filter((d) => !fs.existsSync(path.join(dir, 'node_modules', d, 'package.json')));
+    if (missing.length) return { ok: false, dir, why: `LAIN Design at ${dir} is missing ${missing.join(', ')} (reinstall the Design component)` };
+    return { ok: true, dir: path.resolve(dir), version: pkg.version };
+  }
+  return { ok: false, why: 'LAIN Design is not installed' };
+}
+
+function enabled(app) {
+  const cfg = (app && app.cfg) || {};
+  return !(cfg.design && cfg.design.enabled === false);
+}
+
+let engine = null;
+/** The engine. Throws when Design is not installed — callers check `installed()` first. */
+function load() {
+  if (engine) return engine;
+  const at = installed();
+  if (!at.ok) throw new Error(at.why);
+  engine = require(path.join(at.dir, 'src', 'index.js'));
+  return engine;
+}
+function loaded() { return Boolean(engine); }
+
+function isDesignSession(s) { return Boolean(s && s.kind === KIND); }
+
+/** Can this project be edited here? '' or why not. */
+function editBlock(app, root) {
+  try { if (require('./readonly').active(app && app.session)) return 'this session is read-only'; } catch { /* no read-only state */ }
+  // A PROJECT MARKED READ-ONLY is never edited from Design. An undecided one is edited as anywhere else in LAIN: the
+  // person's own canvas edits are theirs, and the model's go through the permission gate (execmode) like any tool.
+  try { if (require('./trust').levelOf((app && app.cfg) || {}, root) === 'READ_ONLY') return 'this project is marked read-only'; } catch { /* trust unknown: the gate decides */ }
+  return '';
+}
+
+/** One Design per project root, per process (the canvas and every session's tools share it — one undo stack, one preview). */
+const DESIGNS = new Map();
+const RELAYS = new Map();
+function forProject(app, root) {
+  const abs = path.resolve(root);
+  let d = DESIGNS.get(abs);
+  if (!d) {
+    const E = load();
+    d = new E.Design(abs, { relay: relayFor(abs), write: writerFor(abs) });
+    DESIGNS.set(abs, d);
+  }
+  return d;
+}
+async function closeAll() { const all = [...DESIGNS.values()]; DESIGNS.clear(); RELAYS.clear(); for (const d of all) { try { await d.close(); } catch { /* closing */ } } }
+
+/** The engine's writer: inside the project (realpath) and still the bytes the edit was computed from. */
+function writerFor(root) {
+  const realRoot = (() => { try { return fs.realpathSync(root); } catch { return root; } })();
+  return (rel, text, expectSha) => {
+    const abs = path.resolve(root, rel);
+    let dir = path.dirname(abs);
+    while (!fs.existsSync(dir)) dir = path.dirname(dir);
+    const realDir = fs.realpathSync(dir);
+    const r = path.relative(realRoot, realDir);
+    if (r.startsWith('..') || path.isAbsolute(r)) return { ok: false, why: `${rel} is outside the project` };
+    if (fs.existsSync(abs) && fs.lstatSync(abs).isSymbolicLink()) {
+      const t = path.relative(realRoot, fs.realpathSync(abs));
+      if (t.startsWith('..') || path.isAbsolute(t)) return { ok: false, why: `${rel} links outside the project` };
+    }
+    let cur = null;
+    try { cur = fs.readFileSync(abs, 'utf8'); } catch { cur = null; }
+    const sha = cur == null ? null : require('crypto').createHash('sha1').update(cur).digest('hex');
+    if (expectSha !== undefined && sha !== expectSha) return { ok: false, stale: true, why: `${rel} changed on disk since Design read it — nothing was written; the canvas re-reads it` };
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, text);
+    return { ok: true };
+  };
+}
+
+/**
+ * COMMIT a computed edit through Core's mutation transaction. `actor` USER for the canvas, MODEL for the tools (whose
+ * ctx carries the turn, so LAIN's own checkpoint covers it too).
+ */
+async function commit(app, design, result, { ctx = null, actor = 'USER', label = null } = {}) {
+  const block = editBlock(app, design.root);
+  if (block) return { ok: false, why: `NOT CHANGED: ${block}` };
+  const targets = [...(result.files || []).map((f) => f.rel), ...(result.binary || []).map((b) => b.rel)].map((rel) => path.resolve(design.root, rel));
+  let out = null;
+  const apply = async () => {
+    out = design.commit(result, { label });
+    return { output: out.ok ? out.summary : out.why, ok: out.ok, why: out.why, isError: !out.ok, mutated: out.ok ? targets : [] };
+  };
+  const mutation = require('./mutation');
+  if (ctx) await mutation.transact({ name: 'design_edit', input: {}, ctx: { ...ctx, cwd: ctx.cwd || design.root }, targets, apply });
+  else await mutation.change(app, { actor, name: 'design.edit', targets, write: apply, what: result.summary || '' });
+  return out || { ok: false, why: 'the edit was not applied' };
+}
+
+// ---- the Design window's relay: design_interact drives the visible canvas when one is attached ------------------
+
+/** A queue the Design window polls: Core puts an interaction in, the window runs it on its canvas and posts the result. */
+function relayFor(root) {
+  let r = RELAYS.get(root);
+  if (r) return r;
+  r = {
+    seen: 0, queue: [], waiting: new Map(), seq: 0,
+    attached() { return Date.now() - this.seen < 4000; },
+    run(job) {
+      const id = `j${++this.seq}`;
+      return new Promise((resolve, reject) => {
+        const t = setTimeout(() => { this.waiting.delete(id); reject(new Error('the Design window did not finish the test in 60 s')); }, 60000);
+        this.waiting.set(id, (res) => { clearTimeout(t); resolve(res); });
+        this.queue.push({ id, ...job });
+      });
+    },
+    take() { this.seen = Date.now(); return this.queue.shift() || null; },
+    done(id, steps) { const w = this.waiting.get(id); if (w) { this.waiting.delete(id); w((steps || []).map((s) => ({ ...s, screenshot: s.screenshot ? Buffer.from(String(s.screenshot).replace(/^data:image\/png;base64,/, ''), 'base64') : undefined }))); return true; } return false; },
+  };
+  RELAYS.set(root, r);
+  return r;
+}
+
+// ---- the tools ----------------------------------------------------------------------------------------------------
+
+/** The five design_* tools in Core's tool shape — only ever added to a Design session's list (tools/index.js). */
+function tools() {
+  const E = load();
+  const out = {};
+  for (const name of E.tools.NAMES) {
+    out[name] = {
+      mutates: E.tools.MUTATES[name],
+      schema: E.tools.SCHEMAS[name],
+      async run(input, ctx) {
+        const app = (ctx && ctx.app) || null;
+        const session = (ctx && ctx.session) || (app && app.session) || null;
+        const root = (session && (session.designRoot || session.cwd)) || process.cwd();
+        const design = forProject(app, root);
+        const shotsDir = path.join(require('./config').configDir(), 'design', 'shots');
+        const r = await E.tools.run(design, name, input || {}, {
+          shotsDir,
+          commit: (res) => commit(app, design, res, { ctx: { ...(ctx || {}), cwd: root }, actor: 'MODEL' }),
+        });
+        return { output: r.output, isError: Boolean(r.isError), ...(r.meta ? { meta: r.meta } : {}) };
+      },
+    };
+  }
+  return out;
+}
+
+/** A NEW DESIGN SESSION for a project: its own kind, its tools fixed from its first request. */
+function newSession(app, cwd) {
+  const at = installed();
+  if (!at.ok) return { ok: false, why: at.why };
+  const pool = app && typeof app.pool === 'function' ? app.pool() : null;
+  if (pool) {
+    const r = pool.create({ cwd: path.resolve(cwd), kind: KIND });
+    if (!r.ok) return r;
+    r.app.session.title = `Design · ${path.basename(path.resolve(cwd))}`;
+    try { r.app.session.save(); } catch { /* an unsaved empty session is still empty */ }
+    return { ok: true, id: r.id, app: r.app, session: r.app.session };
+  }
+  const { Session } = require('./session');
+  const s = new Session({ cwd: path.resolve(cwd) });
+  s.kind = KIND;
+  s.title = `Design · ${path.basename(path.resolve(cwd))}`;
+  return { ok: true, id: s.id, session: s };
+}
+
+/**
+ * THE SIDECAR (.lain/design.json): the canvas's own layout — screen positions in Flow, the device, the zoom. Never
+ * anything about the code (the code is the source of truth); LAIN's state, like the rest of .lain/.
+ */
+function sidecar(root) {
+  const file = path.join(root, '.lain', 'design.json');
+  return {
+    read() { try { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return j && typeof j === 'object' ? j : {}; } catch { return {}; } },
+    write(meta = {}) {
+      const clean = {
+        device: typeof meta.device === 'string' ? meta.device.slice(0, 40) : undefined,
+        zoom: Number.isFinite(meta.zoom) ? Math.max(0.1, Math.min(4, meta.zoom)) : undefined,
+        screens: meta.screens && typeof meta.screens === 'object' ? Object.fromEntries(Object.entries(meta.screens).slice(0, 200).map(([k, v]) => [String(k).slice(0, 300), { x: Math.round(Number(v && v.x) || 0), y: Math.round(Number(v && v.y) || 0) }])) : undefined,
+      };
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${JSON.stringify(clean, null, 2)}\n`);
+      return clean;
+    },
+  };
+}
+
+function status(app) {
+  const at = installed();
+  return { installed: at.ok, enabled: enabled(app), version: at.version || null, dir: at.dir || null, why: at.ok ? null : at.why, loaded: loaded() };
+}
+
+function _reset() { engine = null; }
+
+module.exports = { sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };

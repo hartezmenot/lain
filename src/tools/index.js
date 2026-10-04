@@ -39,13 +39,13 @@ const TOOLS = {
 
 /** THE ACTIVE VOCABULARY — still ONE list, computed in one place. */
 /** THE TOOLS A SESSION HAS: the fixed set (tools/core.js), plus Computer Control, the Preview and Laya when present. */
-function active(ctxApp) {
+function active(ctxApp, session = null) {
   const app = typeof ctxApp === 'function' ? ctxApp() : ctxApp;
-  return simpleActive(app);
+  return simpleActive(app, session);
 }
 
 /** SIMPLE (S2): the core set, plus Computer Control and the Preview when the person enabled them. */
-function simpleActive(app) {
+function simpleActive(app, session = null) {
   const core = require('./core');
   const full = legacyActive(app);
   const out = {};
@@ -61,6 +61,13 @@ function simpleActive(app) {
   // Laya (S9): one optional tool, decided once per session so the cached tool list never flickers.
   if (s && s._semanticSearch === undefined) s._semanticSearch = require('./semanticsearch').installed(app);
   if (s && s._semanticSearch) out.semantic_search = require('./semanticsearch').tools.semantic_search;
+  // LAIN DESIGN (src/design.js): a Design session — and only one — has the five design_* tools, fixed from its first
+  // request. An ordinary session never reaches this line's require, so a LAIN without Design loads none of it.
+  const ds = (s && s.kind === 'design') ? s : (session && session.kind === 'design' ? session : null);
+  if (ds) {
+    if (ds._designTools === undefined) ds._designTools = require('../design').installed().ok;
+    if (ds._designTools) Object.assign(out, require('../design').tools());
+  }
   return out;
 }
 
@@ -104,9 +111,9 @@ function notOffered(name) {
 
 /** Schemas sent to the model. */
 function schemas(app, { turn = false, session: turnSession = null } = {}) {
-  const all = active(() => app);
-  // The fixed set; an agent never gets Agent, and an explore agent only reads.
   const sess = turnSession || (app && app.session) || null;
+  const all = active(() => app, sess);
+  // The fixed set; an agent never gets Agent, and an explore agent only reads.
   let list = Object.keys(all);
   if (sess && sess._agentType) list = list.filter((n) => require('../agenttypes').allows(sess._agentSpec || require('../agenttypes').BUILT_IN[sess._agentType], n));   // a type's tools; never Agent or computer
   return list.map((n) => all[n].schema);
@@ -142,7 +149,7 @@ async function execute(name, input, ctx, { canonical = false, deferred = false }
   }
   // A DEFERRED TOOL (simple mode) runs by its own name too, once tool_search has shown it — same door, same gates;
   // the described list stays fixed. Retired names (ceremony, judges) never run.
-  const tool = (deferred ? legacyActive(app) : active(() => app))[name] || require('./core').deferred(app)[name];
+  const tool = (deferred ? legacyActive(app) : active(() => app, (ctx && ctx.session) || null))[name] || require('./core').deferred(app)[name];
   if (!tool) {
     // A NAME THAT IS NOT OURS BUT WHOSE MEANING IS — a foreign namespace ("functions/grep") or a known foreign tool ("print_tree").
     const alias = require('../toolalias').resolve(name, input, (n) => has(n, app));

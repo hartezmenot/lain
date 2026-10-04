@@ -32,3 +32,6 @@ dist/
 .noema-test-cache.json
 
 rust/lain-supervisor/target-next/
+
+# LAIN Design (optional package): its parsers are installed by the installer component, never committed
+packages/design-core/node_modules/

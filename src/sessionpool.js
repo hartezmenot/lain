@@ -72,9 +72,10 @@ class SessionPool {
   }
 
   /** A NEW CONVERSATION, live immediately, without disturbing any other. */
-  create({ cwd = null, lane = 'engineering' } = {}) {
+  create({ cwd = null, lane = 'engineering', kind = null } = {}) {
     const dir = cwd || (this.primary.session && this.primary.session.cwd) || this.primary.cwd;
     const s = new Session({ cwd: dir });
+    if (kind === 'design') s.kind = 'design';   // a Design session (design.js): its tools are fixed from its first request
     const app = this.attach(s);
     if (lane === 'cowork') {
       // ASTRA'S BINDING, called — never reimplemented.
