@@ -800,9 +800,25 @@
       if (!(d && d.result && d.result.ok)) break;
     }
     if (!was) for (const g of st.frames.values()) post(g, { type: 'mode', mode: 'design', drawSel: false });
-    showTest(out);
+    // THE LAST STEP'S PICTURE: LAIN's own window (never the desktop), cropped to this screen's frame.
+    if ((job.screenshots || 'last') !== 'none' && out.length) { const shot = await frameShot(f); if (shot) out[out.length - 1].screenshot = shot; }
+    showTest(out, out.length && out[out.length - 1].screenshot);
+    // A TEST THAT NAVIGATED leaves the frame on another page: it goes back to its own screen.
+    if (out.some((x) => x.navigated) && st.open.preview) setTimeout(() => { f.ready = false; f.iframe.src = `${st.open.preview}${f.info.route}`; }, 600);
     status(out.every((x) => x.ok && !(x.errors || []).length) ? 'Canvas test passed' : 'Canvas test found a problem', out.every((x) => x.ok) ? 'ok' : 'bad');
     return out;
+  }
+
+  async function frameShot(f) {
+    try {
+      const c = D.hostCall ? await D.hostCall('capture', {}) : null;
+      if (!c || !c.ok || !c.png) return null;
+      const img = new Image(); img.src = c.png; await img.decode();
+      const r = f.scr.getBoundingClientRect(); const k = img.naturalWidth / window.innerWidth;
+      const cv = document.createElement('canvas'); cv.width = Math.round(r.width * k); cv.height = Math.round(r.height * k);
+      cv.getContext('2d').drawImage(img, r.left * k, r.top * k, r.width * k, r.height * k, 0, 0, cv.width, cv.height);
+      return cv.toDataURL('image/png');
+    } catch (e) { return null; }
   }
 
   // ---- the surface's entry points --------------------------------------------------------------------------------------
