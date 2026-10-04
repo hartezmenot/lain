@@ -77,11 +77,43 @@ function forProject(app, root) {
   let d = DESIGNS.get(abs);
   if (!d) {
     const E = load();
-    d = new E.Design(abs, { relay: relayFor(abs), write: writerFor(abs) });
+    const meta = sidecar(abs).read();
+    const auth = (app && app.cfg && app.cfg.design && app.cfg.design.auth && app.cfg.design.auth[abs]) || null;
+    d = new E.Design(abs, { relay: relayFor(abs), write: writerFor(abs), spawn: spawnFor(app), launch: meta.launch || null, auth, extraPorts: previewPorts(app, abs) });
     DESIGNS.set(abs, d);
   }
   return d;
 }
+
+/**
+ * THE DEV SERVER UNDER LAIN'S PROCESS AUTHORITY (the Preview's ProcessManager): the project's own script, owned,
+ * logged and stopped like the Preview's. Without one (a bare engine, tests) Design owns a process group itself.
+ */
+function spawnFor(app) {
+  if (!app) return null;
+  return async ({ command, cwd, env, port }) => {
+    let pm = null;
+    try { pm = require('./workshop').forApp(app).processes; } catch { pm = null; }
+    if (!pm) return null;
+    const proc = pm.start({ name: 'design:dev', command, cwd, env, port });
+    let fn = null; let seen = 0;
+    const t = setInterval(() => { const log = String(proc.log || ''); if (fn && log.length > seen) { fn(log.slice(seen)); seen = log.length; } }, 200);
+    if (t.unref) t.unref();
+    return { child: { get exitCode() { return proc.alive ? null : (proc.exitCode == null ? -1 : proc.exitCode); } }, onLog: (f) => { fn = f; }, close: async () => { clearInterval(t); try { await pm.stop(proc.processId); } catch { /* already gone */ } } };
+  };
+}
+
+/** The Preview's own dev server for this project, if the Preview has one open (attach to it first). */
+function previewPorts(app, root) {
+  try {
+    const ws = require('./workshop').forApp(app);
+    const out = [];
+    for (const [p, o] of ws._open || []) if (path.resolve(p) === path.resolve(root) && o && o.url) { const m = /:(\d{2,5})/.exec(o.url); if (m) out.push(Number(m[1])); }
+    return out;
+  } catch { return []; }
+}
+/** Drop one project's Design (its preview, mirror and dev server stop); the next call opens it afresh. */
+async function forget(root) { const abs = path.resolve(root); const d = DESIGNS.get(abs); DESIGNS.delete(abs); if (d) { try { await d.close(); } catch { /* closing */ } } }
 async function closeAll() { const all = [...DESIGNS.values()]; DESIGNS.clear(); RELAYS.clear(); for (const d of all) { try { await d.close(); } catch { /* closing */ } } }
 
 /** The engine's writer: inside the project (realpath) and still the bytes the edit was computed from. */
@@ -112,6 +144,14 @@ function writerFor(root) {
  * COMMIT a computed edit through Core's mutation transaction. `actor` USER for the canvas, MODEL for the tools (whose
  * ctx carries the turn, so LAIN's own checkpoint covers it too).
  */
+/** UNDO a write the proof did not confirm (or the person's Undo), as a transaction like the write was. */
+async function undoProven(app, design) {
+  let out = null;
+  const files = ((design.project.snapshots.undo || []).slice(-1)[0] || { files: [] }).files.map((f) => path.resolve(design.root, f.rel));
+  await require('./mutation').change(app, { actor: 'USER', name: 'design.undo', targets: files, write: () => { out = design.undo(); return { ok: out.ok, why: out.why, output: out.ok ? `undid ${out.label}` : out.why }; } });
+  return out || { ok: false, why: 'nothing was undone' };
+}
+
 async function commit(app, design, result, { ctx = null, actor = 'USER', label = null } = {}) {
   const block = editBlock(app, design.root);
   if (block) return { ok: false, why: `NOT CHANGED: ${block}` };
@@ -170,6 +210,7 @@ function tools() {
         const r = await E.tools.run(design, name, input || {}, {
           shotsDir,
           commit: (res) => commit(app, design, res, { ctx: { ...(ctx || {}), cwd: root }, actor: 'MODEL' }),
+          undo: () => undoProven(app, design),
         });
         return { output: r.output, isError: Boolean(r.isError), ...(r.meta ? { meta: r.meta } : {}) };
       },
@@ -206,11 +247,20 @@ function sidecar(root) {
   return {
     read() { try { const j = JSON.parse(fs.readFileSync(file, 'utf8')); return j && typeof j === 'object' ? j : {}; } catch { return {}; } },
     write(meta = {}) {
+      const prev = this.read();
+      const launch = meta.launch === null ? undefined : meta.launch && typeof meta.launch === 'object'
+        ? { cmd: typeof meta.launch.cmd === 'string' ? meta.launch.cmd.slice(0, 400) : undefined, port: Number(meta.launch.port) || undefined }
+        : prev.launch;
       const clean = {
-        device: typeof meta.device === 'string' ? meta.device.slice(0, 40) : undefined,
-        zoom: Number.isFinite(meta.zoom) ? Math.max(0.1, Math.min(4, meta.zoom)) : undefined,
-        screens: meta.screens && typeof meta.screens === 'object' ? Object.fromEntries(Object.entries(meta.screens).slice(0, 200).map(([k, v]) => [String(k).slice(0, 300), { x: Math.round(Number(v && v.x) || 0), y: Math.round(Number(v && v.y) || 0) }])) : undefined,
+        ...prev,
+        launch,
+        device: typeof meta.device === 'string' ? meta.device.slice(0, 40) : prev.device,
+        zoom: Number.isFinite(meta.zoom) ? Math.max(0.1, Math.min(4, meta.zoom)) : prev.zoom,
+        screens: meta.screens && typeof meta.screens === 'object' ? Object.fromEntries(Object.entries(meta.screens).slice(0, 200).map(([k, v]) => [String(k).slice(0, 300), { x: Math.round(Number(v && v.x) || 0), y: Math.round(Number(v && v.y) || 0) }])) : prev.screens,
+        // HOW IT LAST OPENED (no credentials, ever): the command and port, attached or started.
+        recipe: meta.recipe && typeof meta.recipe === 'object' ? { cmd: meta.recipe.cmd || null, port: Number(meta.recipe.port) || null, attached: Boolean(meta.recipe.attached) } : prev.recipe,
       };
+      for (const k of Object.keys(clean)) if (clean[k] === undefined) delete clean[k];
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, `${JSON.stringify(clean, null, 2)}\n`);
       return clean;
@@ -225,4 +275,4 @@ function status(app) {
 
 function _reset() { engine = null; }
 
-module.exports = { NOT_INSTALLED, sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };
+module.exports = { forget, undoProven, spawnFor, NOT_INSTALLED, sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };

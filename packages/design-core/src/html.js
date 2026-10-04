@@ -201,7 +201,7 @@ function setText(src, el, text) {
  * THE SERVED COPY: every designable element carries `data-lain-id`, and the Design runtime is loaded. Never written
  * to disk — the project's files are untouched by serving them.
  */
-function instrument(src, rel, { runtimeSrc = '/__lain/runtime.js' } = {}) {
+function instrument(src, rel, { runtimeSrc = '/__lain/runtime.js', runtime = true } = {}) {
   const tree = parse(src, rel);
   const edits = [];
   for (const el of tree.all) {
@@ -209,9 +209,11 @@ function instrument(src, rel, { runtimeSrc = '/__lain/runtime.js' } = {}) {
     const at = attrInsertAt(src, el);
     edits.push({ start: at, end: at, text: ` data-lain-id="${el.id}"` });
   }
-  const tag = `<script src="${runtimeSrc}" data-lain-runtime="1"></script>`;
-  const close = src.lastIndexOf('</body>');
-  edits.push(close >= 0 ? { start: close, end: close, text: tag } : { start: src.length, end: src.length, text: tag });
+  if (runtime) {
+    const tag = `<script src="${runtimeSrc}" data-lain-runtime="1"></script>`;
+    const close = src.lastIndexOf('</body>');
+    edits.push(close >= 0 ? { start: close, end: close, text: tag } : { start: src.length, end: src.length, text: tag });
+  }
   return require('./text').splice(src, edits);
 }
 

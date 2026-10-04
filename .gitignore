@@ -35,3 +35,7 @@ rust/lain-supervisor/target-next/
 
 # LAIN Design (optional package): its parsers are installed by the installer component, never committed
 packages/design-core/node_modules/
+# LAIN Design fixtures: dependencies are installed by tools/dev/design-fixtures.js, never committed
+tests/fixtures/design/*/node_modules/
+tests/fixtures/design/*/.next/
+tests/fixtures/design/*/.svelte-kit/

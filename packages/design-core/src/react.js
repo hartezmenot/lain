@@ -28,10 +28,13 @@ const TW = {
 };
 const TW_POSITION = { absolute: 'absolute', relative: 'relative', fixed: 'fixed', static: 'static', sticky: 'sticky' };
 
+const file = (el, screen) => el.file || screen;
+
 class ReactProject extends WebProject {
   constructor(root, opts = {}) {
     super(root, opts);
     this.kind = 'web-react';
+    this.spa = true;
     this.tailwind = ReactProject.usesTailwind(this.root);
   }
 
@@ -156,10 +159,17 @@ class ReactProject extends WebProject {
 
   /** Tailwind first (utilities on the element), then the shared planner; a computed className falls back to inline. */
   planStyle(screen, el, prop, opts = {}) {
-    if (this.tailwind && el.classStatic && (TW[prop] || prop === 'position' || prop === 'translate') && !(el.styleObj && el.styleObj.props.some((p) => jsx.kebab(p.key) === prop))) return { kind: 'tailwind' };
+    if (this.tailwind && el.classStatic && (TW[prop] || prop === 'position' || prop === 'translate') && !(el.styleObj && el.styleObj.props.some((p) => jsx.kebab(p.key) === prop)) && this._utilityStyled(file(el, screen), el)) return { kind: 'tailwind' };
     const plan = super.planStyle(screen, el, prop, opts);
     if ((plan.kind === 'scoped' || (plan.kind === 'class' && plan.scoped && !el.classes.includes(plan.cls))) && !el.classStatic) return { kind: 'inline' };
     return plan;
+  }
+
+  /** Styled with utilities: it has classes and none of them is a rule in the project's own stylesheets (or no classes). */
+  _utilityStyled(screen, el) {
+    if (!el.classes.length) return true;
+    const sheets = this.sheetsFor(screen);
+    return !el.classes.some((c) => /^lain-/.test(c) || sheets.some((sh) => css.rulesForClass(sh.sheet, c).length));
   }
 
   _tailwindEdit(src, el, props) {

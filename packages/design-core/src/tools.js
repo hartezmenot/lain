@@ -15,13 +15,13 @@ const str = { type: 'string' }; const num = { type: 'number' };
 const SCHEMAS = {
   design_inspect: {
     name: 'design_inspect',
-    description: 'The design project: no args → screens, flows, undo stack; `screen` → its layers (id, tag, name); `node` → its source, declared styles, where a style edit would go, measured layout.',
-    parameters: S({ screen: str, node: str }),
+    description: 'The design project: no args → screens, flows, undo stack; `screen` → its layers; `node` or `selector` → its source and mapping tier (exact|resolved|inferred|agent|none), styles, measured layout. `map: {selector, file, line}` records where an unmapped element is rendered.',
+    parameters: S({ screen: str, node: str, selector: str, map: { type: 'object' } }),
   },
   design_edit: {
     name: 'design_edit',
-    description: 'One deterministic source edit on a layer, written behind the stale-edit guard and undoable. op: setStyle{props:{css-prop:value|null}} move{dx,dy,choice?} resize{dw,dh} reorder{index} insert{parent,index?,name,kind:button|text|image|container,text?,asset?} remove setText{text} setAsset{asset} setAnimation{preset,duration?,easing?}. A shared class answers with a question: repeat with scope "all"|"only". A flex/grid child move answers with choices: repeat with choice.',
-    parameters: S({ op: str, node: str, props: { type: 'object' }, scope: str, choice: str, dx: num, dy: num, dw: num, dh: num, index: num, parent: str, name: str, kind: str, text: str, asset: str, preset: str, duration: num, easing: str }, ['op']),
+    description: 'One deterministic source edit on a layer (node, or selector on screen), written behind the stale-edit guard, kept only if the preview then measures what was predicted, undoable. op: setStyle{props:{css-prop:value|null}} move{dx,dy,choice?} resize{dw,dh} reorder{index} insert{parent,index?,name,kind:button|text|image|container,text?,asset?} remove setText{text} setAsset{asset} setAnimation{preset,duration?,easing?}. Questions come back as questions: repeat with scope "all"|"only", choice, breakpoint "all"|"only", instance "component"|"only".',
+    parameters: S({ op: str, node: str, selector: str, screen: str, breakpoint: str, instance: str, props: { type: 'object' }, scope: str, choice: str, dx: num, dy: num, dw: num, dh: num, index: num, parent: str, name: str, kind: str, text: str, asset: str, preset: str, duration: num, easing: str }, ['op']),
   },
   design_flow: {
     name: 'design_flow',
@@ -52,6 +52,10 @@ function line(r) {
   if (!r) return 'nothing happened';
   if (r.ok === false) {
     if (r.needs && r.needs.scope) return `QUESTION: ${r.needs.scope.question} Repeat with scope "all" or "only".`;
+    if (r.needs && r.needs.breakpoint) return `QUESTION: ${r.needs.breakpoint.question} Repeat with breakpoint "all" or "only".`;
+    if (r.needs && r.needs.instance) return `QUESTION: ${r.needs.instance.question} Repeat with instance "component" (default) or "only".`;
+    if (r.needs && r.needs.mapping) return `QUESTION: ${r.needs.mapping.question} Repeat with node set to one of: ${r.needs.mapping.candidates.map((c) => `${c.node} (${c.file}:${c.line})`).join(', ')}.`;
+    if (r.reverted) return `NOT KEPT: ${r.why} — the write was undone byte-exact. Alternatives: ${(r.alternatives || []).join(', ')}.`;
     if (r.needs && r.needs.choice) {
       const c = r.needs.choice;
       return `QUESTION: this is a ${c.flexChild ? 'flex/grid child' : 'flow element'}; how should it move? ${c.choices.map((x) => `"${x.id}" (${x.label}${x.index != null ? `, to position ${x.index + 1}` : ''})`).join(', ')}. Default "${c.default}". Repeat with choice.`;
@@ -73,6 +77,26 @@ function outline(project, screen) {
 async function inspect(design, input) {
   const p = design.project;
   if (p.readOnly) return { output: `READ-ONLY: ${p.why}` };
+  if (input.map && typeof input.map === 'object') {
+    const screen = input.screen || (p.scanScreens()[0] || {}).file;
+    const d = input.map.selector ? await require('./adopt').describe(design, screen, input.map.selector) : null;
+    if (!d) return { output: `no element ${input.map.selector || ''} on ${screen} to record a mapping for`, isError: true };
+    const f = String(input.map.file || ''); const abs = path.resolve(design.root, f);
+    if (!f || !abs.startsWith(design.root + path.sep) || !fs.existsSync(abs)) return { output: `no file ${f} in the project`, isError: true };
+    require('./mapper').remember(design.root, require('./mapper').signature(d), { file: path.relative(design.root, abs).replace(/\\/g, '/'), line: input.map.line });
+    return { output: `recorded: ${input.map.selector} is rendered at ${f}:${input.map.line || '?'} (tier agent)` };
+  }
+  if (input.selector && !input.node) {
+    const screen = input.screen || (p.scanScreens()[0] || {}).file;
+    const m = await design.map(screen, input.selector);
+    const lines = [`${input.selector} on ${screen}: tier ${m.tier}${m.file ? ` — ${m.file}:${m.line}` : ''}${m.via ? ` (via ${m.via})` : ''}${m.count > 1 ? ` · rendered ${m.count} times by <${m.component}>` : ''}`];
+    if (m.question) lines.push(`ambiguous: ${m.question}`);
+    if (m.tier === 'none') lines.push('markup edits for it go to the prompt bar; styles still work (the CSS origin). If you know where it is rendered, record it with map.');
+    if (m.node && m.tier !== 'none') input = { ...input, node: m.node };
+    else return { output: lines.join('\n') };
+    const rest = await inspect(design, { node: m.node });
+    return { output: `${lines.join('\n')}\n${rest.output}` };
+  }
   if (input.node) {
     const at = p.locate(input.node);
     if (!at) return { output: `no layer ${input.node} — the file may have changed; inspect the screen again`, isError: true };
@@ -117,21 +141,17 @@ function assetPath(design, a) {
   return abs;
 }
 
-async function edit(design, input, commit) {
+async function edit(design, input, commit, undo) {
   const op = { ...input };
   if (op.asset) op.asset = assetPath(design, op.asset);
-  if ((op.op === 'move' || op.op === 'resize') && !op.layout) {
-    try { op.layout = await design.layout(op.node); } catch (e) { return { output: `NOT CHANGED: the layer could not be measured in the preview (${e.message})`, isError: true }; }
-    if (!op.layout) return { output: `NOT CHANGED: ${op.node} is not on the page to measure — inspect the screen again`, isError: true };
-  }
-  const r = design.project.applyEdit(op);
-  if (!r.ok) return { output: line(r), isError: !r.needs, question: Boolean(r.needs) };
-  const c = await commit(r);
-  if (!c.ok) return { output: `NOT CHANGED: ${c.why}`, isError: true, stale: Boolean(c.stale) };
-  return { output: `${line(r)}${c.followId ? ` [${c.followId}]` : ''}${r.wireId ? ` [wire ${r.wireId}]` : ''}\n${r.diff}`, files: c.files };
+  const r = await design.edit(op, { commit, undo, actor: 'agent' });
+  if (!r.ok) return { output: line(r), isError: !r.needs && !r.reverted, question: Boolean(r.needs) };
+  if (r.noop) return { output: r.summary };
+  const pr = r.proof && r.proof.actual && r.proof.actual.rect ? ` · proved: ${Math.round(r.proof.actual.rect.x)},${Math.round(r.proof.actual.rect.y)} ${Math.round(r.proof.actual.rect.w)}×${Math.round(r.proof.actual.rect.h)}` : r.proof && r.proof.skipped ? ` · not measured (${r.proof.skipped})` : r.proof ? ' · proved in the preview' : '';
+  return { output: `${r.summary}${r.followId ? ` [${r.followId}]` : ''}${r.result && r.result.wireId ? ` [wire ${r.result.wireId}]` : ''}${r.tier ? ` · tier ${r.tier}` : ''}${pr}\n${r.diff}`, files: r.files };
 }
 
-async function flow(design, input, commit) {
+async function flow(design, input, commit, undo) {
   const a = String(input.action || 'list');
   if (a === 'list') {
     const w = design.project.scanFlows();
@@ -139,7 +159,7 @@ async function flow(design, input, commit) {
   }
   const map = { add: 'addWire', update: 'updateWire', remove: 'removeWire' };
   if (!map[a]) return { output: `design_flow action is list, add, update or remove — not "${a}"`, isError: true };
-  return edit(design, { op: map[a], id: input.id, node: input.node, trigger: input.trigger, action: input.do || (a === 'add' ? 'navigate' : undefined), target: input.target, transition: input.transition, duration: input.duration, easing: input.easing, items: input.items }, commit);
+  return edit(design, { op: map[a], id: input.id, node: input.node, trigger: input.trigger, action: input.do || (a === 'add' ? 'navigate' : undefined), target: input.target, transition: input.transition, duration: input.duration, easing: input.easing, items: input.items }, commit, undo);
 }
 
 async function interact(design, input, { shotsDir } = {}) {
@@ -159,6 +179,8 @@ async function interact(design, input, { shotsDir } = {}) {
     const ch = s.changes ? `${s.changes.added}+ ${s.changes.removed}- ${s.changes.attributes} attr` : '';
     out.push(`${s.step}. ${s.action}${s.target ? ` ${typeof s.target === 'string' ? s.target : JSON.stringify(s.target)}` : ''}: ${s.ok ? 'ok' : `FAILED ${s.why}`} · ${s.url || ''}${s.navigated ? ' (navigated)' : ''}${ch ? ` · DOM ${ch}` : ''} · ${s.errors && s.errors.length ? `console errors: ${s.errors.join(' | ')}` : 'no console errors'}${shot}`);
   }
+  // THE AGENT'S TEST, KEPT WITH ITS LATEST CHANGE CARD (the frames the person can review).
+  if (design.lastAgentCard) { try { design.cards().addFrames(design.lastAgentCard, res.map((s) => s.screenshot).filter(Boolean)); } catch { /* the card is a courtesy */ } }
   return { output: `${out.join('\n')}${image ? '\nread_file the screenshot to look.' : ''}`, meta: image ? { image } : undefined, steps: res.map(({ screenshot, ...s }) => s) };
 }
 
@@ -175,11 +197,11 @@ async function snapshot(design, input) {
  * RUN one tool. `commit(result)` writes a computed edit (the host wraps it in its own transaction and guards);
  * `shotsDir` is where screenshots go.
  */
-async function run(design, name, input = {}, { commit = (r) => design.commit(r), shotsDir = null } = {}) {
+async function run(design, name, input = {}, { commit = (r) => design.commit(r), undo = () => design.undo(), shotsDir = null } = {}) {
   try {
     if (name === 'design_inspect') return await inspect(design, input);
-    if (name === 'design_edit') return await edit(design, input, commit);
-    if (name === 'design_flow') return await flow(design, input, commit);
+    if (name === 'design_edit') return await edit(design, input, commit, undo);
+    if (name === 'design_flow') return await flow(design, input, commit, undo);
     if (name === 'design_interact') return await interact(design, input, { shotsDir });
     if (name === 'design_snapshot') return await snapshot(design, input);
     return { output: `unknown design tool ${name}`, isError: true };

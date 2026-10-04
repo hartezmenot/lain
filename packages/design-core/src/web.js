@@ -44,13 +44,14 @@ function defaultWrite(root) {
 }
 
 class WebProject {
-  constructor(root, { snapshotsDir = null, write = null, readBinary = null } = {}) {
+  constructor(root, { snapshotsDir = null, write = null, readBinary = null, webRoot = '' } = {}) {
     this.root = path.resolve(root);
     this.kind = 'web-html';
     this.write = write || defaultWrite(this.root);
     this.snapshots = new Snapshots(snapshotsDir);
     this._cache = new Map();   // rel -> { sha, src, tree|sheet }
     this.readBinary = readBinary || ((p) => fs.readFileSync(p));
+    this.webRoot = webRoot || '';   // where the pages live: '' (the root) or 'public' (a legacy site served from there)
   }
 
   // ---- reading -------------------------------------------------------------------------------------------------
@@ -124,13 +125,7 @@ class WebProject {
   detect() { return WebProject.detect(this.root); }
 
   scanScreens() {
-    const pages = this.files((rel) => /\.html?$/i.test(rel) && (!rel.includes('/') || rel.startsWith('pages/')));
-    return pages.map((rel) => {
-      const src = this.read(rel).src;
-      const t = /<title>([^<]*)<\/title>/i.exec(src);
-      const base = path.basename(rel).replace(/\.html?$/i, '');
-      return { id: rel, name: (t && t[1].trim()) || (base === 'index' ? 'Home' : base.charAt(0).toUpperCase() + base.slice(1)), file: rel, route: `/${rel}`, home: base === 'index' && !rel.includes('/') };
-    }).sort((a, b) => Number(b.home) - Number(a.home));
+    return require('./routes').files(this.root, this.webRoot).sort((a, b) => Number(b.home) - Number(a.home));
   }
 
   scanElements(screen) {

@@ -110,7 +110,7 @@ const js = (v) => JSON.stringify(v).replace(/"/g, '\'');
 function targetUrl(project, screen, t) {
   if (!t) return null;
   const scr = project.scanScreens().find((x) => x.file === t);
-  if (project.kind === 'web-react') return scr ? scr.route : t;
+  if (project.spa) return scr ? scr.route : t;
   return scr ? (path.posix.relative(path.posix.dirname(screen), t) || t) : t;
 }
 
@@ -235,7 +235,7 @@ function scanFlowsReact(project) {
 
 /** EVERY WIRE the code holds: [{ id, origin:'design'|'code', screen, source:{node, elementId}, trigger, action, target, transition, file, line }]. */
 function scanFlows(project) {
-  if (project.kind === 'web-react') return scanFlowsReact(project);
+  if (project.spa) return scanFlowsReact(project);
   const screens = project.scanScreens();
   const files = new Set(screens.map((s) => s.file));
   const wires = [];
@@ -294,7 +294,7 @@ function addWire(project, op) {
   const action = ACTIONS.includes(op.action) ? op.action : 'navigate';
   if ((action === 'navigate' || action === 'openModal') && !op.target) return { ok: false, why: `${action} needs a target screen` };
   const transition = anim.preset(op.transition || (action === 'toggleDropdown' ? 'dropdown-reveal' : action === 'openModal' ? 'slide-up' : 'none'));
-  const react = project.kind === 'web-react';
+  const react = project.spa;
   const urlOf = (t) => targetUrl(project, screen, t);
   const id = `w${sha1(`${screen}:${el.id}:${Date.now()}:${Math.random()}`).slice(0, 6)}`;
   const perFile = new Map();
@@ -366,7 +366,7 @@ function updateWire(project, op) {
     const src = fs.readFileSync(abs, 'utf8');
     const mk = marked(src).find((m) => m.meta.id === op.id);
     if (!mk) continue;
-    const w = { ...mk.meta, match: project.kind === 'web-react' ? null : undefined, ...(op.trigger ? { trigger: op.trigger } : {}), ...(op.transition ? { transition: anim.preset(op.transition) } : {}), ...(op.duration ? { duration: op.duration } : {}), ...(op.easing ? { easing: op.easing } : {}), ...(op.target ? { target: op.target, url: targetUrl(project, mk.meta.screen, op.target) } : {}) };
+    const w = { ...mk.meta, match: project.spa ? null : undefined, ...(op.trigger ? { trigger: op.trigger } : {}), ...(op.transition ? { transition: anim.preset(op.transition) } : {}), ...(op.duration ? { duration: op.duration } : {}), ...(op.easing ? { easing: op.easing } : {}), ...(op.target ? { target: op.target, url: targetUrl(project, mk.meta.screen, op.target) } : {}) };
     return project._result({ op: 'updateWire' }, new Map([[sc.rel, [{ start: mk.start, end: mk.end, text: wireCode(w) }]]]), { summary: `wire ${op.id}: ${w.trigger} → ${w.action}${w.target ? ` ${w.target}` : ''} (${w.transition})`, target: [sc.rel] });
   }
   return { ok: false, why: `no design-made wire ${op.id}` };

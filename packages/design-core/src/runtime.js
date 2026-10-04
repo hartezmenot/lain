@@ -30,7 +30,7 @@ function client() {
   } catch (e) { /* an old engine: no change counts */ }
 
   function post(type, data) { try { if (window.parent !== window) window.parent.postMessage(Object.assign({ lainDesign: 1, type: type }, data || {}), parentOrigin); } catch (e) { /* closed */ } }
-  function el(id) { return document.querySelector('[data-lain-id="' + id + '"]'); }
+  function el(id) { return /^[\w-]+$/.test(String(id)) ? document.querySelector('[data-lain-id="' + id + '"]') : null; }
   function rectOf(n) { var r = n.getBoundingClientRect(); return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height }; }
   function nums(cs, a, b, c, d) { return { top: parseFloat(cs[a]) || 0, right: parseFloat(cs[b]) || 0, bottom: parseFloat(cs[c]) || 0, left: parseFloat(cs[d]) || 0 }; }
   function translateOf(cs) {
@@ -46,11 +46,11 @@ function client() {
     return { x: r.x + b.left, y: r.y + b.top, w: r.w - b.left - b.right, h: r.h - b.top - b.bottom };
   }
   function layoutOf(id) {
-    var n = el(id); if (!n) return null;
+    var n = el(id) || (/[#.>: \[]/.test(String(id)) || /^[a-z]+$/.test(String(id)) ? document.querySelector(id) : null); if (!n) return null;
     var cs = getComputedStyle(n); var par = n.parentElement; var pcs = par ? getComputedStyle(par) : null;
-    var sibs = par ? Array.prototype.filter.call(par.children, function (c) { return c.hasAttribute('data-lain-id'); }).map(function (c) { return { id: c.getAttribute('data-lain-id'), rect: rectOf(c) }; }) : [];
+    var sibs = par ? Array.prototype.filter.call(par.children, function (c) { return !c.hasAttribute('data-lain-overlay') && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE'; }).map(function (c) { return { id: c.getAttribute('data-lain-id') || pathOf(c), rect: rectOf(c) }; }) : [];
     return {
-      id: id, tag: n.tagName.toLowerCase(), rect: rectOf(n), position: cs.position, display: cs.display,
+      id: n.getAttribute('data-lain-id') || pathOf(n), selector: pathOf(n), tag: n.tagName.toLowerCase(), rect: rectOf(n), position: cs.position, display: cs.display,
       parentDisplay: pcs ? pcs.display : null, flexDirection: pcs ? pcs.flexDirection : null,
       margin: nums(cs, 'marginTop', 'marginRight', 'marginBottom', 'marginLeft'), padding: nums(cs, 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'),
       containing: containingOf(n, cs), translate: translateOf(cs), siblings: sibs,
@@ -101,7 +101,7 @@ function client() {
     document.addEventListener(k, function (e) {
       if (mode !== 'design' || e.lainVirtual) return;
       e.preventDefault(); e.stopPropagation();
-      if (k === 'click') { var t = target(e.target); overlay(); if (drawSel) place(sel, t); post('select', { id: t && t.getAttribute('data-lain-id'), x: e.clientX, y: e.clientY, shift: e.shiftKey }); }
+      if (k === 'click') { var t = target(e.target) || (e.target && e.target.nodeType === 1 ? e.target : null); overlay(); if (drawSel) place(sel, t); post('select', { id: t && t.getAttribute('data-lain-id'), selector: t ? pathOf(t) : null, desc: t ? describe(t) : null, x: e.clientX, y: e.clientY, shift: e.shiftKey }); }
     }, true);
   });
 
@@ -167,6 +167,45 @@ function client() {
       return { ok: false, why: 'unknown action ' + a.action };
     } finally { mode = prev; }
   }
+  // ---- what an element IS, for the mapping ladder (D9) -----------------------------------------------------------
+  function pathOf(n) {
+    if (!n || n.nodeType !== 1) return null;
+    if (n.id && document.querySelectorAll('#' + CSS.escape(n.id)).length === 1) return '#' + CSS.escape(n.id);
+    var parts = [];
+    while (n && n.nodeType === 1 && n !== document.documentElement) {
+      var p = n.parentElement; var tag = n.tagName.toLowerCase();
+      if (!p) { parts.unshift(tag); break; }
+      var same = Array.prototype.filter.call(p.children, function (c) { return c.tagName === n.tagName; });
+      parts.unshift(same.length > 1 ? tag + ':nth-of-type(' + (same.indexOf(n) + 1) + ')' : tag);
+      if (p.id && document.querySelectorAll('#' + CSS.escape(p.id)).length === 1) { parts.unshift('#' + CSS.escape(p.id)); break; }
+      n = p;
+    }
+    return parts.join(' > ');
+  }
+  function reactOwners(n) {
+    var k = Object.keys(n).find(function (x) { return x.indexOf('__reactFiber$') === 0; }); if (!k) return [];
+    var f = n[k]; var out = []; var guard = 0;
+    while (f && guard++ < 60) { var t = f.type; if (typeof t === 'function' && (t.displayName || t.name) && out.indexOf(t.displayName || t.name) < 0) out.push(t.displayName || t.name); f = f.return; }
+    return out.slice(0, 8);
+  }
+  function describe(q) {
+    var n = typeof q === 'string' ? (el(q) || document.querySelector(q)) : q; if (!n) return null;
+    var lid = n.getAttribute('data-lain-id');
+    var attrs = {}; ['id', 'name', 'href', 'src', 'alt', 'type', 'role', 'aria-label', 'placeholder'].forEach(function (a) { if (n.hasAttribute(a)) attrs[a] = n.getAttribute(a); });
+    var p = n.parentElement; var chain = []; var a = p; var g = 0;
+    while (a && a !== document.body && g++ < 4) { chain.push({ tag: a.tagName.toLowerCase(), classes: Array.prototype.slice.call(a.classList) }); a = a.parentElement; }
+    var vc = n.__vueParentComponent; var vueFile = null; var gv = 0; while (vc && !vueFile && gv++ < 20) { vueFile = vc.type && vc.type.__file || null; vc = vc.parent; }
+    var sm = n.__svelte_meta && n.__svelte_meta.loc ? { file: n.__svelte_meta.loc.file, line: n.__svelte_meta.loc.line, column: n.__svelte_meta.loc.column } : null;
+    var text = ''; Array.prototype.forEach.call(n.childNodes, function (c) { if (c.nodeType === 3) text += c.nodeValue; }); text = text.replace(/\s+/g, ' ').trim().slice(0, 120);
+    return {
+      selector: pathOf(n), lainId: lid, tag: n.tagName.toLowerCase(), text: text, innerText: (n.innerText || '').trim().slice(0, 120), classes: Array.prototype.slice.call(n.classList), attrs: attrs,
+      siblingIndex: p ? Array.prototype.indexOf.call(p.children, n) : 0, parent: chain, vueFile: vueFile, svelteMeta: sm, reactOwners: reactOwners(n),
+      count: lid ? document.querySelectorAll('[data-lain-id="' + lid + '"]').length : 1, rect: rectOf(n),
+    };
+  }
+  /** The element at a point in the page (for a click from the window when ids are absent). */
+  function at(x, y) { var n = document.elementFromPoint(x, y); while (n && n.hasAttribute && n.hasAttribute('data-lain-overlay')) n = n.parentElement; return n ? describe(n) : null; }
+
   function mark() { changes = { added: 0, removed: 0, attributes: 0, text: 0 }; errors = []; return true; }
   function observe() { return { url: location.pathname + location.search, title: document.title, changes: changes, errors: errors.slice(0, 10) }; }
 
@@ -190,7 +229,7 @@ function client() {
   } catch (e) { /* no reload channel */ }
   try { var sy = sessionStorage.getItem('__lainScroll'); if (sy) { sessionStorage.removeItem('__lainScroll'); window.scrollTo(0, Number(sy)); } } catch (e) { /* none */ }
 
-  window.__lainDesign = { measure: measure, layoutOf: layoutOf, act: act, cursor: cursor, mark: mark, observe: observe, setMode: function (m) { mode = m; } };
+  window.__lainDesign = { measure: measure, layoutOf: layoutOf, act: act, cursor: cursor, mark: mark, observe: observe, describe: describe, pathOf: pathOf, at: at, setMode: function (m) { mode = m; } };
   var pendingSeq = null; try { pendingSeq = sessionStorage.getItem('__lainActSeq'); sessionStorage.removeItem('__lainActSeq'); } catch (e) { pendingSeq = null; }
   post('ready', { url: location.pathname, title: document.title, actSeq: pendingSeq ? Number(pendingSeq) : null, observation: observe() });
 }

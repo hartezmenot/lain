@@ -26,13 +26,13 @@ function inside(root, p) {
   return a === b || a.startsWith(b + path.sep) ? real : null;
 }
 
-function start(root, { port = 0, host = '127.0.0.1' } = {}) {
+function start(root, { port = 0, host = '127.0.0.1', raw = false } = {}) {
   const clients = new Set();
   const server = http.createServer((req, res) => {
     let url;
     try { url = new URL(req.url, 'http://x'); } catch { res.writeHead(400); res.end(); return; }
-    if (url.pathname === '/__lain/runtime.js') { res.writeHead(200, { 'content-type': MIME['.js'], 'cache-control': 'no-store' }); res.end(runtime.source()); return; }
-    if (url.pathname === '/__lain/events') {
+    if (!raw && url.pathname === '/__lain/runtime.js') { res.writeHead(200, { 'content-type': MIME['.js'], 'cache-control': 'no-store' }); res.end(runtime.source()); return; }
+    if (!raw && url.pathname === '/__lain/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write(': lain\n\n'); clients.add(res); req.on('close', () => clients.delete(res)); return;
     }
@@ -41,7 +41,7 @@ function start(root, { port = 0, host = '127.0.0.1' } = {}) {
     const file = inside(root, path.join(root, rel));
     if (!file || !fs.statSync(file).isFile()) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found'); return; }
     const ext = path.extname(file).toLowerCase();
-    if (ext === '.html' || ext === '.htm') {
+    if (!raw && (ext === '.html' || ext === '.htm')) {
       const src = fs.readFileSync(file, 'utf8');
       let out;
       try { out = html.instrument(src, path.relative(root, file).replace(/\\/g, '/')); } catch { out = src; }

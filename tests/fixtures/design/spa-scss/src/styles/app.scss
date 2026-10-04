@@ -1,0 +1,35 @@
+@use 'tokens' as *;
+
+body { margin: 0; font-family: system-ui, sans-serif; color: $ink; }
+
+.topbar {
+  position: relative;
+  height: 64px;
+  padding: $space * 2;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.avatar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.go {
+  color: $brand;
+  padding: $space;
+}
+
+@media (max-width: 640px) {
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+}
