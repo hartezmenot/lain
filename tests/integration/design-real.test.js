@@ -201,4 +201,47 @@ module.exports = async function () {
     } finally { await d.close(); }
   });
 
+  await test('DESIGN 10: a Design-session turn (mock provider) — "show a dropdown instead of navigating": edit, reload, virtual click, observation', async () => {
+    const home = tmpdir('lain-design-turn-');
+    const root = benchMod.project('chat-messenger');
+    process.env.LAIN_PROVIDER = 'mock';
+    const me = design.load().open(root).scanElements('index.html').find((e) => e.attrs.id === 'me');
+    process.env.LAIN_MOCK_SCRIPT = writeScript(home, [
+      { text: 'Looking.', tool_calls: [{ name: 'design_inspect', input: { node: me.id } }] },
+      { text: 'Removing the hand-written navigation.', tool_calls: [{ name: 'edit_file', input: { path: 'app.js', old: "    location.href = 'profile.html';\n", new: '' } }] },
+      { text: 'Adding the dropdown.', tool_calls: [{ name: 'design_flow', input: { action: 'add', node: me.id, trigger: 'click', do: 'toggleDropdown', items: [{ label: 'Profile', target: 'profile.html' }, { label: 'Settings', target: 'settings.html' }] } }] },
+      { text: 'Trying it.', tool_calls: [{ name: 'design_interact', input: { screen: 'index.html', steps: [{ action: 'click', target: { selector: '#me' } }] } }] },
+      { text: 'Done: the avatar opens a menu (Profile, Settings) instead of navigating.' },
+    ]);
+    for (const m of ['../../src/mockprovider', '../../src/provider', '../../src/turn']) delete require.cache[require.resolve(m)];
+    const mock = require('../../src/mockprovider'); if (mock._reset) mock._reset();
+    const { Session } = require('../../src/session');
+    const { runTurn } = require('../../src/turn');
+    const s = new Session({ cwd: root }); s.kind = 'design';
+    const app = { session: s, cfg: { model: 'mock-model', permissionMode: 'AUTO' }, cwd: root };
+    const text = design.load().context.pack(design.forProject(app, root), { prompt: 'show a dropdown instead of navigating', node: me.id, screen: 'index.html' });
+    let record = null;
+    try {
+      for await (const ev of runTurn(s, text, { cfg: app.cfg })) if (ev.type === 'done') record = ev.record;
+      assert.ok(record, 'the turn finished');
+      assert.deepStrictEqual(record.toolNames.filter((n) => /^design_|edit_file/.test(n)).sort(), ['design_flow', 'design_inspect', 'design_interact', 'edit_file']);
+      assert.ok(!/location\.href = 'profile\.html'/.test(fs.readFileSync(path.join(root, 'app.js'), 'utf8')), 'the navigation is gone');
+      const flows = design.load().open(root).scanFlows();
+      assert.ok(flows.some((w) => w.origin === 'design' && w.action === 'toggleDropdown' && w.source.elementId === 'me'));
+      const ids = new Set(s.messages.filter((m) => m.role === 'assistant' && m.tool_calls).flatMap((m) => m.tool_calls).filter((c) => c.name === 'design_interact').map((c) => c.id));
+      const msgs = s.messages.filter((m) => m.role === 'tool' && ids.has(m.tool_call_id));
+      assert.ok(msgs.length, 'the observation reached the conversation');
+      assert.match(String(msgs[0].content), /click .*: ok · \/index\.html · DOM .* · no console errors/);
+      assert.match(String(msgs[0].content), /screenshot .*\.png/);
+      const prompt = s.messages.find((m) => m.role === 'user');
+      assert.match(String(prompt.content), /\[Design selection\]/);
+      const pool = { ids: () => [s.id], live: (id) => (id === s.id ? { session: s, abort: null } : null) };
+      const act = await require('../../src/harnessapp/routes').dispatch({ session: s, cfg: {}, pool: () => pool }, 'POST', '/api/design/activity', { session: s.id });
+      assert.deepStrictEqual(act.body.calls.map((c) => c.name), ['design_inspect', 'design_flow', 'design_interact'], 'the prompt bar sees what the Agent did');
+      assert.match(act.body.calls[1].text, /^wire me click → toggleDropdown/);
+    } finally {
+      await design.closeAll();
+      delete process.env.LAIN_MOCK_SCRIPT;
+    }
+  });
 };

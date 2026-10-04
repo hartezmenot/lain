@@ -261,6 +261,17 @@ module.exports = async function () {
     assert.ok(require(path.join(hroot, 'webvendor.js')).assetDirs().some((d) => d.url === 'design'), 'with design/ present it is served');
   });
 
+  await test('DESIGN 10a: the prompt bar\'s message is the person\'s words plus facts about the selection — no instruction', () => {
+    const root = copy('chat-messenger');
+    const d = new E.Design(root);
+    const me = d.project.scanElements('index.html').find((e) => e.attrs.id === 'me');
+    const text = E.context.pack(d, { prompt: 'show a dropdown instead of navigating', node: me.id, screen: 'index.html' });
+    assert.ok(text.startsWith('show a dropdown instead of navigating\n\n[Design selection]'));
+    assert.match(text, /Selected: <img> #me \.me-avatar — index\.html:12:5/);
+    assert.match(text, /Its wires: click → navigate profile\.html in app\.js:\d+/);
+    assert.ok(!/\b(you must|always|never|should|please)\b/i.test(text.split('[Design selection]')[1]), 'facts only');
+  });
+
   await test('DESIGN: React — JSX edits go to the style object, the element\'s class, or a scoped class; ids match the Vite plugin', () => {
     const root = copy('react-mini');
     const { ReactProject, vitePlugin } = require(path.join(at.dir, 'src', 'react.js'));
