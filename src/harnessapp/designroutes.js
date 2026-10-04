@@ -54,7 +54,7 @@ const ROUTES = {
       if (lvl !== 'TRUSTED') return ok({ ...out, screens: p.scanScreens(), flows: p.scanFlows(), preview: null, previewWhy: 'the React preview runs this project\'s own Vite config — trust the project first' });
     }
     let preview = null; let previewWhy = null;
-    try { preview = (await d.startPreview()).url; } catch (e) { previewWhy = e.message; }
+    try { const pv = await d.startPreview(); preview = pv.url || null; previewWhy = pv.url ? null : (pv.why || null); } catch (e) { previewWhy = e.message; }
     return ok({ ...out, screens: p.scanScreens(), flows: p.scanFlows(), preview, previewWhy });
   },
 

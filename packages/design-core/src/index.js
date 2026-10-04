@@ -99,10 +99,14 @@ class Design {
     return this.headless;
   }
 
+  /** The device (Android): adb, made once. */
+  adb() { if (!this._adb) this._adb = new (require('./android').Adb)(this.opts.adb || {}); return this._adb; }
+
   /** Measured layout of one node, on the screen it belongs to (what a move needs). */
   async layout(node, screen = null) {
     const at = this.project.locate(node);
     if (!at) return null;
+    if (this.kind === 'android') return require('./android').measure(this.adb(), this.project, at);
     const scr = screen || this.screenOf(node, at.screen);
     const h = await this.page(scr);
     return h.page.eval(`window.__lainDesign ? window.__lainDesign.layoutOf(${JSON.stringify(node)}) : null`);
@@ -119,7 +123,8 @@ class Design {
   /** Steps against the preview — the attached window's canvas when there is one, else headless. */
   async interact(steps, { screen = null, device = null, screenshots = 'last' } = {}) {
     this.lastSteps = steps;   // what "Run test" replays
-    if (this.relay && this.relay.attached()) return this.relay.run({ screen, steps, device, screenshots });
+    if (this.relay && this.relay.attached() && this.kind !== 'android') return this.relay.run({ screen, steps, device, screenshots });
+    if (this.kind === 'android') return require('./android').runSteps(this.adb(), this.project, steps, { screenshots });
     const h = await this.page(screen, device);
     return require('./headless').runSteps(h, steps, { screenshots });
   }

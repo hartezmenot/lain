@@ -97,10 +97,10 @@ class WebProject {
     return local ? { rel: local, linked: true } : { rel: 'lain-wires.js', linked: false, link: (src) => { const close = src.lastIndexOf('</body>'); const at = close >= 0 ? close : src.length; return { start: at, end: at, text: '  <script src="lain-wires.js"></script>\n' }; } };
   }
 
-  files(filter) {
+  files(filter, maxDepth = 3) {
     const out = [];
     const walk = (dir, depth) => {
-      if (depth > 3) return;
+      if (depth > maxDepth) return;
       let ents = [];
       try { ents = fs.readdirSync(path.join(this.root, dir), { withFileTypes: true }); } catch { return; }
       for (const e of ents) {
