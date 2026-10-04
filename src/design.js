@@ -275,4 +275,12 @@ function status(app) {
 
 function _reset() { engine = null; }
 
-module.exports = { forget, undoProven, spawnFor, NOT_INSTALLED, sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };
+/** A picture for the Agent (the map-ask crop), kept with Design's other shots in LAIN's home — never in the project. */
+function saveShot(png, prefix = 'shot') {
+  const f = path.join(require('./config').configDir(), 'design', 'shots', `${prefix}-${Date.now().toString(36)}.png`);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, png);
+  return f;
+}
+
+module.exports = { saveShot, forget, undoProven, spawnFor, NOT_INSTALLED, sidecar, closeAll, KIND, installed, enabled, load, loaded, isDesignSession, forProject, commit, tools, newSession, status, editBlock, writerFor, relayFor, candidates, _reset };

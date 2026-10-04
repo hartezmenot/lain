@@ -87,3 +87,29 @@ module-loading proofs, plus preview geometry and input in headless Chromium.
 
 Changes from the plan above: the surface is served by `assetDirs` (not a `/api/design/ui` route); `fileguard` is the
 engine's own byte check inside `mutation.transact/change`; the Android adapter edits XML layouts, not Compose.
+
+## D9 — adopting any existing frontend (detect, map, align)
+
+| Piece | Files |
+|---|---|
+| Detect and launch | `packages/design-core/src/detect.js` (framework, bundler, styling, router, launch recipe), `launch.js` (attach with evidence → the dev script on a free port → the project's own Vite via `vitehost.js` → a static server), `src/design.js` (LAIN's ProcessManager spawns; recipe and launch in `.lain/design.json`; `.git/info/exclude`) |
+| One proxy | `proxy.js` (own loopback origin, Host check, HMR websocket passed through, runtime injected into HTML) |
+| Mapping ladder | `plugins.js` + `tmpl.js` (JSX, Vue and Svelte instrumentation at transform time, `order: 'pre'`), `mapper.js` (exact → resolved → inferred → agent → none; near-ties ask), `runtime.js` (`describe`, React owners incl. `_debugInfo`, Svelte/Vue dev hooks) |
+| Styles through the running page | `styles.js` (CDP `CSS.getMatchedStylesForNode`; origin via source maps, Vite ids, webpack banners and CSS-module names, a unique snippet in the project) |
+| Alignment proof | `adopt.js` (`planStyle`, `prove`: predict with a probe, write, wait for HMR, re-measure, >1 px → byte-exact undo + `explain`), `pipeline.js` (every canvas and `design_edit` edit) |
+| Screens and states | `routes.js` (Next app/pages, SvelteKit, Nuxt, Astro, React Router, Vue Router, Angular, files), `crawl.js`, `states.js`; sign-in in `index.js` (`signIn`: cookie jar, login script, test URL) |
+| Design language | `tokens.js` (CSS vars, SCSS `$`, Tailwind theme read statically, grid and scales; `snap`, `offScale`, `token`, `utility`); `web.js` insert borrows the nearest same-kind sibling's classes |
+| Change cards | `cards.js` (`.lain/design/artifacts/`), Agent test frames from `tools.js` |
+| AnyFrontend adapter | `app.js` (`AppProject`: one adapter over JSX, Vue and Svelte templates, layouts and imported components as layers) |
+| Core routes | `designroutes.js`: select, map-ask, launch, states, crawl, cards, tokens, auth; edit through the pipeline |
+| Harness | `design/design.js`: tier badge and candidates, Ask the Agent, breakpoint/instance/mapping questions, revert reason + alternatives, snapping sliders, off-scale flags, project colours first, Capture state and ▶ replay, crawl, Launch & sign-in…, Set launch command, change-card bar + drawer (restore, comment), "Agent is testing" frame |
+| Fixtures and tests | `tests/fixtures/design/{react-mini (Tailwind), vue-mini, sveltekit-mini, next-mini, spa-scss, legacy-public, running-server}`, `tools/dev/design-fixtures.js` (installs them; tests skip unless `LAIN_DESIGN_REQUIRE_FIXTURES=1`), `tests/integration/design-adopt.test.js` (the ten acceptance tests) |
+
+Adapted, not stopped:
+
+- Plain-HTML ids are added to the served page only when the served body equals the file. A server that rewrites the
+  page falls back to the CSS origin.
+- Next has no transform hook Design can add without editing `next.config`. Its elements resolve through React's
+  component names instead of being instrumented.
+- "Only this instance" of a repeated element is data, not markup. It goes to the prompt bar.
+- Variants (optional in the order) are not built.

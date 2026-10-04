@@ -242,7 +242,7 @@ module.exports = async function () {
       } finally { await d.close(); }
     });
 
-    await test('ADOPT 7: the design language — sliders snap to the scale; a colour equal to a token is written as the token (CSS variable, Tailwind, SCSS)', async () => {
+    await test('ADOPT 7: the design language — sliders snap to the scale; a colour equal to a token is written as the token (CSS variable, Tailwind, SCSS); "+" copies the nearest sibling\'s classes', async () => {
       const t = new (require(path.join(at.dir, 'src', 'tokens.js')).Tokens)(path.join(FIX, 'vue-mini'));
       assert.strictEqual(t.snap('padding', '13px'), '12px'); assert.ok(t.offScale('padding', '13px'));
       // CSS variable
@@ -260,6 +260,12 @@ module.exports = async function () {
         const r = await d.edit({ screen: 'src/pages/Settings.jsx', node, op: 'setStyle', props: { color: '#111827' } });
         assert.ok(r.ok, JSON.stringify(r));
         assert.match(fs.readFileSync(path.join(p.root, 'src/pages/Settings.jsx'), 'utf8'), /className="bg-brand px-4 py-2 rounded-card text-ink"/);
+        // "+" LOOKS LIKE ITS NEIGHBOURS: a new button borrows the nearest link's classes, a new text the paragraph's.
+        const main = d.project.read('src/pages/Settings.jsx').tree.all.find((e) => e.tag === 'main');
+        const b = d.project.applyEdit({ op: 'insert', parent: main.id, kind: 'button', name: 'logout', text: 'Log out' });
+        assert.ok(b.ok, JSON.stringify(b)); assert.match(b.files[0].after, /<button id="logout" className="pill" type="button">Log out<\/button>/);
+        const tx = d.project.applyEdit({ op: 'insert', parent: main.id, kind: 'text', name: 'hint', text: 'Hint' });
+        assert.match(tx.files[0].after, /<p id="hint" className="note">Hint<\/p>/);
       } finally { await d.close(); }
       // SCSS
       p = project('spa-scss'); d = await open(p);
@@ -326,6 +332,39 @@ module.exports = async function () {
         const status = await new Promise((res) => { const r = http.request({ host: '127.0.0.1', port, path: '/', headers: { host: 'evil.example' } }, (x) => res(x.statusCode)); r.on('error', () => res(0)); r.end(); });
         assert.strictEqual(status, 403, 'a rebinding host is refused');
       } finally { await b.close(); }
+    });
+
+    await test('ADOPT UI: the Harness canvas on an adopted Vue app — a click shows the tier, the Gap slider writes the token through the rule that sets it, a change card appears; an app Design cannot run offers "Set launch command"', async () => {
+      const benchMod = require('../designbench');
+      const p = project('vue-mini');
+      const b = await benchMod.start({ fixture: null, root: p.root });
+      try {
+        await b.until('LAIN.designUI._state.frames.size >= 1 && [...LAIN.designUI._state.frames.values()].every(f => f.ready)', 60000);
+        await b.eval('(() => { const s = LAIN.designUI._state; s.zoom = 1; s.pan = { x: 30, y: 40 }; document.getElementById("dzWorld").style.transform = "translate(30px,40px) scale(1)"; })()');
+        const screen = await b.eval('[...LAIN.designUI._state.frames.keys()].find((k) => /Home/.test(k))');
+        const fb = await b.frameBox(screen);
+        const r = await b.evalInFrame(screen, '(() => { const e = document.querySelector(".friends"); const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()');
+        await b.click(fb.x + r.x + 4, fb.y + r.y + 4);
+        await b.until('LAIN.designUI._state.sel && LAIN.designUI._state.sel.map && document.querySelector("#dzRight .dz-tier")', 30000);
+        assert.strictEqual(await b.eval('document.querySelector("#dzRight .dz-tier").textContent'), 'exact');
+        await b.eval('(() => { const r = document.querySelector(\'#dzRight input[type=range][data-prop="gap"]\'); const num = r.parentNode.querySelector("input[type=number]"); num.value = "16"; num.dispatchEvent(new Event("input")); num.dispatchEvent(new Event("change")); })()');
+        await b.until('document.getElementById("dzCardLatest")', 30000);
+        assert.match(fs.readFileSync(path.join(p.root, 'src/views/Home.vue'), 'utf8'), /\.friends \{[^}]*gap: var\(--space-4\)/, 'the rule that sets it, written as the token');
+        assert.match(await b.eval('document.getElementById("dzCardLatest").textContent'), /proven/);
+        await b.eval('document.getElementById("dzCards").click()');
+        await b.until('document.querySelectorAll("#dzDrawer .dz-ccard").length >= 1');
+        assert.match(await b.eval('document.querySelector("#dzDrawer .dz-ccard .ct b").textContent'), /You/);
+      } finally { await b.close(); }
+      // AN APP DESIGN CANNOT RUN: read-only, with the one fix.
+      const ro = fs.mkdtempSync(path.join(os.tmpdir(), 'lain-adopt-ro-'));
+      fs.writeFileSync(path.join(ro, 'package.json'), JSON.stringify({ name: 'mystery', version: '1.0.0' }));
+      execFileSync('git', ['init', '-q'], { cwd: ro });
+      const b2 = await benchMod.start({ fixture: null, root: ro });
+      try {
+        await b2.until('document.getElementById("dzSetLaunch")', 30000);
+        await b2.eval('document.getElementById("dzSetLaunch").click()');
+        await b2.until('document.getElementById("dzLaunchBox") && document.getElementById("dzLaunchCmd")');
+      } finally { await b2.close(); }
     });
 
     await test('ADOPT 10: regression — the cache-prefix proofs hold and the design_* schemas stay under 4 KB', async () => {

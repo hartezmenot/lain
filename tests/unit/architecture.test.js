@@ -110,7 +110,7 @@ module.exports = async function () {
     const suspicious = [];
     const scan = (dir, rel = '') => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.name === 'node_modules' || e.name === '.git') continue;
+        if (e.name === 'node_modules' || e.name === '.git' || e.name === '.next' || e.name === '.svelte-kit') continue;   // installed and generated code (the Design fixtures' frameworks build into these)
         const p = path.join(dir, e.name);
         if (e.isDirectory()) { scan(p, path.join(rel, e.name)); continue; }
         if (!e.name.endsWith('.js')) continue;
@@ -273,7 +273,7 @@ module.exports = async function () {
     const roots = [SRC, path.join(__dirname, '..')];
     const scan = (dir, rel = '') => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.name === 'node_modules' || e.name === '.git') continue;
+        if (e.name === 'node_modules' || e.name === '.git' || e.name === '.next' || e.name === '.svelte-kit') continue;   // installed and generated code (the Design fixtures' frameworks build into these)
         const p = path.join(dir, e.name);
         if (e.isDirectory()) { scan(p, path.join(rel, e.name)); continue; }
         if (!e.name.endsWith('.js')) continue;

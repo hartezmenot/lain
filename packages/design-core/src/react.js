@@ -60,13 +60,14 @@ class ReactProject extends WebProject {
   }
   _setText(src, el, text) { return jsx.setText(src, el, text); }
   _parseText(text, rel) { return jsx.parse(text, rel); }
-  _markup(kind, { elId, src, label, alt }) {
+  _markup(kind, { elId, src, label, alt, cls }) {
     const t = /[{}<>"]/.test(label) ? `{${JSON.stringify(label)}}` : label;
     const s = src ? `{${src}}` : null;
-    if (kind === 'image') return `<img id="${elId}" src=${s} alt=${JSON.stringify(alt)} />`;
-    if (kind === 'button') return `<button id="${elId}" type="button">${s ? `<img src=${s} alt="" />` : ''}${t}</button>`;
-    if (kind === 'text') return `<p id="${elId}">${t}</p>`;
-    return `<div id="${elId}" />`;
+    const c = cls ? ` className=${JSON.stringify(cls)}` : '';
+    if (kind === 'image') return `<img id="${elId}"${c} src=${s} alt=${JSON.stringify(alt)} />`;
+    if (kind === 'button') return `<button id="${elId}"${c} type="button">${s ? `<img src=${s} alt="" />` : ''}${t}</button>`;
+    if (kind === 'text') return `<p id="${elId}"${c}>${t}</p>`;
+    return `<div id="${elId}"${c} />`;
   }
   _menuMarkup(menu, items) {
     return `<div id="${menu}" className="lain-dropdown" hidden>${items.map((i) => `<a href=${JSON.stringify(i.target || '#')}>${/[{}<>]/.test(i.label || '') ? `{${JSON.stringify(i.label)}}` : (i.label || i.target)}</a>`).join('')}</div>`;

@@ -234,8 +234,7 @@ Object.assign(ROUTES, {
     let crop = null;
     try {
       const png = await h.page.send('Page.captureScreenshot', { format: 'png', clip: { x: Math.max(0, d.rect.x - 8), y: Math.max(0, d.rect.y - 8), width: Math.max(8, d.rect.w + 16), height: Math.max(8, d.rect.h + 16), scale: 1 } });
-      crop = require('path').join(require('../config').configDir(), 'design', 'shots', `map-${Date.now().toString(36)}.png`);
-      require('fs').mkdirSync(require('path').dirname(crop), { recursive: true }); require('fs').writeFileSync(crop, Buffer.from(png.data, 'base64'));
+      crop = design().saveShot(Buffer.from(png.data, 'base64'), 'map');
     } catch { crop = null; }
     const html = await h.page.eval(`(() => { const e = document.querySelector(${JSON.stringify(d.selector)}); return e ? e.outerHTML.slice(0, 1200) : ''; })()`).catch(() => '');
     const best = require(require('path').join(design().installed().dir, 'src', 'mapper.js')).fuzzy(f.design.project, d, f.design.project.sources ? f.design.project.sources() : []).slice(0, 5).map((c) => `${c.file}:${c.line}`);

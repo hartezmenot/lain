@@ -43,6 +43,24 @@ function defaultWrite(root) {
   };
 }
 
+/** The kinds "+" adds, and the tags that count as the same kind when borrowing a sibling's look. */
+const KIND_TAGS = { button: ['button', 'a'], text: ['p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'label'], image: ['img'], container: ['div', 'section', 'article', 'li'] };
+/** The static classes of the same-kind sibling nearest the insertion point ('' when there is none). */
+function siblingClasses(tree, parent, kind, index) {
+  const kids = (parent.children || []).map((c) => tree.byId.get(c)).filter(Boolean);
+  const at = index == null || !Number.isFinite(Number(index)) ? kids.length : Number(index);
+  const tags = KIND_TAGS[kind] || [];
+  // THE SAME TAG FIRST (a new <p> looks like the other <p>s), then the same kind; the nearest of those.
+  let best = null; let bestD = Infinity;
+  kids.forEach((k, i) => {
+    const t = String(k.tag).toLowerCase();
+    if (!tags.includes(t) || k.classStatic === false || !(k.classes || []).length) return;
+    const d = Math.abs(i - at + 0.5) + (t === tags[0] ? 0 : 1000);
+    if (d < bestD) { best = k; bestD = d; }
+  });
+  return best ? best.classes.join(' ') : '';
+}
+
 class WebProject {
   constructor(root, { snapshotsDir = null, write = null, readBinary = null, webRoot = '' } = {}) {
     this.root = path.resolve(root);
@@ -83,11 +101,12 @@ class WebProject {
   _classEdit(src, el, classes) { return html.setAttr(src, el, 'class', classes.join(' ')); }
   _setText(src, el, text) { return html.setText(src, el, text); }
   _parseText(text, rel) { return html.parse(text, rel); }
-  _markup(kind, { elId, src, label, alt }) {
-    if (kind === 'image') return `<img id="${escAttr(elId)}" src="${escAttr(src)}" alt="${escAttr(alt)}">`;
-    if (kind === 'button') return `<button id="${escAttr(elId)}" type="button">${src ? `<img src="${escAttr(src)}" alt="">` : ''}${escText(label)}</button>`;
-    if (kind === 'text') return `<p id="${escAttr(elId)}">${escText(label)}</p>`;
-    return `<div id="${escAttr(elId)}"></div>`;
+  _markup(kind, { elId, src, label, alt, cls }) {
+    const c = cls ? ` class="${escAttr(cls)}"` : '';
+    if (kind === 'image') return `<img id="${escAttr(elId)}"${c} src="${escAttr(src)}" alt="${escAttr(alt)}">`;
+    if (kind === 'button') return `<button id="${escAttr(elId)}"${c} type="button">${src ? `<img src="${escAttr(src)}" alt="">` : ''}${escText(label)}</button>`;
+    if (kind === 'text') return `<p id="${escAttr(elId)}"${c}>${escText(label)}</p>`;
+    return `<div id="${escAttr(elId)}"${c}></div>`;
   }
   _menuMarkup(menu, items) { return `<div id="${escAttr(menu)}" class="lain-dropdown" hidden>${items.map((i) => `<a href="${escAttr(i.target || '#')}">${escText(i.label || i.target)}</a>`).join('')}</div>`; }
   /** The script a screen's wires go in (flow.js). */
@@ -390,10 +409,12 @@ class WebProject {
     let elId = id; let n = 1; while (taken.has(elId)) elId = `${id}-${++n}`;
     const src = op.asset ? this._asset(screen, op.asset, perFile) : null;
     const kind = op.kind || (src ? 'image' : 'button');
-    const markup = this._markup(kind, { elId, src, label: op.text || op.name || '', alt: op.name || '' });
+    // IT LOOKS LIKE ITS NEIGHBOURS: the nearest sibling of the same kind lends its (static) classes.
+    const cls = op.cls != null ? String(op.cls) : siblingClasses(entry.tree, parent, kind, op.index);
+    const markup = this._markup(kind, { elId, src, label: op.text || op.name || '', alt: op.name || '', cls });
     const e = html.insertInto(entry.src, entry.tree, parent, markup, op.index == null ? Infinity : Number(op.index));
     perFile.set(screen, [e, ...(perFile.extra || [])]);
-    const res = this._result(op, perFile, { summary: `added ${kind} "${op.name || elId}"${src ? ` with ${src}` : ''} to ${nameOf(parent)}`, target: [screen] });
+    const res = this._result(op, perFile, { summary: `added ${kind} "${op.name || elId}"${cls ? ` .${cls.split(/\s+/).join('.')}` : ''}${src ? ` with ${src}` : ''} to ${nameOf(parent)}`, target: [screen] });
     res.binary = perFile.binary || [];
     const t = this._parseText(res.files.find((f) => f.rel === screen).after, screen);
     const made = t.all.find((x) => x.attrs.id === elId);

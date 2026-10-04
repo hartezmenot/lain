@@ -175,7 +175,7 @@ module.exports = async function () {
         assert.ok(labels.length >= 4);
         const d = design.forProject(b.app, b.root);
         const tab = d.project.scanElements('library.html').find((e) => e.text === 'Settings');
-        const r = await b.eval(`fetch('/bridge/api/design/edit', { method: 'POST', body: JSON.stringify({ op: { op: 'addWire', node: ${JSON.stringify(tab.id)}, trigger: 'click', action: 'navigate', target: 'settings.html', transition: 'fade' } }) }).then(r => r.json())`);
+        const r = await b.eval(`api('/api/design/edit', { op: { op: 'addWire', node: ${JSON.stringify(tab.id)}, trigger: 'click', action: 'navigate', target: 'settings.html', transition: 'fade' } })`);   // the window's own (authenticated) call
         assert.ok(r.applied, JSON.stringify(r));
         await b.h.goto(b.url);
         await b.until('LAIN.designUI._state.frames.size === 4 && [...LAIN.designUI._state.frames.values()].every(f => f.ready)', 25000);

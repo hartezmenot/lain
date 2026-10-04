@@ -127,7 +127,12 @@ class Design {
         };
       })();
     }
-    try { this.preview = await this._previewing; } finally { this._previewing = null; }
+    const gen = this._gen || 0;
+    let pv;
+    try { pv = await this._previewing; } finally { this._previewing = null; }
+    // CLOSED WHILE STARTING: the preview this call started is stopped, not left running.
+    if ((this._gen || 0) !== gen) { try { await pv.close(); } catch { /* closing */ } throw new Error('Design was closed'); }
+    this.preview = pv;
     return this.preview;
   }
 
@@ -152,8 +157,19 @@ class Design {
 
   /** The headless page (own browser, no window), on a screen. */
   async page(screen, device = null) {
-    if (!this.headless) { this.headless = await new (require('./headless').Headless)().launch(device || {}); await this.signIn(this.headless); }
-    else if (device) await this.headless.viewport(device);
+    if (!this.headless) {
+      // ONE LAUNCH for concurrent callers (the canvas asks while an edit proves); a launch that finishes after close()
+      // closes its own browser instead of leaving it running.
+      if (!this._launching) {
+        const gen = this._gen || 0;
+        this._launching = (async () => {
+          const h = await new (require('./headless').Headless)().launch(device || {});
+          if ((this._gen || 0) !== gen) { h.close(); throw new Error('Design was closed'); }
+          this.headless = h; await this.signIn(h); return h;
+        })().finally(() => { this._launching = null; });
+      }
+      await this._launching;
+    } else if (device) await this.headless.viewport(device);
     const url = await this.screenUrl(screen);
     const cur = await this.headless.page.eval('location.href').catch(() => '');
     if (cur !== url || this._dirty) { await this.headless.goto(url); this._dirty = false; }
@@ -247,6 +263,7 @@ class Design {
   redo() { const r = this.project.redo(); if (r.ok) this._dirty = true; return r; }
 
   async close() {
+    this._gen = (this._gen || 0) + 1;
     if (this.headless) { this.headless.close(); this.headless = null; }
     if (this.preview) { const p = this.preview; this.preview = null; await p.close(); }
   }
