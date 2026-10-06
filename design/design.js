@@ -228,8 +228,10 @@
     els.slice(0, 400).forEach((e) => {
       const row = h('button', `dz-layer${st.sel && st.sel.node === e.id ? ' on' : ''}`);
       row.style.paddingLeft = `${6 + depth(e) * 12}px`;
-      row.appendChild(h('span', 'tg', e.tag));
-      row.appendChild(h('span', '', e.name !== e.tag ? e.name : ''));
+      // NAMESPACED (dz-): the shell's IDE panes own a global .tg (a 22 px toggle), which squeezed the tag over the name.
+      row.appendChild(h('span', 'dz-tag', e.tag));
+      row.appendChild(h('span', 'dz-nm', e.name !== e.tag ? e.name : ''));
+      row.title = e.name && e.name !== e.tag ? `<${e.tag}> ${e.name}` : `<${e.tag}>`;
       row.dataset.node = e.id;
       row.onclick = () => select(screen, e.id);
       // REORDER BY DRAGGING a layer before a sibling (same parent).
