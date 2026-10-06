@@ -125,6 +125,10 @@ async function main(argv) {
   if (opts._[0] === 'cache' && ['inspect', 'clear', 'help'].includes(opts._[1] || 'help') && opts.print === undefined) {
     return require('./cachecare').cli([...opts._.slice(1), ...(opts.yes ? ['--yes'] : [])]);
   }
+  // THE HOME (homeclean.js): `lain home` lists ~/.lain with a reason per row; `lain home clean [sessions] [--yes]`.
+  if (opts._[0] === 'home' && ['inspect', 'clean', 'help'].includes(opts._[1] || 'inspect') && opts.print === undefined) {
+    return require('./homeclean').cli([...(opts._.slice(1).length ? opts._.slice(1) : ['inspect']), ...(opts.yes ? ['--yes'] : [])]);
+  }
   // ---- LAIN SUBCOMMANDS (packaging pass §D2) — only these exact forms: `lain update the readme` is still a prompt.
   const words = opts.print === undefined ? opts._ : [];
   if (words.length && words.length <= 2) {
@@ -132,7 +136,7 @@ async function main(argv) {
     if (w0 === 'update' && (!w1 || w1 === 'check' || w1 === 'install')) return require('./update/cli').oneShot(w1 === 'check' || opts.check ? ['--check'] : []);
     if (w0 === 'project' && w1 === 'migrate') {
       const r = require('./projectmeta').migrate(opts.cwd || process.cwd());
-      process.stdout.write(r.ok ? `${r.state === 'moved' ? 'Moved this project\'s .lain/ to .noema/.' : r.why}\n` : `lain: ${r.why}\n`);
+      process.stdout.write(r.ok ? `${r.state === 'moved' ? 'Moved this project\'s .noema/ to .lain/.' : r.why}\n` : `lain: ${r.why}\n`);
       return r.ok ? 0 : 1;
     }
     // REFRESH MODELS WITHOUT A WINDOW (2026-10-02): the same Core catalog refresh as MODEL › Refresh models.

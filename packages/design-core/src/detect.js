@@ -81,7 +81,7 @@ function declaredPort(root, scriptLine, bundler) {
 
 /** WHAT THIS FRONTEND IS. */
 function detect(root) {
-  const abs = path.resolve(root);
+  const abs = require('./realroot').longPath(root);
   const pkg = json(abs, 'package.json');
   const out = { root: abs, framework: 'unknown', bundler: null, styling: [], router: null, plugin: null, launch: null, ports: [], url: null, confidence: 0, why: '' };
   if (!pkg) {

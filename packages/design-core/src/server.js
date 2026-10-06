@@ -20,8 +20,8 @@ const MIME = {
 
 function inside(root, p) {
   let real;
-  try { real = fs.realpathSync(p); } catch { return null; }
-  const r = fs.realpathSync(root);
+  try { real = fs.realpathSync.native(p); } catch { return null; }
+  const r = fs.realpathSync.native(root);
   const a = process.platform === 'win32' ? real.toLowerCase() : real; const b = process.platform === 'win32' ? r.toLowerCase() : r;
   return a === b || a.startsWith(b + path.sep) ? real : null;
 }

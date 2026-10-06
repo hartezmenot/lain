@@ -47,9 +47,22 @@ function record(c, name, body) {
   } catch { /* the move itself is the fact */ }
 }
 
-function junction(target, at) {
-  if (fs.existsSync(at) || isJunction(at)) return false;
-  try { fs.symlinkSync(target, at, 'junction'); return true; } catch { return false; }
+function realLower(p) { try { return fs.realpathSync.native(p).toLowerCase(); } catch { return null; } }
+
+/**
+ * THE OLD NAMES ARE RETIRED, NOT KEPT (2026-10-06): a junction an earlier LAIN left at ~/.noema or ~/.lain-v2 is
+ * removed when it leads to this home (or nowhere). Only a link is ever removed — a REAL folder there is data, and stays.
+ */
+function retireLinks(c = canonical()) {
+  const home = realLower(c);
+  const out = [];
+  for (const l of legacyHomes()) {
+    if (!isJunction(l)) continue;
+    const to = realLower(l);
+    if (to && to !== home) continue;               // somebody else's link: not LAIN's to remove
+    try { fs.unlinkSync(l); out.push(l); } catch { /* in use; retried on the next start */ }
+  }
+  return out;
 }
 
 /** The legacy home a move would take, or null (no override, no real ~/.lain yet). Pure. */
@@ -73,9 +86,8 @@ function migrate({ now = Date.now(), version = null } = {}) {
     }
   }
   if (realDir(c)) {
-    // ALREADY MOVED. Put the junctions back if something removed them — an older build would otherwise start fresh.
-    for (const l of legacyHomes()) if (!fs.existsSync(l) && !isJunction(l)) junction(c, l);
-    return { state: 'done' };
+    // ALREADY MOVED. Nothing points back: the old names are not recreated, and a link left by an older build goes.
+    return { state: 'done', retired: retireLinks(c) };
   }
   const from = legacyHomes().find((l) => realDir(l));
   if (!from) return { state: 'none' };
@@ -87,14 +99,10 @@ function migrate({ now = Date.now(), version = null } = {}) {
     return { state: 'deferred', why: `your data at ${from} could not be moved to ${c} yet (${e.code || e.message}) — LAIN keeps using it and will move it when it is not in use` };
   }
   const name = path.basename(from).replace(/^\./, '');
-  const made = junction(c, from);
-  // The older home's junction (~/.lain-v2 → ~/.noema) still resolves through ~/.noema → ~/.lain; recreate any missing.
-  for (const l of legacyHomes()) if (l !== from && !fs.existsSync(l) && !isJunction(l)) junction(c, l);
-  record(c, name, { from, to: c, at: new Date(now).toISOString(), by: version, junction: made, archivedHistorical: archived });
-  // VERIFIED: the data is at the new path, and the old path (when a junction could be made) leads to the same place.
-  let verified = isDir(c);
-  if (verified && made) { try { verified = fs.realpathSync.native(from).toLowerCase() === fs.realpathSync.native(c).toLowerCase(); } catch { verified = false; } }
-  return { state: 'moved', from, to: c, junction: made, verified, archived };
+  // NO LINK IS LEFT AT THE OLD NAME: ~/.lain is the one home, and a link to the older one that led here goes too.
+  const retired = retireLinks(c);
+  record(c, name, { from, to: c, at: new Date(now).toISOString(), by: version, junction: false, retired, archivedHistorical: archived });
+  return { state: 'moved', from, to: c, junction: false, verified: isDir(c) && !fs.existsSync(from), retired, archived };
 }
 
-module.exports = { canonical, legacy, legacyHomes, resolve, userHome, migrate, pendingMove, isJunction, override };
+module.exports = { canonical, legacy, legacyHomes, resolve, userHome, migrate, pendingMove, isJunction, override, retireLinks };

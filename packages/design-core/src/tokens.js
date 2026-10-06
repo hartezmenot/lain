@@ -55,7 +55,7 @@ function tailwindTheme(root) {
 }
 
 function scan(root) {
-  const abs = path.resolve(root);
+  const abs = require('./realroot').longPath(root);
   const t = { vars: [], scss: [], tailwind: tailwindTheme(abs), spacing: [], fontSizes: [], radii: [], shadows: [], colors: [], media: [], grid: null };
   const files = walk(abs, '', 7).filter((f) => /\.(css|scss|sass|vue|svelte)$/.test(f));
   const counts = { spacing: new Map(), font: new Map(), radius: new Map(), color: new Map() };

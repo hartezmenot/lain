@@ -24,7 +24,7 @@ function dataUrl(u) {
 class StyleOrigin {
   /** `h` a Headless (its page shows the app at `previewUrl`), `root` the project. */
   constructor(h, root, previewUrl) {
-    this.h = h; this.root = path.resolve(root); this.base = previewUrl;
+    this.h = h; this.root = require('./realroot').longPath(root); this.base = previewUrl;
     this.sheets = new Map(); this.maps = new Map(); this.enabled = false;
     h.handlers.push((msg) => {
       if (msg.method === 'CSS.styleSheetAdded') this.sheets.set(msg.params.header.styleSheetId, msg.params.header);

@@ -210,14 +210,17 @@ class ReactProject extends WebProject {
  */
 function vitePlugin({ root }) {
   const runtime = require('./runtime');
-  const abs = path.resolve(root);
+  const abs = require('./realroot').longPath(root);
   return {
     name: 'lain-design',
     enforce: 'pre',
     apply: 'serve',
     transform(code, id) {
-      const file = id.split('?')[0];
-      if (!/\.(jsx|tsx)$/i.test(file) || !file.startsWith(abs) || file.includes('node_modules')) return null;
+      let file = id.split('?')[0];
+      // ONE SPELLING: an id under the project in another form (8.3 short name, other case) is compared by its real path.
+      const under = (f) => (process.platform === 'win32' ? f.toLowerCase().startsWith(abs.toLowerCase()) : f.startsWith(abs));
+      if (!under(file)) { try { const r = fs.realpathSync.native(file); if (under(r)) file = r; } catch { /* not on disk */ } }
+      if (!/\.(jsx|tsx)$/i.test(file) || !under(file) || file.includes('node_modules')) return null;
       const rel = path.relative(abs, file).replace(/\\/g, '/');
       const out = jsx.instrument(code, rel);
       return out === code ? null : { code: out, map: null };

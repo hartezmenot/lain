@@ -40,7 +40,7 @@ const resolveIn = (profile) => inProfile(profile, "require('./src/home').resolve
 module.exports = async function () {
   const meta = require('../../src/projectmeta');
 
-  await test('RENAME home: ~/.noema moves to ~/.lain by one rename — ~/.noema and ~/.lain-v2 become junctions to the same data', () => {
+  await test('RENAME home: ~/.noema moves to ~/.lain by one rename — nothing is left at ~/.noema or ~/.lain-v2', () => {
     const profile = tmpdir('lain-profile-');
     const noema = path.join(profile, '.noema');
     fs.mkdirSync(path.join(noema, 'sessions'), { recursive: true });
@@ -54,11 +54,44 @@ module.exports = async function () {
     const now = path.join(profile, '.lain', 'sessions', 's1.json');
     assert.strictEqual(fs.readFileSync(now, 'utf8'), '{"id":"s1"}');
     assert.strictEqual(fs.statSync(now).ino, inode, 'MOVED, not copied — the same file');
-    assert.ok(fs.lstatSync(noema).isSymbolicLink(), '~/.noema is a junction');
-    for (const old of [noema, path.join(profile, '.lain-v2')]) assert.strictEqual(fs.readFileSync(path.join(old, 'sessions', 's1.json'), 'utf8'), '{"id":"s1"}', `${old} still leads to the data`);
+    for (const old of [noema, path.join(profile, '.lain-v2')]) {
+      let st = null; try { st = fs.lstatSync(old); } catch { st = null; }
+      assert.strictEqual(st, null, `${old} is gone — not a junction, not a folder`);
+    }
     assert.ok(fs.existsSync(path.join(profile, '.lain', 'migrations', 'home-from-noema.json')));
     assert.strictEqual(resolveIn(profile).toLowerCase(), path.join(profile, '.lain').toLowerCase());
     assert.strictEqual(migrateIn(profile).state, 'done', 'a second start does nothing');
+    assert.ok(!fs.existsSync(noema) && !fs.existsSync(path.join(profile, '.lain-v2')), 'a second start recreates nothing');
+  });
+
+  await test('RENAME home: ~/.lain-v2 and ~/.noema junctions an older build left are retired and never recreated; a real folder or a foreign link stays', () => {
+    const profile = tmpdir('lain-profile-');
+    const lain = path.join(profile, '.lain');
+    fs.mkdirSync(path.join(lain, 'sessions'), { recursive: true });
+    fs.writeFileSync(path.join(lain, 'config.json'), '{"keep":true}');
+    fs.writeFileSync(path.join(lain, 'migrations-marker'), 'x');
+    fs.mkdirSync(path.join(lain, 'migrations'), { recursive: true });
+    fs.writeFileSync(path.join(lain, 'migrations', 'home-from-noema.json'), '{}');
+    fs.symlinkSync(lain, path.join(profile, '.noema'), 'junction');
+    fs.symlinkSync(lain, path.join(profile, '.lain-v2'), 'junction');
+    const r = migrateIn(profile);
+    assert.strictEqual(r.state, 'done', JSON.stringify(r));
+    assert.strictEqual(r.retired.length, 2, JSON.stringify(r));
+    for (const old of ['.noema', '.lain-v2']) assert.ok(!fs.existsSync(path.join(profile, old)), `${old} retired`);
+    assert.strictEqual(fs.readFileSync(path.join(lain, 'config.json'), 'utf8'), '{"keep":true}', 'the data behind the links is untouched');
+    for (let i = 0; i < 3; i++) migrateIn(profile);
+    assert.ok(!fs.existsSync(path.join(profile, '.lain-v2')), 'no LAIN start recreates ~/.lain-v2');
+    // A REAL ~/.lain-v2 FOLDER is somebody's data, and a link that leads elsewhere is not LAIN's: both stay.
+    const p2 = tmpdir('lain-profile-');
+    fs.mkdirSync(path.join(p2, '.lain', 'migrations'), { recursive: true });
+    fs.writeFileSync(path.join(p2, '.lain', 'migrations', 'home-from-noema.json'), '{}');
+    fs.mkdirSync(path.join(p2, '.lain-v2'));
+    fs.writeFileSync(path.join(p2, '.lain-v2', 'mine.txt'), 'mine');
+    const elsewhere = path.join(p2, 'elsewhere'); fs.mkdirSync(elsewhere);
+    fs.symlinkSync(elsewhere, path.join(p2, '.noema'), 'junction');
+    assert.strictEqual(migrateIn(p2).retired.length, 0);
+    assert.strictEqual(fs.readFileSync(path.join(p2, '.lain-v2', 'mine.txt'), 'utf8'), 'mine');
+    assert.ok(fs.lstatSync(path.join(p2, '.noema')).isSymbolicLink(), 'a foreign link is left alone');
   });
 
   await test('RENAME home: a historical ~/.lain (the obsolete LAIN\'s) is set aside, not adopted — the Noema home moves in', () => {
@@ -222,7 +255,9 @@ module.exports = async function () {
     assert.match(src, /const NAME = 'LAIN Harness\.lnk'/);
     const setup = fs.readFileSync(path.join(ROOT, 'distribution', 'setup.cs'), 'utf8');
     assert.match(setup, /Uninstall\\LAIN\.Install"/, 'the Installed-apps key is not the obsolete "LAIN"');
-    assert.match(setup, /set \\"LAIN_VIA=noema\\"\\r\\n\\"%~dp0lain\.exe\\"/, 'noema.cmd runs lain.exe');
+    // THE `noema` COMMAND IS RETIRED (2026-10-06): setup no longer writes noema.cmd, and removes one an older setup left.
+    assert.ok(!/NoemaShim|WriteAllText\(Path\.Combine\(dir, "noema\.cmd"\)/.test(setup), 'setup writes no noema.cmd');
+    assert.match(setup, /"lain\.cmd", "noema\.cmd" \}/, 'an older noema.cmd is removed on upgrade');
   });
 
   await test('RENAME update: manifests for product `lain` and the Noema-era `noema` are accepted; a staged Noema-era package is a build', () => {

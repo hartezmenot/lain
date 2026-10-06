@@ -88,7 +88,10 @@ async function main(opts = {}) {
     const f = await require('./workshop').forApp(app).frameOpen(root, {});
     if (!f.ok) { process.stderr.write(`lain: the Preview could not start: ${f.why}\n`); await require('./teardown').shutdown(app, { why: 'preview did not start' }); return 1; }
   }
-  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev), mode, section: mode === 'dashboard' ? section : null, minimized: Boolean(startup && startup.minimized) });
+  // A DEBUGGING PORT ONLY WITH --dev (and the host checks --dev again): LAIN_DESKTOP_DEBUG_PORT lets an acceptance run
+  // drive the INSTALLED window itself rather than a build from source. A normal launch never opens one.
+  const debugPort = opts.dev ? (Number(process.env.LAIN_DESKTOP_DEBUG_PORT) || 0) : 0;
+  const opened = await require('./desktopwindow').open(app, { dev: Boolean(opts.dev), debugPort, mode, section: mode === 'dashboard' ? section : null, minimized: Boolean(startup && startup.minimized) });
   if (!opened.ok && !opened.already) {
     process.stderr.write(`lain: the window did not open: ${opened.why || 'unknown'}\n`);
     await require('./teardown').shutdown(app, { why: 'the desktop did not open' });

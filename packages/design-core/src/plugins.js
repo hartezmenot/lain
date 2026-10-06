@@ -20,7 +20,9 @@ function vitePlugin({ root }) {
     apply: 'serve',
     // ORDER 'pre' AT THE HOOK runs this before other pre-plugins' transforms (vite-plugin-svelte/vue compile there).
     transform: { order: 'pre', handler(code, id) {
-      const file = id.split('?')[0];
+      let file = id.split('?')[0];
+      // AN ID IN ANOTHER SPELLING (an 8.3 short name, a link) is the same file: compared by its real path.
+      if (!norm(file).startsWith(base)) { try { const r = require('fs').realpathSync.native(file); if (norm(r).startsWith(base)) file = r; } catch { /* not a file on disk */ } }
       if (!norm(file).startsWith(base) || file.includes('node_modules') || id.includes('?') && !/\?(v=|t=)/.test(id)) return null;
       const rel = path.relative(abs, file).replace(/\\/g, '/');
       let out = code;

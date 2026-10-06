@@ -261,9 +261,16 @@ const tools = {
       if (!String(input.old)) return { output: 'edit_file needs a non-empty `old`', isError: true };
       // read_file's line-number gutter copied into `old` (see gutter.js).
       const g = require('./gutter').resolve(text, String(input.old), String(input.new));
-      const oldStr = g.old;
-      const newStr = g.replacement;
-      const count = text.split(oldStr).length - 1;
+      let oldStr = g.old;
+      let newStr = g.replacement;
+      let count = text.split(oldStr).length - 1;
+      // A CRLF FILE (a Windows checkout, core.autocrlf) and LF text from the model: matched in the file's own line
+      // ending, and the replacement written in it too — never a file of mixed endings, never a false "not found".
+      if (count === 0 && /\r\n/.test(text) && /\n/.test(oldStr) && !/\r\n/.test(oldStr)) {
+        const crlf = (s) => s.replace(/\r?\n/g, '\r\n');
+        const n = text.split(crlf(oldStr)).length - 1;
+        if (n > 0) { oldStr = crlf(oldStr); newStr = crlf(newStr); count = n; }
+      }
       if (count === 0) return { output: `\`old\` not found in ${input.path}`, isError: true };
       if (count > 1 && !input.replace_all) {
         return { output: `\`old\` appears ${count} times in ${input.path} — pass replace_all or use a longer unique string`, isError: true };

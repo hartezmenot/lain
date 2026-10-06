@@ -234,6 +234,23 @@ function stopOwned(owner = defaultOwner()) {
   return { stopped: res.filter((r) => r.ok && !r.already).length, records: mine.length };
 }
 
+/**
+ * FORGET LEASES OF PROCESSES THAT ARE ALL GONE (2026-10-06): a lease whose holder and every listed child no longer
+ * exist (signal 0 — no PowerShell, no identity check needed for a pid that is not there) is only a record, and it goes.
+ * Without this every LAIN process left one file behind (2,977 on one machine). Anything alive is left to reapStale.
+ */
+function pruneDead() {
+  const isAlive = (pid) => { if (!pid) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+  let removed = 0;
+  for (const l of allLeases()) {
+    if (l.data.owner === defaultOwner()) continue;
+    const pids = [l.data.lease && l.data.lease.pid, ...(l.data.processes || []).map((p) => p.pid)].filter(Boolean);
+    if (pids.some(isAlive)) continue;
+    try { fs.unlinkSync(l.file); removed++; } catch { /* another LAIN got there first */ }
+  }
+  return { removed };
+}
+
 /** REAP WHAT DEAD OWNERS ASKED TO HAVE STOPPED. */
 function reapStale({ ownerPrefix = null } = {}) {
   const report = { reaped: [], kept: [], leases: 0 };
@@ -267,5 +284,5 @@ function spawnRegistered(command, args, options = {}, meta = {}) {
 }
 
 module.exports = {
-  DEFAULT_POLICY, dir, defaultOwner, startTimes, startTimesAsync, same, lease, register, forget, list, stop, stopOwned, reapStale, spawnRegistered, killTree,
+  DEFAULT_POLICY, dir, defaultOwner, startTimes, startTimesAsync, same, lease, register, forget, list, stop, stopOwned, reapStale, pruneDead, spawnRegistered, killTree,
 };

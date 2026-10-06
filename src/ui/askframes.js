@@ -178,24 +178,23 @@ function multiAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT' 
   return frame;
 }
 
-/** The same question, with every option's reasoning in full. */
+/**
+ * The same question, with every option's reasoning IN FULL: one scrolling text (wrapped by display width like the
+ * question itself, panel.js renderQuestion) — the choice and its whole explanation, never cut at a length.
+ */
 function askDetailsAdapter({ question, options = [] }) {
-  const items = [];
-  for (const l of String(question == null ? '' : question).split('\n')) {
-    items.push({ label: l, selectable: false });
-  }
-  items.push({ label: '', selectable: false });
+  const items = [...questionRows(question), { label: '', selectable: false, question: true }];
   options.forEach((o, i) => {
     const { choice, why } = splitOption(o);
-    items.push({ label: `${A.LETTERS[i] || i + 1} — ${choice}`, selectable: false });
-    const body = why || '(no further explanation was given)';
-    for (let at = 0; at < body.length && at < 400; at += 66) {
-      items.push({ label: `    ${body.slice(at, at + 66)}`, selectable: false });
-    }
-    items.push({ label: '', selectable: false });
+    // A LONG OPTION's row label is its first words and "…"; here its whole text follows, so the heading is the letter alone.
+    const cut = choice.endsWith('…') && String(why).startsWith(choice.slice(0, -1).trimEnd());
+    items.push({ label: cut ? `${A.LETTERS[i] || i + 1} —` : `${A.LETTERS[i] || i + 1} — ${T.strip(choice)}`, selectable: false, question: true });
+    for (const l of T.strip(why || '(no further explanation was given)').split('\n')) items.push({ label: `    ${l}`, selectable: false, question: true });
+    items.push({ label: '', selectable: false, question: true });
   });
   return {
     title: 'QUESTION DETAILS',
+    ...ZONE,
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     items,

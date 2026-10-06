@@ -14,9 +14,9 @@ const SCROLLBACK = 256 * 1024;
 /** How many terminals one session may hold open at once. */
 const MAX_TERMINALS = 4;
 
+/** WHERE THE BRIDGE IS BUILT: beside the app (an installed version's own folder, or a checkout's native/build) — never in the person's data folder. */
 function homeDir() {
-  const base = require('./home').resolve();
-  return path.join(base, 'pty');
+  return path.join(__dirname, '..', 'native', 'build', 'pty');
 }
 
 function compiler() {

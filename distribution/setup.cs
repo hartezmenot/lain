@@ -9,7 +9,6 @@
 //       lainw.exe               the same launcher without a console (Model Dashboard, Preview, Open With)
 //       LAIN Harness.exe        the Harness launcher            [LAIN Harness component]
 //       Uninstall LAIN.exe      this program, for maintenance
-//       noema.cmd               the compatibility `noema` command: a shim onto lain.exe (LAIN_VIA=noema)
 //       versions\<v>\runtime\    Node.js (official build, SHA-256 verified at release build) + its licence
 //       versions\<v>\app\        LAIN
 //       current / previous       which version runs / the last known-good one (updates switch these)
@@ -227,13 +226,12 @@ static class Installer {
     if (!o.Harness) { try { File.Delete(Path.Combine(dir, "LAIN Harness.exe")); } catch { } }
     // lain.exe / lainw.exe came from THIS payload (Zip.Extract overwrote any obsolete ones). What no current build
     // ships goes: the obsolete supervisor beside the launchers, and — over a folder that held Noema — its launchers
-    // and its `lain.cmd` shim (which pointed at noema.exe). `noema` stays a COMMAND: a shim onto the same lain.exe —
-    // same Core, same home, same pipe.
-    foreach (string old in new[] { "lain-supervisor.exe", "noema.exe", "noemaw.exe", "Noema Harness.exe", "Uninstall Noema.exe", "lain.cmd" }) {
+    // and its `lain.cmd` shim (which pointed at noema.exe). The `noema` command is retired too (2026-10-06): the product
+    // is LAIN, and `lain` is its one command.
+    foreach (string old in new[] { "lain-supervisor.exe", "noema.exe", "noemaw.exe", "Noema Harness.exe", "Uninstall Noema.exe", "lain.cmd", "noema.cmd" }) {
       string p = Path.Combine(dir, old);
       if (File.Exists(p)) { try { File.Delete(p); log("  removed the obsolete " + old); } catch (Exception e) { try { File.Move(p, p + ".delete-me"); } catch { log("  (could not remove " + old + ": " + e.Message + ")"); } } }
     }
-    try { File.WriteAllText(Path.Combine(dir, "noema.cmd"), NoemaShim); } catch (Exception e) { log("  (the noema command was not written: " + e.Message + ")"); }
     try { File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(dir, "Uninstall LAIN.exe"), true); } catch (Exception e) { log("  (no maintenance program was written: " + e.Message + ")"); }
     var prior = Components.Read(dir);
     var c = new Components { Harness = o.Harness, Design = o.Design && Directory.Exists(Path.Combine(vdir, "app", "design")), Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Registered = !o.NoRegister || prior.Registered };
@@ -259,8 +257,6 @@ static class Installer {
     return 0;
   }
 
-  /// THE `noema` SHIM. setlocal keeps the mark out of the calling console; boot.js prints the rename notice once.
-  const string NoemaShim = "@echo off\r\nsetlocal\r\nset \"LAIN_VIA=noema\"\r\n\"%~dp0lain.exe\" %*\r\nexit /b %ERRORLEVEL%\r\n";
 
   public static bool SameDir(string a, string b) { try { return string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase); } catch { return false; } }
 

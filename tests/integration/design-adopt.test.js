@@ -22,10 +22,24 @@ const FIX = path.join(__dirname, '..', 'fixtures', 'design');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const ALL = ['react-mini', 'vue-mini', 'sveltekit-mini', 'next-mini', 'spa-scss', 'legacy-public', 'running-server'];
 
+/**
+ * WHERE THE COPIES GO: on the fixture's own drive. A copy's node_modules is a junction back to the fixture, and Next
+ * resolves its client entry relative to the project — from C:\…\Temp to D:\lain that is `./D:/lain/…`, which webpack
+ * cannot resolve, so every page was a 500 (ADOPT 1, 3, 4, 5 on a machine whose TEMP is not on the checkout's drive).
+ * A real project has its node_modules inside it; only this test's linking crossed drives.
+ */
+const WORK = (() => {
+  const t = os.tmpdir();
+  if (path.parse(path.resolve(t)).root.toLowerCase() === path.parse(path.resolve(FIX)).root.toLowerCase()) return t;
+  const w = path.join(FIX, '.adopt-work');
+  fs.mkdirSync(w, { recursive: true });
+  return w;
+})();
+
 /** A fixture as a project of its own: copied (node_modules linked), a git repo with everything committed. */
 function project(name, edit = null) {
   const src = path.join(FIX, name);
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), `lain-adopt-${name}-`));
+  const root = fs.mkdtempSync(path.join(WORK, `lain-adopt-${name}-`));
   for (const f of fs.readdirSync(src)) if (f !== 'node_modules') fs.cpSync(path.join(src, f), path.join(root, f), { recursive: true });
   if (fs.existsSync(path.join(src, 'node_modules'))) fs.symlinkSync(path.join(src, 'node_modules'), path.join(root, 'node_modules'), 'junction');
   if (edit) edit(root);
@@ -204,17 +218,19 @@ module.exports = async function () {
         let r = await d.edit({ screen: 'src/pages/Home.jsx', selector: '#me', op: 'setStyle', props: { width: '48px' } });
         assert.ok(r.ok, JSON.stringify(r));
         assert.match(scss(), /@media \(max-width: 640px\) \{\s*\.avatar \{\s*width: 48px;/, 'inside the media block');
-        assert.match(scss(), /\.avatar \{\n  position: absolute;[\s\S]*?width: 40px;/, 'the base rule is unchanged');
+        // A CRLF CHECKOUT (core.autocrlf) STAYS CRLF — the engine keeps the file's own line ending, so the lines are matched as \r?\n.
+        assert.match(scss(), /\.avatar \{\r?\n  position: absolute;[\s\S]*?width: 40px;/, 'the base rule is unchanged');
         const q = await d.edit({ screen: 'src/pages/Home.jsx', selector: '#me', op: 'setStyle', props: { right: '24px' } });
         assert.ok(q.needs && q.needs.breakpoint, 'a base-rule edit while a breakpoint is active asks');
         r = await d.edit({ screen: 'src/pages/Home.jsx', selector: '#me', op: 'setStyle', props: { right: '24px' }, breakpoint: 'only' });
         assert.ok(r.ok, JSON.stringify(r));
         assert.match(scss(), /@media \(max-width: 640px\) \{[\s\S]*?\.avatar \{\s*right: 24px;\s*\}/, 'a rule for this breakpoint only');
-        assert.match(scss(), /\.avatar \{\n  position: absolute;\n  top: 12px;\n  right: 16px;/, 'all sizes keep right: 16px');
+        assert.match(scss(), /\.avatar \{\r?\n  position: absolute;\r?\n  top: 12px;\r?\n  right: 16px;/, 'all sizes keep right: 16px');
         await d.page('src/pages/Home.jsx', { width: 1280, height: 800, dpr: 1, mobile: false });
         r = await d.edit({ screen: 'src/pages/Home.jsx', selector: '#me', op: 'setStyle', props: { width: '44px' } });
         assert.ok(r.ok, JSON.stringify(r));
-        assert.match(scss(), /\.avatar \{\n  position: absolute;[\s\S]*?width: 44px;/, 'at 1280 the base rule');
+        assert.match(scss(), /\.avatar \{\r?\n  position: absolute;[\s\S]*?width: 44px;/, 'at 1280 the base rule');
+        assert.ok(!/(^|[^\r])\n/.test(scss()) || !/\r\n/.test(scss()), 'one line ending throughout — no CRLF file gains bare LF lines');
       } finally { await d.close(); }
     });
 
@@ -380,5 +396,7 @@ module.exports = async function () {
   } finally {
     if (running) { try { running.kill(); } catch { /* gone */ } }
     await design.closeAll();
+    // The copies made beside the fixtures (a different-drive TEMP) are this run's: removed, links unlinked not followed.
+    if (WORK.endsWith('.adopt-work')) { try { fs.rmSync(WORK, { recursive: true, force: true, maxRetries: 3, retryDelay: 300 }); } catch { /* a dev server still exiting */ } }
   }
 };

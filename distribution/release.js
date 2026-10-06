@@ -102,7 +102,8 @@ function releaseKey() {
   for (const f of pkg.files || []) { const s = path.join(ROOT, f); if (fs.existsSync(s)) copyTree(s, path.join(app, f.replace(/[\\/]$/, ''))); }
   copyTree(path.join(ROOT, 'package.json'), path.join(app, 'package.json'));
   for (const extra of ['native/vendor']) { const s = path.join(ROOT, extra); if (fs.existsSync(s)) copyTree(s, path.join(app, extra)); }
-  copyTree(harnessDir, path.join(app, 'harness'), (p) => !/[\\/](\.git|node_modules|tests?|docs)$/.test(p));
+  // THE HARNESS PACKAGE, without a checkout's own state (.git, .lain, .claude) or a stray clone nested inside it.
+  copyTree(harnessDir, path.join(app, 'harness'), (p) => !/[\\/](\.git|\.lain|\.claude|node_modules|tests?|docs|lain-harness)$/.test(p));
   // LAIN DESIGN (optional, its own version): the engine and its pinned runtime dependencies in app/design; the
   // surface rides in app/harness/design. Installed or not is the person's choice at setup (components.json).
   const designBuild = argv.includes('--no-design') ? null : require('./designpayload').stage(app);
@@ -112,9 +113,19 @@ function releaseKey() {
 
   // 2. PREBUILT NATIVE PIECES (no compiler on the person's machine).
   process.env.LAIN_HARNESS_DIR = path.join(app, 'harness');
-  const prebuilt = require(path.join(ROOT, 'src', 'desktop')).prebuild(path.join(app, 'native', 'prebuilt'));
+  const desktop = require(path.join(ROOT, 'src', 'desktop'));
+  const prebuilt = desktop.prebuild(path.join(app, 'native', 'prebuilt'));
   if (!prebuilt.ok) throw new Error(`the window host did not build: ${prebuilt.why}`);
   say(`  window host ${path.basename(prebuilt.exe)}`);
+  // THE PAGE, RENDERED NOW: the installed window serves app/native/prebuilt/assets as it is — nothing is written at
+  // run time, and nothing of the program lands in the person's home. Its editor code is part of the page's assets, so
+  // the Harness's own vendor copy is not shipped twice.
+  const harnessMod = require(path.join(app, 'harness', 'index.js'));
+  if (typeof harnessMod.ensureVendor === 'function') { const v = await harnessMod.ensureVendor().catch((e) => ({ ok: false, why: e.message })); if (v && v.ok === false) say(`  (editor code not fetched: ${v.why})`); }
+  const page = desktop.writeAssets(path.join(app, 'native', 'prebuilt', 'assets'));
+  for (const need of ['index.html', 'vendor/monaco/vs/loader.js', 'vendor/xterm']) if (!fs.existsSync(path.join(page.dir, ...need.split('/')))) throw new Error(`the rendered page is missing ${need}`);
+  fs.rmSync(path.join(app, 'harness', 'vendor'), { recursive: true, force: true });
+  say(`  page rendered (${Math.round(page.bytes / 1024)} KB) with its editor and terminal code`);
   // The job supervisor (Rust, statically linked CRT) — built beforehand with `cargo build --release` in rust/lain-supervisor.
   const sup = path.join(ROOT, 'rust', 'lain-supervisor', 'target', 'release', 'lain-supervisor.exe');
   if (fs.existsSync(sup)) { fs.copyFileSync(sup, path.join(app, 'native', 'prebuilt', 'lain-supervisor.exe')); say('  job supervisor lain-supervisor.exe'); }

@@ -64,7 +64,7 @@ function excludeFromGit(root) {
  *   nothing runnable            → read-only, with the one-line reason and a "Set launch command" field
  */
 function open(root, opts = {}) {
-  const abs = path.resolve(root);
+  const abs = require('./realroot').longPath(root);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return new ReadOnlyProject(abs, `${abs} is not a folder`);
   const snap = { snapshotsDir: opts.snapshotsDir || path.join(abs, '.lain', 'design', 'snapshots'), write: opts.write || null };
   if (require('./android').AndroidProject.detect(abs) > 0) {
@@ -90,7 +90,7 @@ function open(root, opts = {}) {
 /** One project's Design state: the adapter, the preview (lazy), the headless driver (lazy). */
 class Design {
   constructor(root, opts = {}) {
-    this.root = path.resolve(root);
+    this.root = require('./realroot').longPath(root);
     this.opts = opts;
     this.project = open(this.root, opts);
     this.preview = null;

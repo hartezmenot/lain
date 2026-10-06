@@ -9,12 +9,17 @@
 
 const crypto = require('crypto');
 
-/** Apply non-overlapping splices [{start, end, text}] to `src`. */
+/**
+ * Apply non-overlapping splices [{start, end, text}] to `src`. A file that is all CRLF (a Windows checkout,
+ * core.autocrlf) stays all CRLF: an inserted bare LF is written as CRLF — and the edit itself is updated, so offsets
+ * mapped from the same edits afterwards (mapOffset) agree with the text written.
+ */
 function splice(src, edits) {
   const list = edits.filter(Boolean).slice().sort((a, b) => a.start - b.start || a.end - b.end);
   for (let i = 1; i < list.length; i++) {
     if (list[i].start < list[i - 1].end) throw new Error(`overlapping edits at ${list[i].start}`);
   }
+  if (/\r\n/.test(src) && !/(^|[^\r])\n/.test(src)) for (const e of list) if (typeof e.text === 'string') e.text = e.text.replace(/\r?\n/g, '\r\n');
   let out = ''; let at = 0;
   for (const e of list) { out += src.slice(at, e.start) + e.text; at = e.end; }
   return out + src.slice(at);

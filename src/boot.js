@@ -29,8 +29,27 @@ function start({ via = 'lain', argv = process.argv.slice(2) } = {}) {
   return ready.then(() => afterMove(home, pkg, via, argv));
 }
 
+/**
+ * HOUSEKEEPING, once per start and off the first frame's path (2026-10-06): leases of LAIN processes that are all gone,
+ * and diagnostic traces past their retention (14 days). Records of the past are not kept forever by default.
+ */
+function housekeeping(home) {
+  setTimeout(() => {
+    try { require('./runtimeregistry').pruneDead(); } catch { /* next start */ }
+    try {
+      const dir = path.join(home.resolve(), 'reqtrace');
+      const cutoff = Date.now() - 14 * 864e5;
+      for (const f of fs.readdirSync(dir)) {
+        const p = path.join(dir, f);
+        try { if (f.endsWith('.jsonl') && fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p); } catch { /* in use */ }
+      }
+    } catch { /* no traces */ }
+  }, 2000).unref();
+}
+
 function afterMove(home, pkg, via, argv) {
   const moved = home.migrate({ version: pkg.version });
+  housekeeping(home);
   if (moved.state === 'moved') process.stderr.write(`LAIN moved your data to ${moved.to} (the old folder now points there).\n`);
   else if (moved.state === 'deferred' && !argv.includes('--version') && !argv.includes('-v')) process.stderr.write(`note: ${moved.why}\n`);
   if (via === 'noema') {

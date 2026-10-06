@@ -18,11 +18,26 @@ const ROOT = path.join(__dirname, '..');
 /** The host source's path, or '' when the Harness is not installed. */
 const SOURCE = (() => { const h = harness(); return h.ok ? h.hostSource : ''; })();
 
-/** Where a built host and its packaged assets live, outside the source tree. */
+/** THE WINDOW'S OWN DATA (WebView2 profile, logs) — in the person's home. Never the program: that is buildDir(). */
 function homeDir() {
   const base = require('./home').resolve();
   return path.join(base, 'desktop');
 }
+
+/** A host the installer shipped beside this app (app/native/prebuilt), with its pre-rendered page — run in place. */
+function shipped() {
+  try {
+    const exe = fs.readdirSync(PREBUILT).filter((f) => /^lain-harness-[0-9a-f]+\.exe$/.test(f)).sort().pop();
+    if (exe && fs.existsSync(path.join(PREBUILT, 'assets', 'index.html'))) return { ok: true, exe: path.join(PREBUILT, exe), built: false, prebuilt: true, dir: PREBUILT, assets: path.join(PREBUILT, 'assets') };
+  } catch { /* a development checkout */ }
+  return null;
+}
+
+/**
+ * WHERE THE PROGRAM IS (2026-10-06): an installed LAIN runs the host it shipped, from the install folder; a development
+ * checkout builds into its own native/build. Neither puts a program in the person's home.
+ */
+function buildDir() { const s = shipped(); return s ? s.dir : path.join(ROOT, 'native', 'build'); }
 
 function compiler() {
   const root = path.join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64');
@@ -85,6 +100,8 @@ const PREBUILT = path.join(__dirname, '..', 'native', 'prebuilt');
 
 function build({ quiet = true, out: outDir = null } = {}) {
   if (process.platform !== 'win32') return { ok: false, why: 'LAIN Desktop is Windows-only for now' };
+  // INSTALLED: the shipped host, where the installer put it — nothing is copied or compiled.
+  if (!outDir) { const s = shipped(); if (s) return s; }
   let src;
   const h = harness();
   if (!h.ok) return { ok: false, why: h.why };
@@ -103,7 +120,7 @@ function build({ quiet = true, out: outDir = null } = {}) {
     .update(fs.existsSync(ICON) ? fs.readFileSync(ICON) : Buffer.alloc(0))
     .digest('hex')
     .slice(0, 12);
-  const out = outDir || homeDir();
+  const out = outDir || buildDir();
   fs.mkdirSync(out, { recursive: true });
   const exe = path.join(out, `lain-harness-${stamp}.exe`);
 
@@ -117,9 +134,6 @@ function build({ quiet = true, out: outDir = null } = {}) {
   if (!fs.existsSync(loader)) fs.copyFileSync(sdk.loader, loader);
 
   if (fs.existsSync(exe)) return { ok: true, exe, built: false, dir: out };
-  // THE RELEASE SHIPPED THIS VERY BUILD: copied, not compiled.
-  const shipped = path.join(PREBUILT, path.basename(exe));
-  if (!outDir && fs.existsSync(shipped)) { fs.copyFileSync(shipped, exe); return { ok: true, exe, built: false, prebuilt: true, dir: out }; }
 
   const args = [
     '/nologo', '/target:winexe', '/platform:x64', '/optimize+',
@@ -142,8 +156,12 @@ function build({ quiet = true, out: outDir = null } = {}) {
   return { ok: true, exe, built: true, dir: out };
 }
 
-/** Where a shortcut points. Stable across rebuilds, unlike the hashed name. */
-function launcherPath() { return path.join(homeDir(), 'LAIN Harness.exe'); }
+/** Where a shortcut points: the installed `LAIN Harness.exe`, or a checkout's development launcher beside its build. */
+function launcherPath() {
+  const root = process.env.LAIN_INSTALL_ROOT;
+  if (root) return path.join(root, 'LAIN Harness.exe');
+  return path.join(path.join(ROOT, 'native', 'build'), 'LAIN Harness.exe');
+}
 
 /** The release build: compile the host (and its SDK files) into `dir` for distribution/release.js. */
 function prebuild(dir) { return build({ out: dir }); }
@@ -158,6 +176,8 @@ function installLauncher(built, { cfg = {}, at = null } = {}) {
   const entry = path.join(__dirname, '..', 'bin', 'lain.js');
   // WHERE THE FRONT DOOR GOES.
   const launcher = at ? path.resolve(at) : launcherPath();
+  // AN INSTALLED LAIN'S FRONT DOOR is the installer's (versioned, with rollback) — never replaced from here.
+  if (!at && process.env.LAIN_INSTALL_ROOT) return fs.existsSync(launcher) ? { ok: true, launcher, node: null, why: '' } : { ok: false, why: `${launcher} is missing — repair LAIN from Installed apps` };
   try {
     fs.mkdirSync(path.dirname(launcher), { recursive: true });
     fs.copyFileSync(built.exe, launcher);
@@ -185,11 +205,16 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
 
   // THE EDITOR'S CODE, fetched once (pinned, verified) and bounded so a slow
   // network never holds the window: without it the page uses its own editor.
-  const h = harness();
-  if (h.ok && typeof h.ensureVendor === 'function') {
-    await require('./deadline').race(h.ensureVendor().catch(() => null), 90_000);
+  // THE PAGE: an installed build rendered it at release time; a checkout renders it (and fetches the editor) now.
+  let assets;
+  if (built.prebuilt && built.assets) assets = { dir: built.assets, file: path.join(built.assets, 'index.html') };
+  else {
+    const h = harness();
+    if (h.ok && typeof h.ensureVendor === 'function') {
+      await require('./deadline').race(h.ensureVendor().catch(() => null), 90_000);
+    }
+    assets = writeAssets(path.join(built.dir, 'assets'));
   }
-  const assets = writeAssets(path.join(built.dir, 'assets'));
 
   // THE WINDOW'S OWN FILES FOLLOW THE CONFIG HOME.
   const base = path.dirname(homeDir());
@@ -234,7 +259,7 @@ async function open(app, { dev = false, wait = false, debugPort = 0, mode = null
 function status() {
   const sdk = vendor.have();
   const csc = Boolean(compiler());
-  const out = homeDir();
+  const out = buildDir();
   let exe = null;
   try {
     const rows = fs.readdirSync(out).filter((f) => /^lain-harness-[0-9a-f]+\.exe$/.test(f));
@@ -251,4 +276,4 @@ function status() {
   };
 }
 
-module.exports = { build, prebuild, hostExe, open, status, writeAssets, compiler, homeDir, installLauncher, launcherPath, SOURCE };
+module.exports = { build, prebuild, hostExe, open, status, writeAssets, compiler, homeDir, buildDir, shipped, installLauncher, launcherPath, SOURCE };

@@ -39,3 +39,7 @@ packages/design-core/node_modules/
 tests/fixtures/design/*/node_modules/
 tests/fixtures/design/*/.next/
 tests/fixtures/design/*/.svelte-kit/
+
+# A development checkout builds the window host here (src/desktop.js buildDir); an installed LAIN ships it prebuilt.
+native/build/
+tests/fixtures/design/.adopt-work/

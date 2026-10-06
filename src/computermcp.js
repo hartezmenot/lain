@@ -19,6 +19,8 @@ const MAX_BATCH = 20;
 const { VERDICT } = require('./harness/checks');
 
 const HOME = () => process.env.LAIN_HOME || require('./home').userHome();
+/** WHERE ITS HELPER PROGRAMS ARE BUILT: beside the app (an installed version's own folder, or a checkout's native/build) — never in the person's data folder. */
+const BUILD = () => path.join(__dirname, '..', 'native', 'build', 'computermcp');
 const SOURCE = path.join(__dirname, 'computermcp', 'bridge.cs');
 
 /** The .NET Framework compiler that ships with Windows, or null. */
@@ -57,7 +59,7 @@ function ensureBridge() {
   let source;
   try { source = fs.readFileSync(SOURCE); } catch (e) { return { ok: false, why: `the bridge source is missing: ${e.message}` }; }
   const stamp = require('crypto').createHash('sha256').update(source).digest('hex').slice(0, 12);
-  const dir = path.join(HOME(), 'computermcp');
+  const dir = BUILD();
   const exe = path.join(dir, `bridge-${stamp}.exe`);
   if (fs.existsSync(exe)) return { ok: true, exe, built: false };
   const csc = compiler();
@@ -94,7 +96,7 @@ function ensureWgc() {
   let source;
   try { source = fs.readFileSync(src); } catch (e) { return { ok: false, why: e.message }; }
   const stamp = require('crypto').createHash('sha256').update(source).digest('hex').slice(0, 12);
-  const exe = path.join(HOME(), 'computermcp', `wgc-${stamp}.exe`);
+  const exe = path.join(BUILD(), `wgc-${stamp}.exe`);
   if (fs.existsSync(exe)) return { ok: true, exe };
   const winmd = unionWinmd();
   const csc = compiler();

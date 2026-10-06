@@ -8,6 +8,8 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const { test } = require('../helpers');
 const tty = require('../tty/realtty');
 
@@ -82,6 +84,47 @@ module.exports = async function () {
     { resize: [200, 50] }, { snap: 'large', settle: 800 },
     { key: 'escape' }, { wait: 500 },
   ] });
+  // THE MOUSE WHEEL over the panel scrolls a tall question (SGR wheel reports, mouse reporting on in this home).
+  const wheelHome = require('../helpers').tmpdir('lain-tty-mouse-');
+  fs.writeFileSync(path.join(wheelHome, 'config.json'), JSON.stringify({ mouse: true }));
+  const wq = { ...Q[2], options: OPT(8, 'Q3') };
+  const WHEEL = (dir, rows) => `\u001b[<${dir === 'down' ? 65 : 64};20;${rows - 2}M`;
+  const wsteps = [{ until: 'Ask LAIN', timeout: 30000 }, { send: 'ask me\r' }, { until: 'Q3|END3', timeout: 30000 }, { snap: 'roll0', settle: 500 }];
+  for (let i = 1; i <= 14; i++) wsteps.push({ send: WHEEL('down', 24) }, { snap: `roll${i}`, settle: 150 });
+  for (let i = 1; i <= 3; i++) wsteps.push({ send: WHEEL('up', 24) }, { snap: `rollup${i}`, settle: 150 });
+  wsteps.push({ key: 'enter' }, { wait: 500 });
+  const wr = await tty.runTty({ cols: 80, rows: 24, configDir: wheelHome, script: script([wq]), timeoutMs: 120000, steps: wsteps });
+  await test('ASK TTY WHEEL: the mouse wheel over the panel scrolls a tall question through to its end, and back up', () => {
+    const shots = wr.snaps.filter((s) => /^roll\d+$/.test(s.name)).map((s) => s.text.join('\n'));
+    assert.ok(shots.length > 1, `no screens (timeouts: ${wr.timeouts.join(' | ')})`);
+    const onScreen = new Set(plain(shots.join('\n')).split(/\s+/));
+    const missing = plain(wq.text).split(/\s+/).filter((w) => w && !onScreen.has(w));
+    assert.deepStrictEqual(missing, [], `the wheel did not reach every line:\n${shots[shots.length - 1]}`);
+    assert.ok(/more lines? above/.test(shots[shots.length - 1]), `scrolled down, the top is marked as above:\n${shots[shots.length - 1]}`);
+    assert.ok(!/more lines? above/.test(shots[0]), 'before the wheel, nothing is above');
+    const up = wr.byName.rollup3 ? wr.byName.rollup3.text.join('\n') : '';
+    assert.notStrictEqual(up, shots[shots.length - 1], 'the wheel up moved it back');
+  });
+
+  // ESC DETAILS: every option's whole explanation — no length cut — wrapped and scrolled like the question.
+  const why = (n) => `Option ${n}: ${Array.from({ length: 110 }, (_, i) => `why${n}w${i}`).join(' ')} WHYEND${n}`;
+  const dq = { id: 'QD', text: 'QD Which option do you want, after reading the reasoning? ENDQD', options: [why(1), why(2)] };
+  const dsteps = [{ until: 'Ask LAIN', timeout: 30000 }, { send: 'ask me\r' }, { until: 'ENDQD', timeout: 30000 }, { key: 'escape' }, { until: 'QUESTION DETAILS|Question details', timeout: 10000 }, { snap: 'info0', settle: 400 }];
+  for (let i = 1; i <= 14; i++) dsteps.push({ key: 'pagedown' }, { snap: `info${i}`, settle: 150 });
+  dsteps.push({ key: 'escape' }, { wait: 400 }, { key: 'enter' }, { wait: 500 });
+  const dr = await tty.runTty({ cols: 80, rows: 24, script: script([dq]), timeoutMs: 120000, steps: dsteps });
+  await test('ASK TTY DETAILS: Esc shows each option\'s explanation in full (past 400 characters), wrapped and scrollable', () => {
+    const shots = dr.snaps.filter((s) => /^info\d+$/.test(s.name)).map((s) => s.text.join('\n'));
+    assert.ok(shots.length, `the details never opened (timeouts: ${dr.timeouts.join(' | ')})`);
+    const onScreen = new Set(plain(shots.join('\n')).split(/\s+/));
+    for (const o of dq.options) {
+      assert.ok(o.length > 400, 'the explanation is longer than the old cut');
+      const missing = o.split(/\s+/).filter((w) => w && !onScreen.has(w));
+      assert.deepStrictEqual(missing.slice(0, 5), [], `explanation cut — first missing words: ${missing.slice(0, 5).join(' ')}\n${shots[shots.length - 1]}`);
+    }
+    assert.ok(!/…/.test(shots.join('\n').split('\n').filter((l) => /why\dw/.test(l)).join('\n')), 'no explanation line is cut with an ellipsis');
+  });
+
   await test('ASK TTY RESIZE: after the window grows, the question and its options are shown in full again', () => {
     const large = rz.byName.large ? rz.byName.large.text.join('\n') : '';
     assert.ok(squash(large).includes(squash(q.text)), `cut after enlarging:\n${large}`);

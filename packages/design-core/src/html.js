@@ -130,12 +130,16 @@ function setInlineStyle(src, el, props) {
 // ---- structure --------------------------------------------------------------------------------------------------
 
 /** The element's whole text including its leading indentation and line break, for moving or removing it cleanly. */
+/** The file's own line ending: a CRLF file (a Windows checkout, core.autocrlf) gets CRLF lines, never bare LF. */
+const eolOf = (src) => (/\r\n/.test(src) ? '\r\n' : '\n');
+
 function blockRange(src, el) {
   let s = el.start; let e = el.end;
   const ls = src.lastIndexOf('\n', s - 1) + 1;
   const onlyIndentBefore = /^[ \t]*$/.test(src.slice(ls, s));
   const le = src.indexOf('\n', e);
-  const onlySpaceAfter = /^[ \t]*$/.test(src.slice(e, le < 0 ? src.length : le));
+  // A CRLF line ends in \r\n: the \r is the line's end, not content after the element.
+  const onlySpaceAfter = /^[ \t]*\r?$/.test(src.slice(e, le < 0 ? src.length : le));
   if (onlyIndentBefore && onlySpaceAfter) { s = ls; e = le < 0 ? src.length : le + 1; return { start: s, end: e, block: true }; }
   return { start: s, end: e, block: false };
 }
@@ -149,13 +153,13 @@ function insertInto(src, tree, parent, markup, index = Infinity) {
   if (index < kids.length) {
     const ref = kids[Math.max(0, index)];
     const r = blockRange(src, ref);
-    if (r.block) { const ind = indentAt(src, ref.start); return { start: r.start, end: r.start, text: `${ind}${markup}\n` }; }
+    if (r.block) { const ind = indentAt(src, ref.start); return { start: r.start, end: r.start, text: `${ind}${markup}${eolOf(src)}` }; }
     return { start: ref.start, end: ref.start, text: markup };
   }
   const last = kids[kids.length - 1];
   if (last) {
     const r = blockRange(src, last);
-    if (r.block) { const ind = indentAt(src, last.start); return { start: r.end, end: r.end, text: `${ind}${markup}\n` }; }
+    if (r.block) { const ind = indentAt(src, last.start); return { start: r.end, end: r.end, text: `${ind}${markup}${eolOf(src)}` }; }
     return { start: last.end, end: last.end, text: markup };
   }
   // AN EMPTY PARENT (or the body): inside its tags, one level deeper than the parent.
@@ -163,7 +167,8 @@ function insertInto(src, tree, parent, markup, index = Infinity) {
   const ind = parent ? `${indentAt(src, parent.start)}  ` : '  ';
   const before = src.slice(0, at);
   const nl = /\n[ \t]*$/.test(before);
-  return { start: at, end: at, text: nl ? `  ${markup}\n${indentAt(src, at)}` : `\n${ind}${markup}\n${parent ? indentAt(src, parent.start) : ''}` };
+  const eol = eolOf(src);
+  return { start: at, end: at, text: nl ? `  ${markup}${eol}${indentAt(src, at)}` : `${eol}${ind}${markup}${eol}${parent ? indentAt(src, parent.start) : ''}` };
 }
 
 /** Splices that move `el` to be the `index`-th child of its parent (index counted WITHOUT el). */
@@ -177,11 +182,11 @@ function reorder(src, tree, el, index) {
   if (index < sibs.length) {
     const ref = sibs[Math.max(0, index)];
     const rr = blockRange(src, ref);
-    ins = rr.block && r.block ? { start: rr.start, end: rr.start, text: `${indentAt(src, ref.start)}${piece}\n` } : { start: ref.start, end: ref.start, text: piece };
+    ins = rr.block && r.block ? { start: rr.start, end: rr.start, text: `${indentAt(src, ref.start)}${piece}${eolOf(src)}` } : { start: ref.start, end: ref.start, text: piece };
   } else {
     const last = sibs[sibs.length - 1];
     const rr = blockRange(src, last);
-    ins = rr.block && r.block ? { start: rr.end, end: rr.end, text: `${indentAt(src, last.start)}${piece}\n` } : { start: last.end, end: last.end, text: piece };
+    ins = rr.block && r.block ? { start: rr.end, end: rr.end, text: `${indentAt(src, last.start)}${piece}${eolOf(src)}` } : { start: last.end, end: last.end, text: piece };
   }
   return [cut, ins];
 }

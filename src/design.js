@@ -118,16 +118,16 @@ async function closeAll() { const all = [...DESIGNS.values()]; DESIGNS.clear(); 
 
 /** The engine's writer: inside the project (realpath) and still the bytes the edit was computed from. */
 function writerFor(root) {
-  const realRoot = (() => { try { return fs.realpathSync(root); } catch { return root; } })();
+  const realRoot = (() => { try { return fs.realpathSync.native(root); } catch { return root; } })();
   return (rel, text, expectSha) => {
     const abs = path.resolve(root, rel);
     let dir = path.dirname(abs);
     while (!fs.existsSync(dir)) dir = path.dirname(dir);
-    const realDir = fs.realpathSync(dir);
+    const realDir = fs.realpathSync.native(dir);
     const r = path.relative(realRoot, realDir);
     if (r.startsWith('..') || path.isAbsolute(r)) return { ok: false, why: `${rel} is outside the project` };
     if (fs.existsSync(abs) && fs.lstatSync(abs).isSymbolicLink()) {
-      const t = path.relative(realRoot, fs.realpathSync(abs));
+      const t = path.relative(realRoot, fs.realpathSync.native(abs));
       if (t.startsWith('..') || path.isAbsolute(t)) return { ok: false, why: `${rel} links outside the project` };
     }
     let cur = null;

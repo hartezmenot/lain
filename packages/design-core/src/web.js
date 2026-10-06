@@ -63,7 +63,7 @@ function siblingClasses(tree, parent, kind, index) {
 
 class WebProject {
   constructor(root, { snapshotsDir = null, write = null, readBinary = null, webRoot = '' } = {}) {
-    this.root = path.resolve(root);
+    this.root = require('./realroot').longPath(root);
     this.kind = 'web-html';
     this.write = write || defaultWrite(this.root);
     this.snapshots = new Snapshots(snapshotsDir);

@@ -364,7 +364,7 @@ class InteractionPanel {
     while (out.length < (title ? 2 : 0) + body) out.push('');
     if (this.error) out[out.length - 1] = INDENT + P.bad(pad(clip('✗ ' + this.error, inner), inner));
     out.push('');
-    const more = q.length > qRoom ? ' · PgUp/PgDn the question' : '';
+    const more = q.length > qRoom ? (rest.some((x) => x.it.selectable !== false) ? ' · PgUp/PgDn the question' : ' · PgUp/PgDn scroll') : '';
     out.push(P.meta(INDENT + clip((f.footer || defaultFooter(this.stack.length)) + more, inner)));
     return out;
   }
