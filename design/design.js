@@ -431,7 +431,8 @@
     const mine = { screen, node: node || null, selector: selector || (prev && prev.selector) || null, layout: null, info: null, map: prev ? prev.map : null, styles: prev ? prev.styles : null, offScale: prev ? prev.offScale : {}, chosen: prev ? prev.chosen : null };
     st.sel = mine;
     if (!prev) hideRevert();
-    const measured = f ? measureFrame(f, node || selector).then((m) => { if (st.sel === mine && m && m.layout) { mine.layout = m.layout; if (!mine.selector) mine.selector = m.layout.selector || null; } }) : Promise.resolve();
+    // A HOT RELOAD MAY RE-CREATE THE ELEMENT (Vue, React): measured by its id first, then by its selector.
+    const measured = f ? measureFrame(f, node || mine.selector).then((m) => (m && m.layout) || !node || !mine.selector ? m : measureFrame(f, mine.selector)).then((m) => { if (st.sel === mine && m && m.layout) { mine.layout = m.layout; if (!mine.selector) mine.selector = m.layout.selector || null; } }) : Promise.resolve();
     // THE MAPPING LADDER (only once per element; a reload re-measures but keeps it).
     const mapped = prev && prev.map ? Promise.resolve() : api('/api/design/select', { screen, node: node || undefined, selector: mine.selector || undefined }).then((r) => {
       if (st.sel !== mine) return;
@@ -948,7 +949,7 @@
     return Math.abs(best - n) <= 3 ? best : n;
   }
   function offScale(prop, n) {
-    const sc = scaleFor(prop); if (!sc || !Number.isFinite(n) || !(sc.step || sc.values.length)) return false;
+    const sc = scaleFor(prop); if (!sc || !Number.isFinite(n) || n === 0 || !(sc.step || sc.values.length)) return false;
     return sc.step ? n % sc.step !== 0 : !sc.values.includes(n);
   }
   function field(sec, label, opts) {
@@ -957,7 +958,7 @@
     const rng = h('input'); rng.type = 'range'; rng.min = String(opts.min); rng.max = String(opts.max); rng.step = String(opts.step || 1); rng.value = String(opts.value);
     const num = h('input'); num.type = 'number'; num.step = String(opts.step || 1); num.value = String(opts.value);
     const flag = h('span', 'dz-off', 'off-scale'); flag.title = 'Not on this project\'s scale — allowed, and kept as typed'; flag.hidden = true;
-    const mark = () => { const off = (st.sel && st.sel.offScale && st.sel.offScale[prop] && Number(num.value) === Number(opts.value)) || offScale(prop, Number(num.value)); flag.hidden = !off; };
+    const mark = () => { const off = Number(num.value) !== 0 && (st.sel && st.sel.offScale && st.sel.offScale[prop] && Number(num.value) === Number(opts.value) || offScale(prop, Number(num.value))); flag.hidden = !off; };
     // THE SLIDER SNAPS to the scale (Alt: free); a typed number is kept as typed.
     rng.oninput = () => { const v = st.alt ? Number(rng.value) : snapTo(prop, Number(rng.value)); num.value = String(v); mark(); };
     num.oninput = () => { rng.value = num.value; mark(); };
