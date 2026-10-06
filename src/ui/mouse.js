@@ -106,7 +106,7 @@ function handleMouse(ui, ev) {
   if (kind === 'wheel-up' || kind === 'wheel-down') {
     const delta = kind === 'wheel-up' ? -3 : 3;
     if (ui.panel.visible && m.panelRows > 0 && y >= m.panelStart) {
-      ui.panel.scrollBy(delta, Math.max(1, m.panelRows - 6));
+      if (ui.panel.frame && ui.panel.frame.questionZone) ui.panel.scrollQuestion(delta); else ui.panel.scrollBy(delta, Math.max(1, m.panelRows - 6));
       ui.refresh();
       return true;
     }

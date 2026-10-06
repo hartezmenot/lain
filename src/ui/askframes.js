@@ -9,6 +9,16 @@ const A = require('./answer');
 
 /** The choice/why split, so a compact row and its explanation stay in step. */
 const { splitOption } = require('./adapters');
+const T = require('./text');
+
+/**
+ * THE QUESTION IS SHOWN IN FULL: its lines are question rows (the panel wraps them by display width and scrolls them on
+ * their own, panel.js renderQuestion), as plain text — a model's ANSI codes are not written to the terminal.
+ */
+function questionRows(question) {
+  return T.strip(String(question == null ? '' : question)).split('\n').map((l) => ({ label: l, selectable: false, question: true }));
+}
+const ZONE = { questionZone: true, fullWidth: true };
 
 /** ONE ENTRY POINT, FIVE FRAMES. */
 function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', input = null }) {
@@ -21,12 +31,12 @@ function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', i
   if (kind === A.KIND.MULTI_SELECT) return multiAdapter({ question: asked, options, title });
 
   const rows = kind === A.KIND.CONFIRMATION && !options.length ? ['Yes', 'No'] : options;
-  const lines = String(asked == null ? '' : asked).split('\n');
   const parsed = rows.map(splitOption);
   const hasWhy = parsed.some((p) => p.why);
   const marks = A.labels(rows, kind);
   return {
     title,
+    ...ZONE,
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     // WHAT THIS SURFACE TAKES, stated once and read by all three places that have to agree about it: these rows, the panel footer, and the border of the…
@@ -34,7 +44,7 @@ function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', i
     options: rows,
     question: asked,
     items: [
-      ...lines.map((l) => ({ label: l, selectable: false })),
+      ...questionRows(asked),
       { label: '', selectable: false },
       ...rows.map((o, i) => ({ label: `${marks[i]}.  ${parsed[i].choice}`, value: o })),
     ],
@@ -78,13 +88,14 @@ function askAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT', i
 function numberAdapter({ question, title = 'LAIN NEEDS YOUR INPUT' }) {
   return {
     title,
+    ...ZONE,
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     takes: A.KIND.NUMBER,
     options: [],
     question,
     items: [
-      ...String(question == null ? '' : question).split('\n').map((l) => ({ label: l, selectable: false })),
+      ...questionRows(question),
       { label: '', selectable: false },
       { label: 'Type a number on the line above and press Enter.', selectable: false },
     ],
@@ -98,16 +109,16 @@ function numberAdapter({ question, title = 'LAIN NEEDS YOUR INPUT' }) {
 
 /** TEXT — free text, with a real place to type it. */
 function textAdapter({ question, options = [], title = 'YOUR ANSWER', back = false }) {
-  const lines = String(question == null ? '' : question).split('\n');
   return {
     title,
+    ...ZONE,
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     takes: A.KIND.TEXT,
     options,
     question,
     items: [
-      ...lines.map((l) => ({ label: l, selectable: false })),
+      ...questionRows(question),
       { label: '', selectable: false },
       { label: 'Type your answer on the line above and press Enter.', selectable: false },
       ...(back ? [{ label: 'Esc goes back to the listed choices.', selectable: false }] : []),
@@ -126,7 +137,7 @@ function multiAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT' 
   const marks = A.labels(options, A.KIND.MULTI_SELECT);
   const chosen = new Set();
   const rows = () => [
-    ...String(question == null ? '' : question).split('\n').map((l) => ({ label: l, selectable: false })),
+    ...questionRows(question),
     { label: '', selectable: false },
     ...options.map((o, i) => ({
       label: `${chosen.has(i) ? '[x]' : '[ ]'} ${marks[i]}.  ${splitOption(o).choice}`,
@@ -136,6 +147,7 @@ function multiAdapter({ question, options = [], title = 'LAIN NEEDS YOUR INPUT' 
   ];
   const frame = {
     title,
+    ...ZONE,
     kind: KIND.ASK_USER,
     mode: MODE.EXPANDED,
     takes: A.KIND.MULTI_SELECT,

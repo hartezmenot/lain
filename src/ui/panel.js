@@ -243,6 +243,7 @@ class InteractionPanel {
   render(width = 80, rows = 12) {
     const f = this.frame;
     if (!f) return [];
+    if (f.questionZone) return this.renderQuestion(width, rows);
     const out = [];
     // THE MENU IS AS WIDE AS ITS CONTENTS, NOT AS WIDE AS THE TERMINAL
     const inner = this.menuWidth(width);
@@ -290,6 +291,80 @@ class InteractionPanel {
       ? `  (${this.scroll + 1}-${Math.min(this.scroll + bodyRows, this.items.length)} of ${this.items.length})`
       : '';
     out.push('');
+    out.push(P.meta(INDENT + clip((f.footer || defaultFooter(this.stack.length)) + more, inner)));
+    return out;
+  }
+
+  // ---- A QUESTION IS SHOWN IN FULL (askframes.js `questionZone`) -------------------------------------------------------
+  /** The question's display rows at this width: wrapped by display width (wide characters count 2, ANSI 0), never clipped. */
+  questionRows(width) { return wrapItems(this.items.filter((it) => it.question), this.menuWidth(width)); }
+  /** The rows a question panel needs: the title, the whole question, the blank, the options, the footer. */
+  wantedRows(width) {
+    const f = this.frame; if (!f) return 0;
+    return (f.title ? 2 : 0) + this.questionRows(width).length + this.items.filter((it) => !it.question).length + FOOTER_ROWS;
+  }
+  /** PgUp / PgDn / the wheel move through the question; the arrows stay with the options. */
+  scrollQuestion(delta) {
+    const f = this.frame; if (!f) return;
+    // A PAGE IS THE QUESTION'S OWN WINDOW less one line of overlap — a bigger step would skip lines nobody saw.
+    const page = Math.max(1, (f._qroom || 1) - 1);
+    f._qscroll = Math.max(0, (f._qscroll || 0) + Math.sign(delta) * Math.min(Math.abs(delta), page));
+  }
+  /**
+   * THE QUESTION AND ITS OPTIONS. The options keep their rows (they are what you answer with); the question takes the
+   * rest, and when it is taller than that it scrolls on its own, saying how much is above and below — never cut.
+   */
+  renderQuestion(width, rows) {
+    const f = this.frame; const out = []; const INDENT = '  ';
+    const inner = this.menuWidth(width);
+    const title = String(f.title || '');
+    if (title) { out.push(P.meta(INDENT + title.charAt(0) + title.slice(1).toLowerCase())); out.push(''); }
+    const body = Math.max(1, rows - (title ? 2 : 0) - FOOTER_ROWS);
+    const q = this.questionRows(width);
+    const rest = this.items.map((it, i) => ({ it, i })).filter((x) => !x.it.question);   // the blank, the options, notes
+    const fits = q.length + rest.length <= body;
+    // TOO TALL FOR BOTH: the options take up to half (they scroll around the cursor), the question the rest; a question
+    // that fits in what is left is shown whole and the options get every remaining row.
+    let optRoom = rest.length; let qRoom = q.length;
+    if (!fits) {
+      optRoom = Math.min(rest.length, Math.max(2, Math.ceil(body / 2)));
+      qRoom = body - optRoom;
+      if (q.length <= qRoom) { qRoom = q.length; optRoom = body - qRoom; }
+    }
+    // THE QUESTION'S WINDOW, with a marker row for what is above and below it.
+    let lines = q; let above = 0; let below = 0;
+    if (q.length > qRoom) {
+      const room = Math.max(1, qRoom - 2);
+      f._qroom = room;
+      f._qscroll = Math.min(Math.max(0, f._qscroll || 0), Math.max(0, q.length - room));
+      above = f._qscroll; lines = q.slice(above, above + room); below = q.length - above - lines.length;
+    } else f._qscroll = 0;
+    const row = (text) => INDENT + pad(clip(text, inner), inner);
+    if (q.length > qRoom && qRoom >= 2) out.push(INDENT + P.meta(pad(above ? `  ▲ ${above} more line${above === 1 ? '' : 's'} above · PgUp` : '', inner)));
+    for (const l of lines) out.push(row(`  ${l.label}`));
+    if (q.length > qRoom && qRoom >= 2) out.push(INDENT + P.meta(pad(below ? `  ▼ ${below} more line${below === 1 ? '' : 's'} below · PgDn` : '', inner)));
+    // THE OPTIONS: a window around the cursor when there are more than their rows, with one row saying how many are not shown.
+    const ci = rest.findIndex((x) => x.i === this.cursor);
+    const clipped = rest.length > optRoom;
+    const win = clipped ? Math.max(1, optRoom - 1) : optRoom;
+    const start = ci >= win ? ci - win + 1 : 0;
+    const shown = rest.slice(start, start + win);
+    for (const { it, i } of shown) {
+      const sel = i === this.cursor && it.selectable !== false;
+      const text = pad(clip((it.selectable === false ? '  ' : (sel ? '❯ ' : '  ')) + String(it.label == null ? '' : it.label), inner), inner);
+      const tint = it.tone && P[it.tone] ? P[it.tone] : null;
+      const painted = tint ? tint(text) : accentRow(text);
+      out.push(INDENT + (sel ? P.surface(painted) : painted));
+    }
+    if (clipped) {
+      const count = (xs) => xs.filter((x) => x.it.selectable !== false).length;
+      const up = count(rest.slice(0, start)); const down = count(rest.slice(start + shown.length));
+      out.push(INDENT + P.meta(pad(`  ${up ? `▲ ${up} more choice${up === 1 ? '' : 's'} above · ↑` : ''}${up && down ? '   ' : ''}${down ? `▼ ${down} more choice${down === 1 ? '' : 's'} below · ↓` : ''}`, inner)));
+    }
+    while (out.length < (title ? 2 : 0) + body) out.push('');
+    if (this.error) out[out.length - 1] = INDENT + P.bad(pad(clip('✗ ' + this.error, inner), inner));
+    out.push('');
+    const more = q.length > qRoom ? ' · PgUp/PgDn the question' : '';
     out.push(P.meta(INDENT + clip((f.footer || defaultFooter(this.stack.length)) + more, inner)));
     return out;
   }

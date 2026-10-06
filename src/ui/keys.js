@@ -85,8 +85,9 @@ function ROUTE(key) {
       // re-projection between two arrow presses.
       case 'up': this.panel.move(-1, rows); require('./selectframe').paintLocal(this); return true;
       case 'down': this.panel.move(1, rows); require('./selectframe').paintLocal(this); return true;
-      case 'pageup': this.panel.scrollBy(-rows, rows); this.refresh(); return true;
-      case 'pagedown': this.panel.scrollBy(rows, rows); this.refresh(); return true;
+      // A QUESTION SCROLLS ON ITS OWN (panel.renderQuestion); the arrows stay with its options.
+      case 'pageup': if (this.panel.frame && this.panel.frame.questionZone) this.panel.scrollQuestion(-rows); else this.panel.scrollBy(-rows, rows); this.refresh(); return true;
+      case 'pagedown': if (this.panel.frame && this.panel.frame.questionZone) this.panel.scrollQuestion(rows); else this.panel.scrollBy(rows, rows); this.refresh(); return true;
       // ENTER PREFERS WHAT YOU TYPED.
       case 'enter':
         if (this.submitTypedAnswer()) return true;

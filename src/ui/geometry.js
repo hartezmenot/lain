@@ -60,6 +60,12 @@ function panelRows(screen, rows) {
   if (!screen.panel || !screen.panel.visible) return 0;
   // A completion palette is a HINT beside the input, not a screen.
   const n = screen.panel.items.length;
+  // A QUESTION TAKES WHAT IT NEEDS — the whole question and its options — up to the terminal minus the header, the
+  // input, the live row and one row of conversation; anything taller scrolls inside the panel (panel.renderQuestion).
+  if (screen.panel.frame && screen.panel.frame.questionZone) {
+    const width = require('./frame').contentBounds(screen.cols).width;
+    return Math.max(0, Math.min(screen.panel.wantedRows(width), rows - 7));
+  }
   // COMMAND OUTPUT TAKES WHAT IT NEEDS AND NO MORE.
   const isOutput = screen.panel.kind === require('./panel').KIND.OUTPUT;
   // COMMAND OUTPUT MAY TAKE MORE THAN A PICKER
