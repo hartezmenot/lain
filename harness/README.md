@@ -1,0 +1,73 @@
+# LAIN Harness
+
+The visual frontend of LAIN: the workspace document (`page/`) and the native
+WebView2 shell that hosts it (`native/host.cs`).
+
+**Presentation only.** LAIN Core (`D:\lain`) owns every piece of state and
+authority: session and task state, Goal, permissions, tools,
+Browser/Computer, project intelligence, workers, subagents, evidence,
+verification, crash recovery, providers, usage and Bot state. The Harness shows
+them. It never keeps a second copy.
+
+## The workspace (Palette Workbench, Phase 8.3)
+
+```
+HOME · IDE · CHAT · MODEL · USAGE · MCP & SKILLS · SETTINGS
+       the app panel is beside every surface but the IDE — expanded on Home,
+       compact elsewhere (Settings › Appearance › Navigation: Compact / Expanded).
+       The IDE has its own activity bar and a small LAIN mark that leads out.
+       Ctrl+K searches, Alt+1…7 jumps. File / Edit / View / Help exist in the IDE only.
+PROVIDER › MODEL › EFFORT › EXECUTION — what the top-right indicator, the composer
+       and the IDE status bar show, in that order (sessionintel lanes). The provider
+       family appears once; its backing accounts are behind "Account details".
+```
+
+| Surface | Module | Reads from Core |
+|---|---|---|
+| Shell: app panel, IDE LAIN mark, IDE menubar, account indicator, keys | `pageshell.js`, `pagekeymap.js`, `pagetheme.js`, `pageintel.js` | `S.usage`, `/api/intel/*`, `/api/appearance` |
+| Home: greeting, Current Focus, quick actions, recent projects, status | `pagehome.js` | `S.workspace`, `S.workbench`, projects, sessions |
+| IDE: Explorer (open editors, file actions), tabs, breadcrumbs, split, bottom panel (Problems · Output · Terminal · Debug Console), Source Control, Run and Debug, Coding Agent sidecar, Editor ⇄ Coding Chat, Preview (interactive · Pick · Say something to change · Detach) | `pageide.js` + `pagesource.js`, `pageidepanes.js`, `pagedebug.js`, `pageeditor.js`, `pageworkshop.js`, `pagexterm.js`, `pageassist.js` | `S.workspace`, `/api/files/*`, `/api/git/*`, `/api/workshop/*`, `/api/preview/*` |
+| Chat: first-run session drawer, Chat / Coding Agent lanes, plan cards, supervision, Current Run; composer Provider · Model · Effort (only where the model declares levels) · one Execution dropdown; an account question (Ask / Pinned / no compatible account) above the composer | `pagechat.js` + `pagework.js`, `pageplan.js`, `pagecomposer.js` | `S.sessions`, `S.workbench`, `/api/workbench/*`, `/api/plan/*`, `/api/intel/*` |
+| Model Dashboard (also opened by the CLI's `/model manage`, `/account add`, `/api add`, and the tray): Accounts (connected accounts only, one plane per provider; every account has a ⋯ with Detach; quota stated as what remains; toolbar Refresh · Connect account · ⋯ → Discovered accounts, Finish setup, Import accounts; Antigravity is the one Google provider) · Models (the index, searched) · API · Local · Defaults (six roles) | `pagemodel.js` + `pagedash.js`, `pagefabric.js` (Local) | `/api/intel/*`, `/api/migrate/*`, `/api/sources/action` |
+| Usage: provider reset windows, LAIN-observed usage (indexed) | `pageusage.js` | `/api/usage`, `/api/usage/windows` |
+| MCP & Skills: Installed · Discover (the Skills Hub: sources, index search, inspect → install → enable, updates that never overwrite a local change) · MCP · Skills · Custom | `pagemcp.js` | `/api/integrations/*`, `/api/skills/*` |
+| Settings: Appearance, Keymap, Agent Instructions, GitHub, Router Server, Bots & Channels … | `pagesettings.js` + `pageprefs.js`, `pagegithub.js`, `pagerouter.js` | `/api/settings`, `/api/agents/*`, `/api/github/*`, `/api/server/*`, `/api/bots/*` |
+| Feedback (dialog only) | `pagefeedback.js` | `/api/feedback/*` |
+| Core client: transport, poll, render loop, the one conversation block | `pagescript.js` | `/api/state` |
+
+The native host adds a second window for **Detach Preview** (`Satellite` in
+`native/host.cs`): the same page in preview mode, with its own pipe connection to
+the same Core — one session, one Selection, one dev server.
+
+## How it connects to Core
+
+| Channel | Core side | Harness side |
+|---|---|---|
+| Local API over the pipe (`/api/state`, `/api/...`) | `src/harnessapp/routes.js`, `state.js`, `*routes.js` | `page/pagescript.js` |
+| Named pipe (window control, notifications, the tray's quota summary — `tray:` — pushed only when it changes) | `src/harnessapp/ipc.js`, `src/fabric/tray.js` | `native/host.cs` (`FromCore`, `TrayUpdate`) |
+| Host verbs from the page (folder picker, tray tooltip, hide) | — | `native/host.cs` (`HostVerbFromRenderer`) — never forwarded to Core |
+| Package contract | `src/harnesslocation.js` loads `index.js` | `index.js`: `CONTRACT` (2), `html()`, `hostSource`, `vendor()` |
+
+Core finds this package in this order:
+1. `LAIN_HARNESS_DIR`;
+2. `<lain>/harness` (bundled into an installed build);
+3. the sibling `../lain-harness`.
+
+Without it, the desktop surface reports the Harness as not installed. The CLI
+is unaffected.
+
+## History
+
+Extracted from the LAIN repository at `90d0a50` with `git filter-branch`,
+keeping the history of these files. Their full earlier context stays in the
+LAIN repository.
+
+## Gotchas
+
+Older page modules (`pagesource`, `pageterminal`, `pageworkshop`, `pagecowork`,
+`pageplan`, `pageimage`, `pagemenu`) emit their script inside JS template
+literals: **a backtick in a comment there ends the literal**, and an escape
+like `'\n'` must be written `'\\n'`. Newer modules emit a real function's
+source (`client.toString()`) and have neither problem. After editing a page,
+run `node -e "require('./index').html()"` — Core's `tests/unit/harnessapp.test.js`
+also parses every emitted script block.
