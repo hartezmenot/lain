@@ -55,8 +55,7 @@ class StyleOrigin {
     // again — a few times, briefly — instead of failing the edit with "Could not find node with given id".
     let nodeId; let m;
     for (let attempt = 0; ; attempt++) {
-      nodeId = await this.nodeId(selector);
-      try { m = await this.send('CSS.getMatchedStylesForNode', { nodeId }); break; } catch (e) {
+      try { nodeId = await this.nodeId(selector); m = await this.send('CSS.getMatchedStylesForNode', { nodeId }); break; } catch (e) {
         if (attempt >= 4 || !/Could not find node|No node with given id/i.test(String((e && e.message) || e))) throw e;
         this.enabled = false;
         await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));

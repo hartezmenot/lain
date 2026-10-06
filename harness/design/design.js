@@ -77,7 +77,7 @@
     banner.appendChild(h('span', 'txt'));
     const setLaunch = btn('Set launch command', 'dz-btn', () => launchDialog({ focus: 'cmd' })); setLaunch.id = 'dzSetLaunch'; setLaunch.hidden = true; banner.appendChild(setLaunch);
     // A PREVIEW THAT RUNS THE PROJECT'S OWN CODE waits for trust: the banner says so AND offers the decision.
-    const trustBtn = btn('Trust this project', 'dz-btn', async () => { const r = await api('/api/design/trust', {}); if (!r.ok) { status(r.why, 'bad'); return; } status('Trusted — starting the preview…', 'run'); st.open = null; await open(); }); trustBtn.id = 'dzTrust'; trustBtn.hidden = true; banner.appendChild(trustBtn);
+    const trustBtn = btn('Trust this project', 'dz-btn', () => trustProject()); trustBtn.id = 'dzTrust'; trustBtn.hidden = true; banner.appendChild(trustBtn);
     dz.appendChild(banner);
     // BODY
     const body = h('div', 'dz-body');
@@ -154,6 +154,14 @@
   }
 
   // ---- opening ----------------------------------------------------------------------------------------------------
+  /** THE BANNER'S DECISION (outside build(), whose local `status` element would shadow the status() function). */
+  async function trustProject() {
+    const r = await api('/api/design/trust', {});
+    if (!r.ok) { status(r.why, 'bad'); return; }
+    status('Trusted — starting the preview…', 'run');
+    st.open = null;
+    await open();
+  }
   async function open() {
     status('Opening the project…', 'run');
     const r = await api('/api/design/open', {});
