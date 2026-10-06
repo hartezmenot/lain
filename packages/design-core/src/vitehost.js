@@ -13,7 +13,9 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 
 (async () => {
-  const root = path.resolve(process.argv[2] || '.');
+  // THE REAL PATH: Vite resolves module ids through it, so an 8.3 short name (C:\USERS\NAME~1) would leave every module untransformed.
+  let root = path.resolve(process.argv[2] || '.');
+  try { root = fs.realpathSync.native(root); } catch { /* keep as given */ }
   const port = Number(process.argv[3]) || 0;
   const pkgFile = require.resolve('vite/package.json', { paths: [root] });
   const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));

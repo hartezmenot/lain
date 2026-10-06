@@ -9,7 +9,11 @@
 const path = require('path');
 
 function vitePlugin({ root }) {
-  const abs = path.resolve(root);
+  // ONE SPELLING FOR PATHS: Vite's ids use forward slashes (and real paths); Windows paths use backslashes and any case.
+  const norm = (f) => { const s = f.replace(/\\/g, '/'); return process.platform === 'win32' ? s.toLowerCase() : s; };
+  let real = path.resolve(root); try { real = require('fs').realpathSync.native(real); } catch { /* keep */ }
+  const abs = real;
+  const base = norm(abs).replace(/\/?$/, '/');
   return {
     name: 'lain-design-ids',
     enforce: 'pre',
@@ -17,7 +21,7 @@ function vitePlugin({ root }) {
     // ORDER 'pre' AT THE HOOK runs this before other pre-plugins' transforms (vite-plugin-svelte/vue compile there).
     transform: { order: 'pre', handler(code, id) {
       const file = id.split('?')[0];
-      if (!file.startsWith(abs) || file.includes('node_modules') || id.includes('?') && !/\?(v=|t=)/.test(id)) return null;
+      if (!norm(file).startsWith(base) || file.includes('node_modules') || id.includes('?') && !/\?(v=|t=)/.test(id)) return null;
       const rel = path.relative(abs, file).replace(/\\/g, '/');
       let out = code;
       if (/\.(jsx|tsx)$/i.test(file)) out = require('./jsx').instrument(code, rel);
