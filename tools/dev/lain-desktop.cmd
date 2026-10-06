@@ -1,12 +1,11 @@
 @echo off
 rem LAIN DESKTOP (DEV): start the LAIN Harness from this checkout, without an installer.
 rem   tools\dev\lain-desktop.cmd [--no-design] [--dev] [other lain flags]
-rem The checkout is the folder two levels up; the Harness is LAIN_HARNESS_DIR, else the sibling ..\lain-harness.
+rem The checkout is the folder two levels up; the Harness is its harness\ folder.
 rem Nothing is copied: what runs is this checkout and that Harness folder, as they are on disk.
 setlocal EnableExtensions
 set "TITLE=LAIN Desktop (dev)"
 for %%I in ("%~dp0..\..") do set "LAIN_ROOT=%%~fI"
-if not defined LAIN_HARNESS_DIR for %%I in ("%LAIN_ROOT%\..\lain-harness") do set "LAIN_HARNESS_DIR=%%~fI"
 
 set "ARGS="
 :args
@@ -23,7 +22,7 @@ goto args
 
 where node >nul 2>nul || (call :fail "Node.js was not found on PATH. Install Node.js 20 or newer (nodejs.org), then start %TITLE% again." & exit /b 1)
 if not exist "%LAIN_ROOT%\bin\lain.js" (call :fail "No LAIN checkout at %LAIN_ROOT% (bin\lain.js is missing). Keep this file in tools\dev of the LAIN checkout." & exit /b 1)
-if not exist "%LAIN_HARNESS_DIR%\index.js" (call :fail "No LAIN Harness at %LAIN_HARNESS_DIR%. Clone it there, or set LAIN_HARNESS_DIR to its folder." & exit /b 1)
+if not exist "%LAIN_ROOT%\harness\index.js" (call :fail "No LAIN Harness at %LAIN_ROOT%\harness — this checkout is incomplete." & exit /b 1)
 if not defined LAIN_DESIGN_DIR if not exist "%LAIN_ROOT%\packages\design-core\node_modules\parse5\package.json" (
   call :warn "LAIN Design's parsers are not installed, so the Design room will not appear. To add them: npm ci --omit=dev --prefix packages/design-core (in %LAIN_ROOT%). Starting without Design."
 )

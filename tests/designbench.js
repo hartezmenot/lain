@@ -12,7 +12,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 
-const HARNESS = process.env.LAIN_HARNESS_DIR || path.join(__dirname, '..', '..', 'lain-harness');
+const HARNESS = path.join(__dirname, '..', 'harness');
 
 function harnessDesignDir() {
   const d = path.join(HARNESS, 'design');

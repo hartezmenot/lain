@@ -83,7 +83,7 @@ module.exports = async function () {
   }));
 
   await test('USAGE TRACKER: the Harness renders Core\'s values — no quota arithmetic of its own', () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'lain-harness', 'page', 'shell', 'tracker.js'), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'harness', 'page', 'shell', 'tracker.js'), 'utf8');
     assert.match(src, /S\.tracker/, 'the pill reads the snapshot\'s tracker');
     assert.match(src, /\/api\/usage\/tracker/, 'the dropdown reads Core\'s tracker route');
     for (const banned of [/\.quota\b/, /remainingOf\(/, /\/api\/usage\/windows/, /usedPercent/]) assert.doesNotMatch(src, banned, `tracker.js must not compute: ${banned}`);

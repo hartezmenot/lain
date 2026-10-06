@@ -27,7 +27,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
-const HARNESS_ROOT = path.join(ROOT, '..', 'lain-harness');
+const HARNESS_ROOT = path.join(ROOT, 'harness');
 
 /** Touching any of these touches every surface. */
 const CORE = [/^src\/(app|turn|provider|session|config|boot|cli|prompt|promptparts|contextfit|turnclose|turnevents|toolstep|jobrunner|submitclose|identify)\.js$/, /^src\/tools\//, /^src\/discipline\//, /^tests\/(run|helpers)\.js$/, /^bin\//, /^package\.json$/];

@@ -247,7 +247,8 @@ module.exports = async function () {
 
     // AND IT NEVER FALLS BACK TO A BROWSER. A native failure that quietly
     // opened Chrome would hide exactly the regression it should report.
-    assert.ok(!/chrome|msedge|--app=/i.test(host.replace(/^\s*(\/\/|\*).*$/gm, '')),
+    // (msedgewebview2.exe is the WebView2 RUNTIME's own process, named by the runtime-integrity check — not a browser.)
+    assert.ok(!/chrome|msedge(?!webview2)|--app=/i.test(host.replace(/^\s*(\/\/|\*).*$/gm, '')),
       'the host names no browser to fall back to');
   });
 };

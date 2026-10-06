@@ -10,7 +10,8 @@ const ROOT = path.join(__dirname, '..');
 const CONTRACT = 2;  // 2: the workspace shell (workspaceroutes.js, usage, navigation)
 
 function candidates() {
-  return [process.env.LAIN_HARNESS_DIR, path.join(ROOT, 'harness'), path.join(ROOT, '..', 'lain-harness')].filter(Boolean);
+  // ONE PLACE (2026-10-07): the Harness is part of this repository — and of an installed app — at <root>/harness.
+  return [path.join(ROOT, 'harness')];
 }
 
 /** The Harness root, or null. */

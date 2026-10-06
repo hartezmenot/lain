@@ -4,7 +4,7 @@
  * BUILD A LAIN RELEASE — the installer, the update package and the signed update feed.
  *
  *   node distribution/release.js [--version 0.1.1] [--channel stable|preview] [--out dist] [--feed <url>]
- *                                [--harness-dir ../lain-harness] [--unsigned] [--no-design]
+ *                                [--unsigned] [--no-design]
  *
  * Produces in <out>/:
  *   LAIN-Setup-<v>.exe            one file: the setup program with the payload inside (per-user, no admin)
@@ -34,7 +34,8 @@ const version = arg('--version', require(path.join(ROOT, 'package.json')).versio
 const channel = arg('--channel', 'stable');
 const out = path.resolve(arg('--out', path.join(ROOT, 'dist')));
 const feed = arg('--feed', null);
-const harnessDir = path.resolve(arg('--harness-dir', path.join(ROOT, '..', 'lain-harness')));
+// THE HARNESS IS PART OF THIS REPOSITORY (harness/) — one source tree, one release.
+const harnessDir = path.join(ROOT, 'harness');
 const unsigned = argv.includes('--unsigned');
 const CSC = (() => {
   const base = path.join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'Framework64');
@@ -112,7 +113,6 @@ function releaseKey() {
   say(designBuild ? `  LAIN Design ${designBuild.version} (${designBuild.dependencies.join(', ')})` : '  LAIN Design NOT included (--no-design)');
 
   // 2. PREBUILT NATIVE PIECES (no compiler on the person's machine).
-  process.env.LAIN_HARNESS_DIR = path.join(app, 'harness');
   const desktop = require(path.join(ROOT, 'src', 'desktop'));
   const prebuilt = desktop.prebuild(path.join(app, 'native', 'prebuilt'));
   if (!prebuilt.ok) throw new Error(`the window host did not build: ${prebuilt.why}`);

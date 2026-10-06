@@ -551,6 +551,22 @@ class Shell : Form {
       // and the fix is about windows rather than about installation.
       int hr = System.Runtime.InteropServices.Marshal.GetHRForException(ex);
       string headline, advice;
+      // A DAMAGED RUNTIME (2026-10-07): the Evergreen runtime's folder can lose its data files (icudtl.dat,
+      // resources.pak, locales) while its DLLs — held open by other apps — survive. The environment is then created and
+      // every renderer fails with 0x80070002. That is named as what it is, and repaired with Microsoft's own installer.
+      string damaged = RuntimeHealth.Damage();
+      if (damaged != null) {
+        var ask = MessageBox.Show(
+          "The Microsoft Edge WebView2 Runtime on this PC is damaged, so LAIN cannot draw its window.\r\n\r\n" + damaged
+            + "\r\n\r\nRepair it now with Microsoft's installer? Windows will ask for administrator approval.",
+          "LAIN", MessageBoxButtons.YesNo, MessageBoxIcon.Error);
+        if (ask == DialogResult.Yes) {
+          string done = RuntimeHealth.Repair();
+          MessageBox.Show(done ?? "The WebView2 Runtime was repaired. Open LAIN again.", "LAIN", MessageBoxButtons.OK, done == null ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+        }
+        Close();
+        return;
+      }
       if (hr == unchecked((int)0x8007139F)) {           // ERROR_INVALID_STATE
         headline = "LAIN could not open a second window with different settings.";
         advice = "Another LAIN window is already using this renderer profile."
@@ -1436,5 +1452,57 @@ class Core {
   public void Stop() {
     stopping = true;
     try { lock (gate) { if (stream != null) stream.Dispose(); } } catch { }
+  }
+}
+
+/// THE EVERGREEN WEBVIEW2 RUNTIME'S HEALTH (2026-10-07) — read from EdgeUpdate's registration (location + pv), checked
+/// for the files every renderer needs, and repaired with Microsoft's own installer (downloaded from go.microsoft.com,
+/// Authenticode-verified as Microsoft's, run elevated). LAIN never ships or patches the runtime itself.
+static class RuntimeHealth {
+  const string GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+  static readonly string[] NEEDED = { "msedgewebview2.exe", "icudtl.dat", "resources.pak", @"EBWebView\x64\EmbeddedBrowserWebView.dll" };
+
+  /// The registered runtime's folder, or null.
+  public static string Folder() {
+    foreach (var hive in new[] { Microsoft.Win32.Registry.LocalMachine, Microsoft.Win32.Registry.CurrentUser }) {
+      foreach (var key in new[] { @"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\" + GUID, @"SOFTWARE\Microsoft\EdgeUpdate\Clients\" + GUID }) {
+        try {
+          using (var k = hive.OpenSubKey(key)) {
+            if (k == null) continue;
+            string loc = k.GetValue("location") as string, pv = k.GetValue("pv") as string;
+            if (!String.IsNullOrEmpty(loc) && !String.IsNullOrEmpty(pv) && pv != "0.0.0.0") return Path.Combine(loc, pv);
+          }
+        } catch { }
+      }
+    }
+    return null;
+  }
+
+  /// What is missing from the registered runtime, or null when it is whole (or when nothing is registered — that is
+  /// "not installed", which the caller already names).
+  public static string Damage() {
+    string dir = Folder();
+    if (dir == null) return null;
+    if (!Directory.Exists(dir)) return "Its folder " + dir + " does not exist.";
+    var missing = new List<string>();
+    foreach (string f in NEEDED) if (!File.Exists(Path.Combine(dir, f))) missing.Add(f);
+    if (!Directory.Exists(Path.Combine(dir, "Locales")) || Directory.GetFiles(Path.Combine(dir, "Locales"), "*.pak").Length == 0) missing.Add(@"Locales\*.pak");
+    return missing.Count == 0 ? null : dir + " is missing " + String.Join(", ", missing.ToArray()) + ".";
+  }
+
+  /// Download Microsoft's Evergreen bootstrapper, verify it is Microsoft's, run it elevated. null = repaired.
+  public static string Repair() {
+    string exe = Path.Combine(Path.GetTempPath(), "MicrosoftEdgeWebview2Setup-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".exe");
+    try {
+      System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072;
+      using (var wc = new System.Net.WebClient()) wc.DownloadFile("https://go.microsoft.com/fwlink/p/?LinkId=2124703", exe);
+      var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", "-NoProfile -Command \"$s = Get-AuthenticodeSignature -LiteralPath '" + exe.Replace("'", "''") + "'; if ($s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -match 'O=Microsoft Corporation') { 'OK' }\"") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true };
+      using (var p = System.Diagnostics.Process.Start(psi)) { string o = p.StandardOutput.ReadToEnd(); p.WaitForExit(60000); if (o.Trim() != "OK") return "The downloaded installer is not signed by Microsoft — not run."; }
+      var run = new System.Diagnostics.ProcessStartInfo(exe, "/silent /install") { UseShellExecute = true, Verb = "runas" };
+      using (var p = System.Diagnostics.Process.Start(run)) { p.WaitForExit(600000); }
+      return Damage() == null ? null : "The repair did not complete: " + Damage();
+    } catch (Exception e) {
+      return "The WebView2 Runtime could not be repaired: " + e.Message;
+    } finally { try { File.Delete(exe); } catch { } }
   }
 }

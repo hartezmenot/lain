@@ -1,6 +1,6 @@
 {
   "name": "@lain/design-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "LAIN Design — the optional design surface's engine: adapters, the deterministic AST edit engine, flows, animations, snapshots and the design_* tools. Loaded only by a Design session or a /api/design route, and only when installed.",
   "license": "MIT",

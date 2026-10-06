@@ -126,12 +126,14 @@ function build({ quiet = true, out: outDir = null } = {}) {
 
   // THE LOADER AND THE ASSEMBLIES MUST SIT BESIDE THE EXE, because that is
   // where the CLR and the WebView2 loader look for them.
+  // A DIFFERENT SDK (a bumped pin) REPLACES the copies — an exe built against one SDK never runs beside another's DLLs.
+  const sameFile = (a, b) => { try { const x = fs.statSync(a); const y = fs.statSync(b); return x.size === y.size && fs.readFileSync(a).equals(fs.readFileSync(b)); } catch { return false; } };
   for (const ref of sdk.refs) {
     const dest = path.join(out, path.basename(ref));
-    if (!fs.existsSync(dest)) fs.copyFileSync(ref, dest);
+    if (!sameFile(ref, dest)) fs.copyFileSync(ref, dest);
   }
   const loader = path.join(out, path.basename(sdk.loader));
-  if (!fs.existsSync(loader)) fs.copyFileSync(sdk.loader, loader);
+  if (!sameFile(sdk.loader, loader)) fs.copyFileSync(sdk.loader, loader);
 
   if (fs.existsSync(exe)) return { ok: true, exe, built: false, dir: out };
 

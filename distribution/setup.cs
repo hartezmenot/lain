@@ -409,23 +409,49 @@ static class Prereq {
     }
     return null;
   }
-  /// Present on Windows 11. Missing: Microsoft's own Evergreen bootstrapper, from Microsoft, signature-checked.
+  /// What the registered runtime's folder is missing, or null when it is whole. A registration is not an install: on
+  /// 2026-10-06 a runtime folder kept its DLLs and lost its data files, and every WebView2 window failed (0x80070002).
+  public static string WebView2Damage() {
+    foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser }) {
+      foreach (var path in new[] { @"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\" + WEBVIEW2, @"SOFTWARE\Microsoft\EdgeUpdate\Clients\" + WEBVIEW2 }) {
+        try {
+          using (var k = hive.OpenSubKey(path)) {
+            if (k == null) continue;
+            string loc = k.GetValue("location") as string, pv = k.GetValue("pv") as string;
+            if (string.IsNullOrEmpty(loc) || string.IsNullOrEmpty(pv) || pv == "0.0.0.0") continue;
+            string dir = Path.Combine(loc, pv);
+            var missing = new List<string>();
+            foreach (string f in new[] { "msedgewebview2.exe", "icudtl.dat", "resources.pak", @"EBWebView\x64\EmbeddedBrowserWebView.dll" }) if (!File.Exists(Path.Combine(dir, f))) missing.Add(f);
+            return missing.Count == 0 ? null : dir + " is missing " + string.Join(", ", missing.ToArray());
+          }
+        } catch { }
+      }
+    }
+    return null;
+  }
+  /// Present and whole on Windows 11. Missing or damaged: Microsoft's own Evergreen bootstrapper, signature-checked
+  /// (elevated when a per-machine runtime needs repairing — Windows asks the person).
   public static bool WebView2(Action<string> log) {
     string v = WebView2Version();
-    if (v != null) { log("WebView2 Runtime " + v + " — present"); return true; }
-    log("WebView2 Runtime is missing — downloading Microsoft's installer from go.microsoft.com …");
+    string damage = v == null ? null : WebView2Damage();
+    if (v != null && damage == null) { log("WebView2 Runtime " + v + " — present"); return true; }
+    log(v == null ? "WebView2 Runtime is missing — downloading Microsoft's installer from go.microsoft.com …" : "WebView2 Runtime " + v + " is damaged (" + damage + ") — repairing it with Microsoft's installer …");
     string exe = Path.Combine(Path.GetTempPath(), "MicrosoftEdgeWebview2Setup-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".exe");
     try {
       System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072;
       using (var wc = new System.Net.WebClient()) wc.DownloadFile("https://go.microsoft.com/fwlink/p/?LinkId=2124703", exe);
       if (!Signature.IsMicrosoft(exe)) { log("The downloaded WebView2 installer is not signed by Microsoft — refused."); return false; }
-      var p = Process.Start(new ProcessStartInfo(exe, "/silent /install") { UseShellExecute = false, CreateNoWindow = true });
+      // A per-machine runtime is repaired elevated (UAC); a missing one installs as the bootstrapper decides.
+      var p = damage != null
+        ? Process.Start(new ProcessStartInfo(exe, "/silent /install") { UseShellExecute = true, Verb = "runas" })
+        : Process.Start(new ProcessStartInfo(exe, "/silent /install") { UseShellExecute = false, CreateNoWindow = true });
       p.WaitForExit(600000);
     } catch (Exception e) { log("Could not install WebView2: " + e.Message); return false; }
     finally { try { File.Delete(exe); } catch { } }
     v = WebView2Version();
-    log(v != null ? "WebView2 Runtime " + v + " — installed" : "WebView2 Runtime is still missing.");
-    return v != null;
+    damage = v == null ? null : WebView2Damage();
+    log(v == null ? "WebView2 Runtime is still missing." : damage != null ? "WebView2 Runtime is still damaged: " + damage : "WebView2 Runtime " + v + " — installed");
+    return v != null && damage == null;
   }
 }
 

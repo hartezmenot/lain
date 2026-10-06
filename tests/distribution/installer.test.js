@@ -26,7 +26,7 @@ const { spawnSync } = require('child_process');
 const { test, tmpdir } = require('../helpers');
 
 const ROOT = path.join(__dirname, '..', '..');
-const HARNESS = path.join(ROOT, '..', 'lain-harness');
+const HARNESS = path.join(ROOT, 'harness');
 const ISO = ['--no-path', '--no-open-with', '--no-open-folder', '--no-start-menu', '--no-register'];
 
 function reg(key) { return spawnSync('reg.exe', ['query', key], { encoding: 'utf8', windowsHide: true }).status === 0; }
@@ -78,7 +78,7 @@ module.exports = async function () {
   function release(version) {
     if (builds[version]) return builds[version];
     const out = path.join(work, `dist-${version}`);
-    const r = spawnSync(process.execPath, [path.join(ROOT, 'distribution', 'release.js'), '--version', version, '--out', out, '--harness-dir', HARNESS, '--unsigned'], { encoding: 'utf8', timeout: 900000, windowsHide: true });
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'distribution', 'release.js'), '--version', version, '--out', out, '--unsigned'], { encoding: 'utf8', timeout: 900000, windowsHide: true });
     assert.strictEqual(r.status, 0, `release ${version} did not build:\n${r.stdout}\n${r.stderr}`);
     builds[version] = path.join(out, `LAIN-Setup-${version}.exe`);
     return builds[version];

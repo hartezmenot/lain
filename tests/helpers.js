@@ -358,13 +358,13 @@ function isRuleRow(line) { return /^─{4}/.test(String(line || '')); }
 function ruleRowIndex(rows) { return rows.findIndex((l) => isRuleRow(l)); }
 
 /**
- * A file of the VISUAL HARNESS, which is its own package since 2026-09-23
- * (lain-harness; found through src/harnesslocation.js). Tests that read the
+ * A file of the VISUAL HARNESS — harness/ in this repository since 2026-10-07
+ * (found through src/harnesslocation.js). Tests that read the
  * page or the native host go through this, never through a hard-coded path.
  */
 function harnessPath(...parts) {
   const root = require('../src/harnesslocation').root();
-  if (!root) throw new Error('LAIN Harness is not installed next to this checkout (../lain-harness) — set LAIN_HARNESS_DIR');
+  if (!root) throw new Error('the Harness is missing from this checkout (harness/index.js)');
   return path.join(root, ...parts);
 }
 

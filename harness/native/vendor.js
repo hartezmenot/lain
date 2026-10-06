@@ -45,10 +45,13 @@ const WEBVIEW2 = path.join(VENDOR, 'webview2');
  * PINNED, because a build that silently changes its dependency is not a build
  * anybody can reason about. Bump deliberately.
  */
+// 1.0.4258.31 (2026-10-07): the SDK of the current Evergreen runtime (154.0.4258). The package's SHA-256 is pinned too —
+// a download that differs is refused, not used.
 const PKG = Object.freeze({
   id: 'Microsoft.Web.WebView2',
-  version: '1.0.2903.40',
-  url: 'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.2903.40/microsoft.web.webview2.1.0.2903.40.nupkg',
+  version: '1.0.4258.31',
+  url: 'https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4258.31/microsoft.web.webview2.1.0.4258.31.nupkg',
+  sha256: '56f7f4b8bf9aee4b8efefbbdd4f67d5f74ebd1b100ed0806da71bf76af481aa9',
 });
 
 /** What the host actually compiles and ships against, and where it lands. */
@@ -58,7 +61,11 @@ const WANTED = Object.freeze([
   { from: 'runtimes/win-x64/native/WebView2Loader.dll', to: 'WebView2Loader.dll' },
 ]);
 
+/** The PINNED version is here (its provenance says so) — an older vendored copy is replaced, not kept. */
 function have() {
+  let prov = null;
+  try { prov = JSON.parse(fs.readFileSync(path.join(WEBVIEW2, 'PROVENANCE.json'), 'utf8')); } catch { prov = null; }
+  if (!prov || prov.version !== PKG.version) return false;
   return WANTED.every((w) => {
     try { return fs.statSync(path.join(WEBVIEW2, w.to)).size > 1000; } catch { return false; }
   });
@@ -119,6 +126,7 @@ async function ensure({ quiet = true } = {}) {
     const buf = await download(PKG.url, tmp);
     if (buf.length < 100_000) return { ok: false, why: `the package is implausibly small (${buf.length} bytes)` };
     const sha = crypto.createHash('sha256').update(buf).digest('hex');
+    if (PKG.sha256 && sha !== PKG.sha256) return { ok: false, why: `the downloaded ${PKG.id} ${PKG.version} does not match its pinned SHA-256 (${sha}) — refused` };
     unzip(tmp, work);
     fs.mkdirSync(WEBVIEW2, { recursive: true });
     for (const w of WANTED) {

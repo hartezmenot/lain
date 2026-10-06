@@ -209,7 +209,7 @@ module.exports = async function () {
   });
 
   await test('ARCHITECTURE: seven rooms; IDE is /focus, the Agent is its sidecar, quick actions own no state, tests use no real store', () => {
-    const page = (f) => fs.readFileSync(path.join(__dirname, '../../../lain-harness/page', ...f.split('/')), 'utf8');
+    const page = (f) => fs.readFileSync(path.join(__dirname, '../../harness/page', ...f.split('/')), 'utf8');
     let shell = '';
     try { shell = page('shell/shell.js'); } catch { return; }   // the Harness repo is a sibling checkout; absent in Core-only runs
     const tabs = (shell.match(/data-tab="([a-z]+)"/g) || []).map((x) => x.slice(10, -1));
