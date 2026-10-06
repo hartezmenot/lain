@@ -41,6 +41,15 @@ const ROUTES = {
   'POST /api/design/status': async (app) => ok({ ...design().status(app), devices: DEVICES, session: app && app.session ? { id: app.session.id, kind: app.session.kind || null } : null }),
 
   /** OPEN the project in Design: what it is, its screens and flows, the preview's address, the canvas layout. */
+  // TRUST THIS PROJECT, from the Design banner (2026-10-07): the same decision `/trust` records — TRUSTED for the open
+  // project's folder, saved to settings. The person clicked it; nothing else ever trusts a folder.
+  'POST /api/design/trust': async (app) => {
+    const root = app && app.session && app.session.cwd; if (!root) return bad('no project is attached', 409);
+    const trust = require('../trust');
+    app.cfg.trustedPaths = trust.remember(app.cfg || {}, root, trust.LEVEL.TRUSTED);
+    try { require('../config').save(app.cfg); } catch (e) { return bad(`the decision could not be saved: ${e.message}`, 500); }
+    return ok({ trusted: root });
+  },
   'POST /api/design/open': async (app, body = {}) => {
     const f = forApp(app, body); if (f.refuse) return f.refuse;
     const { design: d, root } = f;
@@ -51,7 +60,7 @@ const ROUTES = {
     if (p.kind === 'web-react') {
       let lvl = 'TRUSTED';
       try { lvl = require('../trust').levelOf(app.cfg || {}, root); } catch { lvl = 'TRUSTED'; }
-      if (lvl !== 'TRUSTED') return ok({ ...out, screens: p.scanScreens(), flows: p.scanFlows(), preview: null, previewWhy: 'the React preview runs this project\'s own Vite config — trust the project first' });
+      if (lvl !== 'TRUSTED') return ok({ ...out, screens: p.scanScreens(), flows: p.scanFlows(), preview: null, needsTrust: true, previewWhy: 'the React preview runs this project\'s own Vite config — trust the project first' });
     }
     let preview = null; let previewWhy = null; let attached = false; let how = null;
     try { const pv = await d.startPreview(); preview = pv.url || null; previewWhy = pv.url ? null : (pv.why || null); attached = Boolean(pv.attached); how = pv.why || null; if (d.recipe) design().sidecar(root).write({ recipe: d.recipe }); } catch (e) { previewWhy = e.message; }

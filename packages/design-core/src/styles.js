@@ -51,8 +51,17 @@ class StyleOrigin {
 
   /** Every author declaration of `prop` that applies to the element, in cascade order, and the winner. */
   async cascade(selector, prop) {
-    const nodeId = await this.nodeId(selector);
-    const m = await this.send('CSS.getMatchedStylesForNode', { nodeId });
+    // A PAGE THAT RELOADS UNDER US (Vite/HMR replaces the DOM between the lookup and the query): the node is looked up
+    // again — a few times, briefly — instead of failing the edit with "Could not find node with given id".
+    let nodeId; let m;
+    for (let attempt = 0; ; attempt++) {
+      nodeId = await this.nodeId(selector);
+      try { m = await this.send('CSS.getMatchedStylesForNode', { nodeId }); break; } catch (e) {
+        if (attempt >= 4 || !/Could not find node|No node with given id/i.test(String((e && e.message) || e))) throw e;
+        this.enabled = false;
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
+    }
     const decls = [];
     const fromStyle = (style, rule, order) => {
       for (const p of (style && style.cssProperties) || []) {

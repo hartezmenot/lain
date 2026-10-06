@@ -76,6 +76,8 @@
     const banner = h('div', 'dz-banner'); banner.id = 'dzBanner'; banner.hidden = true;
     banner.appendChild(h('span', 'txt'));
     const setLaunch = btn('Set launch command', 'dz-btn', () => launchDialog({ focus: 'cmd' })); setLaunch.id = 'dzSetLaunch'; setLaunch.hidden = true; banner.appendChild(setLaunch);
+    // A PREVIEW THAT RUNS THE PROJECT'S OWN CODE waits for trust: the banner says so AND offers the decision.
+    const trustBtn = btn('Trust this project', 'dz-btn', async () => { const r = await api('/api/design/trust', {}); if (!r.ok) { status(r.why, 'bad'); return; } status('Trusted — starting the preview…', 'run'); st.open = null; await open(); }); trustBtn.id = 'dzTrust'; trustBtn.hidden = true; banner.appendChild(trustBtn);
     dz.appendChild(banner);
     // BODY
     const body = h('div', 'dz-body');
@@ -166,7 +168,7 @@
     const ro = r.readOnly ? r.why : r.editBlock ? `Read-only: ${r.editBlock}` : null;
     // AN APP DESIGN COULD NOT RUN opens read-only with the one fix: a launch command (and a port).
     const canLaunch = Boolean(r.readOnly && (r.needsLaunch || r.kind === 'unsupported'));
-    banner(ro || (r.previewWhy ? `No live preview: ${r.previewWhy}` : r.auth ? `Sign-in: ${r.auth}` : null), canLaunch);
+    banner(ro || (r.previewWhy ? `No live preview: ${r.previewWhy}` : r.auth ? `Sign-in: ${r.auth}` : null), canLaunch, Boolean(r.needsTrust));
     root.classList.toggle('dz-ro', Boolean(ro));
     st.screens = r.screens || [];
     st.flows = r.flows || [];
@@ -178,11 +180,12 @@
     startRelay();
     if (!r.readOnly) { loadCards(); loadStates(); loadTokens(); }
   }
-  function banner(text, launch) {
+  function banner(text, launch, trust) {
     const b = $('dzBanner'); if (!b) return;
     b.hidden = !text && !launch;
     b.querySelector('.txt').textContent = text || '';
     $('dzSetLaunch').hidden = !launch;
+    $('dzTrust').hidden = !trust;
   }
 
   // ---- screens and layers (left) ----------------------------------------------------------------------------------
