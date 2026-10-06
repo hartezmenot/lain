@@ -66,7 +66,13 @@ module.exports = async function () {
   };
   const real = (p) => fs.realpathSync.native(p).toLowerCase();
   const pointsInto = (dir) => { const t = linkTarget(); return Boolean(t) && t.split('|')[0].toLowerCase() === real(path.join(dir, 'LAIN Harness.exe')) && t.split('|')[1] === '--startup'; };
-  for (const k of ['LAIN_CONFIG_DIR', 'LAIN_HOME', 'LAIN_HOME', 'LAIN_INSTALL_ROOT']) delete env[k];
+  // ONLY THE OTHER SPELLINGS ARE SCRUBBED. This line once deleted LAIN_CONFIG_DIR itself (a NOEMA_* → LAIN_* rename of
+  // the old scrub), so "uninstall + remove data" below removed the person's REAL ~/.lain (2026-10-06). Never again:
+  for (const k of ['LAIN_HOME', 'LAIN_INSTALL_ROOT', 'NOEMA_CONFIG_DIR', 'NOEMA_HOME']) delete env[k];
+  const realHome = path.join(require('os').homedir(), '.lain').toLowerCase();
+  if (!env.LAIN_CONFIG_DIR || path.resolve(env.LAIN_CONFIG_DIR).toLowerCase() === realHome || !path.resolve(env.LAIN_CONFIG_DIR).toLowerCase().startsWith(path.resolve(work).toLowerCase())) {
+    throw new Error(`REFUSING TO RUN: the installer tests' data home is not a temporary folder (${env.LAIN_CONFIG_DIR || 'unset'})`);
+  }
 
   const builds = {};
   function release(version) {
@@ -78,6 +84,15 @@ module.exports = async function () {
     return builds[version];
   }
   function run(exe, args) {
+    // HARD FAIL BEFORE ANY UNINSTALL: the program folder, the data home and the program run must all be this run's own.
+    if (args.includes('--uninstall') || args.includes('--remove-data') || args.includes('--repair')) {
+      const inWork = (p) => Boolean(p) && path.resolve(p).toLowerCase().startsWith(path.resolve(work).toLowerCase() + path.sep);
+      const dirArg = args[args.indexOf('--dir') + 1];
+      const realHome = path.join(require('os').homedir(), '.lain').toLowerCase();
+      if (!inWork(env.LAIN_CONFIG_DIR) || path.resolve(env.LAIN_CONFIG_DIR).toLowerCase() === realHome || !inWork(exe) || (args.includes('--dir') && !inWork(dirArg))) {
+        throw new Error(`REFUSING ${args.join(' ')}: data ${env.LAIN_CONFIG_DIR}, program ${exe}, dir ${dirArg} — not all inside ${work}`);
+      }
+    }
     const log = path.join(work, `setup-${Date.now()}.log`);
     const r = spawnSync(exe, [...args, '--log', log], { env, encoding: 'utf8', timeout: 600000, windowsHide: true });
     return { code: r.status, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
@@ -212,10 +227,23 @@ module.exports = async function () {
     assert.ok(fs.existsSync(path.join(HOME, 'sessions', 'marker.json')), 'the data stays');
   });
 
-  await test('INSTALLER: uninstall + "Also remove LAIN user data" — both gone', () => {
+  await test('INSTALLER: uninstall + "Also remove LAIN user data" — both gone; a junction out of the data is removed, never followed', () => {
+    // A PROTECTED EXTERNAL FIXTURE behind a Windows junction (and a file symlink) inside the data home — as account homes
+    // link into ~\.codex. After "remove data" it must be byte-for-byte what it was.
+    const ext = path.join(work, 'protected-external');
+    fs.mkdirSync(path.join(ext, 'sessions'), { recursive: true });
+    fs.writeFileSync(path.join(ext, 'sessions', 'real.jsonl'), 'REAL SESSION DATA');
+    fs.writeFileSync(path.join(ext, 'config.toml'), 'model = "kept"\n');
+    const hash = (d) => fs.readdirSync(d, { recursive: true }).sort().map((f) => { const p = path.join(d, f); return fs.statSync(p).isFile() ? `${f}:${require('crypto').createHash('sha256').update(fs.readFileSync(p)).digest('hex')}` : `${f}/`; }).join('\n');
+    const before = hash(ext);
+    fs.mkdirSync(path.join(HOME, 'accounts', 'codex-x', 'shadow'), { recursive: true });
+    fs.symlinkSync(path.join(ext, 'sessions'), path.join(HOME, 'accounts', 'codex'), 'junction');
+    fs.symlinkSync(path.join(ext, 'config.toml'), path.join(HOME, 'accounts', 'codex-x', 'shadow', 'config.toml'), 'file');
     const r = run(path.join(D1, 'Uninstall LAIN.exe'), ['--uninstall', '--silent', '--remove-data', '--dir', D1]);
     sleep(4000);
     assert.strictEqual(r.code, 0, r.log);
+    assert.strictEqual(hash(ext), before, `the external fixture behind the junction is untouched:\n${r.log}`);
+    assert.match(r.log, /links removed without following them/, r.log);
     assert.ok(!fs.existsSync(path.join(D1, 'lain.exe')));
     assert.ok(!fs.existsSync(path.join(D1, 'lain.cmd')), 'the shim goes with the program');
     assert.ok(!fs.existsSync(LINK), 'uninstall removed the Startup entry — nothing dead is left');

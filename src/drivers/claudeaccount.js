@@ -150,7 +150,8 @@ const driver = Object.freeze({
       removeOwned() {
         if (!lainOwned) return { removed: false, why: 'LAIN did not create this profile' };
         if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of LAIN\'s account directories' };
-        try { fs.rmSync(home, { recursive: true, force: true }); return { removed: true }; } catch (e) { return { removed: false, why: e.message }; }
+        const r = require('../safedelete').removeTree(home, { within: accountsRoot() });
+        return r.ok ? { removed: true } : { removed: false, why: r.why };
       },
     };
   },

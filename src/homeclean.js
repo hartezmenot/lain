@@ -179,7 +179,7 @@ function removePath(p) {
   const st = lstat(p); if (!st) return { ok: true, gone: true };
   try {
     if (st.isSymbolicLink()) fs.unlinkSync(p);
-    else fs.rmSync(p, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    else { const r = require('./safedelete').removeTree(p); if (!r.ok) return { ok: false, why: r.why }; }
     return { ok: !lstat(p) };
   } catch (e) { return { ok: false, why: e.code || e.message }; }
 }

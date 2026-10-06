@@ -256,7 +256,8 @@ async function clear(app, { ids = null, confirmAdvanced = false } = {}) {
       for (const t of scan(c, app, now)) {
         const size = (await du(t, budget)).bytes;
         try {
-          await fsp.rm(t, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+          const rm = require('./safedelete').removeTree(t);   // links unlinked, never entered
+          if (!rm.ok) { const e = new Error(rm.why); e.code = /EBUSY|EPERM|EACCES/.test(rm.why || '') ? 'EBUSY' : 'EFAIL'; throw e; }
         } catch (e) {
           const why = e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') ? 'in use' : 'could not be removed';
           row.reasons[why] = (row.reasons[why] || 0) + 1;

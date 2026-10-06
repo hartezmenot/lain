@@ -180,7 +180,7 @@ function releaseKey() {
   const setup = path.join(out, `LAIN-Setup-${version}.exe`);
   csc(['-target:winexe', `-win32icon:${ico}`, `-out:${setup}`, '-r:System.dll', '-r:System.Drawing.dll', '-r:System.Windows.Forms.dll', '-r:System.IO.Compression.dll', '-r:System.IO.Compression.FileSystem.dll',
     `-resource:${payloadZip},payload.zip`, `-resource:${payloadJson},payload.json`,
-    ...['setup.cs', 'setupsystem.cs', 'setupui.cs'].map((f) => path.join(ROOT, 'distribution', f)), info('LAIN Setup')]);
+    ...['setup.cs', 'setupsystem.cs', 'setupui.cs', 'safedelete.cs'].map((f) => path.join(ROOT, 'distribution', f)), info('LAIN Setup')]);
   say(`  ${path.basename(setup)} (${Math.round(fs.statSync(setup).size / 1048576)} MB)`);
   fs.rmSync(work, { recursive: true, force: true });
   say('done — UNSIGNED BINARIES: no code-signing certificate is configured (the update feed itself is Ed25519-signed).');

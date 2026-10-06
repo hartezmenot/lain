@@ -128,15 +128,32 @@ static class Setup {
     return File.Exists(Path.Combine(d, "noema.exe")) && File.Exists(Path.Combine(d, "components.json")) ? d : null;
   }
 
-  /// The data directory: an override, else ~/.lain — or, before the first `lain` run has moved it, ~/.noema.
+  /// The data directory: an override (LAIN_CONFIG_DIR — tests, a second identity), else %USERPROFILE%\.lain. One home.
   public static string DataDir() {
-    string o = Environment.GetEnvironmentVariable("LAIN_CONFIG_DIR") ?? Environment.GetEnvironmentVariable("LAIN_HOME")
-      ?? Environment.GetEnvironmentVariable("NOEMA_CONFIG_DIR") ?? Environment.GetEnvironmentVariable("NOEMA_HOME");
+    string o = Environment.GetEnvironmentVariable("LAIN_CONFIG_DIR");
     if (!string.IsNullOrEmpty(o)) return o;
+    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lain");
+  }
+
+  /// WHAT "REMOVE LAIN DATA" MAY REMOVE (2026-10-06): exactly the canonical %USERPROFILE%\.lain — or, for a test, an
+  /// override that is inside the TEMP folder. Any other override is refused (null + why): there is no fallback, so a
+  /// missing variable can never turn into the person's real home being removed by a test, nor a typo into anything else.
+  public static string RemovableData(out string why) {
+    why = null;
     string up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-    string lain = Path.Combine(up, ".lain"), noema = Path.Combine(up, ".noema");
-    if (!Directory.Exists(lain) && Directory.Exists(noema) && (new DirectoryInfo(noema).Attributes & FileAttributes.ReparsePoint) == 0) return noema;
-    return lain;
+    string canonical = Path.Combine(up, ".lain");
+    string o = Environment.GetEnvironmentVariable("LAIN_CONFIG_DIR");
+    string target = string.IsNullOrEmpty(o) ? canonical : o;
+    string full;
+    try { full = Path.GetFullPath(target).TrimEnd('\\'); } catch (Exception e) { why = "the data path is not valid (" + e.Message + ")"; return null; }
+    if (!string.IsNullOrEmpty(o)) {
+      string temp = SafeDelete.Canonical(Path.GetTempPath(), true) ?? Path.GetFullPath(Path.GetTempPath()).TrimEnd('\\');
+      string real = Directory.Exists(full) ? (SafeDelete.Canonical(full, false) ?? full) : full;
+      if (!real.StartsWith(temp + "\\", StringComparison.OrdinalIgnoreCase)) { why = "LAIN_CONFIG_DIR points at " + full + ", which is not LAIN's data folder (" + canonical + ") — remove it yourself if you mean to"; return null; }
+      return full;
+    }
+    if (!string.Equals(full, canonical, StringComparison.OrdinalIgnoreCase)) { why = "the data folder is not " + canonical; return null; }
+    return full;
   }
 }
 
@@ -205,7 +222,7 @@ static class Installer {
     string previous = Pointer.Read(dir, "current");
     try {
       Directory.CreateDirectory(dir);
-      if (Directory.Exists(vdir) && (o.Repair || previous != version)) { try { Directory.Delete(vdir, true); } catch (Exception e) { log("  (could not clear " + vdir + ": " + e.Message + ")"); } }
+      if (Directory.Exists(vdir) && (o.Repair || previous != version)) { var rd = SafeDelete.Tree(vdir); if (!rd.Ok) log("  (could not clear " + vdir + ": " + rd.Why + ")"); }
       if (!File.Exists(Path.Combine(vdir, "app", "bin", "lain.js"))) {
         using (Stream z = Assembly.GetExecutingAssembly().GetManifestResourceStream("payload.zip")) {
           if (z == null) { log("This installer has no payload."); return 4; }

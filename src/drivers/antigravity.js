@@ -122,7 +122,8 @@ const driver = Object.freeze({
       async logout() { for (const f of ['oauth_creds.json', 'google_accounts.json']) { try { fs.unlinkSync(path.join(home, f)); } catch { /* not there */ } } },
       removeOwned() {
         if (!inside(home, accountsRoot()) || norm(home) === norm(accountsRoot())) return { removed: false, why: 'not one of LAIN\'s account directories' };
-        try { fs.rmSync(home, { recursive: true, force: true }); return { removed: true }; } catch (e) { return { removed: false, why: e.message }; }
+        const r = require('../safedelete').removeTree(home, { within: accountsRoot() });
+        return r.ok ? { removed: true } : { removed: false, why: r.why };
       },
     };
   },

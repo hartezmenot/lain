@@ -90,7 +90,7 @@ static class Shortcuts {
     finally { try { File.Delete(file); } catch { } }
   }
   public static void RemoveAll(Action<string> log) {
-    try { if (Directory.Exists(MenuDir())) { Directory.Delete(MenuDir(), true); log("Removed the Start Menu entries"); } } catch (Exception e) { log("Could not remove the Start Menu entries: " + e.Message); }
+    try { if (Directory.Exists(MenuDir())) { var rd = SafeDelete.Tree(MenuDir()); log(rd.Ok ? "Removed the Start Menu entries" : "Could not remove the Start Menu entries: " + rd.Why); } } catch (Exception e) { log("Could not remove the Start Menu entries: " + e.Message); }
     // The obsolete pre-cleanup LAIN's single entry (a FILE named LAIN.lnk — not this folder).
     try { string old = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN.lnk"); if (File.Exists(old)) File.Delete(old); } catch { }
   }
@@ -143,12 +143,12 @@ static class PathEntry {
 static class Retire {
   public static void Noema(string dir, Action<string> log) {
     log("Retiring the Noema install at " + dir);
-    try { string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "Noema"); if (Directory.Exists(menu)) { Directory.Delete(menu, true); log("  removed Start Menu > Noema"); } } catch (Exception e) { log("  (Start Menu > Noema: " + e.Message + ")"); }
+    try { string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "Noema"); if (Directory.Exists(menu)) { var rm = SafeDelete.Tree(menu); log(rm.Ok ? "  removed Start Menu > Noema" : "  (Start Menu > Noema: " + rm.Why + ")"); } } catch (Exception e) { log("  (Start Menu > Noema: " + e.Message + ")"); }
     PathEntry.Remove(dir, log);
     try { Registry.CurrentUser.DeleteSubKeyTree(Setup.NOEMA_KEY, false); log("  removed Noema from Installed apps"); } catch (Exception e) { log("  (Installed apps: " + e.Message + ")"); }
-    foreach (string d in new[] { "versions", "staging" }) { try { string p = Path.Combine(dir, d); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("  (could not remove " + d + ": " + e.Message + ")"); } }
     foreach (string f in Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]) { try { File.Delete(f); } catch { try { File.Move(f, f + ".delete-me"); } catch { } } }
-    try { Directory.Delete(dir, true); log("  removed " + dir); } catch { log("  " + dir + " is still in use — what is left goes when nothing holds it"); }
+    var rd = SafeDelete.Tree(dir);
+    log(rd.Ok ? "  removed " + dir : "  " + dir + " is still in use — what is left goes when nothing holds it (" + rd.Why + ")");
   }
 }
 
@@ -175,27 +175,36 @@ static class Uninstaller {
     if (c.Registered) { try { Registry.CurrentUser.DeleteSubKeyTree(Setup.REG_KEY, false); } catch { } }
     // THE PROGRAM: everything under the install root except this running copy (deleted after exit).
     string me = System.Reflection.Assembly.GetExecutingAssembly().Location;
-    foreach (string d in new[] { "versions", "staging" }) { try { string p = Path.Combine(dir, d); if (Directory.Exists(p)) Directory.Delete(p, true); } catch (Exception e) { log("Could not remove " + d + ": " + e.Message); } }
+    foreach (string d in new[] { "versions", "staging" }) {
+      string p = Path.Combine(dir, d);
+      var rd = SafeDelete.Tree(p);
+      if (!rd.Ok) log("Could not remove " + d + ": " + rd.Why);
+    }
     foreach (string f in Directory.Exists(dir) ? Directory.GetFiles(dir) : new string[0]) {
       if (string.Equals(Path.GetFullPath(f), Path.GetFullPath(me), StringComparison.OrdinalIgnoreCase)) continue;
       try { File.Delete(f); } catch { try { File.Move(f, f + ".delete-me"); } catch { } }
     }
     log("Removed the program from " + dir);
-    string data = Setup.DataDir();
     if (o.RemoveData) {
-      try {
-        // THE COMPATIBILITY LINKS (~/.noema, ~/.lain-v2 → the data folder) go with the default data folder — only
-        // links, never a real folder, and only when the data removed is the default one they point to.
+      // ONLY THE ONE DATA FOLDER, PROVEN: the canonical %USERPROFILE%\.lain — or a test's override inside TEMP. Links in
+      // it (account homes link into other programs' folders) are removed as links, never followed (safedelete.cs).
+      string why;
+      string data = Setup.RemovableData(out why);
+      if (data == null) log("Your LAIN data was NOT removed: " + why);
+      else {
+        var rd = SafeDelete.Tree(data);
+        if (rd.Ok) log("Removed your LAIN data at " + data + " (" + rd.Files + " files; " + rd.Links + " links removed without following them)");
+        else log("Your LAIN data at " + data + " was not fully removed: " + rd.Why);
+        // AN OLDER BUILD'S LINKS to the default folder (~\.noema, ~\.lain-v2): only links, and only beside the default home.
         string up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string full = Path.GetFullPath(data).TrimEnd('\\');
-        bool isDefault = string.Equals(full, Path.Combine(up, ".lain"), StringComparison.OrdinalIgnoreCase) || string.Equals(full, Path.Combine(up, ".noema"), StringComparison.OrdinalIgnoreCase);
-        if (Directory.Exists(data)) { Directory.Delete(data, true); log("Removed your LAIN data at " + data); }
-        foreach (string name in new[] { ".noema", ".lain-v2" }) {
-          var info = new DirectoryInfo(Path.Combine(up, name));
-          if (isDefault && info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0) { info.Delete(); log("Removed the compatibility link " + info.FullName); }
+        if (string.Equals(Path.GetFullPath(data).TrimEnd('\\'), Path.Combine(up, ".lain"), StringComparison.OrdinalIgnoreCase)) {
+          foreach (string name in new[] { ".noema", ".lain-v2" }) {
+            var info = new DirectoryInfo(Path.Combine(up, name));
+            if (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0 && SafeDelete.Tree(info.FullName).Ok) log("Removed the old link " + info.FullName);
+          }
         }
-      } catch (Exception e) { log("Could not remove " + data + ": " + e.Message); }
-    } else log("Kept your sessions, accounts, settings and usage history at " + data);
+      }
+    } else log("Kept your sessions, accounts, settings and usage history at " + Setup.DataDir());
     if (console == null) MessageBox.Show(string.Join(Environment.NewLine, lines.ToArray()), "LAIN — uninstalled", MessageBoxButtons.OK, MessageBoxIcon.Information);
     DeleteAfterExit(me, dir);
     return 0;

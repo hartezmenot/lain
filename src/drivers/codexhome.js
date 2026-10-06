@@ -113,8 +113,9 @@ function removeOwned(l) {
   let left = [];
   try { left = fs.readdirSync(l.home).filter((n) => { const st = lstat(path.join(l.home, n)); return st && st.isSymbolicLink(); }); } catch { left = []; }
   if (left.length) return { removed: false, why: `links still in the shadow home (${left.join(', ')}); nothing deleted` };
-  fs.rmSync(dir, { recursive: true, force: true });
-  return { removed: true };
+  // SAFE DELETE (src/safedelete.js): links are removed as links, never entered; the folder must be inside accounts/.
+  const r = require('../safedelete').removeTree(dir, { within: path.dirname(dir) });
+  return r.ok ? { removed: true } : { removed: false, why: r.why };
 }
 
 function isJunction(p) {
