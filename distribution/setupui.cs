@@ -19,19 +19,20 @@ class Wizard : Form {
     Width = 640; Height = 494; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
     Font = new Font("Segoe UI", 9f);
     int y = 16;
-    Label title = new Label { Text = installed == null ? "LAIN CLI is the base; LAIN Harness is optional." : "LAIN is installed at " + installed, Left = 16, Top = y, Width = 600, Height = 20, Font = new Font("Segoe UI Semibold", 10f) };
+    Label title = new Label { Text = installed == null ? "LAIN — the CLI and the LAIN Harness, one product." : "LAIN is installed at " + installed, Left = 16, Top = y, Width = 600, Height = 20, Font = new Font("Segoe UI Semibold", 10f) };
     Controls.Add(title); y += 30;
 
-    var cli = new CheckBox { Text = "LAIN CLI — Core, CLI, Model Dashboard, Preview window (always installed)", Left = 16, Top = y, Width = 600, Checked = true, Enabled = false }; Controls.Add(cli); y += 24;
+    var cli = new CheckBox { Text = "LAIN CLI — Core, the `lain` command, Preview window (always installed)", Left = 16, Top = y, Width = 600, Checked = true, Enabled = false }; Controls.Add(cli); y += 24;
     bool hasHarness = installed != null && Components.Read(installed).Harness;
-    var harness = new CheckBox { Text = "LAIN Harness — the desktop environment (optional; can be added later)", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Harness : hasHarness }; Controls.Add(harness); y += 24;
+    var harness = new CheckBox { Text = "LAIN Harness — the desktop environment", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Harness : hasHarness }; Controls.Add(harness); y += 24;
     bool hasDesign = installed != null && Components.Read(installed).Design;
     var design = new CheckBox { Text = "LAIN Design — visual editing of app screens, in the Harness (optional; can be added later)", Left = 16, Top = y, Width = 600, Checked = installed == null ? o.Design : hasDesign }; Controls.Add(design); y += 34;
 
     var path = new CheckBox { Text = "Add `lain` to PATH (your account only)", Left = 16, Top = y, Width = 600, Checked = o.Path }; Controls.Add(path); y += 24;
     var openWith = new CheckBox { Text = "Windows \"Open with LAIN\" for code and text files (never changes your default apps)", Left = 16, Top = y, Width = 600, Checked = o.OpenWith }; Controls.Add(openWith); y += 24;
     var folder = new CheckBox { Text = "\"Open folder in LAIN\" on folders", Left = 16, Top = y, Width = 600, Checked = o.Folder }; Controls.Add(folder); y += 24;
-    var menu = new CheckBox { Text = "Start Menu entries (LAIN CLI, Model Dashboard, Harness, Uninstall)", Left = 16, Top = y, Width = 600, Checked = o.StartMenu }; Controls.Add(menu); y += 30;
+    var menu = new CheckBox { Text = "Start Menu entries (LAIN, LAIN CLI, Uninstall LAIN)", Left = 16, Top = y, Width = 600, Checked = o.StartMenu }; Controls.Add(menu); y += 24;
+    var desk = new CheckBox { Text = "Desktop shortcut (LAIN)", Left = 16, Top = y, Width = 600, Checked = o.DesktopShortcut || (installed != null && Components.Read(installed).Desktop) }; Controls.Add(desk); y += 30;
 
     var where = new Label { Text = "Location: " + o.Dir + "    Data: " + Setup.DataDir(), Left = 16, Top = y, Width = 600, Height = 18, ForeColor = Color.DimGray }; Controls.Add(where); y += 24;
 
@@ -45,7 +46,7 @@ class Wizard : Form {
       remove.Click += (s, e) => { Hide(); ExitCode = Uninstaller.Run(o, null); Close(); };
     }
     go.Click += (s, e) => {
-      o.Harness = harness.Checked; o.Design = design.Checked; o.Path = path.Checked; o.OpenWith = openWith.Checked; o.Folder = folder.Checked; o.StartMenu = menu.Checked;
+      o.Harness = harness.Checked; o.Design = design.Checked; o.Path = path.Checked; o.OpenWith = openWith.Checked; o.Folder = folder.Checked; o.StartMenu = menu.Checked; o.DesktopShortcut = desk.Checked; o.IntegrationExplicit = true;
       if (installed != null && !o.Repair && PayloadInfo.Version() == Pointer.Read(installed, "current") && (harness.Checked != hasHarness || design.Checked != hasDesign)) {
         // A COMPONENT ADDED OR REMOVED on the same version: no reinstall.
         ExitCode = 0;

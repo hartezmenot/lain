@@ -86,8 +86,10 @@ function client() {
     var u = S && S.update; if (!u) return;
     var staged = u.state === 'staged';
     var info = staged ? (u.staged || {}) : (u.available || {});
-    p.appendChild(el('h4', '', 'LAIN ' + (info.version || '')));
-    p.appendChild(el('div', 'up-sub', (u.label || '') + (staged ? '' : ' · you have LAIN ' + (u.current || ''))));
+    // THE WORDS (2026-10-07): "LAIN x is available" → [Update] [Later]; then "✓ Update installed · Restart to activate".
+    p.appendChild(el('h4', '', staged ? '✓ Update installed' : 'LAIN ' + (info.version || '') + ' is available'));
+    var phase = u.phase === 'DOWNLOADING' ? 'Downloading…' : u.phase === 'VERIFYING' ? 'Verifying…' : u.phase === 'CHECKING' ? 'Checking…' : '';
+    p.appendChild(el('div', 'up-sub', staged ? 'Restart to activate LAIN ' + (info.version || '') : (phase || 'You have LAIN ' + (u.current || ''))));
     var notes = info.summary || (u.available && u.available.summary) || [];
     if (notes.length) { p.appendChild(el('div', 'up-sub', 'What’s new')); var ul = el('ul'); notes.slice(0, 6).forEach(function (n) { ul.appendChild(el('li', '', n)); }); p.appendChild(ul); }
     var link = info.notes || (u.available && u.available.notes);
@@ -96,12 +98,12 @@ function client() {
     var acts = el('div', 'up-acts');
     var btn = function (label, cls, run) { var x = el('button', 'btn ' + (cls || ''), label); x.onclick = async function () { x.disabled = true; L.closePop(); await run(); }; acts.appendChild(x); };
     if (!staged) {
-      if (u.installed) btn('Download', 'primary', function () { return act('/api/update/download'); });
+      // UPDATE = download, verify (signature and hash), stage — nothing restarts until the person says so.
+      if (u.installed) btn('Update', 'primary', function () { L.toast('Downloading LAIN ' + (info.version || '') + '…'); return act('/api/update/download'); });
       else p.appendChild(el('div', 'up-busy', 'This is a development checkout — install the update with the LAIN installer.'));
     } else if (agentBusy()) {
-      p.appendChild(el('div', 'up-busy', 'The Coding Agent is working. LAIN restarts only when you choose — the task continues after the restart from its committed checkpoint.'));
-      btn('Restart after current checkpoint', 'primary', function () { return act('/api/update/restart', { when: 'checkpoint' }); });
-      btn('Restart after task', '', function () { return act('/api/update/restart', { when: 'task' }); });
+      p.appendChild(el('div', 'up-busy', 'The Coding Agent is working — it is never stopped for an update. LAIN restarts after the task, and its session continues.'));
+      btn('Restart after task', 'primary', function () { return act('/api/update/restart', { when: 'task' }); });
     } else btn('Restart LAIN', 'primary', function () { return act('/api/update/restart', { when: 'now' }); });
     btn('Later', '', function () { return act('/api/update/later'); });
     p.appendChild(acts);

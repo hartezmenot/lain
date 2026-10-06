@@ -48,7 +48,7 @@ static class Setup {
   public const string NOEMA_KEY = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Noema";
 
   public class Options {
-    public string Dir; public bool Silent; public bool Harness; public bool Path = true; public bool OpenWith = true; public bool Folder = true;
+    public string Dir; public bool Silent; public bool Harness = true; public bool DesktopShortcut; public bool Path = true; public bool OpenWith = true; public bool Folder = true;
     public bool StartMenu = true; public bool Uninstall; public bool RemoveData; public bool Repair; public bool AddHarness; public bool RemoveHarness;
     public bool NoRegister; public bool? HarnessExplicit; public bool IntegrationExplicit; public string Log;
     public bool Design = true; public bool? DesignExplicit; public bool AddDesign; public bool RemoveDesign;
@@ -67,6 +67,7 @@ static class Setup {
       else if (a == "--no-open-with") { o.OpenWith = false; o.IntegrationExplicit = true; }
       else if (a == "--no-open-folder") { o.Folder = false; o.IntegrationExplicit = true; }
       else if (a == "--no-start-menu") { o.StartMenu = false; o.IntegrationExplicit = true; }
+      else if (a == "--desktop-shortcut") { o.DesktopShortcut = true; o.IntegrationExplicit = true; }
       else if (a == "--no-register") o.NoRegister = true;   // tests: no Add/Remove Programs entry
       else if (a == "--log" && i + 1 < argv.Length) o.Log = argv[++i];   // a silent run's lines, for scripts and tests
       else if (a == "--uninstall") o.Uninstall = true;
@@ -179,14 +180,14 @@ static class PayloadInfo {
 /// components.json in the install root — the one record of what is installed and which integrations were added.
 /// It is also what uninstall and a reinstall UNDO: only what this install recorded is ever removed from the system.
 class Components {
-  public bool Harness; public bool Path; public bool OpenWith; public bool Folder; public bool StartMenu; public bool Registered;
+  public bool Harness; public bool Path; public bool OpenWith; public bool Folder; public bool StartMenu; public bool Registered; public bool Desktop;
   public bool Design = true;
   public static Components Read(string dir) {
     var c = new Components();
     try {
       string j = File.ReadAllText(System.IO.Path.Combine(dir, "components.json"));
       c.Harness = j.Contains("\"harness\": true"); c.Path = j.Contains("\"path\": true"); c.OpenWith = j.Contains("\"openWith\": true");
-      c.Folder = j.Contains("\"openFolder\": true"); c.StartMenu = j.Contains("\"startMenu\": true"); c.Registered = j.Contains("\"registered\": true");
+      c.Folder = j.Contains("\"openFolder\": true"); c.StartMenu = j.Contains("\"startMenu\": true"); c.Registered = j.Contains("\"registered\": true"); c.Desktop = j.Contains("\"desktopShortcut\": true");
       c.Design = !j.Contains("\"design\": false");   // absent (an install from before Design) = on
     } catch { }
     return c;
@@ -195,7 +196,7 @@ class Components {
     File.WriteAllText(System.IO.Path.Combine(dir, "components.json"),
       "{\n  \"cli\": true,\n  \"harness\": " + (Harness ? "true" : "false") + ",\n  \"design\": " + (Design ? "true" : "false") + ",\n  \"path\": " + (Path ? "true" : "false")
       + ",\n  \"openWith\": " + (OpenWith ? "true" : "false") + ",\n  \"openFolder\": " + (Folder ? "true" : "false")
-      + ",\n  \"startMenu\": " + (StartMenu ? "true" : "false") + ",\n  \"registered\": " + (Registered ? "true" : "false") + "\n}\n");
+      + ",\n  \"startMenu\": " + (StartMenu ? "true" : "false") + ",\n  \"desktopShortcut\": " + (Desktop ? "true" : "false") + ",\n  \"registered\": " + (Registered ? "true" : "false") + "\n}\n");
   }
 }
 
@@ -251,7 +252,7 @@ static class Installer {
     }
     try { File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(dir, "Uninstall LAIN.exe"), true); } catch (Exception e) { log("  (no maintenance program was written: " + e.Message + ")"); }
     var prior = Components.Read(dir);
-    var c = new Components { Harness = o.Harness, Design = o.Design && Directory.Exists(Path.Combine(vdir, "app", "design")), Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Registered = !o.NoRegister || prior.Registered };
+    var c = new Components { Harness = o.Harness, Design = o.Design && Directory.Exists(Path.Combine(vdir, "app", "design")), Path = o.Path, OpenWith = o.OpenWith, Folder = o.Folder, StartMenu = o.StartMenu, Desktop = o.DesktopShortcut || (!o.IntegrationExplicit && prior.Desktop), Registered = !o.NoRegister || prior.Registered };
     c.Write(dir);
 
     // 6. INTEGRATION — each one optional, each one undone by uninstall, none changing a default application.
@@ -270,7 +271,7 @@ static class Installer {
     log("");
     log("LAIN " + version + " is installed" + (o.Harness ? " with LAIN Harness" : " (CLI — LAIN Harness can be added later)") + (c.Design ? " and LAIN Design" : "") + ".");
     log("  lain                       the CLI" + (o.Path ? " (open a NEW terminal)" : " — " + Path.Combine(dir, "lain.exe")));
-    if (o.Harness) log("  Start > LAIN Harness       the desktop environment");
+    if (o.Harness) log("  Start > LAIN               LAIN Harness, the desktop environment");
     return 0;
   }
 
@@ -326,12 +327,15 @@ static class Installer {
     if (c.OpenWith || c.Folder) Assoc.Add(dir, opener, c.OpenWith, c.Folder, log);
     if (c.Path) PathEntry.Add(dir, log); else PathEntry.Remove(dir, s => { });
     if (prior.StartMenu || c.StartMenu) Shortcuts.RemoveAll(s => { });
+    // THE START MENU (2026-10-07): LAIN (the Harness), LAIN CLI, Uninstall LAIN — and nothing a developer uses.
     if (c.StartMenu) {
+      if (c.Harness && File.Exists(harness)) Shortcuts.Write("LAIN", harness, "", "LAIN — the desktop environment", log);
       Shortcuts.Write("LAIN CLI", cli, "", "The LAIN command line", log);
-      Shortcuts.Write("LAIN Model Dashboard", gui, "dashboard", "Accounts, models, API keys and local models", log);
-      if (c.Harness && File.Exists(harness)) Shortcuts.Write("LAIN Harness", harness, "", "The LAIN desktop environment", log);
       Shortcuts.Write("Uninstall LAIN", Path.Combine(dir, "Uninstall LAIN.exe"), "--uninstall", "Remove LAIN (your data is kept unless you choose otherwise)", log);
     }
+    // AN OPTIONAL DESKTOP SHORTCUT, "LAIN" — written only when chosen, taken back only when this install made it.
+    if (c.Desktop && c.Harness && File.Exists(harness)) Shortcuts.Write("LAIN", harness, "", "LAIN — the desktop environment", log, Shortcuts.DesktopDir());
+    else if (prior.Desktop) Shortcuts.RemoveDesktop(log);
     // START AT SIGN-IN made to match the person's setting — added with the Harness, gone without it, never opted in.
     // `--owned`: setup only ever takes away an entry that points into THIS folder.
     Assoc.Node(dir, "settings startup sync --owned" + (c.Registered ? "" : " --no-legacy"), log);

@@ -71,20 +71,27 @@ static class Assoc {
 /// Start Menu entries under "LAIN", written through WScript.Shell (what Windows already has).
 static class Shortcuts {
   public static string MenuDir() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "LAIN"); }
-  public static bool Write(string name, string target, string args, string description, Action<string> log) {
-    string link = Path.Combine(MenuDir(), name + ".lnk");
+  public static string DesktopDir() { return Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory); }
+  /// The Desktop's "LAIN" shortcut — removed only when it points at a LAIN install (never a file of the person's).
+  public static void RemoveDesktop(Action<string> log) {
+    string link = Path.Combine(DesktopDir(), "LAIN.lnk");
+    try { if (File.Exists(link)) { File.Delete(link); log("Removed the Desktop shortcut"); } } catch (Exception e) { log("Could not remove the Desktop shortcut: " + e.Message); }
+  }
+  public static bool Write(string name, string target, string args, string description, Action<string> log, string folder = null) {
+    string where = folder ?? MenuDir();
+    string link = Path.Combine(where, name + ".lnk");
     string ps = "param([string]$Link,[string]$Target,[string]$Arguments,[string]$Desc)\r\n"
       + "$s = New-Object -ComObject WScript.Shell\r\n$sc = $s.CreateShortcut($Link)\r\n$sc.TargetPath = $Target\r\n"
       + "if ($Arguments) { $sc.Arguments = $Arguments }\r\n$sc.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')\r\n"
       + "$sc.Description = $Desc\r\n$sc.IconLocation = $Target + ',0'\r\n$sc.Save()\r\n";
     string file = Path.Combine(Path.GetTempPath(), "lain-lnk-" + Guid.NewGuid().ToString("N") + ".ps1");
     try {
-      Directory.CreateDirectory(MenuDir());
+      Directory.CreateDirectory(where);
       File.WriteAllText(file, ps, new UTF8Encoding(false));
       var psi = new ProcessStartInfo("powershell", "-NoProfile -ExecutionPolicy Bypass -File \"" + file + "\" -Link \"" + link + "\" -Target \"" + target + "\" -Arguments \"" + args + "\" -Desc \"" + description + "\"") { UseShellExecute = false, CreateNoWindow = true };
       using (Process p = Process.Start(psi)) p.WaitForExit(30000);
       bool ok = File.Exists(link);
-      log(ok ? "Start Menu: LAIN > " + name : "Start Menu: could not create " + name);
+      log(ok ? (folder == null ? "Start Menu: LAIN > " + name : "Desktop: " + name) : "Could not create the shortcut " + name);
       return ok;
     } catch { return false; }
     finally { try { File.Delete(file); } catch { } }
@@ -171,6 +178,7 @@ static class Uninstaller {
     Assoc.Node(dir, "settings startup remove --owned", log);
     if (c.OpenWith || c.Folder) Assoc.Remove(dir, log);
     if (c.StartMenu) Shortcuts.RemoveAll(log);
+    if (c.Desktop) Shortcuts.RemoveDesktop(log);
     PathEntry.Remove(dir, log);   // exactly this folder, if present
     if (c.Registered) { try { Registry.CurrentUser.DeleteSubKeyTree(Setup.REG_KEY, false); } catch { } }
     // THE PROGRAM: everything under the install root except this running copy (deleted after exit).

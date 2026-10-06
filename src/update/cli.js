@@ -11,6 +11,26 @@ function L() { return require('./lifecycle'); }
 
 function say(app, text, tone = 'info') { try { app.render.notice(tone, text); } catch { process.stderr.write(`${text}\n`); } }
 
+/**
+ * COMPLETELY IDLE (2026-10-07) — nothing a restart could cost: no model request, no task, no background job or agent
+ * (lifecycle.busy), no question, decision or permission open (a panel), no unsent draft, and no keystroke for IDLE_MS.
+ */
+function idle(app, now = Date.now()) {
+  if (L().busy(app)) return false;
+  try { if (app.ui && app.ui.panel && app.ui.panel.visible) return false; } catch { /* no UI */ }
+  try { if (app.input && String(app.input.line || '').trim()) return false; } catch { /* no input */ }
+  if (app._lastInputAt && now - app._lastInputAt < IDLE_MS) return false;
+  return true;
+}
+
+/**
+ * THE CLI UPDATE POLICY (2026-10-07). Checking, downloading, verifying and staging are automatic. Then:
+ *   idle      restart into the new version at once — the session resumes (--resume, the launcher's same console)
+ *   busy      never interrupted: ONE notice ("installed · restart when the current task finishes"); when the work
+ *             reaches an idle boundary, one more ("✓ Update installed · Restart to activate" — /update now · later),
+ *             and if the person does nothing and LAIN stays idle, the same automatic restart
+ *   later     `/update later` keeps it staged and stops the automatic restart for this session
+ */
 async function tick(app, { force = false } = {}) {
   const st = app._update || (app._update = { told: null });
   const r = await U().check({ cfg: app.cfg, force }).catch((e) => ({ state: 'error', why: e.message }));
@@ -20,15 +40,43 @@ async function tick(app, { force = false } = {}) {
     status = s.ok ? U().status() : { ...r, why: s.why };
   }
   const ux = require('./ux').view(app, { fresh: true });
+  if (status.state === 'staged' && U().installRoot() && U().settings(app.cfg).auto) { follow(app, status.staged.version); return status; }
   const key = `${status.state}:${ux.version}`;
   if (ux.label && st.told !== key) {
     st.told = key;
-    say(app, status.state === 'staged'
-      ? `${ux.label} — ${L().busy(app) ? '/update after-checkpoint · /update after-task (nothing running is stopped)' : '/update now'} · /update later`
-      : `${ux.label} — /update to install it${U().installRoot() ? '' : ' (with the LAIN installer)'}`);
+    say(app, `${ux.label} — /update to install it${U().installRoot() ? '' : ' (with the LAIN installer)'}`);
     try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* the header shows it next frame */ }
   }
   return status;
+}
+
+/** One staged version, followed to its restart: at most two notices, never a reminder per turn. */
+function follow(app, version) {
+  const st = app._update || (app._update = {});
+  if (st.following === version) return;
+  st.following = version;
+  if (st.watch) clearInterval(st.watch);
+  let saidBusy = false; let saidIdle = false; let quietSince = null;
+  const step = () => {
+    if (st.later || st.following !== version) { clearInterval(st.watch); return; }
+    const now = Date.now();
+    if (!idle(app, now)) {
+      quietSince = null;
+      if (L().busy(app) && !saidBusy && !saidIdle) { saidBusy = true; say(app, `✓ LAIN ${version} installed · restart when the current task finishes`); }
+      return;
+    }
+    if (saidBusy && !saidIdle) { saidIdle = true; say(app, `${require('./ux').INSTALLED} — /update now · /update later (LAIN restarts by itself if you leave it idle)`); quietSince = now; return; }
+    if (quietSince == null) quietSince = now;
+    // IDLE FROM THE START (or left idle after the notice): the restart is automatic, the session resumes.
+    if (!saidBusy || now - quietSince >= IDLE_MS) {
+      clearInterval(st.watch);
+      if (!saidBusy) say(app, `✓ LAIN ${version} installed — restarting into it (this session continues).`);
+      L().perform(app, 'update').catch(() => null);
+    }
+  };
+  st.watch = setInterval(step, 2000);
+  if (typeof st.watch.unref === 'function') st.watch.unref();
+  step();
 }
 
 /** Called once by an interactive CLI. Timers are unref'd: they never keep LAIN alive. */
@@ -55,7 +103,7 @@ async function command(app, arg = '') {
   const a = String(arg || '').trim().toLowerCase();
   const u = U();
   if (!u.installRoot() && a !== 'check' && a !== '') return 'Updates apply to an installed LAIN — this is a development checkout (node bin/lain.js).';
-  if (a === 'later') { L().cancel(app, 'update'); return 'Update postponed — it stays downloaded; /update now when you are ready.'; }
+  if (a === 'later') { L().cancel(app, 'update'); (app._update || (app._update = {})).later = true; return 'Update postponed — it stays downloaded; /update now when you are ready.'; }
   if (a === 'after-checkpoint' || a === 'checkpoint') { const r = L().arm(app, 'update', 'checkpoint'); return r.when === 'now' ? 'Restarting now (nothing is running).' : 'LAIN restarts at the next committed checkpoint; the task continues after it.'; }
   if (a === 'after-task' || a === 'task') { L().arm(app, 'update', 'task'); return 'LAIN restarts when the current task is done.'; }
   if (a === 'install') {
@@ -118,4 +166,4 @@ function afterRestart(app) {
   return { continued: true };
 }
 
-module.exports = { start, watch, tick, command, oneShot, afterRestart, IDLE_MS };
+module.exports = { start, watch, tick, command, oneShot, afterRestart, idle, follow, IDLE_MS };

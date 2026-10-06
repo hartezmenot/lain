@@ -157,6 +157,10 @@ function releaseKey() {
   zip(vdir, asset);
   const manifest = {
     schema: 1, product: 'lain', channel, version, released: new Date().toISOString(),
+    // ANTI-REPLAY (src/update/manifest.js fresh): a sequence that only grows (seconds since 1970 at build time) and a
+    // validity window; LAIN refuses a manifest older than the highest it accepted, or one past its expiry.
+    sequence: Math.floor(Date.now() / 1000), issued_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + Number(arg('--valid-days', 90)) * 864e5).toISOString(),
     minimumCompatible: arg('--minimum-compatible', '0.1.0'), protocol: require(path.join(ROOT, 'src', 'update', 'compat')).PROTOCOL,
     minimumCli: arg('--minimum-cli', '0.1.0'), minimumHarness: arg('--minimum-harness', '0.1.0'),
     mandatory: argv.includes('--mandatory'), security: argv.includes('--security'),

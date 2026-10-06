@@ -34,6 +34,27 @@ function build() {
   };
 }
 
+/**
+ * THE PHASE every surface reads (2026-10-07): CURRENT · CHECKING · AVAILABLE · DOWNLOADING · VERIFYING · STAGED ·
+ * RESTART_REQUIRED · FAILED. The transient ones are written to the shared state file while they happen, so the CLI and
+ * the Harness — separate processes — show the same thing. A transient phase older than 10 minutes is a crash, not news.
+ */
+const PHASES = Object.freeze(['CURRENT', 'CHECKING', 'AVAILABLE', 'DOWNLOADING', 'VERIFYING', 'STAGED', 'RESTART_REQUIRED', 'FAILED']);
+function setPhase(phase, extra = {}) { try { writeState({ ...readState(), phase, phaseAt: Date.now(), ...extra }); } catch { /* the next read says what is true */ } }
+
+/** THE HIGHEST SEQUENCE EVER ACCEPTED — in the state AND beside the install, so a data reset cannot reopen a replay. */
+function highestSequence() {
+  let a = 0; let b = 0;
+  try { a = Number(readState().highestSequence) || 0; } catch { a = 0; }
+  try { const r = installRoot(); if (r) b = Number(fs.readFileSync(path.join(r, 'feed-sequence'), 'utf8').trim()) || 0; } catch { b = 0; }
+  return Math.max(a, b);
+}
+function rememberSequence(n) {
+  const hi = Math.max(highestSequence(), n);
+  try { const r = installRoot(); if (r) fs.writeFileSync(path.join(r, 'feed-sequence'), String(hi)); } catch { /* the state still has it */ }
+  return hi;
+}
+
 function installRoot() {
   const r = process.env.LAIN_INSTALL_ROOT || process.env.NOEMA_INSTALL_ROOT;
   return r && fs.existsSync(path.join(r, 'current')) ? r : null;
@@ -74,6 +95,7 @@ async function check({ cfg = {}, force = false, now = Date.now() } = {}) {
   const b = build();
   if (!s.feed) return { state: 'unconfigured', current: b.version, why: 'this build has no update source configured' };
   if (!force && st.checkedAt && now - st.checkedAt < CHECK_MS && st.channel === s.channel) return summarize(st, b);
+  setPhase('CHECKING');
   const base = s.feed.replace(/[\\/]+$/, '');
   let bytes; let sig;
   try {
@@ -82,18 +104,21 @@ async function check({ cfg = {}, force = false, now = Date.now() } = {}) {
   } catch (e) {
     const out = { ...st, channel: s.channel, checkedAt: now, lastError: e.status === 404 ? 'no release has been published on this channel yet' : `the update source did not answer (${e.message})` };
     writeState(out);
-    return { state: 'error', current: b.version, why: out.lastError };
+    return { state: 'error', phase: 'FAILED', current: b.version, why: out.lastError };
   }
   const v = M.verifySignature(bytes, sig, require('./trust').publicKeys());
-  if (!v.ok) { writeState({ ...st, channel: s.channel, checkedAt: now, lastError: v.why }); return { state: 'error', current: b.version, why: v.why }; }
+  if (!v.ok) { writeState({ ...st, channel: s.channel, checkedAt: now, lastError: v.why }); return { state: 'error', phase: 'FAILED', current: b.version, why: v.why }; }
   const p = M.parse(bytes);
-  if (!p.ok) { writeState({ ...st, channel: s.channel, checkedAt: now, lastError: p.why }); return { state: 'error', current: b.version, why: p.why }; }
+  if (!p.ok) { writeState({ ...st, channel: s.channel, checkedAt: now, lastError: p.why }); return { state: 'error', phase: 'FAILED', current: b.version, why: p.why }; }
   const m = p.manifest;
+  const f = M.fresh(m, { now, highest: highestSequence() });
+  if (!f.ok) { writeState({ ...st, channel: s.channel, checkedAt: now, lastError: f.why }); return { state: 'error', phase: 'FAILED', current: b.version, why: f.why }; }
+  const highest = rememberSequence(m.sequence);
   const newer = M.compare(m.version, b.version) > 0;
   const reachable = !m.minimumCompatible || M.compare(b.version, m.minimumCompatible) >= 0;
   const asset = M.assetFor(m);
   const out = {
-    ...st, channel: s.channel, checkedAt: now, lastError: null,
+    ...st, channel: s.channel, checkedAt: now, lastError: null, highestSequence: highest, phase: null,
     available: newer && asset ? {
       version: m.version, released: m.released || null, notes: m.notes || null, summary: Array.isArray(m.summary) ? m.summary.slice(0, 12).map(String) : [],
       mandatory: Boolean(m.mandatory), security: Boolean(m.security), reachable, minimumCompatible: m.minimumCompatible || null,
@@ -106,10 +131,11 @@ async function check({ cfg = {}, force = false, now = Date.now() } = {}) {
 }
 
 function summarize(st, b = build()) {
-  if (st.staged && M.compare(st.staged.version, b.version) > 0) return { state: 'staged', current: b.version, staged: st.staged, available: st.available || null };
-  if (st.available && M.compare(st.available.version, b.version) > 0) return { state: 'available', current: b.version, available: st.available };
-  if (st.lastError) return { state: 'error', current: b.version, why: st.lastError };
-  return { state: 'current', current: b.version, checkedAt: st.checkedAt || null };
+  const live = st.phase && ['CHECKING', 'DOWNLOADING', 'VERIFYING'].includes(st.phase) && Date.now() - (st.phaseAt || 0) < 10 * 60 * 1000 ? st.phase : null;
+  if (st.staged && M.compare(st.staged.version, b.version) > 0) return { state: 'staged', phase: 'STAGED', current: b.version, staged: st.staged, available: st.available || null };
+  if (st.available && M.compare(st.available.version, b.version) > 0) return { state: 'available', phase: live || 'AVAILABLE', current: b.version, available: st.available };
+  if (st.lastError) return { state: 'error', phase: live || 'FAILED', current: b.version, why: st.lastError };
+  return { state: 'current', phase: live || 'CURRENT', current: b.version, checkedAt: st.checkedAt || null };
 }
 function status() { return summarize(readState()); }
 
@@ -131,30 +157,38 @@ async function stage({ cfg = {} } = {}) {
   const stagingDir = path.join(root, 'staging');
   fs.mkdirSync(stagingDir, { recursive: true });
   const file = path.join(stagingDir, `${a.version}.zip`);
-  const bytes = await fetchBytes(a.asset.url).catch((e) => { throw new Error(`the download failed: ${e.message}`); });
+  setPhase('DOWNLOADING');
+  const bytes = await fetchBytes(a.asset.url).catch((e) => { setPhase('FAILED', { lastError: `the download failed: ${e.message}` }); throw new Error(`the download failed: ${e.message}`); });
   fs.writeFileSync(`${file}.part`, bytes);
+  setPhase('VERIFYING');
   const hash = await M.sha256File(`${file}.part`);
   if (hash !== a.asset.sha256) {
     try { fs.unlinkSync(`${file}.part`); } catch { /* gone */ }
-    writeState({ ...st, lastError: `the downloaded package did not match the signed manifest (SHA-256) — rejected` });
+    writeState({ ...readState(), phase: 'FAILED', phaseAt: Date.now(), lastError: `the downloaded package did not match the signed manifest (SHA-256) — rejected` });
     return { ok: false, why: 'the downloaded package did not match the signed manifest (SHA-256) — rejected; the installed version is unchanged' };
   }
   fs.renameSync(`${file}.part`, file);
   const tmp = `${target}.staging`;
-  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ }
+  require('../safedelete').removeTree(tmp, { within: root });
   fs.mkdirSync(tmp, { recursive: true });
   try {
     // tar.exe (bsdtar, part of Windows 10/11) reads zip.
     execFileSync(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', file, '-C', tmp], { stdio: 'ignore', windowsHide: true, timeout: 300000 });
   } catch (e) {
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ }
+    require('../safedelete').removeTree(tmp, { within: root });
+    setPhase('FAILED', { lastError: `the package could not be unpacked: ${e.message}` });
     return { ok: false, why: `the package could not be unpacked: ${e.message}` };
   }
-  const ok = fs.existsSync(path.join(tmp, 'runtime', 'node.exe')) && entryIn(tmp);
-  if (!ok) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* none */ } return { ok: false, why: 'the package is not a LAIN build (runtime/node.exe and app/bin/lain.js missing) — rejected' }; }
+  const reject = (why) => { require('../safedelete').removeTree(tmp, { within: root }); setPhase('FAILED', { lastError: why }); return { ok: false, why }; };
+  if (!(fs.existsSync(path.join(tmp, 'runtime', 'node.exe')) && entryIn(tmp))) return reject('the package is not a LAIN build (runtime/node.exe and app/bin/lain.js missing) — rejected');
+  // ITS OWN VERSION must be the one the signed manifest names (a release always writes app/build-info.json).
+  let info = null;
+  try { info = JSON.parse(fs.readFileSync(path.join(tmp, 'app', 'build-info.json'), 'utf8')); } catch { info = null; }
+  if (info && info.version && info.version !== a.version) return reject(`the package says it is LAIN ${info.version}, the signed manifest says ${a.version} — rejected`);
+  // THE SWAP: one rename of a fully verified folder; nothing that is running is touched.
   fs.renameSync(tmp, target);
   try { fs.unlinkSync(file); } catch { /* kept */ }
-  writeState({ ...readState(), staged: { version: a.version, at: Date.now(), dir: target }, lastError: null });
+  writeState({ ...readState(), staged: { version: a.version, at: Date.now(), dir: target }, lastError: null, phase: 'STAGED', phaseAt: Date.now() });
   // THE LAUNCHER'S VIEW OF IT: at the next cold start at Windows sign-in, the launcher switches to this verified version BEFORE anything runs…
   setPointer('staged', a.version);
   return { ok: true, staged: { version: a.version, dir: target } };
@@ -206,9 +240,10 @@ function prune() {
   const removed = [];
   for (const v of fs.readdirSync(path.join(root, 'versions'))) {
     if (keep.has(v)) continue;
-    try { fs.rmSync(path.join(root, 'versions', v), { recursive: true, force: true }); removed.push(v); } catch { /* in use */ }
+    const r = require('../safedelete').removeTree(path.join(root, 'versions', v), { within: path.join(root, 'versions') });
+    if (r.ok) removed.push(v);   // else in use — removed next time
   }
   return { removed };
 }
 
-module.exports = { CHECK_MS, RESTART_CODE, build, installRoot, settings, check, status, stage, apply, requestRestart, markHealthy, prune, readState, writeState };
+module.exports = { CHECK_MS, RESTART_CODE, PHASES, build, installRoot, settings, check, status, stage, apply, requestRestart, markHealthy, prune, readState, writeState, highestSequence };

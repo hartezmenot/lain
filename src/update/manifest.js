@@ -54,7 +54,22 @@ function parse(bytes) {
     if (!a || typeof a.url !== 'string' || !/^[0-9a-f]{64}$/i.test(String(a.sha256 || ''))) return { ok: false, why: 'an asset has no URL or SHA-256' };
     if (!/^(https:|http:\/\/127\.0\.0\.1[:/]|http:\/\/localhost[:/]|file:)/i.test(a.url) && !/^[\w.-]+$/.test(a.url)) return { ok: false, why: 'an asset URL is neither HTTPS, loopback, a file, nor relative' };
   }
+  // ANTI-REPLAY (2026-10-07): every signed manifest carries a sequence (increasing per release) and a validity window.
+  if (!Number.isInteger(m.sequence) || m.sequence < 1) return { ok: false, why: 'the release manifest has no sequence number' };
+  for (const k of ['issued_at', 'expires_at']) if (!m[k] || !Number.isFinite(Date.parse(m[k]))) return { ok: false, why: `the release manifest has no valid ${k}` };
+  if (Date.parse(m.expires_at) <= Date.parse(m.issued_at)) return { ok: false, why: 'the release manifest expires before it was issued' };
   return { ok: true, manifest: m };
+}
+
+/**
+ * IS THIS SIGNED MANIFEST STILL ONE TO BELIEVE? A valid signature is not enough: an older signed manifest (a lower
+ * sequence than one already accepted) is a replay; an expired one is stale; one issued in the future is a wrong clock.
+ */
+function fresh(m, { now = Date.now(), highest = 0 } = {}) {
+  if (m.sequence < highest) return { ok: false, why: `an older release manifest (sequence ${m.sequence}, LAIN has accepted ${highest}) — refused as a replay` };
+  if (Date.parse(m.expires_at) < now) return { ok: false, why: `the release manifest expired on ${m.expires_at} — refused` };
+  if (Date.parse(m.issued_at) > now + 24 * 3600 * 1000) return { ok: false, why: `the release manifest is dated in the future (${m.issued_at}) — check this PC's clock` };
+  return { ok: true };
 }
 
 /** The asset for this machine: the app package for this architecture. */
@@ -69,4 +84,4 @@ function sha256File(file) {
   });
 }
 
-module.exports = { CHANNELS, parseVersion, compare, verifySignature, parse, assetFor, sha256File };
+module.exports = { CHANNELS, parseVersion, compare, verifySignature, parse, fresh, assetFor, sha256File };

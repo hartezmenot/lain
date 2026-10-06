@@ -21,6 +21,8 @@ function view(app, { fresh = false } = {}) {
   const label = s.state === 'staged' ? INSTALLED : s.state === 'available' && version ? availableLabel(version) : '';
   return {
     ...s, current: b.version, channel: b.channel, installed: Boolean(U().installRoot()),
+    // THE ONE PHASE both surfaces show (updater.js PHASES); a staged version, seen by a running LAIN, needs its restart.
+    phase: s.state === 'staged' ? 'RESTART_REQUIRED' : (s.phase || 'CURRENT'),
     version, label, button: label ? BUTTON : '', busy: LC().busy(app), pendingRestart: LC().pending(app, 'update'),
     // What "Restart" may mean right now — never "now" over a running task.
     restartChoices: s.state !== 'staged' ? [] : LC().busy(app) ? ['checkpoint', 'task'] : ['now'],

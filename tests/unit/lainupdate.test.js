@@ -20,6 +20,9 @@ const { execFileSync } = require('child_process');
 const { test, tmpdir } = require('../helpers');
 
 const TAR = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+// THE VERSIONS ARE THE PRODUCT'S (one version, package.json): the running one and the next patch release.
+const CUR = require('../../package.json').version;
+const NEXT = CUR.replace(/\d+$/, (n) => String(Number(n) + 1));
 
 function withEnv(vars, fn) {
   const old = {};
@@ -33,7 +36,7 @@ function withEnv(vars, fn) {
 }
 
 /** A feed directory with a package and a manifest signed by `key`. */
-function feed({ key, version = '0.1.1', tamperHash = false, notLAIN = false, channel = 'stable' }) {
+function feed({ key, version = NEXT, tamperHash = false, notLAIN = false, channel = 'stable', sequence = 1000, issued = Date.now(), validDays = 30, wrongVersion = null }) {
   const dir = tmpdir('lain-feed-');
   const pkg = tmpdir('lain-pkg-');
   fs.mkdirSync(path.join(pkg, 'runtime'), { recursive: true });
@@ -41,6 +44,7 @@ function feed({ key, version = '0.1.1', tamperHash = false, notLAIN = false, cha
   if (!notLAIN) {
     fs.mkdirSync(path.join(pkg, 'app', 'bin'), { recursive: true });
     fs.writeFileSync(path.join(pkg, 'app', 'bin', 'lain.js'), '// the new version\n');
+    fs.writeFileSync(path.join(pkg, 'app', 'build-info.json'), JSON.stringify({ product: 'LAIN', version: wrongVersion || version }));
   } else fs.writeFileSync(path.join(pkg, 'readme.txt'), 'something else');
   const name = `lain-${version}-win-x64.zip`;
   execFileSync(TAR, ['-a', '-cf', path.join(dir, name), '-C', pkg, ...fs.readdirSync(pkg)], { stdio: 'ignore', windowsHide: true });
@@ -48,6 +52,7 @@ function feed({ key, version = '0.1.1', tamperHash = false, notLAIN = false, cha
   if (tamperHash) sha = sha.replace(/^./, (c) => (c === '0' ? '1' : '0'));
   const release = {
     schema: 1, product: 'lain', channel, version, released: new Date().toISOString(), minimumCompatible: '0.1.0', protocol: 1,
+    sequence, issued_at: new Date(issued).toISOString(), expires_at: new Date(issued + validDays * 864e5).toISOString(),
     notes: 'https://example.invalid/notes', summary: ['A test release'],
     assets: [{ arch: 'x64', kind: 'app', name, url: name, size: fs.statSync(path.join(dir, name)).size, sha256: sha }],
   };
@@ -57,12 +62,12 @@ function feed({ key, version = '0.1.1', tamperHash = false, notLAIN = false, cha
   return { dir, release, bytes };
 }
 
-/** An installed LAIN's layout: current → 0.1.0. */
+/** An installed LAIN's layout: current → CUR. */
 function install() {
   const root = tmpdir('lain-install-');
-  fs.mkdirSync(path.join(root, 'versions', '0.1.0', 'app', 'bin'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'lain.js'), '// the running version\n');
-  fs.writeFileSync(path.join(root, 'current'), '0.1.0');
+  fs.mkdirSync(path.join(root, 'versions', CUR, 'app', 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'versions', CUR, 'app', 'bin', 'lain.js'), '// the running version\n');
+  fs.writeFileSync(path.join(root, 'current'), CUR);
   return root;
 }
 
@@ -85,7 +90,7 @@ module.exports = async function () {
     const f = feed({ key: privateKey });
     const sig = fs.readFileSync(path.join(f.dir, 'manifest-stable.json.sig'), 'utf8');
     assert.ok(M.verifySignature(f.bytes, sig, [PUB]).ok, 'the right key verifies');
-    const tampered = Buffer.from(f.bytes.toString('utf8').replace('0.1.1', '9.9.9'));
+    const tampered = Buffer.from(f.bytes.toString('utf8').replace(NEXT, '9.9.9'));
     assert.ok(!M.verifySignature(tampered, sig, [PUB]).ok, 'one changed byte is refused');
     assert.ok(!M.verifySignature(f.bytes, crypto.sign(null, f.bytes, other.privateKey).toString('base64'), [PUB]).ok, 'another key is refused');
     assert.ok(!M.verifySignature(f.bytes, '', [PUB]).ok, 'no signature is refused');
@@ -108,21 +113,21 @@ module.exports = async function () {
     await withEnv({ LAIN_CONFIG_DIR: home, LAIN_CONFIG_DIR: home, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
       const c = await U.check({ force: true });
       assert.strictEqual(c.state, 'available', JSON.stringify(c));
-      assert.strictEqual(c.available.version, '0.1.1');
+      assert.strictEqual(c.available.version, NEXT);
       const s = await U.stage({});
       assert.ok(s.ok, s.why);
-      assert.ok(fs.existsSync(path.join(root, 'versions', '0.1.1', 'app', 'bin', 'lain.js')), 'unpacked beside the running version');
-      assert.strictEqual(fs.readFileSync(path.join(root, 'versions', '0.1.0', 'app', 'bin', 'lain.js'), 'utf8'), '// the running version\n');
+      assert.ok(fs.existsSync(path.join(root, 'versions', NEXT, 'app', 'bin', 'lain.js')), 'unpacked beside the running version');
+      assert.strictEqual(fs.readFileSync(path.join(root, 'versions', CUR, 'app', 'bin', 'lain.js'), 'utf8'), '// the running version\n');
       assert.strictEqual(U.status().state, 'staged');
       const a = U.apply({ args: ['--resume', 's1'], cwd: root });
       assert.ok(a.ok, a.why);
       assert.strictEqual(a.restartCode, 75);
       const ptr = (n) => fs.readFileSync(path.join(root, n), 'utf8').trim();
-      assert.strictEqual(ptr('current'), '0.1.1');
-      assert.strictEqual(ptr('previous'), '0.1.0', 'the old version is kept for rollback');
-      assert.strictEqual(ptr('pending'), '0.1.1', 'until it reports healthy');
+      assert.strictEqual(ptr('current'), NEXT);
+      assert.strictEqual(ptr('previous'), CUR, 'the old version is kept for rollback');
+      assert.strictEqual(ptr('pending'), NEXT, 'until it reports healthy');
       assert.deepStrictEqual(JSON.parse(ptr('restart.json')), { args: ['--resume', 's1'], cwd: root });
-      assert.strictEqual(U.readState().applied.from, '0.1.0');
+      assert.strictEqual(U.readState().applied.from, CUR);
     });
   });
 
@@ -135,9 +140,9 @@ module.exports = async function () {
       const s = await U.stage({});
       assert.ok(!s.ok);
       assert.match(s.why, /SHA-256/);
-      assert.ok(!fs.existsSync(path.join(root, 'versions', '0.1.1')), 'nothing was unpacked');
+      assert.ok(!fs.existsSync(path.join(root, 'versions', NEXT)), 'nothing was unpacked');
       assert.deepStrictEqual(fs.readdirSync(path.join(root, 'staging')), [], 'the download was deleted');
-      assert.strictEqual(fs.readFileSync(path.join(root, 'current'), 'utf8'), '0.1.0');
+      assert.strictEqual(fs.readFileSync(path.join(root, 'current'), 'utf8'), CUR);
       assert.ok(!U.apply({}).ok, 'and there is nothing to apply');
     });
   });
@@ -151,7 +156,7 @@ module.exports = async function () {
       const s = await U.stage({});
       assert.ok(!s.ok);
       assert.match(s.why, /not a LAIN build/);
-      assert.ok(!fs.existsSync(path.join(root, 'versions', '0.1.1')));
+      assert.ok(!fs.existsSync(path.join(root, 'versions', NEXT)));
     });
     const home2 = tmpdir('lain-uphome-');
     const g = feed({ key: other.privateKey });
@@ -161,6 +166,100 @@ module.exports = async function () {
       assert.match(c.why, /signature/);
       assert.ok(!(await U.stage({})).ok, 'nothing is available to stage');
     });
+  });
+
+  await test('UPDATE ANTI-REPLAY: an older signed manifest (lower sequence) is refused; the highest is remembered beside the install too', async () => {
+    const root = install();
+    const env = (home, dir) => ({ LAIN_CONFIG_DIR: home, LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' });
+    const newer = feed({ key: privateKey, sequence: 2000 });
+    const older = feed({ key: privateKey, sequence: 1500 });
+    await withEnv(env(tmpdir('lain-uphome-'), newer.dir), async () => {
+      assert.strictEqual((await U.check({ force: true })).state, 'available');
+      assert.strictEqual(U.highestSequence(), 2000);
+      assert.strictEqual(fs.readFileSync(path.join(root, 'feed-sequence'), 'utf8'), '2000', 'remembered beside the install');
+    });
+    // A NEW DATA HOME (a reset) still refuses the replay: the install root remembers.
+    await withEnv(env(tmpdir('lain-uphome-'), older.dir), async () => {
+      const c = await U.check({ force: true });
+      assert.strictEqual(c.state, 'error', JSON.stringify(c));
+      assert.match(c.why, /replay/);
+      assert.strictEqual(c.phase, 'FAILED');
+      assert.ok(!(await U.stage({})).ok);
+    });
+  });
+
+  await test('UPDATE: an expired manifest, one dated in the future, and one without sequence or validity are refused', async () => {
+    const root = install();
+    for (const [f, re] of [[feed({ key: privateKey, issued: Date.now() - 40 * 864e5, validDays: 30 }), /expired/], [feed({ key: privateKey, issued: Date.now() + 5 * 864e5 }), /future/]]) {
+      await withEnv({ LAIN_CONFIG_DIR: tmpdir('lain-uphome-'), LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
+        const c = await U.check({ force: true });
+        assert.strictEqual(c.state, 'error'); assert.match(c.why, re);
+      });
+    }
+    const bare = JSON.parse(feed({ key: privateKey }).bytes.toString('utf8'));
+    delete bare.sequence;
+    assert.match(M.parse(Buffer.from(JSON.stringify(bare))).why, /sequence/);
+  });
+
+  await test('UPDATE: a package whose own build-info names another version than the signed manifest is rejected', async () => {
+    const root = install();
+    const f = feed({ key: privateKey, wrongVersion: '9.9.9' });
+    await withEnv({ LAIN_CONFIG_DIR: tmpdir('lain-uphome-'), LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
+      await U.check({ force: true });
+      const s = await U.stage({});
+      assert.ok(!s.ok); assert.match(s.why, /says it is LAIN 9\.9\.9/);
+      assert.ok(!fs.existsSync(path.join(root, 'versions', NEXT)), 'nothing staged');
+      assert.ok(!fs.existsSync(path.join(root, 'versions', `${NEXT}.staging`)), 'the staging folder is gone');
+    });
+  });
+
+  await test('UPDATE PHASES: one state for every surface — AVAILABLE, then STAGED (RESTART_REQUIRED for a running LAIN), FAILED with its reason', async () => {
+    const root = install();
+    const f = feed({ key: privateKey });
+    await withEnv({ LAIN_CONFIG_DIR: tmpdir('lain-uphome-'), LAIN_INSTALL_ROOT: root, LAIN_UPDATE_FEED: f.dir, LAIN_UPDATE_TEST_KEY: PUB, LAIN_ISOLATED: '1' }, async () => {
+      assert.strictEqual((await U.check({ force: true })).phase, 'AVAILABLE');
+      assert.ok((await U.stage({})).ok);
+      assert.strictEqual(U.status().phase, 'STAGED');
+      const app = { session: null, abort: null };
+      const v = require('../../src/update/ux').view(app, { fresh: true });
+      assert.strictEqual(v.phase, 'RESTART_REQUIRED');
+      assert.strictEqual(v.label, '✓ Update installed · Restart to activate');
+      U.writeState({ ...U.readState(), phase: 'DOWNLOADING', phaseAt: Date.now(), staged: null, available: { version: NEXT, asset: { sha256: 'a'.repeat(64) } } });
+      assert.strictEqual(U.status().phase, 'DOWNLOADING', 'a live phase is what both surfaces see');
+    });
+  });
+
+  await test('CLI UPDATE POLICY: staged while idle → restart at once; while busy → one notice, no interruption; idle again → one "Restart to activate", then the restart', async () => {
+    const C = require('../../src/update/cli');
+    const L = require('../../src/update/lifecycle');
+    const said = []; const restarts = [];
+    const realPerform = L.perform;
+    L.perform = async (a, kind) => { restarts.push(kind); return { ok: true }; };
+    try {
+      // IDLE: a staged version restarts immediately (the session resumes — lifecycle.perform passes --resume).
+      const idleApp = { render: { notice: (t, x) => said.push(x) }, _lastInputAt: Date.now() - 10 * 60 * 1000, abort: null, session: null };
+      C.follow(idleApp, NEXT);
+      assert.deepStrictEqual(restarts, ['update']);
+      assert.ok(said.some((x) => new RegExp(`LAIN ${NEXT.replace(/\./g, '\\.')} installed — restarting into it`).test(x)), said.join(' | '));
+      // BUSY: nothing restarts; ONE notice however many ticks pass.
+      said.length = 0; restarts.length = 0;
+      const busyApp = { render: { notice: (t, x) => said.push(x) }, abort: { abort() {} }, session: null };
+      C.follow(busyApp, NEXT);
+      await new Promise((r) => setTimeout(r, 4500));
+      assert.deepStrictEqual(restarts, [], 'a busy CLI is never interrupted');
+      assert.strictEqual(said.filter((x) => /restart when the current task finishes/.test(x)).length, 1, said.join(' | '));
+      // IDLE BOUNDARY: one "Restart to activate" notice.
+      busyApp.abort = null; busyApp._lastInputAt = Date.now() - 10 * 60 * 1000;
+      await new Promise((r) => setTimeout(r, 2500));
+      assert.strictEqual(said.filter((x) => /Update installed · Restart to activate/.test(x)).length, 1, said.join(' | '));
+      assert.deepStrictEqual(restarts, [], 'not yet — the person gets the idle window first');
+      clearInterval(busyApp._update.watch);
+      // A DRAFT, A QUESTION OR A KEYSTROKE IS NOT IDLE.
+      assert.ok(!C.idle({ input: { line: 'half a thought' } }));
+      assert.ok(!C.idle({ ui: { panel: { visible: true } } }));
+      assert.ok(!C.idle({ _lastInputAt: Date.now() }));
+      assert.ok(C.idle({ _lastInputAt: Date.now() - 10 * 60 * 1000 }));
+    } finally { L.perform = realPerform; }
   });
 
   await test('UPDATE: the new version reports healthy — staged clears, "updated from" is kept; a checkout has nothing to apply', () => {

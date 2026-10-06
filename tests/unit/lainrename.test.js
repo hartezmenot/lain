@@ -262,7 +262,7 @@ module.exports = async function () {
 
   await test('RENAME update: manifests for product `lain` and the Noema-era `noema` are accepted; a staged Noema-era package is a build', () => {
     const m = require('../../src/update/manifest');
-    const base = { schema: 1, channel: 'stable', version: '1.2.3', assets: [{ url: 'lain-1.2.3-win-x64.zip', sha256: 'a'.repeat(64) }] };
+    const base = { schema: 1, channel: 'stable', version: '1.2.3', sequence: 1, issued_at: '2026-10-01T00:00:00Z', expires_at: '2027-10-01T00:00:00Z', assets: [{ url: 'lain-1.2.3-win-x64.zip', sha256: 'a'.repeat(64) }] };
     assert.ok(m.parse(JSON.stringify({ ...base, product: 'lain' })).ok);
     assert.ok(m.parse(JSON.stringify({ ...base, product: 'noema' })).ok, 'a feed published in the Noema era still parses');
     assert.ok(!m.parse(JSON.stringify({ ...base, product: 'other' })).ok);
