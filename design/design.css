@@ -102,3 +102,54 @@
 .dz-modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .dz-dragging iframe{pointer-events:none}
 .dz-dragging{user-select:none}
+/* D9 — adopting any frontend: tier, mapping questions, scale, revert notice, change cards, states, launch & sign-in */
+.dz-banner{display:flex;align-items:center;gap:10px}
+.dz-banner .txt{flex:1}
+.dz-ttl{display:flex;align-items:center;gap:8px}
+.dz-tier{display:inline-block;padding:0 7px;border-radius:999px;font:600 10.5px/18px var(--mono);letter-spacing:.02em;background:var(--hover,rgba(255,255,255,.08));color:var(--text-secondary)}
+.dz-tier.t-exact{background:rgba(62,207,142,.16);color:var(--positive,#3ecf8e)}
+.dz-tier.t-resolved{background:rgba(45,212,191,.16);color:#2DD4BF}
+.dz-tier.t-inferred{background:rgba(255,180,0,.16);color:#f5b544}
+.dz-tier.t-agent{background:var(--accent-weak,rgba(155,138,251,.18));color:var(--accent-primary,#9B8AFB)}
+.dz-tier.t-ambiguous,.dz-tier.t-none{background:rgba(242,85,90,.14);color:var(--danger,#f2555a)}
+.dz-tier.t-wait{opacity:.6}
+.dz-ins .src small{color:var(--text-muted)}
+.dz-mapq{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}
+.dz-cand{justify-content:space-between;width:100%;text-align:left}
+.dz-cand b{font:500 11.5px var(--mono)}
+.dz-cand small{color:var(--text-muted)}
+#dzMapQ .dz-cand{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.dz-f{grid-template-columns:72px 1fr 58px auto}
+.dz-off{font:600 9.5px/16px var(--mono);padding:0 5px;border-radius:4px;background:rgba(255,180,0,.16);color:#f5b544;white-space:nowrap}
+.dz-pal{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 8px 78px}
+.dz-sw{width:18px;height:18px;border-radius:5px;border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);padding:0}
+.dz-sw.named{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 0 0 2px var(--accent-weak,rgba(155,138,251,.35))}
+.dz-revert{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:rgba(242,85,90,.10);font-size:12.5px}
+.dz-revert .why{flex:1;min-width:200px;color:var(--text-primary)}
+.dz-revert .dz-x{padding:2px 8px}
+.dz-cardbar{display:flex;align-items:center;gap:8px;min-height:0}
+.dz-cardbar:empty{display:none}
+.dz-clatest{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:8px;background:var(--surface,#16161c);box-shadow:inset 0 0 0 1px var(--border-subtle,#333);text-align:left}
+.dz-clatest .sum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}
+.dz-clatest small,.dz-ccard small{color:var(--text-muted);font-size:11px}
+.pf{font:600 10.5px/16px var(--mono);padding:0 6px;border-radius:4px;background:var(--hover,rgba(255,255,255,.06));color:var(--text-muted)}
+.pf.ok{background:rgba(62,207,142,.14);color:var(--positive,#3ecf8e)}
+.dz-drawer{position:absolute;top:0;right:0;bottom:0;z-index:15;width:min(380px,90%);overflow:auto;padding:10px;background:var(--surface-raised,#1f1f27);box-shadow:-12px 0 30px rgba(0,0,0,.35);border-left:1px solid var(--separator,#2a2a33)}
+.dz-ccard{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--separator,#2a2a33)}
+.dz-ccard .ct{display:flex;align-items:baseline;gap:8px}
+.dz-ccard .ct .sum{flex:1;min-width:0}
+.dz-ccard .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11px;color:var(--text-muted)}
+.dz-ccard .meta .files{font-family:var(--mono)}
+.dz-ccard details summary{cursor:pointer;color:var(--text-secondary);font-size:12px}
+.dz-ccard .pics img{width:48%;margin:4px 1% 0 0;border-radius:6px;box-shadow:0 0 0 1px var(--border-subtle,#333)}
+.dz-ccard .cmt{font-size:12px;color:var(--text-secondary);padding-left:8px;border-left:2px solid var(--accent-weak,rgba(155,138,251,.35))}
+.dz-ccard .acts{display:flex;gap:6px;align-items:center}
+.dz-ccard .acts input{flex:1;min-width:0;padding:4px 8px}
+.dz-states{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 6px 24px}
+.dz-state{padding:1px 8px;border-radius:999px;border:0;background:var(--hover,rgba(255,255,255,.06));font-size:11.5px;color:var(--text-secondary)}
+.dz-state:hover{color:var(--text-primary)}
+.dz-scr-row small.url{font-family:var(--mono)}
+.dz-frame.dz-agent .dz-device{box-shadow:0 0 0 3px var(--accent-primary,#9B8AFB),0 18px 50px rgba(0,0,0,.45)}
+.dz-agent-tag{position:absolute;right:0;top:-26px;padding:1px 8px;border-radius:999px;background:var(--accent-primary,#9B8AFB);color:#fff;font:600 11px/18px var(--mono)}
+.dz-launch{width:420px}
+.dz-launch .dz-h{margin-top:6px}

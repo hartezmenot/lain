@@ -7,8 +7,12 @@
  *   left    Screens (each with its layers) and "+" to add a component
  *   center  the canvas: every screen in a device frame, Design / Flow, zoom and pan, snapping guides, wires
  *   right   the Inspector: position, size, look, Animation, Behavior
- *   bottom  the prompt bar: one status line, the diff, the test result
- *   top     device, Design / Flow, Undo / Redo, Live, Run test, Open in IDE
+ *   bottom  the prompt bar: one status line, the diff, the test result, the latest change card (All changes: the drawer)
+ *   top     device, Design / Flow, Undo / Redo, Live, Capture state, Run test, Launch & sign-in…, Open in IDE
+ *
+ * D9 (adopting any frontend): screens are keyed by file or route; a selection is mapped by Core (/api/design/select) and
+ * shows its tier; every question Core asks (mapping, instance, breakpoint, shared class, flex move) is asked here; an
+ * edit the proof undid shows why and what would work instead.
  */
 (function () {
   'use strict';
@@ -26,7 +30,13 @@
     openScreens: new Set(),
     live: false, recording: [], session: null, polling: null, relayTimer: null, activityTimer: null,
     seq: 0, waits: new Map(), shown: false, layoutSave: null,
+    tokens: null,          // the project's design language (Core's tokens summary): scales, colours
+    cards: [],             // change cards, newest first
+    states: {},            // screen -> captured states
+    alt: false,            // Alt held: sliders do not snap
   };
+  /** A screen's key: its file, or its route when the router or a crawl found it without one. */
+  const keyOf = (s) => s.file || s.route || s.id;
   const $ = (id) => document.getElementById(id);
   function h(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function icon(name, size) { try { return D.icon(name, size || 15); } catch (e) { return h('span'); } }
@@ -58,14 +68,20 @@
     top.appendChild(h('span', 'sp'));
     const live = btn('Live', 'dz-btn', () => setLive(!st.live), 'pointer'); live.id = 'dzLive'; live.setAttribute('aria-pressed', 'false'); live.title = 'Use the screens like the app (and record a test)';
     top.appendChild(live);
+    const cap = btn('Capture state', 'dz-btn', captureState); cap.id = 'dzCapture'; cap.disabled = true; cap.title = 'Keep what you did in Live as a named state of the screen'; top.appendChild(cap);
     top.appendChild(btn('Run test', 'dz-btn', runTest, 'play')).id = 'dzRun';
+    top.appendChild(btn('Launch & sign-in…', 'dz-btn', () => launchDialog())).id = 'dzLaunchAuth';
     top.appendChild(btn('Open in IDE', 'dz-btn', openInIde, 'code')).id = 'dzIde';
     dz.appendChild(top);
-    const banner = h('div', 'dz-banner'); banner.id = 'dzBanner'; banner.hidden = true; dz.appendChild(banner);
+    const banner = h('div', 'dz-banner'); banner.id = 'dzBanner'; banner.hidden = true;
+    banner.appendChild(h('span', 'txt'));
+    const setLaunch = btn('Set launch command', 'dz-btn', () => launchDialog({ focus: 'cmd' })); setLaunch.id = 'dzSetLaunch'; setLaunch.hidden = true; banner.appendChild(setLaunch);
+    dz.appendChild(banner);
     // BODY
     const body = h('div', 'dz-body');
     const left = h('aside', 'dz-left'); left.id = 'dzLeft';
     const lh = h('div', 'dz-h'); lh.appendChild(h('span', '', 'Screens')); lh.appendChild(h('span', 'sp'));
+    const crawlB = btn('', 'dz-btn', crawl, 'search'); crawlB.id = 'dzCrawl'; crawlB.title = 'Find screens by following the running app\'s links'; lh.appendChild(crawlB);
     const add = btn('', 'dz-btn', () => addDialog(), 'plus'); add.id = 'dzAdd'; add.title = 'Add a component'; lh.appendChild(add);
     left.appendChild(lh);
     const list = h('div'); list.id = 'dzScreens'; left.appendChild(list);
@@ -82,6 +98,7 @@
     zoom.appendChild(btn('+', 'dz-btn', () => setZoom(st.zoom * 1.2)));
     zoom.appendChild(btn('Fit', 'dz-btn', fit));
     center.appendChild(zoom);
+    const drawer = h('div', 'dz-drawer'); drawer.id = 'dzDrawer'; drawer.hidden = true; center.appendChild(drawer);
     body.appendChild(center);
     const right = h('aside', 'dz-right'); right.id = 'dzRight'; body.appendChild(right);
     dz.appendChild(body);
@@ -91,6 +108,12 @@
     bar.appendChild(status);
     const diff = h('details'); diff.id = 'dzDiffBox'; diff.hidden = true; diff.appendChild(h('summary', '', 'Changes')); const pre = h('pre', 'dz-diff'); pre.id = 'dzDiff'; diff.appendChild(pre); bar.appendChild(diff);
     const test = h('div', 'dz-test'); test.id = 'dzTest'; test.hidden = true; bar.appendChild(test);
+    // AN EDIT THE PROOF UNDID: why, in one line, and what would work instead.
+    const rv = h('div', 'dz-revert'); rv.id = 'dzRevert'; rv.hidden = true; bar.appendChild(rv);
+    // THE LATEST CHANGE CARD, and All changes (the drawer).
+    const cb = h('div', 'dz-cardbar'); cb.id = 'dzCardBar';
+    const allC = btn('All changes', 'dz-btn', toggleDrawer); allC.id = 'dzCards'; cb.appendChild(allC);
+    bar.appendChild(cb);
     const inRow = h('div', 'in');
     const ta = h('textarea'); ta.id = 'dzPrompt'; ta.rows = 1; ta.placeholder = 'Describe a change to the selection or this screen…';
     ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPrompt(); } };
@@ -132,7 +155,7 @@
   async function open() {
     status('Opening the project…', 'run');
     const r = await api('/api/design/open', {});
-    if (!r.ok) { status(r.why || 'Design could not open this project', 'bad'); banner(r.why); return; }
+    if (!r.ok) { status(r.why || 'Design could not open this project', 'bad'); banner(r.why, false); return; }
     st.open = r;
     const lay = r.layout || {};
     st.device = (r.devices || []).find((d) => d.id === lay.device) || (r.devices || [])[0];
@@ -141,36 +164,54 @@
     (r.devices || []).forEach((d) => { const o = h('option', '', `${d.name} · ${d.width}×${d.height}`); o.value = d.id; dev.appendChild(o); });
     if (st.device) dev.value = st.device.id;
     const ro = r.readOnly ? r.why : r.editBlock ? `Read-only: ${r.editBlock}` : null;
-    banner(ro || (r.previewWhy ? `No live preview: ${r.previewWhy}` : null));
+    // AN APP DESIGN COULD NOT RUN opens read-only with the one fix: a launch command (and a port).
+    const canLaunch = Boolean(r.readOnly && (r.needsLaunch || r.kind === 'unsupported'));
+    banner(ro || (r.previewWhy ? `No live preview: ${r.previewWhy}` : r.auth ? `Sign-in: ${r.auth}` : null), canLaunch);
     root.classList.toggle('dz-ro', Boolean(ro));
     st.screens = r.screens || [];
     st.flows = r.flows || [];
     paintScreens();
     buildFrames();
     setMode(st.mode);
-    status(`${r.kind === 'web-react' ? 'React' : r.kind === 'web-html' ? 'Web' : r.kind} · ${st.screens.length} screen${st.screens.length === 1 ? '' : 's'}${r.readOnly ? ' · read-only' : ''}`, r.readOnly ? 'bad' : 'ok');
+    const kind = { 'web-react': 'React', 'web-html': 'Web' }[r.kind] || (r.detection && r.detection.framework) || r.kind;
+    status(`${kind} · ${st.screens.length} screen${st.screens.length === 1 ? '' : 's'}${r.attached ? ' · attached to your dev server' : ''}${r.readOnly ? ' · read-only' : ''}`, r.readOnly ? 'bad' : 'ok');
     startRelay();
+    if (!r.readOnly) { loadCards(); loadStates(); loadTokens(); }
   }
-  function banner(text) { const b = $('dzBanner'); if (!b) return; b.hidden = !text; b.textContent = text || ''; }
+  function banner(text, launch) {
+    const b = $('dzBanner'); if (!b) return;
+    b.hidden = !text && !launch;
+    b.querySelector('.txt').textContent = text || '';
+    $('dzSetLaunch').hidden = !launch;
+  }
 
   // ---- screens and layers (left) ----------------------------------------------------------------------------------
   function paintScreens() {
     const list = $('dzScreens'); list.innerHTML = '';
     (st.screens || []).forEach((s) => {
-      const box = h('div', `dz-scr${st.openScreens.has(s.file) ? ' open' : ''}`);
-      const row = h('button', `dz-scr-row${st.sel && st.sel.screen === s.file ? ' on' : ''}`);
+      const k = keyOf(s);
+      const box = h('div', `dz-scr${st.openScreens.has(k) ? ' open' : ''}`);
+      const row = h('button', `dz-scr-row${st.sel && st.sel.screen === k ? ' on' : ''}`);
       const car = h('span', 'dz-car'); car.appendChild(icon('chevron', 13)); row.appendChild(car);
       row.appendChild(h('span', '', s.name));
-      row.appendChild(h('small', '', s.file));
+      // A SCREEN WITHOUT A FILE (a route the crawl found) shows its URL.
+      const sm = h('small', '', k); if (!s.file) { sm.title = `${(st.open && st.open.preview) || ''}${s.route || ''}`; sm.className = 'url'; } row.appendChild(sm);
       row.onclick = async (e) => {
-        if (e.target.closest('.dz-car') || st.openScreens.has(s.file)) { if (st.openScreens.has(s.file)) st.openScreens.delete(s.file); else st.openScreens.add(s.file); }
-        else st.openScreens.add(s.file);
-        if (st.openScreens.has(s.file)) await loadLayers(s.file);
-        focusFrame(s.file);
+        if (e.target.closest('.dz-car') || st.openScreens.has(k)) { if (st.openScreens.has(k)) st.openScreens.delete(k); else st.openScreens.add(k); }
+        else st.openScreens.add(k);
+        if (st.openScreens.has(k) && s.file) await loadLayers(k);
+        focusFrame(k);
         paintScreens();
       };
       box.appendChild(row);
-      if (st.openScreens.has(s.file)) box.appendChild(layerTree(s.file));
+      // CAPTURED STATES of this screen: ▶ replays one.
+      const states = st.states[k] || [];
+      if (states.length) {
+        const chips = h('div', 'dz-states');
+        states.forEach((x) => { const c = btn(`▶ ${x.name}`, 'dz-state', () => replayState(k, x.name)); c.title = `${x.steps.length} step(s)`; chips.appendChild(c); });
+        box.appendChild(chips);
+      }
+      if (st.openScreens.has(k) && s.file) box.appendChild(layerTree(k));
       list.appendChild(box);
     });
   }
@@ -215,8 +256,9 @@
     for (const f of st.frames.values()) f.el.remove();
     st.frames.clear();
     (st.screens || []).forEach((s) => {
-      const fr = h('div', 'dz-frame'); fr.dataset.screen = s.file;
-      const lab = h('div', 'dz-flabel'); lab.appendChild(h('b', '', s.name)); lab.appendChild(h('span', '', s.file));
+      const k = keyOf(s);
+      const fr = h('div', 'dz-frame'); fr.dataset.screen = k;
+      const lab = h('div', 'dz-flabel'); lab.appendChild(h('b', '', s.name)); lab.appendChild(h('span', '', s.file || s.route));
       fr.appendChild(lab);
       const dev = h('div', 'dz-device'); const scr = h('div', 'dz-screen');
       const ifr = h('iframe'); ifr.title = s.name; ifr.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-modals');
@@ -225,8 +267,8 @@
       const ov = h('div', 'dz-ov'); scr.appendChild(ov);
       dev.appendChild(scr); fr.appendChild(dev);
       world.appendChild(fr);
-      const frame = { screen: s.file, info: s, el: fr, dev, scr, iframe: ifr, ov, label: lab, ready: false, nodes: [], scroll: { x: 0, y: 0 } };
-      st.frames.set(s.file, frame);
+      const frame = { screen: k, info: s, el: fr, dev, scr, iframe: ifr, ov, label: lab, ready: false, nodes: [], scroll: { x: 0, y: 0 } };
+      st.frames.set(k, frame);
       lab.onmousedown = (e) => frameDrag(e, frame);
     });
     layoutFrames();
@@ -235,8 +277,9 @@
     const out = {}; const saved = ((st.open && st.open.layout) || {}).screens || {};
     const w = (st.device ? st.device.width : 390) + 120; const hgt = (st.device ? st.device.height : 844) + 160;
     (st.screens || []).forEach((s, i) => {
-      if (st.mode === 'flow' && saved[s.file]) out[s.file] = saved[s.file];
-      else out[s.file] = st.mode === 'flow' ? { x: (i % 3) * (w + 160), y: Math.floor(i / 3) * hgt } : { x: i * w, y: 0 };
+      const k = keyOf(s);
+      if (st.mode === 'flow' && saved[k]) out[k] = saved[k];
+      else out[k] = st.mode === 'flow' ? { x: (i % 3) * (w + 160), y: Math.floor(i / 3) * hgt } : { x: i * w, y: 0 };
     });
     return out;
   }
@@ -291,6 +334,10 @@
       track((ev) => { st.pan.x = s.px + ev.clientX - s.x; st.pan.y = s.py + ev.clientY - s.y; applyView(); }, () => vp.classList.remove('panning'));
     });
     window.addEventListener('message', onMessage);
+    // ALT HELD: sliders take free values instead of snapping to the project's scale.
+    window.addEventListener('keydown', (e) => { if (e.key === 'Alt') st.alt = true; }, true);
+    window.addEventListener('keyup', (e) => { if (e.key === 'Alt') st.alt = false; }, true);
+    window.addEventListener('blur', () => { st.alt = false; });
     document.addEventListener('keydown', (e) => {
       if (!st.shown || !root.offsetParent) return;
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -328,7 +375,8 @@
   function setLive(on) {
     st.live = Boolean(on);
     $('dzLive').setAttribute('aria-pressed', String(st.live));
-    if (st.live) { st.recording = []; status('Live: use the screens; what you do is recorded for Run test', 'run'); } else if (st.recording.length) status(`Recorded ${st.recording.length} step(s) — Run test replays them`, 'ok');
+    if (st.live) { st.recording = []; status('Live: use the screens; what you do is recorded for Run test and Capture state', 'run'); } else if (st.recording.length) status(`Recorded ${st.recording.length} step(s) — Run test replays them; Capture state keeps them`, 'ok');
+    $('dzCapture').disabled = !st.recording.length;
     for (const f of st.frames.values()) post(f, { type: 'mode', mode: st.live ? 'live' : 'design', drawSel: false });
     drawSelection();
   }
@@ -351,15 +399,16 @@
       f.ready = true;
       post(f, { type: 'mode', mode: st.live ? 'live' : 'design', drawSel: false });
       measureFrame(f).then(() => {
-        if (st.follow && st.follow.screen === f.screen) { const id = st.follow.node; st.follow = null; select(f.screen, id, { quiet: true }); } else if (st.sel && st.sel.screen === f.screen) select(f.screen, st.sel.node, { quiet: true });
+        if (st.follow && st.follow.screen === f.screen) { const id = st.follow.node; st.follow = null; select(f.screen, id, { quiet: true }); } else if (st.sel && st.sel.screen === f.screen) select(f.screen, st.sel.node, { quiet: true, selector: st.sel.selector });
         drawFlows();
       });
       if (d.actSeq && st.waits.has(d.actSeq)) { const w = st.waits.get(d.actSeq); st.waits.delete(d.actSeq); w.resolve({ result: { ok: true }, observation: d.observation, navigated: true }); }
       return;
     }
     if (d.seq && st.waits.has(d.seq)) { const w = st.waits.get(d.seq); if (!w.type || w.type === d.type) { st.waits.delete(d.seq); w.resolve(d); return; } }
-    if (d.type === 'select' && !st.live) { if (st.wiring) return; select(f.screen, d.id); return; }
-    if (d.type === 'record' && st.live && d.step) { st.recording.push(Object.assign({ screen: f.screen }, d.step)); status(`Live · ${st.recording.length} step(s) recorded`, 'run'); }
+    // AN ELEMENT DESIGN DID NOT INSTRUMENT has no id: it is selected by its selector, and Core maps it to source.
+    if (d.type === 'select' && !st.live) { if (st.wiring) return; select(f.screen, d.id || null, { selector: d.selector || null }); return; }
+    if (d.type === 'record' && st.live && d.step) { st.recording.push(Object.assign({ screen: f.screen }, d.step)); status(`Live · ${st.recording.length} step(s) recorded`, 'run'); $('dzCapture').disabled = false; }
   }
   async function measureFrame(f, id) {
     const r = await ask(f, { type: 'measure', id: id || null }, 'measured');
@@ -368,19 +417,52 @@
   }
 
   // ---- selection, overlay, drag, resize, snapping ------------------------------------------------------------------
+  /**
+   * SELECT an element: by its id (an element Design instrumented) or its selector (anything else). Three questions run
+   * at once — where it is on the frame, what the source says (inspect, when it has an id), and Core's mapping ladder
+   * (/api/design/select: the tier, the candidates when two places could render it, the cascade, the scale).
+   */
   async function select(screen, node, opts) {
-    if (!screen || !node) { st.sel = null; drawSelection(); paintInspector(); paintScreens(); return; }
+    opts = opts || {};
+    const selector = opts.selector || null;
+    if (!screen || (!node && !selector)) { st.sel = null; drawSelection(); paintInspector(); paintScreens(); hideRevert(); return; }
     const f = st.frames.get(screen);
-    st.sel = { screen, node, layout: null, info: null };
-    if (f) { const m = await measureFrame(f, node); if (st.sel && st.sel.node === node) st.sel.layout = m ? m.layout : null; }
-    const info = await api('/api/design/inspect', { node });
-    if (!st.sel || st.sel.node !== node) return;
-    st.sel.info = info.ok ? info : null;
-    if (!info.ok && info.gone) { st.sel = null; }
-    if (!st.layers.has(screen)) await loadLayers(screen);
+    const prev = st.sel && st.sel.screen === screen && ((node && st.sel.node === node) || (!node && selector && st.sel.selector === selector)) ? st.sel : null;
+    const mine = { screen, node: node || null, selector: selector || (prev && prev.selector) || null, layout: null, info: null, map: prev ? prev.map : null, styles: prev ? prev.styles : null, offScale: prev ? prev.offScale : {}, chosen: prev ? prev.chosen : null };
+    st.sel = mine;
+    if (!prev) hideRevert();
+    const measured = f ? measureFrame(f, node || selector).then((m) => { if (st.sel === mine && m && m.layout) { mine.layout = m.layout; if (!mine.selector) mine.selector = m.layout.selector || null; } }) : Promise.resolve();
+    // THE MAPPING LADDER (only once per element; a reload re-measures but keeps it).
+    const mapped = prev && prev.map ? Promise.resolve() : api('/api/design/select', { screen, node: node || undefined, selector: mine.selector || undefined }).then((r) => {
+      if (st.sel !== mine) return;
+      if (r.ok) {
+        mine.map = r.mapping || { tier: 'none' }; mine.styles = r.styles || {}; mine.offScale = r.offScale || {};
+        if (r.tokens) st.tokens = r.tokens;
+        if (r.selector) mine.selector = r.selector;
+        if (!mine.layout && r.layout) mine.layout = r.layout;
+        if (!mine.info) mine.info = infoFromMap(mine);
+      } else mine.mapWhy = r.why || 'not mapped';
+      drawSelection(); paintInspector();
+    });
+    let info = null;
+    if (node) info = await api('/api/design/inspect', { node });
+    await measured;
+    if (st.sel !== mine) return;
+    if (info && info.ok) mine.info = info;
+    else if (info && info.gone && !selector) { st.sel = null; drawSelection(); paintInspector(); return; }
+    else if (!mine.info && mine.map) mine.info = infoFromMap(mine);
+    if (node && f && !st.layers.has(screen) && f.info.file) await loadLayers(screen);
     st.openScreens.add(screen);
     drawSelection(); paintInspector(); paintScreens();
-    if (!(opts && opts.quiet) && info.ok) status(`${info.tag}${info.elementId ? `#${info.elementId}` : ''}${info.classes.length ? `.${info.classes.join('.')}` : ''} — ${info.file}:${info.line}`, '');
+    if (!opts.quiet && mine.info) status(`${mine.info.tag}${mine.info.elementId ? `#${mine.info.elementId}` : ''}${(mine.info.classes || []).length ? `.${mine.info.classes.join('.')}` : ''} — ${mine.info.file ? `${mine.info.file}${mine.info.line ? `:${mine.info.line}` : ''}` : 'not mapped to source'}`, '');
+    if (!node) await mapped;
+  }
+  /** What the Inspector shows for an element with no source record of its own: Core's mapping and the running page's rules. */
+  function infoFromMap(sel) {
+    const m = sel.map || {}; const d = m.desc || {}; const lay = sel.layout || {};
+    const declared = {};
+    Object.entries(sel.styles || {}).forEach(([k, v]) => { declared[k] = { value: v.value, where: v.file ? `${v.file}:${v.line}` : v.selector, cls: null, sheet: v.file || null }; });
+    return { node: m.node || sel.node, tag: d.tag || lay.tag || 'element', elementId: (d.attrs && d.attrs.id) || null, classes: d.classes || [], text: d.text || '', file: m.file || null, line: m.line || null, declared, target: null, wires: [], uses: {}, mapped: Boolean(m.node) };
   }
   function rectInFrame(f, r) { return { x: r.x - f.scroll.x, y: r.y - f.scroll.y, w: r.w, h: r.h }; }
   function drawSelection() {
@@ -518,28 +600,66 @@
   /**
    * ONE EDIT through Core. A question (shared class, flex child) is asked here, and the edit repeated with the answer.
    */
+  /** The selection's facts on an edit: its screen, its selector when it has no id, the candidate the person chose, the device. */
+  function target(op, screen) {
+    const o = Object.assign({}, op);
+    const s = st.sel;
+    if (!o.screen) o.screen = screen || (s && s.screen) || undefined;
+    if (!o.device && st.device) o.device = st.device.id;
+    if (s && (o.node === s.node || o.node == null) && !['insert', 'removeWire'].includes(o.op)) {
+      if (s.chosen) o.node = s.chosen;
+      if (!o.node && s.selector) o.selector = s.selector;
+    }
+    return o;
+  }
   async function edit(op, screen, opts) {
     if (isReadOnly()) { status(st.open && (st.open.why || st.open.editBlock) ? `Read-only: ${st.open.why || st.open.editBlock}` : 'Read-only', 'bad'); return null; }
-    status('Changing the source…', 'run');
+    op = target(op, screen);
+    status('Changing the source…', 'run'); hideRevert();
     const r = await api('/api/design/edit', { op });
     if (!r.ok) { status(r.why || 'not changed', 'bad'); return r; }
     if (!r.applied) {
-      if (r.needs && r.needs.scope) {
-        const pick = await question(r.needs.scope.question, [{ id: 'only', label: 'Only this one' }, { id: 'all', label: `All ${r.needs.scope.uses} uses` }]);
+      const n = r.needs || {};
+      if (n.scope) {
+        const pick = await question(n.scope.question, [{ id: 'only', label: 'Only this one' }, { id: 'all', label: `All ${n.scope.uses} uses` }]);
         if (!pick) { status('Not changed', ''); return r; }
         return edit(Object.assign({}, op, { scope: pick }), screen, opts);
       }
-      if (r.needs && r.needs.choice) {
-        const c = r.needs.choice;
-        const pick = await chooser(c, opts && opts.at);
+      if (n.choice) {
+        const pick = await chooser(n.choice, opts && opts.at);
         if (!pick) { status('Not changed', ''); return r; }
         return edit(Object.assign({}, op, { choice: pick }), screen, opts);
       }
+      // A BASE RULE THAT A BREAKPOINT ALSO OVERRIDES: all sizes, or only this breakpoint?
+      if (n.breakpoint) {
+        const pick = await question(n.breakpoint.question, [{ id: 'all', label: 'All sizes' }, { id: 'only', label: 'Only this breakpoint' }]);
+        if (!pick) { status('Not changed', ''); return r; }
+        return edit(Object.assign({}, op, { breakpoint: pick }), screen, opts);
+      }
+      // AN ELEMENT RENDERED MANY TIMES: the component (the default), or only this instance (data — the prompt bar)?
+      if (n.instance) {
+        const pick = await question(n.instance.question, [{ id: 'component', label: `Edit <${n.instance.component}>` }, { id: 'only', label: 'Only this instance' }]);
+        if (!pick) { status('Not changed', ''); return r; }
+        if (pick === 'only') { promptAbout('Change only this instance: '); status('One instance of a repeated element is data — describe it to the Agent', ''); return r; }
+        return edit(Object.assign({}, op, { instance: pick }), screen, opts);
+      }
+      // TWO PLACES COULD RENDER IT: never guessed — the candidates, and the person picks.
+      if (n.mapping) {
+        const pick = await pickCandidate(n.mapping.question, n.mapping.candidates || []);
+        if (!pick) { status('Not changed', ''); return r; }
+        if (st.sel) st.sel.chosen = pick;
+        return edit(Object.assign({}, op, { node: pick, selector: undefined }), screen, opts);
+      }
+      if (r.reverted) { showRevert(r, op); status(`Undone: ${r.why}`, 'bad'); return r; }
+      if (r.route === 'agent') { showRevert({ why: r.why, alternatives: ['agent'] }, op); status(r.why, 'bad'); return r; }
       status(r.why || 'not changed', 'bad');
       if (r.stale) refreshAll();
       return r;
     }
     status(r.summary, 'ok'); showDiff(r.diff);
+    if (r.card) loadCards();
+    if (st.sel && r.tier && st.sel.map) st.sel.map.tier = r.tier;
+    if (st.sel && !st.sel.node) { st.sel.map = null; st.sel.info = null; }
     const scr = screen || (st.sel && st.sel.screen);
     if (r.followId && scr) st.follow = { screen: scr, node: r.followId };
     if (scr) st.layers.delete(scr);
@@ -552,7 +672,7 @@
     paintScreens();
     if (st.mode === 'flow') refreshFlows();
     // a React screen hot-reloads without a 'ready': re-measure shortly
-    setTimeout(() => { for (const f of st.frames.values()) measureFrame(f).then(() => { if (st.follow && st.follow.screen === f.screen) { const id = st.follow.node; st.follow = null; select(f.screen, id, { quiet: true }); } else if (st.sel && st.sel.screen === f.screen) select(f.screen, st.sel.node, { quiet: true }); drawFlows(); }); }, 900);
+    setTimeout(() => { for (const f of st.frames.values()) measureFrame(f).then(() => { if (st.follow && st.follow.screen === f.screen) { const id = st.follow.node; st.follow = null; select(f.screen, id, { quiet: true }); } else if (st.sel && st.sel.screen === f.screen) select(f.screen, st.sel.node, { quiet: true, selector: st.sel.selector }); drawFlows(); }); }, 900);
   }
   async function refreshAll() { await open(); }
   async function undo(redo) {
@@ -586,21 +706,276 @@
       center.appendChild(pop);
     });
   }
+  /** TWO PLACES COULD RENDER IT: the candidates, each with its file and line; the person picks one (or none). */
+  function pickCandidate(text, candidates) {
+    return new Promise((resolve) => {
+      const m = h('div', 'dz-modal'); const box = h('div', 'box'); box.id = 'dzMapQ';
+      box.appendChild(h('h4', '', text || 'Two places could render this element. Which one is it?'));
+      candidates.slice(0, 6).forEach((c) => {
+        const b = btn('', 'dz-btn dz-cand', () => { m.remove(); resolve(c.node); });
+        b.appendChild(h('b', '', `${c.file}${c.line ? `:${c.line}` : ''}`));
+        if (c.why || c.score != null) b.appendChild(h('small', '', c.why || `score ${Math.round(c.score * 100) / 100}`));
+        box.appendChild(b);
+      });
+      const row = h('div', 'row');
+      row.appendChild(btn('Neither — ask the Agent', 'dz-btn', () => { m.remove(); resolve(null); askAgentWhere(); }));
+      row.appendChild(btn('Cancel', 'dz-btn', () => { m.remove(); resolve(null); }));
+      box.appendChild(row); m.appendChild(box); document.body.appendChild(m);
+      m.onclick = (e) => { if (e.target === m) { m.remove(); resolve(null); } };
+    });
+  }
+  /** Put a sentence about the selection in the prompt bar, for the person to finish and send. */
+  function promptAbout(lead) { const ta = $('dzPrompt'); if (!ta) return; ta.value = `${lead}${ta.value}`; ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+
+  // ---- an edit the proof undid: the reason, and what would work instead ----------------------------------------------
+  const ALT = { offset: 'Offset it', absolute: 'Make it absolute', 'winning-rule': 'Open the winning rule', agent: 'Ask the Agent' };
+  function hideRevert() { const r = $('dzRevert'); if (r) { r.hidden = true; r.innerHTML = ''; } }
+  function showRevert(res, op) {
+    const box = $('dzRevert'); if (!box) return;
+    box.innerHTML = ''; box.hidden = false;
+    box.appendChild(h('span', 'why', `${res.reverted ? 'Undone — ' : ''}${String(res.why || 'the change did not hold').split('\n')[0]}`));
+    (res.alternatives || []).forEach((a) => {
+      if ((a === 'offset' || a === 'absolute') && op.op !== 'move') return;
+      box.appendChild(btn(ALT[a] || a, 'dz-btn', () => alternative(a, op, res)));
+    });
+    box.appendChild(btn('×', 'dz-btn dz-x', hideRevert));
+  }
+  async function alternative(a, op, res) {
+    if (a === 'offset' || a === 'absolute') { hideRevert(); await edit(Object.assign({}, op, { choice: a }), op.screen); return; }
+    if (a === 'winning-rule') {
+      const props = Object.keys(op.props || {}).concat(op.op === 'move' ? ['left', 'top', 'right', 'bottom', 'transform'] : []);
+      const w = props.map((p) => st.sel && st.sel.styles && st.sel.styles[p]).find((x) => x && x.file);
+      if (w) D.openInIde(w.file, w.line || 1); else status('Design could not tell which rule won — select the element again', 'bad');
+      return;
+    }
+    hideRevert();
+    promptAbout(`This change did not hold (${String(res.why || '').split('\n')[0]}). `);
+  }
+
+  // ---- change cards: the latest in the prompt bar, the rest in the drawer ---------------------------------------------
+  async function loadCards() {
+    const r = await api('/api/design/cards', { action: 'list', limit: 50 });
+    if (!r.ok) return;
+    st.cards = r.cards || [];
+    paintCardBar();
+    if (!$('dzDrawer').hidden) paintDrawer();
+  }
+  const who = (c) => (c.actor === 'agent' ? 'Agent' : 'You');
+  function ago(t) { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; }
+  function proofText(c) {
+    const p = c.proof || {};
+    if (p.skipped) return 'not measured';
+    if (p.structure) return 'proven · structure';
+    return p.actual && p.actual.rect ? 'proven · within 1 px' : 'proven';
+  }
+  function paintCardBar() {
+    const bar = $('dzCardBar'); if (!bar) return;
+    const old = $('dzCardLatest'); if (old) old.remove();
+    const c = st.cards[0];
+    if (!c) return;
+    const el = h('button', 'dz-clatest'); el.id = 'dzCardLatest'; el.title = 'Open All changes';
+    el.appendChild(h('b', '', who(c)));
+    el.appendChild(h('span', 'sum', c.summary || 'a change'));
+    el.appendChild(h('span', `pf${c.proof && c.proof.skipped ? '' : ' ok'}`, proofText(c)));
+    el.appendChild(h('small', '', ago(c.at)));
+    el.onclick = () => openDrawer();
+    bar.insertBefore(el, bar.firstChild);
+  }
+  function openDrawer() { const d = $('dzDrawer'); d.hidden = false; paintDrawer(); }
+  function toggleDrawer() { const d = $('dzDrawer'); if (d.hidden) { openDrawer(); loadCards(); } else d.hidden = true; }
+  function paintDrawer() {
+    const d = $('dzDrawer'); d.innerHTML = '';
+    const hd = h('div', 'dz-h'); hd.appendChild(h('span', '', 'All changes')); hd.appendChild(h('span', 'sp')); hd.appendChild(btn('×', 'dz-btn', () => { d.hidden = true; })); d.appendChild(hd);
+    if (!st.cards.length) { d.appendChild(h('div', 'dz-note', 'Every kept edit — yours or the Agent\'s — leaves a card here, with before and after, the diff and the proof.')); return; }
+    st.cards.forEach((c, i) => {
+      const card = h('div', 'dz-ccard'); card.dataset.card = c.id;
+      const ct = h('div', 'ct'); ct.appendChild(h('b', '', who(c))); ct.appendChild(h('span', 'sum', c.summary || '')); ct.appendChild(h('small', '', ago(c.at)));
+      card.appendChild(ct);
+      const meta = h('div', 'meta');
+      meta.appendChild(h('span', `dz-tier t-${c.tier || 'none'}`, c.tier || 'none'));
+      meta.appendChild(h('span', `pf${c.proof && c.proof.skipped ? '' : ' ok'}`, proofText(c)));
+      if (c.files && c.files.length) meta.appendChild(h('span', 'files', c.files.join(', ')));
+      if (c.frames) meta.appendChild(h('span', '', `${c.frames} test frame${c.frames === 1 ? '' : 's'}`));
+      card.appendChild(meta);
+      // BEFORE / AFTER, fetched when opened.
+      if (c.images && (c.images.before || c.images.after)) {
+        const pics = h('details', 'pics'); pics.appendChild(h('summary', '', 'Before / after'));
+        pics.ontoggle = async () => {
+          if (!pics.open || pics.dataset.done) return; pics.dataset.done = '1';
+          for (const name of ['before.png', 'after.png']) { const r = await api('/api/design/cards', { action: 'image', id: c.id, name }); if (r.ok) { const img = h('img'); img.src = r.data; img.alt = name.replace('.png', ''); pics.appendChild(img); } }
+        };
+        card.appendChild(pics);
+      }
+      if (c.diff) { const dd = h('details', 'diff'); dd.appendChild(h('summary', '', 'Diff')); const pre = h('pre', 'dz-diff'); pre.textContent = c.diff; dd.appendChild(pre); card.appendChild(dd); }
+      (c.comments || []).forEach((x) => card.appendChild(h('div', 'cmt', `${x.by === 'person' ? 'You' : x.by}: ${x.text}`)));
+      const acts = h('div', 'acts');
+      if (i > 0) acts.appendChild(btn('Restore to here', 'dz-btn', () => restoreCard(c)));
+      const ci = h('input'); ci.type = 'text'; ci.placeholder = 'Comment to the Agent about this change…';
+      ci.onkeydown = (e) => { if (e.key === 'Enter') commentCard(c, ci); };
+      acts.appendChild(ci); acts.appendChild(btn('Send', 'dz-btn', () => commentCard(c, ci)));
+      card.appendChild(acts);
+      d.appendChild(card);
+    });
+  }
+  async function restoreCard(c) {
+    const ok = await question(`Undo every change after "${c.summary}"?`, [{ id: 'yes', label: 'Restore to here' }]);
+    if (!ok) return;
+    const r = await api('/api/design/cards', { action: 'restore', id: c.id });
+    if (!r.ok || r.restored === false) { status(r.why || 'could not restore', 'bad'); return; }
+    status(`Restored: ${r.undone} later change${r.undone === 1 ? '' : 's'} undone`, 'ok');
+    st.layers.clear(); await afterEdit(st.sel && st.sel.screen); loadCards();
+  }
+  async function commentCard(c, input) {
+    const text = input.value.trim(); if (!text) return;
+    const r = await api('/api/design/cards', { action: 'comment', id: c.id, text });
+    if (!r.ok) { status(r.why, 'bad'); return; }
+    input.value = '';
+    if (r.session) { st.session = r.session; clearInterval(st.activityTimer); st.activityTimer = setInterval(watchActivity, 1500); }
+    status('Sent to the Agent with this card as its context', 'run'); loadCards();
+  }
+
+  // ---- states, crawl, launch and sign-in --------------------------------------------------------------------------------
+  async function loadStates() { const r = await api('/api/design/states', { action: 'list' }); if (r.ok) { st.states = r.states || {}; paintScreens(); } }
+  async function captureState() {
+    if (!st.recording.length) { status('Turn on Live, use the screen (open a menu, sign in, fill a form), then capture it', ''); return; }
+    const screen = st.recording[0].screen;
+    const name = await askText('Name this state', `State ${((st.states[screen] || []).length) + 1}`);
+    if (!name) return;
+    const steps = st.recording.filter((s) => s.screen === screen).map((s) => { const c = Object.assign({}, s); delete c.screen; return c; });
+    const r = await api('/api/design/states', { action: 'capture', screen, name, steps });
+    if (!r.ok) { status(r.why, 'bad'); return; }
+    status(`Captured "${r.state.name}" (${r.state.steps.length} step${r.state.steps.length === 1 ? '' : 's'}) — its ▶ replays it`, 'ok');
+    loadStates();
+  }
+  async function replayState(screen, name) {
+    status(`Replaying "${name}"…`, 'run');
+    const r = await api('/api/design/states', { action: 'replay', screen, name });
+    const steps = r.steps || [];
+    showTest(steps, steps.length && steps[steps.length - 1].screenshot);
+    status(r.ok ? `"${name}" replayed` : `"${name}" did not replay: ${r.why || 'a step failed'}`, r.ok ? 'ok' : 'bad');
+  }
+  async function crawl() {
+    if (!st.open || st.open.readOnly) return;
+    status('Following the running app\'s links…', 'run');
+    const r = await api('/api/design/crawl', { depth: 2, max: 20 });
+    if (!r.ok) { status(r.why, 'bad'); return; }
+    const have = new Set((st.screens || []).map(keyOf));
+    const add = (r.screens || []).filter((s) => !have.has(keyOf(s)));
+    add.forEach((s) => st.screens.push(s));
+    if (add.length) { buildFrames(); paintScreens(); }
+    status(add.length ? `Found ${add.length} more screen${add.length === 1 ? '' : 's'} by following links` : 'No new screens — every linked page is already here', 'ok');
+  }
+  function askText(title, value) {
+    return new Promise((resolve) => {
+      const m = h('div', 'dz-modal'); const box = h('div', 'box');
+      box.appendChild(h('h4', '', title));
+      const inp = h('input'); inp.type = 'text'; inp.value = value || ''; box.appendChild(inp);
+      const row = h('div', 'row');
+      row.appendChild(btn('Cancel', 'dz-btn', () => { m.remove(); resolve(null); }));
+      row.appendChild(btn('OK', 'dz-btn primary', () => { m.remove(); resolve(inp.value.trim() || null); }));
+      inp.onkeydown = (e) => { if (e.key === 'Enter') { m.remove(); resolve(inp.value.trim() || null); } };
+      box.appendChild(row); m.appendChild(box); document.body.appendChild(m); inp.focus(); inp.select();
+    });
+  }
+  /**
+   * LAUNCH & SIGN-IN: the command and port Design starts the app with (kept in .lain/design.json), and how a gated page
+   * is reached — a cookie file, a login script, or a test URL. Paths and a URL, in LAIN's settings; never a password.
+   */
+  function launchDialog(opts) {
+    const o = opts || {};
+    const m = h('div', 'dz-modal'); const box = h('div', 'box dz-launch'); box.id = 'dzLaunchBox';
+    box.appendChild(h('h4', '', 'Launch & sign-in'));
+    const row = (label, input) => { const r = h('div', 'dz-f2'); r.appendChild(h('label', '', label)); r.appendChild(input); box.appendChild(r); return input; };
+    const l = (st.open && st.open.launch) || {};
+    box.appendChild(h('div', 'dz-h', 'Launch'));
+    const cmd = row('Command', Object.assign(h('input'), { type: 'text', id: 'dzLaunchCmd', placeholder: 'npm run dev', value: l.cmd || '' }));
+    const port = row('Port', Object.assign(h('input'), { type: 'number', id: 'dzLaunchPort', placeholder: '5173', value: l.port || '' }));
+    box.appendChild(h('div', 'dz-note', 'Kept in .lain/design.json (git-excluded). Design runs it through LAIN\'s process manager and shows the app it serves.'));
+    box.appendChild(h('div', 'dz-h', 'Sign-in for gated pages'));
+    const pick = (input, title) => { const w = h('div'); w.style.display = 'flex'; w.style.gap = '6px'; input.style.flex = '1'; w.appendChild(input); w.appendChild(btn('…', 'dz-btn', async () => { const r = D.hostCall ? await D.hostCall('pickFile', { title }) : null; if (r && r.path) input.value = r.path; })); return w; };
+    const cookie = Object.assign(h('input'), { type: 'text', id: 'dzAuthCookie', placeholder: 'cookies.txt / cookies.json exported from your browser' });
+    const script = Object.assign(h('input'), { type: 'text', id: 'dzAuthScript', placeholder: 'login script (reads its secrets from the environment)' });
+    const url = Object.assign(h('input'), { type: 'text', id: 'dzAuthUrl', placeholder: 'test URL that signs a test user in' });
+    const r1 = h('div', 'dz-f2'); r1.appendChild(h('label', '', 'Cookie file')); r1.appendChild(pick(cookie, 'Choose a cookie file')); box.appendChild(r1);
+    const r2 = h('div', 'dz-f2'); r2.appendChild(h('label', '', 'Login script')); r2.appendChild(pick(script, 'Choose a login script')); box.appendChild(r2);
+    row('Test URL', url);
+    box.appendChild(h('div', 'dz-note', 'Paths and a URL, stored in LAIN\'s settings — not in the project. Design keeps no password, and a captured state blanks anything typed into a password field.'));
+    const acts = h('div', 'row');
+    acts.appendChild(btn('Cancel', 'dz-btn', () => m.remove()));
+    const save = btn('Save and reopen', 'dz-btn primary', async () => {
+      m.remove();
+      const changedLaunch = cmd.value.trim() !== (l.cmd || '') || String(port.value || '') !== String(l.port || '');
+      if (changedLaunch) { const r = await api('/api/design/launch', { cmd: cmd.value.trim() || null, port: Number(port.value) || null }); if (!r.ok) { status(r.why, 'bad'); return; } }
+      if (cookie.value.trim() || script.value.trim() || url.value.trim()) {
+        const r = await api('/api/design/auth', { cookieFile: cookie.value.trim() || undefined, loginScript: script.value.trim() || undefined, testUrl: url.value.trim() || undefined });
+        if (!r.ok) { status(r.why, 'bad'); return; }
+      }
+      st.frames.forEach((f) => f.el.remove()); st.frames.clear();
+      await open();
+    }); save.id = 'dzLaunchSave';
+    acts.appendChild(save); box.appendChild(acts);
+    m.appendChild(box); document.body.appendChild(m);
+    m.onclick = (e) => { if (e.target === m) m.remove(); };
+    (o.focus === 'cmd' ? cmd : cookie).focus();
+  }
+  async function loadTokens() { const r = await api('/api/design/tokens', {}); if (r.ok) st.tokens = r.tokens; }
+  /** "Where is this rendered?" — to the Design session's Agent, with the element and a screenshot crop. */
+  async function askAgentWhere() {
+    if (!st.sel || !st.sel.selector) { status('Select the element on the canvas first', 'bad'); return; }
+    const r = await api('/api/design/map-ask', { screen: st.sel.screen, selector: st.sel.selector });
+    if (!r.ok) { status(r.why, 'bad'); return; }
+    st.session = r.session; st.mapAsk = { screen: st.sel.screen, selector: st.sel.selector };
+    status('Asked the Agent where this element is rendered…', 'run');
+    clearInterval(st.activityTimer); st.activityTimer = setInterval(watchActivity, 1500);
+  }
 
   // ---- the Inspector (right) -----------------------------------------------------------------------------------------
   function px(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
+  // ---- the project's scale (tokens.js's rule, read from Core's summary): sliders snap to it, an off-scale value is flagged
+  const SPACING = /^(margin|padding|gap|row-gap|column-gap|top|left|right|bottom)/;
+  function scaleFor(prop) {
+    const t = st.tokens; if (!t) return null;
+    if (SPACING.test(prop)) return { step: t.grid || null, values: t.spacing || [] };
+    if (prop === 'font-size') return { step: null, values: t.fontSizes || [] };
+    if (prop === 'border-radius') return { step: null, values: t.radii || [] };
+    return null;
+  }
+  function snapTo(prop, n) {
+    const sc = scaleFor(prop); if (!sc || !Number.isFinite(n)) return n;
+    if (sc.step) return Math.round(n / sc.step) * sc.step;
+    if (!sc.values.length) return n;
+    const best = sc.values.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+    return Math.abs(best - n) <= 3 ? best : n;
+  }
+  function offScale(prop, n) {
+    const sc = scaleFor(prop); if (!sc || !Number.isFinite(n) || !(sc.step || sc.values.length)) return false;
+    return sc.step ? n % sc.step !== 0 : !sc.values.includes(n);
+  }
   function field(sec, label, opts) {
     const row = h('div', 'dz-f'); row.appendChild(h('label', '', label));
+    const prop = opts.prop || label.toLowerCase();
     const rng = h('input'); rng.type = 'range'; rng.min = String(opts.min); rng.max = String(opts.max); rng.step = String(opts.step || 1); rng.value = String(opts.value);
     const num = h('input'); num.type = 'number'; num.step = String(opts.step || 1); num.value = String(opts.value);
-    rng.oninput = () => { num.value = rng.value; };
-    num.oninput = () => { rng.value = num.value; };
+    const flag = h('span', 'dz-off', 'off-scale'); flag.title = 'Not on this project\'s scale — allowed, and kept as typed'; flag.hidden = true;
+    const mark = () => { const off = (st.sel && st.sel.offScale && st.sel.offScale[prop] && Number(num.value) === Number(opts.value)) || offScale(prop, Number(num.value)); flag.hidden = !off; };
+    // THE SLIDER SNAPS to the scale (Alt: free); a typed number is kept as typed.
+    rng.oninput = () => { const v = st.alt ? Number(rng.value) : snapTo(prop, Number(rng.value)); num.value = String(v); mark(); };
+    num.oninput = () => { rng.value = num.value; mark(); };
     const commit = () => opts.commit(Number(num.value));
     rng.onchange = commit; num.onchange = commit;
     if (isReadOnly() || opts.disabled) { rng.disabled = true; num.disabled = true; }
-    rng.setAttribute('aria-label', label); rng.dataset.prop = opts.prop || label.toLowerCase();
-    row.appendChild(rng); row.appendChild(num); sec.appendChild(row);
+    rng.setAttribute('aria-label', label); rng.dataset.prop = prop;
+    row.appendChild(rng); row.appendChild(num); row.appendChild(flag); sec.appendChild(row);
+    mark();
     return rng;
+  }
+  /** The project's colours first, named tokens first: one click sets the value (Core writes the token for it). */
+  function palette(sec, onpick) {
+    const cols = ((st.tokens && st.tokens.colors) || []).slice(0, 14);
+    if (!cols.length || isReadOnly()) return;
+    const row = h('div', 'dz-pal');
+    cols.forEach((c) => { const b = h('button', `dz-sw${c.name ? ' named' : ''}`); b.style.background = c.value; b.title = c.name ? `${c.name} · ${c.value}` : c.value; b.onclick = () => onpick(c.value); row.appendChild(b); });
+    sec.appendChild(row);
   }
   function sel2(sec, label, values, value, onchange) {
     const row = h('div', 'dz-f2'); row.appendChild(h('label', '', label));
@@ -609,6 +984,31 @@
     row.appendChild(s); sec.appendChild(row); return s;
   }
   function setStyle(props) { return edit({ op: 'setStyle', node: st.sel.node, props }, st.sel.screen); }
+  const TIER = {
+    exact: 'Design instrumented this element at compile time',
+    resolved: 'the framework\'s own dev hook named the file',
+    inferred: 'a unique static match by tag, text, classes and attributes',
+    agent: 'the Agent said where it is (cached in .lain/design/mappings.json)',
+    ambiguous: 'two places could render it — pick one',
+    none: 'not mapped: style edits still work through the CSS rule; markup changes go to the prompt bar',
+  };
+  /** What the mapping means for the person: candidates to pick from, a repeated element, or an element only the Agent can place. */
+  function mappingNotes(box, m) {
+    if (!m) return;
+    if ((m.candidates || []).length && !st.sel.chosen) {
+      const q = h('div', 'dz-mapq'); q.appendChild(h('div', 'dz-note', m.question || 'Two places could render this element. Which one is it?'));
+      m.candidates.slice(0, 5).forEach((c) => {
+        const b = btn('', 'dz-btn dz-cand', () => { st.sel.chosen = c.node; status(`Using ${c.file}${c.line ? `:${c.line}` : ''} for this element`, 'ok'); paintInspector(); });
+        b.appendChild(h('b', '', `${c.file}${c.line ? `:${c.line}` : ''}`)); q.appendChild(b);
+      });
+      box.appendChild(q);
+    } else if (st.sel.chosen) box.appendChild(h('div', 'dz-note', 'Using the place you picked for this element.'));
+    if ((m.count || 1) > 1) box.appendChild(h('div', 'dz-note', `Rendered ${m.count} times${m.component ? ` by <${m.component}>` : ''}: a change edits the component. Only this instance is data — describe it in the prompt bar.`));
+    if (m.tier === 'none' || (!m.node && m.tier !== 'ambiguous')) {
+      const a = btn('Ask the Agent where this is', 'dz-btn', askAgentWhere); a.id = 'dzMapAsk';
+      box.appendChild(h('div', 'dz-note', TIER.none)); box.appendChild(a);
+    }
+  }
   function paintInspector() {
     const right = $('dzRight'); if (!right) return;
     right.innerHTML = '';
@@ -618,13 +1018,24 @@
       return;
     }
     const info = st.sel.info; const lay = st.sel.layout || { rect: { x: 0, y: 0, w: 0, h: 0 }, position: 'static', style: {} };
-    const dec = info.declared || {}; const cs = lay.style || {};
+    // WHAT THE SOURCE DECLARES, else the rule that wins on the running page (an app Design did not make).
+    const dec = Object.assign({}, Object.fromEntries(Object.entries(st.sel.styles || {}).map(([k, v]) => [k, { value: v.value }])), info.declared || {}); const cs = lay.style || {};
     const box = h('div', 'dz-ins');
-    box.appendChild(h('h3', '', `${info.tag}${info.elementId ? `#${info.elementId}` : ''}`));
-    const src = h('div', 'src'); src.appendChild(h('span', '', `${info.file}:${info.line}`));
-    const oi = h('button', '', 'Open'); oi.onclick = () => D.openInIde(info.file, info.line); src.appendChild(oi); box.appendChild(src);
+    const title = h('div', 'dz-ttl'); title.appendChild(h('h3', '', `${info.tag}${info.elementId ? `#${info.elementId}` : ''}`));
+    // THE TIER: how sure Design is about where this element comes from.
+    const m = st.sel.map;
+    if (m) { const t = h('span', `dz-tier t-${m.tier}`, m.tier); t.title = TIER[m.tier] || ''; title.appendChild(t); } else if (!st.sel.mapWhy) title.appendChild(h('span', 'dz-tier t-wait', '…'));
+    box.appendChild(title);
+    const src = h('div', 'src');
+    if (info.file) {
+      src.appendChild(h('span', '', `${info.file}${info.line ? `:${info.line}` : ''}`));
+      const oi = h('button', '', 'Open'); oi.onclick = () => D.openInIde(info.file, info.line || 1); src.appendChild(oi);
+    } else src.appendChild(h('span', '', 'not mapped to source'));
+    if (m && m.via) src.appendChild(h('small', '', `via ${m.via}`));
+    box.appendChild(src);
+    mappingNotes(box, m);
     const tgt = info.target || {};
-    box.appendChild(h('div', 'dz-note', tgt.kind === 'shared' ? `.${tgt.cls} is used ${tgt.uses}×: a change asks whether to change all of them.` : tgt.kind === 'scoped' ? `New styles go to a new class .${tgt.cls}.` : tgt.kind === 'class' ? `Styles go to .${tgt.cls} (${tgt.sheet}).` : tgt.kind === 'tailwind' ? 'Styles are written as Tailwind utilities.' : 'Styles go to the inline style.'));
+    box.appendChild(h('div', 'dz-note', tgt.kind === 'shared' ? `.${tgt.cls} is used ${tgt.uses}×: a change asks whether to change all of them.` : tgt.kind === 'scoped' ? `New styles go to a new class .${tgt.cls}.` : tgt.kind === 'class' ? `Styles go to .${tgt.cls} (${tgt.sheet}).` : tgt.kind === 'tailwind' ? 'Styles are written as Tailwind utilities.' : info.target ? 'Styles go to the inline style.' : 'Styles go to the rule that sets them on the running page (traced to your file).'));
     // LAYOUT
     const s1 = h('div', 'dz-sec'); s1.appendChild(h('div', 'dz-h', 'Layout'));
     const abs = /absolute|fixed/.test(lay.position);
@@ -645,8 +1056,10 @@
     field(s2, 'Font size', { prop: 'font-size', min: 6, max: 96, value: px(dec['font-size'] ? dec['font-size'].value : cs.fontSize), commit: (v) => setStyle({ 'font-size': `${v}px` }) });
     const colorRow = h('div', 'dz-f2'); colorRow.appendChild(h('label', '', 'Color'));
     const col = h('input'); col.type = 'color'; col.value = hex(dec.color ? dec.color.value : cs.color); col.onchange = () => setStyle({ color: col.value }); col.disabled = isReadOnly(); colorRow.appendChild(col); s2.appendChild(colorRow);
+    palette(s2, (v) => setStyle({ color: v }));
     const bgRow = h('div', 'dz-f2'); bgRow.appendChild(h('label', '', 'Fill'));
     const bg = h('input'); bg.type = 'color'; bg.value = hex(dec['background-color'] ? dec['background-color'].value : cs.backgroundColor, '#ffffff'); bg.onchange = () => setStyle({ 'background-color': bg.value }); bg.disabled = isReadOnly(); bgRow.appendChild(bg); s2.appendChild(bgRow);
+    palette(s2, (v) => setStyle({ 'background-color': v }));
     box.appendChild(s2);
     // ANIMATION
     const s3 = h('div', 'dz-sec'); s3.appendChild(h('div', 'dz-h', 'Animation'));
@@ -668,7 +1081,7 @@
     if (!(info.wires || []).length) s4.appendChild(h('div', 'dz-note', 'No wires. Drag the → handle to a screen, or choose here.'));
     const trig = sel2(s4, 'Trigger', ['click', 'longpress', 'swipe-left', 'swipe-right', 'swipe-up', 'swipe-down', 'change'], 'click');
     const act = sel2(s4, 'Action', [{ id: 'navigate', label: 'Go to screen' }, { id: 'toggleDropdown', label: 'Toggle dropdown' }, { id: 'openModal', label: 'Open as modal' }, { id: 'back', label: 'Back' }, { id: 'setState', label: 'Set state' }], 'navigate');
-    const tgtSel = sel2(s4, 'Target', (st.screens || []).map((s) => ({ id: s.file, label: s.name })), st.wireTarget || null);
+    const tgtSel = sel2(s4, 'Target', (st.screens || []).filter((s) => s.file).map((s) => ({ id: s.file, label: s.name })), st.wireTarget || null);
     const allPresets = st.presets || [{ id: 'none', label: 'None' }, { id: 'slide-left', label: 'Slide left' }, { id: 'fade', label: 'Fade' }, { id: 'expand-from-element', label: 'Expand from element' }];
     const tr = sel2(s4, 'Transition', allPresets, 'none');
     const tdRow = h('div', 'dz-f2'); tdRow.appendChild(h('label', '', 'Duration')); const td = h('input'); td.type = 'number'; td.value = '300'; td.step = '50'; tdRow.appendChild(td); s4.appendChild(tdRow);
@@ -706,7 +1119,7 @@
     const asset = Object.assign(h('input'), { type: 'text', placeholder: '.png / .ico / .svg (optional)', id: 'dzAddAsset' });
     const pick = btn('…', 'dz-btn', async () => { const r = D.hostCall ? await D.hostCall('pickFile', { title: 'Choose an image', kind: 'image' }) : null; if (r && r.path) asset.value = r.path; });
     const wrap = h('div'); wrap.style.display = 'flex'; wrap.style.gap = '6px'; asset.style.flex = '1'; wrap.appendChild(asset); wrap.appendChild(pick); assetRow.appendChild(wrap); box.appendChild(assetRow);
-    const wire = h('select'); wire.id = 'dzAddWire'; [{ id: '', label: 'No wire' }].concat((st.screens || []).map((s) => ({ id: s.file, label: `Go to ${s.name}` }))).forEach((o) => { const op = h('option', '', o.label); op.value = o.id; wire.appendChild(op); }); row('Wire', wire);
+    const wire = h('select'); wire.id = 'dzAddWire'; [{ id: '', label: 'No wire' }].concat((st.screens || []).filter((s) => s.file).map((s) => ({ id: s.file, label: `Go to ${s.name}` }))).forEach((o) => { const op = h('option', '', o.label); op.value = o.id; wire.appendChild(op); }); row('Wire', wire);
     const parentNote = h('div', 'dz-note', st.sel && st.sel.info ? `Inside ${st.sel.info.tag}${st.sel.info.elementId ? `#${st.sel.info.elementId}` : ''} (the selection).` : 'Inside the screen\'s first section. Select a container first to put it there.');
     box.appendChild(parentNote);
     const actions = h('div', 'row');
@@ -768,6 +1181,9 @@
       clearInterval(st.activityTimer); st.activityTimer = null;
       if (!edits.length) status(r.reply ? r.reply.split('\n')[0].slice(0, 160) : 'Done', 'ok');
       st.layers.clear(); afterEdit(st.sel && st.sel.screen);
+      loadCards();
+      // THE AGENT ANSWERED "where is this?": map the selection again (its tier is now agent, cached in the project).
+      if (st.mapAsk && st.sel && st.sel.selector === st.mapAsk.selector) { st.sel.map = null; st.mapAsk = null; select(st.sel.screen, st.sel.node, { selector: st.sel.selector, quiet: true }); }
     }
   }
 
@@ -788,6 +1204,11 @@
     focusFrame(f.screen);
     const was = st.live; if (!was) for (const g of st.frames.values()) post(g, { type: 'mode', mode: 'live', drawSel: false });
     status('The Agent is testing on the canvas…', 'run');
+    // THE FRAME THE AGENT IS DRIVING is outlined and says so, for as long as the test runs.
+    f.el.classList.add('dz-agent'); const badge = h('div', 'dz-agent-tag', 'Agent is testing'); badge.id = 'dzAgentTesting'; f.el.appendChild(badge);
+    try { return await runSteps(job, f, was); } finally { f.el.classList.remove('dz-agent'); badge.remove(); }
+  }
+  async function runSteps(job, f, was) {
     const out = [];
     for (let i = 0; i < job.steps.length; i++) {
       const s = job.steps[i];
