@@ -37,6 +37,19 @@ function compiler() {
   return best;
 }
 
+/** A folder's stamp from its files' names, sizes and times (for asset folders that carry no VERSION). */
+function stampOf(root) {
+  const h = crypto.createHash('sha256');
+  const walk = (d, rel) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((x, y) => (x.name < y.name ? -1 : 1))) {
+      const p = path.join(d, e.name); const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(p, r); else { const s = fs.statSync(p); h.update(`${r}\0${s.size}\0${s.mtimeMs}\n`); }
+    }
+  };
+  walk(root, '');
+  return `stamp:${h.digest('hex').slice(0, 16)}`;
+}
+
 /** THE ASSETS THE WINDOW RENDERS. */
 function writeAssets(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -49,13 +62,16 @@ function writeAssets(dir) {
   for (const a of (typeof h.assetDirs === 'function' ? h.assetDirs() : [])) {
     const at = path.join(dir, ...String(a.url).split('/'));
     try {
-      const want = fs.readFileSync(path.join(a.dir, 'VERSION'), 'utf8');
+      // A FOLDER WITH NO VERSION FILE (the Design surface) is stamped by its files, so a changed file is copied again.
+      const own = fs.existsSync(path.join(a.dir, 'VERSION'));
+      const want = own ? fs.readFileSync(path.join(a.dir, 'VERSION'), 'utf8') : stampOf(a.dir);
       let have = null;
       try { have = fs.readFileSync(path.join(at, 'VERSION'), 'utf8'); } catch { have = null; }
       if (have === want && !fs.lstatSync(at).isSymbolicLink()) continue;
       fs.rmSync(at, { recursive: true, force: true });
       fs.mkdirSync(path.dirname(at), { recursive: true });
       fs.cpSync(a.dir, at, { recursive: true });
+      if (!own) fs.writeFileSync(path.join(at, 'VERSION'), want);
     } catch { /* the page falls back to its built-in editor */ }
   }
   return { dir, file, bytes: Buffer.byteLength(html) };
