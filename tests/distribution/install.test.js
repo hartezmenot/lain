@@ -572,13 +572,11 @@ module.exports = async function () {
   // ------------------------------------------------------------ packaging --
 
   await test('PACKAGE: one executable, one entrypoint, no second CLI', () => {
-    // ONE PROGRAM: `lain`, and `lain` — its name before the rename — as a shim to the same Core and home (bin/lain.js
-    // prints the deprecation once and runs the same boot). No `lain-cli`, `lain-harness` or `lain-runtime`.
+    // ONE PROGRAM, ONE COMMAND: `lain` (the Noema-era `noema` alias is retired). No `lain-cli`, `lain-harness`, `lain-runtime`.
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    assert.deepStrictEqual(Object.keys(pkg.bin).sort(), ['lain', 'lain'], 'the command and its deprecated alias');
+    assert.deepStrictEqual(Object.keys(pkg.bin), ['lain'], 'one command');
     assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
-    assert.strictEqual(pkg.bin.lain, 'bin/lain.js');
-    assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'lain.js'), 'utf8'), /require\('\.\.\/src\/boot'\)\.start\(\{ via: 'lain' \}\)/, 'the alias is the same program');
+    assert.match(fs.readFileSync(path.join(ROOT, 'bin', 'lain.js'), 'utf8'), /require\('\.\.\/src\/boot'\)\.start\(/, 'it boots LAIN');
   });
 
   await test('PACKAGE: the published files are an ALLOWLIST that carries the runtime', () => {

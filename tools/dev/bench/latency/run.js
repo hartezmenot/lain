@@ -18,7 +18,7 @@
  * Paths
  *   direct  a bare HTTP request to the fake model (in-process and from a fresh `node`) — the floor
  *   inproc  App.submit in this process (warm Core: what every turn after the first pays)
- *   cli     `node bin/noema.js -p "<prompt>"` cold (process start → model request → exit)
+ *   cli     `node bin/lain.js -p "<prompt>"` cold (process start → model request → exit)
  */
 
 const fs = require('fs');
@@ -142,7 +142,7 @@ function cliOnce(server, sb, prompt) {
     const from = server.log.length;
     const t0 = performance.now();
     let firstOut = null;
-    const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'noema.js'), '-p', prompt], { cwd: sb.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'lain.js'), '-p', prompt], { cwd: sb.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.on('data', () => { if (firstOut == null) firstOut = performance.now() - t0; });
     child.stderr.on('data', () => {});
     child.on('exit', () => {

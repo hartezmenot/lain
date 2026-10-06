@@ -126,24 +126,16 @@ module.exports = async function () {
     assert.strictEqual(resolveIn(fresh).toLowerCase(), path.join(fresh, '.lain').toLowerCase());
   });
 
-  await test('RENAME command: `noema` runs the same LAIN and says once that the product is LAIN again; `lain` says nothing', () => {
+  await test('RENAME command: `lain` is the one command — no `noema` command, no Noema notice, even with an old LAIN_VIA mark', () => {
+    const pkg = require('../../package.json');
+    assert.deepStrictEqual(Object.keys(pkg.bin), ['lain']);
+    assert.ok(!fs.existsSync(path.join(ROOT, 'bin', 'noema.js')));
     const profile = tmpdir('lain-profile-');
     fs.mkdirSync(path.join(profile, '.lain'), { recursive: true });
-    const env = envFor(profile);
-    const a = node(['bin/noema.js', '--version'], env);
-    assert.strictEqual(a.status, 0, a.stderr);
-    assert.match(a.stdout, /^LAIN CLI \d+\.\d+\.\d+/);
-    assert.match(a.stderr, /Noema has been renamed back to LAIN\.\nUse `lain` for future commands/);
-    const b = node(['bin/noema.js', '--version'], env);
-    assert.ok(!/renamed/.test(b.stderr), 'said once');
-    const c = node(['bin/lain.js', '--version'], env);
-    assert.strictEqual(c.stdout, a.stdout, 'the same program');
-    assert.ok(!/renamed/.test(c.stderr));
-    // The installed `noema.cmd` shim marks itself with LAIN_VIA=noema and runs lain.exe — the same notice path.
-    const p2 = tmpdir('lain-profile-');
-    fs.mkdirSync(path.join(p2, '.lain'), { recursive: true });
-    const d = node(['bin/lain.js', '--version'], envFor(p2, { LAIN_VIA: 'noema' }));
-    assert.match(d.stderr, /renamed back to LAIN/);
+    const c = node(['bin/lain.js', '--version'], envFor(profile, { LAIN_VIA: 'noema' }));
+    assert.strictEqual(c.status, 0, c.stderr);
+    assert.match(c.stdout, /^LAIN CLI \d+\.\d+\.\d+/);
+    assert.ok(!/noema|renamed/i.test(c.stderr), c.stderr);
   });
 
   await test('RENAME pipe: a Noema-era Core on this home (noema-core-<hash of ~/.noema>) is found — LAIN never starts a second Core', async () => {
@@ -269,7 +261,8 @@ module.exports = async function () {
     const src = fs.readFileSync(path.join(ROOT, 'src', 'update', 'updater.js'), 'utf8');
     assert.match(src, /function entryIn\(dir\) \{ return fs\.existsSync\(path\.join\(dir, 'app', 'bin', 'lain\.js'\)\) \|\| fs\.existsSync\(path\.join\(dir, 'app', 'bin', 'noema\.js'\)\); \}/);
     assert.ok(!/'app', 'bin', 'noema\.js'\)\)\s*\)?\s*[;{]/.test(src.replace(/function entryIn[^\n]*\n/, '')), 'every other check goes through entryIn');
-    assert.ok(fs.existsSync(path.join(ROOT, 'bin', 'noema.js')), 'every package keeps bin/noema.js, which a Noema-era launcher starts');
+    // No Noema-era install remains to start bin/noema.js (2026-10-07): the package ships one entry point.
+    assert.ok(!fs.existsSync(path.join(ROOT, 'bin', 'noema.js')), 'no bin/noema.js ships');
   });
 
   await test('RENAME legacy cleanup: obsolete and Noema-era builds are found; the current launcher and its launch.json are not', () => {

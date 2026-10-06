@@ -127,20 +127,15 @@ module.exports = async function () {
     assert.ok(!fs.existsSync(LINK), 'start at sign-in is OFF until the person turns it on');
   });
 
-  await test('INSTALLER: no LAIN executable ships; `lain` is a shim onto the same lain.exe, with the notice once', () => {
+  await test('INSTALLER: the launchers are lain.exe and LAIN Harness.exe — no Noema program, command or shim ships', () => {
     const files = fs.readdirSync(D1);
-    assert.ok(!files.some((f) => /^lain.*\.exe$/i.test(f)), `a LAIN executable was installed: ${files.join(', ')}`);
+    assert.ok(files.includes('lain.exe') && files.includes('Uninstall LAIN.exe'), files.join(', '));
     const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [e.name]);
-    assert.deepStrictEqual(walk(D1).filter((f) => /^(lain|LAIN)[^/\\]*\.exe$|lain-supervisor/i.test(f)), [], 'nowhere in the payload either');
-    const shim = fs.readFileSync(path.join(D1, 'lain.cmd'), 'utf8');
-    assert.match(shim, /"%~dp0lain\.exe" %\*/, 'the shim runs lain.exe');
-    assert.match(shim, /setlocal/i);
-    const run1 = spawnSync('cmd.exe', ['/d', '/c', path.join(D1, 'lain.cmd'), '--version'], { env, encoding: 'utf8', windowsHide: true, timeout: 120000 });
-    assert.match(String(run1.stdout), /^LAIN CLI 0\.1\.0/, String(run1.stdout) + run1.stderr);
-    assert.match(String(run1.stderr), /LAIN has been renamed to LAIN/);
-    const run2 = spawnSync('cmd.exe', ['/d', '/c', path.join(D1, 'lain.cmd'), '--version'], { env, encoding: 'utf8', windowsHide: true, timeout: 120000 });
-    assert.ok(!/renamed to LAIN/.test(String(run2.stderr)), 'the notice is said once per home');
-    assert.ok(!fs.existsSync(path.join(HOME, '..', '.lain-v2')) && !fs.readdirSync(HOME).some((f) => /lain/i.test(f)), 'no LAIN home was made');
+    assert.deepStrictEqual(walk(D1).filter((f) => /noema/i.test(f) && !/\.(js|md|json)$/i.test(f)), [], 'no noema.exe, noema.cmd or Noema Harness.exe anywhere');
+    const r = cli(D1, ['--version']);
+    assert.match(r.out, /^LAIN CLI 0\.1\.0/, r.out + r.err);
+    assert.ok(!/noema|renamed/i.test(r.err), r.err);
+    assert.ok(!fs.existsSync(path.join(HOME, '..', '.lain-v2')) && !fs.existsSync(path.join(HOME, '..', '.noema')), 'no old home was made');
   });
 
   await test('INSTALLER: the installed copy depends on NOTHING in the checkout', () => {
@@ -194,7 +189,8 @@ module.exports = async function () {
   });
 
   await test('INSTALLER: upgrade 0.1.0 → 0.1.1 side by side — previous kept for rollback, choices kept', () => {
-    fs.writeFileSync(path.join(D1, 'lain.exe'), 'MZ obsolete');           // a LAIN-era build left in the folder
+    fs.writeFileSync(path.join(D1, 'noema.exe'), 'MZ obsolete');           // a Noema-era program left in the folder
+    fs.writeFileSync(path.join(D1, 'noema.cmd'), '@echo off');
     const r = run(release('0.1.1'), ['--silent', '--dir', D1]);
     assert.strictEqual(r.code, 0, r.log);
     assert.strictEqual(ptr(D1, 'current'), '0.1.1');
@@ -202,8 +198,9 @@ module.exports = async function () {
     assert.ok(fs.existsSync(path.join(D1, 'versions', '0.1.0')) && fs.existsSync(path.join(D1, 'versions', '0.1.1')));
     assert.match(cli(D1, ['--version']).out, /^LAIN CLI 0\.1\.1/);
     assert.ok(comps(D1).harness === true && comps(D1).openWith === false, JSON.stringify(comps(D1)));
-    assert.ok(!fs.existsSync(path.join(D1, 'lain.exe')), 'the upgrade removed the obsolete lain.exe');
-    assert.match(r.log, /removed the obsolete lain\.exe/);
+    assert.ok(!fs.existsSync(path.join(D1, 'noema.exe')) && !fs.existsSync(path.join(D1, 'noema.cmd')), 'the upgrade removed the Noema-era program and command');
+    assert.match(r.log, /removed the obsolete noema\.exe/);
+    assert.ok(fs.existsSync(path.join(D1, 'lain.exe')), 'lain.exe is the product');
     assert.ok(pointsInto(D1), 'start at sign-in survives the upgrade, unchanged');
   });
 
