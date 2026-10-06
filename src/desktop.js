@@ -73,6 +73,8 @@ function writeAssets(dir) {
   const html = h.html();
   const file = path.join(dir, 'index.html');
   fs.writeFileSync(file, html);
+  // THE PAGE'S ICON: the renderer asks for /favicon.ico; it is LAIN's own (no 404 in the window's console).
+  try { if (fs.existsSync(ICON)) fs.copyFileSync(ICON, path.join(dir, 'favicon.ico')); } catch { /* cosmetic */ }
   // THE HARNESS'S OTHER ASSETS (its vendored editor) are served from the same origin as the page — web workers require it.
   for (const a of (typeof h.assetDirs === 'function' ? h.assetDirs() : [])) {
     const at = path.join(dir, ...String(a.url).split('/'));

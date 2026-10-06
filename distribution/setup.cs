@@ -83,6 +83,12 @@ static class Setup {
     }
     Application.EnableVisualStyles();
     string installed = InstalledAt();
+    // THE MAINTENANCE COPY INSIDE AN INSTALL ("Uninstall LAIN.exe", components.json beside it) acts on THAT install —
+    // never on whichever one the registry or the default path names.
+    if (o.Dir == null) {
+      string self = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+      if (File.Exists(Path.Combine(self, "components.json")) && File.Exists(Path.Combine(self, "current"))) o.Dir = self;
+    }
     if (o.Dir == null) o.Dir = installed ?? DefaultDir();
     Action<string> console = s => { Console.WriteLine(s); if (o.Log != null) { try { File.AppendAllText(o.Log, s + Environment.NewLine); } catch { } } };
     if (o.Uninstall) return Uninstaller.Run(o, o.Silent ? console : null);
