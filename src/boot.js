@@ -52,7 +52,8 @@ function afterMove(home, pkg, via, argv) {
   else if (moved.state === 'deferred' && !argv.includes('--version') && !argv.includes('-v')) process.stderr.write(`note: ${moved.why}\n`);
   const FORCE_EXIT_GRACE_MS = 3000;
   const finish = (code) => {
-    process.exitCode = typeof code === 'number' ? code : 0;
+    // A RESTART FOR AN UPDATE (update/lifecycle.js) already chose the code the launcher acts on; main ending is not a reason to drop it.
+    if (process.exitCode !== require('./update/updater').RESTART_CODE) process.exitCode = typeof code === 'number' ? code : 0;
     const t = setTimeout(() => process.exit(process.exitCode), FORCE_EXIT_GRACE_MS);
     if (typeof t.unref === 'function') t.unref();
   };

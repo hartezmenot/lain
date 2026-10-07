@@ -39,8 +39,10 @@ async function perform(app, kind, { stopTurn = false } = {}) {
     const r = U.apply({ args, cwd: (s && s.cwd) || process.cwd() });
     if (!r.ok) return r;
     try { app.render.notice('info', `Restarting into LAIN ${r.version} — this ${surface === 'cli' ? 'terminal' : 'window'} continues ${cp && cp.stepIndex ? `at step ${cp.stepIndex} of ${cp.stepTotal}` : 'where it was'}.`); } catch { /* no renderer */ }
+    // NOT UNREF'D (2026-10-07): teardown closes the window, main resolves and boot's finish sets exitCode 0 — a process
+    // left to drain on its own then ended 0, and the launcher, never seeing 75, did not start the new version.
     process.exitCode = r.restartCode;
-    setTimeout(() => process.exit(r.restartCode), 300).unref();
+    setTimeout(() => process.exit(r.restartCode), 300);
     try { await require('../teardown').shutdown(app, { why: 'restarting for an update' }); } catch { /* exiting anyway */ }
     return { ok: true, restarting: r.version, checkpoint: cp };
   }

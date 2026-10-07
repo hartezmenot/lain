@@ -80,4 +80,22 @@ module.exports = async function () {
     assert.strictEqual(later.code, 200);
     assert.strictEqual(later.body.update.pendingRestart, null);
   });
+
+  // FOUND BY THE REAL HARNESS UPDATE (2026-10-07): the restart's exit timer was unref'd, and boot's finish then set
+  // exitCode 0 when main resolved — a process that drained before 300 ms ended 0, so the launcher never restarted it.
+  await test('LIFECYCLE: a restart for an update ends the process with 75 even when later code sets exitCode 0 and the loop drains', () => {
+    const path = require('path'); const { spawnSync } = require('child_process');
+    const src = path.join(__dirname, '..', '..', 'src');
+    const child = [
+      `const Module = require('module'); const path = require('path'); const src = ${JSON.stringify(src)};`,
+      "const stub = (rel, exp) => { const id = require.resolve(path.join(src, rel)); require.cache[id] = { id, filename: id, loaded: true, exports: exp }; };",
+      "stub('update/updater.js', { apply: () => ({ ok: true, version: '9.9.9', restartCode: 75 }), RESTART_CODE: 75 });",
+      "stub('teardown.js', { shutdown: async () => {} });",
+      "stub('surfacehandoff.js', { surfaceOf: () => 'desktop', release: () => {} });",
+      "const LC = require(path.join(src, 'update', 'lifecycle.js'));",
+      "LC.perform({ session: null, render: { notice() {} } }, 'update').then(() => { process.exitCode = 0; });",
+    ].join(';');
+    const r = spawnSync(process.execPath, ['-e', child], { encoding: 'utf8', timeout: 15000 });
+    assert.strictEqual(r.status, 75, `the launcher acts on 75 only: ${r.status} ${r.stderr}`);
+  });
 };
