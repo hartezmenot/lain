@@ -84,8 +84,10 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
   await wait(2500);
 
   // ---- 3. THE HARNESS: Update button (a release is available), dropdown, Exit LAIN ---------------------------------
+  // THE NEXT RELEASE, from the one product version — a hardcoded number stops being "newer" at the next bump.
+  const NEXT = require('../../package.json').version.replace(/(\d+)$/, (n) => String(Number(n) + 1));
   fs.mkdirSync(path.join(HOME, 'update'), { recursive: true });
-  fs.writeFileSync(path.join(HOME, 'update', 'state.json'), JSON.stringify({ channel: 'stable', checkedAt: Date.now(), available: { version: '0.2.0', summary: ['Model Dashboard in the CLI', 'Preview input for models'], notes: null, reachable: true, asset: { name: 'x.zip', url: 'x.zip', sha256: '0'.repeat(64) } } }));
+  fs.writeFileSync(path.join(HOME, 'update', 'state.json'), JSON.stringify({ channel: 'stable', checkedAt: Date.now(), available: { version: NEXT, summary: ['Model Dashboard in the CLI', 'Preview input for models'], notes: null, reachable: true, asset: { name: 'x.zip', url: 'x.zip', sha256: '0'.repeat(64) } } }));
   port = 9600 + Math.floor(Math.random() * 300);
   o = await win.open(app, { dev: true, debugPort: port });
   c = await attach(port);
@@ -99,7 +101,7 @@ const shot = async (c, name) => { const r = await c.send('Page.captureScreenshot
     await ev(c, `document.getElementById('updateBtn').click()`);
     await wait(700);
     const pop = await ev(c, `(function(){ var p=document.querySelector('.updpop'); return p ? { text: p.innerText, buttons: Array.from(p.querySelectorAll('button')).map(function(b){return b.textContent}) } : null })()`);
-    check('Harness: the dropdown says what is new; a checkout offers Later and says Download is for installed builds — never a silent restart', pop && /LAIN 0\.2\.0/i.test(pop.text) && /What/.test(pop.text) && pop.buttons.includes('Later') && /install the update with the LAIN installer/.test(pop.text), JSON.stringify(pop).slice(0, 300));
+    check('Harness: the dropdown says what is new; a checkout offers Later and says Download is for installed builds — never a silent restart', pop && pop.text.includes(`LAIN ${NEXT}`) && /What/.test(pop.text) && pop.buttons.includes('Later') && /install the update with the LAIN installer/.test(pop.text), JSON.stringify(pop).slice(0, 300));
     await shot(c, 'harness-update-dropdown.png');
     await ev(c, `document.body.click(); document.getElementById('railExit').click()`);
     await wait(700);
