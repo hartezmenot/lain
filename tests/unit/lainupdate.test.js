@@ -248,9 +248,9 @@ module.exports = async function () {
       await new Promise((r) => setTimeout(r, 4500));
       assert.deepStrictEqual(restarts, [], 'a busy CLI is never interrupted');
       assert.strictEqual(said.filter((x) => /restart when the current task finishes/.test(x)).length, 1, said.join(' | '));
-      // IDLE BOUNDARY: one "Restart to activate" notice.
+      // IDLE BOUNDARY: one "Restart to activate" notice — after one settled quiet step, so the turn's close cannot clear it.
       busyApp.abort = null; busyApp._lastInputAt = Date.now() - 10 * 60 * 1000;
-      await new Promise((r) => setTimeout(r, 2500));
+      await new Promise((r) => setTimeout(r, 4500));
       assert.strictEqual(said.filter((x) => /Update installed · Restart to activate/.test(x)).length, 1, said.join(' | '));
       assert.deepStrictEqual(restarts, [], 'not yet — the person gets the idle window first');
       clearInterval(busyApp._update.watch);

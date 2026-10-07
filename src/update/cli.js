@@ -9,7 +9,9 @@ const FIRST_CHECK_MS = Number(process.env.LAIN_UPDATE_FIRST_CHECK_MS) > 0 ? Numb
 function U() { return require('./updater'); }
 function L() { return require('./lifecycle'); }
 
-function say(app, text, tone = 'info') { try { app.render.notice(tone, text); } catch { process.stderr.write(`${text}\n`); } }
+// THROUGH app.transient (2026-10-07): outside a turn the full-screen CLI never drew render.notice — "Restart to activate"
+// and "Updated to LAIN x" flashed and vanished. The story holds them until work begins.
+function say(app, text, tone = 'info') { try { if (typeof app.transient === 'function') app.transient(tone, text); else app.render.notice(tone, text); } catch { process.stderr.write(`${text}\n`); } }
 
 /**
  * COMPLETELY IDLE (2026-10-07) — nothing a restart could cost: no model request, no task, no background job or agent
@@ -68,7 +70,11 @@ function follow(app, version) {
       if (L().busy(app) && !saidBusy && !saidIdle) { saidBusy = true; say(app, `✓ LAIN ${version} installed · restart when the current task finishes`); }
       return;
     }
-    if (saidBusy && !saidIdle) { saidIdle = true; say(app, `${require('./ux').INSTALLED} — /update now · /update later (LAIN restarts by itself if you leave it idle)`); quietSince = now; return; }
+    if (saidBusy && !saidIdle) {
+      // ONE QUIET STEP FIRST: idle is seen the instant the turn's request ends, while its close still clears the notes.
+      if (quietSince == null) { quietSince = now; return; }
+      saidIdle = true; say(app, `${require('./ux').INSTALLED} — /update now · /update later (LAIN restarts by itself if you leave it idle)`); quietSince = now; return;
+    }
     if (quietSince == null) quietSince = now;
     // IDLE FROM THE START (or left idle after the notice): the restart is automatic, the session resumes.
     if (!saidBusy || now - quietSince >= IDLE_MS) {
@@ -84,7 +90,8 @@ function follow(app, version) {
 
 /** AN INSTALLED LAIN, STARTED: the previous version's idle supervisor makes way (supervisor.js handedOver). */
 function handover() {
-  if (U().installRoot()) require('../supervisor').retireStale().catch(() => false);
+  // NEVER IN THE WAY OF UPDATES: a failure here leaves the old supervisor to its idle exit, and start() carries on.
+  try { if (U().installRoot()) require('../supervisor').retireStale().catch(() => false); } catch { /* it exits by itself when idle */ }
 }
 
 /** Called once by an interactive CLI. Timers are unref'd: they never keep LAIN alive. */
@@ -166,7 +173,13 @@ function afterRestart(app) {
   const b = U().build();
   const st = U().readState();
   const from = st.applied && st.applied.from;
-  say(app, `Updated to LAIN ${b.version}${from ? ` (from ${from})` : ''}.`);
+  // CALLED BEFORE app.start() turns the full screen on: said once it is up (or at once without a terminal), never into nothing.
+  const tell = () => say(app, `Updated to LAIN ${b.version}${from ? ` (from ${from})` : ''}.`);
+  if (process.stdout.isTTY && app.ui && !app.ui.enabled) {
+    let tries = 0;
+    const poll = setInterval(() => { if (app.ui.enabled || ++tries > 50) { clearInterval(poll); tell(); } }, 100);
+    if (typeof poll.unref === 'function') poll.unref();
+  } else tell();
   const s = app.session;
   let unfinished = false;
   try { unfinished = require('../surfacehandoff').unfinished(s); } catch { unfinished = false; }
