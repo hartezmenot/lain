@@ -42,6 +42,15 @@ those arguments (`--resume <session> --after-update`, plus `--desktop` for the H
 **Rollback:** a pending version that exits with a failure before reporting healthy (within 60 s) is replaced by
 `previous` automatically, recorded in `rolled-back`, and the person is told.
 
+**Exit code 75 always reaches the launcher.** The restart's exit timer keeps the process alive, and `boot.finish` does
+not overwrite a restart code when `main` resolves (before 0.2.4 a process that drained early ended 0, and the launcher
+never started the new version).
+
+**The previous version's supervisor makes way.** `endpoint.json` names the binary serving it (`exe`). A started
+installed LAIN whose binary differs asks it to `retire`; it does only when it holds no live job and no Bot, then
+the new version starts its own on demand. With work in hand it keeps serving until idle (it exits by itself after
+600 s with nothing to keep). Supervisors from 0.2.1 and older have no `retire` and leave by idle exit only.
+
 ## One state, two policies (2026-10-07)
 
 The phase every surface reads (`updater.js` PHASES, written to `<home>/update/state.json` while it happens):
