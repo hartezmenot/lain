@@ -55,12 +55,18 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use jobs::Registry;
 use json::Value;
 use remote::Remote;
+
+/// When a client last spoke to this supervisor (seconds since 1970). Read by the idle reaper.
+static LAST_CLIENT: AtomicU64 = AtomicU64::new(0);
+/// How long a supervisor with nothing to keep may sit idle before it exits (2026-10-07).
+const IDLE_EXIT_SECS: u64 = 600;
 
 const VERSION: &str = "0.4.0";
 
@@ -231,6 +237,27 @@ fn serve() {
     // forever when the machine cannot speak HTTPS at all.
     telegram::supervise(kernel.clone());
 
+    // ---- NOTHING TO KEEP, NOTHING TO DO: EXIT (2026-10-07) ---------------------
+    //
+    // The supervisor outlives LAIN for durable jobs and the Bot. Without either — no queued or running job, no
+    // remote configured — and no client for IDLE_EXIT_SECS, it ends: an idle LAIN machine has no resident process,
+    // and closed windows never leave supervisors behind. A supervisor whose home has been removed ends at once.
+    LAST_CLIENT.store(jobs::now(), Ordering::Relaxed);
+    {
+        let k = kernel.clone();
+        thread::spawn(move || loop {
+            thread::sleep(std::time::Duration::from_secs(60));
+            if !k.dir.exists() { process::exit(0); }
+            let busy = k.jobs.lock().map(|r| r.jobs.values().any(|j| !j.state.is_final())).unwrap_or(true);
+            let bot = k.remote.lock().map(|r| r.configured()).unwrap_or(true);
+            let idle_for = jobs::now().saturating_sub(LAST_CLIENT.load(Ordering::Relaxed));
+            if !busy && !bot && idle_for >= IDLE_EXIT_SECS {
+                let _ = std::fs::remove_file(endpoint_file());
+                process::exit(0);
+            }
+        });
+    }
+
     for stream in listener.incoming() {
         match stream {
             Ok(s) => {
@@ -259,6 +286,7 @@ fn handle(stream: TcpStream, kernel: Arc<Kernel>) {
         if line.trim().is_empty() {
             continue;
         }
+        LAST_CLIENT.store(jobs::now(), Ordering::Relaxed);
         let reply = respond(&line, &kernel);
         if writeln!(out, "{}", json::write(&reply)).is_err() {
             break;

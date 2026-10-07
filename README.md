@@ -23,7 +23,7 @@ model change.
 | | What it is |
 |---|---|
 | **LAIN Core** | The one owner of state: sessions, tasks, plans, evidence, provider and runtime routing, usage, permissions. Everything else is a surface over Core. |
-| **Harness** (`lain --desktop`) | The desktop application: Home, IDE, Chat, Model, Usage, MCP & Skills, Settings. |
+| **Harness** (Start → LAIN, or `lain --desktop`) | The desktop application: Home, IDE, Chat, Design, Model, Usage, MCP & Skills, Settings. |
 | **CLI** (`lain`) | The same Core in a terminal. A task started here can be continued in the Harness and back. |
 | **Messaging** | Telegram (and other channels) as another surface of the same sessions — [`docs/BOT.md`](docs/BOT.md). |
 | **LAIN Server** (`lain --serve`) | LAIN's connected models, served to other applications on this computer. |
@@ -217,23 +217,24 @@ allow remote access.
 
 ## Install
 
+**Windows:** run `LAIN-Setup-<version>.exe` — one installer for the CLI and the
+Harness (with Design), per user, no administrator. Then Start → **LAIN** opens the
+Harness, and `lain` works in any terminal. Details: [`docs/INSTALL.md`](docs/INSTALL.md).
+
 ```bash
-npm install -g lain
 lain --doctor        # what works on this machine, and why anything does not
 lain                 # the CLI, in any project
-lain --desktop       # the Harness
+lain --desktop       # the Harness (or Start → LAIN)
 ```
 
-From a clone, without npm: `node distribution/install.js` (writes a launcher
-into your user PATH and verifies it; `node distribution/uninstall.js` undoes it).
-Core needs Node 18+ and has **no runtime dependencies**. Everything else —
-Chromium for previews, git, GitHub CLI, runtimes — is optional and reported
-honestly by `lain --doctor`. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+| | Where |
+|---|---|
+| The program | `%LOCALAPPDATA%\Programs\LAIN` — updated by LAIN's updater ([`docs/UPDATER.md`](docs/UPDATER.md)) |
+| Your data | `~/.lain` — settings, accounts, credentials (Windows DPAPI), skills, sessions, logs. The one home. |
+| Development | one repository (this one): Core, CLI, Harness (`harness/`), Design (`packages/design-core/`), installer — [`docs/RUN-FROM-CHECKOUT.md`](docs/RUN-FROM-CHECKOUT.md) |
 
-**Where LAIN keeps your data:** `~/.lain-v2` (configuration, sessions, usage,
-secrets encrypted with Windows DPAPI). The folder name is kept from earlier
-releases so existing installations keep working; it is a storage location, not
-the product name.
+Everything optional — Chromium for previews, git, GitHub CLI, runtimes — is
+reported honestly by `lain --doctor`.
 
 ## Documentation
 

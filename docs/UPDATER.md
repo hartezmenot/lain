@@ -42,19 +42,28 @@ those arguments (`--resume <session> --after-update`, plus `--desktop` for the H
 **Rollback:** a pending version that exits with a failure before reporting healthy (within 60 s) is replaced by
 `previous` automatically, recorded in `rolled-back`, and the person is told.
 
-## What it says, and when it restarts (never by itself)
+## One state, two policies (2026-10-07)
 
-One canonical view in Core (`src/update/ux.js`), read by the CLI and the Harness alike:
+The phase every surface reads (`updater.js` PHASES, written to `<home>/update/state.json` while it happens):
+CURRENT · CHECKING · AVAILABLE · DOWNLOADING · VERIFYING · STAGED · RESTART_REQUIRED (a staged version, seen by a
+running LAIN) · FAILED. One view in Core (`src/update/ux.js`) — the CLI header and the Harness read the same.
 
-| State | Words (CLI notice and header; Harness popover) | Harness button |
-|---|---|---|
-| a release is available | `↑ LAIN x.y.z ready to update` — `/update install` downloads it | **Update ready ●** |
-| downloaded, verified, unpacked | `✓ Update installed · Restart to activate` | **Update ready ●** |
-| up to date | nothing | hidden |
+**Anti-replay.** Every signed manifest carries `sequence` (grows with every release), `issued_at` and `expires_at`.
+A manifest with a lower sequence than the highest accepted is a replay and refused — the highest is remembered in the
+state *and* beside the install (`feed-sequence`), so a data reset cannot reopen it. Expired or future-dated manifests
+are refused. A staged package must name the manifest's version in its own `build-info.json`.
 
-LAIN never restarts because it found an update: the launcher starts the installed version the next time LAIN
-starts anyway. Restarting sooner is the person's choice — `/update now` (offered only when nothing is working),
-`/update after-checkpoint`, `/update after-task`, `/update later`; the Harness offers the same.
+**The CLI is automatic.** It checks, downloads, verifies and stages by itself (`update.auto`, on by default).
+- Completely idle (no model request, task, background job or agent, no open question, decision or permission, no
+  unsent draft, no keystroke for a minute): it restarts into the new version at once and the session resumes.
+- Busy: never interrupted. One notice — `✓ LAIN x.y.z installed · restart when the current task finishes` — and, at
+  the next idle boundary, one more: `✓ Update installed · Restart to activate — /update now · /update later`. Left
+  idle after that, it restarts by itself. `/update later` keeps it staged and stops the automatic restart.
+- With `update.auto` off: said once, nothing restarts by itself.
+
+**The Harness asks.** It checks by itself; when a release is available: *LAIN x.y.z is available* [**Update**]
+[**Later**]. Update downloads, verifies and stages; then *✓ Update installed · Restart to activate*
+[**Restart LAIN**] [**Later**] — or, while the Coding Agent works, [**Restart after task**] [**Later**].
 
 **The active task is never killed.** "Working" (`lifecycle.busy`) is a turn, the Coding Agent's run, an in-process
 background job, or a background agent — each ends with the process, so "now" is refused for all of them (a supervised
