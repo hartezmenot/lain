@@ -1,6 +1,6 @@
 {
   "name": "lain-harness",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "description": "LAIN Harness — the visual frontend of LAIN (interface document + native WebView2 shell). Presentation only; LAIN Core owns all state and authority.",
   "license": "MIT",
