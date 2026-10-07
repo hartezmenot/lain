@@ -82,8 +82,14 @@ function follow(app, version) {
   step();
 }
 
+/** AN INSTALLED LAIN, STARTED: the previous version's idle supervisor makes way (supervisor.js handedOver). */
+function handover() {
+  if (U().installRoot()) require('../supervisor').retireStale().catch(() => false);
+}
+
 /** Called once by an interactive CLI. Timers are unref'd: they never keep LAIN alive. */
 function start(app) {
+  handover();
   if (!U().installRoot() || process.env.LAIN_NO_UPDATE_CHECK === '1') return null;
   const first = setTimeout(() => tick(app).catch(() => null), FIRST_CHECK_MS);
   const every = setInterval(() => tick(app).catch(() => null), U().CHECK_MS);
@@ -93,6 +99,7 @@ function start(app) {
 
 /** THE HARNESS: CHECK ONLY. */
 function watch(app) {
+  handover();
   if (!U().installRoot() || process.env.LAIN_NO_UPDATE_CHECK === '1') return null;
   const check = () => U().check({ cfg: app.cfg }).then(() => { try { require('../harnessapp/ipc').wake(); } catch { /* no window */ } }, () => null);
   const first = setTimeout(check, FIRST_CHECK_MS);

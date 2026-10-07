@@ -221,6 +221,12 @@ async function handedOver(first) {
   return !alive(ep.pid);
 }
 
+/** At startup: an idle supervisor of another install version makes way now, not at its idle exit. Never starts one. */
+async function retireStale() {
+  const p = probe();
+  return p.running ? handedOver(p) : false;
+}
+
 async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } = {}) {
   if (signal && signal.aborted) return { available: true, running: false, why: 'supervisor startup cancelled' };
   let first = probe();
@@ -350,5 +356,5 @@ function build({ release = true } = {}) {
 module.exports = {
   probe, ensure, submit, status, cancel, list, events, shutdown, shutdownIn, build, home,
   call, callIfRunning, callManyIfRunning, sendMany, invalidate,
-  endpoint, binary, alive, stateDir, endpointFile, TIMEOUT_MS, cleanupOwned,
+  endpoint, binary, alive, stateDir, endpointFile, TIMEOUT_MS, cleanupOwned, retireStale,
 };

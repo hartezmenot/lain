@@ -262,6 +262,29 @@ module.exports = async function () {
     }
   });
 
+  // AT STARTUP the new version does not wait for its first job: an idle old supervisor is retired then, and none is started.
+  await test('SUPERVISOR: at startup an idle supervisor of another version is retired, and none is started in its place', async () => {
+    const env = isolate('stale');
+    const bins = ['old', 'new'].map((v) => { const d = path.join(env._home, `v-${v}`); fs.mkdirSync(d); const f = path.join(d, path.basename(probe.binary)); fs.copyFileSync(probe.binary, f); return f; });
+    const prevBin = process.env.LAIN_SUPERVISOR_BIN;
+    try {
+      await withHomeAsync(env._home, async () => {
+        process.env.LAIN_SUPERVISOR_BIN = bins[0]; supervisor.invalidate();
+        const old = await supervisor.ensure();
+        assert.ok(old.running, old.why);
+        assert.strictEqual(await supervisor.retireStale(), false, 'its own binary is never asked to retire');
+        assert.ok(supervisor.alive(old.endpoint.pid));
+        process.env.LAIN_SUPERVISOR_BIN = bins[1]; supervisor.invalidate();
+        assert.strictEqual(await supervisor.retireStale(), true, 'an idle supervisor of another version makes way');
+        assert.ok(!supervisor.alive(old.endpoint.pid), 'the old process is gone');
+        assert.strictEqual(supervisor.probe().running, false, 'and nothing was started in its place');
+      });
+    } finally {
+      if (prevBin === undefined) delete process.env.LAIN_SUPERVISOR_BIN; else process.env.LAIN_SUPERVISOR_BIN = prevBin;
+      supervisor.invalidate();
+    }
+  });
+
   await test('SUPERVISOR: a malformed request is answered, and the supervisor stays up', async () => {
     const env = isolate('bad');
     await withHomeAsync(env._home, async () => {
