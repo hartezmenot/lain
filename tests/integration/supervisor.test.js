@@ -227,6 +227,41 @@ module.exports = async function () {
     });
   });
 
+  // AFTER AN UPDATE the running supervisor is the OLD version's binary. The new client asks it to retire: refused while
+  // it holds a live job (the work carries on), granted once idle — and the new version's binary takes over.
+  await test('SUPERVISOR: after an update the old binary retires only when idle, and the new one takes over', async () => {
+    const env = isolate('retire');
+    const bins = ['old', 'new'].map((v) => { const d = path.join(env._home, `v-${v}`); fs.mkdirSync(d); const f = path.join(d, path.basename(probe.binary)); fs.copyFileSync(probe.binary, f); return f; });
+    const same = (a, b) => fs.realpathSync.native(a).toLowerCase() === fs.realpathSync.native(b).toLowerCase();
+    const prevBin = process.env.LAIN_SUPERVISOR_BIN;
+    try {
+      await withHomeAsync(env._home, async () => {
+        process.env.LAIN_SUPERVISOR_BIN = bins[0]; supervisor.invalidate();
+        const old = await supervisor.ensure();
+        assert.ok(old.running, old.why);
+        assert.ok(old.endpoint.exe && same(old.endpoint.exe, bins[0]), `the endpoint names the binary serving it: ${old.endpoint.exe}`);
+        const mark = path.join(env._home, 'retire-mark.txt');
+        const job = await supervisor.submit({ command: slowMark(mark, 3), shell: process.platform === 'win32' ? 'cmd' : 'sh' });
+        assert.ok(job.ok, job.error);
+        process.env.LAIN_SUPERVISOR_BIN = bins[1]; supervisor.invalidate();
+        const busy = await supervisor.ensure();
+        assert.strictEqual(busy.endpoint.pid, old.endpoint.pid, 'with a job running, the old supervisor stays');
+        assert.ok(await until(() => fs.existsSync(mark)), 'and the job finishes there');
+        await until(async () => { const s = await supervisor.status(job.job.id); return s.ok && !['queued', 'running'].includes(s.job.state); });
+        const next = await supervisor.ensure();
+        assert.ok(next.running && next.endpoint.pid !== old.endpoint.pid, `idle, it made way: ${JSON.stringify(next.endpoint)}`);
+        assert.ok(!supervisor.alive(old.endpoint.pid), 'the old process is gone');
+        assert.ok(same(next.endpoint.exe, bins[1]), 'the new version serves');
+        const kept = await supervisor.status(job.job.id);
+        assert.ok(kept.ok && kept.job.state === 'completed', `and the finished job is still on record: ${JSON.stringify(kept.job || kept)}`);
+        await supervisor.shutdown();
+      });
+    } finally {
+      if (prevBin === undefined) delete process.env.LAIN_SUPERVISOR_BIN; else process.env.LAIN_SUPERVISOR_BIN = prevBin;
+      supervisor.invalidate();
+    }
+  });
+
   await test('SUPERVISOR: a malformed request is answered, and the supervisor stays up', async () => {
     const env = isolate('bad');
     await withHomeAsync(env._home, async () => {

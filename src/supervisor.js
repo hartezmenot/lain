@@ -82,7 +82,7 @@ function endpoint(root = home()) {
   let value = null;
   try {
     const v = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (v && v.pid && v.port) value = { pid: v.pid, port: v.port, version: v.version || null };
+    if (v && v.pid && v.port) value = { pid: v.pid, port: v.port, version: v.version || null, exe: v.exe || null };
   } catch { value = null; }
   endpointMemo.set(file, { mtimeMs: st.mtimeMs, size: st.size, value, checkedAt: now });
   return value && alive(value.pid) ? value : null;
@@ -203,9 +203,29 @@ async function cleanupOwned() {
   if (failed) throw failed.reason;
 }
 
+/**
+ * AFTER AN UPDATE (2026-10-07): the running supervisor is another install version's binary. It is asked to retire,
+ * which it does only holding no live job and no Bot; then this client starts its own. Otherwise it keeps serving
+ * until idle (it exits by itself), and the old version folder is freed then. True when it has gone.
+ */
+async function handedOver(first) {
+  const ep = first.endpoint; const mine = first.binary;
+  if (!ep || !ep.exe || !mine) return false;
+  const norm = (p) => { try { p = fs.realpathSync.native(p); } catch { /* compared as written */ } return process.platform === 'win32' ? p.toLowerCase() : p; };
+  if (norm(ep.exe) === norm(mine)) return false;
+  const r = await send(ep.port, { op: 'retire' }, { timeoutMs: 1500 });
+  if (!r || !r.retired) return false;
+  const deadline = Date.now() + 3000;
+  while (alive(ep.pid) && Date.now() < deadline) await new Promise((res) => setTimeout(res, 50));
+  invalidate();
+  return !alive(ep.pid);
+}
+
 async function start(root, { startTimeoutMs = START_TIMEOUT_MS, signal = null } = {}) {
   if (signal && signal.aborted) return { available: true, running: false, why: 'supervisor startup cancelled' };
-  const first = probe();
+  let first = probe();
+  if (first.running && !(await handedOver(first))) return first;
+  if (first.running) first = probe();
   if (first.running) return first;
   if (!first.available) return first;
 

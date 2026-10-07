@@ -194,6 +194,7 @@ fn serve() {
     ep.set("pid", Value::n(pid as i64));
     ep.set("port", Value::n(port as i64));
     ep.set("version", Value::s(VERSION));
+    if let Ok(exe) = std::env::current_exe() { ep.set("exe", Value::s(&exe.to_string_lossy())); }
     ep.set("started_at", Value::n(jobs::now() as i64));
     let tmp = dir.join("endpoint.tmp");
     if std::fs::write(&tmp, json::write(&ep).as_bytes())
@@ -248,10 +249,8 @@ fn serve() {
         thread::spawn(move || loop {
             thread::sleep(std::time::Duration::from_secs(60));
             if !k.dir.exists() { process::exit(0); }
-            let busy = k.jobs.lock().map(|r| r.jobs.values().any(|j| !j.state.is_final())).unwrap_or(true);
-            let bot = k.remote.lock().map(|r| r.configured()).unwrap_or(true);
             let idle_for = jobs::now().saturating_sub(LAST_CLIENT.load(Ordering::Relaxed));
-            if !busy && !bot && idle_for >= IDLE_EXIT_SECS {
+            if nothing_to_keep(&k) && idle_for >= IDLE_EXIT_SECS {
                 let _ = std::fs::remove_file(endpoint_file());
                 process::exit(0);
             }
@@ -296,10 +295,21 @@ fn handle(stream: TcpStream, kernel: Arc<Kernel>) {
         if reply.str("op") == "shutdown" {
             process::exit(0);
         }
+        if reply.str("op") == "retire" && matches!(reply.get("retired"), Some(Value::Bool(true))) {
+            let _ = std::fs::remove_file(endpoint_file());
+            process::exit(0);
+        }
     }
     // THE CLIENT LEAVING IS NOT AN EVENT. No job is touched here, and that
     // omission is the feature: LAIN disconnecting is precisely the case where
     // the work must carry on.
+}
+
+/// No queued or running job and no Bot: this supervisor holds nothing a successor could lose.
+fn nothing_to_keep(k: &Arc<Kernel>) -> bool {
+    let busy = k.jobs.lock().map(|r| r.jobs.values().any(|j| !j.state.is_final())).unwrap_or(true);
+    let bot = k.remote.lock().map(|r| r.configured()).unwrap_or(true);
+    !busy && !bot
 }
 
 fn err(op: &str, why: &str) -> Value {
@@ -419,6 +429,18 @@ fn respond(line: &str, kernel: &Arc<Kernel>) -> Value {
                 }
                 None => err("cancel", "no such job"),
             }
+        }
+        "retire" => {
+            // AFTER AN UPDATE (2026-10-07): the client's own binary differs from this one. With nothing to keep, this
+            // process ends (after replying) and the client starts its own; with a job or the Bot, it stays until idle.
+            let mut v = Value::obj();
+            v.set("ok", Value::Bool(true));
+            v.set("op", Value::s("retire"));
+            // `reg` is this function's jobs guard — taking the lock again here would deadlock. (Lock order: jobs, then remote.)
+            let busy = reg.jobs.values().any(|j| !j.state.is_final());
+            let bot = kernel.remote.lock().map(|r| r.configured()).unwrap_or(true);
+            v.set("retired", Value::Bool(!busy && !bot));
+            v
         }
         "shutdown" => {
             // Only ever used by tests and by an explicit operator action. A
