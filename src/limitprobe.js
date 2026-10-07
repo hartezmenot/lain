@@ -4,7 +4,8 @@
  * CONTINUE ASKS THE PROVIDER (2026-10-03). A rate limit LAIN remembers — an account's stored limit (fabric), the
  * route breaker (availability.js) — is a memory of a 429, not the provider's word now; a usage reset on the
  * provider's own site never reaches it. When the person continues, every such memory on the route this turn would
- * use is dropped, so ONE real request tests it: an answer carries on, a fresh 429 records the limit again.
+ * use is dropped, so ONE real request tests it: an answer carries on, a fresh 429 records the limit again. A breaker an
+ * outage opened (refused, unreachable) is not a limit and stays open until /provider retry (2026-10-07).
  * Never for LAIN's own automatic resumes (autocontinue.AUTOMATIC) — those wait for the clock.
  */
 
@@ -20,8 +21,10 @@ function forget(app, session) {
     const connId = pc.connectionId || pc.provider;
     if (avail && connId && !pc.unavailable) {
       const gate = avail.shouldAttemptFor(connId, pc.canonicalModel || pc.model || '');
-      // A HOLD LAIN PUT THERE (a limit, an open breaker) — never one the person set (disabled, maintenance).
-      if (!gate.allow && (gate.rateLimited || gate.status === 'UNAVAILABLE' || gate.status === 'DEGRADED')) { avail.retry(connId); out.push(`route ${connId}`); }
+      // A HOLD A 429 PUT THERE (a limit, a breaker the limit opened) — never one the person set (disabled, maintenance), and never an
+      // outage's breaker: a dead route re-tested on every typed line is the retry storm the breaker exists to stop (/provider retry reopens it).
+      const limit = gate.rateLimited || avail.getFor(connId, pc.canonicalModel || pc.model || '').rateLimited;
+      if (!gate.allow && limit && (gate.rateLimited || gate.status === 'UNAVAILABLE' || gate.status === 'DEGRADED')) { avail.retry(connId); out.push(`route ${connId}`); }
     }
   } catch { /* the gate re-learns from the next reply */ }
   return out;
