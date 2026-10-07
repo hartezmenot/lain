@@ -77,8 +77,14 @@ module.exports = async function () {
     });
     const out = plain(r.out);
     assert.match(out, /Steering now/, 'the region must change its heading when promoted');
-    assert.match(out, /USER STEER delivered to the model/,
+    // Delivered into the running turn, it is drawn as the person's own message (S12: 'USER STEER · …', not a notice).
+    assert.match(out, /USER STEER · also check the backend/,
       'and a promoted steer must actually reach the running turn');
+    // INSIDE that turn, not as a later one: the session holds one turn, and the steer is in its messages.
+    const dir = path.join(r.configDir || configDir, 'sessions');
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((f) => f.endsWith('.json'))), 'utf8'));
+    assert.ok(!(saved.turns || []).some((t) => t.from === 'steer'), 'a promoted steer is not queued as a turn of its own');
+    assert.ok((saved.messages || []).some((m) => m._steer && /also check the backend/.test(String(m.content))), 'the running turn received it');
   });
 
   await test('STEER LIVE: Escape puts the text back on the input line', async () => {
