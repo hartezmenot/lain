@@ -52,7 +52,7 @@ module.exports = async function () {
     } finally { f.restore(); }
   });
 
-  await test('NEVER BY ITSELF: finding an update says so once and restarts nothing — even when idle', async () => {
+  await test('AUTOMATIC UPDATES OFF: a staged update is said once and restarts nothing — even when idle', async () => {
     const f = fakeUpdater({ state: 'staged', staged: { version: '3.0.0' } });
     const realPerform = lc.perform;
     let performed = 0;

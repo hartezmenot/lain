@@ -137,13 +137,12 @@ module.exports = async function () {
     assert.strictEqual(again.executables.length + (again.startMenuLink ? 1 : 0), 0, 'nothing left to do');
   }));
 
-  await test('COMPAT: the `noema` command is a shim onto the same LAIN — no Noema executable, no second home or pipe', () => {
+  await test('ONE COMMAND: `lain` — the Noema-era `noema` alias is retired; no Noema home, binary, supervisor or pipe', () => {
     const code = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'bin', f), 'utf8').replace(/^\s*(\/\/|\*|\/\*\*).*$/gm, '');
-    const lines = code('noema.js').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    assert.deepStrictEqual(lines, ['#!/usr/bin/env node', "'use strict';", "require('../src/boot').start({ via: 'noema' });"], 'one line: the same boot, marked as the old name');
-    assert.ok(!/\.noema|noema\.exe|noema-supervisor|noema-core/i.test(code('noema.js') + code('lain.js')), 'neither names a Noema home, binary, supervisor or pipe');
+    assert.ok(!fs.existsSync(path.join(__dirname, '..', '..', 'bin', 'noema.js')), 'no bin/noema.js');
+    assert.ok(!/\.noema|noema\.exe|noema-supervisor|noema-core/i.test(code('lain.js')), 'bin/lain.js names no Noema home, binary, supervisor or pipe');
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
     assert.strictEqual(pkg.name, 'lain');
-    assert.deepStrictEqual(pkg.bin, { lain: 'bin/lain.js', noema: 'bin/noema.js' }, 'lain is the command; noema the alias');
+    assert.deepStrictEqual(pkg.bin, { lain: 'bin/lain.js' }, 'lain is the one command');
   });
 };

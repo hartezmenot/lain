@@ -44,7 +44,10 @@ async function tick(app, { force = false } = {}) {
   const key = `${status.state}:${ux.version}`;
   if (ux.label && st.told !== key) {
     st.told = key;
-    say(app, `${ux.label} — /update to install it${U().installRoot() ? '' : ' (with the LAIN installer)'}`);
+    // AUTOMATIC UPDATES OFF (or a checkout): said once, and nothing restarts by itself.
+    say(app, status.state === 'staged'
+      ? `${ux.label} — ${L().busy(app) ? '/update after-task (nothing running is stopped)' : '/update now'} · /update later`
+      : `${ux.label} — /update to install it${U().installRoot() ? '' : ' (with the LAIN installer)'}`);
     try { if (app.ui && app.ui.enabled) app.ui.refresh(); } catch { /* the header shows it next frame */ }
   }
   return status;
