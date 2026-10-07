@@ -1,6 +1,6 @@
 {
   "name": "lain",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "LAIN — an evidence-driven coding agent for the terminal and the desktop. The model decides; LAIN executes, observes, verifies and keeps the receipts.",
   "license": "MIT",
   "bin": {
